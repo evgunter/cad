@@ -131,25 +131,36 @@ impl core::fmt::Display for TooDeep {
     }
 }
 
-/// The first bracket that nests `body` past [`BODY_NESTING`], if one
-/// does. One flat walk ([`jsontext::tokens`]): brackets inside strings
-/// do not count, and malformed JSON is left to the reader.
-pub(crate) fn first_too_deep(body: &str) -> Option<TooDeep> {
+/// Each bracket that opens in `body`, with how many brackets enclose
+/// it there, itself included. One flat walk ([`jsontext::tokens`]):
+/// brackets inside strings do not count, and malformed JSON is left to
+/// the reader.
+fn opens(body: &str) -> impl Iterator<Item = (usize, jsontext::Token)> + '_ {
     let mut depth = 0usize;
-    for t in jsontext::tokens(body) {
-        match t.tok {
-            Tok::Open(_) => {
-                depth += 1;
-                if depth > BODY_NESTING {
-                    let (line, column) = jsontext::place(body, t.end);
-                    return Some(TooDeep { line, column });
-                }
-            }
-            Tok::Close(_) => depth = depth.saturating_sub(1),
-            _ => {}
+    jsontext::tokens(body).filter_map(move |t| match t.tok {
+        Tok::Open(_) => {
+            depth += 1;
+            Some((depth, t))
         }
-    }
-    None
+        Tok::Close(_) => {
+            depth = depth.saturating_sub(1);
+            None
+        }
+        Tok::Key | Tok::Str | Tok::Scalar | Tok::Comma | Tok::Colon => None,
+    })
+}
+
+/// The first bracket that nests `body` past [`BODY_NESTING`], if one
+/// does.
+pub(crate) fn first_too_deep(body: &str) -> Option<TooDeep> {
+    let (_, t) = opens(body).find(|(depth, _)| *depth > BODY_NESTING)?;
+    let (line, column) = jsontext::place(body, t.end);
+    Some(TooDeep { line, column })
+}
+
+/// How deep `body` nests, in brackets.
+pub(crate) fn deepest(body: &str) -> usize {
+    opens(body).map(|(depth, _)| depth).max().unwrap_or(0)
 }
 
 /// A body with the `path` array of every object that holds one

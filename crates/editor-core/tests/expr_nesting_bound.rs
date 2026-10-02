@@ -153,33 +153,6 @@ fn body(text: &str) -> &str {
     &text[text.find('{').expect("a saved body is an object")..]
 }
 
-/// How deep `body` nests, in JSON brackets outside strings.
-fn bracket_depth(body: &str) -> usize {
-    let (mut depth, mut deepest) = (0usize, 0usize);
-    let (mut in_string, mut escaped) = (false, false);
-    for byte in body.bytes() {
-        if in_string {
-            match byte {
-                _ if escaped => escaped = false,
-                b'\\' => escaped = true,
-                b'"' => in_string = false,
-                _ => {}
-            }
-            continue;
-        }
-        match byte {
-            b'"' => in_string = true,
-            b'[' | b'{' => {
-                depth += 1;
-                deepest = deepest.max(depth);
-            }
-            b']' | b'}' => depth -= 1,
-            _ => {}
-        }
-    }
-    deepest
-}
-
 /// `text` with the first extrude distance wrapped in `levels` more
 /// negations, spelled as the wire spells one, and the body line the
 /// distance's value opens on.
@@ -286,7 +259,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         // document, it loads back to the document it was.
         let mut deepest = 0;
         for (label, text) in both_saves(&r) {
-            deepest = deepest.max(bracket_depth(body(&text)));
+            deepest = deepest.max(editor_core::test_support::bracket_depth(body(&text)));
             let loaded = editor_core::persist::load(&text, Tol::witness())
                 .unwrap_or_else(|err| panic!("the {label} loads back: {err}"));
             assert_eq!(

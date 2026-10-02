@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 use serde::ser::{self, Serializer};
 
-use super::{MAX_NESTING, MetaError, MetaValue};
+use super::{MAX_NESTING, MAX_PRODUCER_NESTING, MetaError, MetaValue};
 
 /// Erases a producer value into the canonical [`MetaValue`] tree
 /// (spec D7's `to_value` boundary).
@@ -23,27 +23,53 @@ use super::{MAX_NESTING, MetaError, MetaValue};
 ///
 /// [`MetaError`] on out-of-`i64` integers, non-finite floats,
 /// non-string map keys, a value that would nest past
-/// [`MAX_NESTING`](super::MAX_NESTING) (refused before the producer is
-/// read any deeper), or a producer `Serialize` impl's own error.
+/// [`MAX_NESTING`](super::MAX_NESTING), a producer that nests past
+/// [`MAX_PRODUCER_NESTING`](super::MAX_PRODUCER_NESTING) however little
+/// of it the value keeps, or a producer `Serialize` impl's own error.
+/// Either depth is refused before the producer is read any deeper, so
+/// a producer of any depth, a self-referential one included, is read
+/// only that far.
 pub fn to_value<T: Serialize>(value: &T) -> Result<MetaValue, MetaError> {
-    value.serialize(ValueSer { level: 1 })
+    value.serialize(ValueSer { level: 1, read: 1 })
 }
 
-/// The serializer for a value at `level` of the tree, the root at 1.
+/// The serializer for a value at `level` of the tree, the root at 1,
+/// reached through `read` nested `serialize` calls, the root's
+/// included. An option or a newtype is read through without a level of
+/// its own, so `read` is never below `level`.
 #[derive(Clone, Copy)]
 struct ValueSer {
     level: usize,
+    read: usize,
 }
 
 impl ValueSer {
+    /// The serializer for a producer this one reads through, at the
+    /// same level, refused past [`MAX_PRODUCER_NESTING`] before it is
+    /// read.
+    fn through(self) -> Result<Self, MetaError> {
+        if self.read >= MAX_PRODUCER_NESTING {
+            return Err(MetaError::ProducerTooDeep {
+                bound: MAX_PRODUCER_NESTING,
+            });
+        }
+        Ok(Self {
+            read: self.read + 1,
+            ..self
+        })
+    }
+
     /// The serializer for a child of a value at this level, refused
-    /// past [`MAX_NESTING`] before the child is read.
+    /// past [`MAX_NESTING`] or [`MAX_PRODUCER_NESTING`] before the
+    /// child is read.
     fn child(self) -> Result<Self, MetaError> {
         if self.level >= MAX_NESTING {
             return Err(MetaError::NestedTooDeep { bound: MAX_NESTING });
         }
+        let through = self.through()?;
         Ok(Self {
             level: self.level + 1,
+            ..through
         })
     }
 }
@@ -125,7 +151,7 @@ impl Serializer for ValueSer {
         Ok(MetaValue::Null)
     }
     fn serialize_some<T: Serialize + ?Sized>(self, v: &T) -> Result<MetaValue, MetaError> {
-        v.serialize(self)
+        v.serialize(self.through()?)
     }
     fn serialize_unit(self) -> Result<MetaValue, MetaError> {
         Ok(MetaValue::Null)
@@ -146,7 +172,7 @@ impl Serializer for ValueSer {
         _name: &'static str,
         v: &T,
     ) -> Result<MetaValue, MetaError> {
-        v.serialize(self)
+        v.serialize(self.through()?)
     }
     fn serialize_newtype_variant<T: Serialize + ?Sized>(
         self,

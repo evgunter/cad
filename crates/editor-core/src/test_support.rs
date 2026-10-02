@@ -286,6 +286,13 @@ pub const BODY_NESTING: usize = crate::persist::nesting::BODY_NESTING;
 /// which [`BODY_NESTING`] covers (`tests/meta_nesting_bound.rs`).
 pub const META_BODY_NESTING: usize = crate::persist::nesting::META_BODY_NESTING;
 
+/// **How deep a saved `text` nests**, in JSON brackets outside strings:
+/// the load door's own scan, so a row measures a save as the door does.
+#[must_use]
+pub fn bracket_depth(text: &str) -> usize {
+    crate::persist::nesting::deepest(text)
+}
+
 // --- the mint's preimage --------------------------------------------
 
 /// **The node id an insert of `node` draws from an empty document's
