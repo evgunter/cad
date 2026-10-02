@@ -717,9 +717,12 @@ impl ViewerBehavior<'_> {
                                 self.push_labelled(MATE_NOUN, proposal.op());
                                 close = true;
                             }
+                            // Said from the document the panel's
+                            // line speaks, so a rename that has
+                            // not landed reads the same in both.
                             Err(error) => {
                                 self.notices.push(frame::tool_news(
-                                    ToolKind::Mate.says(&error),
+                                    ToolKind::Mate.says(&error.respoken(self.session.doc())),
                                     frame::Retold::Again,
                                 ));
                             }
@@ -2452,7 +2455,7 @@ mod layout_tests {
 mod tone_tests {
     use std::path::PathBuf;
 
-    use pncad::document::{DocumentId, RecipeNodeId};
+    use pncad::document::{DocumentId, HeldNodes, RecipeNodeId, SpokenNode};
     use pncad::prelude::SurfaceKind;
 
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -2538,6 +2541,7 @@ mod tone_tests {
     fn unresolved() -> FaceFrameFault {
         FaceFrameFault::Unresolved {
             error: InterrogateError::NoSuchName,
+            held: HeldNodes::default(),
         }
     }
 
@@ -2558,7 +2562,7 @@ mod tone_tests {
                 ui,
                 theme,
                 &FaceFrameFault::NotOneBody {
-                    at: RecipeNodeId(test_utils::refusal::tagged(4)),
+                    at: SpokenNode::absent(RecipeNodeId(test_utils::refusal::tagged(4))),
                 },
                 false,
             );

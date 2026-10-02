@@ -820,11 +820,37 @@ pub fn acts(op: &SessionOp) -> bool {
 /// `frame_status(&[], ops, refusal)`, which is the same answer and
 /// cannot be asked of a frame with news without weighing it.
 fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> RankedVerdict {
+    // A refusal on the line is a sentence made once; the next batch that
+    // acts retires it, so its labels stay fresh only while every op that
+    // changes a label answers `acts` true (`crates/viewer/README.md`).
     match (ops.iter().any(acts), refusal) {
         (_, Some(refusal)) => RankedVerdict::Show(refusal_message(refusal)),
         (true, None) => RankedVerdict::Clear,
         (false, None) => RankedVerdict::Keep,
     }
+}
+
+/// **The batch's refusal as the line will say it**: spoken again from
+/// `doc`, the committed document the batch leaves
+/// ([`Refusal::respoken`]), so a rename later in the same batch is the
+/// label it says — unless an op in the batch replaced the document
+/// (`Open`, `NewDocument`), whose ids say nothing about the refusal's,
+/// and then it stands as it was raised.
+#[must_use]
+pub fn batch_refusal(
+    refusal: Option<Refusal>,
+    ops: &[SessionOp],
+    doc: &Doc<ProfileProgram>,
+) -> Option<Refusal> {
+    let refusal = refusal?;
+    let replaced = ops
+        .iter()
+        .any(|op| matches!(op, SessionOp::Open(_) | SessionOp::NewDocument { .. }));
+    Some(if replaced {
+        refusal
+    } else {
+        refusal.respoken(doc)
+    })
 }
 
 /// **A [`Refusal`] as the line carries it** — the one place a refusal
@@ -2323,7 +2349,8 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 }
 
 /// **What the chrome badges about the landed product**, and `None`
-/// when there is nothing to say.
+/// when there is nothing to say. Its nodes are said as `doc` holds
+/// them: the landed document the gather was taken of.
 ///
 /// The gather's verdict is a READ: computed once when a pair lands,
 /// held by the session, and consulted by a reader deciding what to do
@@ -2337,7 +2364,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 /// and that tone's stated contract is that no MEANING rests on its
 /// colour — every badge using it says its own words, and the colour
 /// carries only salience. This badge satisfies it,
-/// because [`ProductError`]'s `Display` opens every arm with
+/// because [`ProductError`]'s sentence opens every arm with
 /// "product: ".
 ///
 /// It is **not** simply louder than the line it left, and the argument
@@ -2355,10 +2382,10 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 /// fault at all, are both `None` here, and the argument for each is
 /// there. What is left is what this channel is FOR — the
 /// gather-level faults no per-node badge can carry.
-pub fn product_badge(fault: Option<&ProductError>) -> Option<Badge> {
+pub fn product_badge(fault: Option<&ProductError>, doc: &Doc<ProfileProgram>) -> Option<Badge> {
     fault
         .filter(|fault| badge_site(fault.kind()) == BadgeSite::Frame)
-        .map(|fault| Badge::read(Subject::Document, fault.to_string(), Tone::Actionable))
+        .map(|fault| Badge::read(Subject::Document, fault.spoken(doc), Tone::Actionable))
 }
 
 /// **What the chrome badges about the scene the picture is drawn
@@ -2886,7 +2913,13 @@ mod tests {
     use super::*;
 
     use bvh::Aabb;
-    use pncad::document::{NodeStanding, RecipeNodeId};
+    use pncad::document::{NodeStanding, RecipeNodeId, SpokenNode};
+
+    /// A document holding no node, so every node a badge names is said
+    /// by its tag.
+    fn empty_doc() -> Doc<ProfileProgram> {
+        Doc::empty_derived("frame-tests", pncad::geom_core::Tol::witness())
+    }
     use pncad::prelude::{EntityKind, StableName};
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
@@ -3161,10 +3194,11 @@ mod tests {
                 path: Vec::new(),
             }),
         };
-        let badge = product_badge(Some(&collision)).expect("a naming collision badges");
+        let badge =
+            product_badge(Some(&collision), &empty_doc()).expect("a naming collision badges");
         assert_eq!(
             badge.label(),
-            collision.to_string(),
+            collision.spoken(&empty_doc()),
             "the fault renders itself"
         );
         assert_eq!(
@@ -3208,12 +3242,12 @@ mod tests {
                 "which channel reports it: {quiet}"
             );
             assert_eq!(
-                product_badge(Some(&quiet)),
+                product_badge(Some(&quiet), &empty_doc()),
                 None,
                 "another channel already carries this: {quiet}"
             );
         }
-        assert_eq!(product_badge(None), None);
+        assert_eq!(product_badge(None, &empty_doc()), None);
 
         // And the classes this channel is FOR, by name rather than by
         // the one sample above — the half of the policy a badge that
@@ -3335,10 +3369,18 @@ mod tests {
         Withdrawn {
             instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
             cause: AdmissionFault::MateConstrained {
-                instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
+                instance: crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(instance)),
+                    Some("InstantiatePart"),
+                ),
                 mates: mates
                     .iter()
-                    .map(|&mate| RecipeNodeId(test_utils::refusal::tagged(mate)))
+                    .map(|&mate| {
+                        crate::test_support::spoken(
+                            RecipeNodeId(test_utils::refusal::tagged(mate)),
+                            Some("Mate"),
+                        )
+                    })
                     .collect(),
             },
         }
@@ -3353,12 +3395,10 @@ mod tests {
         // line instead of to the notices is erased by its own cause.
         let notice = superseded_text(&[constrained(7, &[9])]).expect("a supersession is news");
         assert!(
-            notice.contains("instance 000000000007"),
-            "the notice names which of the user's placements went — here in \
-             the part-instance vocabulary, because the MateConstrained arm's \
-             subject is an instance. That is `AdmissionFault`'s per-arm rule \
-             and not a promise the notice makes across all of them; the \
-             absent-node arm says `node N` and is right to: {notice}"
+            notice.contains("InstantiatePart 000000000007"),
+            "the notice names which of the user's placements went, as the \
+             document speaks it — the absent-node arm says `node N` and is \
+             right to: {notice}"
         );
 
         let acting = [SessionOp::Undo];
@@ -3393,8 +3433,14 @@ mod tests {
         // sentence names the mates AND the remedy, and neither string
         // is written here — both come from `AdmissionFault`'s `Display`.
         let cause = AdmissionFault::MateConstrained {
-            instance: RecipeNodeId(test_utils::refusal::tagged(3)),
-            mates: vec![RecipeNodeId(test_utils::refusal::tagged(5))],
+            instance: crate::test_support::spoken(
+                RecipeNodeId(test_utils::refusal::tagged(3)),
+                Some("InstantiatePart"),
+            ),
+            mates: vec![crate::test_support::spoken(
+                RecipeNodeId(test_utils::refusal::tagged(5)),
+                Some("Mate"),
+            )],
         };
         let notice = superseded_text(&[constrained(3, &[5])]).expect("news");
         assert!(
@@ -3412,7 +3458,7 @@ mod tests {
         let gone = superseded_text(&[Withdrawn {
             instance: RecipeNodeId(test_utils::refusal::tagged(4)),
             cause: AdmissionFault::NoSuchNode {
-                node: RecipeNodeId(test_utils::refusal::tagged(4)),
+                node: SpokenNode::absent(RecipeNodeId(test_utils::refusal::tagged(4))),
             },
         }])
         .expect("news");
@@ -3432,9 +3478,18 @@ mod tests {
         let fused = Withdrawn {
             instance: RecipeNodeId(test_utils::refusal::tagged(3)),
             cause: AdmissionFault::FusedGeometry {
-                instance: RecipeNodeId(test_utils::refusal::tagged(3)),
-                root: RecipeNodeId(test_utils::refusal::tagged(8)),
-                others: vec![RecipeNodeId(test_utils::refusal::tagged(5))],
+                instance: crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(3)),
+                    Some("InstantiatePart"),
+                ),
+                root: crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(8)),
+                    Some("Union"),
+                ),
+                others: vec![crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(5)),
+                    Some("InstantiatePart"),
+                )],
             },
         };
         let notice = dropped_hide_text(core::slice::from_ref(&fused)).expect("news");
@@ -3482,15 +3537,24 @@ mod tests {
         let fused = |instance: u64, other: u64| Withdrawn {
             instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
             cause: AdmissionFault::FusedGeometry {
-                instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
-                root: RecipeNodeId(test_utils::refusal::tagged(8)),
-                others: vec![RecipeNodeId(test_utils::refusal::tagged(other))],
+                instance: crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(instance)),
+                    Some("InstantiatePart"),
+                ),
+                root: crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(8)),
+                    Some("Union"),
+                ),
+                others: vec![crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(other)),
+                    Some("InstantiatePart"),
+                )],
             },
         };
         let gone = Withdrawn {
             instance: RecipeNodeId(test_utils::refusal::tagged(4)),
             cause: AdmissionFault::NoSuchNode {
-                node: RecipeNodeId(test_utils::refusal::tagged(4)),
+                node: SpokenNode::absent(RecipeNodeId(test_utils::refusal::tagged(4))),
             },
         };
 
@@ -3534,9 +3598,9 @@ mod tests {
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             instance 000000000003 is mate-constrained (mate node(s) 000000000005): its pose is \
-             mate-derived, so the free-move probe refuses — delete the mate(s) if \
-             free relative motion is intended"
+             InstantiatePart 000000000003 is mate-constrained (Mate 000000000005): its pose \
+             is mate-derived, so the free-move probe refuses — delete the mate(s) if free \
+             relative motion is intended"
         );
 
         let two = [constrained(3, &[5]), constrained(11, &[5])];
