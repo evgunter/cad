@@ -108,10 +108,15 @@
 //!
 //! # The fixpoint sweep and lockstep discipline
 //!
-//! All pair records register up front; the sweep repeatedly executes
-//! the first valid match in deterministic scan order until quiescent
-//! (joins can unlock others — order sensitivity of a single greedy
-//! pass is real). Joins, retirements, and completions must occur in
+//! All pair records register up front, and [`section_segments`]
+//! matches them: it repeatedly takes the nearest valid match in
+//! deterministic scan order until quiescent (each match consumes its
+//! germs, which changes what is nearest for the rest). The criterion
+//! reads only record data — loci, senses, site points, section
+//! frames — none of which the surgery changes, so the segments are
+//! decided before any chord is minted, and the declared-REST zip
+//! ([`super::rest`]) reads the same list. The sweep then joins them in
+//! that order. Joins, retirements, and completions must occur in
 //! BOTH solids together; any divergence is the typed
 //! [`BooleanError::JoinDesync`] refusal, never a silent mis-join.
 //! There is no geometric sort and no section-area certification here:
@@ -163,13 +168,10 @@ pub struct CompletedPolygonPair {
 }
 
 /// Per-solid joining state: the shared chord core plus the F9 side
-/// data role resolution reads.
+/// data matching reads.
 struct SolidJoin {
     joiner: ChordJoiner,
-    /// IN-side end vertices (below ends), from the attributes.
-    in_set: SecondaryMap<VertexKey, ()>,
-    /// OUT-side end vertices (above ends).
-    out_set: SecondaryMap<VertexKey, ()>,
+    sides: Sides,
     /// Aux surfaces minted into THIS body for curved germ pairs (M5
     /// PR 9), keyed by the datum each one IS ([`AuxDatum`]) — one mint
     /// per datum, every chord that rides it shares it (the descriptions
@@ -272,18 +274,31 @@ impl SolidJoin {
 
 impl SolidJoin {
     fn new<T: Decide>(red: &BooleanReduction<T>, operand: Operand, band: Band) -> Self {
+        Self {
+            joiner: ChordJoiner::new(band),
+            sides: Sides::new(red, operand),
+            aux: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+/// One solid's F9 side data: the null edges' end vertices by side.
+struct Sides {
+    /// IN-side end vertices (below ends), from the attributes.
+    in_set: SecondaryMap<VertexKey, ()>,
+    /// OUT-side end vertices (above ends).
+    out_set: SecondaryMap<VertexKey, ()>,
+}
+
+impl Sides {
+    fn new<T: Decide>(red: &BooleanReduction<T>, operand: Operand) -> Self {
         let mut in_set = SecondaryMap::new();
         let mut out_set = SecondaryMap::new();
         for r in red.null_edges_of(operand) {
             in_set.insert(r.attr.below_end, ());
             out_set.insert(r.attr.above_end, ());
         }
-        Self {
-            joiner: ChordJoiner::new(band),
-            in_set,
-            out_set,
-            aux: std::collections::BTreeMap::new(),
-        }
+        Self { in_set, out_set }
     }
 
     /// The up/down sense of a null-edge half — `start ∈ in_set` ⇒ up
@@ -334,15 +349,102 @@ impl<T: geom_core::Real> OpenRecord<T> {
     }
 }
 
-/// A resolved match: record indices plus the germ slot per record —
-/// ONE slot each, consumed in BOTH solids (germ identity is shared
-/// data; per-solid slot freedom was the R2 desync soup).
+/// One section segment as the join's matching decides it: the one
+/// enumeration of "which segments exist and what each one is", read by
+/// the join's surgery ([`bool_connect`]) and the declared-REST zip
+/// ([`super::rest`]) alike.
 #[derive(Clone, Copy, Debug)]
-struct Match {
-    entry: usize,
-    cand: usize,
-    entry_slot: usize,
-    cand_slot: usize,
+pub(super) struct SectionSegment<T: geom_core::Real> {
+    /// The two ends, `(pair record, germ slot)`, entry end first. The
+    /// record indexes `red.null_pairs`; the slot is one spatial germ in
+    /// both operands' germ arrays, consumed in both (per-solid slot
+    /// freedom was the R2 desync soup).
+    pub ends: [Slot; 2],
+    /// The A germ at the entry end. Both ends carry its loci on both
+    /// operands ([`partners`]), so its loci are the segment's.
+    pub germ: HalfGerm<T>,
+    /// How the segment is built.
+    pub lane: SegmentLane,
+}
+
+/// One germ slot of one pair record: `(record, slot)`.
+pub(super) type Slot = (usize, usize);
+
+/// How a [`SectionSegment`] is built in each solid.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SegmentLane {
+    /// An edge of both solids: each solid's chord copies its own edge
+    /// and no section is read (the germ's two faces may share one
+    /// carrier).
+    AlongEdge,
+    /// A section of the germ's face pair, inside a face of at least one
+    /// solid.
+    Section,
+}
+
+/// Every pair record with its germs, none consumed, in `red.null_pairs`
+/// order.
+fn open_records<T: Decide>(red: &BooleanReduction<T>) -> Result<Vec<OpenRecord<T>>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    // Per-operand germ maps (edge keys are body-lineage-scoped — one
+    // map across both bodies would collide).
+    let mut a_by_edge: SecondaryMap<EdgeKey, [HalfGerm<T>; 2]> = SecondaryMap::new();
+    let mut b_by_edge: SecondaryMap<EdgeKey, [HalfGerm<T>; 2]> = SecondaryMap::new();
+    for r in &red.null_edges {
+        match r.operand {
+            Operand::A => a_by_edge.insert(r.edge, r.germs),
+            Operand::B => b_by_edge.insert(r.edge, r.germs),
+        };
+    }
+    red.null_pairs
+        .iter()
+        .map(|p| {
+            let a = *a_by_edge
+                .get(p.a_edge)
+                .ok_or(desync("pair A edge without a germ record"))?;
+            let b = *b_by_edge
+                .get(p.b_edge)
+                .ok_or(desync("pair B edge without a germ record"))?;
+            Ok(OpenRecord {
+                a_edge: p.a_edge,
+                b_edge: p.b_edge,
+                a: [(a[0], false), (a[1], false)],
+                b: [(b[0], false), (b[1], false)],
+            })
+        })
+        .collect()
+}
+
+/// **The section segments** (module docs): [`find_match`] to
+/// quiescence over the pair records, each match consuming its two germ
+/// slots in both solids. Germ slots no match consumed are the join's
+/// loose ends, so every germ is consumed exactly when there are as many
+/// segments as records. Reads the records and the annotated clones'
+/// site points; the surgery changes neither.
+pub(super) fn section_segments<T: Decide>(
+    red: &BooleanReduction<T>,
+    band: Band,
+) -> Result<Vec<SectionSegment<T>>, BooleanError> {
+    let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
+    let mut open = open_records(red)?;
+    let mut segments = Vec::new();
+    while let Some((entry, cand)) = find_match(&open, red, &sa, &sb, band)? {
+        let germ = open[entry.0].a[entry.1].0;
+        for (r, slot) in [entry, cand] {
+            open[r].a[slot].1 = true;
+            open[r].b[slot].1 = true;
+        }
+        let lane = match (germ.a_locus, germ.b_locus) {
+            (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => SegmentLane::AlongEdge,
+            _ => SegmentLane::Section,
+        };
+        segments.push(SectionSegment {
+            ends: [entry, cand],
+            germ,
+            lane,
+        });
+    }
+    Ok(segments)
 }
 
 /// `bool_connect`'s product: the completed pairs plus the per-operand
@@ -366,52 +468,20 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
+    let segments = section_segments(red, band)?;
     let mut sa = SolidJoin::new(red, Operand::A, band);
     let mut sb = SolidJoin::new(red, Operand::B, band);
     let mut completed: Vec<UnresolvedPair> = Vec::new();
+    let mut open = open_records(red)?;
 
-    // Register every pair record up front (germ facings from the
-    // insertion records).
-    // Per-operand germ maps (edge keys are body-lineage-scoped — one
-    // map across both bodies would collide).
-    let mut a_by_edge: SecondaryMap<EdgeKey, [HalfGerm<T>; 2]> = SecondaryMap::new();
-    let mut b_by_edge: SecondaryMap<EdgeKey, [HalfGerm<T>; 2]> = SecondaryMap::new();
-    for r in &red.null_edges {
-        match r.operand {
-            Operand::A => a_by_edge.insert(r.edge, r.germs),
-            Operand::B => b_by_edge.insert(r.edge, r.germs),
-        };
-    }
-    let mut open: Vec<OpenRecord<T>> = Vec::new();
-    for p in &red.null_pairs {
-        let a = *a_by_edge
-            .get(p.a_edge)
-            .ok_or(desync("pair A edge without a germ record"))?;
-        let b = *b_by_edge
-            .get(p.b_edge)
-            .ok_or(desync("pair B edge without a germ record"))?;
-        open.push(OpenRecord {
-            a_edge: p.a_edge,
-            b_edge: p.b_edge,
-            a: [(a[0], false), (a[1], false)],
-            b: [(b[0], false), (b[1], false)],
-        });
-    }
-
-    // Fixpoint (module docs).
-    while let Some(m) = find_match(&open, red, &sa, &sb, band)? {
-        let (ea, ra) = (
-            open[m.entry].a[m.entry_slot].0.he,
-            open[m.cand].a[m.cand_slot].0.he,
-        );
-        let (eb, rb) = (
-            open[m.entry].b[m.entry_slot].0.he,
-            open[m.cand].b[m.cand_slot].0.he,
-        );
+    for seg in &segments {
+        let [(entry, entry_slot), (cand, cand_slot)] = seg.ends;
+        let (ea, ra) = (open[entry].a[entry_slot].0.he, open[cand].a[cand_slot].0.he);
+        let (eb, rb) = (open[entry].b[entry_slot].0.he, open[cand].b[cand_slot].0.he);
         // Still-loose halves (choose_roles' separation constraint —
         // a role order must not wall a pending half off from its match
         // partner). The chosen halves themselves are being consumed.
-        let (mut a_loose, mut b_loose) = loose_partners(&open, red, &sa, &sb, band)?;
+        let (mut a_loose, mut b_loose) = loose_partners(&open, red, &sa.sides, &sb.sides, band)?;
         a_loose.remove(ea);
         a_loose.remove(ra);
         b_loose.remove(eb);
@@ -435,7 +505,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // wall-side lane on both sides against its radical plane; any
         // other pair refuses typed citing its C5 routing (per-arm,
         // C12.1).
-        let germ = open[m.entry].a[m.entry_slot].0;
+        let germ = seg.germ;
         let surf_of =
             |body: &Body<T>,
              f: FaceKey|
@@ -476,14 +546,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         let (seg_a, seg_b) = (segment(germ.a_locus), segment(germ.b_locus));
         use crate::chord_join::{JoinLane, face_azimuth_window};
         use geom::Surface as Sf;
-        // A segment along an edge of both solids is that edge in both:
-        // each solid's chord copies its own edge and no section is read
-        // (the germ's two faces may share one carrier).
-        let along_both = matches!(
-            (germ.a_locus, germ.b_locus),
-            (super::Locus::OnEdge(_), super::Locus::OnEdge(_))
-        );
-        if along_both {
+        if seg.lane == SegmentLane::AlongEdge {
             sa.joiner
                 .join(&mut red.a, a1, a2, JoinLane::AlongEdge, seg_a, tol)
                 .map_err(BooleanError::Join)?;
@@ -605,19 +668,18 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         }
-        open[m.entry].a[m.entry_slot].1 = true;
-        open[m.entry].b[m.entry_slot].1 = true;
-        open[m.cand].a[m.cand_slot].1 = true;
-        open[m.cand].b[m.cand_slot].1 = true;
-        // Retire fully-used records (higher index first: removal must
-        // not shift the other's index).
-        let mut done: Vec<usize> = [m.entry, m.cand]
+        for (r, slot) in seg.ends {
+            open[r].a[slot].1 = true;
+            open[r].b[slot].1 = true;
+        }
+        // Cut fully-used records, higher index first.
+        let mut done: Vec<usize> = [entry, cand]
             .into_iter()
             .filter(|&i| open[i].fully_used())
             .collect();
         done.sort_unstable_by(|x, y| y.cmp(x));
         for i in done {
-            let r = open.remove(i);
+            let r = open[i];
             cut_pair(red, &mut sa, &mut sb, &mut completed, r.a_edge, r.b_edge)?;
         }
     }
@@ -715,17 +777,17 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
 fn find_match<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
-    sa: &SolidJoin,
-    sb: &SolidJoin,
+    sa: &Sides,
+    sb: &Sides,
     band: Band,
-) -> Result<Option<Match>, BooleanError> {
+) -> Result<Option<(Slot, Slot)>, BooleanError> {
     // Unused germ slots of one record side (half tied to germ slot —
     // the mint facing is honest data for every lane, struts included).
     fn slots<T: geom_core::Real>(side: &[(HalfGerm<T>, bool); 2]) -> Vec<usize> {
         (0..2).filter(|&g| !side[g].1).collect()
     }
     let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
-    let mut best: Option<(T, Match)> = None;
+    let mut best: Option<(T, (Slot, Slot))> = None;
     for (cand, rec) in open.iter().enumerate() {
         for (entry, e) in open.iter().enumerate() {
             if entry == cand {
@@ -737,12 +799,7 @@ fn find_match<T: Decide>(
                     else {
                         continue;
                     };
-                    let m = Match {
-                        entry,
-                        cand,
-                        entry_slot: es,
-                        cand_slot: cs,
-                    };
+                    let m = ((entry, es), (cand, cs));
                     best = match best {
                         None => Some((dist, m)),
                         Some((bd, bm)) => {
@@ -774,8 +831,8 @@ fn find_match<T: Decide>(
 fn partners<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
-    sa: &SolidJoin,
-    sb: &SolidJoin,
+    sa: &Sides,
+    sb: &Sides,
     (cand, cs): (usize, usize),
     (entry, es): (usize, usize),
     band: Band,
@@ -1473,8 +1530,8 @@ type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 fn loose_partners<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
-    sa: &SolidJoin,
-    sb: &SolidJoin,
+    sa: &Sides,
+    sb: &Sides,
     band: Band,
 ) -> Result<(LooseMap, LooseMap), BooleanError> {
     let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
