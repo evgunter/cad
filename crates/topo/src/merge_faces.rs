@@ -1181,6 +1181,7 @@ impl OpPlacement {
             | E::NotOwned { .. }
             | E::Certification { .. }
             | E::RebasedCarrier { .. }
+            | E::NurbsLaneUnsupported { .. }
             | E::RebasedNullEdge { .. }
             | E::MergeRebasesCarriers { .. }
             | E::NotMergedMember { .. }
@@ -2255,7 +2256,10 @@ impl<T: Decide> Body<T> {
         rest: &[FaceKey],
         kind: MergeKind,
         tol: Tol,
-    ) -> Result<MergedGroup, MergeCoplanarError> {
+    ) -> Result<MergedGroup, MergeCoplanarError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         debug_assert!(
             kind != MergeKind::Placeholder && self.merge_kind(rep).ok().is_none_or(|k| k == kind),
             "merge_group: the survivor's kind is the contract's ({kind:?})"

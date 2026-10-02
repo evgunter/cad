@@ -147,12 +147,6 @@ runs:
         rendered="$(git rev-parse HEAD)"
         default_branch="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .default_branch)"
 
-        # The rendered cells are in the working tree, and the retry
-        # below resets the tree to the remote — so stash them somewhere
-        # the reset cannot reach first.
-        staged="$(mktemp -d)"
-        cp -a "$DIR/." "$staged/"
-
         git config user.name  "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -182,19 +176,35 @@ runs:
                 exit 1 ;;
             esac
           fi
-          git reset --hard "origin/$PUSH_TO"
-          mkdir -p "$DIR"
-          cp -a "$staged/." "$DIR/"
-          git add -A -- "$DIR/"
-          if git diff --cached --quiet; then
+          # COMMIT IN A SCRATCH WORKTREE, never in the job's checkout. The
+          # kernel and freecad lanes render into ONE checkout and re-baseline
+          # one after the other; a reset here would discard the next lane's
+          # rendered cells before its drift check reads them, and it would
+          # report "matches" over a stale lane (only cells new to the branch,
+          # being untracked, survived a reset).
+          wt="$(mktemp -d)"
+          git worktree add --quiet --detach "$wt" "origin/$PUSH_TO"
+          mkdir -p "$wt/$DIR"
+          cp -a "$DIR/." "$wt/$DIR/"
+          git -C "$wt" add -A -- "$DIR/"
+          if git -C "$wt" diff --cached --quiet; then
+            git worktree remove --force "$wt"
             echo "$DIR already current on $PUSH_TO (another run landed it)."
             exit 0
           fi
-          git commit -m "render($LANE): re-baseline committed cells"
-          if git push origin "HEAD:$PUSH_TO"; then
-            pushed="$(git rev-parse HEAD)"
+          # [skip ci]: the tree this commit changes from was gated by the
+          # CI run of the commit that asked for the render, which ran
+          # alongside it; only rendered cells differ, so the head merges
+          # on that gate (memories/orchestration-model.md). Without the
+          # tag the push starts a pull_request run of its own, which GitHub
+          # holds as `action_required` for a bot actor.
+          git -C "$wt" commit -m "render($LANE): re-baseline committed cells [skip ci]"
+          if git -C "$wt" push origin "HEAD:$PUSH_TO"; then
+            pushed="$(git -C "$wt" rev-parse HEAD)"
+            git worktree remove --force "$wt"
             break
           fi
+          git worktree remove --force "$wt"
           echo "push rejected ($PUSH_TO moved); retry ${attempt}"
           sleep $((attempt * 4))
         done

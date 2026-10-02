@@ -91,7 +91,7 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
 /// [`RevolveError::SmoothJoinRefuted`]; Indeterminate is the typed
 /// error built by `sliver`, at the first-order classification and at
 /// the rule alike.
-pub(super) fn upgrade_intersection<T: Decide>(
+pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     s1: SurfaceKey,
@@ -199,7 +199,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
 /// a non-periodic chart, and one surface on both sides determines no
 /// locus, so D2's conventional split applies). Carrier and interval
 /// kept verbatim either way.
-pub(super) fn upgrade_meridian_seam<T: Decide>(
+pub(super) fn upgrade_meridian_seam<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,

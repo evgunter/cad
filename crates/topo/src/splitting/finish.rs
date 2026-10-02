@@ -36,9 +36,9 @@
 //! knowledge, Program 14.12) — mixed above/below section faces in one
 //! shell is a typed kernel-bug error; a shell with NO section face
 //! (an uncut component) falls back to its first vertex's cached side.
-//! A shell consisting **only** of section faces bounds no volume —
-//! the second half of the one-sided-tangency net (the join's
-//! zero-area check is the first) — and is refused typed
+//! A shell consisting **only** of section faces bounds no volume. The
+//! join's zero-area check refuses every section that could make one, so
+//! such a shell is a kernel defect, refused loudly
 //! ([`SplitFinishError::DegenerateSide`]).
 //!
 //! # Coplanar artifacts (documented, F7)
@@ -149,9 +149,10 @@ pub enum SplitFinishError {
         /// How many solids the operand holds.
         count: usize,
     },
-    /// A component consists only of section faces — it bounds no
-    /// volume (the one-sided tangency residue): no degenerate body is
-    /// ever emitted.
+    /// A component consists only of section faces, so it bounds no
+    /// volume (kernel bug, loudly: the join's area certificate refuses
+    /// every zero-area section before the finish runs). No degenerate
+    /// body is ever emitted.
     DegenerateSide {
         /// The offending shell (in the discarded scratch body).
         shell: ShellKey,
@@ -252,9 +253,8 @@ impl core::fmt::Display for SplitFinishError {
             ),
             Self::DegenerateSide { side, .. } => write!(
                 f,
-                "the piece on the {} side of the plane bounds no volume (the residue of a \
-                 one-sided tangency: only section faces). Recourse: move the split plane \
-                 off the tangency",
+                "the piece on the {} side of the plane bounds no volume: it holds only \
+                 section faces (kernel bug)",
                 side.word()
             ),
             Self::TornComponent { shell } => write!(
@@ -330,7 +330,7 @@ impl std::error::Error for SplitFinishError {}
 ///
 /// [`SplitFinishError`]; the scratch body is discarded on `Err` (the
 /// operand was never touched).
-pub(super) fn split_finish<T: Decide>(
+pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     red: SplitReduction<T>,
     completed: &[CompletedSection],
     face_fragments: Vec<(FaceKey, FaceKey)>,
@@ -544,7 +544,7 @@ pub(super) fn split_finish<T: Decide>(
 ///
 /// [`SplitFinishError::NestingContradiction`]; [`SplitFinishError::Euler`]
 /// and [`SplitFinishError::Corrupt`] from the surgery.
-fn nest_hole_sections<T: Decide>(
+fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     section_side: &mut SecondaryMap<FaceKey, PlaneSide>,
     naming: &mut SplitNaming,
@@ -692,7 +692,7 @@ fn section_plane_restatements<T: Decide>(
 /// opposed is a wedge end nothing declared and refuses
 /// ([`SplitFinishError::SectionCusp`]).
 /// Escalations are typed ([`SplitFinishError::DescribeEscalated`]).
-fn describe_section_boundary<T: Decide>(
+fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     band: geom_core::Band,

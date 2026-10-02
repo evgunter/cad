@@ -73,8 +73,8 @@ edit one scene file never run at once.
   on the PR when the diff touches `demos/tour`; renders do not. A unit
   that moves frames pushes a commit whose subject line contains `[render]`
   (agents cannot dispatch `render.yml` themselves: the integration
-  answers 403), waits for the render run and the CI run it re-starts,
-  pulls the committed cells, and LOOKS at them before the PR is merged;
+  answers 403), waits for the render run and that commit's CI, which
+  run side by side, pulls the committed cells, and LOOKS at them before the PR is merged;
   the PR body says what moved and why.
 - **README**: each unit rewrites its own stops-table row in
   `demos/README.md` and nothing else there, so concurrent lanes merge

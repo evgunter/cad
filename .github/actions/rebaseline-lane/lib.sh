@@ -1,4 +1,4 @@
-# Shared by this action and render.yml's `ci-on-new-head`, which source it.
+# Shared by this action and render.yml's `render-head`, which source it.
 # Both need GH_TOKEN and GITHUB_REPOSITORY in the environment.
 # shellcheck shell=bash
 

@@ -2,10 +2,11 @@
 id: descendant-chase-spends-its-budget-into-a-dropped-contact-record
 kind: issue
 title: KeyView's live_vertex/live_face answer None on a spent budget, so a cycling fusion row drops a declared contact instead of refusing
-status: open
+status: dispatched
 opened: 2026-09-13
 priority: P1
 cost: H
+branch: fuse/descendant-chase
 ---
 
 
