@@ -15,12 +15,14 @@
 
 use std::collections::BTreeSet;
 
+use crate::common::bead::bead;
 use geom_core::Tol;
+use profile::SketchPlane;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{arcs_at, dome, lantern, sphere_zone, waisted};
 use topo::query::rim_of;
-use topo::{Body, EdgeKey, RimError, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, RimBreak, RimError, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -136,14 +138,14 @@ fn a_one_edge_rim_is_the_seed_alone() {
     assert_eq!(rim_of(&body, equator[0]).unwrap(), equator);
 }
 
-/// **A partial revolve's rim refuses `NotOneRim`, and the gap is at the
-/// wedge's end.** The honest open-rim instance: the arcs are real, they
-/// are on one circle between one pair of surfaces, and they do not tile
-/// it. The refusal names them and the parameter the walk stopped at —
-/// a quarter turn, which is exactly where this wedge ends — instead of
-/// handing back a partial set a fillet request would then stall on.
+/// **A partial revolve's rim refuses `NotOneRim`, naming a wedge end.**
+/// The honest open-rim instance: the arc is real and it does not close.
+/// The refusal names the vertex the walk stopped at — the wedge's end on
+/// the seam plane, which is where the lower surface's half-edge runs —
+/// instead of handing back a partial set a fillet request would then
+/// stall on.
 #[test]
-fn a_partial_revolves_open_rim_refuses_naming_the_gap_at_the_wedge_end() {
+fn a_partial_revolves_open_rim_refuses_naming_a_wedge_end() {
     let quarter = sphere_zone(
         0.5,
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
@@ -159,11 +161,17 @@ fn a_partial_revolves_open_rim_refuses_naming_the_gap_at_the_wedge_end() {
     );
     assert_ne!(start, end, "a wedge's rim does not close on itself");
     match rim_of(&quarter, arcs[0]) {
-        Err(RimError::NotOneRim { arcs: matched, gap }) => {
-            assert_eq!(matched, arcs, "the refusal names every arc that matched");
+        Err(RimError::NotOneRim { walked, at, how }) => {
+            assert_eq!(walked, arcs, "the walk got no further than the seed");
+            assert_eq!(how, RimBreak::Dangles, "the chain ends there");
             assert!(
-                (gap.abs() - core::f64::consts::FRAC_PI_2).abs() < 1e-9,
-                "the tiling fails a quarter turn from the seam, got {gap}"
+                at == start || at == end,
+                "it stops at one of the arc's ends"
+            );
+            let p = topo::readback::vertex_point(&quarter, at).unwrap();
+            assert!(
+                p.z.atan2(p.x).abs() < 1e-9,
+                "the chain dangles at the wedge's end on the seam plane, at {p:?}"
             );
         }
         other => panic!("an open rim is not one rim, got {other:?}"),
@@ -216,4 +224,51 @@ fn the_doors_answer_feeds_fillet_edges_and_carves_on_either_side() {
             assert!(after > before, "{name}: a concave band adds material");
         }
     }
+}
+
+/// **Two rims on one surface pair: each seed answers its own.** The
+/// drilled bead's two faces are one bore cylinder and one sphere zone,
+/// and both of its rims lie between those two surface keys. The door
+/// walks the chain through the seed, so each rim is answered alone and
+/// the other is not a refusal.
+#[test]
+fn the_drilled_beads_two_rims_on_one_surface_pair_answer_separately() {
+    let body = bead(SketchPlane::xy(), 1.0, 0.5, Revolution::Full);
+    let sides = |k: EdgeKey| {
+        let e = body.get_edge(k).unwrap();
+        let s = |he| {
+            let l = body.get_half_edge(he).unwrap().parent_loop;
+            body.get_face(body.get_loop(l).unwrap().face)
+                .unwrap()
+                .surface
+        };
+        let (a, b) = (s(e.he_plus), s(e.he_minus));
+        (a.min(b), a.max(b))
+    };
+    let rim_edges: Vec<EdgeKey> = body
+        .edges()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            let (a, b) = sides(k);
+            a != b
+        })
+        .collect();
+    let pairs: BTreeSet<_> = rim_edges.iter().map(|&k| sides(k)).collect();
+    assert_eq!(pairs.len(), 1, "every rim edge lies on one surface pair");
+
+    let mut rims: BTreeSet<Vec<EdgeKey>> = BTreeSet::new();
+    for &seed in &rim_edges {
+        let rim = rim_of(&body, seed).unwrap_or_else(|e| panic!("{seed:?}: one rim, got {e}"));
+        assert_eq!(rim[0], seed, "the seed comes first");
+        let mut key = rim;
+        key.sort();
+        rims.insert(key);
+    }
+    assert_eq!(rims.len(), 2, "two rims on the one pair: {rims:?}");
+    let covered: BTreeSet<EdgeKey> = rims.iter().flatten().copied().collect();
+    assert_eq!(
+        covered.len(),
+        rim_edges.len(),
+        "the two rims are disjoint and cover every rim edge"
+    );
 }

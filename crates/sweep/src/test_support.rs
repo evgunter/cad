@@ -1988,51 +1988,48 @@ fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<(Point2<f64>, f64)> {
         .collect()
 }
 
-/// **Every arc whose stored carrier is a circle centred at station
-/// `z`**, in key order — the raw scan, seeded through no rim door.
+/// **The rim at station `z`** of the extruded fixtures above: the
+/// first arc (key order) whose stored carrier is a circle centred at
+/// `z` seeds [`topo::query::rim_of`], and the door hands back the rim
+/// whole, in its own order.
 ///
-/// The z-poled twin of [`arcs_at`]'s scan, for the extruded fixtures
-/// above — the fifth z-poled scan in the tree, and the instance
+/// The z-poled twin of [`rim_arcs_at`]'s seed scan — the fifth z-poled
+/// scan in the tree, and the instance
 /// `work/blend/seed-finder-home-reads-only-the-y-station` records
-/// against the day the home reads a station on either axis. It is
-/// station-only where [`arcs_at`] also filters by radius and excludes
-/// co-surface circles, and that is right for THESE fixtures rather
-/// than in general: each builder above mints one circle per station
-/// (the seams it leaves are lines, so no co-surface circle exists),
-/// which the scan checks by requiring every arc it finds to share one
-/// carrier radius — two rims at one station are then a loud fixture
-/// bug rather than a silent union.
-///
-/// Deliberately NOT routed through [`topo::query::rim_of`]: that door
-/// matches arcs by bit-identical carrier circles, and `extrude` stores
-/// each arc of one authored circle on its own centre and radius, so it
-/// refuses every rim these builders mint
-/// (`work/blend/rim-of-refuses-extruded-multi-arc-rims`).
+/// against the day the home reads a station on either axis. Each
+/// builder above mints one circle per station (the seams it leaves are
+/// lines, so no co-surface circle exists), which this checks by
+/// requiring the rim to be every circle arc at `z` — two rims at one
+/// station are then a loud fixture bug rather than a silent half.
 ///
 /// # Panics
 ///
-/// If the arcs at `z` do not share one radius (within `1e-9`).
+/// If the door refuses the seed, or the rim is not every circle arc
+/// at `z`. A station no arc sits at is an empty answer.
 #[must_use]
 pub fn circle_arcs_at_z(body: &Body<f64>, z: f64) -> Vec<EdgeKey> {
-    let found: Vec<(EdgeKey, f64)> = body
+    let found: Vec<EdgeKey> = body
         .edges()
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match c.carrier() {
-                geom::Curve3::Circle { center, radius, .. } if (center.z - z).abs() < 1e-9 => {
-                    Some((k, *radius))
-                }
+                geom::Curve3::Circle { center, .. } if (center.z - z).abs() < 1e-9 => Some(k),
                 _ => None,
             }
         })
         .collect();
-    if let Some(&(_, r0)) = found.first() {
-        assert!(
-            found.iter().all(|(_, r)| (r - r0).abs() < 1e-9),
-            "one rim at station z = {z}: the arcs there do not share one radius"
-        );
-    }
-    found.into_iter().map(|(k, _)| k).collect()
+    let Some(&seed) = found.first() else {
+        return Vec::new();
+    };
+    let rim = topo::query::rim_of(body, seed)
+        .unwrap_or_else(|e| panic!("the rim at station z = {z} is one rim, got {e}"));
+    let mut sorted = rim.clone();
+    sorted.sort();
+    assert_eq!(
+        sorted, found,
+        "one rim at station z = {z}: it is every circle arc there"
+    );
+    rim
 }
 
 /// **A full revolve's rim is the two arcs its one seam splits it

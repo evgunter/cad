@@ -669,7 +669,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // identity, like `readback`'s.
 pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
 pub use query::{
-    ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimError,
+    ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError,
     SEL_DATUM_DISTANCE, SurfaceKindSet,
 };
 pub use readback::{DanglingRef, EulerCounts, EulerParityError, Pose, ReadbackError};

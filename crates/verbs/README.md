@@ -108,12 +108,14 @@ layer whose types it serves (`topo/src/query.rs`):
   ask it, including the ones below this one.
 - **`rim_of(&Body<T>, EdgeKey) -> Result<Vec<EdgeKey>, RimError>`** is a
   fourth EXACT door: the rim an arc belongs to, whole
-  (built by FILLET-RIM, PR 1821). It reads stored tags
-  and stored carrier fields bit for bit, no funnel and no margin — but it
-  returns a SET, so it refuses typed at every point a predicate would
-  answer NO: an empty set and a partial set are both answers a caller
-  would act on, and a rim handed back short is a fillet request that
-  stalls at a seam vertex. It adds no vocabulary beyond `RimError`.
+  (built by FILLET-RIM, PR 1821). It reads the seed carrier's tag and
+  then only keys — the edges between the seed's two surface keys,
+  chained through shared vertex keys — with no carrier value compared,
+  no funnel and no margin; but it returns a SET, so it refuses typed at
+  every point a predicate would answer NO: an empty set and a partial
+  set are both answers a caller would act on, and a rim handed back
+  short is a fillet request that stalls at a seam vertex. It adds no
+  vocabulary beyond `RimError` and its `RimBreak` payload.
 
 **S2 — `select_where` is a wrapper.** `editor-core`'s `geompred` keeps
 everything name-flavored — the `GeomPred` atom vocabulary whose datum is

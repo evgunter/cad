@@ -1016,4 +1016,23 @@ mod tests {
         );
         assert_eq!(crate::query::edge_carrier_kind(&body, edge), None);
     }
+
+    /// **The rim door names the same torn curve key as an intactness
+    /// fault**, not as a seed with no carrier: a null scaffold and a
+    /// dangling geometry reference are different facts, and
+    /// `RimError::NotIntact` carries the reference that did not
+    /// resolve.
+    #[test]
+    fn the_rim_door_refuses_a_torn_curve_key_as_not_intact() {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let edge = body.edges().next().expect("a cube has edges").0;
+        let torn = CurveKey::default();
+        body.get_edge_mut(edge).expect("a live edge").curve = torn;
+        assert_eq!(
+            crate::query::rim_of(&body, edge),
+            Err(crate::query::RimError::NotIntact(DanglingRef::Geometry(
+                GeomRef::Curve(torn)
+            )))
+        );
+    }
 }
