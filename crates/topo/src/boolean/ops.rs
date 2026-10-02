@@ -85,17 +85,16 @@
 //!   non-star patch adjacency); and boundary-on-boundary
 //!   configurations that are not pure REST contacts (the original
 //!   `Join(UnpairedLooseEnds)` surfaces verbatim).
-//! - **Reflex-corner vertex–vertex sites under a tilted cap**: where a
-//!   vertex of the other operand coincides with a 315° reflex corner
-//!   and the caps meet at a tilt, the op can refuse
-//!   (`SeamOrientation`, `JoinDesync`, `Join(UnpairedLooseEnds)`;
-//!   `work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`).
-//!   The cause is unmeasured. The angular strut spike order
-//!   (`bool_strut_order`) is forced only on sectors of width W ≤ π, so
-//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in an
-//!   unforced window, but no refusal has been traced to it. The
-//!   vertex-on-face form of the same corner (the corner piercing a
-//!   cap's interior) is a whole-orbit pierce run and answers exactly.
+//! - **Four-germ vertex–vertex sites**: where a vertex of the other
+//!   operand coincides with a 315° reflex corner and its wall lies
+//!   flush on the corner's notch wall under a tilted cap, the vertex
+//!   pair keeps four crossing germs, and `insert` runs each pair's null
+//!   edge in B in A's germ order rather than B's: the B runs overlap and
+//!   the op refuses (`Euler(FanStartMismatch)`, `JoinDesync`;
+//!   `work/join/four-germ-vertex-pairs-run-b-in-a-order`). One such
+//!   union is not refused: the declared-REST zip answers it after the
+//!   join's refusal, with a wrong volume
+//!   (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-volume`).
 
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 

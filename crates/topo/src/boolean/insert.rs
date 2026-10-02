@@ -268,26 +268,14 @@ fn mint_directed<T: Decide>(
     let spike_from_first = if let Some(first) = structural {
         first
     } else if empty {
-        let e_dir = anchor_dir(body, sectors[gf.0].he)?;
-        // Metered at the shorter sector arm: the germ directions and
-        // `e_dir` are all unit, so the bare dot difference was a
-        // DIMENSIONLESS comparand against the length band
-        // (rim-dimensional audit, class (c)); × arm makes it the
-        // displacement the facing difference induces at the sectors'
-        // own bounding-chord scale.
-        let arm = sectors[gf.0].arm.min(sectors[gt.0].arm);
-        let m = Margin::levered((gf.3 - gt.3).dot(e_dir), arm);
-        match crate::validate::decide("bool_strut_order", m, band) {
-            Ok(Sign::Positive) => true,
-            Ok(_) => false,
-            Err(diag) => {
-                return Err(BooleanError::coincidence(
-                    Coincide::Sectors,
-                    DeclarationRead::Moot,
-                    diag,
-                ));
-            }
-        }
+        let s = &sectors[gf.0];
+        strut_order(
+            anchor_dir(body, s.he)?,
+            s.normal.vec(),
+            (gf.3, gt.3),
+            s.arm.min(sectors[gt.0].arm),
+            band,
+        )?
     } else {
         false
     };
@@ -365,6 +353,47 @@ pub(super) fn strut_facing(
         });
     }
     Ok(Some(facing))
+}
+
+/// **Whether the strut half met first faces the first germ**: whether
+/// `germs.0` lies angularly closer than `germs.1` to the splice
+/// corner's arrival edge `e_dir`, measured inside the sector — which
+/// sweeps from its end bound (the arrival edge) clockwise about its
+/// face's outward `normal`. A cosine orders two angles from `e_dir`
+/// only within one half-turn, and a reflex sector reaches past it, so
+/// each germ is first placed in the half-turn it lies in: the near one
+/// (angle in `[0, π)`, `(g × e)·n > 0`, or `g` along `e`) or the far one
+/// (`[π, 2π)`). A germ in the near half-turn is the closer; within the
+/// near one the larger cosine is, within the far one the smaller.
+///
+/// Every comparand is a displacement levered at `arm`, the shorter of
+/// the two sectors' bounding chords.
+fn strut_order<T: Decide>(
+    e_dir: Vec3<T>,
+    normal: Vec3<T>,
+    germs: (Vec3<T>, Vec3<T>),
+    arm: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+    let far = |g: Vec3<T>| -> Result<bool, BooleanError> {
+        let side = Margin::levered(g.cross(e_dir).dot(normal), arm);
+        match crate::validate::decide("bool_strut_order", side, band).map_err(refuse)? {
+            Sign::Positive => Ok(false),
+            Sign::Negative => Ok(true),
+            Sign::Zero => Ok(!super::sectors::direction_sense(g, e_dir, arm, band)?),
+        }
+    };
+    let (far0, far1) = (far(germs.0)?, far(germs.1)?);
+    if far0 != far1 {
+        return Ok(far1);
+    }
+    let m = Margin::levered((germs.0 - germs.1).dot(e_dir), arm);
+    match crate::validate::decide("bool_strut_order", m, band).map_err(refuse)? {
+        Sign::Positive => Ok(!far0),
+        Sign::Negative => Ok(far0),
+        Sign::Zero => Ok(false),
+    }
 }
 
 /// The unit direction of an orbit half-edge away from its start
@@ -930,5 +959,41 @@ mod tests {
             "{err:?}"
         );
         assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{err}");
+    }
+
+    /// The strut order ranks two germs by their angle from the arrival
+    /// edge inside the sector, past a half-turn too. The sector sweeps
+    /// from the arrival edge `+x` clockwise about `+z`, so `-y` lies 90°
+    /// in, `-x` 180° and `+y` 270°. Each row's answer is whether the
+    /// first germ is the nearer; a cosine alone answers the far row the
+    /// other way round.
+    #[test]
+    fn the_strut_order_reads_angles_past_a_half_turn() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let at = |deg: f64| {
+            let t = -deg.to_radians();
+            Vec3::new(t.cos(), t.sin(), 0.0)
+        };
+        for (g0, g1, first_nearer, row) in [
+            (45.0, 90.0, true, "both in the near half-turn"),
+            (90.0, 45.0, false, "both in the near half-turn, swapped"),
+            (90.0, 270.0, true, "one in each half-turn"),
+            (270.0, 90.0, false, "one in each half-turn, swapped"),
+            (
+                180.0,
+                270.0,
+                true,
+                "both in the far half-turn, one on its bound",
+            ),
+            (270.0, 180.0, false, "both in the far half-turn, swapped"),
+            (300.0, 225.0, false, "both strictly in the far half-turn"),
+        ] {
+            assert_eq!(
+                strut_order(e, n, (at(g0), at(g1)), 1.0, band).unwrap(),
+                first_nearer,
+                "{row}: germs at {g0}° and {g1}°"
+            );
+        }
     }
 }

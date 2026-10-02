@@ -78,11 +78,9 @@
 //!    (struts included — their facing swap swaps the labels with it),
 //!    so the attributes ARE the discipline; nothing rebinds later.
 //!    The angular strut spike order (`bool_strut_order`, insert.rs)
-//!    is FORCED by nesting for sector widths W ≤ π — the whole
-//!    crossing-minted class (edge-interior sites are exact
-//!    half-planes); reflex corners W > 3π/2 with germ angle
-//!    θ ∈ (π/2, W−π) sit in an unforced window (ops module "Known
-//!    limitations").
+//!    ranks a strut's two germs by their angle from the splice
+//!    corner's arrival edge, measured inside the sector, so a reflex
+//!    corner's germs past a half-turn are ordered as a convex one's.
 //! 3. **What the join controls.** Surgery never reverses existing
 //!    halves, and chords close cycles forced by arc endpoints, so the
 //!    directed cycles after every join are fixed by the senses alone:

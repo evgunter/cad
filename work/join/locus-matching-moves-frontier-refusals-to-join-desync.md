@@ -85,3 +85,13 @@ only from `JoinDesync`/`UnpairedLooseEnds` to typed frontiers or sound.
 The same fix restored `join1_delta_probes::overlapping_lens_prisms_declared_union_builds`.
 What remains is the reflex probe's 32 `SeamOrientation` moves (28 from
 `UnpairedLooseEnds`, 4 from `RestZipUnsupported`), still not traced.
+
+## The reflex `SeamOrientation` moves, traced (reflex-corner lane, 2026-10-02)
+
+They are `bool_strut_order`'s: a strut whose two germs both lie in the
+315° top face, at least one more than a half-turn from the corner's
+arrival edge, had its halves ordered by a bare cosine, which is not
+monotone past a half-turn. The order now reads the angle
+(`insert::strut_order`), and all 159 of the probe's `SeamOrientation`
+poses (∩, ∪, `a ∖ b`) build sound
+(`work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`).
