@@ -404,35 +404,36 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 kind,
             });
         }
-        // **UNTESTED, and that is a statement rather than an
-        // omission.** No authorable body reaches this arm today: it
-        // needs a sector face geometrically TANGENT to a CURVED pierced
-        // face at the pierce point, and every curved pierce still dies
-        // at the join before a second operand pose can be built around
-        // one. The arm is written because the alternative is a plane
-        // built from a face that has none — see the argument below —
-        // and it is named here so a later unit that opens the ring's
-        // join knows this is the first row it owes a fixture.
-        //
-        // **Delta 2 stays SHUT on a curved pierced face.** The rung
-        // below descends to `carrier_eq` against a plane built from the
-        // pierced face, and there is no plane to build: a sector face
-        // TANGENT to a curved pierced face at `p` is a
-        // cosurface/tangency question, and CONTACT-DESIGN C2/C4 forbid
-        // inferring either gluing at any ε. The recourse is the same
-        // one the undeclared crossing-layer rung names — a verified
-        // declaration, under which the `Tangent` branch above already
-        // owns the case.
-        let Some(plane) = plane else {
-            return Err(BooleanError::CurvedBooleanUnsupported {
-                operand: pierced_op,
-                face: contact.face,
-                kind: pierced_kind(pierced_body, contact.face),
-            });
-        };
-        let pierced_carrier = super::carrier_eq::CarrierDesc::Plane {
-            origin: plane.origin,
-            normal: plane.normal,
+        // The pierced face's carrier: its plane, or — on a curved
+        // pierced face — its curved carrier, which only a verified
+        // one-carrier declaration may compare against the sector's. A
+        // sector face on a curved pierced face at `p` is a cosurface
+        // question, and CONTACT-DESIGN C2/C4 forbid inferring that gluing
+        // at any ε: the declaration is the recourse, and with it the
+        // carrier ladder's declared rung decides the relation exactly as
+        // on a plane. An undeclared curved sector refused just above. An
+        // undeclared PLANAR sector lumped here would be a plane tangent
+        // to the curved face with a bound leaving along it, and no
+        // public operand reaches that: the crossing layer refuses the
+        // bound's tangent touch first (a prism tangent to a cylinder
+        // along a ruling refuses `CurvedPierceUnsupported` there, in both
+        // operand orders), and a declared `Tangent` lumps above. The
+        // guard keeps this door for that state all the same.
+        let pierced_carrier = match plane {
+            Some(plane) => super::carrier_eq::CarrierDesc::Plane {
+                origin: plane.origin,
+                normal: plane.normal,
+            },
+            None => match super::rest::face_carrier(pierced_body, contact.face) {
+                Some(carrier) if declared_one_carrier => carrier,
+                _ => {
+                    return Err(BooleanError::CurvedBooleanUnsupported {
+                        operand: pierced_op,
+                        face: contact.face,
+                        kind: pierced_kind(pierced_body, contact.face),
+                    });
+                }
+            },
         };
         // Oriented sources (S10): both descriptions carry OUTWARD
         // material sides, so rung 1's syntactic Same± verdict has to
