@@ -54,7 +54,7 @@ use revolve_common::{axis_y, validated};
 use sweep::{Revolution, revolve};
 use topo::{
     Body, BooleanCoincidence, BooleanDeclarations, BooleanError, ContactClass, FaceContainment,
-    FaceKey, FacePairDeclaration, SplitJoinError,
+    FaceKey, FacePairDeclaration,
 };
 
 /// The waist's tube.
