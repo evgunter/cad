@@ -47,3 +47,15 @@ is the question. Weigh it before a lane builds it.
 CLEAVE: `reduce.rs` is in its paths (shared with HONE), and the gate
 is a boolean operand gate. Re-home if another program's charter fits
 better.
+
+## The split's twin is reach-scoped (REACH, 2026-10-02)
+
+`splitting/classify.rs` `gate_operand` no longer refuses a `Spiric` or
+`Nurbs` operand edge wholesale: it refuses one only when the plane may
+meet it, and the edge clears behind its own reach box or the box of
+either face it bounds (a spline edge has no sound box of its own,
+`EdgeBoxRule::NoSoundBox`, but it lies on both its faces). A plane over
+`sweep::test_support::loft_prism` now returns the loft whole. The
+boolean's `gate_operand_edges` stays body-scoped by its own stated
+design; whether it should follow the split, pair-scoped the way the
+face gate is, is part of this row's design question.

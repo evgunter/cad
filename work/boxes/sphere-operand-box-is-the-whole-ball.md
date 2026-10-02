@@ -24,3 +24,18 @@ beyond the poles, which the walk's pole joint already handles).
 ## Home
 
 CURVED — the operand boxes are the operand-reach lane's.
+
+## Evidence from the split gate (REACH, 2026-10-02)
+
+The split's operand gate (`splitting/classify.rs` `gate_operand`) is
+reach-scoped since `reach/split-gate-refuses-a-whole-body-for-one-unarmed-face`,
+and the whole ball made it useless for the very fixture that filed it:
+a cylinder under a spherical cap (sphere radius 5/4 about `(0, 1/4)`,
+cap `y ≥ 1`) cut at `y = 1/2` refused, because the ball spans
+`y ∈ [−1, 1.5]`. The gate therefore boxes a sphere face itself
+(`classify::gate_face_reach`): when `solid_contain::sphere_chart_trim`
+pins a latitude window, the face lies in the zone between its two
+extreme latitudes, and the box is `slab_extent` over that axial window
+met with the ball. That is a split-local copy of the tightening this
+row asks for. When this row lands in `FaceBoxRule`, fold the special
+case back into `census::face_reach` and delete it.
