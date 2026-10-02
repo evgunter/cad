@@ -81,7 +81,7 @@ use crate::null::NullEdge;
 use geom_core::Tol;
 use slotmap::SecondaryMap;
 
-pub use crate::chord_join::{ArcWindowCase, ConicCrossingsCase, SplitJoinError};
+pub use crate::chord_join::{ArcSideCase, ArcWindowCase, ConicCrossingsCase, SplitJoinError};
 pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;

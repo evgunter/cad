@@ -41,8 +41,8 @@ use pncad::geom_core::k_stats::{self, Probe, SampleOutcome};
 use pncad::topo::{Body, ContactRecords};
 
 use crate::{
-    az, bodies, bool_bodies, bossplate, crosslap, curvedcut, cutaway, heatsink, letterforms, lily,
-    projectbox, rocker,
+    az, bodies, bool_bodies, bossplate, bracket, crosslap, curvedcut, cutaway, heatsink,
+    letterforms, lily, projectbox, rocker,
 };
 use pncad::geom_core::Tol;
 
@@ -129,7 +129,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         t,
         u,
         "bracket",
-        || vec![plain("bracket", bodies::bracket(tol))],
+        || vec![plain("bracket", bracket::probe_body(tol))],
         tol,
     );
     // The chamfer verb's own K row. What this scene actually meters is
@@ -352,7 +352,9 @@ pub fn run(out: Option<String>, tol: Tol) {
         tol,
     );
     // Refusal-path samples again (the M2 K report's standing gap): the
-    // lily's seven walls all refuse, and their margins record here.
+    // lily's walls, run at the probe scalar, and their margins record
+    // here — wall 7's carve builds and its drawing is what refuses, so
+    // that wall records the decisions of a whole tilted sphere cut.
     sweep(
         s,
         t,
