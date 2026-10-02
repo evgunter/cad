@@ -253,7 +253,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         u,
         "letterforms",
         || {
-            let (two, three) = letterforms::build(tol);
+            let (two, three, _) = letterforms::build(tol);
             vec![seamed("silhouette", two), seamed("silhouette3", three)]
         },
         tol,
