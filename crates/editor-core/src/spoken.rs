@@ -23,6 +23,12 @@
 //! A [`StableName`] is a stored reference with no document behind it,
 //! so its own `Display` says its minting node by tag; a sentence made
 //! where the document is at hand says it as a [`SpokenName`].
+//!
+//! A refusal that holds bare ids (one the evaluation memo reuses, or
+//! one a door raised from an evaluation alone) writes its sentence
+//! once, over a `Speaker`: its `Display` says each node by tag, and
+//! its `spoken(doc)` says each as the document of the frame handing it
+//! out holds it.
 
 use core::fmt;
 

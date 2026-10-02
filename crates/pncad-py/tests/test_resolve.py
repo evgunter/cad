@@ -463,7 +463,9 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
                 # which is the whole difference between the two arms
                 # of one state.
                 self.assertEqual(verdict.variant, "target_poisoned")
-                self.assertIn("poisoned by the failure at node", verdict.detail)
+                # The frame holding the document speaks the ancestor
+                # by its kind.
+                self.assertIn("poisoned by the failure at Fillet ", verdict.detail)
                 self.assertIn("the repair is upstream", verdict.detail)
 
     def test_a_run_that_never_reached_the_node_is_the_third_arm(self):
