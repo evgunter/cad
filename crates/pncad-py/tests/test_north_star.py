@@ -20,11 +20,11 @@ from typing import ClassVar
 from pncad import (
     ArcSide,
     ArcSweep,
+    BooleanCoincidence,
     BooleanOp,
     Bulge,
     Center,
     Cmp,
-    ContactClass,
     CurveKind,
     Doc,
     DocEdit,
@@ -1942,7 +1942,7 @@ class TestTable(unittest.TestCase):
             self.assertEqual(len(findings), [2, 4, 5, 7][i])
             for f in findings:
                 self.assertEqual(f.relation, PlaneRelation.SameOriented)
-                self.assertEqual(f.class_, ContactClass.Rest)
+                self.assertEqual(f.class_, BooleanCoincidence.Continuation)
             decl = doc.declare_all(findings)
             acc = doc.insert(Node.boolean(BooleanOp.Union, acc, leg, declare=decl))
         ev = evaluate(doc)
@@ -1956,21 +1956,24 @@ class TestTable(unittest.TestCase):
         self.assertEqual(props.surface_area, 35.5)
 
 
-class TestCrosslapGlued(unittest.TestCase):
+class TestCrosslapAtTheNamingWall(unittest.TestCase):
     """Tour scene `crosslap` (row 37): the two notched beams MATED.
     Undeclared, the mate refuses at the coincidence door — since
-    register R3 as the typed MENU (`kind == "undeclared_contact"`,
+    register R3 as the typed MENU (`kind == "undeclared_coincidence"`,
     the candidate declaration attached). The recourse the menu names
     is executed: detect, INSPECT (the joint's mate is the
     resting-contact class — the notch floor/ceiling and the four
-    crossing walls, all `SameOpposite`), declare, and the SAME union
-    glues through the declared-REST zip at the scene's exact oracle
+    crossing walls, all `SameOpposite`), declare. The beams' tops and
+    bottoms carry on into each other across the notch edges —
+    continuations — so the mate alone still refuses, naming one; with
+    them declared too, the kernel glues at the scene's exact oracle
     2·(BEAM_VOL − NOTCH_VOL) = 1.875 (`demos/tour/src/crosslap.rs`
-    asserts the same both ways).
+    asserts it), and the document layer stops at the naming wall the
+    next test pins.
 
     The inspection step EARNS ITS KEEP here, and honestly: the
     detector also reports the beams' coplanar exteriors (bottoms at
-    z=0, tops at z=0.5 — `SameOriented`, the merge-stage flavor), and
+    z=0, tops at z=0.5 — `SameOriented`, continuations), and
     declaring the BOTTOM pairs trips a document-layer naming-emitter
     wall (`kind == "naming"`) after the kernel glues fine — a
     measured residue pinned below, not hidden. The scene's statement
@@ -2001,39 +2004,54 @@ class TestCrosslapGlued(unittest.TestCase):
         self.assertFalse(ev.succeeded(naive))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(naive)
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
         menu = caught.exception.finding
         self.assertIsNotNone(menu)
 
         # The menu's declare arm, executed: the detector reports the
         # joint's whole flush inventory, the menu's own finding among
-        # them. The INSPECTION narrows to the mate itself — the
-        # resting-contact class, a typed field, no name ever read:
-        # the notch floor/ceiling and the four crossing walls.
+        # them — the mate itself (the resting-contact class: the notch
+        # floor/ceiling and the four crossing walls) and the beams'
+        # exteriors, whose tops and bottoms carry on into each other
+        # across the notch edges: continuations. Declaring the mate
+        # alone leaves those continuations undeclared, and the union
+        # refuses on one of them, which is the menu it carries.
         findings = ev.find_flush_candidates(beam_a, beam_b)
         self.assertIn(menu, findings)
+        self.assertEqual(menu.class_, BooleanCoincidence.Continuation)
         mate = [f for f in findings if f.relation == PlaneRelation.SameOpposite]
         self.assertEqual(len(mate), 5)
+        self.assertTrue(all(f.class_ == BooleanCoincidence.Rest for f in mate))
         decl = doc.declare_all(mate)
-        glued = doc.insert(
+        mate_only = doc.insert(
             Node.boolean(BooleanOp.Union, beam_a, beam_b, declare=decl)
         )
-        # 2·(4·0.5·0.5 − 0.5·0.5·0.25) = 1.875, exactly (dyadic).
-        self.assertEqual(volume_of(doc, glued), 1.875)
+        ev = evaluate(doc)
+        with self.assertRaises(EvaluationError) as caught:
+            ev.value(mate_only)
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
+        self.assertEqual(
+            caught.exception.finding.class_, BooleanCoincidence.Continuation
+        )
+        # What following the menu to its end reaches is the next test's
+        # naming wall: the scene's exact oracle,
+        # 2·(4·0.5·0.5 − 0.5·0.5·0.25) = 1.875, waits on that rule at
+        # the document layer (the kernel tour glues it).
 
     def test_the_merge_stage_bottom_declaration_hits_the_naming_wall(self):
         """The measured residue, pinned so its fall is loud: declare
-        the detector's FULL inventory — mate plus the merge-stage
-        `SameOriented` exteriors — and the kernel glues, but the
+        the detector's FULL inventory — mate plus the `SameOriented`
+        exteriors, continuations — and the kernel glues, but the
         boolean node still fails in the document layer's NAMING
         emitter. The bottom plane merges beam A's bottom with BOTH of
         beam B's coplanar bottom halves, so a seam chord bordering the
         merged face reads through to two faces of one operand, and no
         rule picks the one it lies on: a missing rule, not a kernel
         bug (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
-        When this test fails with the union succeeding, the wall has
-        fallen — flip this scene's declaration back to the whole
-        inventory and drop the inspection narrowing above."""
+        The continuations are not optional — the mate alone refuses on
+        them (the test above) — so this wall is where the document
+        crosslap stands. When this test fails with the union
+        succeeding, the wall has fallen: pin the glued oracle here."""
         doc = Doc()
         beam_a, beam_b = self.beams(doc)
         ev = evaluate(doc)
@@ -3590,11 +3608,17 @@ class TestTwopeg(unittest.TestCase):
         findings = ev.find_flush_candidates(p, q)
         self.assertEqual(len(findings), 25)
         # One mating plane and 18 peg-against-bore pairs oppose (Rest);
-        # the six flush walls are the merge-stage flavor.
+        # the six flush walls are continuations.
         self.assertEqual(
             sum(1 for f in findings if f.relation == PlaneRelation.SameOpposite), 19
         )
-        self.assertTrue(all(f.class_ == ContactClass.Rest for f in findings))
+        for f in findings:
+            self.assertEqual(
+                f.class_,
+                BooleanCoincidence.Rest
+                if f.relation == PlaneRelation.SameOpposite
+                else BooleanCoincidence.Continuation,
+            )
 
         declared = doc.insert(
             Node.boolean(
@@ -3676,7 +3700,7 @@ class TestTwopeg(unittest.TestCase):
         self.assertEqual(len(findings), 4)
         for f in findings:
             self.assertEqual(f.relation, PlaneRelation.SameOpposite)
-            self.assertEqual(f.class_, ContactClass.Rest)
+            self.assertEqual(f.class_, BooleanCoincidence.Rest)
         with self.assertRaises(TypeError):
             pncad.FlushFinding()
 
@@ -4218,7 +4242,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # set), so the module-level absence below is shape, not gap —
         # and `find_flush_candidates` joined them when G5 closed
         # (LIB-PYG5): the detector is an `Evaluation` method too
-        # (`TestTable`/`TestCrosslapGlued` are the positive forms).
+        # (`TestTable` is the positive form; `TestCrosslapAtTheNamingWall`
+        # runs the same detector to the naming wall).
         # `StableName` stays, and for a sharper reason than "nothing
         # spells it": a name is `str` on this side, so there is no
         # name TYPE and no grammar to half-parse. The five role-name
@@ -4366,7 +4391,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # closed G4/G6/G7 — the positive forms are `TestDiefillet`,
         # `TestTiltedcut` and `TestCrosslapExploded`/`TestDiepips`.
         # `declare` left it when LIB-PYG5 closed G5 — the positive
-        # forms are `TestTable` and `TestCrosslapGlued`.
+        # form is `TestTable` (`TestCrosslapAtTheNamingWall` declares the
+        # whole inventory and stops at the naming wall).
         # `sweep` STAYS: `wire_sweep` refuses unconditionally
         # (SWEEP_FRONTIER, the path-composition lane banked past M6).
         # `tube` LEFT this list at LIB-TUBE — see the paragraph two

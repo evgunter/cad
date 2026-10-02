@@ -1438,45 +1438,47 @@ impl ViewerApp {
         egui::Window::new("Checks")
             .open(&mut open)
             .default_width(420.0)
-            .show(ctx, |ui| match self.session.checks() {
-                None => {
-                    ui.label("nothing has been checked yet");
-                }
-                Some(report) => {
-                    if report.findings.is_empty() {
-                        ui.label("checks: no findings");
+            .show(ctx, |ui| {
+                match self.session.checks().zip(self.session.landed_pair()) {
+                    None => {
+                        ui.label("nothing has been checked yet");
                     }
-                    for finding in &report.findings {
-                        ui.horizontal_top(|ui| {
-                            if ui
-                                .button(self.session.doc().spoken(finding.root).to_string())
-                                .on_hover_text("select the root this finding is about")
-                                .clicked()
-                            {
-                                ops.push(SessionOp::Select(Selection::Node(finding.root)));
-                            }
-                            // A sentence, so `widgets::message`.
-                            crate::widgets::message(ui, finding.to_string());
-                        });
-                    }
-                    if !report.skipped.is_empty() {
-                        ui.separator();
-                        // A sentence too, and one whose length grows
-                        // with the number of checks turned off.
-                        crate::widgets::message_toned(
-                            ui,
-                            format!(
-                                "not run (severity Off): {}",
-                                report
-                                    .skipped
-                                    .iter()
-                                    .map(ToString::to_string)
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            ),
-                            &self.theme,
-                            frame::Tone::Advisory,
-                        );
+                    Some((report, (landed, _))) => {
+                        if report.findings.is_empty() {
+                            ui.label("checks: no findings");
+                        }
+                        for row in frame::check_rows(report, landed) {
+                            ui.horizontal_top(|ui| {
+                                if ui
+                                    .button(row.button)
+                                    .on_hover_text("select the root this finding is about")
+                                    .clicked()
+                                {
+                                    ops.push(SessionOp::Select(Selection::Node(row.root)));
+                                }
+                                // A sentence, so `widgets::message`.
+                                crate::widgets::message(ui, row.sentence);
+                            });
+                        }
+                        if !report.skipped.is_empty() {
+                            ui.separator();
+                            // A sentence too, and one whose length grows
+                            // with the number of checks turned off.
+                            crate::widgets::message_toned(
+                                ui,
+                                format!(
+                                    "not run (severity Off): {}",
+                                    report
+                                        .skipped
+                                        .iter()
+                                        .map(ToString::to_string)
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                ),
+                                &self.theme,
+                                frame::Tone::Advisory,
+                            );
+                        }
                     }
                 }
             });

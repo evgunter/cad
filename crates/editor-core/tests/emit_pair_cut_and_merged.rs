@@ -46,7 +46,7 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
             (l, r)
         })
         .collect();
-    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
+    let (doc, decl) = insert(doc, Node::declare_continuation(pairs));
     let (doc, pair) = insert(
         doc,
         Node::Boolean {
