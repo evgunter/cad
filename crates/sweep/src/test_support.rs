@@ -144,7 +144,7 @@ pub const R: f64 = 0.1;
 
 /// An axis-aligned cube of side `l` with a corner at the origin:
 /// eight trivalent corners, every one of them geometrically CONVEX.
-pub fn cube<T: Decide>(l: f64, tol: Tol) -> Body<T> {
+pub fn cube<T: Decide + topo::AtRestPolicy>(l: f64, tol: Tol) -> Body<T> {
     block(l, l, l, tol)
 }
 
@@ -155,7 +155,7 @@ pub fn cube<T: Decide>(l: f64, tol: Tol) -> Body<T> {
 /// written in two vocabularies for one box — by bounds (`brick`) and
 /// by extent from the origin (this, and [`cube`] with one extent) —
 /// and both reach the same construction through the same door.
-pub fn block<T: Decide>(w: f64, d: f64, h: f64, tol: Tol) -> Body<T> {
+pub fn block<T: Decide + topo::AtRestPolicy>(w: f64, d: f64, h: f64, tol: Tol) -> Body<T> {
     brick((0.0, w), (0.0, d), (0.0, h), tol)
 }
 
@@ -207,7 +207,12 @@ pub fn pocket_die(x0: f64, y0: f64, z0: f64, tol: Tol) -> Body<f64> {
 /// module's extrusion primitive; this door exists so that a suite
 /// which already depends on `sweep` does not reach past it for the
 /// plainest body there is.
-pub fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> Body<T> {
+pub fn brick<T: Decide + topo::AtRestPolicy>(
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+    tol: Tol,
+) -> Body<T> {
     topo::test_support::brick(x, y, z, tol)
 }
 
@@ -629,7 +634,7 @@ pub fn spool(rev: crate::Revolution<f64>, tol: Tol) -> Body<f64> {
 /// own loops; nothing about it is specific to a shape, a scalar or a
 /// crate, so a shape that is not in this module today needs no
 /// redesign to move here, only a name.
-pub fn extruded<T: Decide>(
+pub fn extruded<T: Decide + topo::AtRestPolicy>(
     plane: SketchPlane<T>,
     loops: Vec<ProfileLoop<T>>,
     h: T,
@@ -716,7 +721,7 @@ pub fn sketch_at<T: Decide>(z0: T) -> SketchPlane<T> {
 
 /// **A prism on an arbitrary sketch plane**: one closed loop of
 /// `verts`, extruded `h` along that plane's normal.
-pub fn prism_on<T: Decide>(
+pub fn prism_on<T: Decide + topo::AtRestPolicy>(
     plane: SketchPlane<T>,
     verts: Vec<(Point2<T>, T)>,
     h: T,
@@ -730,7 +735,11 @@ pub fn prism_on<T: Decide>(
 /// Takes the vertices rather than a shape so the L-prism, the
 /// arc-sided prism and the turned box are all one door;
 /// panics on an invalid loop, which is a fixture bug, not an outcome.
-pub fn prism<T: Decide>(verts: Vec<(Point2<T>, T)>, h: T, tol: Tol) -> Body<T> {
+pub fn prism<T: Decide + topo::AtRestPolicy>(
+    verts: Vec<(Point2<T>, T)>,
+    h: T,
+    tol: Tol,
+) -> Body<T> {
     prism_at(verts, T::zero(), h, tol)
 }
 
@@ -738,7 +747,12 @@ pub fn prism<T: Decide>(verts: Vec<(Point2<T>, T)>, h: T, tol: Tol) -> Body<T> {
 /// is extruded from `z0` up by `h`. The one home of the lifted
 /// extrusion, so a fixture that stacks a prism on or into another body
 /// does not re-spell the plane.
-pub fn prism_at<T: Decide>(verts: Vec<(Point2<T>, T)>, z0: T, h: T, tol: Tol) -> Body<T> {
+pub fn prism_at<T: Decide + topo::AtRestPolicy>(
+    verts: Vec<(Point2<T>, T)>,
+    z0: T,
+    h: T,
+    tol: Tol,
+) -> Body<T> {
     prism_on(sketch_at(z0), verts, h, tol)
 }
 

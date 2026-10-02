@@ -198,7 +198,7 @@ fn select_solid<T: Decide>(
 /// selection → carve → ∖-revert → the combine door. Consumes the
 /// joined reduction; the original operands are read-only witnesses for
 /// uncut-component containment.
-pub(super) fn setopfinish<T: Decide>(
+pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     mut red: BooleanReduction<T>,
     connected: &super::join::Connected,
@@ -439,7 +439,7 @@ impl Welds {
 /// (`sections`) aside. Pierces that survive on different fragments, or
 /// meet only on a section face, stay apart, as the contact's own
 /// vertices do.
-fn weld_pinches<T: Decide>(
+fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     (operand, lineage, sections): (
         Operand,

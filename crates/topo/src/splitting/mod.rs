@@ -501,7 +501,7 @@ pub fn vertex_sides<T: geom_core::Decide>(
 ///
 /// [`SplitReduceError`] — see each variant; the first failure wins and
 /// the operand is never mutated (the clone is dropped).
-pub fn split_reduce<T: geom_core::Decide>(
+pub fn split_reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -602,7 +602,7 @@ impl std::error::Error for SplitError {}
 /// Runs reduce + join on a scratch clone, returning the joined
 /// reduction and the completed sections (shared prefix of [`split`]
 /// and [`plane_section`]).
-pub(crate) fn split_scratch<T: geom_core::Decide>(
+pub(crate) fn split_scratch<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -641,7 +641,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 ///
 /// The reduction's or the join's refusal.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn through_the_join<T: geom_core::Decide>(
+pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,

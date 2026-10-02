@@ -36,7 +36,12 @@ use topo::{
 /// **No description step**, unlike `prism_z`: these operands reach the
 /// boolean ops with their conventional chords, which is the state this
 /// suite's falsification targets were written against.
-fn tprism<T: Decide>(profile: &[(f64, f64)], z0: f64, z1: f64, m: [[f64; 3]; 3]) -> Body<T> {
+fn tprism<T: Decide + topo::AtRestPolicy>(
+    profile: &[(f64, f64)],
+    z0: f64,
+    z1: f64,
+    m: [[f64; 3]; 3],
+) -> Body<T> {
     let mut body = Body::<T>::new();
     common::prism_ops(
         &mut body,

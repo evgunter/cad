@@ -245,6 +245,17 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   more evidence for that row and a door that sees them. (TQUERY
   orchestrator)
 - 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+- Mint doors merged (PR 3720), unit 2 of the NURBS-lane design, after
+  a full review and a fix pass that was interrupted by the usage outage
+  and resumed. `topo::policy_lane` is the one place the lane is read
+  from the policy, and it returns `ByPolicy { NoLane, Refused }`, so no
+  door can pass the lack on as a certification failure. Every topo edge
+  mint and re-certify reads it (`set_edge_curve`, `split_edge`,
+  `kev_describing`, `mev`/`mef`/`mekr`/rings, the re-chart, the
+  re-basing gates). Each refuses `NurbsLaneUnsupported` typed at a
+  dual, and the twin doors are deleted. TOPO's
+  `euler-rebased-run-recertifies-through-the-plain-door` closed with
+  it. Filed `work/ciw/local-rustdoc-with-the-gate-flags-fails-where-the-hosted-gate-passes`.
 - 2026-10-02: resumed after a usage-limit outage (about 22 h idle).
   - The mint-doors fix pass and the tangency review died mid-task and
     are resumed.
@@ -265,3 +276,5 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   explicit branch cut. The section-rings fallback no longer fires on
   the tilted-cut poses; a guard row pins that.
 - Wrong-arc merged (PR 3718). Wave 4 dispatched: `cleave/carrier-walk` (P1; it may also take the spiric/spline crossing-row P2; single full review) and `cleave/strut-gate` (P2/E; orchestrator's read or style review). `boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (P1, `design: true`, filed by another program) waits for a designer pair.
+- Re-homed `boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` to REACH (curved-operand refusals are its charter); noted on REACH's log.
+- Mint doors merged (PR 3720) after a merge of main. Dispatched `cleave/far-plane` (P2, single full review).
