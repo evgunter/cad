@@ -151,3 +151,14 @@ on CI.
   - the tag read moves into the filter job.
 - **My own mistake:** the commit carrying Ev's approved §3 wording named "[render]" in its message, so it fired an unplanned render.
 - **Process point for this log:** never write the literal tag in a commit message that is not meant to render.
+
+## 2026-10-02 — heat sink fixed; tiltedcut dispatched
+
+PR 3793's fix pass is in. Head `a51b3c5c6` is green, and every review item is addressed:
+- delete-and-re-add is measured live and narrated;
+- wall 1 is demoted to narration;
+- the r = 1/16 refusal is filed on HONE;
+- one `rounded_box_volume` in the tour's new `oracles.rs`;
+- the matchers are tightened, with a sweep listed.
+
+The PR holds only on its frames. `tiltedcut-engraved-face` is dispatched.
