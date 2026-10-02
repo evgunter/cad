@@ -68,8 +68,10 @@ Eight sites:
   document — add a frame datum first"*, in the row that holds the combo.
 - `pane/create.rs`, `add_part_ui`'s per-entry id (`:368`) — a document's
   own part id beside its pick button.
-- `pane/create.rs`, `blend_tool_ui`'s picked-face wording (`:564`) —
-  `BlendTarget::of_face(face).to_string()`.
+- `pane/create.rs`, the picked-face wording (filed as `blend_tool_ui`'s;
+  it is `datum_face_frame_rows`') —
+  `BlendTarget::of_face(face)` said from the landed document
+  (`Say for BlendTarget`).
 - `pane/properties.rs`, `add_param_ui`'s existing-name arm (`:286`) —
   `Refusal::exists_wording`, beside its `edit <name>` link.
 - `pane/properties.rs`, `add_param_ui`'s `edit {name}` link (`:287`).
@@ -264,7 +266,7 @@ list below is by function.
   it mid-id. The third,
   `BlendTarget::of_face(face)` in the face row, is in
   `datum_face_frame_rows`, not `blend_tool_ui`, and is a NAME:
-  `"feature {n} body {m}"` is a fixed literal and two integers. It
+  the target's node said from the landed document, then `body {m}`. It
   stays beside its `face` label. `create.rs`'s `layout_tests` holds a
   row per in-row site, each red against the old layout.
 - **Top-down: twenty-five**, the twenty-seven above less two that are

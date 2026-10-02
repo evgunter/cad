@@ -602,7 +602,7 @@ use pncad::prelude::*;
 let body = &result.body;
 
 validate(body).expect("tier 1: structural integrity");
-validate_closed(body).expect("tier 2: a closed, connected solid");
+validate_closed(body).expect("tier 2: closed, each shell connected");
 validate_pseudomanifold(body, &result.contacts, tol)
     .expect("tier 3′: geometry, with this operation's declared contacts");
 # Ok::<(), E>(())

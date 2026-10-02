@@ -1856,9 +1856,10 @@ fn canonicalize_chart<T: Decide>(
         let edges: Vec<crate::entity::EdgeKey> = body.edges().map(|(k, _)| k).collect();
         let mut acted = false;
         for edge in edges {
-            let Some((fp, fm)) = crate::replace_face::edge_faces(body, edge) else {
+            let Ok(sides) = crate::readback::edge_sides(body, edge) else {
                 continue;
             };
+            let (fp, fm) = sides.faces();
             if fp == fm || !alive.contains(&fp) || !alive.contains(&fm) {
                 continue;
             }

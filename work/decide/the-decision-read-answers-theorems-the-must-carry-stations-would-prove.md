@@ -1,7 +1,7 @@
 ---
 id: the-decision-read-answers-theorems-the-must-carry-stations-would-prove
 kind: issue
-title: The decision read answers 32 of the pad's and 16 of the bracket's decisions that are theorems with it shut; 28 of the pad's are the must-carry stations
+title: The decision read answers 32 of the pad's and 16 of the bracket's decisions that are theorems with it shut
 status: dispatched
 opened: 2026-10-01
 priority: P2
@@ -22,11 +22,13 @@ release), receipts as `symbolic_zero / sign_gated / registered / numeric`:
 | R2's filleted bracket | `props/sign-hull` before the merge | 1104 / 7 / 144 / 766 | 1106 / 0 / 144 / 771 |
 | R2's filleted bracket | merged with `main` | 1105 / 21 / 144 / 783 | 1121 / 0 / 144 / 788 |
 
-With the read shut, every theorem is still a theorem: the merged pad's
-925 is the pre-merge 894 plus `main`'s 28 must-carry station theorems
+With the read shut, every theorem is still a theorem. By arithmetic
+alone, the merged pad's 925 is the pre-merge 894 plus 31. That would
+fit `main`'s 28 must-carry station theorems
 (`geom_brep::must_carry_over_edge`'s `classify_dihedral` gate, seven
-stations on each of the pad's sixteen rule-reached edges) and its three
-fillet run-out theorems (`path_run_out_carrier`). With the read on, 32
+stations on each of the pad's sixteen rule-reached edges) plus its three
+fillet run-out theorems (`path_run_out_carrier`). No split has shown
+it; DECIDE-9's split found 32 `dihedral_wedge`, below. With the read on, 32
 of the pad's and 16 of the bracket's decisions that reduce to the zero
 form are answered by the read first, and count `sign_gated`. The
 decision stays discharged; the claim on it is the read's bracket, not a
@@ -196,10 +198,18 @@ named.
   the subtree above the read. Not run: (a) is its effect at the one
   fold that matters, without the second form.
 
-**The choice is (a)** (Phase 2). A zero factor annihilates the product
-wherever the other factor has a value, and the poison check
-(`tainted`) already guarantees it has one. So the product's claim rests
-on its zero factors, and an ungated one makes the product a theorem.
+**The choice is (a)** (Phase 2). The poison check (`tainted`)
+guarantees only that no factor is poison: another factor may still have
+a pole in the box. Soundness rests on two things:
+- the argument the early zero arm already makes for `0/d`: a point
+  where a factor has no value is one clause 1 has already refused;
+- agreement with the read-shut label, where the other factor is an
+  ungated atom and the same zero is a theorem.
+
+So the product's claim rests on its zero factors, and an ungated one
+makes the product a theorem. This holds in the early walk, where the
+zero arm is on (`early_ab || trig_of_atan`). Elsewhere `Form::mul` ORs
+the gates: the conservative direction, filed.
 `copysign`'s zero fold gets the same rule. The stop rule does not
 apply.
 
@@ -248,8 +258,14 @@ shut second, as theorem / gated / registered / numeric:
 | pad, release leaf instrument at `1e2·ε` | 893 / 34 / 148 / 1004 | 925 / 2 / 148 / 1004 | 925 / 0 / 148 / 1006 |
 | bracket, replay at `3.870e2·ε` (dev) | 1105 / 21 / 146 / 781 | **1121 / 5 / 146 / 781** | 1121 / 0 / 146 / 786 |
 
-- Every decision the read-free walk proves is a theorem with the read
-  on: 925 and 1121.
+- On the pad and the bracket, every decision the read-free walk proves
+  is a theorem with the read on: 925 and 1121. That is not the tier's
+  invariant. A read at a `min`/`max` node can still answer ahead of a
+  cancellation its parent would make (`max(x + Z, 3) − max(x, 3)` is
+  `sign_gated`, a theorem with the read shut). No measured document
+  reaches that shape. It is filed as
+  `work/decide/the-read-at-its-node-relabels-a-cancellation-above-it`,
+  pinned at today's behaviour, and not fixed here.
 - `sign_gated` keeps 2 on the pad and 5 on the bracket. Those are the
   `line_span` reads, which the hook found non-zero read-free and which
   the top rung did not settle. With the read shut they are `numeric`
@@ -259,7 +275,8 @@ shut second, as theorem / gated / registered / numeric:
   pins (`m10_9_no_registrant_lies_on_any_measured_document` passes
   unchanged for them). The segment boss and the link keep
   `sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`'s rows.
-  `m10_10_pins_interval`'s per-predicate splits pass unchanged.
+  `m10_10_pins_interval` passes too, but its rows are the plate's alone
+  and carry no `dihedral_wedge`, so it is no evidence here.
 
 **Pins re-baselined.**
 - `m10_9_pins_interval`: the pad's `symbolic_zero` 893 → 925 and the
@@ -294,3 +311,33 @@ nothing here attributes the 0.7 s to it.
 `symbolic_zero` past the ceiling at 885 and `registered` at 128. That
 was stale before this unit (`registered` has read 148 at the pin's own
 scale since `main`'s copied arc carriers), and it was not re-taken here.
+
+## The review's fixes (DECIDE-9)
+
+FULL review: APPROVE-WITH-FIXES, no MAJOR.
+- **One home for the rule.** `zero_factors_gate` in `sym.rs` is gated
+  exactly when every zero factor is gated. The early zero arm's `Mul`
+  and `copysign`'s zero fold both call it.
+- **A gated zero under `copysign` stays gated.** The row
+  `copysign(min(x, 3) − x, y)` reads `sign_gated` with the read on and
+  refused with it shut. Planting `z.gated = false` in the fold reds it.
+- **The read ahead of a cancellation above its node is real in the
+  tier.** It is filed, P2, as
+  `work/decide/the-read-at-its-node-relabels-a-cancellation-above-it`,
+  and pinned at today's behaviour by
+  `sym_root_rows::the_read_relabels_a_cancellation_above_its_node_filed_defect`.
+  Shutting the read at `min`/`max` reds that row. The docs now say the
+  read is behind every value-free fold AT ITS NODE, and that above its
+  node it can re-label a cancellation: the header, `SymRules::decision_read`
+  and its rules-table row.
+- **The door's answer moved.** `(x·x − x)·min(x, 3)` over `[0.9, 1.1]`,
+  with `x·x` registered equal to `x`, reads `registered` with the read on
+  and with it shut. Before, the read-on door form was gated and did not
+  discharge, so it fell to the numeric channel. This is sound, and no
+  measured document moves. It is pinned by
+  `sym_root_rows::a_registered_zero_times_a_read_factor_is_registered`.
+  Restoring the OR at the `Mul` arm reds it.
+- **`Form::gated`'s doc** (`sym/form.rs`) no longer says "sticky through
+  every combinator". It says where the walk drops the flag.
+- **The `Form::mul` item** now names the whole class: `Form::mul`,
+  `powi_form` and `algebra::apply`.

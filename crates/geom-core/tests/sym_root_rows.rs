@@ -608,7 +608,7 @@ fn a_comparison_of_two_constants_is_a_theorem() {
 /// `min(x, 3)` over `x ∈ [1, 2]` is the read's. A product with an
 /// ungated zero factor, and a `copysign` of one, rest on that zero
 /// alone; a zero the read itself reached stays `sign_gated`, through a
-/// product too.
+/// product and through a `copysign` too.
 #[test]
 fn a_zero_factor_times_a_read_factor() {
     fn z(x: Sym<Interval>) -> Sym<Interval> {
@@ -621,7 +621,7 @@ fn a_zero_factor_times_a_read_factor() {
         &'static str,
         &'static str,
     );
-    let shapes: [Shape; 5] = [
+    let shapes: [Shape; 6] = [
         (
             "Z · min(x, 3)",
             || {
@@ -668,6 +668,16 @@ fn a_zero_factor_times_a_read_factor() {
             "sign_gated",
             "refused",
         ),
+        (
+            "copysign(min(x, 3) - x, y)",
+            || {
+                let x = over("x", 1.0, 2.0);
+                let y = over("y", 3.0, 4.0);
+                (x.min(lit(3.0)) - x).copysign(y)
+            },
+            "sign_gated",
+            "refused",
+        ),
     ];
     for (what, build, shipped, shut) in shapes {
         let on = row(what, how(SymRules::shipped(), build));
@@ -686,6 +696,67 @@ fn the_drive_memo_key_carries_both_new_dials() {
     assert!(m.accepts(budget(), SymRules::shipped()));
     assert!(!m.accepts(budget(), SymRules::without_the_reads()));
     assert!(!m.accepts(budget(), SymRules::without_canonical_root()));
+}
+
+/// **The pin of a filed defect**
+/// (`work/decide/the-read-at-its-node-relabels-a-cancellation-above-it`):
+/// the read answers a `max` at its own node, ahead of a cancellation its
+/// parent would make. `x + Z` and `x` are two nodes whose early forms are
+/// equal (`Z = sqrt(x)² − x` is zero under rule A), so with the read shut
+/// their `max` atoms are one indeterminate and the difference is a
+/// theorem; with it on each `max` is read first and the zero is
+/// `sign_gated`. This row holds today's behaviour; the unit that fixes
+/// the defect flips its first label to `theorem`.
+#[test]
+fn the_read_relabels_a_cancellation_above_its_node_filed_defect() {
+    let build = || {
+        let x = over("x", 1.0, 2.0);
+        let z = x.sqrt().powi(2) - x;
+        (x + z).max(lit(3.0)) - x.max(lit(3.0))
+    };
+    let on = row("max(x + Z, 3) - max(x, 3)", how(SymRules::shipped(), build));
+    let off = row(
+        "[read shut] max(x + Z, 3) - max(x, 3)",
+        how(SymRules::without_the_reads(), build),
+    );
+    assert!(
+        on == "sign_gated" && off == "theorem",
+        "the filed defect's shape: shipped {on} (pinned sign_gated), read shut {off} (theorem)"
+    );
+}
+
+/// **A registered zero times a read factor discharges through the
+/// door.** `x·x` registered equal to `x` over `[0.9, 1.1]` makes
+/// `x·x − x` the zero form in the door walk alone, and ungated: the
+/// product with `min(x, 3)`, which the read settles, rests on that zero
+/// and is `registered` with the read on as with it shut. A door form
+/// that is gated does not discharge (`rungs`), so with the product
+/// carrying the read's gate this decision fell to the numeric channel.
+#[test]
+fn a_registered_zero_times_a_read_factor_is_registered() {
+    for (dial, rules) in [
+        ("shipped", SymRules::shipped()),
+        ("read shut", SymRules::without_the_reads()),
+    ] {
+        let (out, counts) = with_session_rules(budget(), rules, || {
+            let x = over("x", 0.9, 1.1);
+            let sq = x * x;
+            let reg = sq.register_equal(x, Tol::witness());
+            assert!(
+                matches!(reg, geom_core::sym::SymRegistration::Recorded),
+                "the registration is recorded: {reg:?}"
+            );
+            let m = (sq - x) * x.min(lit(3.0));
+            geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band())
+        });
+        let l = label(out, counts);
+        println!("  (x·x registered = x) · min(x, 3), {dial}: {l} {counts:?}");
+        assert_eq!(
+            (l.as_str(), counts.registered),
+            ("registered", 1),
+            "{dial}: the door's zero is ungated, so the product with a read factor is registered"
+        );
+    }
 }
 
 /// DECIDE-9 review probes: printed, then asserted only where the
