@@ -1539,7 +1539,7 @@ fn cylinder_face<T: Decide>(
             what: "curved face without a rim (non-sphere)",
         });
     }
-    let flux = radius * radius * a_chart + (origin - Point3::origin()).dot(va);
+    let flux = radius.powi(2) * a_chart + (origin - Point3::origin()).dot(va);
     Ok(FaceContribution {
         flux,
         area: radius * a_chart.abs(),

@@ -2454,7 +2454,7 @@ fn chart_v_du<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> (Option<T>, T) {
     };
     let v_var = (pa.y.abs() + pb.y.abs() + pl.y.abs()) * (t1 - t0).abs();
     let half = T::from_f64(0.5);
-    let v_int = |t: T| p0.y * t + pa.y * t.sin() - pb.y * t.cos() + pl.y * t * t * half;
+    let v_int = |t: T| p0.y * t + pa.y * t.sin() - pb.y * t.cos() + pl.y * t.powi(2) * half;
     (Some(pl.x * (v_int(t1) - v_int(t0))), v_var)
 }
 
@@ -2585,12 +2585,12 @@ pub(crate) fn chart_island_winding<T: Decide>(
                 area = area - (g(to.0) - g(from.0));
                 length = length
                     + radius * du.abs()
-                    + lever.abs() * (n_u * n_u + n_v * n_v).sqrt() * du.abs();
+                    + lever.abs() * (n_u.powi(2) + n_v.powi(2)).sqrt() * du.abs();
             }
         }
     }
     let scale = if sphere {
-        radius * radius * v_max.cos()
+        radius.powi(2) * v_max.cos()
     } else {
         radius
     };
