@@ -423,6 +423,26 @@ fn sym_9_what_each_retry_recovers() {
 /// read): `[1105, 21, …]` → `[1121, 5, …]` with and without the ladder,
 /// `registered`, `numeric` and `retried` unmoved.
 ///
+/// When the constructions began storing the carriers they build
+/// (`store-constructed-carriers`) every document moved, and only up:
+/// - the plate and the annulus's 140 registered decisions are theorems
+///   (the circles' rims fold onto `|r|`), and the boss's 70 of 96;
+/// - the bracket reads `[1257, 5, 42, 749]` either way, so its ladder
+///   retries nothing (it recovered 6). Eight of its `dihedral_wedge`
+///   theorems are registered instead: the fillet's tangency is the
+///   registration `centre ≡ t1 + σ·r·n̂₁`, not an identity of the
+///   offset centre's algebra;
+/// - the link reads `[676, 0, 44, 442]` without the ladder and
+///   `[680, 0, 44, 438]` with it, retried 4 (it was 14).
+///
+/// Every document's `numeric` fell or held. One predicate moved down:
+/// the link's `carrier_on_surface_2` with the ladder, `[86, 0, 10, 12]`
+/// → `[76, 0, 16, 16]`. That is the tangent arc's quarter-tangent
+/// `2w / sqrt(4w²)`, which rule G re-keys as a sign quotient the tier
+/// does not hold; an `atan2` quarter-tangent restores it
+/// (`decide_3_split_rows_interval` holds the same trade without the
+/// ladder).
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -442,16 +462,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [811, 0, 140, 462], [811, 0, 140, 462], 0),
-        ("r1_annulus", [328, 0, 140, 209], [328, 0, 140, 209], 0),
-        ("r1_segment_boss", [375, 2, 96, 233], [375, 2, 96, 233], 0),
+        ("two_hole_plate", [951, 0, 0, 462], [951, 0, 0, 462], 0),
+        ("r1_annulus", [468, 0, 0, 209], [468, 0, 0, 209], 0),
+        ("r1_segment_boss", [445, 2, 26, 233], [445, 2, 26, 233], 0),
         (
             "r2_filleted_bracket",
-            [1121, 5, 146, 781],
-            [1121, 5, 152, 775],
-            6,
+            [1257, 5, 42, 749],
+            [1257, 5, 42, 749],
+            0,
         ),
-        ("r2_link", [545, 0, 110, 507], [547, 0, 122, 493], 14),
+        ("r2_link", [676, 0, 44, 442], [680, 0, 44, 438], 4),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -467,7 +487,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         if link {
             let t = split(&shapes);
             for (pred, want) in [
-                ("carrier_on_surface_2", [86, 0, 10, 12]),
+                ("carrier_on_surface_2", [76, 0, 16, 16]),
                 ("witness_on_surface_2", [16, 0, 0, 0]),
             ] {
                 let got = t.get(pred).copied().unwrap_or([0; 4]);
@@ -511,21 +531,23 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 }
 
 /// **The DRIVE carries the ladder, and its receipt says so**: one
-/// whole-box leaf of R2's filleted bracket at `1e1·ε` under
+/// whole-box leaf of R2's link at `1e1·ε` under
 /// `SymbolicDials::default()` — the shipped ladder, through the drive's
 /// own door (`sym::with_session_memo_retry`, with the drive's plain
 /// memo installed) — against the same leaf with `SymRetry::none()`.
 ///
 /// It reads both receipts the drive writes: the goldening line carries
-/// `retried=6` after the discharge columns, and the human form names
-/// the six as discharges a second attempt reached, not as a clause of
-/// `registered`'s. Without the ladder neither appears and the line is
-/// the one a drive wrote before the ladder existed. The six themselves
-/// are the rule-A attempt's, and they are `registered` (146 → 152).
+/// `retried=4` after the discharge columns, and the human form names
+/// the four as discharges a second attempt reached. Without the ladder
+/// neither appears and the line is the one a drive wrote before the
+/// ladder existed. The four are theorems (`symbolic_zero` 676 → 680).
+/// The row read the filleted bracket until the fillet stored its own
+/// carrier: the bracket's first attempt now discharges what its ladder
+/// used to, so it retries nothing.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
-    let doc = document("r2_filleted_bracket", 1.0e1 * tol.eps(), tol);
+    let doc = document("r2_link", 1.0e1 * tol.eps(), tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let run = |symbolic: editor_core::drive::SymbolicDials| {
         editor_core::drive::drive(
@@ -563,16 +585,16 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1121, 5, 152, 775, 6],
+        [680, 0, 44, 438, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=152 retried=6\n"),
+        line.contains("registered=44 retried=4\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
-        human.contains("; 6 of those discharges reached only by a second attempt"),
-        "the human form names the six as the ladder's: {human}"
+        human.contains("; 4 of those discharges reached only by a second attempt"),
+        "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
     assert_eq!(
@@ -583,7 +605,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1121, 5, 146, 781, 0]
+        [676, 0, 44, 442, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

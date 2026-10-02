@@ -79,10 +79,11 @@ const MIN_WEB: f64 = 0.0005;
 /// each time, exactly, plus the rounding below
 /// (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`
 /// prints all three; `work/props/certified-hull-padding-is-the-leaf-width-not-the-lane`
-/// is the row). A bound, not a target — if it grows, the question is
-/// which leaves widened; it cannot grow past this without a leaf wider
-/// than the box.
-const PLATE_PADDING_PER_HALF_WIDTH: f64 = 8.0;
+/// is the row). Since the circles store their authored carrier, each
+/// radius enters the web's enclosure once, so the one leaf's hull IS
+/// the true range and the padding is the rounding alone. A bound, not a
+/// target — if it grows, the question is which leaves widened.
+const PLATE_PADDING_PER_HALF_WIDTH: f64 = 0.0;
 /// The rounding on top of the dependency padding: a 0.2-scale quantity
 /// through a few dozen outward-rounded operations (measured ~1e-15).
 const PLATE_ROUNDING: f64 = 1.0e-14;
@@ -596,8 +597,8 @@ fn the_two_hole_plate_stackup() {
     // Pinned at BOTH ends and with the leaf count, so the pin is
     // monotone the right way: a regression to more, narrower leaves
     // (16 leaves, `2·half`) would pass a one-sided ceiling and hide
-    // the tier's reach falling (R1 MIN-6, R2 m2). The padding IS the
-    // leaf's width times four — one leaf, the whole box, `8·half`.
+    // the tier's reach falling (R1 MIN-6, R2 m2). One leaf, the whole
+    // box, and no dependency padding on it.
     assert_eq!(
         wc.leaves,
         1,

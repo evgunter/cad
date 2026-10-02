@@ -215,22 +215,18 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
 /// # What the path door RELAYS, and why it is not a row of this census
 ///
 /// The door reads every fillet arc it is about to emit the way
-/// `Profile::validate` reads it — `seg::build_seg` on the stored chord
-/// and bulge, `seg::joint_tangency` on each joint the fillet declares —
+/// `Profile::validate` reads it — `seg::build_seg` on the stored
+/// segment, `seg::joint_tangency` on each joint the fillet declares —
 /// and an in-band classification leaves as `PathError::Escalated`
 /// carrying that predicate verbatim. So an escalation naming one of
 /// those classifications is validation's OWN verdict about the loop,
 /// arriving at the door instead of after it: the same refusal, earlier,
 /// and the loop it withholds is one nothing downstream could have used.
 ///
-/// At `eps = 1e-12` on this lane exactly one corpus row is in that
-/// state: a fused `ArcFilletArc` whose fillet joint's internal-carrier
-/// clearance encloses `[-1.06e-12, 1.06e-12]` against a band of
-/// `(1e-12, 1e-11)`. Built with the door's read suppressed, that loop
-/// reaches `Profile::validate` and is refused there with the same
-/// predicate and the same enclosure — and with the recourse that names
-/// the fillet door as the way to make the joint exact, which is the
-/// disagreement the door's read exists to end.
+/// No corpus row is in that state at any ε row: a fillet arc stores
+/// the carrier its construction built — its centre and the authored
+/// radius — so its clearance against each carrier it is tangent to is
+/// read on those values, not on a carrier re-derived from its chord.
 ///
 /// The census therefore keeps its teeth where its subject is: the
 /// escalations that are NOT the door relaying a stored-form
@@ -265,28 +261,10 @@ fn no_corpus_row_escalates_at_interval() {
         };
         source.predicate.filter(|name| STORED_FORM.contains(name))
     }
-    // The relayed set is PINNED, not merely printed. Both entries are
-    // the door reading back a fillet joint whose carrier clearance the
-    // enclosure lane cannot classify at the tightest ε — a fillet arc
-    // is tangent to its two carriers BY CONSTRUCTION, so the centre
-    // separation sits exactly on `r1 ± r2` and an enclosure of it
-    // straddles the classifier's own edge. Measured, and named here by
-    // index and predicate; a relay joining or leaving this set is a
-    // new fact about the door and reds this row, so the exemption is
-    // this list and not a standing pass for eight predicate names.
-    //
-    // Row 13 is the `Radius`-arrival fused chain, the corpus's only
-    // reach to the `Carrier2` emission role; its fillet is EXTERNALLY
-    // tangent to the arrival carrier where row 1's is internally
-    // tangent to its own, which is the whole difference between the
-    // two predicate names.
-    let pinned: &[(usize, &str)] = match format!("{:e}", tol().eps()).as_str() {
-        "1e-12" => &[
-            (1, "carrier_circles_internal"),
-            (13, "carrier_circles_external"),
-        ],
-        _ => &[],
-    };
+    // The relayed set is PINNED, not merely printed, and it is empty:
+    // a relay joining it is a new fact about the door and reds this
+    // row, so there is no standing pass for eight predicate names.
+    let pinned: &[(usize, &str)] = &[];
     let mut escalated: Vec<(usize, Vec<Verb>, String)> = Vec::new();
     let mut relayed: Vec<(usize, String)> = Vec::new();
     for (i, closed) in coverage_corpus().into_iter().enumerate() {

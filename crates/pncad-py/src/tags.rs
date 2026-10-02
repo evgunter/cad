@@ -200,6 +200,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
         PathErrorKind::Structure => "guided_structure",
         PathErrorKind::DegenerateArcSpec => "degenerate_arc_spec",
+        PathErrorKind::ArcSweepPastFullTurn => "arc_sweep_past_full_turn",
         PathErrorKind::NonpositiveLeg => "nonpositive_leg",
         PathErrorKind::NonpositiveFilletRadius => "nonpositive_fillet_radius",
         PathErrorKind::NonpositiveCircleRadius => "nonpositive_circle_radius",

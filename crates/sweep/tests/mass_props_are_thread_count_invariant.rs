@@ -351,6 +351,17 @@ fn digest() -> String {
 /// and the arc loft's `s²·(18 + π(1+√2))`.
 /// Volumes, volume pads, refusals, verdict hashes and the sym-session
 /// counts are unchanged.
+///
+/// **Re-cut at all three ε when `skin::segment_curve` began building an
+/// arc's NURBS from the evaluation's own points and the spoke
+/// `a − centre`** (PATHS 5b) instead of the stored radius and an
+/// endpoint `atan2`. Only the two arc lofts move: `arc_loft_1e9eps`'s
+/// `v`, `a`, `vpad` and `apad` in their last bits (its volume by 4, 5
+/// and 7 ulps at ε = 1e-6 / 1e-9 / 1e-12), and the `frozen` column of
+/// the two `validate_geometric` rows — `sym_arc_loft` 654 → 607 /
+/// 568 → 539 / 638 → 606 and `sym_thin_strip` 754 → 750 / 719 → 720 /
+/// 752 → 745. Decisions, discharges, shapes, refusals and every verdict
+/// hash are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

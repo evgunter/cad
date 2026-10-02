@@ -55,6 +55,8 @@ mod common;
 
 #[path = "arc_fillet.rs"]
 mod arc_fillet;
+#[path = "arc_leg_full_turn.rs"]
+mod arc_leg_full_turn;
 #[path = "arc_spec_census.rs"]
 mod arc_spec_census;
 #[path = "blend7_review_probes.rs"]

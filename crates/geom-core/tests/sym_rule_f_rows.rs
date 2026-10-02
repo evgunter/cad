@@ -877,7 +877,6 @@ fn the_copysign_mint_sites_the_tree_holds_are_these() {
         ("crates/geom-brep/src/props/curved.rs", 1),
         ("crates/geom-brep/src/tangent.rs", 1),
         ("crates/geom-core/src/linalg/svd.rs", 1),
-        ("crates/profile/src/path.rs", 1),
         ("crates/profile/src/sugar.rs", 2),
         ("crates/sweep/src/blend/arms.rs", 1),
         ("crates/sweep/src/revolve/axis.rs", 1),

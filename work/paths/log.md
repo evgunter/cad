@@ -533,4 +533,10 @@ time, so it goes to designer round 6 and may go to Ev. #3527 waits.
 
 - 2026-10-01 — 5a (#3527): Ev approved ("looks good!") D1's consistency sentence, rewritten as the principle at Ev's request: each condition is checked at validate or holds by construction, and none is decided twice. The specifics (tables against `ConstructedLoop`, scene resolution, exact and point scalars) live in `crates/profile/README.md`, "Where an arc's consistency is decided". Fork row 35 is filled (it was 21, then 33, then 34, as merges with main renumbered it; no row on main was renumbered). The dual review at `262f0d380` had one bilateral MAJOR (the copied-carrier abort), fixed; the DR row is the PR's last commit.
 
+- 2026-10-02 — 5a merged (#3527, merge `44b64db0b`) after five main merges. The main-red rows met on the way were left to their filed owners: `reach_volume_backstop` off the default ε, the `bounds_census` roster, and the ignored pad-at-both-dials row. 5b (`store-constructed-carriers`) dispatched on `claude/clever-bardeen-4itqb3`, restarted from main (Ev allowed the branch move).
+
+- 2026-10-02 — 5b forks (#3774), ruled by the orchestrator under #3453 ("the construction registers"):
+  - the fillet keeps its offset centre and registers the tangency facts it proves;
+  - the tangent arc keeps the algebraic X and registers what Sym cannot close;
+  - `sweep-arclen-legs-fold-an-over-full-angle` folds into 5b, so the authored angle is stored after its refusal.
 - 2026-10-02 — The sketch plane is its frame (#3775): Ev approved ("sounds good! deleting SketchPlane and just using orthoframe directly could also work. either is fine"). Fork row 43 is filled. The implementation is `the-sketch-plane-is-its-frame`, parked on 5b. It keeps the newtype unless the wrapper turns out to earn nothing.

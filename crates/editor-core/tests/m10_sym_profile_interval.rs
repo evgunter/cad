@@ -384,8 +384,18 @@ const SLAB_LEDGER: [&str; 3] = [
 /// lines freeze nothing: the 104 nodes each that `tan(1·atan(1))` froze
 /// are gone, as folding `tan` measured above. A probe spelling
 /// `quarter_tan` as `tan` restores 104 on both lines.
+///
+/// **When the circles began storing their authored carrier** (centre
+/// and `|r|`, `store-constructed-carriers`), the 140 decisions the door
+/// answered on the plate became theorems: `Door/Decision` calls
+/// 346 → 206 (forms 11732 → 4846), and the walks build smaller forms —
+/// the plate's largest 252 → 28 terms, `Plain/Decision` forms
+/// 14653 → 14481 and frozen 672 → 252, `Plain/Assertion` 2526 → 2497
+/// and 372 → 360, `Early/Decision` 7710 → 7560 and 8 → 0,
+/// `Early/Assertion` 3389 → 3360; every digest but `Door/Assertion`'s
+/// moves. The slab, a polygon, does not move.
 const SLAB_MAX_TERMS: usize = 6;
-const PLATE_MAX_TERMS: usize = 252;
+const PLATE_MAX_TERMS: usize = 28;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
@@ -401,11 +411,11 @@ const PLATE_MAX_TERMS: usize = 252;
 /// The door's calls include the lowering's endpoint registrations
 /// (`Arc2::register_endpoints`): 16 decisions and 16 assertions.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 14653 frozen 672 digest 5f922b2af13058d8b4f4572cf657c77d\n\
-     Plain/Assertion calls 462 forms 2526 frozen 372 digest 6c29633eaf7b7e2c746fddc842754e9a\n\
-     Early/Decision calls 320 forms 7710 frozen 8 digest cc786663ad599318ae48e1ad6a64521d\n\
-     Early/Assertion calls 462 forms 3389 frozen 0 digest c8a22079b42a8cbe472a3f7466cd3bd0\n\
-     Door/Decision calls 346 forms 11732 frozen 0 digest 2184a919171301ac92d6fd3426aa3e03\n\
+     Plain/Decision calls 951 forms 14481 frozen 252 digest 646be6a27af9088be71b53522ac8bb38\n\
+     Plain/Assertion calls 462 forms 2497 frozen 360 digest a287e3125d86894db48265d2eca4175a\n\
+     Early/Decision calls 320 forms 7560 frozen 0 digest 97bb822bcc6f99f9d3aa1a44e58249c0\n\
+     Early/Assertion calls 462 forms 3360 frozen 0 digest 9a8948aa65eb79278c6200f958533e0d\n\
+     Door/Decision calls 206 forms 4846 frozen 0 digest e58a377c7b2b9fdb12c3ec4c9b5f0683\n\
      Door/Assertion calls 206 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

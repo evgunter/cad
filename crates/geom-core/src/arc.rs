@@ -33,6 +33,32 @@ pub struct Arc2<T: Real> {
 }
 
 impl<T: Real> Arc2<T> {
+    /// **The arc on the chord `a → b` whose quarter-tangent is `x`**
+    /// (x = tan(Δθ/4), the bulge): the centre at apothem
+    /// `L·(1 − x²)/(4x)` along the chord's unit left normal from its
+    /// midpoint, the radius `|L·(1 + x²)/(4x)|`, and Δθ = `4·atan(x)`.
+    /// The one spelling of the chord lowering, shared by the sketch
+    /// layers; pure arithmetic in a fixed order (D9), so it is the same
+    /// expression at every scalar. Total: `x = 0` puts the centre at
+    /// infinity and a zero chord poisons the normal, for the caller's
+    /// own rule to have kept out.
+    #[must_use]
+    pub fn from_chord(a: Point2<T>, b: Point2<T>, x: T) -> Self {
+        let len = a.distance(b);
+        let unit = (b - a) / len;
+        let mid = a.lerp(b, T::from_f64(0.5));
+        let normal = Vec2::new(-unit.y, unit.x);
+        let x2 = x.powi(2);
+        let four_x = T::from_f64(4.0) * x;
+        let apothem = len * (T::one() - x2) / four_x;
+        let signed_radius = len * (T::one() + x2) / four_x;
+        Self {
+            centre: mid + normal * apothem,
+            radius: signed_radius.abs(),
+            sweep: T::from_f64(4.0) * x.atan(),
+        }
+    }
+
     /// The same arc read at another scalar: `f` applied to the centre's
     /// coordinates, then the radius, then the sweep. A structural map —
     /// no arithmetic, so it is exact whenever `f` is.
@@ -165,6 +191,35 @@ impl<T: Real> Arc2<T> {
         let u = (a - self.centre) / self.rim(a);
         let (sin, cos) = (self.sweep.sin(), self.sweep.cos());
         self.centre + Vec2::new(u.x * cos - u.y * sin, u.x * sin + u.y * cos) * self.radius
+    }
+
+    /// **Registers the centre against another spelling of it**
+    /// ([`Real::register_equal`]), per component: `other` IS
+    /// `centre`. Each answer is handed back with the fact it states, for
+    /// the caller to handle by arm.
+    ///
+    /// **An axiom, not a check**, as [`Arc2::register_endpoints`] is:
+    /// sound only where the CALLER built both spellings so that they are
+    /// one point over the reals at every value of its inputs, and its
+    /// doc comment carries that proof — a fillet's centre spelled from
+    /// one tangent foot and from the other, say.
+    #[must_use = "a registration can be REFUSED, and a refusal a caller \
+                  drops is a lie nobody sees"]
+    pub fn register_centre(
+        self,
+        other: Point2<T>,
+        tol: Tol,
+    ) -> [(&'static str, SymRegistration); 2] {
+        [
+            (
+                "the centre's x from its other spelling",
+                self.centre.x.register_equal(other.x, tol),
+            ),
+            (
+                "the centre's y from its other spelling",
+                self.centre.y.register_equal(other.y, tol),
+            ),
+        ]
     }
 
     /// **Registers the endpoint facts** of this arc between `a` and `b`
@@ -390,6 +445,27 @@ mod tests {
             [got[2], got[5], got[6], got[9]],
             [SymRegistration::Contradicted; 4],
             "a sweep that turns the wrong end onto the other: {got:?}"
+        );
+    }
+
+    /// **The centre's other spelling, and a planted lie, at the exact
+    /// witness.** The quarter circle's centre against itself is
+    /// witnessed in both components; against a point off by a half in x
+    /// the x component is refused typed, and y is not.
+    #[test]
+    fn register_centre_refuses_a_planted_lie_at_the_exact_witness() {
+        let (arc, _, _) = quarter_circle::<Interval>();
+        let answers = |other| arc.register_centre(other, Tol::witness()).map(|(_, a)| a);
+        assert_eq!(
+            answers(arc.centre),
+            [SymRegistration::Witnessed; 2],
+            "the centre against itself"
+        );
+        let off = Point2::new(arc.centre.x + Interval::from_f64(0.5), arc.centre.y);
+        assert_eq!(
+            answers(off),
+            [SymRegistration::Contradicted, SymRegistration::Witnessed],
+            "a centre planted off in x"
         );
     }
 

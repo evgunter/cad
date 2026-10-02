@@ -74,7 +74,6 @@
 //! `geom-brep/src/tangent.rs`'s jet (the orientation sign of the
 //! second surface's normal curvature);
 //! `profile/src/sugar.rs`'s arc-leg fillet trims (two);
-//! `profile/src/path.rs`'s line×line fillet turn side;
 //! `sweep/src/revolve/axis.rs`'s radial extent;
 //! `sweep/src/blend/arms.rs`'s cone nappe;
 //! `topo/src/boolean/solid_contain.rs`'s `cbrt` and the Cardano

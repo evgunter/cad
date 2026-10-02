@@ -1232,6 +1232,11 @@ fn a_zero_radius_fillet_is_refused_at_the_verb() {
 /// 1.2e-2 off its own carrier and a fillet radius 4.1e-3 wrong, and now
 /// emits 2.2e-16 and 1.2e-9. Re-pinning a handful of ulps to remove that
 /// is the trade; re-pinning for any smaller reason is not.
+///
+/// Two sweeps moved since, `arc_arc_internal`'s arrival run by one ulp
+/// and `arc_arc_mixed`'s by three, when the run began storing the side's
+/// own carrier and reading its sweep off the chord about that centre
+/// instead of re-lowering a bulge from the chord; no vertex moved.
 /// A vertex's `(x, y, sweep)` raw f64 bits, the sweep its leaving
 /// segment stores (`0` for a line, which stores none) — the channel the
 /// pin below compares on, because "bit-identical" is the actual claim.
@@ -1316,7 +1321,7 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
                 (
                     13817687028148020368,
                     4610070593513891235,
-                    4606845105924273752,
+                    4606845105924273753,
                 ),
                 (13830554455654793216, 0, 0),
             ],
@@ -1334,7 +1339,7 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
                 (
                     4601392076421969630,
                     4611310551952855327,
-                    13834430019434068513,
+                    13834430019434068510,
                 ),
                 (4613937818241073152, 0, 0),
             ],

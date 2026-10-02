@@ -110,6 +110,29 @@ fn decide_3_no_predicate_loses_a_decision() {
             // the G-shut tier (`m10_10_evidence_interval` at
             // `CAD_M10_10_DOC=r2_link CAD_M10_10_RETRY=default`).
             //
+            // Since the tangent arc stores its own carrier with
+            // Δθ = 4·atan(across / (|d| + along)), the link's half-turns
+            // read their quarter-tangent as `2w / sqrt(4w²)`.
+            // `carrier_matches_mapped_source` moved to
+            // `[108, 0, 44, 28] -> [144, 0, 12, 24]` (from
+            // `[108, 0, 60, 12] -> [108, 0, 50, 22]`): 36 more theorems on
+            // the shipped side, and four fewer numeric. And `arc_span` is
+            // the third re-baseline: rule G re-keys that root as `|2w|`,
+            // so the span's sign over `2w / |2w|` is no theorem on the
+            // shipped side, `[8, 0, 0, 0] -> [4, 0, 0, 4]`, where the
+            // G-shut tier keeps the root an atom it reads non-negative.
+            // `carrier_on_surface_2` moved with it, to
+            // `[84, 0, 0, 24] -> [76, 0, 16, 16]` (from
+            // `[88, 0, 0, 20] -> [84, 0, 10, 14]`). Toggling the tangent
+            // arc back to an `atan2` quarter-tangent restores all three
+            // predicates' old numbers.
+            //
+            // The decision read no longer answers any of this
+            // document's theorems first (DECIDE-9's early zero arm), so
+            // `dihedral_wedge` and `path_seam_arrival_turn` read the same
+            // on both sides. At the document level the shipped side
+            // gains: `[569, 0, 94, 499] -> [676, 0, 44, 442]`.
+            //
             // Both sides here run one attempt per rung
             // (`split_at_the_nominal`, no retry ladder), because this is
             // rule G's trade and a ladder on the `on` side would read it
@@ -117,10 +140,11 @@ fn decide_3_no_predicate_loses_a_decision() {
             // is pinned where the ladder is:
             // `sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`.
             let rebaselined: Option<([u64; 4], [u64; 4])> = match (*name, *p) {
-                ("r2_link", "carrier_on_surface_2") => Some(([88, 0, 0, 20], [84, 0, 10, 14])),
+                ("r2_link", "carrier_on_surface_2") => Some(([84, 0, 0, 24], [76, 0, 16, 16])),
                 ("r2_link", "carrier_matches_mapped_source") => {
-                    Some(([108, 0, 60, 12], [108, 0, 50, 22]))
+                    Some(([108, 0, 44, 28], [144, 0, 12, 24]))
                 }
+                ("r2_link", "arc_span") => Some(([8, 0, 0, 0], [4, 0, 0, 4])),
                 _ => None,
             };
             if let Some(expected) = rebaselined {

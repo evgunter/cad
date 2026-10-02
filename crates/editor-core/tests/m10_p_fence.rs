@@ -54,6 +54,15 @@
 //! off the hosted `interval` lane, which is the only place this
 //! workspace builds that backend.
 //!
+//! **ALL THREE NUMBERS MOVED WHEN EACH CONSTRUCTION BEGAN STORING THE
+//! ARC IT BUILDS** (`store-constructed-carriers`), and only through
+//! point and fixture bits: every node's outcome in the stream, at
+//! `f64` and at `Interval`, is the one main produced, diffed line for
+//! line. The circles store their authored centre and radius, the
+//! fillet arcs their own centre, and the fixture's `Center` arcs the
+//! authored centre, so the carriers the bodies' points are computed on
+//! moved in the last bits.
+//!
 //! **The stream hashes each node's id and walks the nodes in id
 //! order**, so a change to how the mint draws ids moves all three
 //! numbers with no point moving.
@@ -706,7 +715,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x0349_3ed7_07ff_655c, 0x337c_581f_043b_92d8),
+        (0x6139_0ee7_84fe_fb12, 0x616c_29b8_059f_80fe),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -732,7 +741,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xe239_4cfb_6b6e_51da, 0x4fe5_80d8_df7b_23ae),
+        (0x67de_d199_80bc_53e0, 0x0e65_4df4_d13e_563c),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -756,7 +765,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x0349_3ed7_07ff_655c, 0x337c_581f_043b_92d8),
+        (0x6139_0ee7_84fe_fb12, 0x616c_29b8_059f_80fe),
         "the corpus's Probe evaluation moved"
     );
 }

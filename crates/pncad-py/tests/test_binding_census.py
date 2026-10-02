@@ -3612,6 +3612,7 @@ MEMBERS_BOUND_AS = {
     "PathError::NonpositiveFilletRadius": "PathError.variant",
     "PathError::NonpositiveCircleRadius": "PathError.variant",
     "PathError::DegenerateArcSpec": "PathError.variant",
+    "PathError::ArcSweepPastFullTurn": "PathError.variant",
     "PathError::CircleSplitCount": "PathError.variant",
     "PathError::PolygonTooFewVertices": "PathError.variant",
     "PathError::ZeroDirection": "PathError.variant",

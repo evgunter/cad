@@ -48,8 +48,9 @@ pub(crate) struct Study {
     pub(crate) name: &'static str,
     /// A multiple of ε that certifies whole.
     pub(crate) certifies_at: f64,
-    /// A multiple of ε that refuses.
-    pub(crate) refuses_at: f64,
+    /// A multiple of ε that refuses — `None` where the bisection found
+    /// no refusal up to its top, `1e6·ε`.
+    pub(crate) refuses_at: Option<f64>,
     /// `SymCounts::registered` at `certifies_at`, shipped set.
     pub(crate) registered: u64,
     /// `SymCounts::symbolic_zero` at `certifies_at`, shipped set — the
@@ -73,26 +74,43 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
         Study {
             name: "two_hole_plate",
             certifies_at: 7.811e2,
-            refuses_at: 7.814e2,
-            registered: 140,
+            refuses_at: None,
             // DECIDE-3: eight more THEOREMS (803 -> 811) out of
             // `numeric` (470 -> 462) — comparisons of two rational
-            // constants A0 now decides exactly. `registered` unmoved.
-            symbolic_zero: 811,
+            // constants A0 now decides exactly. Then every one of the
+            // 140 registered decisions became a THEOREM (811 -> 951,
+            // `numeric` unmoved) when the circles began storing their
+            // authored carrier, the radius as `|r|`: the rim at a
+            // vertex folds onto it in the tier's own algebra. With it
+            // the plate stopped refusing anywhere the bisection reaches
+            // (`1e6·ε`); its ceiling was 7.814e2·ε.
+            registered: 0,
+            symbolic_zero: 951,
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
             name: "r1_annulus",
             certifies_at: 7.805e2,
-            refuses_at: 7.810e2,
-            registered: 140,
-            symbolic_zero: 328,
+            refuses_at: None,
+            // 140 / 328 until the circles stored their authored carrier
+            // (as the plate): all 140 are theorems now, `numeric`
+            // unmoved, and no refusal up to `1e6·ε` (it was 7.810e2·ε).
+            registered: 0,
+            symbolic_zero: 468,
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
             name: "r2_link",
-            certifies_at: 4.930e2,
-            refuses_at: 4.934e2,
+            // 4.930e2 / 4.934e2 until the tangent arc stored its own
+            // carrier with Δθ = 4·atan(across / (|d| + along)): the
+            // quarter-tangent of a half-turn whose chord is the
+            // parameter `half_w` reads `2w / |2w|`, a sign the tier
+            // does not hold, so the rim identity the arc registers sits
+            // inside a frozen compound and the mapped-source residual
+            // is read numerically; it leaves the band first at
+            // 3.030e2·ε.
+            certifies_at: 3.029e2,
+            refuses_at: Some(3.030e2),
             // DECIDE-3: rule G re-keys the link's roots on their value
             // class, so six more of the rim identity's samples meet
             // the registrant's forms (90 -> 96) and twenty-six more
@@ -109,19 +127,34 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exactly (`geom_brep::schedule_param`): two end residuals
             // the door now recognises. Measured by restoring the old end
             // samples on a probe, which restores 108.
-            registered: 110,
-            symbolic_zero: 545,
+            // 110 / 545 / numeric 507 at the old ceiling, before the
+            // constructions stored their carriers; 44 / 676 / 442 here,
+            // at every ε. (643 with 33 sign-gated before DECIDE-9's
+            // early zero arm: 32 `dihedral_wedge` and one
+            // `path_seam_arrival_turn` the read answered first.)
+            registered: 44,
+            symbolic_zero: 676,
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
             name: "r2_filleted_bracket",
+            // Ceiling 3.873e2·ε until the constructions stored their
+            // carriers; 7.624e2·ε since (bounded by `arc_span`).
             certifies_at: 3.870e2,
-            refuses_at: 3.873e2,
+            refuses_at: Some(7.624e2),
             // 144 until the certification schedule assigned its last
             // sample `t₁` itself (`geom_brep::schedule_param`) rather
             // than `t₀ + (t₁ − t₀)·1` over the copied arc carriers: two
             // numeric decisions reach the door, verdicts unchanged.
-            registered: 146,
+            // 146 / 1105 / 21 gated / 781 numeric until the fillet
+            // stored its own centre and the authored radius and
+            // registered its incoming tangency: 42 / 1257 / 5 / 749
+            // since, at every ε. Against main's 1121 / 5 / 146 / 781,
+            // eight `dihedral_wedge` theorems are registered instead:
+            // the fillet's tangency is the registration
+            // `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
+            // centre's algebra.
+            registered: 42,
             // DECIDE-3: more theorems from A0's constant fold
             // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
             // and rule G, and decisions the read answers; `registered`
@@ -131,18 +164,20 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // `dihedral_wedge` margins `sin θ · arm`, whose `sin θ` is
             // the zero form and whose lever arm the read settles, are
             // theorems again (`sign_gated` 21 -> 5, the five
-            // `line_span` reads no form settles); the read shut reads
-            // 1121 as well, and `numeric` does not move. One of the
-            // 1121 is the bracket's fillet run out read against its
-            // arrival carrier (`path_run_out_carrier`), a margin the
-            // tier proves zero rather than measuring it.
-            symbolic_zero: 1121,
+            // `line_span` reads no form settles). One of these is the
+            // bracket's fillet run out read against its arrival
+            // carrier (`path_run_out_carrier`), a margin the tier proves
+            // zero rather than measuring it.
+            symbolic_zero: 1257,
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
             name: "r2_rounded_pad",
             certifies_at: 2.083e3,
-            refuses_at: 2.084e3,
+            // 2.084e3·ε until the constructions stored their carriers;
+            // measured at ε = 1e-9 since (bounded by `line_span`; the
+            // pad refuses below it at 1e-6 and 1e-12).
+            refuses_at: Some(2.7783e3),
             // 86 until SYM-5's rule E (`common_factor`). The pad is
             // the one of the five whose `registered` the rule moves,
             // and it moves it UP: as measured when rule E landed, with
@@ -217,11 +252,17 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // and four numeric ones reach the door at the schedule's
             // assigned end sample (`geom_brep::schedule_param`), as the
             // bracket's two above do.
-            registered: 148,
+            // 148 / 925 / 2 gated / numeric 1004 until the
+            // constructions stored their carriers; 54 / 1110 / 2 / 913
+            // since, at every ε: 94 registrations and 91 numeric
+            // decisions become theorems. (46 / 1070 / 42 gated / 921
+            // before DECIDE-9's early zero arm, which takes 32 of those
+            // 40 gated decisions to theorems and 8 to registered.)
+            registered: 54,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them.
-            symbolic_zero: 925,
+            symbolic_zero: 1110,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -541,8 +582,9 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// into the door. The axis-order basis mints no `copysign` for rule F
 /// to fold, and at the scale the pad certifies whole at, over its
 /// analyzed box, the two dials now read the same receipt —
-/// `symbolic_zero` 925, `sign_gated` 2, `registered` 148, `numeric`
-/// 1004, `frozen` 2510 — and both certify
+/// `symbolic_zero` 1110, `sign_gated` 2, `registered` 54, `numeric`
+/// 913, `frozen` 2733 since the constructions stored their carriers
+/// (925 / 2 / 148 / 1004 / 2510 before) — and both certify
 /// (`work/sym/the-negative-arm-lost-its-document-consumer`).
 ///
 /// `#[ignore]`d: it is two whole-box replays of the heaviest of the
@@ -586,7 +628,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (925, 2, 148, 1004, 2510),
+        (1110, 2, 54, 913, 2733),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(
