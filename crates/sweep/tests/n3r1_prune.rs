@@ -125,8 +125,10 @@ fn digest(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> String {
 /// the accumulator dedups, so the realized sweep loses no contact by
 /// pruning it
 /// (`work/hone/sweep-trace-counts-a-face-free-vertex-record-as-the-pairs-event.md`).
-/// The count is pinned, so a pair this exemption hides cannot join it
-/// unseen.
+/// The count is pinned, and
+/// [`n3r1_prune_realized_and_idealized_sweeps_record_the_same_contacts`]
+/// is the guard behind it: a pair the exemption hid that carried a real
+/// event would show there as a contact or a split one strategy lacks.
 const FACE_FREE_RECORDS: &[(&str, usize)] = &[("cylinder x cylinder shifted 0.3", 16)];
 
 /// The adopted arm's candidate set on the corpus: 154 examined pairs —
@@ -171,4 +173,35 @@ fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
         let _ = digest(&topo::boolean::subtract(&a, &b, Tol::witness()));
     }
     assert_eq!(total_prune_pairs, 154, "the corpus's candidate total moved");
+}
+
+/// **Pruning loses no contact and no split, corpus-wide** — the guard
+/// behind [`FACE_FREE_RECORDS`]. The realized and idealized sweeps must
+/// record the same contacts and leave operands of the same sizes, on
+/// every pair both sweep. (Adopted from the review of PR 3752.)
+#[test]
+fn n3r1_prune_realized_and_idealized_sweeps_record_the_same_contacts() {
+    let key = |r: &topo::ContactRecords| {
+        let mut v: Vec<String> = r.vv.iter().map(|c| format!("{c:?}")).collect();
+        v.extend(r.a_on_b.iter().map(|c| format!("A{c:?}")));
+        v.extend(r.b_on_a.iter().map(|c| format!("B{c:?}")));
+        v.sort();
+        v
+    };
+    let mut compared = Vec::new();
+    for (name, a, b) in corpus() {
+        let real = topo::sweep_records(&a, &b, SweepStrategy::Realized, Tol::witness());
+        let ideal = topo::sweep_records(&a, &b, SweepStrategy::Idealized, Tol::witness());
+        if let (Ok((rr, rs)), Ok((ir, is))) = (&real, &ideal) {
+            assert_eq!(rs, is, "{name}: the split operands' sizes differ");
+            assert_eq!(key(rr), key(ir), "{name}: the contact records differ");
+            compared.push(name);
+        }
+    }
+    assert!(
+        compared
+            .iter()
+            .any(|n| FACE_FREE_RECORDS.iter().any(|(f, _)| f == n)),
+        "the exempted pair is among those compared: {compared:?}"
+    );
 }

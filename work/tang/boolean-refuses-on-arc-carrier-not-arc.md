@@ -99,15 +99,18 @@ call; only the harmonics' phases, a noise meter and a
 ## Outcome (2026-10-01, TANG: the circle × cylinder crossing cell)
 
 The cell is settled: `topo::boolean::circle_cylinder` certifies a
-circle's crossings with a cylinder wall. The evidence above held, with
-one correction: a circle SQUARE to the wall's axis (every parallel-axes
-pose, this row's included) has a first-harmonic residual, which the
-half-angle ladder reads badly (its discriminant measures how near the
-complex pair lies, so a near miss reads as a tangency) and which it
-cannot answer at all when coaxial (`F` constant). That arm goes through
-the circle × sphere door's decisions instead, made the shared
-`circle_sphere::first_harmonic_roots`; tilted circles take the shared
-`circle_torus::half_angle_roots`. No third root door was written.
+circle's crossings with a cylinder wall, reading the wall's harmonics
+from their one home (`geom_brep::circle_cylinder_harmonics`) and
+solving them in the shared root cores (`topo::boolean::circle_roots`),
+which the sphere and torus doors call too. The evidence above held,
+with one addition. A circle SQUARE to the wall's axis (every
+parallel-axes pose, this row's included) takes the first-harmonic door,
+not the ladder. That is required, for two poses the ladder cannot
+answer truthfully: a coaxial circle, whose residual is constant, and a
+tangency, which the ladder can certify as a miss
+(`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`)
+where the first-harmonic door escalates it. Tilted circles take the
+ladder.
 
 Where #347's cylinder poses stand now:
 
@@ -116,9 +119,12 @@ Where #347's cylinder poses stand now:
 | parallel, equal r, one height (this row's pose) | `UndeclaredCoincidence` on the coplanar cap discs — a declaration's |
 | parallel, equal r, staggered heights, `d` 0.3 to 1.6 | `CurvedSectorSideUnsupported { Negative }` (`work/reach/slab-cut-cylinder-refuses-sector-side.md`) |
 | parallel, equal r, staggered, `d` 1.9 | `Join(SectionArcWindow { NoChartedRun })`, the pierce ring (`pierce-ring-has-no-join-arm`) |
-| coaxial, equal r | `CurvedPierceUnsupported`, the rim lying on the wall (`Constant`): a declaration's |
+| parallel, equal r, staggered, `d` 2 (rims tangent to the walls) | `CurvedPierceUnsupported` on a rim circle: a tangency escalates |
+| coaxial, equal r | `CurvedPierceUnsupported`, the rim lying on the wall: a declaration's |
 | Steinmetz | `CurvedPierceUnsupported` at the seam tangency, the pinch family, unchanged |
+| Ev's engraving pose slid across the rim | the pierce passes the crossing layer, the sector side and the join, and stops at the volume backstop: `VolumeUnmeasured`, the notched wall (`work/props/a-notched-cylinder-wall-has-no-volume-measurement.md`) |
 | a D-prism beside a cylinder, square and tilted 10°/30°/45° | builds under ∪, ∖, ∩, tier 3 clean, volume at the closed form |
 
-So no genuine circle pierce of a wall builds yet. The next wall for
-those is the arc's sector side, then the pierce ring.
+So a genuine circle pierce of a wall gets through the whole boolean on
+the engraving pose and stops only at measuring the result; on the
+parallel pairs it stops at the arc's sector side, then the pierce ring.

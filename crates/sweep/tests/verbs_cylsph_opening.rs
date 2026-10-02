@@ -149,7 +149,7 @@ fn both_poses_take_the_same_door() {
 /// swamps (`work/reach/slab-cut-cylinder-refuses-sector-side.md`), in
 /// both poses.
 #[test]
-fn a_transversal_pose_keeps_its_door_too() {
+fn a_transversal_pose_stops_at_the_sector_side_in_both_poses() {
     let c = cyl(1.0, -2.0, 2.0);
     let s = ball_at(1.5, Vec3::new(0.6, 0.0, 0.0));
     for (label, c, s) in [
@@ -232,7 +232,34 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
             .unwrap()
             .body
     };
-    let err = topo::union(&cyl(1.0, -2.0, 2.0), &torus, Tol::witness())
+    let a = cyl(1.0, -2.0, 2.0);
+    // The refusal names no edge, so the sweep's trace says which events
+    // it took: a circle of the torus (B) on the cylinder's wall (A).
+    let (_, ba) = topo::sweep_traces(
+        &a,
+        &torus,
+        topo::SweepStrategy::Realized,
+        None,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the sweep refused: {e:?}"));
+    let torus_circle_on_wall = ba.accepted.iter().any(|(e, f)| {
+        let circle = torus
+            .get_edge(*e)
+            .and_then(|e| torus.get_curve_geom(e.curve))
+            .and_then(topo::CurveGeom::certified)
+            .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle { .. }));
+        let wall = matches!(
+            a.get_face(*f).and_then(|f| a.get_surface(f.surface)),
+            Some(topo::Surface::Cylinder { .. })
+        );
+        circle && wall
+    });
+    assert!(
+        torus_circle_on_wall,
+        "a torus circle meets the cylinder's wall"
+    );
+    let err = topo::union(&a, &torus, Tol::witness())
         .expect_err("a pierce's sector side is not certified against the wall's bend");
     assert!(
         matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),

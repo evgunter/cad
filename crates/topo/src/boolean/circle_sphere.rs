@@ -1,6 +1,5 @@
 //! **The circle × sphere root door**: the certified crossings of a
-//! CIRCLE carrier with a sphere, beside the circle × torus quartic
-//! ([`super::circle_torus`]) and the line × sphere quadratic
+//! CIRCLE carrier with a sphere, beside the line × sphere quadratic
 //! ([`super::solid_contain::line_sphere_roots`]).
 //!
 //! # The residual is a first harmonic, so the roots are closed form
@@ -15,104 +14,22 @@
 //! `geom_brep::circle_sphere_harmonic`, the harmonic triple
 //! `geom_brep::circle_residual_extremes` reads too, whose range
 //! `[c₀ − A₁, c₀ + A₁]` is EXACT, not an enclosure. Two circles on one
-//! sphere meet it in at most two points, and they are
-//! `θ = φ ± acos(−c₀/A₁)`.
+//! sphere meet it in at most two points.
 //!
-//! The half-angle ladder of [`super::circle_torus::half_angle_roots`] is
-//! the wrong instrument here, not merely a heavier one: a first harmonic
-//! times `(1 + t²)²` is `(1 + t²)` times a quadratic, and the ladder
-//! decides that quartic's count on a discriminant that also measures
-//! how near the quadratic's COMPLEX pair lies to the real axis, so a
-//! carrier passing just clear reads as a tangency at a coarse band
-//! (measured on the circle × torus door's parallel-axes pose). The
-//! extremes below decide on the exact range instead.
-//!
-//! # The decisions, all on residual metres
-//!
-//! They are [`first_harmonic_roots`], under per-caller rows: this door's
-//! below, and the circle × cylinder door's parallel-axes arm
-//! ([`super::circle_cylinder`]), whose residual on a circle square to
-//! the wall's axis is this one against the wall's cross-section circle.
-//!
-//! - `bool_circle_sphere_noise` — the harmonics' evaluation error
-//!   (`NOISE_ULPS` half-ulps of the sum of the terms' magnitudes, over
-//!   `2r`) definitely past the escalation threshold, or not readable at
-//!   all, refuses: the representation cannot resolve what the band asks
-//!   of it. A rounding estimate on `f64`, run on every scalar: the
-//!   `Interval` lane carries its own enclosure and needs no meter to be
-//!   sound, but the meter still reads there and can refuse a pose the
-//!   enclosures alone would answer.
-//! - `bool_circle_sphere_coaxial` — the swing `A₁` in the zero band: the
-//!   residual is constant along the carrier (its centre's offset from
-//!   the sphere's centre is along its axis), so `c₀` alone decides it:
-//!   definite is a [`FirstHarmonicRoots::Miss`], zero is
-//!   [`FirstHarmonicRoots::Coaxial`] — the circle lies ON the sphere,
-//!   which every circle on a sphere does with its axis through the
-//!   sphere's centre — for the caller to read, as the axis-parallel line
-//!   is on a wall.
-//! - `bool_circle_sphere_extreme`, on `c₀ − A₁` and `c₀ + A₁` — the
-//!   carrier's minimum and maximum residual. Definitely one-signed is a
-//!   [`FirstHarmonicRoots::Miss`]; definitely straddling is two roots;
-//!   either extreme in the zero band is a tangency, which is not a
-//!   crossing at any order this lane sees and answers
-//!   [`FirstHarmonicRoots::Uncertain`].
-//! - `bool_circle_sphere_root_slack` — each root moves by
-//!   `noise / |R′(θ)|` radians under the harmonics' error, with
-//!   `|R′| = √(A₁² − c₀²)` at both roots; that arc length must be
-//!   definitely inside the band, or the span and trim decisions the
-//!   caller makes on the point are made on the wrong point.
-//!
-//! Two DISTINCT certified roots therefore certify that the carrier does
-//! not lie on the sphere — the fact the reduction's `(Zero, Zero)` chord
-//! arm leans on to separate a chord from an on-carrier edge.
+//! The door decides it with the shared first-harmonic door
+//! ([`super::circle_roots::first_harmonic_roots`]) under its own rows,
+//! `bool_circle_sphere_noise`, `_coaxial`, `_extreme` and `_root_slack`,
+//! escalating as [`BooleanDecision::ArcSphereRoots`]. Its constant-
+//! residual answer is the coaxial circle's: every circle whose axis
+//! passes through the sphere's centre has one, and lies ON the sphere
+//! when it is zero.
 
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide};
 
-use super::circle_torus::rounding_charge;
+use super::circle_roots::{
+    CircleRoots, FirstHarmonic, FirstHarmonicRows, first_harmonic_roots, rounding_charge,
+};
 use super::{BooleanDecision, BooleanError};
-use crate::validate::decide;
-
-/// What a first-harmonic residual's certified roots say about a whole
-/// carrier.
-#[derive(Debug, Clone, Copy)]
-pub(super) enum FirstHarmonicRoots<T> {
-    /// The residual is constant along the carrier and ZERO: the circle
-    /// lies on the surface. A constant definite residual is a
-    /// [`Self::Miss`].
-    Coaxial,
-    /// The carrier misses the surface: wholly outside or wholly inside.
-    Miss,
-    /// No certain answer — a tangency, or a representation that cannot
-    /// resolve the band.
-    Uncertain,
-    /// Two distinct roots, each within `π` of the arc's midpoint so it
-    /// compares with the arc `[t₀, t₁]` the caller passed without
-    /// wrapping.
-    Two([T; 2]),
-}
-
-/// A residual `c₀ + A₁ cos(θ − φ)` along a circle, `φ = atan2(e_v, e_u)`,
-/// in metres of residual, with `noise` the metres its harmonics may be
-/// off by (their rounding, and any term the caller dropped to reach
-/// this form).
-pub(super) struct FirstHarmonic<T> {
-    pub(super) c0: T,
-    pub(super) a1: T,
-    pub(super) e_u: T,
-    pub(super) e_v: T,
-    pub(super) noise: T,
-}
-
-/// The predicate rows one caller of [`first_harmonic_roots`] meters
-/// under (module docs: noise, coaxial, extreme, root slack; all metres),
-/// and the decision an in-band extreme escalates as.
-pub(super) struct FirstHarmonicRows {
-    pub(super) noise: &'static str,
-    pub(super) coaxial: &'static str,
-    pub(super) extreme: &'static str,
-    pub(super) root_slack: &'static str,
-    pub(super) decision: BooleanDecision,
-}
 
 const CIRCLE_SPHERE_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     noise: "bool_circle_sphere_noise",
@@ -137,7 +54,7 @@ pub(super) fn circle_sphere_roots<T: Decide>(
     t1: T,
     sphere: &geom::Surface<T>,
     band: Band,
-) -> Result<FirstHarmonicRoots<T>, BooleanError> {
+) -> Result<CircleRoots<T>, BooleanError> {
     let (
         &geom::Curve3::Circle {
             center,
@@ -169,8 +86,8 @@ pub(super) fn circle_sphere_roots<T: Decide>(
         &FirstHarmonic {
             c0,
             a1,
-            e_u,
-            e_v,
+            cos_part: e_u,
+            sin_part: e_v,
             noise,
         },
         radius,
@@ -179,83 +96,6 @@ pub(super) fn circle_sphere_roots<T: Decide>(
         &CIRCLE_SPHERE_ROWS,
         band,
     )
-}
-
-/// **The certified roots of a first-harmonic residual along a circle of
-/// `radius`**, reported within `π` of the midpoint of `[t0, t1]`: the
-/// decisions of the module docs, under the caller's `rows`.
-///
-/// # Errors
-///
-/// A coincidence escalation, as `rows.decision`, when the constant
-/// residual of a coaxial carrier, or an extreme residual, lies in the
-/// band's escalation gap. An escalated noise or root-slack reading is
-/// NOT an error: it answers `Uncertain`, as a definitely excessive one
-/// does — a meter that cannot be read does not license the roots it
-/// meters. An escalated coaxial test falls through to the extremes,
-/// which decide the same carrier.
-pub(super) fn first_harmonic_roots<T: Decide>(
-    h: &FirstHarmonic<T>,
-    radius: T,
-    t0: T,
-    t1: T,
-    rows: &FirstHarmonicRows,
-    band: Band,
-) -> Result<FirstHarmonicRoots<T>, BooleanError> {
-    let decide = |row, m, band| {
-        decide(row, m, band).map_err(|diag| BooleanError::Escalated {
-            decision: rows.decision,
-            diag,
-        })
-    };
-    let FirstHarmonic {
-        c0,
-        a1,
-        e_u,
-        e_v,
-        noise,
-    } = *h;
-    match decide(rows.noise, Margin::of(noise), band) {
-        Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => return Ok(FirstHarmonicRoots::Uncertain),
-    }
-    if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
-        // A constant residual: its one value decides the whole carrier.
-        return Ok(match decide(rows.extreme, Margin::of(c0), band)? {
-            Sign::Zero => FirstHarmonicRoots::Coaxial,
-            Sign::Positive | Sign::Negative => FirstHarmonicRoots::Miss,
-        });
-    }
-    let lo = decide(rows.extreme, Margin::of(c0 - a1), band)?;
-    if lo == Sign::Positive {
-        return Ok(FirstHarmonicRoots::Miss);
-    }
-    let hi = decide(rows.extreme, Margin::of(c0 + a1), band)?;
-    if hi == Sign::Negative {
-        return Ok(FirstHarmonicRoots::Miss);
-    }
-    if (lo, hi) != (Sign::Negative, Sign::Positive) {
-        return Ok(FirstHarmonicRoots::Uncertain);
-    }
-    // |R′| at either root: A₁·|sin(θ − φ)| = √(A₁² − c₀²), factored so
-    // that both factors are the definite extremes just decided.
-    let slope = ((a1 - c0) * (a1 + c0)).max(T::zero()).sqrt();
-    match decide(rows.root_slack, Margin::of(radius * noise / slope), band) {
-        Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => return Ok(FirstHarmonicRoots::Uncertain),
-    }
-    let two = T::from_f64(2.0);
-    let phi = e_v.atan2(e_u);
-    let half_chord = (T::zero() - c0 / a1)
-        .max(T::zero() - T::one())
-        .min(T::one())
-        .acos();
-    let mid = (t0 + t1) / two;
-    let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
-    Ok(FirstHarmonicRoots::Two([
-        near_mid(phi - half_chord),
-        near_mid(phi + half_chord),
-    ]))
 }
 
 #[cfg(test)]
@@ -293,7 +133,7 @@ mod tests {
         }
     }
 
-    fn roots(c: [f64; 3], r: f64, t0: f64, t1: f64) -> FirstHarmonicRoots<f64> {
+    fn roots(c: [f64; 3], r: f64, t0: f64, t1: f64) -> CircleRoots<f64> {
         circle_sphere_roots(&circle(1.0), t0, t1, &sphere(c, r), band()).unwrap()
     }
 
@@ -321,7 +161,11 @@ mod tests {
     fn a_crossing_sphere_meets_the_carrier_at_two_points_on_it() {
         let (c, r) = ([0.8, 0.6, 0.3], 0.5);
         let (t0, t1) = (-1.0, 4.0);
-        let FirstHarmonicRoots::Two(ts) = roots(c, r, t0, t1) else {
+        let CircleRoots::Certified {
+            count: 2,
+            thetas: [ts @ .., _, _],
+        } = roots(c, r, t0, t1)
+        else {
             panic!("a sphere through the circle crosses it twice");
         };
         let mid = (t0 + t1) / 2.0;
@@ -347,7 +191,11 @@ mod tests {
     fn roots_are_reported_within_pi_of_an_arc_past_the_branch_cut() {
         let (c, r) = ([1.0, -0.1, 0.0], 0.3);
         let (t0, t1) = (5.0, 7.5);
-        let FirstHarmonicRoots::Two(ts) = roots(c, r, t0, t1) else {
+        let CircleRoots::Certified {
+            count: 2,
+            thetas: [ts @ .., _, _],
+        } = roots(c, r, t0, t1)
+        else {
             panic!("the sphere straddles the circle at θ ≈ 0");
         };
         for t in ts {
@@ -365,7 +213,7 @@ mod tests {
         // about the origin swallows the circle.
         for (c, r) in [([3.0, 0.0, 0.0], 0.5), ([0.1, 0.0, 0.2], 2.0)] {
             assert!(
-                matches!(roots(c, r, 0.0, 6.0), FirstHarmonicRoots::Miss),
+                matches!(roots(c, r, 0.0, 6.0), CircleRoots::Miss),
                 "sphere {c:?} r {r} misses the circle"
             );
             let first = off_sphere(0.0, c, r) > 0.0;
@@ -378,20 +226,20 @@ mod tests {
 
     /// **A coaxial carrier is decided by its one residual.** Centred on
     /// the circle's axis the residual is constant: definitely off the
-    /// sphere is a miss, on it is `Coaxial`.
+    /// sphere is a miss, on it is `OnSurface`.
     #[test]
     fn a_coaxial_carrier_is_a_miss_off_the_sphere_and_coaxial_on_it() {
         assert!(matches!(
             roots([0.0, 0.0, 0.7], 1.6, 0.0, 6.0),
-            FirstHarmonicRoots::Miss
+            CircleRoots::Miss
         ));
         assert!(matches!(
             roots([0.0, 0.0, 0.7], 0.5, 0.0, 6.0),
-            FirstHarmonicRoots::Miss
+            CircleRoots::Miss
         ));
         assert!(matches!(
             roots([0.0, 0.0, 0.5], 1.25_f64.sqrt(), 0.0, 6.0),
-            FirstHarmonicRoots::Coaxial
+            CircleRoots::OnSurface
         ));
     }
 
@@ -400,7 +248,7 @@ mod tests {
         // Externally tangent at (1, 0, 0): a touch, not a crossing.
         assert!(matches!(
             roots([1.5, 0.0, 0.0], 0.5, 0.0, 6.0),
-            FirstHarmonicRoots::Uncertain
+            CircleRoots::Uncertain
         ));
     }
 
@@ -428,7 +276,7 @@ mod tests {
             )
             .unwrap();
             assert!(
-                matches!(got, FirstHarmonicRoots::Uncertain),
+                matches!(got, CircleRoots::Uncertain),
                 "a sphere {far} m off: the noise meter refuses, got {got:?}"
             );
         }
@@ -455,7 +303,7 @@ mod tests {
         )
         .unwrap();
         assert!(
-            matches!(got, FirstHarmonicRoots::Uncertain),
+            matches!(got, CircleRoots::Uncertain),
             "the root-slack meter refuses: {got:?}"
         );
     }
@@ -479,7 +327,7 @@ mod tests {
         )
         .unwrap();
         assert!(
-            matches!(got, FirstHarmonicRoots::Uncertain),
+            matches!(got, CircleRoots::Uncertain),
             "the root-slack meter refuses: {got:?}"
         );
     }
@@ -523,7 +371,11 @@ mod tests {
             band(),
         )
         .unwrap();
-        let FirstHarmonicRoots::Two(ts) = got else {
+        let CircleRoots::Certified {
+            count: 2,
+            thetas: [ts @ .., _, _],
+        } = got
+        else {
             panic!("interval lane: expected two roots, got {got:?}");
         };
         // The f64 sign changes over the arc, each bisected to the bit.

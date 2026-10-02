@@ -11,125 +11,45 @@
 //! `h = q·â` are FIRST harmonics in `θ` (with `e(θ) = û cos θ +
 //! v̂ sin θ`, the cross term `2ρ(C₀ − c)·e(θ)` is the only
 //! `θ`-dependence of `S`, since `|e(θ)| = 1`), so `F` is a
-//! trigonometric polynomial of degree TWO. The tangent half-angle `t = tan(φ/2)` therefore turns
-//! `F·(1 + t²)²` into a polynomial of degree FOUR in `t` — Bézout's
+//! trigonometric polynomial of degree TWO, and the shared half-angle
+//! ladder ([`super::circle_roots::half_angle_roots`]) solves it — Bézout's
 //! eight for a conic against a quartic surface loses four to the
 //! circular points at infinity, through which both the circle and the
 //! (bicircular) torus pass. At most four crossings per turn.
 //!
-//! # The substitution, and where its pole goes, and why it must be well conditioned
+//! The ladder's rows here are `bool_circle_torus_pole`, `_conditioning`,
+//! `_noise`, `_root_slack` and the quartic's `bool_circle_torus_*`, and
+//! every in-band sign escalates as [`BooleanDecision::ArcTorusRoots`].
 //!
-//! `φ = θ − θₐ` is measured from an anchor `θₐ`, and the half-angle map
-//! covers every `θ` except its pole `θₐ + π`. The quartic's leading
-//! coefficient is `F` at the pole. The arc's midpoint is tried first,
-//! so the pole is the arc's antipode; then anchors a `τ/32` step at a
-//! time either side of it, nearest first. A pole may land inside the
-//! arc: the one parameter the map cannot reach is then certified not a
-//! root by the first decision below, and the roots are reported within
-//! `π` of the arc's midpoint whatever the anchor.
-//!
-//! **Non-zero is not enough, and the lane once assumed it was.** A pole
-//! definitely off the torus makes the division that normalizes the
-//! quartic a division by a non-zero — but a pole a milliradian from a
-//! root the arc does not hold puts a root near `t = ∞`, the monic
-//! coefficients grow like the inverse of that distance, and at `f64` the
-//! ladder then certified wrong counts: in-arc roots dropped, phantoms
-//! invented (review of PR 3375, executed at `δ` from 1e-3 to 1e-7).
-//! So an anchor is used only when its pole passes TWO decisions:
-//!
-//! - `bool_circle_torus_pole` — the linearized residual at the pole is
-//!   definitely non-zero (on a ring torus `R > r` it has `F`'s sign,
-//!   since `F = 2r·res·((ρ + R)² + h² − r²)` and the second factor
-//!   exceeds `R² − r² > 0`). This is what refuses a carrier lying ON the
-//!   torus, whose `F` is identically zero and whose coefficients are
-//!   rounding noise that no ratio can be read off.
-//! - `bool_circle_torus_pole_conditioning` — `|F(pole)| ≥ κ·A` with
-//!   `A = |c₀| + |(c₁, s₁)| + |(c₂, s₂)|`, which bounds `|F|` everywhere
-//!   and `|F′|` by `2A`. Two consequences carry the ladder. Every root
-//!   is at least `κ/2` radians from the pole (`F` cannot fall from
-//!   `κA` to zero faster than `2A` per radian), so none is near `t = ∞`.
-//!   And each coefficient of `F·(1 + t²)²` is at most `6A` in size, so
-//!   the monic coefficients are at most `6/κ`: the ladder sees a
-//!   quartic whose coefficients, roots and rounding are all bounded by
-//!   a fixed multiple of the circle's own scale, whatever the pose. The
-//!   margin is metered as the arc length `ρ·(|F(pole)| − κA)/A` that
-//!   bound guarantees. `κ = 1/16`.
-//!
-//! **Some anchor always passes, unless `F ≡ 0`.** By Parseval,
-//! `max|F|² ≥ mean F² = c₀² + (A₁² + A₂²)/2`, and by Cauchy–Schwarz
-//! `A² = (c₀ + A₁ + A₂)² ≤ (1 + 2 + 2)(c₀² + A₁²/2 + A₂²/2)`, so `|F|`
-//! reaches `A/√5 ≈ 0.45A` somewhere, and within `π/32` of there — where
-//! some candidate lies — it is still at least `0.45A − 2A·π/32 ≈ 0.25A`,
-//! above `κA`. So `Uncertain` from the anchor search means `F` is
-//! (numerically) identically zero, or the band could not separate the
-//! margins. The machinery
-//! is the surface-generic [`half_angle_roots`]: any surface whose
-//! implicit composed with a circle is a degree-2 trigonometric
-//! polynomial hands it its harmonics — the cylinder wall's does
-//! ([`super::circle_cylinder`]), and a cone's would.
-//!
-//! # The noise meter
+//! # The noise meter's floor, and what it costs
 //!
 //! `F`'s harmonics are sums of terms as large as `(|C₀ − c|² + ρ²)²` —
-//! `ρ⁴` for a large circle — while the crossings live where `F` is
-//! small. At `f64` their rounding is therefore an error in `F` of about
-//! `u·T` (`T` the sum of the terms' magnitudes, [`NOISE_ULPS`] of them
-//! charged), which is a residual error of `u·T / (2r(R² − r²))` metres
-//! everywhere on the carrier (`F = 2r·res·Q` with `Q ≥ R² − r²`).
-//! The door refuses when that error is DEFINITELY past the band's
-//! escalation threshold (`bool_circle_torus_noise` deciding
-//! `Positive`): the representation cannot resolve what the band asks
-//! of it. The same error moves each root by `error/|F′|` radians; that
-//! arc length is held to the same threshold
-//! (`bool_circle_torus_root_slack`), or a caller's span and trim
-//! decisions would be made on the wrong point.
+//! `ρ⁴` for a large circle. `F = 2r·res·Q` with `Q ≥ R² − r²` on a ring
+//! torus, so the floor on `|F|` per metre of residual the meter divides
+//! by is `2r(R² − r²)`.
 //!
-//! **What the meter covers, and what it does not.** It bounds ONE
-//! stage: the evaluation of the harmonics from the geometry. It does
-//! not certify "the count of the computed `F`": everything downstream —
-//! the anchor rotation, the division by `F(pole)`, the monic `(2ρ)^k`
-//! rescale, the depression and the discriminant — rounds again, and
-//! those errors are covered only by the ladder's own band decisions,
-//! as they are for the line lane. The conditioning guard bounds the
-//! monic coefficients by `6/κ` in units of `2ρ`, which keeps that
-//! amplification a fixed multiple of the circle's scale, but no bound
-//! on it is computed here. So the premise is: **the downstream stages'
-//! rounding stays within what the ladder's band margins absorb** — the
-//! same premise every `f64` ladder in the kernel rests on. Under it,
-//! the harmonics' error below the threshold changes the answer only at
-//! an extremum within that threshold of zero, inside the gap where the
-//! band declines to call a sign.
+//! What supports the ladder's premise here is measurement, not proof:
+//! the delta review's fuzz — about 12k cases around the refusal
+//! threshold, some 50k in all — found no wrong answer from the metered
+//! door, and a maximum root error of 4.8e-10 m on the parallel arm.
+//! That supports the premise at the poses it drew; it does not bound the
+//! amplification, and the ladder's in-band answers are a known gap
+//! (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
 //!
-//! What supports the premise is measurement, not proof: the delta
-//! review's fuzz — about 12k cases around the refusal threshold, some
-//! 50k in all — found no wrong answer from the metered door, and a
-//! maximum root error of 4.8e-10 m on the parallel arm. That supports
-//! the premise at the poses it drew; it does not bound the
-//! amplification. The `Interval` lane needs no premise: every
-//! stage there is an enclosure.
+//! **What the meter costs, measured.** Against a torus `R = 1,
+//! r = 0.25` at the default band, grazing circles at `ρ = 10` are
+//! answered (the shallowest grazes refuse on their root slack), and from
+//! `ρ = 30` every one refuses — where the unmetered door certified
+//! misses on real dips and phantom pairs on clearances from `ρ = 100`.
+//! The threshold scales as `ρ⁴ ≲ 10ε·r·R²/(u·NOISE_ULPS)`.
 //!
-//! **What that costs, measured.** Against a torus `R = 1, r = 0.25` at
-//! the default band, grazing circles at `ρ = 10` are answered (the
-//! shallowest grazes refuse on their root slack), and from `ρ = 30`
-//! every one refuses — where the unmetered door certified misses on
-//! real dips and phantom pairs on clearances from `ρ = 100`. The
-//! threshold scales as `ρ⁴ ≲ 10ε·r·R²/(u·NOISE_ULPS)`.
+//! # The lever
 //!
-//! The `Interval` lane needs none of this to be sound: its coefficients
-//! are enclosures of the true ones, and the ladder decides on the
-//! enclosures. The meter runs there too, harmlessly.
-//!
-//! # Units, and the lever
-//!
-//! The root variable handed to the certified ladder is the LENGTH
-//! `τ = 2ρ·t`, which is arc length to first order about the anchor. The
-//! ladder's lever is the length its roots spread over, which is where
-//! its margins become lengths (`Δ` over `lever¹¹` reads `δ²/lever` for
-//! two roots `δ` apart among roots spread over `lever`). That is the
-//! smaller of the carrier's own `2ρ` and the torus's extent `R + r`: a
-//! circle smaller than the torus has its roots spread over its own
-//! size (the torus's extent there made the margins scale like
-//! `ρ¹⁰/(R + r)¹¹`, and small generic circles escalated), and one
+//! The ladder's lever is the length its roots spread over in
+//! `τ = 2ρ·t`: the smaller of the carrier's own `2ρ` and the torus's
+//! extent `R + r`. A circle smaller than the torus has its roots spread
+//! over its own size (the torus's extent there made the margins scale
+//! like `ρ¹⁰/(R + r)¹¹`, and small generic circles escalated), and one
 //! larger than the torus meets it only where it passes through the
 //! torus's extent. The biquadratic arm's accuracy is metered by the same
 //! lever, and taking the smaller length keeps its dropped term within
@@ -140,10 +60,11 @@
 //! - **Coaxial** (the carrier's axis parallel to `â` and its centre on
 //!   the torus axis): `S` and `h` are constant, so `F` is constant and
 //!   the quartic is `F·(1 + t²)²` — a repeated complex pair the ladder
-//!   would read as a tangency. It is decided FIRST, geometrically
-//!   (`bool_circle_torus_coaxial_tilt`, `_offset`, both metres), and
-//!   answered [`CircleRoots::Coaxial`]: the residual is constant
-//!   along the carrier, and the caller decides what that means.
+//!   cannot answer. It is decided FIRST, geometrically
+//!   (`bool_circle_torus_coaxial_tilt`, `_offset`, both metres), and the
+//!   constant residual then decides it (`bool_circle_torus_coaxial_residual`):
+//!   zero is [`CircleRoots::OnSurface`] (a rim circle of the torus), and
+//!   definite a [`CircleRoots::Miss`].
 //! - **Parallel axes** (the circle's plane perpendicular to `â`, off
 //!   the axis — the lily's pose): `h` is constant, the plane meets the
 //!   tube in two contour circles, and the crossings are circle ×
@@ -160,13 +81,18 @@
 //!   coaxial): `F ≡ 0`, so the pole is on the torus at every anchor and
 //!   the answer is `Uncertain` — which is what keeps an undeclared
 //!   on-carrier circle away from every recording arm.
-//! - **A tangency** — the carrier grazing the tube, a double root — is
-//!   the ladder's own `Uncertain` (or a contour-reach margin in band),
-//!   anywhere on the carrier.
+//! - **A tangency** — the carrier grazing the tube, a double root — is a
+//!   contour-reach margin in band on the parallel arm, and on the ladder
+//!   is whatever the ladder reads it as (module docs of
+//!   [`super::circle_roots`], "The ladder's noise meter").
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
-use super::solid_contain::{QuarticRows, TorusRoots, depressed_quartic_roots};
+use super::circle_roots::{
+    CircleRoots, HalfAngleFrame, HalfAngleRows, Harmonics, half_angle_roots, rounding_charge,
+};
+use super::solid_contain::QuarticRows;
+use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
 
 /// The circle × torus lane's ladder rows.
@@ -183,68 +109,65 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
         split: "bool_circle_torus_split",
         split_lead: "bool_circle_torus_split_lead",
     },
+    decision: BooleanDecision::ArcTorusRoots,
 };
 
-/// What the certified roots of a circle against a torus or a cylinder
-/// wall ([`super::circle_cylinder`]) say about a whole carrier.
-#[derive(Debug, Clone, Copy)]
-pub(super) enum CircleRoots<T> {
-    /// The carrier's residual is constant along it: coaxial with the
-    /// torus (any value), or lying on the wall.
-    Coaxial,
-    /// A certified count of zero: the carrier misses the surface.
-    Miss,
-    /// No certain count — a tangency, a carrier on the surface, a
-    /// crossing whose bump is inside the band, or no anchor whose pole
-    /// is definitely off the surface AND well conditioned.
-    Uncertain,
-    /// A certified count (2 or 4) and the carrier parameters `θ` of
-    /// those roots, unordered, in `thetas[..count]`. Every `θ` lies
-    /// within `π` of the arc's midpoint, so it compares with the arc
-    /// `[t₀, t₁]` the caller passed without wrapping.
-    Certified { count: usize, thetas: [T; 4] },
-    /// The quartic's constructed roots disagree in number with its
-    /// certified count ([`TorusRoots::CountDisagrees`]).
-    CountDisagrees,
+/// An in-band sign of this door's own rows, escalated as its decision.
+fn escalated(diag: Indeterminate) -> BooleanError {
+    BooleanError::Escalated {
+        decision: BooleanDecision::ArcTorusRoots,
+        diag,
+    }
 }
 
-/// The certified crossings of the circle carrier
-/// `center + radius·(u_ref cos θ + (axis × u_ref) sin θ)` with the torus
-/// `(t_center, t_axis, major, minor)`, anchored so that the arc
-/// `[t0, t1]` avoids the substitution's pole (module docs).
+/// The certified crossings of the `carrier` circle with the `torus`,
+/// anchored so that the arc `[t0, t1]` avoids the substitution's pole
+/// (module docs).
 ///
 /// # Errors
 ///
-/// [`Indeterminate`] — an in-band classifying sign in the ladder, or its
-/// count cross-check. An in-band sign at the coaxial test, at a pole or
-/// at its conditioning is not an error: the coaxial test falls through
-/// (a near-coaxial carrier is `Uncertain`), and a pole tries the next
-/// anchor.
-#[allow(clippy::too_many_arguments)]
+/// [`BooleanError::ClassificationInvariant`] when `carrier` is not a
+/// circle or `torus` not a torus — the caller dispatched on those kinds.
+/// An escalation as [`BooleanDecision::ArcTorusRoots`] for an in-band
+/// classifying sign: a coaxial carrier's constant residual, a rung of the
+/// parallel arm, or one of the ladder's. An in-band sign at the coaxial
+/// tilt is not an error: the pose takes the ladder.
 pub(super) fn circle_torus_roots<T: Decide>(
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
+    carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
     torus: &geom::Surface<T>,
     band: Band,
-) -> Result<CircleRoots<T>, Indeterminate> {
-    let geom::Surface::Torus {
-        center: t_center,
-        axis: t_axis,
-        major_radius,
-        minor_radius,
-        ..
-    } = *torus
+) -> Result<CircleRoots<T>, BooleanError> {
+    let (
+        &geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        },
+        &geom::Surface::Torus {
+            center: t_center,
+            axis: t_axis,
+            major_radius,
+            minor_radius,
+            ..
+        },
+    ) = (carrier, torus)
     else {
-        return Ok(CircleRoots::Uncertain);
+        return Err(BooleanError::ClassificationInvariant {
+            what: "the circle × torus root door was handed a carrier that is not a circle \
+                   or a surface that is not a torus",
+        });
     };
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
     let v_ref = axis.cross(u_ref);
     let w0 = center - t_center;
+    let point_at = |theta: T| {
+        let (s, c) = theta.sin_cos();
+        center + u_ref * (radius * c) + v_ref * (radius * s)
+    };
 
     // The parallel-axes poses, decided on the geometry in metres: the
     // tilt of the carrier's axis times its radius is the amplitude of
@@ -261,7 +184,20 @@ pub(super) fn circle_torus_roots<T: Decide>(
     );
     if parallel {
         return match decide("bool_circle_torus_coaxial_offset", Margin::of(offset), band) {
-            Ok(Sign::Zero) => Ok(CircleRoots::Coaxial),
+            // Coaxial: the residual is one value along the carrier.
+            Ok(Sign::Zero) => {
+                let constant = geom_brep::implicit_residual(torus, point_at(T::zero()));
+                match decide(
+                    "bool_circle_torus_coaxial_residual",
+                    Margin::of(constant),
+                    band,
+                )
+                .map_err(escalated)?
+                {
+                    Sign::Zero => Ok(CircleRoots::OnSurface),
+                    Sign::Positive | Sign::Negative => Ok(CircleRoots::Miss),
+                }
+            }
             Ok(Sign::Positive) => parallel_axes_roots(
                 &ParallelPose {
                     center,
@@ -279,7 +215,8 @@ pub(super) fn circle_torus_roots<T: Decide>(
                 major_radius,
                 minor_radius,
                 band,
-            ),
+            )
+            .map_err(escalated),
             // A negative length is not an answer; an in-band one is a
             // near-coaxial pose neither arm can stand behind.
             Ok(Sign::Negative) | Err(_) => Ok(CircleRoots::Uncertain),
@@ -305,18 +242,10 @@ pub(super) fn circle_torus_roots<T: Decide>(
         c2: (s1c.powi(2) - s1s.powi(2)) * half + four_rr * (h1c.powi(2) - h1s.powi(2)) * half,
         s2: s1c * s1s + four_rr * h1c * h1s,
     };
-    let point_at = |theta: T| {
-        let (s, c) = theta.sin_cos();
-        center + u_ref * (radius * c) + v_ref * (radius * s)
-    };
-    // The ladder's lever is the scale the roots spread over in the
-    // arc-length variable `τ = 2ρ·t`: the carrier's own `2ρ` for a
-    // circle smaller than the torus, the torus's extent for a larger
-    // one, whose crossings lie where it passes through that extent.
+    // The lever (module docs, "The lever").
     let lever = (two * radius).min(major_radius + minor_radius);
-    // **The noise meter's inputs** (module docs, "The noise meter"): a
-    // bound on every term the harmonics are built from, and the torus's
-    // floor on `|F|` per metre of residual.
+    // The noise meter's inputs: a bound on every term the harmonics are
+    // built from, and the torus's floor on `|F|` per metre of residual.
     let s_abs = s_k.abs() + s1c.abs() + s1s.abs();
     let h_abs = h0.abs() + h1c.abs() + h1s.abs();
     let terms = s_abs.powi(2) + four_rr * (s0.abs() + s1c.abs() + s1s.abs() + h_abs.powi(2));
@@ -335,242 +264,6 @@ pub(super) fn circle_torus_roots<T: Decide>(
         &CIRCLE_TORUS_ROWS,
         band,
     )
-    .map(CircleRoots::from)
-}
-
-/// A degree-2 trigonometric polynomial
-/// `c₀ + c₁ cos θ + s₁ sin θ + c₂ cos 2θ + s₂ sin 2θ`.
-pub(super) struct Harmonics<T> {
-    pub(super) c0: T,
-    pub(super) c1: T,
-    pub(super) s1: T,
-    pub(super) c2: T,
-    pub(super) s2: T,
-}
-
-/// The predicate rows one caller of [`half_angle_roots`] meters under.
-pub(super) struct HalfAngleRows {
-    /// The pole is definitely off the surface (a residual, metres).
-    pub(super) pole: &'static str,
-    /// The pole is well conditioned (module docs; metres).
-    pub(super) conditioning: &'static str,
-    /// The harmonics' rounding, as a residual, is inside the band (the
-    /// noise meter; metres).
-    pub(super) noise: &'static str,
-    /// Each root's position uncertainty, as arc length, is inside the
-    /// band (metres).
-    pub(super) root_slack: &'static str,
-    /// The quartic ladder's own rows.
-    pub(super) quartic: QuarticRows,
-}
-
-/// Where [`half_angle_roots`] works: the arc `[t0, t1]` of a circle of
-/// `radius`, the ladder's `lever` (a length), and the noise meter's two
-/// inputs: `noise`, a bound on the `f64` evaluation error of `F` from
-/// its harmonics (in `F`'s units), and `f_per_metre`, a floor on
-/// `|F| / |residual|` over the surface's neighbourhood, which turns it
-/// into metres.
-pub(super) struct HalfAngleFrame<T> {
-    pub(super) t0: T,
-    pub(super) t1: T,
-    pub(super) radius: T,
-    pub(super) lever: T,
-    pub(super) noise: T,
-    pub(super) f_per_metre: T,
-}
-
-/// How many units in the last place of the term bound the harmonics'
-/// evaluation error is charged (module docs, "The noise meter"). Each
-/// harmonic is a short chain from the inputs — a squared norm, a
-/// product, a sum of four terms — whose every rounding is half an ulp
-/// of a quantity the term bound dominates; sixteen is that chain's
-/// count with room. It is a ROUNDING estimate, the `f64` lane's
-/// contract, not an enclosure: the `Interval` lane carries the
-/// enclosure itself through every coefficient and the ladder decides on
-/// it, so it needs no meter to be sound. The circle × sphere door
-/// ([`super::circle_sphere`]) charges its first harmonic the same count:
-/// its chain is shorter, so the count holds there with more room.
-pub(super) const NOISE_ULPS: f64 = 16.0;
-
-/// The rounding charged against a term bound `terms`: [`NOISE_ULPS`]
-/// half-ulps of it — the meters' one spelling of the charge.
-pub(super) fn rounding_charge<T: geom_core::Real>(terms: T) -> T {
-    T::from_f64(NOISE_ULPS * f64::EPSILON * 0.5) * terms
-}
-
-/// What [`half_angle_roots`] certifies.
-pub(super) enum HalfAngleRoots<T> {
-    Miss,
-    Uncertain,
-    Certified { count: usize, thetas: [T; 4] },
-    CountDisagrees,
-}
-
-impl<T> From<HalfAngleRoots<T>> for CircleRoots<T> {
-    fn from(roots: HalfAngleRoots<T>) -> Self {
-        match roots {
-            HalfAngleRoots::Miss => Self::Miss,
-            HalfAngleRoots::Uncertain => Self::Uncertain,
-            HalfAngleRoots::Certified { count, thetas } => Self::Certified { count, thetas },
-            HalfAngleRoots::CountDisagrees => Self::CountDisagrees,
-        }
-    }
-}
-
-/// The conditioning floor `κ` (module docs): the pole's `|F|` must be at
-/// least this share of `F`'s amplitude bound.
-const POLE_CONDITIONING: f64 = 1.0 / 16.0;
-
-/// How many evenly spaced poles round the carrier the anchor search may
-/// try (module docs: 32 is what makes some candidate always pass
-/// [`POLE_CONDITIONING`]).
-const POLE_CANDIDATES: u32 = 32;
-
-/// **The certified real roots of a degree-2 trigonometric polynomial
-/// `F(θ)` along a circle, by the tangent half-angle** — a quartic in
-/// `t = tan((θ − θₐ)/2)`, solved by the ray lane's certified ladder.
-/// General over the surface: `residual` is the surface's linearized
-/// residual (metres) along the carrier, which must share `F`'s sign.
-///
-/// An anchor `θₐ` is USED only when its pole `θₐ + π` passes two
-/// decisions (module docs, "The substitution, and where its pole goes,
-/// and why it must be well conditioned"): the residual there is
-/// definitely non-zero, and `|F(pole)|` clears `κ·A` with
-/// `A = |c₀| + |(c₁, s₁)| + |(c₂, s₂)|`, metered as the arc length
-/// `ρ·(|F(pole)| − κA)/A` that bound guarantees between the pole and
-/// every root. The antipode of the arc is tried first and poles off the
-/// arc are preferred, but a pole may land inside it (certified not a
-/// root); if no candidate passes the answer is `Uncertain`.
-///
-/// Before any of that, the noise meter (module docs, "The noise meter")
-/// must put the harmonics' rounding inside the band, and after it each
-/// root's position uncertainty must be inside the band too.
-pub(super) fn half_angle_roots<T: Decide>(
-    f: &Harmonics<T>,
-    residual: impl Fn(T) -> T,
-    frame: HalfAngleFrame<T>,
-    rows: &HalfAngleRows,
-    band: Band,
-) -> Result<HalfAngleRoots<T>, Indeterminate> {
-    let HalfAngleFrame {
-        t0,
-        t1,
-        radius,
-        lever,
-        noise,
-        f_per_metre,
-    } = frame;
-    // **The noise meter** (module docs): it bounds the harmonics'
-    // evaluation error, `noise`, a residual error of up to
-    // `noise / f_per_metre` metres everywhere on the carrier, and refuses
-    // when that is definitely past the band's escalation threshold. The
-    // stages after it (rotation, pole division, rescale, depression,
-    // discriminant) round again; those are left to the ladder's own band
-    // decisions, which is the premise the module docs state.
-    match decide(rows.noise, Margin::of(noise / f_per_metre), band) {
-        Ok(Sign::Positive) => return Ok(HalfAngleRoots::Uncertain),
-        Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
-    }
-    let two = T::from_f64(2.0);
-    let four = T::from_f64(4.0);
-    let six = T::from_f64(6.0);
-    let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
-    let amplitude = f.c0.abs() + hypot(f.c1, f.s1) + hypot(f.c2, f.s2);
-    let mid = (t0 + t1) / two;
-    let scale = two * radius;
-    // The candidate anchors: the arc's midpoint first (its pole is the
-    // antipode), then every `τ/32` step either side of it, nearest
-    // first — so a pole off the arc is preferred and a pole inside it
-    // (certified not a root by the residual decision) is used only when
-    // none off it is well conditioned. Thirty-two steps are what make
-    // the list complete: some candidate always passes the conditioning
-    // floor unless `F` is identically zero (module docs).
-    let step = T::tau() / T::from_f64(f64::from(POLE_CANDIDATES));
-    let shifts = (0..=POLE_CANDIDATES / 2).flat_map(|k| {
-        let k = T::from_f64(f64::from(k));
-        [step * k, T::zero() - step * k]
-    });
-    // `k = 0` yields the zero shift twice; the second copy is dropped.
-    for shift in shifts.skip(1) {
-        let anchor = mid + shift;
-        match decide(rows.pole, Margin::of(residual(anchor + T::pi())), band) {
-            Ok(Sign::Positive | Sign::Negative) => {}
-            Ok(Sign::Zero) | Err(_) => continue,
-        }
-        // The harmonics about the anchor: the first rotates by `θₐ`, the
-        // second by `2θₐ`.
-        let (sa, ca) = anchor.sin_cos();
-        let (s2a, c2a) = (two * anchor).sin_cos();
-        let c1 = f.c1 * ca + f.s1 * sa;
-        let s1 = f.s1 * ca - f.c1 * sa;
-        let c2 = f.c2 * c2a + f.s2 * s2a;
-        let s2 = f.s2 * c2a - f.c2 * s2a;
-        // `F·(1 + t²)²` in `t = tan(φ/2)`, low coefficient first.
-        let a = [
-            f.c0 + c1 + c2,
-            two * s1 + four * s2,
-            two * f.c0 - six * c2,
-            two * s1 - four * s2,
-            f.c0 - c1 + c2,
-        ];
-        let lead = a[4];
-        match decide(
-            rows.conditioning,
-            Margin::over_lever(
-                radius * (lead.abs() - T::from_f64(POLE_CONDITIONING) * amplitude),
-                amplitude,
-            ),
-            band,
-        ) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) | Err(_) => continue,
-        }
-        // Monic in `τ = 2ρ·t` (a length): `τ⁴ + B τ³ + C τ² + D τ + E`.
-        let b3 = scale * a[3] / lead;
-        let c2m = scale.powi(2) * a[2] / lead;
-        let d1 = scale.powi(3) * a[1] / lead;
-        let e0 = scale.powi(4) * a[0] / lead;
-        // Depress by `τ = y − B/4`.
-        let shift_y = b3 / four;
-        let p = c2m - T::from_f64(3.0) * b3.powi(2) / T::from_f64(8.0);
-        let q = d1 - b3 * c2m / two + b3.powi(3) / T::from_f64(8.0);
-        let s = e0 - b3 * d1 / four + b3.powi(2) * c2m / T::from_f64(16.0)
-            - T::from_f64(3.0) * b3.powi(4) / T::from_f64(256.0);
-        return Ok(
-            match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band)? {
-                TorusRoots::Miss => HalfAngleRoots::Miss,
-                TorusRoots::Uncertain => HalfAngleRoots::Uncertain,
-                TorusRoots::CountDisagrees => HalfAngleRoots::CountDisagrees,
-                TorusRoots::Certified { count, ts: ys } => {
-                    let mut thetas = [T::zero(); 4];
-                    for (theta, y) in thetas.iter_mut().zip(ys).take(count) {
-                        // Reported within `π` of the arc's midpoint, so a
-                        // caller compares it with `[t0, t1]` directly.
-                        let raw = anchor + two * ((y - shift_y) / scale).atan();
-                        *theta = mid + (raw - mid).reduce_periodic_centred(T::tau());
-                        // **Where the root is, not just that it is.** The
-                        // true root lies within `noise / |F′|` radians of
-                        // the computed one; that arc length must be inside
-                        // the band, or the span and trim decisions a
-                        // caller makes on the point are on the wrong point.
-                        let (s1t, c1t) = theta.sin_cos();
-                        let (s2t, c2t) = (two * *theta).sin_cos();
-                        let slope = f.s1 * c1t - f.c1 * s1t + two * (f.s2 * c2t - f.c2 * s2t);
-                        match decide(
-                            rows.root_slack,
-                            Margin::of(radius * noise / slope.abs()),
-                            band,
-                        ) {
-                            Ok(Sign::Positive) => return Ok(HalfAngleRoots::Uncertain),
-                            Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
-                        }
-                    }
-                    HalfAngleRoots::Certified { count, thetas }
-                }
-            },
-        );
-    }
-    Ok(HalfAngleRoots::Uncertain)
 }
 
 /// The parallel-axes pose's data ([`parallel_axes_roots`]).
@@ -803,6 +496,27 @@ mod tests {
     use super::*;
     use geom_core::{Bounds, Interval, Real, Tol};
 
+    /// The door on a circle given by its parts.
+    #[allow(clippy::too_many_arguments)]
+    fn roots_of<T: Decide>(
+        center: Point3<T>,
+        axis: Vec3<T>,
+        radius: T,
+        u_ref: Vec3<T>,
+        t0: T,
+        t1: T,
+        torus: &geom::Surface<T>,
+        band: Band,
+    ) -> Result<CircleRoots<T>, BooleanError> {
+        let carrier = geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        };
+        circle_torus_roots(&carrier, t0, t1, torus, band)
+    }
+
     const R: f64 = 1.0;
     const RT: f64 = 0.25;
 
@@ -882,7 +596,7 @@ mod tests {
     }
 
     fn door(pose: Pose, t0: f64, t1: f64) -> CircleRoots<f64> {
-        circle_torus_roots(
+        roots_of(
             Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
@@ -999,21 +713,26 @@ mod tests {
     }
 
     /// Coaxial with the torus: constant residual, answered before the
-    /// quartic (whose complex double pair would read as a tangency).
-    /// Both a carrier clear of the tube and one lying ON it (the outer
-    /// equator) answer `Coaxial`.
+    /// quartic (whose complex double pair it cannot answer) by that
+    /// residual's sign: a carrier clear of the tube is a miss, and one
+    /// lying ON it (the outer equator) is on the surface.
     #[test]
-    fn a_coaxial_circle_is_answered_coaxial() {
-        for (z, rho) in [(0.1, 3.0), (0.0, R + RT)] {
+    fn a_coaxial_circle_is_decided_by_its_constant_residual() {
+        for (z, rho, on) in [(0.1, 3.0, false), (0.0, R + RT, true)] {
             let pose = Pose {
                 c: [0.0, 0.0, z],
                 n: [0.0, 0.0, 1.0],
                 rho,
                 u: [1.0, 0.0, 0.0],
             };
+            let got = door(pose, 0.0, 1.0);
             assert!(
-                matches!(door(pose, 0.0, 1.0), CircleRoots::Coaxial),
-                "coaxial at z {z}, radius {rho}"
+                if on {
+                    matches!(got, CircleRoots::OnSurface)
+                } else {
+                    matches!(got, CircleRoots::Miss)
+                },
+                "coaxial at z {z}, radius {rho}: {got:?}"
             );
         }
     }
@@ -1090,7 +809,7 @@ mod tests {
             u: [1.0, 0.0, 0.0],
         };
         for eps in [1e-9, 1e-6] {
-            let got = circle_torus_roots(
+            let got = roots_of(
                 Point3::new(0.5, 0.0, 0.0),
                 v3(pose.n),
                 pose.rho,
@@ -1128,7 +847,7 @@ mod tests {
                 u: [1.0, 0.0, 0.0],
             },
         ] {
-            let got = circle_torus_roots::<Interval>(
+            let got = roots_of::<Interval>(
                 Point3::new(
                     Interval::from_f64(pose.c[0]),
                     Interval::from_f64(pose.c[1]),
@@ -1218,7 +937,7 @@ mod tests {
             };
             // An in-band bump is a refusal either way: `Uncertain`, or
             // the band's own escalation when the margin lands in its gap.
-            let got = circle_torus_roots(
+            let got = roots_of(
                 Point3::from_array(pose.c),
                 v3(pose.n),
                 pose.rho,
@@ -1232,9 +951,12 @@ mod tests {
                 matches!(
                     &got,
                     Ok(CircleRoots::Uncertain)
-                        | Err(Indeterminate {
-                            predicate: Some("bool_circle_torus_contour_residual"),
-                            ..
+                        | Err(BooleanError::Escalated {
+                            decision: BooleanDecision::ArcTorusRoots,
+                            diag: Indeterminate {
+                                predicate: Some("bool_circle_torus_contour_residual"),
+                                ..
+                            },
                         })
                 ),
                 "tilt {tilt}: the in-band bump is not two crossings, got {got:?}"
@@ -1350,7 +1072,7 @@ mod tests {
             rho,
             u: [1.0, 0.0, 0.0],
         };
-        let got = circle_torus_roots(
+        let got = roots_of(
             Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
@@ -1364,9 +1086,12 @@ mod tests {
             matches!(
                 &got,
                 Ok(CircleRoots::Uncertain)
-                    | Err(Indeterminate {
-                        predicate: Some("bool_circle_torus_contour_residual"),
-                        ..
+                    | Err(BooleanError::Escalated {
+                        decision: BooleanDecision::ArcTorusRoots,
+                        diag: Indeterminate {
+                            predicate: Some("bool_circle_torus_contour_residual"),
+                            ..
+                        },
                     })
             ),
             "the charged bump is inside the band: {got:?}"
@@ -1441,7 +1166,7 @@ mod tests {
         );
         // The dip is chosen against the default band, pinned: at a band
         // wider than 9.8e-8 m it is a graze the band calls touching.
-        let got = circle_torus_roots(
+        let got = roots_of(
             Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
@@ -1461,7 +1186,7 @@ mod tests {
         }
         // The interval lane encloses the rounding the meter estimates,
         // so it never certifies the miss either.
-        let got = circle_torus_roots::<Interval>(
+        let got = roots_of::<Interval>(
             Point3::new(
                 Interval::from_f64(pose.c[0]),
                 Interval::from_f64(pose.c[1]),
@@ -1526,7 +1251,7 @@ mod tests {
                         "the fixture: ρ {rho}, α {alpha}, depth {depth}: {truth:?}"
                     );
                     let label = format!("ρ {rho}, α {alpha}, depth {depth}");
-                    let got = circle_torus_roots(
+                    let got = roots_of(
                         Point3::from_array(pose.c),
                         v3(pose.n),
                         pose.rho,
@@ -1539,7 +1264,7 @@ mod tests {
                     .unwrap();
                     match got {
                         CircleRoots::Uncertain => {}
-                        CircleRoots::Coaxial => panic!("{label}: not coaxial"),
+                        CircleRoots::OnSurface => panic!("{label}: not on the torus"),
                         CircleRoots::CountDisagrees => panic!("{label}: counts disagree"),
                         CircleRoots::Miss => {
                             assert!(truth.is_empty(), "{label}: a certified miss on a dip");
@@ -1598,7 +1323,7 @@ mod tests {
                 rho,
                 u: [1.0, 0.0, 0.0],
             };
-            let got = circle_torus_roots(
+            let got = roots_of(
                 Point3::from_array(pose.c),
                 v3(pose.n),
                 pose.rho,

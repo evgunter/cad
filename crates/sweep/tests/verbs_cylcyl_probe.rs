@@ -52,8 +52,8 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
 }
 
 /// The carrier kind of the edge a refusal names — the datum that says
-/// WHICH family a row belongs to, since the line × wall roots exist in
-/// closed form and the circle × wall roots do not exist anywhere.
+/// WHICH family a row belongs to: a circle's door waits on a
+/// declaration, a line's on second-order or declaration work.
 fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
     let BooleanError::CurvedPierceUnsupported { edge, .. } = err else {
         panic!("not a pierce refusal: {err:?}");
@@ -110,7 +110,7 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 /// Every row refuses for a reason the ARMS unit does not touch, which
 /// is why this table pins the reason and not just the variant.
 #[test]
-fn cylinder_unions_refuse_at_the_curved_pierce_door() {
+fn cylinder_unions_refuse_before_the_join_each_at_its_own_door() {
     let turned = topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
         &Affine3::rotation_about_axis(

@@ -28,7 +28,7 @@ use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError, BooleanOp};
+use topo::{Body, BooleanError, BooleanOp, SweepStrategy};
 
 /// The cylinder of radius `r` about `(cx, cy)`, `z ∈ [z0, z1]`, through
 /// the public circle and extrude doors.
@@ -81,6 +81,34 @@ fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, Boolean
         .unwrap_or_else(|| panic!("{op:?} came back empty"))
         .body
         .clone())
+}
+
+/// The datum a refusal past the crossing layer does not carry: how many
+/// (edge, face) pairs the sweep accepted an event on with a CIRCLE
+/// carrier against a CYLINDER face, in `a`'s edges against `b`'s faces
+/// and in `b`'s against `a`'s — the circle × cylinder cell, firing.
+fn circle_wall_events(a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
+    let (ab, ba) = topo::sweep_traces(a, b, SweepStrategy::Realized, None, Tol::witness())
+        .unwrap_or_else(|e| panic!("the sweep refused: {e:?}"));
+    let count = |x: &Body<f64>, y: &Body<f64>, trace: &topo::SweepTrace| {
+        trace
+            .accepted
+            .iter()
+            .filter(|(e, f)| {
+                let circle = x
+                    .get_edge(*e)
+                    .and_then(|e| x.get_curve_geom(e.curve))
+                    .and_then(topo::CurveGeom::certified)
+                    .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle { .. }));
+                let wall = matches!(
+                    y.get_face(*f).and_then(|f| y.get_surface(f.surface)),
+                    Some(topo::Surface::Cylinder { .. })
+                );
+                circle && wall
+            })
+            .count()
+    };
+    (count(a, b, &ab), count(b, a, &ba))
 }
 
 /// Every validation tier, then the volume against `expected`.
@@ -151,12 +179,18 @@ fn a_d_prism_beside_a_cylinder_builds_under_every_boolean() {
 /// inside its trim: a pierce, certified by the root lane. Its sector
 /// side is then read to first order against the wall's sagitta, which
 /// swamps it — a definite refusal, not an in-band one, at every
-/// offset.
+/// offset. The refusal names no edge, so the sweep's trace is asked
+/// which events it took: each operand's rim circles on the other's wall.
 #[test]
 fn parallel_cylinders_that_pierce_stop_at_the_sector_side() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     for d in [0.3, 0.8, 1.2, 1.6] {
         let b = cyl(d, 0.0, 1.0, 0.5, 2.5);
+        let (ab, ba) = circle_wall_events(&a, &b);
+        assert!(
+            ab > 0 && ba > 0,
+            "d {d}: each rim circle meets the other wall: {ab} + {ba}"
+        );
         for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
             let err = run(op, &a, &b).expect_err("no sector-side lane for an arc on a wall");
             let BooleanError::CurvedSectorSideUnsupported { verdict } = &err else {
@@ -178,6 +212,11 @@ fn parallel_cylinders_that_pierce_stop_at_the_sector_side() {
 fn nearly_apart_parallel_cylinders_stop_at_the_pierce_ring() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let b = cyl(1.9, 0.0, 1.0, 0.5, 2.5);
+    let (ab, ba) = circle_wall_events(&a, &b);
+    assert!(
+        ab > 0 && ba > 0,
+        "each rim circle meets the other wall: {ab} + {ba}"
+    );
     for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
         let err = run(op, &a, &b).expect_err("no join arm for a pierce ring");
         assert!(
@@ -213,11 +252,44 @@ fn a_tilted_rod_through_a_rim_stops_at_the_sector_side() {
         Tol::witness(),
     )
     .unwrap();
+    let (ab, _) = circle_wall_events(&a, &rod);
+    assert!(ab > 0, "the cylinder's rim circle meets the rod's wall");
     for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
         let err = run(op, &a, &rod).expect_err("no sector-side lane for an arc on a wall");
         assert!(
             matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
             "{op:?}: expected the sector-side door, got {err:?}"
+        );
+    }
+}
+
+/// **A rim circle TANGENT to a parallel wall escalates on the square
+/// arm.** Two parallel unit cylinders exactly 2 apart, staggered: each
+/// rim circle touches the other wall at one point. The square arm puts
+/// the extreme in the zero band and the crossing layer keeps its door,
+/// naming a rim circle; the half-angle ladder, which does not decide on
+/// the residual's range, can read the same tangency as a miss
+/// (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
+/// So this row is what goes red if circles square to the axis are routed
+/// to the ladder.
+#[test]
+fn a_rim_circle_tangent_to_a_parallel_wall_keeps_the_pierce_door() {
+    let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let b = cyl(2.0, 0.0, 1.0, 0.5, 2.5);
+    for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
+        let err = run(op, &a, &b).expect_err("a tangency is not a crossing");
+        let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = &err else {
+            panic!("{op:?}: expected the curved pierce door, got {err:?}");
+        };
+        let body = if *operand == topo::Operand::A { &a } else { &b };
+        let carrier = body
+            .get_edge(*edge)
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(topo::CurveGeom::certified)
+            .map(|c| c.carrier().clone());
+        assert!(
+            matches!(carrier, Some(topo::Curve3::Circle { .. })),
+            "{op:?}: the refusing edge is a rim circle: {carrier:?}"
         );
     }
 }

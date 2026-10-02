@@ -1089,15 +1089,14 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// carrier's exact harmonic bounds and the arc's own chord-dip
 /// bound), so a definitely one-sided arc clears. What definitely MEETS
 /// the face is split by kind, and the third paragraph below is the
-/// statement of record: a LINE carrier against a CYLINDER wall, a
-/// SPHERE or a TORUS, and a CIRCLE carrier against a SPHERE or a TORUS,
-/// are routed through the certified roots and pierce; everything else —
-/// a tangency, a circle against a cylinder, an undeclared
+/// statement of record: a LINE or a CIRCLE carrier against a CYLINDER
+/// wall, a SPHERE or a TORUS is routed through the certified roots and
+/// pierces; everything else — a tangency, a cone, an undeclared
 /// on-carrier edge, a trim with no verdict — refuses typed at the named
 /// frontier door ([`BooleanError::CurvedPierceUnsupported`]). An
 /// in-band clearance escalates (F6, the same margin's other half) —
-/// except a circle's against a sphere or a torus, where the certified
-/// roots decide what the enclosures could not.
+/// except an uncovered circle's against one of those three kinds, where
+/// the certified roots decide what the enclosures could not.
 /// Ellipse/NURBS carriers keep the unconditional M5 door. Never a
 /// silent fallback.
 ///
@@ -1468,11 +1467,20 @@ pub(super) fn curved_face_arm<T: Decide>(
                                 | geom::Surface::Sphere { .. }
                                 | geom::Surface::Cylinder { .. }
                         ) => {}
-                // Uncovered, an arc reaching here is against a kind with
-                // no root lane (escalated or not); covered, it definitely
-                // crosses. The frontier door either way.
+                // Uncovered, an arc reaching here with a decided
+                // clearance is against a kind with no root lane; covered,
+                // it definitely crosses. The frontier door either way.
                 Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
-                Err(_) if !covered => return Err(frontier()),
+                // An uncovered ESCALATED clearance cannot reach here: the
+                // kinds with a clearance enclosure are the three the arm
+                // above takes, and every other kind returned the frontier
+                // before deciding one. Reaching here is a dispatch desync.
+                Err(_) if !covered => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "an uncovered arc's escalated clearance reached the covered \
+                               arm: the circle rung's kinds and its root lanes disagree",
+                    });
+                }
                 // A declared pair's declaration is spent here. An
                 // undeclared one, declared `Rest` on this face's
                 // carrier, is on it by the carrier-identity rung above,
@@ -1991,39 +1999,20 @@ fn wall_crossing<T: Decide>(
             line_wall_root_count(origin, dir, surface, &mut roots, band)?,
             dir.norm(),
         ),
-        // The circle × sphere first harmonic ([`super::circle_sphere`]).
-        geom::Curve3::Circle { radius, .. } if matches!(surface, geom::Surface::Sphere { .. }) => {
-            use super::circle_sphere::FirstHarmonicRoots;
-            match super::circle_sphere::circle_sphere_roots(carrier, t0, t1, surface, band)? {
-                FirstHarmonicRoots::Two(thetas) => {
-                    roots[..2].copy_from_slice(&thetas);
-                    (Ok(2), radius)
-                }
-                FirstHarmonicRoots::Coaxial => (Err(SpanVerdict::Constant), radius),
-                FirstHarmonicRoots::Miss => (Err(SpanVerdict::Miss), radius),
-                FirstHarmonicRoots::Uncertain => (Err(SpanVerdict::Unsettled), radius),
-            }
-        }
-        // The circle × torus quartic ([`super::circle_torus`]) and the
-        // circle × cylinder harmonics ([`super::circle_cylinder`]). A
-        // circle against any other kind has no root lane here.
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => {
-            use super::circle_torus::CircleRoots;
+        // The circle root doors ([`super::circle_roots`]), one per kind,
+        // one answer shape. A circle against any other kind has no root
+        // lane here.
+        geom::Curve3::Circle { radius, .. } => {
+            use super::circle_roots::CircleRoots;
             let found = match surface {
-                geom::Surface::Torus { .. } => super::circle_torus::circle_torus_roots(
-                    center, axis, radius, u_ref, t0, t1, surface, band,
-                )
-                .map_err(|diag| BooleanError::Escalated {
-                    decision: BooleanDecision::ArcTorusRoots,
-                    diag,
-                })?,
+                geom::Surface::Sphere { .. } => {
+                    super::circle_sphere::circle_sphere_roots(carrier, t0, t1, surface, band)?
+                }
                 geom::Surface::Cylinder { .. } => {
                     super::circle_cylinder::circle_cylinder_roots(carrier, t0, t1, surface, band)?
+                }
+                geom::Surface::Torus { .. } => {
+                    super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band)?
                 }
                 _ => return Ok(SpanVerdict::Unsettled),
             };
@@ -2032,9 +2021,10 @@ fn wall_crossing<T: Decide>(
                     roots = thetas;
                     (Ok(count), radius)
                 }
-                // A coaxial carrier's residual is constant: the circle
-                // rung's analogue of the axis-parallel line.
-                CircleRoots::Coaxial => (Err(SpanVerdict::Constant), radius),
+                // A circle ON the surface: its residual is a zero
+                // constant, the circle rung's analogue of the ruling that
+                // lies on a wall.
+                CircleRoots::OnSurface => (Err(SpanVerdict::Constant), radius),
                 CircleRoots::Uncertain => (Err(SpanVerdict::Unsettled), radius),
                 CircleRoots::Miss => (Err(SpanVerdict::Miss), radius),
                 CircleRoots::CountDisagrees => {

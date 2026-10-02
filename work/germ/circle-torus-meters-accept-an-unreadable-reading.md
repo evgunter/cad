@@ -65,3 +65,13 @@ unreadable meter, and the term bound it reads is too coarse for
 `1e-12` to afford it: the charge, not the posture, is what wants work
 first. The cylinder cell keeps the ladder's posture, and its own
 first-harmonic arm keeps the sphere door's.
+
+## Evidence (2026-10-02, the dual review of PR 3752): what passing costs
+
+The other side of the ledger above. At ρ = 1500, a circle tilted to a
+unit cylinder wall gets roots certified 1.09–1.23e-9 m from the oracle
+at ε = 1e-9, with its noise reading in the band's gap. That is past the
+zero band, on the very reading this posture passes (review 2,
+`topo_dr2_probe.rs`, `dr2_gap_noise_root_error`). (a reviewer probe outside the tree). The in-band answers the
+ladder gives otherwise are filed as
+`the-half-angle-ladder-certifies-in-band-configurations`.
