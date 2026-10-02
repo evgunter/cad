@@ -180,28 +180,29 @@ pub fn run(out: Option<String>, tol: Tol) {
         || vec![plain("chute", bodies::chute(tol).0)],
         tol,
     );
-    // The fillet gates are reified K-funnel predicates (S2's seven),
-    // so the rocker's six filleted corners get their own sweep group.
+    // The fillet gates are reified K-funnel predicates (S2's seven, and
+    // the 3-D blend battery), so the rocker's profile corners and its
+    // keyhole creases get their own sweep group.
     sweep(
         s,
         t,
         u,
         "rocker",
-        || vec![plain("rocker", rocker::rocker(tol))],
+        || vec![plain("rocker", rocker::build(tol).1)],
         tol,
     );
-    // The PR 11 flip: the tilted cut joined the standard ladder, so
-    // its quadrature-lane predicates (props_quad_*) record here too.
+    // The tilted cut's quadrature-lane predicates (props_quad_*)
+    // record here too.
     sweep(
         s,
         t,
         u,
         "tiltedcut",
         || {
-            let (above, below) = curvedcut::build::<Probe>(tol);
+            let cut = curvedcut::build::<Probe>(tol);
             vec![
-                plain("tiltedcut_above", above),
-                plain("tiltedcut_below", below),
+                plain("tiltedcut_above", cut.above),
+                plain("tiltedcut_below", cut.below),
             ]
         },
         tol,

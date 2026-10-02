@@ -829,7 +829,9 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
-    println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
+    println!(
+        "\n-- the rocker plate (fillets in the profile, the branch PICKED, and on the solid) --"
+    );
     for stop in rocker::stops(tol) {
         visit(&stop);
     }
@@ -866,7 +868,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     }
     klein::wall_probes::<f64>(tol);
 
-    println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
+    println!("\n-- the tilted cut (an engraved cap, an exact ellipse section) --");
     for stop in curvedcut::stops(tol) {
         visit(&stop);
     }

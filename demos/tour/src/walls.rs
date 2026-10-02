@@ -1,7 +1,7 @@
 //! The shared **wall probe**: a frontier, run live.
 //!
 //! A scene's "wall" is a shape the model WANTED and the kernel would
-//! not state. The rule (lily, `curvedcut::pin_frontier`) is that a
+//! not state. The rule (lily, `curvedcut::walls`) is that a
 //! wall is never a comment: it is ATTEMPTED for real, every run, and
 //! pinned by its own typed refusal — so a findings list cannot quietly
 //! rot behind a frontier that moved.

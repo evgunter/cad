@@ -7,6 +7,8 @@ opened: 2026-10-01
 closed: 2026-10-02
 pr: 3861
 branch: ssi/no-ending
+priority: P2
+cost: M
 ---
 
 (SSI implementer `ssi-mend`, from the §5 sweep of PR "SSI: every march

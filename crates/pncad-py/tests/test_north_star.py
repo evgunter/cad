@@ -1930,9 +1930,9 @@ class TestTiltedcut(unittest.TestCase):
 
 
 class TestRocker(unittest.TestCase):
-    """Tour scene `rocker` (row 7): a plate whose every corner is a
-    fillet — five between the hub circle, the boss circle and the three
-    straight sides, plus the eye slot's arc-by-arc tip.
+    """Tour scene `rocker` (row 7): a plate whose every profile corner
+    is a fillet — five between the hub circle, the boss circle and the
+    three straight sides, plus the eye slot's arc-by-arc tip.
 
     G12's row, and the last one the PATHS surface owed. Two of the
     outline's five corners arrive ON a carrier the fillet verb itself
@@ -1942,16 +1942,24 @@ class TestRocker(unittest.TestCase):
     line-by-line seam. Not one corner is written down — every one is
     DERIVED from the two carriers.
 
-    Oracle, the scene's own and exact: the eye is a HOLE, so the
-    rocker's volume is the outline's prism less the eye's, and the
-    solid's census is the tour's (26 vertices, 39 edges, 15 faces —
-    genus 1). A far-pocket S8 pick or a lost seam vertex moves the
-    census; a corner off its carriers moves the volume identity."""
+    The keyhole through the arm is the 3-D half: extruded sharp, its two
+    convex disc/slot creases rounded by `Node.fillet` on the solid.
+
+    Oracle, the scene's own and exact: the eye and the keyhole are
+    HOLES, so the plate's volume is the outline's prism less theirs, and
+    its census is 34 vertices, 51 edges and 19 faces. Each crease
+    fillet removes the closed-form section `crease_cut(r)` along the
+    plate's depth and adds 2 vertices, 3 edges and a face, so the
+    rounded rocker is the tour's 38 / 57 / 21 at genus 2. A far-pocket
+    S8 pick or a lost seam vertex moves the census; a corner off its
+    carriers moves the volume identity."""
 
     HUB_C, HUB_R = (0 * m, 0 * m), 2.5
     BOSS_C, BOSS_R = (7 * m, 0 * m), 1.5
     BLEND, KNEE, EYE = 0.5 * m, 0.5 * m, 0.25 * m
     DEPTH = 0.5 * m
+    KEY_C, KEY_R, KEY_W, KEY_SLOT = (3.5, -0.25), 0.5, 0.2, 0.8
+    CREASE = 0.25
 
     def outline(self):
         return (
@@ -1979,26 +1987,99 @@ class TestRocker(unittest.TestCase):
             )
         )
 
+    def keyhole(self):
+        kx, ky = self.KEY_C
+        x0 = kx + math.sqrt(self.KEY_R**2 - self.KEY_W**2)
+        x1 = kx + self.KEY_SLOT
+        lo, hi = ky - self.KEY_W, ky + self.KEY_W
+        return (
+            Open.at((x0 * m, hi * m))
+            .arc_to(Center((kx * m, ky * m), ArcSweep.Ccw, (x0 * m, lo * m)))
+            .line_to((x1 * m, lo * m))
+            .line_to((x1 * m, hi * m))
+            .line_to(Start)
+        )
+
+    def crease_cut(self, r):
+        """The section one crease fillet removes: the quadrilateral
+        crease → wall foot → ball centre → disc foot, less the ball's
+        sector and the disc's segment between its feet.
+
+        Ported step for step from the Rust test
+        `review_band_ruled_ring_probes::keyhole_cut` (`crates/sweep/
+        tests/`), its angle wrap and `|φ|` included; the tour's
+        `rocker::crease_cut` is the other copy. A test file across a
+        language boundary shares no code, so the copies are kept in
+        step by hand."""
+        big_r, w = self.KEY_R, self.KEY_W
+        x0 = math.sqrt(big_r**2 - w**2)
+        cy = w + r
+        cx = math.sqrt((big_r + r) ** 2 - cy**2)
+        s = big_r / (big_r + r)
+        quad = [(x0, w), (cx, w), (cx, cy), (cx * s, cy * s)]
+        twice = sum(
+            p[0] * q[1] - q[0] * p[1] for p, q in zip(quad, quad[1:] + quad[:1], strict=True)
+        )
+        dth = abs(-math.pi / 2 - math.atan2(-cy, -cx))
+        if dth > math.pi:
+            dth = math.tau - dth
+        sector = 0.5 * r * r * dth
+        phi = abs(math.atan2(cy, cx) - math.atan2(w, x0))
+        segment = 0.5 * big_r**2 * (phi - math.sin(phi))
+        return 0.5 * abs(twice) - sector - segment
+
     def prism(self, doc, loops):
         return doc.insert(Node.extrude(doc.insert(Node.profile(loops, plane=doc.sketch_frame())), Expr.literal(self.DEPTH)))
 
+    def census(self, doc, node):
+        ev = evaluate(doc)
+        return (
+            len(ev.all_vertices(node)),
+            len(ev.all_edges(node)),
+            len(ev.all_faces(node)),
+        )
+
     def test_rocker_matches_the_scene_oracle(self):
         doc = Doc()
-        rocker = self.prism(doc, [self.outline(), self.eye()])
+        plate = self.prism(doc, [self.outline(), self.eye(), self.keyhole()])
         plain = self.prism(doc, [self.outline()])
         slot = self.prism(doc, [self.eye()])
+        key = self.prism(doc, [self.keyhole()])
         self.assertAlmostEqual(
-            volume_of(doc, rocker),
-            volume_of(doc, plain) - volume_of(doc, slot),
+            volume_of(doc, plate),
+            volume_of(doc, plain) - volume_of(doc, slot) - volume_of(doc, key),
             delta=1e-12,
         )
-        ev = evaluate(doc)
-        census = (
-            len(ev.all_vertices(rocker)),
-            len(ev.all_edges(rocker)),
-            len(ev.all_faces(rocker)),
+        self.assertEqual(self.census(doc, plate), (34, 51, 19))
+
+        # The creases said by description: lines between a cylinder and
+        # a plane — which alone also matches the outline's six tangent
+        # seams — within the slot's reach of the keyhole's axis.
+        kx, ky = self.KEY_C
+        axis = doc.insert(
+            Node.datum_axis(
+                (Expr.length_in(kx, m), Expr.length_in(ky, m), Expr.length_in(0, m)),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+            )
         )
-        self.assertEqual(census, (26, 39, 15))
+        edges = Selector.of(NamePat.of_kind(EntityKind.Edge))
+        kinds = [
+            GeomPred.curve_kind(CurveKind.Line),
+            GeomPred.adjacent_kinds(SurfaceKind.Cylinder, SurfaceKind.Plane),
+        ]
+        ev = evaluate(doc)
+        self.assertEqual(len(ev.select_where(plate, edges, kinds)), 8)
+        near = GeomPred.datum_distance(axis, Cmp.Less, Expr.length_in(self.KEY_SLOT, m))
+        creases = ev.select_where(plate, edges, [*kinds, near])
+        self.assertEqual(len(creases), 2)
+
+        rocker = doc.insert(Node.fillet(plate, Expr.length_in(self.CREASE, m), creases))
+        self.assertAlmostEqual(
+            volume_of(doc, rocker) - volume_of(doc, plate),
+            -2.0 * self.crease_cut(self.CREASE) * self.DEPTH.meters,
+            delta=1e-12,
+        )
+        self.assertEqual(self.census(doc, rocker), (38, 57, 21))
 
     def test_the_outline_is_ten_vertices_and_no_authored_corner(self):
         """The LB5 topology, positively: the hub arc is ONE segment,
