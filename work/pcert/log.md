@@ -458,3 +458,20 @@ Signed (PCERT orchestrator).
   - CI was green on 14239df.
   - `mint-has-no-route-to-the-fitted-general-circle-arm` is closed. The sphere general circle is the first uncovered class retired under the 3617 ruling.
 - The incidence/fidelity unit is dispatched (session_01QjnkkS1HoEHDzjjkW3CCWq, branch `pcert/certificate-incidence-fidelity`).
+
+## 2026-10-02 — 3759 delta review; 3812 sequencing
+
+- **The first delta reviewer never started.** It was dispatched with a short SHA as `source_revision`, and the session failed with `ref_not_found`. I re-dispatched it against the branch and the full SHA. Lesson: always give `create_session` a branch name or a full SHA.
+- **3759 delta review (comment 5951607360): merge with 3812, after one more pass.**
+  - All four mutants die.
+  - The 3733 reconciliation is clean.
+  - Both implementer deviations stand. On item 3, m10_9 was left red, which holds only if 3812 restores its pins. On item 6, the stored hull plus `RowInterval` is sound. A row widened by 2π cannot be built; a row shifted by 2π is caught by continuity, except at the wrap joint (MINOR-3).
+  - Fix list sent:
+    - certify the derived images of covered edges on an excused face (MINOR-2, a fix rather than a stated limit);
+    - check the wrap joint (MINOR-3);
+    - stale prose;
+    - `carry_rows` also runs `RowInterval`;
+    - file a row noting that check 5 is vacuous at rest.
+- **3812.** It carries part 2 and the literal walk branch (my ruling: a branch is structure, C4's "chosen once by the loop walk"). It must show the nine widening rows going green on its own head, which is the delta review's pre-merge check.
+  - `chaintol` stays red until `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin` lands.
+  - The trio (3759 + 3812 + the loop-decision unit) lands together, or chaintol is re-baselined with that row named. I'll decide when 3812's dual review is in.
