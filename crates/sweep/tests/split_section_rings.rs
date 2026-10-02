@@ -802,3 +802,175 @@ fn plane_section_of_the_steep_cut_through_both_seams_is_one_region() {
         assert_eq!(shape, vec![(6, 0)], "flipped {flip}");
     }
 }
+
+/// **A section's arcs enclose their area**: `SectionPolygon::area`
+/// reads each polygon on its edges' carriers, so a bore's circle — two
+/// corners, whose shoelace is 0 — encloses `−π r² / cos t` (a hole),
+/// the bored cylinder's outline `π / cos t`, and each region its
+/// outline less its holes. `t` is the plane's tilt from the bore axis.
+#[test]
+fn plane_section_areas_read_the_arcs() {
+    use core::f64::consts::PI;
+    let cases = [
+        ("brick flat", bored_brick(0.0, 0.0, 1.0), 0.0, 16.0, 1.0),
+        ("brick at 0.3", bored_brick(0.0, 0.0, 1.0), 0.3, 16.0, 1.0),
+        ("brick at 0.5", bored_brick(0.8, 0.0, 0.5), 0.5, 16.0, 0.5),
+        (
+            "cylinder flat",
+            bored_cylinder(0.3, 0.2, 0.37, tol()),
+            0.0,
+            PI,
+            0.3,
+        ),
+        (
+            "cylinder at 0.3",
+            bored_cylinder(0.3, 0.2, 0.37, tol()),
+            0.3,
+            PI,
+            0.3,
+        ),
+    ];
+    for (what, body, t, outline, r) in cases {
+        let z = if what.starts_with("brick") { 1.25 } else { 0.5 };
+        let s = topo::plane_section(&body, &tilted(z, t, false), tol()).unwrap();
+        assert_eq!(s.regions.len(), 1, "{what}: one region");
+        let region = &s.regions[0];
+        assert_eq!(region.holes.len(), 1, "{what}: one hole");
+        let (want_outline, want_hole) = (outline / t.cos(), -PI * r * r / t.cos());
+        let (got_outline, got_hole) = (region.outline.area(), region.holes[0].area());
+        assert!(
+            (got_outline - want_outline).abs() < 1e-12,
+            "{what}: the outline encloses {got_outline}, want {want_outline}"
+        );
+        assert!(
+            (got_hole - want_hole).abs() < 1e-12,
+            "{what}: the hole encloses {got_hole}, want {want_hole}"
+        );
+        assert!(
+            (region.area() - (want_outline + want_hole)).abs() < 1e-12,
+            "{what}: the region encloses {}, want {}",
+            region.area(),
+            want_outline + want_hole
+        );
+        for polygon in std::iter::once(&region.outline).chain(&region.holes) {
+            assert_eq!(
+                polygon.edges.len(),
+                polygon.uv.len(),
+                "{what}: an edge per corner"
+            );
+            for (i, edge) in polygon.edges.iter().enumerate() {
+                let topo::SectionEdge::Arc {
+                    center,
+                    a,
+                    b,
+                    start,
+                    end,
+                } = *edge
+                else {
+                    continue;
+                };
+                let at = |th: f64| center + a * th.cos() + b * th.sin();
+                let (p, q) = (polygon.uv[i], polygon.uv[(i + 1) % polygon.uv.len()]);
+                assert!(
+                    (at(start) - p).norm() < 1e-12 && (at(end) - q).norm() < 1e-12,
+                    "{what}: arc {i} runs from its corner to the next: {:?} → {:?}, \
+                     corners {p:?} → {q:?}",
+                    at(start),
+                    at(end)
+                );
+            }
+        }
+    }
+}
+
+/// **A section mixing segments and arcs encloses its area**: the steep
+/// cut of `plane_section_of_the_steep_cut_through_both_seams_is_one_region`
+/// crosses both caps (two segments) and both walls (four ellipse arcs,
+/// split at the seams). Its region projects onto the cylinder's base as
+/// the unit disc's strip `|x| ≤ a`, `a = 1.25 / tan t`, of area
+/// `2 (a √(1 − a²) + asin a)`, and the plane meets that at `1 / cos t`.
+#[test]
+fn plane_section_area_of_the_steep_cut_reads_segments_and_arcs() {
+    let t = 1.1_f64;
+    let a = 1.25 / t.tan();
+    let want = 2.0 * (a * (1.0 - a * a).sqrt() + a.asin()) / t.cos();
+    let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
+    for flip in [false, true] {
+        let s = topo::plane_section(&cylinder, &tilted(1.25, t, flip), tol()).unwrap();
+        let [region] = &s.regions[..] else {
+            panic!("flipped {flip}: one region, got {}", s.regions.len());
+        };
+        let kinds: Vec<bool> = region
+            .outline
+            .edges
+            .iter()
+            .map(|e| matches!(e, topo::SectionEdge::Arc { .. }))
+            .collect();
+        assert_eq!(
+            kinds.iter().filter(|&&arc| arc).count(),
+            4,
+            "flipped {flip}: four wall arcs and two cap segments, {kinds:?}"
+        );
+        let got = region.area();
+        assert!(
+            (got - want).abs() < 1e-12,
+            "flipped {flip}: the region encloses {got}, want {want}"
+        );
+    }
+}
+
+/// **At `Interval` the section's area encloses the closed form**: the
+/// bored cylinder of `plane_section_areas_read_the_arcs`, built and cut
+/// in the certified lane. The fixture's data are the `f64` roundings of
+/// its closed form, so the enclosure is asked to a few ulps.
+#[test]
+fn plane_section_areas_enclose_the_closed_form_at_interval() {
+    use crate::common::interval::{iv, p2, p3, v3};
+    use core::f64::consts::PI;
+    use geom_core::{Bounds, Interval};
+    let (phi, t) = (0.37_f64, 0.3_f64);
+    let outer = profile::test_support::bulge_loop(vec![
+        (p2(phi.cos(), phi.sin()), iv(1.0)),
+        (p2(-phi.cos(), -phi.sin()), iv(1.0)),
+    ]);
+    let inner = profile::test_support::bulge_loop(vec![
+        (p2(0.5, 0.0), iv(-1.0)),
+        (p2(-0.1, 0.0), iv(-1.0)),
+    ]);
+    let body = sweep::test_support::extruded(
+        profile::SketchPlane::<Interval>::xy(),
+        vec![outer, inner],
+        iv(1.0),
+        tol(),
+    );
+    let plane = topo::test_support::split_plane(
+        p3(0.0, 0.0, 0.5),
+        v3(t.sin(), 0.0, t.cos()),
+        Tol::witness(),
+    );
+    let s = topo::plane_section(&body, &plane, tol()).unwrap();
+    let [region] = &s.regions[..] else {
+        panic!("one region, got {}", s.regions.len());
+    };
+    let [hole] = &region.holes[..] else {
+        panic!("one hole, got {}", region.holes.len());
+    };
+    for (what, got, want) in [
+        ("outline", region.outline.area(), PI / t.cos()),
+        ("hole", hole.area(), -PI * 0.09 / t.cos()),
+    ] {
+        let slack = 1e-14;
+        assert!(
+            got.lo() - slack <= want && want <= got.hi() + slack,
+            "{what}: [{}, {}] encloses {want}",
+            got.lo(),
+            got.hi()
+        );
+        assert!(
+            got.hi() - got.lo() < 1e-9,
+            "{what}: [{}, {}] is too wide to be useful",
+            got.lo(),
+            got.hi()
+        );
+    }
+}
