@@ -116,6 +116,7 @@ use super::{
 use crate::body::Body;
 use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use crate::euler::EulerOpError;
 use crate::face_normal::face_outward_normal;
 use crate::loop_winding::TornLoop;
 use crate::null::NullFacePair;
@@ -1491,53 +1492,20 @@ fn choose_roles<T: Decide>(
 /// `face`'s outward normal: the orientation an island's new outer loop
 /// must have (the remainder ring anti-encloses iff the run encloses).
 ///
-/// Reified (issue #93): the functional is `n · Σ (pᵢ−p₀)×(pᵢ₊₁−p₀)` —
-/// the plane's Newell functional, twice the run's signed enclosed
-/// area, with each conic run edge's bulge — decided through the
-/// `bool_ring_run_winding` predicate by the sum's one home,
-/// [`Body::planar_run_winding_decided`] (`crate::loop_winding`, which
-/// the merge's role assigner and `validate`'s tier-3 check 6 read for a
-/// stored loop); `Indeterminate` escalates. Zero is a
-/// degenerate area-free run and a loud desync (the ring lane only
+/// Reified (issue #93): decided through the `bool_ring_run_winding`
+/// predicate by [`Body::planar_run_winding_decided`] — the one home of
+/// the sum, its dimension (`2A/P`, audit F4) and its orientation rule,
+/// `crate::loop_winding`'s module docs, which the merge's role assigner
+/// and `validate`'s tier-3 check 6 read for a stored loop. The normal
+/// handed to it is the face's OUTWARD normal, read through
+/// [`face_outward_normal`] with the sense folded in; the run's stored
+/// traversal carries the other sign. `Indeterminate` escalates. Zero is
+/// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
 /// merges). The ring lane is planar-scoped like
-/// [`super::solid_contain::point_in_solid`]'s
-/// F5 gate: a non-planar face refuses loudly, and so does a spiric or
-/// spline run edge, which the operand gate keeps out.
-///
-/// # Dimension (audit F4, `docs/predicate-dimension-audit.md`)
-///
-/// The CANONICAL statement for this predicate's three sites: the
-/// Newell functional is an AREA (m²)
-/// and ε is a point deviation (D4), so the decided margin divides it by
-/// the run's boundary PERIMETER `P`. `2A/P` is the region's MEAN WIDTH
-/// — exactly the deviation the winding sign is about: it is the
-/// distance the boundary would have to move to sweep the enclosed
-/// region away, so a margin above ε says "this ring encloses material
-/// no ε-scale point perturbation can unwind", and one below it says the
-/// ring is thinner than the model's own resolution. Precedents:
-/// `validate`'s `positive_volume` (V/A) and `split_section_area`
-/// (2|A|/P, the same mean width in the splitter).
-///
-/// `P` is the closed region's own boundary: each run half-edge
-/// contributes its arc length (conics: `|Δ|` times the larger
-/// semi-axis — exact for a circle, an upper bound for an ellipse, and an over-large `P`
-/// understates the width, i.e. escalates rather than decides), and the
-/// closing chord `end(h2) → p₀` contributes its length. A run whose
-/// perimeter is exactly zero (every vertex coincident, no arcs) poisons
-/// `0/0` and escalates typed rather than reaching the `Zero` desync arm
-/// below — a refusal either way.
-///
-/// **Orientation (S10)**: the margin multiplies two differently-sourced
-/// signs and needs exactly ONE of them threaded. The Newell sum is
-/// winding — read off the run's STORED traversal order, which `revert`
-/// reverses — so it already flips with the sense bit and must not be
-/// touched. The normal is the face's OUTWARD normal, read through
-/// [`face_outward_normal`] with the sense folded in. Threading both
-/// would cancel (the classic double-count); threading neither leaves
-/// "CCW around the outward normal" meaning "CCW around the chart
-/// normal", the opposite statement on a reversed face — and this
-/// verdict is what picks an island's new outer boundary.
+/// [`super::solid_contain::point_in_solid`]'s F5 gate: a non-planar
+/// face refuses loudly, and so does a spiric or spline run edge, which
+/// the operand gate keeps out.
 fn ring_run_ccw<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1551,12 +1519,17 @@ fn ring_run_ccw<T: Decide>(
         .vec();
     let wound = body
         .planar_run_winding_decided(h1, h2, normal, band)
-        .map_err(|torn| {
-            desync(match torn {
-                TornLoop::Dangling(_) => "ring-run walk reached a key that no longer resolves",
-                TornLoop::Unclaimed { .. } => "ring-run half is not claimed by its edge",
-                TornLoop::Unclosed => "ring-run arc did not close",
-            })
+        .map_err(|torn| match torn {
+            TornLoop::Dangling(what) => {
+                BooleanError::Join(SplitJoinError::Euler(EulerOpError::from(what)))
+            }
+            TornLoop::Unclaimed { he, edge } => {
+                BooleanError::Join(SplitJoinError::Euler(EulerOpError::UnclaimedHalfEdge {
+                    he,
+                    edge,
+                }))
+            }
+            TornLoop::Unclosed => desync("ring-run arc did not close"),
         })?
         // The operand gate refuses a spiric or spline carrier and no
         // section lane mints one on a plane, so a run carrying one is

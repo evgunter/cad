@@ -5292,4 +5292,59 @@ mod winding_arm_tests {
         };
         assert_eq!(run(first, second), whole, "the whole run is the disc");
     }
+
+    /// **The ring lane's own shape**: a run that opens AND closes on a
+    /// null half, as every ring-lane run does (the match's two halves
+    /// are null). Struts at `a` and `d` of the triangle; the run from
+    /// the strut half entering `a` through `a → b → d` to the strut half
+    /// leaving `d` ends at that null half's far vertex — a copy of `d` —
+    /// and its closing chord `d → a` makes it the triangle, margin for
+    /// margin.
+    #[test]
+    fn a_run_between_two_null_halves_is_the_region_they_bracket() {
+        let tol = Tol::witness();
+        let b = band(tol);
+        let n = Vec3::unit_z();
+        let mut t = tri(
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+            Point3::new(-1.0, -1.0, 0.0),
+            tol,
+        );
+        let whole = match t.body.planar_loop_winding_decided(t.r#loop, n, b) {
+            Ok(LoopWinding::Wound(Ok(d))) => d,
+            other => panic!("the triangle winds: {other:?}"),
+        };
+        let he_ab = t.body.get_edge(t.ab).unwrap().he_plus;
+        let he_bd = t.body.get_half_edge(he_ab).unwrap().next;
+        let he_da = t.body.get_half_edge(he_bd).unwrap().next;
+        for at in [he_ab, he_da] {
+            t.body
+                .mev_null(
+                    MevSite::Fan { he1: at, he2: at },
+                    crate::null::NewVertexSide::Above,
+                )
+                .unwrap();
+        }
+        let h1 = t.body.get_half_edge(he_ab).unwrap().prev;
+        let h2 = t.body.get_half_edge(he_bd).unwrap().next;
+        let is_null = |he: crate::HalfEdgeKey| {
+            let edge = t.body.get_half_edge(he).unwrap().edge;
+            let curve = t.body.get_edge(edge).unwrap().curve;
+            t.body.get_curve_geom(curve).unwrap().certified().is_none()
+        };
+        assert!(
+            is_null(h1) && is_null(h2),
+            "the run opens and closes on null halves"
+        );
+        assert_ne!(
+            t.body.half_edge_end(h2),
+            Some(t.body.get_half_edge(h2).unwrap().start),
+            "the run ends at the null half's far vertex, not at `d` itself"
+        );
+        match t.body.planar_run_winding_decided(h1, h2, n, b) {
+            Ok(Some(Ok(d))) => assert_eq!(d, whole, "the bracketed run is the triangle"),
+            other => panic!("the run winds: {other:?}"),
+        }
+    }
 }

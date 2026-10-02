@@ -669,17 +669,19 @@ speculative — each row below states what it measured):
   `ops::tests::volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area`
   (verified red with the sign arm removed) and at band level by the
   adopted `tests/probe_f34_review.rs`.
-- **F4** `bool_ring_run_winding` (join.rs, merge_faces.rs,
-  validate.rs — one predicate, three sites, all three moved together):
-  the Newell AREA is divided by the region's boundary PERIMETER, giving
-  `2A/P` — the ring's MEAN WIDTH, the distance the boundary would have
-  to move to sweep the enclosed region away, and the same quantity
-  `split_section_area` already meters. The canonical derivation lives
-  at `boolean::join::ring_run_ccw`; the other two sites cross-reference
-  it. In the join's ring-run lane the perimeter is arc-aware (conics
-  contribute `|Δ|·semi-major` — exact for a circle, an upper bound for
-  an ellipse, and an over-large P escalates rather than decides) and
-  includes the chord that closes the open run. This retires an
+- **F4** `bool_ring_run_winding` (one predicate, three sites — the
+  boolean join's ring lane, the merge's role assigner, tier 3's check
+  6 — and one arithmetic home, `crate::loop_winding`, which all three
+  read): the Newell AREA is divided by the region's boundary PERIMETER,
+  giving `2A/P` — the ring's MEAN WIDTH, the distance the boundary
+  would have to move to sweep the enclosed region away, and the same
+  quantity `split_section_area` already meters. The canonical
+  derivation lives in `crate::loop_winding`'s module docs; the sites
+  cross-reference it. The perimeter is arc-aware (conics contribute
+  `|Δ|` times the larger semi-axis magnitude — exact for a circle, an
+  upper bound for an ellipse, and an over-large P escalates rather
+  than decides) and, for the join's open run, includes the chord that
+  closes it. This retires an
   EXECUTED in-band refusal: at ε = 1e-6 the mm pocket-subtract twin
   refused typed on a 2e-6 m² margin inside Band{1e-6, 1e-5}; the same
   decisions now carry 5e-4 / 7.5e-4 / 1e-3 m and compute on every ε row

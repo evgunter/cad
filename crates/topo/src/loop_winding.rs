@@ -9,20 +9,34 @@
 //! is what keeps them from answering about different carrier sets, by
 //! different claims, or by different arithmetic.
 //!
-//! The margin is the plane's Newell functional — twice the enclosed
-//! signed area — metered to a LENGTH by the loop's own perimeter:
-//! `2A/P`, the region's mean width (audit F4). The derivation, and why
-//! the predicate must state it identically at every site, is in
-//! `boolean::join::ring_run_ccw`. An open run's closing chord is one
-//! more straight edge of the region: its Newell term and its length.
+//! # Dimension (audit F4, `docs/predicate-dimension-audit.md`)
+//!
+//! The canonical statement for all three sites. The margin is the
+//! plane's Newell functional — twice the enclosed signed area, an AREA
+//! (m²) — and ε is a point deviation (D4), so the decided margin
+//! divides it by the region's boundary PERIMETER `P`. `2A/P` is the
+//! region's MEAN WIDTH — exactly the deviation the winding sign is
+//! about: the distance the boundary would have to move to sweep the
+//! enclosed region away. A margin above ε says "this boundary encloses
+//! material no ε-scale point perturbation can unwind"; one below it
+//! says the region is thinner than the model's own resolution.
+//! Precedents: `validate`'s `positive_volume` (V/A) and the splitter's
+//! `split_section_area` (2|A|/P, the same mean width).
+//!
+//! `P` is the closed region's own boundary: each half-edge contributes
+//! its arc length (below), and an open run's closing chord — one more
+//! straight edge of the region — contributes its Newell term and its
+//! length.
 //!
 //! # The carriers this answers about
 //!
 //! Line, Circle and Ellipse, and a null-edge scaffold, which is its
-//! zero-length chord. A boundary carrying a NURBS or spiric edge
-//! has no winding here — the honest remainder: a chord winding says
-//! nothing about a fitted carrier's region and no closed form exists
-//! for it.
+//! zero-length chord. A boundary carrying a NURBS or spiric edge has no
+//! winding here — the remainder this home has not built: a chord
+//! winding says nothing about a fitted carrier's region. A closed form
+//! exists for a NON-rational B-spline (`geom_brep`'s
+//! `props::loop_vector_area` integrates it exactly per knot span); a
+//! rational spline and the spiric have none.
 //!
 //! For the conic carriers the enclosed vector area decomposes EXACTLY,
 //! per edge — a substitution, not an approximation:
@@ -55,12 +69,18 @@
 //! divides `0/0`, poisons, and escalates: a loop with no extent has no
 //! winding to report.
 //!
-//! `normal` must be the face's OUTWARD normal: the caller folds the
-//! sense into the chart normal exactly once, through
-//! [`crate::face_normal`]'s door, and the sum here is left alone. It is
-//! built from the loop's STORED cycle order, which `revert` reverses in
-//! the same breath as it flips the sense bit, so it changes sign on its
-//! own — threading the sense onto both factors would cancel.
+//! # Orientation (S10)
+//!
+//! The margin multiplies two differently-sourced signs and needs
+//! exactly ONE of them threaded. `normal` must be the face's OUTWARD
+//! normal: the caller folds the sense into the chart normal exactly
+//! once, through [`crate::face_normal`]'s door, and the sum here is
+//! left alone. The sum is built from the STORED traversal order, which
+//! `revert` reverses in the same breath as it flips the sense bit, so
+//! it changes sign on its own. Threading the sense onto both factors
+//! would cancel (the classic double-count); threading neither would
+//! make "counterclockwise about the outward normal" mean "about the
+//! chart normal", the opposite statement on a reversed face.
 
 use geom_brep::EdgeCurve;
 use geom_core::{Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
