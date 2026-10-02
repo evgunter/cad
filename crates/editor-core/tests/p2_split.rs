@@ -791,3 +791,40 @@ fn r1_a_cut_holding_nested_gauges_round_trips_exactly() {
         "the comparator reads offsets"
     );
 }
+
+/// **R1 with a checked offset under a carried placing mate**: a cut
+/// holding a gauge K and a placed pair on the world, the top mated
+/// onto the base and carrying its solved pose as a checked offset. The
+/// carried mate's insert clears the top's offset and the carry
+/// re-states it, at the split and at the inline, so the round trip is
+/// the document up to node ids and no `OffsetCleared` survives.
+#[test]
+fn r1_a_checked_offset_under_a_carried_placing_mate_round_trips_exactly() {
+    let (p, doc, [base, top, mate]) = placed_pair("r1-checked");
+    let o = p.opts();
+    let solved = solve(&doc, &o, Tol::witness())
+        .placement(&doc, top)
+        .expect("placed");
+    let doc = set_offset(doc, top, Some(Placement::literal(&solved)));
+    assert_eq!(
+        solve(&doc, &o, Tol::witness()).fault(top),
+        None,
+        "the checked offset is true"
+    );
+    let (doc, k) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
+    let (doc, on_k) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_gauge(doc, on_k, Some(k));
+    let out = round_trip(&doc, &[base, top, mate, k, on_k], &p, "r1-checked");
+    assert_eq!(
+        offset_of(&out.part, out.node_map[&top]),
+        Some(Placement::literal(&solved)),
+        "the part keeps the checked offset"
+    );
+    assert!(
+        !out.part_maintenance
+            .iter()
+            .any(|m| matches!(m, editor_core::Maintenance::OffsetCleared { .. })),
+        "no cleared offset survives: {:?}",
+        out.part_maintenance
+    );
+}
