@@ -16,7 +16,9 @@ with the earliest as root, the far post's solved translation, the
 identity rotation two aligned frame-coincidence mates compose to, two
 minted declarations, and a gate that certifies. Every number below is
 that scene's, re-derived from the same base dimensions rather than
-copied as a total.
+copied as a total. The tour's bench also stands on a turntable gauge
+and carries a crate, whose declaration is a third; this scene
+authors neither (`bench_scene.py`'s header).
 
 The constants, the two part shapes and the two assembly recipes live
 in `bench_scene.py`, which both this file and `test_assembly_eval.py`
