@@ -157,6 +157,45 @@ impl ArcWindowCase {
     }
 }
 
+/// Why a curved face's crossings could not be paired along the face's
+/// section conic (`splitting::join`'s conic pairing): the conic's
+/// heading at a crossing — which way along it runs into the face — is
+/// what pairs them, and here it did not.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConicCrossingsCase {
+    /// At a crossing the plane runs within the band of tangent to the
+    /// face's wall (**`split_join_conic_heading`** Zero), so the
+    /// crossing neither enters nor leaves the face definitely. No
+    /// shipped fixture reaches it.
+    Grazing,
+    /// Taken along the conic, the crossings do not alternate between
+    /// entering the face and leaving it. Crossings closer along the
+    /// conic than the band read as one point and keep their insertion
+    /// order (`split_join_line_gap` Zero), so two crossings of the face
+    /// at one point — the plane through a vertex of it — can land
+    /// here, as can every crossing of the face at one point, or up/down
+    /// senses that disagree with the geometry. No shipped fixture
+    /// reaches it.
+    NotAlternating,
+}
+
+impl core::fmt::Display for ConicCrossingsCase {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Grazing => write!(
+                f,
+                "the plane grazes the face at one of its crossings, so the crossing neither \
+                 enters nor leaves it definitely"
+            ),
+            Self::NotAlternating => write!(
+                f,
+                "along the section the face's crossings do not alternate between entering \
+                 and leaving it"
+            ),
+        }
+    }
+}
+
 impl core::fmt::Display for ArcWindowCase {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -375,6 +414,18 @@ pub enum SplitJoinError {
         /// The band the tilt was decided against.
         band: Band,
     },
+    /// A curved face crossed more than twice could not have its
+    /// crossings paired along its section conic, which is the only
+    /// pairing that keeps each chord on an arc inside the face. The
+    /// case says which way the heading reading failed.
+    SectionCrossings {
+        /// The curved face whose crossings were being paired.
+        face: FaceKey,
+        /// Why they could not be.
+        case: ConicCrossingsCase,
+        /// The band the headings were decided against.
+        band: Band,
+    },
 }
 
 impl From<EulerOpError> for SplitJoinError {
@@ -536,6 +587,13 @@ impl SplitJoinError {
                  and the join takes only polar sections ('split_sphere_section_polar', band \
                  ({:e}, {:e})). Recourse: revolve the ball about the section's normal: the \
                  line through both centres for two balls, the face's normal for a plane",
+                band.zero(),
+                band.escalate(),
+            ),
+            Self::SectionCrossings { case, band, .. } => write!(
+                f,
+                "a curved face's crossings cannot be paired along the section: {case} \
+                 ('split_join_conic_heading', band ({:e}, {:e})). Recourse: {recourse}",
                 band.zero(),
                 band.escalate(),
             ),
@@ -737,7 +795,7 @@ impl<T: Real> JoinLane<'_, T> {
 
 /// The section conic's frame — the datum both chord lanes select an
 /// arc of, in the form the arc-side rule reads it.
-struct SectionConic<T: Real> {
+pub(crate) struct SectionConic<T: Real> {
     /// The conic's centre.
     center: Point3<T>,
     /// The section plane's normal — the conic's own axis, whose sign
@@ -753,6 +811,21 @@ struct SectionConic<T: Real> {
     carrier: geom::Curve3<T>,
 }
 
+impl<T: Real> SectionConic<T> {
+    /// The eccentric anomaly of a point on the conic: `θ` with
+    /// `p = center + sa·cos θ·major + sb·sin θ·(normal × major)`.
+    pub(crate) fn param(&self, p: Point3<T>) -> T {
+        let d = p - self.center;
+        (d.dot(self.normal.cross(self.major)) / self.sb).atan2(d.dot(self.major) / self.sa)
+    }
+
+    /// The conic's derivative in `θ` (metres per radian).
+    pub(crate) fn tangent(&self, theta: T) -> Vec3<T> {
+        self.normal.cross(self.major) * (self.sb * theta.cos())
+            - self.major * (self.sa * theta.sin())
+    }
+}
+
 /// What the C5 table made of `plane × wall` for a chord that has to
 /// ride it.
 ///
@@ -761,7 +834,7 @@ struct SectionConic<T: Real> {
 /// mints a tangent chord along the ruling, the boolean zip refuses a
 /// tangent germ pair as a touching frontier — and that difference is
 /// the whole of what the two lanes do not share.
-enum SectionCase<T: Real> {
+pub(crate) enum SectionCase<T: Real> {
     /// A conic to select an arc of.
     Conic(SectionConic<T>),
     /// Ruling seams: the straight chord is the honest carrier, so the
@@ -1036,14 +1109,9 @@ fn select_arc<T: Decide>(
     p1: Point3<T>,
     p2: Point3<T>,
 ) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
-    let v_e = conic.normal.cross(conic.major);
     // Exact conic parameters of the (on-locus) endpoints.
-    let theta_of = |p: Point3<T>| -> T {
-        let d = p - conic.center;
-        (d.dot(v_e) / conic.sb).atan2(d.dot(conic.major) / conic.sa)
-    };
-    let th1 = theta_of(p1);
-    let th2 = theta_of(p2);
+    let th1 = conic.param(p1);
+    let th2 = conic.param(p2);
     let (w_min, w_max) = window;
     let width = w_max - w_min;
     // The chord's endpoints in the SAME chart frame the window lives
@@ -1340,59 +1408,29 @@ fn chord_spec<T: Decide>(
     }
     let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     let wall_key = face_data.surface;
-    let (o_c, a_c, r_c, u_ref_c) = match body.get_surface(wall_key) {
-        Some(geom::Surface::Plane { .. }) => {
-            // The boolean's planar-side chord of a curved germ pair
-            // takes its own lane (M5 PR 9); every other lane keeps
-            // the straight chord BIT-IDENTICALLY.
-            return match lane {
-                JoinLane::BoolPlanar {
-                    wall,
-                    window,
-                    partner_key,
-                } => bool_planar_chord_spec(
-                    body,
-                    band,
-                    face,
-                    wall_key,
-                    &wall,
-                    window,
-                    partner_key,
-                    u1,
-                    u2,
-                ),
-                JoinLane::Planar { .. } | JoinLane::Split(_) => Ok(None),
-            };
-        }
-        Some(&geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        }) => (origin, axis, Some(radius), u_ref),
-        // The sphere wall (M5 S13): the chart frame is (center, polar
-        // axis, radius, seam u_ref) — azimuth about the polar axis,
-        // exactly the shape the S9 tail below meters.
-        Some(&geom::Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        }) => (center, axis, Some(radius), u_ref),
-        // The cone wall: azimuth about its axis from the apex. Its
-        // radius varies along the slant, so the lever is the section's
-        // own reach, taken once the conic is known (below).
-        Some(&geom::Surface::Cone {
-            apex, axis, u_ref, ..
-        }) => (apex, axis, None, u_ref),
-        // Post-gate unreachable kinds — typed, never assumed.
-        Some(_) | None => {
-            return Err(SplitJoinError::SectionInvariant {
+    if let Some(geom::Surface::Plane { .. }) = body.get_surface(wall_key) {
+        // The boolean's planar-side chord of a curved germ pair
+        // takes its own lane (M5 PR 9); every other lane keeps
+        // the straight chord BIT-IDENTICALLY.
+        return match lane {
+            JoinLane::BoolPlanar {
+                wall,
+                window,
+                partner_key,
+            } => bool_planar_chord_spec(
+                body,
+                band,
                 face,
-                what: "section chord requested on a face kind the gate refuses",
-            });
-        }
-    };
+                wall_key,
+                &wall,
+                window,
+                partner_key,
+                u1,
+                u2,
+            ),
+            JoinLane::Planar { .. } | JoinLane::Split(_) => Ok(None),
+        };
+    }
     let JoinLane::Split(ctx) = lane else {
         return Err(SplitJoinError::SectionInvariant {
             face,
@@ -1400,21 +1438,43 @@ fn chord_spec<T: Decide>(
                    only planar faces)",
         });
     };
-    // The wall surface (cylinder OR sphere since M5 S13).
-    let cyl_s = body
-        .get_surface(wall_key)
-        .cloned()
-        .ok_or_else(|| corrupt_face(face))?;
-    // A transient classification value: only origin/normal are read by
-    // the table (u_ref is a placement convention the classification
-    // never consumes; the STORED aux plane below gets an honest one).
-    let plane_s = geom::Surface::Plane {
-        origin: ctx.origin,
-        normal: ctx.normal.get(),
-        u_ref: ctx.normal.get(),
+    let Some(WallSection { wall: cyl_s, case }) =
+        wall_section(body, band, ctx.origin, ctx.normal, face, u1)?
+    else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a face read planar by its key reads curved by its section",
+        });
     };
-    let extent = face_extent(body, u1, face).map_err(|_| corrupt_face(face))?;
-    let conic = match section_case(face, band, &plane_s, &cyl_s, extent)? {
+    // The chart frame: (center, axis, radius, seam u_ref) — azimuth
+    // about the axis, the shape the S9 tail below meters. A sphere's
+    // is about its polar axis (M5 S13). A cone's radius varies along
+    // the slant, so its lever is the section's own reach, taken once
+    // the conic is known (below).
+    let (o_c, a_c, r_c, u_ref_c) = match cyl_s {
+        geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => (origin, axis, Some(radius), u_ref),
+        geom::Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => (center, axis, Some(radius), u_ref),
+        geom::Surface::Cone {
+            apex, axis, u_ref, ..
+        } => (apex, axis, None, u_ref),
+        _ => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "section chord requested on a face kind the gate refuses",
+            });
+        }
+    };
+    let conic = match case {
         // Ruling sections: the straight chord is the honest carrier.
         SectionCase::Straight => return Ok(None),
         // C7 (M5 PR 9): the tangent ruling is described
@@ -1537,6 +1597,69 @@ fn chord_spec<T: Decide>(
         param_end: t_end,
     }))
 }
+
+/// What the split plane cuts a curved face in: the face's wall surface
+/// and THE C5 table's verdict for the pair. `None` for a planar face;
+/// a kind the split's gate refuses is refused typed. `at` is a vertex
+/// of the face, the base of the extent the table levers its verdicts
+/// by.
+///
+/// One reading for both consumers of that conic — a chord minted in
+/// the face ([`chord_spec`]) and the split's pairing of the face's
+/// crossings along it (`splitting::join`) — so the two cannot read
+/// different conics. It is lane-neutral: the pair is the face and a
+/// plane, and nothing here knows which lane asks.
+///
+/// # Errors
+///
+/// [`SplitJoinError::SectionInvariant`] for a kind the gate refuses;
+/// the table's refusals ([`section_case`]).
+pub(crate) fn wall_section<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    origin: Point3<T>,
+    normal: UnitVec3<T>,
+    face: FaceKey,
+    at: VertexKey,
+) -> Result<Option<WallSection<T>>, SplitJoinError> {
+    let wall = body
+        .get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .cloned()
+        .ok_or_else(|| corrupt_face(face))?;
+    match wall {
+        geom::Surface::Plane { .. } => return Ok(None),
+        geom::Surface::Cylinder { .. }
+        | geom::Surface::Sphere { .. }
+        | geom::Surface::Cone { .. } => {}
+        _ => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "a section through a face kind the gate refuses",
+            });
+        }
+    }
+    // A transient classification value: only origin/normal are read by
+    // the table (u_ref is a placement convention the classification
+    // never consumes; a STORED aux plane gets an honest one).
+    let plane_s = geom::Surface::Plane {
+        origin,
+        normal: normal.get(),
+        u_ref: normal.get(),
+    };
+    let extent = face_extent(body, at, face).map_err(|_| corrupt_face(face))?;
+    let case = section_case(face, band, &plane_s, &wall, extent)?;
+    Ok(Some(WallSection { wall, case }))
+}
+
+/// [`wall_section`]'s answer.
+pub(crate) struct WallSection<T: Real> {
+    /// The face's wall surface.
+    pub(crate) wall: geom::Surface<T>,
+    /// What the table made of the plane against it.
+    pub(crate) case: SectionCase<T>,
+}
+
 pub(crate) fn face_azimuth_window<T: Decide>(
     body: &Body<T>,
     surface: &geom::Surface<T>,
