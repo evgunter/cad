@@ -72,7 +72,7 @@
 use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, div_up, max_bound, norm_sq, norm_sup};
+use geom_core::interval::{div_down, max_bound, norm_sq, norm_sup};
 use geom_core::spline::Span;
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
@@ -1019,7 +1019,10 @@ impl CellNet {
     /// box in it. A rigid map carries every `term(P_j)` to its image, so
     /// the bound moves by its rounding width alone. It is never above
     /// the norm of the box [`CellNet::derivative_box`] reads, which
-    /// holds every `term(P_j)`.
+    /// holds every `term(P_j)`. Each vector is divided by the weight's
+    /// lower bound before its norm is taken: [`norm_sup`] squares, and a
+    /// subnormal weight's products would square to nothing a root can
+    /// recover.
     fn derivative_norm_sup(&self, along_u: bool) -> f64 {
         let Some((terms, w)) = self.pair_terms(along_u).zip(self.weight_hull()) else {
             return f64::NAN;
@@ -1027,12 +1030,16 @@ impl CellNet {
         if !(w.is_certified() && w.lo() > 0.0) {
             return f64::NAN;
         }
-        let num = terms
+        let floor = Interval::point(w.lo());
+        terms
             .iter()
-            .flat_map(|t| self.pts.iter().map(|&p| norm_sup(&t.at(p))))
+            .flat_map(|t| {
+                self.pts
+                    .iter()
+                    .map(move |&p| norm_sup(&t.at(p).map(|c| c / floor)))
+            })
             .reduce(max_bound)
-            .unwrap_or(f64::NAN);
-        div_up(num, w.lo())
+            .unwrap_or(f64::NAN)
     }
 
     /// The chart probe's two readings along the chart direction
@@ -1058,6 +1065,8 @@ impl CellNet {
         if !(w.is_certified() && w.lo() > 0.0) {
             return (Interval::refused(), f64::NAN);
         }
+        // The norms divide first, as `derivative_norm_sup`'s do.
+        let floor = Interval::point(w.lo());
         let mut along: Option<Interval> = None;
         let mut norm: Option<f64> = None;
         for &p in &self.pts {
@@ -1069,6 +1078,10 @@ impl CellNet {
             if let Some(d) = side(&av).zip(side(&bv)).map(|(a, b)| a + b) {
                 along = Some(along.map_or(d, |acc| Interval::hull(acc, d)));
             }
+            let per_w = |vs: Vec<[Interval; 3]>| -> Vec<[Interval; 3]> {
+                vs.into_iter().map(|v| v.map(|c| c / floor)).collect()
+            };
+            let (av, bv) = (per_w(av), per_w(bv));
             for a in &av {
                 for b in &bv {
                     let m = norm_sup(&core::array::from_fn(|k| a[k] + b[k]));
@@ -1078,7 +1091,7 @@ impl CellNet {
         }
         (
             along.map_or_else(Interval::refused, |a| a / w),
-            norm.map_or(f64::NAN, |m| div_up(m, w.lo())),
+            norm.unwrap_or(f64::NAN),
         )
     }
 }
