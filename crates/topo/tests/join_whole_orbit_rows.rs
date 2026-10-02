@@ -15,11 +15,11 @@
 use crate::common;
 
 use common::{brick, flush_declarations, prism_z};
-use geom_core::{Point3, Tol};
+use geom_core::{Point3, Tol, Vec3};
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{
-    Body, BooleanDeclarations, BooleanError, BooleanResult, intersect_with, mass_properties,
-    subtract_with, union_with, validate_pseudomanifold,
+    Body, BooleanDeclarations, BooleanError, BooleanResult, SplitPlane, intersect_with,
+    mass_properties, split, subtract_with, union_with, validate_pseudomanifold,
 };
 
 type Op = fn(
@@ -164,5 +164,53 @@ fn the_reflex_315_corner_under_a_tilted_cap_answers_exactly() {
             &b,
             22.0 - meet,
         );
+    }
+}
+
+/// **The splitter's twin**: a plane through the 315° prism's reflex top
+/// corner `(0, 0, 1)`, tilted so the corner's three edges read Above
+/// and the top cap's reflex bisector Below. The Above run holds the
+/// whole orbit and the splitter's null edge is the strut inside the
+/// reflex sector, its tip the Below copy. Each split hands back two
+/// parts that pass tiers 2 and 3 and sum to the prism's 14. The
+/// `(1, 0, −1)` row's below part is checked by hand: ∫₀¹ 4(z + 1) dz.
+#[test]
+fn a_split_through_the_reflex_corner_whose_run_holds_the_whole_orbit() {
+    let tol = Tol::witness();
+    let reflex = [
+        (0.0, 0.0),
+        (2.0, 2.0),
+        (-2.0, 2.0),
+        (-2.0, -2.0),
+        (2.0, -2.0),
+        (2.0, 0.0),
+    ];
+    let a = prism_z::<f64>(&reflex, 0.0, 1.0, tol).body;
+    for (n, above_v, below_v) in [
+        ((1.0, 0.2, -1.0), 8.0, 6.0),
+        ((1.0, 0.5, -0.5), 7.0, 7.0),
+        ((1.0, 0.0, -1.0), 8.0, 6.0),
+    ] {
+        let plane = SplitPlane {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            normal: Vec3::new(n.0, n.1, n.2).normalize(),
+        };
+        let r = split(&a, &plane, tol).unwrap_or_else(|e| panic!("n = {n:?}: refused {e:?}"));
+        for (part, want, side) in [(&r.above, above_v, "above"), (&r.below, below_v, "below")] {
+            let b = part
+                .body()
+                .unwrap_or_else(|| panic!("n = {n:?}: no {side} part"));
+            assert_eq!(validate_closed(b), Ok(()), "n = {n:?} {side}: tier 2");
+            assert_eq!(
+                validate_geometric(b, tol),
+                Ok(()),
+                "n = {n:?} {side}: tier 3"
+            );
+            let v = mass_properties(b, tol).unwrap().volume;
+            assert!(
+                (v - want).abs() < 1e-12,
+                "n = {n:?} {side}: volume {v}, want {want}"
+            );
+        }
     }
 }
