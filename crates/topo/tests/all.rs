@@ -73,6 +73,8 @@ mod bool4r1_probes;
 mod bool4r2_base_probe;
 #[path = "bool4r2_probes.rs"]
 mod bool4r2_probes;
+#[path = "boolean_covered.rs"]
+mod boolean_covered;
 #[path = "boolean_discards.rs"]
 mod boolean_discards;
 #[path = "box_with_hole.rs"]

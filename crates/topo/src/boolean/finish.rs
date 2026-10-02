@@ -33,7 +33,7 @@ use geom_core::{Band, Decide};
 use slotmap::SecondaryMap;
 
 use super::combine::{GraftMap, graft_solid};
-use super::discard::{DiscardRow, discard_row};
+use super::discard::{DiscardRow, HeldInto, discard_row};
 use super::join::CompletedPolygonPair;
 use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode};
@@ -188,13 +188,14 @@ fn select_solid<T: Decide>(
 pub(super) fn setopfinish<T: Decide>(
     op: BooleanOp,
     mut red: BooleanReduction<T>,
-    completed: &[CompletedPolygonPair],
+    connected: &super::join::Connected,
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     band: Band,
     tol: Tol,
 ) -> Result<FinishOut<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
+    let completed = &connected.completed[..];
 
     // **The phase boundary, asserted.** The join holds a scope on each
     // operand body through the one guardless pair in `boolean`
@@ -343,14 +344,21 @@ pub(super) fn setopfinish<T: Decide>(
     // B's through the graft.
     let a_kept = |v: VertexKey| body.get_vertex(v).is_some().then_some(v);
     let b_kept = |v: VertexKey| graft.vertices.get(v).copied();
-    let mut discards = discarded(&red, a_solid, &a_kept_shells, &a_sides, Operand::A, &a_kept)?;
+    let mut discards = discarded(
+        &red,
+        a_solid,
+        &a_kept_shells,
+        &a_sides,
+        (Operand::A, &a_kept),
+        (&connected.a_fragments, &b_kept),
+    )?;
     discards.extend(discarded(
         &red,
         b_solid,
         &b_kept_shells,
         &b_sides,
-        Operand::B,
-        &b_kept,
+        (Operand::B, &b_kept),
+        (&connected.b_fragments, &a_kept),
     )?);
 
     Ok(FinishOut {
@@ -368,19 +376,25 @@ pub(super) fn setopfinish<T: Decide>(
 /// kept side's copy of each end is the other end of one of that end's
 /// null edges — the one end among them that survived into the result,
 /// which `kept_vertex` reads in result keys, as the seam vertex map
-/// picks its survivor.
+/// picks its survivor. `held` is this operand's chord-split rows and the
+/// other operand's vertices in result keys, for the held stretches
+/// (`DiscardRow::held`).
+#[allow(clippy::type_complexity)]
 fn discarded<T: Decide>(
     red: &BooleanReduction<T>,
     solid: SolidKey,
     kept: &[ShellKey],
     sides: &SecondaryMap<FaceKey, SideCode>,
-    operand: Operand,
-    kept_vertex: &dyn Fn(VertexKey) -> Option<VertexKey>,
+    (operand, kept_vertex): (Operand, &dyn Fn(VertexKey) -> Option<VertexKey>),
+    held: (
+        &[(FaceKey, FaceKey)],
+        &dyn Fn(VertexKey) -> Option<VertexKey>,
+    ),
 ) -> Result<Vec<DiscardRow>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let body = match operand {
-        Operand::A => &red.a,
-        Operand::B => &red.b,
+    let (body, holder_op, holder) = match operand {
+        Operand::A => (&red.a, Operand::B, &red.b),
+        Operand::B => (&red.b, Operand::A, &red.a),
     };
     let mut copy: BTreeMap<VertexKey, BTreeSet<VertexKey>> = BTreeMap::new();
     for r in red.null_edges.iter().filter(|r| r.operand == operand) {
@@ -407,6 +421,14 @@ fn discarded<T: Decide>(
     };
     let kept_ends = |u, w| Ok((kept_end(u)?, kept_end(w)?));
     let kept_across = |f: FaceKey| sides.contains_key(f);
+    let held = HeldInto {
+        entries: &red.held,
+        fragments: held.0,
+        holder_op,
+        holder,
+        to_result: held.1,
+        copies: &copy,
+    };
     let mut out = Vec::new();
     for &shell in body
         .shells_of_solid(solid)
@@ -421,7 +443,14 @@ fn discarded<T: Decide>(
             .faces
         {
             if !sides.contains_key(face) {
-                out.push(discard_row(body, face, operand, &kept_across, &kept_ends)?);
+                out.push(discard_row(
+                    body,
+                    face,
+                    operand,
+                    &kept_across,
+                    &kept_ends,
+                    Some(&held),
+                )?);
             }
         }
     }

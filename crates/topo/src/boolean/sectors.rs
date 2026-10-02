@@ -781,6 +781,50 @@ pub(super) fn within<T: Decide>(
     })
 }
 
+/// The sector's bounds that are edges of its face, with their unit
+/// directions: `end` is `s.he`'s edge, `start` the next orbit
+/// half-edge's. A subdivision bisector is no edge.
+pub(super) fn bound_edges<T: Decide>(
+    body: &Body<T>,
+    s: &BoolSector<T>,
+) -> Result<Vec<(crate::entity::EdgeKey, Vec3<T>)>, BooleanError> {
+    let edge = |he| {
+        body.get_half_edge(he)
+            .map(|h| h.edge)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a sector's half-edge no longer resolves",
+            })
+    };
+    let mut out = Vec::new();
+    if s.end_edge() {
+        out.push((edge(s.he)?, s.end));
+    }
+    if s.start_edge() {
+        let orbit = body
+            .vertex_orbit(s.he)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a sector's vertex orbit does not walk",
+            })?;
+        out.push((edge(orbit[1 % orbit.len()])?, s.start));
+    }
+    Ok(out)
+}
+
+/// Whether `dir`, coplanar with `s`, runs into its face: within the
+/// sector and along neither of its bounds that is an edge of the face.
+pub(super) fn runs_into<T: Decide>(
+    s: &BoolSector<T>,
+    dir: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    if !within(s, dir, false, DeclarationRead::Moot, band)? {
+        return Ok(false);
+    }
+    Ok(!(s.start_edge() && parallel_same(dir, s.start, arm, band)?
+        || s.end_edge() && parallel_same(dir, s.end, arm, band)?))
+}
+
 /// Same-direction parallelism of two bound directions (unit-ish).
 fn parallel_same<T: Decide>(
     u: Vec3<T>,

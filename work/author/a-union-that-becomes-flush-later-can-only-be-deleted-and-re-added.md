@@ -39,7 +39,7 @@ it again through the tool.
 
 This is DM6's own reopening trigger. `crates/editor-core/REFERENCES.md`,
 "DM6 — Splice is not added", keeps
-`work/edit/no-docedit-splices-a-deleted-node` open as the record of
+`work/recipe/no-docedit-splices-a-deleted-node` open as the record of
 "the one trigger that would reopen the question: a chain that a flat
 operator cannot flatten and that a user needs to edit from the middle".
 A union in the middle of a chain that an upstream edit makes flush is
