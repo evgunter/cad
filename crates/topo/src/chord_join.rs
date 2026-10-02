@@ -2536,7 +2536,7 @@ impl ChordJoiner {
     /// new half `h2` with up to two chord edges; the minted chord
     /// edges come back (the boolean joining records their germ — M3
     /// PR 5).
-    pub(crate) fn join<T: Decide>(
+    pub(crate) fn join<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
         h1: HalfEdgeKey,

@@ -979,7 +979,7 @@ fn edge_face_read<T: geom_core::Real>(
 }
 
 #[allow(clippy::too_many_arguments)] // one parameter per named duty (bodies, orientation, declarations, sinks, band, strategy, plant, trace)
-pub(super) fn sweep_direction<T: Decide + Bounds>(
+pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     x: &mut Body<T>,
     y: &mut Body<T>,
     x_is: Operand,
@@ -1522,7 +1522,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// REPORTED here and performed there rather than the body being
 /// threaded in for one branch.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn curved_face_arm<T: Decide>(
+pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
     x: &Body<T>,
     y: &mut Body<T>,
     x_is: Operand,
@@ -2324,7 +2324,7 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 /// placements, which record nothing, or is `None`, which the caller
 /// turns into the frontier that ends the op, so no record or split made
 /// here outlives a certificate that did not hold.
-fn lying_on<T: Decide>(
+fn lying_on<T: Decide + crate::props::AtRestPolicy>(
     arc: &ArcOnCarrier<'_, T>,
     y: &mut Body<T>,
     contacts: &mut ContactAcc,
@@ -3070,7 +3070,7 @@ impl Placement {
 /// trim, so nothing at all is known and the caller's typed frontier is
 /// the only honest answer.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn vertex_on_curved_face<T: Decide>(
+pub(super) fn vertex_on_curved_face<T: Decide + crate::props::AtRestPolicy>(
     x_is: Operand,
     y: &mut Body<T>,
     vx: VertexKey,
@@ -3086,7 +3086,7 @@ pub(super) fn vertex_on_curved_face<T: Decide>(
 /// [`vertex_on_curved_face`], also naming the vertex of `y` a recorded
 /// v-v contact paired `vx` with (`None` for a v-f record, or no record).
 #[allow(clippy::too_many_arguments)]
-fn vertex_on_curved_face_at<T: Decide>(
+fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     x_is: Operand,
     y: &mut Body<T>,
     vx: VertexKey,
@@ -3213,7 +3213,7 @@ fn push_vv(contacts: &mut ContactAcc, x_is: Operand, wx: VertexKey, wy: VertexKe
 /// — the differential suite's accepted-pair channel; recording changes
 /// no classification.
 #[allow(clippy::too_many_arguments)]
-fn vertex_on_face<T: Decide>(
+fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     x_is: Operand,
     y: &mut Body<T>,
     vx: VertexKey,
@@ -3236,7 +3236,7 @@ fn vertex_on_face<T: Decide>(
     Ok(true)
 }
 
-fn split_at<T: Decide>(
+fn split_at<T: Decide + crate::props::AtRestPolicy>(
     x: &mut Body<T>,
     x_is: Operand,
     edge: EdgeKey,
@@ -3280,7 +3280,7 @@ fn split_at<T: Decide>(
 /// [`BooleanError::PointSplitCarrierUnsupported`], its own variant
 /// because this precondition is NOT the operand gate's — the gate
 /// admits `Ellipse` and this lane cannot take it.
-fn split_other_at_point<T: Decide>(
+fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     y: &mut Body<T>,
     y_is: Operand,
     edge: EdgeKey,
