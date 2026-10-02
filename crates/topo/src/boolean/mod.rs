@@ -138,7 +138,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
 pub(crate) use contain::loop_circle;
-pub use discard::{DiscardRow, HeldEdge, fragment_root};
+pub use discard::{DiscardRow, HeldEdge, lineage_root};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -1337,8 +1337,8 @@ pub enum BooleanError {
     ArcLoopContainmentUnsupported {
         /// The operand whose face carries the loop.
         operand: Operand,
-        /// The loop no walk expresses at the point.
-        r#loop: crate::entity::LoopKey,
+        /// The loop, and the edge no ray got past.
+        cause: crate::splitting::Uncrossable,
     },
     /// An operand is well-formed but not a closed solid at rest: tier 2
     /// ([`crate::validate_closed`]) refuses it for construction
@@ -2413,12 +2413,12 @@ impl core::fmt::Display for BooleanError {
             // No operand is named, for the same reason as above: some
             // raise sites carry the operand of the edge being placed, not
             // of the face whose loop has no walk.
-            Self::ArcLoopContainmentUnsupported { .. } => write!(
+            Self::ArcLoopContainmentUnsupported { cause, .. } => write!(
                 f,
                 "the Boolean cannot yet tell what lies inside a flat face whose outline \
-                 has a spiric or spline edge near the point it asked about, so it \
-                 refuses rather than guess. Recourse: model the outline with lines, \
-                 circles or ellipses"
+                 has a {} edge near the point it asked about, so it refuses rather than \
+                 guess. Recourse: model the outline with lines, circles or ellipses",
+                cause.carrier.word()
             ),
             Self::ScaffoldingOperand { operand, .. } => write!(
                 f,
@@ -4184,7 +4184,11 @@ mod tests {
             },
             BooleanError::ArcLoopContainmentUnsupported {
                 operand: Operand::A,
-                r#loop: crate::entity::LoopKey::default(),
+                cause: crate::splitting::Uncrossable {
+                    r#loop: crate::entity::LoopKey::default(),
+                    edge,
+                    carrier: crate::splitting::UncrossableCarrier::Spiric,
+                },
             },
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,

@@ -1,6 +1,7 @@
 //! JOIN-1 review lane r1: rows for poses the locus matching newly
 //! builds, each checked at tiers 2, 3′ and the at-rest certificate and
-//! at its closed-form volume.
+//! at its closed-form volume, and for a pose whose refusal is a typed
+//! frontier only while a strut's halves are bound right.
 //!
 //! The first row is RED on the reviewed head (4ef105c30): a hexagonal
 //! prism unioned with a box whose corner edge lies along one of the
@@ -145,4 +146,33 @@ fn the_multi_spike_corner_meet_passes_tier_3() {
         topo::intersect_with(&ab, &c, &decl, tol()),
         0.5,
     );
+}
+
+/// The pole-strut pose: `ball_poled_y(0.5)` against the box
+/// `[−1, 0.25] × [−1, 1] × [−1, 0]`, whose face `z = 0` holds both
+/// meridian edges of the sphere face through its poles. Each pole is a
+/// vertex-on-face site minted as a strut whose germs run along those
+/// meridians; its halves face the germ beside their own meridian
+/// (`insert::strut_facing`). Bound the other way, the join matches a
+/// meridian's segment with the half beside the other meridian and
+/// refuses `JoinDesync` ("every chord arc separates a loose scaffolding
+/// pair"). Bound right, every op in either order reaches the polar
+/// section frontier.
+#[test]
+fn a_pole_struts_halves_face_their_own_meridians() {
+    let ball = sweep::test_support::ball_poled_y(0.5, geom_core::Vec3::new(0.0, 0.0, 0.0), tol());
+    let b = brick((-1.0, 0.25), (-1.0, 1.0), (-1.0, 0.0), tol());
+    for (what, r) in [
+        ("ball ∪ box", topo::union(&ball, &b, tol())),
+        ("box ∪ ball", topo::union(&b, &ball, tol())),
+        ("ball ∖ box", topo::subtract(&ball, &b, tol())),
+        ("box ∖ ball", topo::subtract(&b, &ball, tol())),
+        ("ball ∩ box", topo::intersect(&ball, &b, tol())),
+        ("box ∩ ball", topo::intersect(&b, &ball, tol())),
+    ] {
+        match r {
+            Err(topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })) => {}
+            other => panic!("{what}: want Join(SectionNotPolar), got {:?}", other.err()),
+        }
+    }
 }
