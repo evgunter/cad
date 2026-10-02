@@ -105,6 +105,7 @@ use crate::eval::{
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::{FlipSet, diff_verdicts};
+use crate::spoken::SpokenNode;
 // The two derived verdict forms live in one module (`resolve::vdiff`);
 // this driver is the strict form's certifying consumer, and names it at
 // `drive::` because that is where every consumer already reaches for it.
@@ -1213,8 +1214,9 @@ pub enum DriveRefusal {
     /// error; evaluating the document at `f64` hands back the error
     /// itself.
     WitnessDoesNotBuild {
-        /// The first node, in evaluation order, that did not build.
-        node: RecipeNodeId,
+        /// The first node, in evaluation order, that did not build,
+        /// spoken from the driven document.
+        node: SpokenNode,
         /// The node error's rendering.
         cause: String,
     },
@@ -1242,8 +1244,9 @@ pub enum DriveRefusal {
     /// is in the message: drive this document with
     /// [`SymbolicDials::off`].
     SymbolicClearanceUnsupported {
-        /// The measure node whose primitive has no lane.
-        node: RecipeNodeId,
+        /// The measure node whose primitive has no lane, spoken from
+        /// the driven document.
+        node: SpokenNode,
     },
 }
 
@@ -1252,9 +1255,8 @@ impl core::fmt::Display for DriveRefusal {
         match self {
             Self::WitnessDoesNotBuild { node, cause } => write!(
                 f,
-                "the witness build refuses at node {}: {cause} — there is no branch to certify \
-                 leaves against until the nominal document builds",
-                node
+                "the witness build refuses at {node}: {cause} — there is no branch to certify \
+                 leaves against until the nominal document builds"
             ),
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
@@ -1262,10 +1264,9 @@ impl core::fmt::Display for DriveRefusal {
             ),
             Self::SymbolicClearanceUnsupported { node } => write!(
                 f,
-                "node {} measures a `min_clearance`, whose engine has no lane at the symbolic \
+                "{node} is a `min_clearance`, whose engine has no lane at the symbolic \
                  identity tier — drive with `DriveConfig {{ symbolic: SymbolicDials::off(), .. }}` \
-                 to get the numeric-only answer, or measure a closed form",
-                node
+                 to get the numeric-only answer, or measure a closed form"
             ),
         }
     }
@@ -1299,7 +1300,9 @@ pub fn drive(
     if config.symbolic.enabled
         && let Some(node) = clearance_measure(doc)
     {
-        return Err(DriveRefusal::SymbolicClearanceUnsupported { node });
+        return Err(DriveRefusal::SymbolicClearanceUnsupported {
+            node: doc.spoken(node),
+        });
     }
 
     // The WITNESS build: the document at its nominals, at f64, with the
@@ -1318,7 +1321,10 @@ pub fn drive(
         let cause = witness
             .node_error(node)
             .map_or_else(|| standing.to_string(), |e| e.kind.to_string());
-        return Err(DriveRefusal::WitnessDoesNotBuild { node, cause });
+        return Err(DriveRefusal::WitnessDoesNotBuild {
+            node: doc.spoken(node),
+            cause,
+        });
     }
     let witness_vector = Arc::new(certifying_vector(doc, &witness));
     let witness_key = witness_vector.key();

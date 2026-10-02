@@ -119,6 +119,7 @@ use crate::edit::{DocEdit, EditError, apply};
 use crate::expr::Expr;
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
+use crate::spoken::SpokenNode;
 
 /// The field a range is asked about: one document parameter, or one
 /// node slot.
@@ -424,13 +425,14 @@ pub enum RangeRefusal {
     },
     /// The document has no such node.
     UnknownNode {
-        /// The id asked for.
-        node: RecipeNodeId,
+        /// The id asked for, which the document does not hold
+        /// ([`SpokenNode::absent`]).
+        node: SpokenNode,
     },
     /// The node carries no such slot.
     UnknownSlot {
-        /// The node.
-        node: RecipeNodeId,
+        /// The node, spoken from the document asked about.
+        node: SpokenNode,
         /// The slot asked for.
         slot: SlotId,
     },
@@ -438,8 +440,8 @@ pub enum RangeRefusal {
     /// shapes rather than measuring one, and a structural slot has no
     /// interval to certify over.
     StructuralSlot {
-        /// The node.
-        node: RecipeNodeId,
+        /// The node, spoken from the document asked about.
+        node: SpokenNode,
         /// The slot.
         slot: SlotId,
     },
@@ -448,8 +450,8 @@ pub enum RangeRefusal {
     /// certify a document the caller did not ask about — vary the
     /// parameters that expression reads instead.
     SlotIsNotALiteral {
-        /// The node.
-        node: RecipeNodeId,
+        /// The node, spoken from the document asked about.
+        node: SpokenNode,
         /// The slot.
         slot: SlotId,
     },
@@ -507,21 +509,21 @@ impl core::fmt::Display for RangeRefusal {
                  certify over"
             ),
             Self::UnknownNode { node } => {
-                write!(f, "this document has no node {}", node)
+                write!(f, "this document has no {node}")
             }
             Self::UnknownSlot { node, slot } => {
-                write!(f, "node {} carries no {} slot", node, slot.label())
+                write!(f, "{node} carries no {} slot", slot.label())
             }
             Self::StructuralSlot { node, slot } => write!(
                 f,
-                "the {} slot of node {} is structural (Count) — a structural slot selects \
+                "the {} slot of {} is structural (Count) — a structural slot selects \
                  between shapes and has no interval to certify over",
                 slot.label(),
                 node
             ),
             Self::SlotIsNotALiteral { node, slot } => write!(
                 f,
-                "the {} slot of node {} is driven by an expression, which naming it would \
+                "the {} slot of {} is driven by an expression, which naming it would \
                  shadow — certify the parameters that expression reads instead",
                 slot.label(),
                 node
@@ -652,7 +654,9 @@ pub fn derive(
         }
         RangeField::Slot { node, slot } => {
             let Some(n) = doc.node(*node) else {
-                return Err(RangeRefusal::UnknownNode { node: *node });
+                return Err(RangeRefusal::UnknownNode {
+                    node: SpokenNode::absent(*node),
+                });
             };
             // WHETHER THE NODE CARRIES THE SLOT IS ASKED FIRST. A slot
             // id is a vocabulary-wide name, so `Count` is structural
@@ -662,19 +666,19 @@ pub fn derive(
             // about this document's.
             let Some(expr) = n.expr(*slot) else {
                 return Err(RangeRefusal::UnknownSlot {
-                    node: *node,
+                    node: doc.spoken(*node),
                     slot: *slot,
                 });
             };
             if slot.is_structural() {
                 return Err(RangeRefusal::StructuralSlot {
-                    node: *node,
+                    node: doc.spoken(*node),
                     slot: *slot,
                 });
             }
             let Some(value) = expr.literal_value() else {
                 return Err(RangeRefusal::SlotIsNotALiteral {
-                    node: *node,
+                    node: doc.spoken(*node),
                     slot: *slot,
                 });
             };
