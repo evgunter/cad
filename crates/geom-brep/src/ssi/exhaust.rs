@@ -9,7 +9,9 @@
 //!
 //! 1. **excluded** — a certified enclosure of `f₁` (or `f₂`, or the
 //!    chart form `φ`) over the cell does not contain zero, so no
-//!    solution can be in it;
+//!    solution can be in it (on the chart lane, the boundary pass's
+//!    mean-value enclosure over a cell beside the wall's boundary
+//!    counts too);
 //! 2. **accounted** — the cell lies inside a found branch's uniqueness
 //!    tube, where limb 3 already proved there is exactly one arc, or
 //!    inside a boundary contact's certified region, where the boundary
@@ -688,12 +690,19 @@ enum SweepDuty<'a, C> {
         /// The certified regions of the boundary contacts, in the same
         /// units.
         regions: &'a [C],
+        /// Cells the boundary pass proved the plane misses, by the same
+        /// mean-value enclosure the exclusion reads: a distance of one
+        /// sign at the boundary and a slope carrying it further from
+        /// zero inward.
+        clear: &'a [C],
     },
 }
 
 /// Which certificate accounts for a cell ([`SweepDuty::accounts`]).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Accounted {
+    /// The boundary pass's enclosure: no solution in it.
+    Clear,
     /// A found branch's uniqueness tube.
     Tube,
     /// A boundary contact's certified region.
@@ -708,8 +717,14 @@ impl<C: SweepCell> SweepDuty<'_, C> {
     fn accounts(self, cell: C) -> Option<Accounted> {
         match self {
             Self::Seed => None,
-            Self::Account { tubes, regions } => {
-                if tubes.iter().any(|t| cell.contained_in(*t)) {
+            Self::Account {
+                tubes,
+                regions,
+                clear,
+            } => {
+                if clear.iter().any(|c| cell.contained_in(*c)) {
+                    Some(Accounted::Clear)
+                } else if tubes.iter().any(|t| cell.contained_in(*t)) {
                     Some(Accounted::Tube)
                 } else if regions.iter().any(|r| cell.contained_in(*r)) {
                     Some(Accounted::Contact)
@@ -854,6 +869,10 @@ fn sweep<C: SweepCell>(
         // (ii) accounted: inside a found branch's uniqueness tube, or
         // a boundary contact's certified region.
         match duty.accounts(cell) {
+            Some(Accounted::Clear) => {
+                stats.excluded += 1;
+                continue;
+            }
             Some(Accounted::Tube) => {
                 stats.accounted += 1;
                 continue;
@@ -929,6 +948,7 @@ pub(crate) fn account_r3(
     let duty = SweepDuty::Account {
         tubes,
         regions: &[],
+        clear: &[],
     };
     let (tally, _) = sweep_r3(s1, s2, floor, duty)?;
     Ok(tally.receipt(floor.lane, floor.width()))
@@ -1129,9 +1149,11 @@ pub(crate) fn seed_chart_plane(
 }
 
 /// **The accounting proof**, chart lane: every leaf of the floor's
-/// parameter rectangle is excluded or lies inside one of `tubes` or of
-/// the boundary contacts' `regions`; a cell that is none of these, at
-/// the floor, is the typed refusal — both sets empty included.
+/// parameter rectangle is excluded — by its own enclosure, or inside
+/// one of the boundary pass's `clear` cells — or lies inside one of
+/// `tubes` or of the boundary contacts' `regions`; a cell that is none
+/// of these, at the floor, is the typed refusal — every set empty
+/// included.
 ///
 /// The floor carries the certified chart speed of `surface` that
 /// crossed the caller's metres into chart units, and hands it on to
@@ -1146,6 +1168,7 @@ pub(crate) fn account_chart_plane(
     plane_normal: Vec3<f64>,
     tubes: &[UvRect],
     regions: &[UvRect],
+    clear: &[UvRect],
     floor: SweepFloor<UvRect>,
 ) -> Result<Exhaustiveness, SsiError> {
     let (tally, _) = sweep_chart_plane(
@@ -1153,7 +1176,11 @@ pub(crate) fn account_chart_plane(
         plane_origin,
         plane_normal,
         floor,
-        SweepDuty::Account { tubes, regions },
+        SweepDuty::Account {
+            tubes,
+            regions,
+            clear,
+        },
     )?;
     Ok(tally.receipt(floor.lane, floor.width()))
 }

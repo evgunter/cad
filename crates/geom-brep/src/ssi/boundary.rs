@@ -174,6 +174,9 @@ pub(crate) struct BoundaryPass {
     pub contacts: Vec<SsiBoundaryContact>,
     /// The regions' certified cells, which the accounting banks.
     pub regions: Vec<UvRect>,
+    /// Cells beside a side or a corner within the band of the plane that
+    /// the plane is certified to miss, which the accounting excludes.
+    pub clear: Vec<UvRect>,
     /// The branch ends, in side order and ascending along each side.
     pub crossings: Vec<Crossing>,
 }
@@ -270,6 +273,14 @@ pub(crate) struct Pass<'a> {
 struct SideSection {
     side: ChartSide,
     section: BoundarySection,
+}
+
+/// What a side within the band of the plane is.
+enum SideClass {
+    /// The plane lies along it: a region of `reach` over `strip`.
+    Region { strip: UvRect, reach: f64 },
+    /// The plane misses the strip beside it (the exact empty answer).
+    Clear { strip: UvRect },
 }
 
 /// What a corner within the band of the plane is.
@@ -406,12 +417,17 @@ impl Pass<'_> {
     /// the slope across the side straddles zero over every rung's strip:
     /// the plane does not lie along the side there, or the surfaces are
     /// tangent along it, which the caller tells apart.
-    fn side_region(&self, side: ChartSide, sup: f64) -> Result<Option<(UvRect, f64)>, SsiError> {
+    fn side_region(
+        &self,
+        side: ChartSide,
+        sup: f64,
+        side_of_plane: Option<bool>,
+    ) -> Result<Option<SideClass>, SsiError> {
         let speed = match side.fixed {
             ChartAxis::U => self.speeds.u,
             ChartAxis::V => self.speeds.v,
         };
-        let mut chosen: Option<(UvRect, f64)> = None;
+        let mut chosen: Option<(UvRect, Interval)> = None;
         for pad in self.rungs() {
             let strip = self.strip(side, pad);
             let (pu, pv) = self.partials(strip);
@@ -419,20 +435,27 @@ impl Pass<'_> {
                 ChartAxis::U => pu,
                 ChartAxis::V => pv,
             };
-            let inf = super::enclose::zero_free_lower_bound(across);
-            chosen = Some((strip, inf));
-            if inf > 0.0 {
+            chosen = Some((strip, across));
+            if one_signed(across) {
                 break;
             }
         }
-        let Some((strip, inf)) = chosen else {
+        let Some((strip, across)) = chosen else {
             return Err(SsiError::TubeLadderEmpty {
                 extent: self.extent,
                 floor: super::certify::SSI_TUBE_RADIUS * self.band.zero(),
             });
         };
+        let inf = super::enclose::zero_free_lower_bound(across);
         if inf <= 0.0 {
             return Ok(None);
+        }
+        // The side on one side of the plane, and the wall moving further
+        // that way inward: the strip is clear of the plane (the exact
+        // empty answer outside the domain).
+        let rising_inward = (across.lo() > 0.0) == (inward(side.end) > 0.0);
+        if side_of_plane == Some(rising_inward) {
+            return Ok(Some(SideClass::Clear { strip }));
         }
         // The sine of the angle between the wall and the plane across the
         // side, levered as the march's transversality is.
@@ -442,7 +465,7 @@ impl Pass<'_> {
             Ok(decided) => match Refused::of(decided, self.band) {
                 None => {
                     let reach = div_up(sup, sine) + self.band.zero();
-                    return Ok(Some((strip, reach)));
+                    return Ok(Some(SideClass::Region { strip, reach }));
                 }
                 Some(r) => BandVerdict::Refused(r),
             },
@@ -527,10 +550,15 @@ impl Pass<'_> {
         let (speeds_u, speeds_v) = (self.speeds.u.get(), self.speeds.v.get());
         let inf_u = super::enclose::zero_free_lower_bound(pu);
         let inf_v = super::enclose::zero_free_lower_bound(pv);
+        // A zero at inward offsets `(du, dv)` has `inf|φ_u|·du + inf|φ_v|·dv
+        // ≤ |φ(corner)|`, and lies at most `s_u·du + s_v·dv` from the
+        // corner, whose largest value under that constraint is
+        // `|φ(corner)| · max(s_u / inf|φ_u|, s_v / inf|φ_v|)`.
         let mag = max_bound(phi.lo().abs(), phi.hi().abs());
-        let reach = div_up(mag, div_down(inf_u, speeds_u))
-            + div_up(mag, div_down(inf_v, speeds_v))
-            + self.band.zero();
+        let reach = max_bound(
+            div_up(mag, div_down(inf_u, speeds_u)),
+            div_up(mag, div_down(inf_v, speeds_v)),
+        ) + self.band.zero();
         Ok(CornerClass::Contact { cell, reach })
     }
 
@@ -583,6 +611,7 @@ impl Pass<'_> {
         let ((u0, u1), (v0, v1)) = self.domain();
         let mut contacts = Vec::new();
         let mut regions: Vec<UvRect> = Vec::new();
+        let mut clear: Vec<UvRect> = Vec::new();
         let mut sections = Vec::new();
         for side in SIDES {
             let curve = self.curve(side)?;
@@ -597,29 +626,36 @@ impl Pass<'_> {
             )
             .map_err(|e| e.on_side(side))?;
             let section = match section {
-                BoundarySection::On { sup } => match self.side_region(side, sup)? {
-                    Some((strip, reach)) => {
-                        contacts.push(SsiBoundaryContact::Side { side, reach });
-                        regions.push(strip);
-                        BoundarySection::On { sup }
+                BoundarySection::On { sup, side_of_plane } => {
+                    match self.side_region(side, sup, side_of_plane)? {
+                        Some(SideClass::Region { strip, reach }) => {
+                            contacts.push(SsiBoundaryContact::Side { side, reach });
+                            regions.push(strip);
+                            section
+                        }
+                        Some(SideClass::Clear { strip }) => {
+                            clear.push(strip);
+                            section
+                        }
+                        // No strip beside the side holds the wall's slope
+                        // across it clear of zero. Either the plane
+                        // crosses a side shorter than the band, whose
+                        // crossings decide it, or the surfaces are
+                        // tangent along the side.
+                        None => match boundary_roots(
+                            &curve,
+                            self.plane.origin,
+                            self.plane.normal,
+                            self.along_speed(side),
+                            self.floor,
+                            self.extent,
+                            self.band,
+                        ) {
+                            Ok(roots) => roots,
+                            Err(_) => return Err(self.tangent(side)),
+                        },
                     }
-                    // No strip beside the side holds the wall's slope
-                    // across it clear of zero. Either the plane crosses a
-                    // side shorter than the band, whose crossings decide
-                    // it, or the surfaces are tangent along the side.
-                    None => match boundary_roots(
-                        &curve,
-                        self.plane.origin,
-                        self.plane.normal,
-                        self.along_speed(side),
-                        self.floor,
-                        self.extent,
-                        self.band,
-                    ) {
-                        Ok(roots) => roots,
-                        Err(_) => return Err(self.tangent(side)),
-                    },
-                },
+                }
                 roots => roots,
             };
             sections.push(SideSection { side, section });
@@ -631,7 +667,6 @@ impl Pass<'_> {
         };
         // The corners: each end root of a side lands at one.
         let mut starts: Vec<UvRect> = Vec::new();
-        let mut clear: Vec<UvRect> = Vec::new();
         for corner in CORNERS {
             let through = [
                 ChartSide {
@@ -734,6 +769,7 @@ impl Pass<'_> {
         Ok(BoundaryPass {
             contacts,
             regions,
+            clear,
             crossings,
         })
     }

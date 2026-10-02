@@ -2235,8 +2235,15 @@ pub fn plane_nurbs_ssi(
         branches.push(branch);
     }
 
-    let exhaustiveness =
-        exhaust::account_chart_plane(wall, p0, normal, &tubes, &pass.regions, account_floor)?;
+    let exhaustiveness = exhaust::account_chart_plane(
+        wall,
+        p0,
+        normal,
+        &tubes,
+        &pass.regions,
+        &pass.clear,
+        account_floor,
+    )?;
     Ok(SsiOutcome {
         branches,
         boundary: pass.contacts,

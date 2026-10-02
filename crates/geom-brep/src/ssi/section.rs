@@ -50,6 +50,9 @@ pub enum BoundarySection {
     On {
         /// The certified sup of `|φ|` over the curve, in metres.
         sup: f64,
+        /// The sign of `φ` along the whole curve, where its enclosure is
+        /// one-signed: `Some(true)` for the plane's positive side.
+        side_of_plane: Option<bool>,
     },
     /// The curve meets the plane at isolated roots, or not at all.
     Roots {
@@ -289,15 +292,19 @@ pub fn boundary_section(
     } else {
         f64::NAN
     };
+    let on = BoundarySection::On {
+        sup,
+        side_of_plane: one_signed(d).then(|| d.lo() > 0.0),
+    };
     match decide("ssi_boundary_on_plane", Margin::of(sup), band) {
         Ok(Sign::Positive) => {}
-        Ok(Sign::Zero | Sign::Negative) => return Ok(BoundarySection::On { sup }),
+        Ok(Sign::Zero | Sign::Negative) => return Ok(on),
         Err(cause) if cause.margin.is_invalid() => {
             return Err(super::TraceDecision::BoundarySection.escalated(cause));
         }
         // In band: the curve lies within the band's reach of the plane,
         // and the caller reports it as a region, not a crossing.
-        Err(_) => return Ok(BoundarySection::On { sup }),
+        Err(_) => return Ok(on),
     }
 
     roots(curve, &pieces, speed, floor_meters, arm, band)
