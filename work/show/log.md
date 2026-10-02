@@ -208,3 +208,12 @@ PR 3791 head `ecf3ef9` is green, and the body-only warning is shown firing on th
 `lofts-correspondence-twist` and `teapot-lid-unbored` are dispatched to one lane, as two PRs. The lofts PR merges on the orchestrator's read; the teapot lid PR gets a single review.
 
 Brief addition from the klein lesson: a pinned refusal names the knobs that were varied.
+
+## 2026-10-02 — projectbox reviewed (MERGE WITH FIXES); tiltedcut and klein in review
+
+- **projectbox (PR 3811).** Square bosses were an inherited unnatural spelling: round bosses build, split and section identically (probed at two radii). They become round, and their outlines move to closed form.
+- **Already-filed gap.** The `plane_section` corners-only gap was filed already (`cleave/plane-section-polygons-drop-their-arcs`). The scene now gap-comments it rather than justifying around it.
+- **Main's brief fmt red.** I fixed it in 3811 by a base merge (`dc3f79ff0`).
+- **In review:**
+  - tiltedcut (PR 3819, engraved before the cut; four walls; a new ZIP row on a SeamOrientation refusal that the kernel calls a bug);
+  - klein's rework (PR 3792, delta review).

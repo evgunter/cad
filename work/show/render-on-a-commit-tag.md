@@ -2,10 +2,11 @@
 id: render-on-a-commit-tag
 kind: unit
 title: a [render] tag in a PR head commit's message renders that branch's lanes and commits them back, with CI re-run on the new head
-status: dispatched
+status: review
 opened: 2026-10-02
 priority: P3
 cost: M
+pr: 3791
 ---
 
 ## Why
