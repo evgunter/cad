@@ -330,6 +330,8 @@ mod r2_sense_fold_probes;
 mod ray_wall_margin_twins;
 #[path = "reach_cone_split.rs"]
 mod reach_cone_split;
+#[path = "reach_continuation.rs"]
+mod reach_continuation;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
 #[path = "reach_wall_chord_rows.rs"]
@@ -446,6 +448,11 @@ mod s16_box_soundness;
 mod s393_start_frame_door;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "seam_vertex_sites.rs"]
+mod seam_vertex_sites;
+
+#[path = "run_walls_built.rs"]
+mod run_walls_built;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
 #[path = "split_cylindrical_feature_box.rs"]
@@ -816,5 +823,7 @@ mod review_3701_probes;
 #[path = "review_ring2_r1_e2e.rs"]
 mod review_ring2_r1_e2e;
 
+#[path = "full_turn_bore_mate.rs"]
+mod full_turn_bore_mate;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;

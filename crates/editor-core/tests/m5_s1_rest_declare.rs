@@ -50,13 +50,13 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     let (doc, a) = block(doc, 0.0, 1.0);
     let (doc, b) = block(doc, 1.0, 1.0);
     // The author's intent, stated: the contact pair (A's end cap on
-    // B's start cap) plus the four flush wall pairs (the same-plane
-    // sides the output stage merges).
-    let pairs = vec![
-        (
-            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
-        ),
+    // B's start cap, a `Rest`) plus the four flush wall pairs (the
+    // same-plane sides the output stage merges — continuations).
+    let rest = (
+        SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
+    );
+    let walls = vec![
         (
             SitedRef::new(a, fname(a, wall(&doc, a, 0))),
             SitedRef::new(b, fname(b, wall(&doc, b, 0))),
@@ -74,7 +74,13 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
             SitedRef::new(b, fname(b, wall(&doc, b, 3))),
         ),
     ];
-    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
+    let mut pairs = vec![(rest, editor_core::BooleanCoincidence::REST)];
+    pairs.extend(
+        walls
+            .into_iter()
+            .map(|w| (w, editor_core::BooleanCoincidence::Continuation)),
+    );
+    let (doc, decl) = insert(doc, Node::Declare { pairs });
     let (doc, u) = insert(
         doc,
         Node::Boolean {

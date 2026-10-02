@@ -31,9 +31,11 @@
 //!   definite-zero coincidence margin IS the affirmative answer.
 //!
 //! So a pair this detector calls flush cannot be a pair the declared
-//! rung then contradicts — one verdict ladder, one set of `decide`
-//! sites, one verification arm, reached by one call, and both
-//! postures decided out of the same `data_rungs` traversal.
+//! rung then contradicts — one verdict ladder, reached by one call:
+//! the detector's affirmative is every datum decided zero AND their
+//! sum, the displacement the declared rung reads over the pair's
+//! consumed extent, decided zero too, so the declared rung verifies
+//! that pair `Definite`.
 //!
 //! Consequences, all deliberate:
 //!
@@ -41,8 +43,8 @@
 //!   the identity above rather than by care;
 //! - detection's decisions go through the funnel at the VERIFIER'S
 //!   sites — `bool_plane_parallel` / `bool_plane_orient` /
-//!   `bool_plane_offset` on the planar rung, and the curved rungs'
-//!   own sites (`carrier_sphere_*`, `carrier_cyl_*`,
+//!   `bool_plane_offset` / `bool_plane_reach` on the planar rung, and
+//!   the curved rungs' own sites (`carrier_sphere_*`, `carrier_cyl_*`,
 //!   `carrier_torus_*`) on the others. The detector mints no site of
 //!   its own and owes no ledger row. It interprets nothing the
 //!   verifier doesn't.
@@ -86,19 +88,21 @@
 //! panic, deliberately — a scene whose own contacts do not decide is
 //! a scene to fix.
 //!
-//! # Scope: `Rest`, every carrier the ladder verifies
+//! # Scope: cosurface pairs, every carrier the ladder verifies
 //!
 //! The detector detects what
 //! [`carrier_pair_relation`]
 //! verifies, rung for rung: **plane, sphere, cylinder and torus**
 //! cosurface pairs — a peg's convex wall against its bore's concave
 //! wall is reported exactly as two flush plates' faces are, because
-//! it is the same verdict off the same door. A face whose kind is
+//! it is the same verdict off the same door. Opposed senses report a
+//! `Rest` contact; aligned senses (two stacked parts' outer walls) a
+//! continuation. A face whose kind is
 //! outside that inventory (cone, NURBS, `Approx`) has no description
 //! to compare and is honestly no candidate.
 //!
 //! The scope is therefore not a property of this module at all: it is
-//! the `Rest` table's, and this door has no narrower one. Detection
+//! the carrier ladder's, and this door has no narrower one. Detection
 //! and declarability coincide — a curved cosurface pair that is
 //! DECLARABLE is DETECTABLE, which is what makes a finding a faithful
 //! offer rather than a subset of one.
@@ -125,12 +129,19 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
 
 use crate::body::Body;
 use crate::boolean::{
-    BooleanDeclarations, CarrierEqError, CarrierRelation, FacePairDeclaration,
+    BooleanDeclarations, CarrierEqError, CarrierRelation, FacePairDeclaration, PairUnread,
     carrier_pair_relation,
 };
-use crate::contact::ContactClass;
+use crate::contact::BooleanCoincidence;
 use crate::entity::FaceKey;
 use crate::query::all_faces;
+
+/// The label [`pair_finding`]'s refusal carries for a pair one of
+/// whose faces has no readable consumed extent: no `decide` ran, so it
+/// names the door's input rather than a margin. A typed finding in its
+/// place is filed
+/// (`work/tang/a-flush-pair-with-no-readable-extent-has-no-typed-finding.md`).
+pub const EXTENT_UNREAD: &str = "carrier_pair_extent";
 
 /// Which rung of the verify ladder decided a finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -150,7 +161,7 @@ pub enum FlushRung {
 pub struct FlushEvidence {
     /// The door's definite verdict: [`CarrierRelation::SameOpposite`]
     /// (resting contact) or [`CarrierRelation::SameOriented`] (flush
-    /// walls, the merge-stage flavor). Never `Distinct` — a distinct
+    /// walls, a continuation). Never `Distinct` — a distinct
     /// pair is no finding at all. (`PlaneRelation` is this same type
     /// under the spelling `plane_eq`'s callers use.)
     pub relation: CarrierRelation,
@@ -171,8 +182,9 @@ pub struct FlushFinding<P> {
     /// The face pair. `.0` is from the detector's `a` operand, `.1`
     /// from `b`.
     pub pair: P,
-    /// The contact class the pair would verify as.
-    pub class: ContactClass,
+    /// What the pair would verify as when declared: `Rest` for
+    /// opposed senses, a continuation for aligned ones.
+    pub class: BooleanCoincidence,
     /// The definite verdict the verify door reported.
     pub evidence: FlushEvidence,
 }
@@ -195,6 +207,9 @@ pub enum FlushRefusal {
         /// The verifier's own diagnostic, carrying its funnel site.
         source: Indeterminate,
     },
+    /// The verify door reported `Distinct` as a finding's evidence
+    /// ([`finding`]'s refusal): a kernel defect.
+    Distinct(DistinctFinding),
 }
 
 impl core::fmt::Display for FlushRefusal {
@@ -208,6 +223,7 @@ impl core::fmt::Display for FlushRefusal {
                  than reported or dropped; separate the geometry or widen the tolerance",
                 pair.0, pair.1
             ),
+            Self::Distinct(defect) => defect.fmt(f),
         }
     }
 }
@@ -219,7 +235,8 @@ impl core::error::Error for FlushRefusal {}
 /// the door's relation and deciding rung), `Ok(None)` = definitely not
 /// a candidate (a face kind outside the `Rest` ladder's inventory, or
 /// definitely distinct carriers), `Err` = the door could not decide
-/// definitively (in-band, escalated, or poisoned).
+/// definitively (in-band, escalated, or poisoned), or had no extent to
+/// read a face over ([`EXTENT_UNREAD`]).
 ///
 /// This is the rung both seats delegate to: the body seat's
 /// [`find_flush_candidates`] enumerates over it, and the document
@@ -248,11 +265,23 @@ pub fn pair_finding<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<FlushEvidence>, Indeterminate> {
-    let Some(relation) = carrier_pair_relation(a, fa, b, fb, false, band) else {
+    let relation = match carrier_pair_relation(a, fa, b, fb, false, band) {
+        Ok(relation) => relation,
         // A kind outside the `Rest` ladder's inventory (cone, NURBS,
         // `Approx`): there is no description to compare, so the pair
         // is not a candidate, honestly.
-        return Ok(None);
+        Err(PairUnread::OutsideInventory) => return Ok(None),
+        // A face whose consumed extent cannot be read gives the
+        // ladder no lever, so the pair is neither flush nor apart:
+        // named, under the door's own label, never dropped.
+        Err(PairUnread::Extent(_)) => {
+            return Err(Indeterminate {
+                margin: geom_core::MarginDiag::INVALID,
+                band,
+                predicate: Some(EXTENT_UNREAD),
+                terminal_sliver: false,
+            });
+        }
     };
     match relation {
         Ok(CarrierRelation::Distinct) => Ok(None),
@@ -289,27 +318,54 @@ pub fn pair_finding<T: Decide>(
         }
         Err(CarrierEqError::Escalated { diag, .. }) => Err(diag),
         // Unreachable with `declared: false`; kept typed.
-        Err(CarrierEqError::Contradicted { diag, .. }) => Err(diag),
+        Err(CarrierEqError::Contradicted { diag, .. } | CarrierEqError::Unsettled { diag }) => {
+            Err(diag)
+        }
     }
 }
 
 /// A finding from a pair and the evidence the verify door reported —
 /// **the one place the reported CLASS is minted**, for either seat.
 ///
-/// `Rest` is not a default here, it is the whole detector: this door
-/// reports cosurface contact — on any carrier the `Rest` ladder
-/// verifies — and nothing else. When a second CLASS becomes
-/// detectable (`Tangent`, whose verifier now has its locus), this
-/// function is where it is decided, once, rather than at each seat's
-/// own push.
-#[must_use]
-pub fn finding<P>(pair: P, evidence: FlushEvidence) -> FlushFinding<P> {
-    FlushFinding {
+/// The class is read off the sense bit the door already decided:
+/// opposed senses are a `Rest` contact, aligned senses a continuation
+/// (C4). This door reports cosurface pairs — on any carrier the ladder
+/// verifies — and nothing else. When `Tangent` becomes detectable here
+/// (its verifier now has its locus), this function is where it is
+/// decided, once, rather than at each seat's own push.
+///
+/// # Errors
+///
+/// [`DistinctFinding`] for evidence carrying
+/// [`CarrierRelation::Distinct`]: `FlushEvidence`'s contract excludes
+/// it, so a caller that hands one in is a kernel defect, and it is
+/// refused rather than read as either class.
+pub fn finding<P>(pair: P, evidence: FlushEvidence) -> Result<FlushFinding<P>, DistinctFinding> {
+    let class = BooleanCoincidence::of_senses(evidence.relation).ok_or(DistinctFinding)?;
+    Ok(FlushFinding {
         pair,
-        class: ContactClass::Rest,
+        class,
         evidence,
+    })
+}
+
+/// [`finding`]'s refusal: evidence whose relation is `Distinct`, which
+/// no finding may carry. Only a kernel defect reaches it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DistinctFinding;
+
+impl core::fmt::Display for DistinctFinding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "flush detection: a finding was minted from evidence relating two DISTINCT carriers, \
+             which no finding carries. {}",
+            geom_core::KERNEL_DEFECT_ENDING
+        )
     }
 }
+
+impl core::error::Error for DistinctFinding {}
 
 /// **The cross-body flush candidates between two bodies** — the
 /// C4 verifier run in candidate-generation mode (module docs).
@@ -344,7 +400,7 @@ pub fn find_flush_candidates<T: Decide>(
                     source,
                 })?;
             if let Some(evidence) = evidence {
-                out.push(finding((ka, kb), evidence));
+                out.push(finding((ka, kb), evidence).map_err(FlushRefusal::Distinct)?);
             }
         }
     }

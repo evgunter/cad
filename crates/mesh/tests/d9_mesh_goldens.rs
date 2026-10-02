@@ -258,7 +258,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
         "sphere_wedge",
         [0x4dcf_6a46_d7e4_8afd, 0xdfa9_7fcf_d5a6_1f91],
     ),
-    ("cone", [0xc8ac_e3fb_a915_38fa, 0x6376_0636_4757_7532]),
+    ("cone", [0xbeb5_569e_177b_e0f5, 0x5880_b4f5_0c8e_167c]),
     ("cone_wedge", [0x2a10_1aee_9f5a_1b91, 0x83f2_5aac_9243_68ce]),
     ("donut", [0x7673_a909_57aa_a0f3, 0xe549_2aa4_78a6_d185]),
     ("washer", [0xb5e6_4707_7081_1521, 0xd261_a4a3_e2d2_f19d]),

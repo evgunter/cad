@@ -53,7 +53,7 @@ use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError, TubeError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
-use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
+use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
 
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
@@ -639,7 +639,7 @@ pub enum ValuePayload<T: Decide> {
     /// `declare` input). The class travels WITH its pair from
     /// authoring to the kernel door — the one vocabulary end-to-end
     /// (SELECT-DESIGN §3d).
-    Declarations(Vec<((SitedRef, SitedRef), ContactClass)>),
+    Declarations(Vec<((SitedRef, SitedRef), topo::BooleanCoincidence)>),
     /// A Mate node's ROLE in the solve (A11 rule 4; ASM-R2a D-1): a
     /// tree mate determined its child, a non-tree mate declared and
     /// solved nothing. Not body-denoting, so the product gather skips
@@ -1644,7 +1644,7 @@ pub enum NodeErrorKind {
     /// a name (an emitter-coverage invariant break, not an authoring
     /// state), the plain `Boolean` wrapping is preserved — the
     /// boolean's refusal is never masked by its own menu.
-    UndeclaredContact {
+    UndeclaredCoincidence {
         /// The candidate declaration, in the detector's value shape.
         finding: Box<crate::names::FlushFinding>,
         /// **Each side's MERGED constituent set**, when the refusing
@@ -1672,7 +1672,7 @@ pub enum NodeErrorKind {
     /// Such a row does not exist before the union, so no `SitedRef`
     /// names it (DM4: a declaration names what is live before its
     /// consumer) and the two-armed menu
-    /// [`NodeErrorKind::UndeclaredContact`] carries has no declare
+    /// [`NodeErrorKind::UndeclaredCoincidence`] carries has no declare
     /// arm here. The refusal says so in the type rather than degrading
     /// to an emission bug, which would blame this crate for a
     /// document a user wrote.
@@ -2032,10 +2032,10 @@ pub enum NodeErrorKind {
 /// geometry — no absorb arm).
 ///
 /// The subject is SENTENCE-shaped ("the Boolean refused an undeclared
-/// contact") rather than a bare attribution: the phrase is pinned
+/// coincidence") rather than a bare attribution: the phrase is pinned
 /// across the bindings and predates the sink, so this impl preserves
 /// it verbatim rather than bending the pin to the subject style.
-struct UndeclaredContactFinding<'a> {
+struct UndeclaredCoincidenceFinding<'a> {
     /// The candidate declaration, in the detector's value shape.
     finding: &'a crate::names::FlushFinding,
     /// Each side's merged constituent set, empty where the side is a
@@ -2045,9 +2045,9 @@ struct UndeclaredContactFinding<'a> {
     diag: &'a Indeterminate,
 }
 
-impl crate::finding::Finding for UndeclaredContactFinding<'_> {
+impl crate::finding::Finding for UndeclaredCoincidenceFinding<'_> {
     fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("the Boolean refused an undeclared contact")
+        f.write_str("the Boolean refused an undeclared coincidence")
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -2060,9 +2060,12 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
             f,
             "two operand faces are {}, with no shared source or declared intent{} ({})",
             match self.finding.evidence.relation {
-                topo::PlaneRelation::SameOpposite => "coincident and opposed (resting contact)",
-                topo::PlaneRelation::SameOriented => "coincident and co-oriented (flush walls)",
-                // Never constructed on a finding; rendered honestly anyway.
+                topo::PlaneRelation::SameOpposite => "coincident and opposed (a resting contact)",
+                topo::PlaneRelation::SameOriented => {
+                    "coincident and co-oriented (a continuation of one surface)"
+                }
+                // `topo::flush::finding` refuses to mint one; rendered
+                // honestly anyway.
                 topo::PlaneRelation::Distinct => "reported coincident",
             },
             // A merged side is the one place a caller reading the
@@ -2147,14 +2150,14 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
 // vocabulary for a refusal that already has one.
 //
 // Owning a recourse the payload cannot spell buys an arm PROSE, never
-// the right to drop the payload: `UndeclaredContact` states its
+// the right to drop the payload: `UndeclaredCoincidence` states its
 // two-armed menu (F6) AND renders its diagnostic.
 //
 // Every payload-holding arm forwards its payload's own `Display` —
 // `EvalError`, `resolve::ResolveError`, `WitnessBifurcation` and
 // `PlacementRuleFault` (D54's four) all carry one, and
 // `PlacementRuleFault`'s is that fault set's ONE prose vocabulary (the
-// edit door's rule arms forward the same impl). `UndeclaredContact`
+// edit door's rule arms forward the same impl). `UndeclaredCoincidence`
 // composes through the document layer's finding sink
 // ([`crate::finding`]): subject, story, its two-armed recourse.
 //
@@ -2433,13 +2436,13 @@ impl crate::spoken::Say for NodeErrorKind {
             // replacement for it: the ladder's own account of what it
             // measured rides the story, exactly as `Escalated` carries
             // the same type.
-            Self::UndeclaredContact {
+            Self::UndeclaredCoincidence {
                 finding,
                 merged,
                 diag,
             } => crate::finding::compose(
                 f,
-                &UndeclaredContactFinding {
+                &UndeclaredCoincidenceFinding {
                     finding,
                     merged,
                     diag,
@@ -6211,6 +6214,19 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             role(h, r);
         }
     };
+    // A run of pieces: one piece feeds as that piece, so a one-piece
+    // run digests as the bare locator did; several feed under a tag no
+    // locator starts with, then the count and the pieces.
+    let run = |h: &mut SegFeed<'a>, r: &crate::names::PieceRun| match r.single() {
+        Some(e) => pe(h, e),
+        None => {
+            h.write_tag(3);
+            h.write_u64(r.pieces().len() as u64);
+            for e in r.pieces() {
+                pe(h, *e);
+            }
+        }
+    };
     let pv = |h: &mut SegFeed<'a>, v: crate::names::ProfileVertexRef| match v {
         crate::names::ProfileVertexRef::Piece { step, role: r } => {
             h.write_tag(1);
@@ -6253,8 +6269,8 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::Cap(c) => {
             h.write_tag(cap(*c));
         }
-        RoleSeg::Lateral(e) => {
-            pe(h, *e);
+        RoleSeg::Lateral(r) => {
+            run(h, r);
         }
         RoleSeg::RimEdge(c, e) => {
             h.write_tag(cap(*c));
@@ -6279,8 +6295,8 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
                 pv(h, *v);
             }
         }
-        RoleSeg::Band(e) => {
-            pe(h, *e);
+        RoleSeg::Band(r) => {
+            run(h, r);
         }
         RoleSeg::BandRim(v) => {
             pv(h, *v);
@@ -6288,12 +6304,12 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::BandRimPi(v) => {
             pv(h, *v);
         }
-        RoleSeg::BandPi(e) => {
-            pe(h, *e);
+        RoleSeg::BandPi(r) => {
+            run(h, r);
         }
-        RoleSeg::Meridian(m, e) => {
+        RoleSeg::Meridian(m, r) => {
             h.write_tag(mer(*m));
-            pe(h, *e);
+            run(h, r);
         }
         RoleSeg::MeridianVertex(m, v) => {
             h.write_tag(mer(*m));

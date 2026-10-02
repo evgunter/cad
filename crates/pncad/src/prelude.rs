@@ -379,10 +379,13 @@ pub use sweep::blend::{BlendDecision, BlendSite, CornerConfig, RunOutPolicy};
 // `Node.revolve` whose answer is a body — so there is nothing here to
 // split or pin, the `BlendError` reading on a value rather than a
 // refusal.
+// `SideWall` and `BandWall` are `Extruded::walls` and `Revolved::bands`
+// — the one wall per run of pieces each verb builds — so a caller
+// reading those handles can name their element type.
 pub use sweep::{
-    ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
-    Revolved, RevolvedKind, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body,
-    tube_along_arc, tube_along_arc_hollow,
+    BandWall, ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis,
+    RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude, loft_body,
+    revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------
@@ -748,16 +751,16 @@ pub use editor_core::{NameTextError, StableName};
 // field IS, so without it the arm is matchable and its two lanes
 // are not.
 pub use crate::select::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
-    CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact, Denotation, EntityKind,
-    FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
-    NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, Pose, ProfileEdgeRef,
-    ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
-    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, StepId,
-    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare,
-    declare_all, declare_node, denotation, edge_carrier_kind, edge_frame, edge_name,
-    face_carrier_kind, face_frame, face_name, find_flush_candidates, select, select_where,
-    vertex_position,
+    BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding,
+    ContactRefusal, ContactVerdict, CurveKind, CurveKindSet, DanglingRef, DeclareError,
+    DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung,
+    GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup,
+    PieceRole, PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
+    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector,
+    Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
+    all_vertices, attribute, declare, declare_all, declare_node, denotation, edge_carrier_kind,
+    edge_frame, edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates, select,
+    select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds
@@ -778,7 +781,7 @@ pub use topo::query;
 // seat's above (`find_flush_candidates`, `declare`, `declare_all`),
 // which answer names from an evaluation where `flush::` answers keys
 // from a body. The finding vocabulary the doors speak
-// (`ContactClass`, `FlushEvidence`, `FlushRung`, `PlaneRelation`) is
+// (`BooleanCoincidence`, `FlushEvidence`, `FlushRung`, `PlaneRelation`) is
 // already above, one definition re-exported upward: `FlushFinding` is
 // literally the same type at both seats, over each seat's pair.
 pub use topo::flush;

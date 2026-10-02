@@ -166,7 +166,9 @@ fn partial_subdivided_axis_run_exports_all_three_poles() {
 
 /// Mixed on/off-axis (the dome): (0,0) —line→ (1,0) —quarter arc→
 /// (0,1) —axis line→ close. Off-axis vertex (1,0) must export None
-/// (it is addressed through rims); both poles Some.
+/// (it is addressed through rims); the dome's pole Some. The base
+/// disc's centre (0,0) exports None: a plane wall is built whole, so
+/// that pole is no body vertex.
 #[test]
 fn full_mixed_profile_exports_poles_only_at_pinned_vertices() {
     let b = (core::f64::consts::FRAC_PI_8).tan();
@@ -184,7 +186,12 @@ fn full_mixed_profile_exports_poles_only_at_pinned_vertices() {
     .unwrap();
     assert_all_tiers(&t.body);
     // Canonical v0 = (0,0), v1 = (1,0), v2 = (0,1).
-    assert!(pole_y(&t, 0, 0).abs() < 1e-12);
+    assert_eq!(t.poles[0][0], None, "a disc's centre is no vertex");
+    assert_eq!(
+        t.body.vertices().count(),
+        3,
+        "the dome's pole and two rim vertices"
+    );
     assert_eq!(
         t.poles[0][1], None,
         "off-axis vertex must not export a pole"
