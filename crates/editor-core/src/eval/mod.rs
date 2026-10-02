@@ -4941,7 +4941,7 @@ where
             // never gains a new meaning.
             PatternKind::Explicit(_) => 19,
         },
-        // 14 was the retired declaration node's, and is not reused.
+        // 14 is retired (`RETIRED_NODE_KIND_TAGS`).
         // New node kinds take fresh words — keys are process-internal
         // (never persisted), so growth is free, but an EXISTING tag
         // must never be reused for a new meaning.
@@ -5540,6 +5540,11 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
     (28, "ArcContinue"),
     (29, "AtToward"),
 ];
+
+/// The tag numbers [`content_key`]'s node-kind match may not use:
+/// retired with the node kinds that held them, and dead for good.
+#[cfg(test)]
+const RETIRED_NODE_KIND_TAGS: &[(u8, &str)] = &[(14, "Declare")];
 
 /// The content-key tag of an arc mode — the ONE place a mode's key
 /// identity is chosen, keyed on [`profile::ArcMode`] rather than on an
@@ -6442,8 +6447,9 @@ mod tag_vocabulary_tests {
     //! a swapped arm would otherwise stay green.
 
     use super::{
-        KeyHasher, RETIRED_VERB_TAGS, arc_mode_tag, feed_lane_step, feed_step, seg_content_tag,
-        side_tag, split_half_tag, tag, target_tag, verb_content_tag, verb_tag, winding_tag,
+        KeyHasher, RETIRED_NODE_KIND_TAGS, RETIRED_VERB_TAGS, arc_mode_tag, feed_lane_step,
+        feed_step, seg_content_tag, side_tag, split_half_tag, tag, target_tag, verb_content_tag,
+        verb_tag, winding_tag,
     };
     use crate::names::SegTag;
 
@@ -6577,7 +6583,8 @@ mod tag_vocabulary_tests {
 
     /// **The node-kind vocabulary is injective** — the migrated verbs'
     /// tags and every tag still written inline in `content_key`'s node
-    /// match, checked as the one vocabulary they are.
+    /// match, checked as the one vocabulary they are — and none re-uses
+    /// a number in [`RETIRED_NODE_KIND_TAGS`].
     ///
     /// The row above is not this row. It says no two VERBS collide, and
     /// it would stay green while a new inline node claimed 17 or 24 —
@@ -6679,6 +6686,9 @@ mod tag_vocabulary_tests {
         }
         let mut seen: Vec<(u8, String)> = Vec::new();
         for (tag, who) in tags {
+            if let Some((_, held_by)) = RETIRED_NODE_KIND_TAGS.iter().find(|(t, _)| *t == tag) {
+                panic!("{who} re-uses node-kind tag {tag}, retired with {held_by}");
+            }
             assert!(
                 !seen.iter().any(|(t, _)| *t == tag),
                 "content tag {tag} is claimed twice: by {who} and by {}",
