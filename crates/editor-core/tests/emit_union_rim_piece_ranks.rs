@@ -979,9 +979,12 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
         assert!(first.contains_key(&span), "[a, b, g]: no piece at {span:?}");
         assert_eq!(first.get(&span), second.get(&span), "{span:?}");
     }
-    assert!(
+    // The flush stretch is named for the lesser of `a` and `b`
+    // (`emit_union::Flush`).
+    assert_eq!(
         first.contains_key(&x(0.5, 1.0)),
-        "[a, b, g]: a holds its flush stretch"
+        a < b,
+        "[a, b, g]: the lesser member holds the flush stretch"
     );
 }
 

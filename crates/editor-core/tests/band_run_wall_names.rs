@@ -50,17 +50,17 @@ fn profiled(steps: Vec<ProgramStep>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId)
 }
 
 fn extruded(steps: Vec<ProgramStep>) -> (ProfileDoc, RecipeNodeId) {
-    extruded_by(steps, 1.0)
+    extruded_by(steps, ExtrudeSide::Along)
 }
 
-fn extruded_by(steps: Vec<ProgramStep>, distance: f64) -> (ProfileDoc, RecipeNodeId) {
+fn extruded_by(steps: Vec<ProgramStep>, side: ExtrudeSide) -> (ProfileDoc, RecipeNodeId) {
     let (doc, _, p) = profiled(steps);
     insert(
         doc,
         Node::Extrude {
             profile: p,
-            distance: len(distance),
-            side: ExtrudeSide::Along,
+            distance: len(1.0),
+            side,
         },
     )
 }
@@ -254,14 +254,14 @@ fn a_one_piece_run_is_spelled_as_its_locator() {
     );
 }
 
-/// **A reversed extrusion names each wall by the piece it sweeps.** At a
-/// negative distance the sweep traverses the loop backwards; the names
+/// **A reversed extrusion names each wall by the piece it sweeps.**
+/// Against the sketch normal the sweep traverses the loop backwards; the names
 /// are read off canonical positions all the same, so the wall over the
 /// bottom side `y = 0` (segments 0 and 1) is the one named for them,
 /// and the wall over `x = 2` the one named for segment 2.
 #[test]
 fn a_reversed_extrusion_names_each_wall_by_its_own_pieces() {
-    let (doc, ex) = extruded_by(subdivided(0.0), -1.0);
+    let (doc, ex) = extruded_by(subdivided(0.0), ExtrudeSide::Against);
     let ev = run(&doc, &Default::default());
     let Some(editor_core::NodeResult::Ok(v)) = ev.nodes.get(&ex) else {
         panic!("the extrude evaluated");

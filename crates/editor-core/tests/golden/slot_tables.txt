@@ -42,7 +42,7 @@ Profile(ProfileProgram { plane: RecipeNodeId(0), loops: [Chain([At([#0, #1]), Li
   #5 Profile { loop_: 0, step: 2, arg: TargetY }
   #6 Profile { loop_: 0, step: 3, arg: TargetX }
   #7 Profile { loop_: 0, step: 3, arg: TargetY }
-Extrude { profile: RecipeNodeId(1), distance: #0 }
+Extrude { profile: RecipeNodeId(1), distance: #0, side: Along }
   #0 Distance
 Revolve { profile: RecipeNodeId(1), axis: RecipeNodeId(0), angle: #0 }
   #0 RevolveAngle

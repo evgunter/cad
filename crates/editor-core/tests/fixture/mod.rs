@@ -1010,19 +1010,15 @@ pub fn die() -> Die {
     });
 
     // Per-face masters: pip profile centered at the plane origin,
-    // extruded INWARD by pip_depth (normal points out ⇒ negative
-    // distance).
+    // extruded INWARD by pip_depth (the normal points out, so against
+    // it).
     let mut masters = Vec::new(); // (extrude id, u, v, pips)
     for (o, u, v, pips) in faces() {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::neg(Expr::param(
-                ParamName::from_static("pip_depth"),
-                Dimension::Length,
-            ))
-            .expect("a shallow negation"),
-            side: ExtrudeSide::Along,
+            distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+            side: ExtrudeSide::Against,
         });
         masters.push((ext, u, v, pips));
     }
@@ -1067,7 +1063,7 @@ pub fn die() -> Die {
                     angle: ang(0.0),
                 },
             ));
-            // The pip master extrudes INWARD (negative distance), so
+            // The pip master extrudes INWARD (against the normal), so
             // its OUTER cap — the flush one — is Bottom (on the
             // sketch plane, which IS the cube face's plane), and it
             // faces out of the cube as that face does: a continuation.

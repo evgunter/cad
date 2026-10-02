@@ -2,8 +2,8 @@
 //! properties: shapes BEYOND the implementer's acceptance set, each
 //! with a first-principles closed form derived independently in the
 //! comment above it (never copied from the props module), plus
-//! orientation attacks (negative extrusion distance, negative revolve
-//! angle) and a 1e6-scaled body. (The mesh-volume cross-checks for
+//! orientation attacks (an extrusion against the sketch normal, a
+//! negative revolve angle) and a 1e6-scaled body. (The mesh-volume cross-checks for
 //! these shapes live in the stl review suite, which links `mesh`.)
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -198,11 +198,11 @@ fn two_hole_plate_matches_independent_closed_forms() {
     check(&t.body, "two-hole plate", 32.0 - PI, 96.0);
 }
 
-/// Orientation attack: NEGATIVE extrusion distance must still produce
-/// a positive-volume, tier-3-valid body (never a silently inverted
-/// shell).
+/// Orientation attack: an extrusion AGAINST the sketch normal must
+/// still produce a positive-volume, tier-3-valid body (never a
+/// silently inverted shell).
 #[test]
-fn negative_extrusion_distance_is_positively_oriented() {
+fn an_extrusion_against_the_normal_is_positively_oriented() {
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -218,7 +218,7 @@ fn negative_extrusion_distance_is_positively_oriented() {
         Tol::witness(),
     )
     .unwrap();
-    check(&t.body, "negative extrude", 3.0, 2.0 * 2.0 + 9.0);
+    check(&t.body, "extrude against the normal", 3.0, 2.0 * 2.0 + 9.0);
 }
 
 /// Orientation attack: NEGATIVE revolve angle (θ = −π/2 sweeps the

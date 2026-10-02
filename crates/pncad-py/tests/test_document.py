@@ -22,6 +22,7 @@ from pncad import (
     EntityKind,
     EvaluationError,
     Expr,
+    ExtrudeSide,
     Frame,
     GeomPred,
     Length,
@@ -252,6 +253,43 @@ class TestEvaluation(unittest.TestCase):
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(profile_node).body()
         self.assertEqual(caught.exception.reason, "wrong_kind")
+
+    def test_an_extrude_goes_to_its_side_and_a_depth_is_a_size(self):
+        # A depth is a size; which way it goes is `side`, which an
+        # edit moves and no sign does.
+        doc = Doc()
+        profile = doc.insert(
+            Node.polygon(
+                [
+                    (Expr.literal(0 * m), Expr.literal(0 * m)),
+                    (Expr.literal(1 * m), Expr.literal(0 * m)),
+                    (Expr.literal(1 * m), Expr.literal(1 * m)),
+                    (Expr.literal(0 * m), Expr.literal(1 * m)),
+                ],
+                plane=doc.sketch_frame(elevation=Expr.literal(0 * m)),
+            )
+        )
+        block = doc.insert(Node.extrude(profile, Expr.literal(2 * m), ExtrudeSide.Against))
+
+        def heights():
+            body = evaluate(doc).value(block).body()
+            return {p[2].meters for p in body.tessellate(1 * m).positions}
+
+        self.assertEqual(heights(), {-2.0, 0.0}, "against the normal, below the plane")
+        doc.apply(DocEdit.set_extrude_side(block, ExtrudeSide.Along))
+        self.assertEqual(heights(), {0.0, 2.0}, "along it, above")
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_extrude_side(profile, ExtrudeSide.Along))
+        self.assertEqual(caught.exception.variant, "set_extrude_side_on_non_extrude")
+
+        doc.apply(DocEdit.set_param(block, "distance", Expr.literal(-2 * m)))
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(block)
+        self.assertEqual(caught.exception.kind, "extrude")
+        self.assertEqual(caught.exception.inner_kind, "negative_depth")
+        self.assertIn(
+            "set the side to against the sketch normal", str(caught.exception)
+        )
 
     def test_boolean_union_through_the_document(self):
         # The post is strictly interior in x and y and pokes out of the

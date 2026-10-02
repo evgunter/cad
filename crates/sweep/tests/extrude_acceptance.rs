@@ -529,6 +529,56 @@ fn placed_profile_extrudes_along_its_own_normal() {
     assert!(outward_normal(&t.body, t.bottom).y < -0.99);
 }
 
+/// **A depth is a size.** A definitely negative one refuses
+/// `NegativeDepth`, carrying the side it was written with, and its
+/// sentence names the OTHER side as the recourse — the same extrude
+/// written the way the door takes it, which then builds. A depth
+/// within the tolerance of zero, of either sign, stays
+/// `DegenerateExtrusion`: only the definite arm gains the recourse.
+#[test]
+fn a_negative_depth_refuses_naming_the_other_side() {
+    let vp = validated(vec![l_loop()]);
+    for side in ExtrudeSide::ALL {
+        let err = extrude(
+            &vp,
+            Extrusion::Distance { depth: -1.0, side },
+            Tol::witness(),
+        )
+        .unwrap_err();
+        assert_eq!(err, ExtrudeError::NegativeDepth { side }, "{side:?}");
+        let text = err.to_string();
+        let problems = test_utils::refusal::problems("NegativeDepth", &text, &[], false);
+        assert!(problems.is_empty(), "{problems:#?}");
+        assert!(
+            text.contains(&format!("set the side to {}", side.flipped().noun())),
+            "the recourse names the other side: {text}"
+        );
+        let mended = Extrusion::Distance {
+            depth: 1.0,
+            side: side.flipped(),
+        };
+        assert!(
+            extrude(&vp, mended, Tol::witness()).is_ok(),
+            "the recourse, followed, builds ({side:?})"
+        );
+    }
+    for depth in [-0.0, -0.5 * eps()] {
+        assert_eq!(
+            extrude(
+                &vp,
+                Extrusion::Distance {
+                    depth,
+                    side: ExtrudeSide::Along
+                },
+                Tol::witness()
+            )
+            .unwrap_err(),
+            ExtrudeError::DegenerateExtrusion,
+            "depth {depth}"
+        );
+    }
+}
+
 #[test]
 fn error_paths_are_typed_and_leave_no_body() {
     let vp = validated(vec![l_loop()]);

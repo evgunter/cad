@@ -344,8 +344,8 @@ pub(crate) fn edge_touch_outside(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, 
         [0.0, 0.0, 1.0],
         vec![vec![(0.0, 0.0), (0.4, -0.2), (0.4, 0.2)]],
     );
-    // The frame normal points into the block; a negative distance
-    // extrudes the tip away from it.
+    // The frame normal points into the block; the tip extrudes
+    // against it, away from the block.
     let (doc, tip) = insert(
         doc,
         Node::Extrude {

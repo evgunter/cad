@@ -85,7 +85,7 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
             "{order:?}: {:?}",
             failure(&ev, union)
         );
-        assert_rim_pieces(&doc, &ev, union, a, &order);
+        assert_rim_pieces(&doc, &ev, union, a, a < b, &order);
         name_sets.push(
             table(&ev, union)
                 .iter()
@@ -99,16 +99,17 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     );
 }
 
-/// `a`'s rim between its top cap and its y = 1 wall publishes three
+/// `a`'s rim between its top cap and its y = 1 wall publishes its
 /// pieces at y = z = 1, each named by its ends: the body's vertices cut
 /// the rim at 0.5, 0.4 and 0.3, x = 0.3..0.4 is inside `c`, and x =
-/// 0.5..1.0, where `a` runs flush with `b`, is named for `a`, the lesser
-/// member (`emit_union::Flush`).
+/// 0.5..1.0, where `a` runs flush with `b`, is named for the lesser
+/// member (`emit_union::Flush`) — `a`'s piece when `lesser` says so.
 fn assert_rim_pieces(
     doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
     union: RecipeNodeId,
     a: RecipeNodeId,
+    lesser: bool,
     order: &[RecipeNodeId],
 ) {
     let rim = StableName {
@@ -154,11 +155,15 @@ fn assert_rim_pieces(
         })
         .collect();
     spans.sort_unstable();
-    assert_eq!(
-        spans,
-        [(0.0, 0.3), (0.4, 0.5), (0.5, 1.0)].map(|(p, q)| (micro(p), micro(q))),
-        "{order:?}: a's rim pieces"
-    );
+    let mut want = vec![(0.0, 0.3), (0.4, 0.5)];
+    if lesser {
+        want.push((0.5, 1.0));
+    }
+    let want: Vec<(i64, i64)> = want
+        .into_iter()
+        .map(|(p, q)| (micro(p), micro(q)))
+        .collect();
+    assert_eq!(spans, want, "{order:?}: a's rim pieces");
 }
 
 /// **No order of the row's documents refuses with an `Emission`.**

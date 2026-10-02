@@ -205,7 +205,7 @@ fn every_extruded_cap_rim_is_transverse() {
     // directions and through both doors.
     let rows: Vec<(&str, ValidatedProfile<f64>, Extrusion<f64>)> = vec![
         (
-            "square/+distance",
+            "square/along",
             validated(plane, vec![square()]),
             Extrusion::Distance {
                 depth: 1.0,
@@ -213,7 +213,7 @@ fn every_extruded_cap_rim_is_transverse() {
             },
         ),
         (
-            "square/-distance",
+            "square/against",
             validated(plane, vec![square()]),
             Extrusion::Distance {
                 depth: 1.0,

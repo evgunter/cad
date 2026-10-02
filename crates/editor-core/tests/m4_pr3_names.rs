@@ -129,14 +129,13 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
 }
 
 /// The cap names track the SWEEP VECTOR, not the world's up: an
-/// extrude distance is signed (`sweep::extrude` takes "a signed
-/// distance along the sketch plane's normal"), and under a negative
-/// one the vector points against that normal, so `Cap(End)` — the cap
+/// extrude against its sketch plane's normal sweeps along `−n`, so
+/// `Cap(End)` — the cap
 /// on the sketch plane translated by the vector — lies strictly below
 /// `Cap(Start)`, the cap on the sketch plane itself. Both names stay
 /// true; a spatial reading of them would not.
 #[test]
-fn a_negative_extrudes_end_cap_lies_below_its_start_cap() {
+fn an_extrude_against_the_normal_has_its_end_cap_below_its_start_cap() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
     let (doc, _plane, profile) = on_frame_keeping(
         doc,
@@ -149,8 +148,7 @@ fn a_negative_extrudes_end_cap_lies_below_its_start_cap() {
         doc,
         Node::Extrude {
             profile,
-            // The sketch plane's normal is u x v = +z; a NEGATIVE
-            // distance extrudes against it.
+            // The sketch plane's normal is u x v = +z.
             distance: len(1.0),
             side: ExtrudeSide::Against,
         },

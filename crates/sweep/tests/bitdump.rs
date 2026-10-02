@@ -481,8 +481,8 @@ fn bitdump_extrude_revolve_corpus() {
     ];
     // `Extrusion::Vector` takes a different door into the same rim
     // upgrade than `Distance` does (`extrusion_obliquity` /
-    // `extrusion_normal_component` against `n · d`), and a NEGATIVE
-    // distance flips which cap is which — both reach `upgrade_rim`
+    // `extrusion_normal_component` against `n · d`), and an extrusion
+    // AGAINST the normal flips which cap is which — both reach `upgrade_rim`
     // with the caps' orientations swapped, so both belong in a corpus
     // whose subject is what that pass stores.
     rows.push(extruded_by(
@@ -496,7 +496,7 @@ fn bitdump_extrude_revolve_corpus() {
         sweep::Extrusion::Vector(geom_core::Vec3::new(0.0, 0.0, 1.75)),
     ));
     rows.push(extruded_by(
-        "rounded-corner prism, reversed (negative distance)",
+        "rounded-corner prism, reversed (against the normal)",
         vec![
             bulge_loop(vec![
                 (Point2::new(0.25, 0.0), 0.0),

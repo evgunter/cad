@@ -1824,6 +1824,13 @@ class BooleanOp:
     Intersect: Final[BooleanOp]
     Subtract: Final[BooleanOp]
 
+class ExtrudeSide:
+    """Which side of its sketch plane a `Node.extrude` goes toward:
+    along the plane's normal `u x v`, or against it."""
+
+    Along: Final[ExtrudeSide]
+    Against: Final[ExtrudeSide]
+
 class TubeWindow:
     """A tube's traversed window — the full ring, or an arc of it.
 
@@ -2258,13 +2265,18 @@ class Node:
     @staticmethod
     def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
     @staticmethod
-    def extrude(profile: NodeId, distance: Expr) -> Node:
-        """Extrude a profile along its sketch-plane normal.
+    def extrude(
+        profile: NodeId, distance: Expr, side: ExtrudeSide = ExtrudeSide.Along
+    ) -> Node:
+        """Extrude a profile to one side of its sketch plane.
 
-        `distance` mints a LITERAL in the node's `distance` slot.
-        `DocEdit.set_param(node, "distance", expr)` moves it
-        afterwards, and makes it a named, editable number: a literal
-        is a new document per value, a parameter reference is one
+        `distance` mints a LITERAL in the node's `distance` slot. It is
+        a depth: a size, refused at `evaluate` unless definitely
+        positive. Which way it goes is `side` alone, and
+        `DocEdit.set_extrude_side` moves it afterwards.
+        `DocEdit.set_param(node, "distance", expr)` moves the depth,
+        and makes it a named, editable number: a literal is a new
+        document per value, a parameter reference is one
         `set_doc_param_value` per value."""
 
     @staticmethod
@@ -3496,6 +3508,13 @@ class DocEdit:
         crosses and the edit cannot be aimed at a continuous slot. The
         edit's own refusals stay live — a node with no count slot, an
         unknown parameter, a parameter of the wrong dimension."""
+
+    @staticmethod
+    def set_extrude_side(node: NodeId, side: ExtrudeSide) -> DocEdit:
+        """Set which side of its sketch plane the extrude `node` goes
+        toward — the structural half of an extrude, which no value of
+        its depth can flip. Refuses typed on a node that is not an
+        extrude."""
 
     @staticmethod
     def bind_instance_param(node: NodeId, name: ParamName) -> DocEdit:

@@ -87,7 +87,7 @@ fn letter_area() -> f64 {
 /// `DEPTH` along `+y` and slid `dx` along `x`.
 fn engrave(tool: LoopProgram, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
     let doc = ProfileDoc::empty_derived("pierce-ring-engraving", Tol::witness());
-    // The XZ frame: its normal is −y, so a negative extrude runs +y.
+    // The XZ frame: its normal is −y, so an extrude against it runs +y.
     let (doc, xz) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let profile = |plane, lp| {
         Node::Profile(ProfileProgram {
