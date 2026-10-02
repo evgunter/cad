@@ -386,3 +386,82 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
         "{text}"
     );
 }
+
+/// A C — the annular sector about `(−0.5, 0)` between radii `ro` and
+/// `ri`, sweeping `sweep` and open about `+x`, its sides one arc each —
+/// on the plane `z = z0`, extruded `h`, with its area.
+fn annular_sector(ro: f64, ri: f64, sweep: f64, z0: f64, h: f64) -> (Body<f64>, f64) {
+    let (cx, g) = (-0.5, PI - sweep / 2.0);
+    let at = |r: f64, a: f64| Point2::new(cx + r * a.cos(), r * a.sin());
+    let b = (sweep / 4.0).tan();
+    let lp = bulge_loop(vec![
+        (at(ro, g), b),
+        (at(ro, -g), 0.0),
+        (at(ri, -g), -b),
+        (at(ri, g), 0.0),
+    ]);
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    (extruded(plane, lp, h), sweep / 2.0 * (ro * ro - ri * ri))
+}
+
+/// **An engraved C builds at every sweep.** A blind annular-sector
+/// pocket whose sides are one arc each: each arc meets two lines at
+/// sharp corners, and on the cap's ring its match closes a run whose
+/// straight chord, past a sweep near 130°, winds the other way than the
+/// arc the join mints. Sunk `0.05` into the top and bottom caps of the
+/// cylinder `r = 1`, `z ∈ [0, 2.5]` and into a box's top face, cut
+/// through the cylinder, and stood `0.05` proud as a boss, each at
+/// sweeps 135°, 180° and 270° and radii `0.25 / 0.15` and `0.4 / 0.1`,
+/// builds at its closed form through tiers 2 and 3′ and the at-rest
+/// certificate.
+#[test]
+fn an_engraved_one_arc_c_builds_at_every_sweep() {
+    let cyl = extruded(
+        SketchPlane::xy(),
+        profile::circle(Point2::new(0.0, 0.0), 1.0, tol())
+            .unwrap()
+            .into(),
+        2.5,
+    );
+    let (vc, vbox) = (PI * 2.5, 2.0 * 2.0 * 1.0);
+    let block = brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol());
+    for (ro, ri) in [(0.25, 0.15), (0.4, 0.1)] {
+        for deg in [135.0_f64, 180.0, 270.0] {
+            let sweep = deg.to_radians();
+            let c = |z0, h| annular_sector(ro, ri, sweep, z0, h);
+            let (top, a) = c(2.45, 0.1);
+            let poses = [
+                (
+                    "the top cap",
+                    topo::subtract(&cyl, &top, tol()),
+                    vc - a * 0.05,
+                ),
+                (
+                    "the bottom cap",
+                    topo::subtract(&cyl, &c(-0.05, 0.1).0, tol()),
+                    vc - a * 0.05,
+                ),
+                (
+                    "a box's top face",
+                    topo::subtract(&block, &c(0.95, 0.1).0, tol()),
+                    vbox - a * 0.05,
+                ),
+                (
+                    "a through cut",
+                    topo::subtract(&cyl, &c(-1.0, 4.5).0, tol()),
+                    vc - a * 2.5,
+                ),
+                ("a boss", topo::union(&cyl, &top, tol()), vc + a * 0.05),
+            ];
+            for (pose, r, want) in poses {
+                let what = format!("{pose}, {deg}°, radii {ro} / {ri}");
+                let r = r.unwrap_or_else(|e| panic!("{what}: builds: {e:?}"));
+                let bb = r.body().unwrap_or_else(|| panic!("{what}: a body"));
+                topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+                    .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
+                assert_sound(&bb.body, want, &what);
+            }
+        }
+    }
+}
