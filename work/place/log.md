@@ -28,3 +28,13 @@ The PLACE orchestrator holds the track (`status: active`). Order, per the plan:
 ## 2026-10-02 — split and inline refusals state their recourse (PR 3872)
 
 Review tier: orchestrator's read (mechanical message rewrites; CI green on `3555e6594`). Every split and inline arm now carries one recourse; `FILED_NO_RECOURSE` and its plumbing are gone. `Split/Pin` ends on `KERNEL_DEFECT_ENDING` (the part has replayed clean, so a pin refusal is this module's defect). `InlineError::Unresolved` renders as the evaluation door's `PartFault::Unresolved` does, through one shared `part::EPSILON_SEAM_RECOURSE`. The row's `StepMapDiverged` exists in neither enum.
+## 2026-10-02 — P2-split spec'd, and cut in three
+
+The survey lane wrote `## P2-split` in `docs/EDIT-PLACEMENT-SPEC.md` and found, beyond the row:
+- P2's ruling 1 was false: gauge references are reading edges, not inputs, so the DAG's check never sees them (`doc::gauge_ref_fault` keeps the chain acyclic). Corrected in place.
+- `carry` drops a carried member's checked offset (probe on `ef90c4dba`). Filed as `split-and-inline-drop-a-carried-members-checked-offset`.
+- No edit writes a mate's alignment except its insert, so re-spelling a `FromFace` side needs a door.
+
+Rulings (orchestrator): D2 follows A4 (an unplaced group votes its gauge; two anchors refuse); D3, a stand-in node takes the label of the node it stands in for. D1 (round trip against the hoist and the sugar) and the `FromFace` frame rule are both A4 sentences, so they go to a designer pair and one `[ev]` PR (`a-from-face-mate-side-cannot-cross-the-split-or-inline-seam`).
+
+The cut: P2-carry first (single full review), P2-split (dual, H) with `MateFaceFrameCrosses` still refusing and D1's two shapes pinned evaluation-equal, then P2-face after Ev rules. Alternative considered: hold all of P2-split for Ev; rejected, since everything but the face frame is A4 as written.
