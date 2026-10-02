@@ -775,10 +775,10 @@ impl<T: Decide> Body<T> {
     ///
     /// A killed null edge moves nothing because its two vertices hold
     /// one point: [`Body::mev_null`] mints them so, and both re-basing
-    /// gates refuse to move one end of one. The one door that moves a
-    /// vertex (`Body::move_vertex`, under `replace_face` and
-    /// `offset_*`) mints a fresh point, and takes tier-2-valid bodies,
-    /// which hold no null edge.
+    /// gates refuse to move one end of one. The doors that move
+    /// vertices (`replace_face`, `offset_*`, through
+    /// `Body::move_vertices`) take tier-2-valid bodies, which hold no
+    /// null edge.
     ///
     /// A merge that moves nothing, or moves its members within band,
     /// goes through `kev_describing(he, &[], tol)`

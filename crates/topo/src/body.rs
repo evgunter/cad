@@ -619,26 +619,39 @@ impl<T: Real> Body<T> {
         }
     }
 
-    /// **The one door that moves a vertex**: mints a fresh point at
-    /// `point`, rebinds `vertex` to it, and frees the old point if no
-    /// other vertex sits on it. Returns the new key, or `None` (body
-    /// untouched) if `vertex` does not resolve.
+    /// **The one door that moves vertices**: mints ONE fresh point at
+    /// `point`, rebinds every vertex in `vertices` to it, and frees each
+    /// old point that no vertex sits on any longer. Returns the new
+    /// key, or `None` (body untouched) if a vertex does not resolve.
     ///
-    /// It always mints, never writes the old point in place: an op's
-    /// copies of one vertex share its point (`Body::mev_null`, D1 tier
-    /// 3′), so an in-place write would drag the twin along. Moving one
-    /// copy through here parts it from its twin.
-    pub(crate) fn move_vertex(&mut self, vertex: VertexKey, point: Point3<T>) -> Option<PointKey> {
-        let old = self.vertices.get(vertex)?.point;
+    /// It never writes an old point in place: an op's copies of one
+    /// vertex share its point (`Body::mev_null`, D1 tier 3′), so an
+    /// in-place write would drag every copy along. A copy left out of
+    /// `vertices` stays on the old point, parted from the ones that
+    /// moved; copies passed together stay on one point. Which vertices
+    /// move, and together with which, is the caller's to decide.
+    pub(crate) fn move_vertices(
+        &mut self,
+        vertices: &[VertexKey],
+        point: Point3<T>,
+    ) -> Option<PointKey> {
+        let old: Vec<PointKey> = vertices
+            .iter()
+            .map(|&v| self.vertices.get(v).map(|d| d.point))
+            .collect::<Option<_>>()?;
         let new = self.add_point(point);
-        self.vertices[vertex].point = new;
-        self.remove_point_if_orphaned(old);
+        for &v in vertices {
+            self.vertices[v].point = new;
+        }
+        for k in old {
+            self.remove_point_if_orphaned(k);
+        }
         Some(new)
     }
 
     /// Removes `point` from the point arena iff no vertex references it,
     /// returning whether it was removed. Used by vertex-killing operators
-    /// (`kev`/`kvfs`) and [`Body::move_vertex`]: an op's copies of one
+    /// (`kev`/`kvfs`) and [`Body::move_vertices`]: an op's copies of one
     /// vertex share its point (`Body::mev_null`), so the point outlives
     /// a vertex while a twin still sits on it. Deterministic (D9), same
     /// shape as [`Body::remove_curve_if_orphaned`].

@@ -1966,7 +1966,7 @@ mod tests {
             if p.z == 1.0 {
                 p.z = 1.0 + d;
             }
-            body.move_vertex(v, p).unwrap();
+            body.move_vertices(&[v], p).unwrap();
         }
     }
 

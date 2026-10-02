@@ -174,38 +174,37 @@
 //! **reconstruction from their bounding vertex events**:
 //!
 //! - An **edge-edge collinear overlap** is certified iff each of its
-//!   two bounds is backed. Where both edges hold a vertex at the
-//!   bound, that means the pair is v-v-declared, or backed by a
-//!   declared face pair holding the two vertices on its two boundaries
+//!   two bounds is backed. Where both edges hold a vertex at the bound,
+//!   that means the pair is v-v-declared, or backed by a declared face
+//!   pair holding the two vertices on its two boundaries
 //!   (`vv_face_backed`), or is one vertex or two on one point —
-//!   structural. Where
-//!   only one edge holds a vertex there — the endpoint rests on the
-//!   other edge's INTERIOR — the bound is a vertex-on-edge event and
-//!   is backed by exactly that lane's rung: a declared face pair
-//!   holding the vertex on one boundary and naming a face the other
-//!   edge bounds (`ve_face_backed`). Derivation:
-//!   the overlap of two collinear spans is an interval whose each
-//!   bound is an endpoint of at least one span, so one of the two arms
-//!   applies at every bound. Between two backed bounds the
-//!   carriers coincide identically (two lines sharing two points are
-//!   one line), so the interior overlap is exactly the convex closure
-//!   of the bounded events on both carriers — no interior record can
-//!   carry more information than the bounds on the planar corpus.
+//!   structural. Where only one edge holds a vertex there — the
+//!   endpoint rests on the other edge's INTERIOR — the bound is a
+//!   vertex-on-edge event and is backed by exactly that lane's rung: a
+//!   declared face pair holding the vertex on one boundary and naming a
+//!   face the other edge bounds (`ve_face_backed`). Derivation: the
+//!   overlap of two collinear spans is an interval whose each bound is
+//!   an endpoint of at least one span, so one of the two arms applies
+//!   at every bound. Between two backed bounds the carriers coincide
+//!   identically (two lines sharing two points are one line), so the
+//!   interior overlap is exactly the convex closure of the bounded
+//!   events on both carriers — no interior record can carry more
+//!   information than the bounds on the planar corpus.
 //! - An **edge-on-face overlap** is certified iff each of its two
-//!   bounds is backed. Where the edge holds a vertex at the bound,
-//!   that vertex must be v-on-f-declared on this face, v-v-declared
-//!   with a coincident vertex of the face's boundary, backed by a
-//!   declared face pair naming this face and one holding the vertex
+//!   bounds is backed. Where the edge holds a vertex at the bound, that
+//!   vertex must be v-on-f-declared on this face, v-v-declared with a
+//!   coincident vertex of the face's boundary, backed by a declared
+//!   face pair naming this face and one holding the vertex
 //!   (`vf_face_backed`), or itself a vertex of the face's boundary or
 //!   on one point with one (structural). Where it holds none — the
-//!   bound falls where a boundary vertex of the face rests on the
-//!   edge — the bound is a vertex-on-edge event and is backed by exactly that lane's rung: a
-//!   declared face pair holding that vertex on one boundary and naming
-//!   a face the edge bounds (`ve_face_backed`). Same argument as the
-//!   edge-edge bullet's, one dimension up: a bound of the overlap is a
-//!   point where some entity of the pair ends, and which side's entity
-//!   that is is a fact about the configuration, not about what a
-//!   declaration can hold.
+//!   bound falls where a boundary vertex of the face rests on the edge
+//!   — the bound is a vertex-on-edge event and is backed by exactly
+//!   that lane's rung: a declared face pair holding that vertex on one
+//!   boundary and naming a face the edge bounds (`ve_face_backed`).
+//!   Same argument as the edge-edge bullet's, one dimension up: a bound
+//!   of the overlap is a point where some entity of the pair ends, and
+//!   which side's entity that is is a fact about the configuration, not
+//!   about what a declaration can hold.
 //!   The remaining looseness, stated as the REACH gap it is: where the
 //!   face's boundary crosses the edge away from any vertex, that
 //!   crossing is never a bound at all — the overlap lane cuts the
@@ -1087,12 +1086,13 @@ fn face_cycles<'a, T: Real>(
 }
 
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
-    let verts: Vec<(VertexKey, Point3<T>)> = body
+    let resolved: Vec<(VertexKey, PointKey, Point3<T>)> = body
         .vertices
         .iter()
-        .filter_map(|(k, v)| body.points.get(v.point).map(|p| (k, *p)))
+        .filter_map(|(k, v)| body.points.get(v.point).map(|p| (k, v.point, *p)))
         .collect();
-    let vpoint = body.vertices.iter().map(|(k, v)| (k, v.point)).collect();
+    let verts: Vec<(VertexKey, Point3<T>)> = resolved.iter().map(|&(k, _, p)| (k, p)).collect();
+    let vpoint = resolved.iter().map(|&(k, point, _)| (k, point)).collect();
     let mut edges = Vec::new();
     for (key, edge) in body.edges.iter() {
         if !edge_is_line(body, key) {
@@ -9097,7 +9097,7 @@ mod tests {
         );
 
         above
-            .move_vertex(copies[1], tip)
+            .move_vertices(&[copies[1]], tip)
             .expect("the copy resolves");
         assert_ne!(
             above.vertices[copies[0]].point, above.vertices[copies[1]].point,
@@ -9114,6 +9114,83 @@ mod tests {
                 } if [*a, *b] == [copies[0], copies[1]] || [*a, *b] == [copies[1], copies[0]]
             )),
             "{errors:?}"
+        );
+    }
+
+    /// **An edge lying in a face, bounded at points it shares with that
+    /// face's corners, is structural** — the edge-on-face bound rung's
+    /// shared-point arm. A wedge stands on its ridge along the diagonal
+    /// of a kite prism's top face; the ridge's two ends sit on the
+    /// kite's corner points. Each bound of the ridge's overlap with the
+    /// top face is a ridge vertex on one point with a corner of that
+    /// face, and nothing is declared.
+    #[test]
+    fn an_edge_in_a_face_bounded_on_its_corners_points_is_structural() {
+        use crate::test_support_fixtures::{
+            FaceGeometry, describe_as_intersections, identity_map, prism_ops,
+        };
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        prism_ops(
+            &mut body,
+            &[(0.0, 0.0), (1.0, -1.0), (2.0, 0.0), (1.0, 1.0)],
+            (0.0, 1.0),
+            identity_map,
+            FaceGeometry::Certified,
+            tol,
+        );
+        // The wedge's profile in the (y, z) plane, extruded along x: a
+        // cyclic permutation of the axes, so exact and orientation
+        // preserving. Its ridge runs (0, 0, 1) → (2, 0, 1).
+        prism_ops(
+            &mut body,
+            &[(0.0, 1.0), (0.5, 2.0), (-0.5, 2.0)],
+            (0.0, 2.0),
+            |x, y, z| Point3::new(z, x, y),
+            FaceGeometry::Certified,
+            tol,
+        );
+        describe_as_intersections(&mut body, tol);
+        let at = |x: f64, y: f64, z: f64| -> Vec<VertexKey> {
+            body.vertices()
+                .filter(|(_, v)| {
+                    let p = body.points[v.point];
+                    (p.x, p.y, p.z) == (x, y, z)
+                })
+                .map(|(k, _)| k)
+                .collect()
+        };
+        let ends = [at(0.0, 0.0, 1.0), at(2.0, 0.0, 1.0)];
+        assert!(
+            ends.iter().all(|e| e.len() == 2),
+            "a corner and a ridge end at each: {ends:?}"
+        );
+        let none = ContactRecords::default();
+        let errors = crate::validate_pseudomanifold(&body, &none, tol)
+            .expect_err("on distinct points the touch is undeclared");
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::EdgeFaceOverlap { .. },
+                    ..
+                }
+            )),
+            "{errors:?}"
+        );
+
+        // Rebind each ridge end onto the kite corner's point: the copies
+        // an op would mint share it.
+        for pair in &ends {
+            let point = body.vertices[pair[0]].point;
+            let old = body.vertices[pair[1]].point;
+            body.vertices[pair[1]].point = point;
+            body.remove_point_if_orphaned(old);
+        }
+        assert_eq!(
+            crate::validate_pseudomanifold(&body, &none, tol),
+            Ok(()),
+            "the ridge in the top face is bounded on shared points"
         );
     }
 }

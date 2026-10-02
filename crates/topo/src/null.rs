@@ -247,7 +247,7 @@ impl<T: geom_core::Decide> Body<T> {
         let created = match site {
             MevSite::Fan { he1, he2 } => {
                 let plan = self.mev_fan_plan(he1, he2)?;
-                let point = plan.p_old_key;
+                let point = plan.point;
                 self.mev_fan_execute(
                     plan,
                     point,
@@ -258,11 +258,11 @@ impl<T: geom_core::Decide> Body<T> {
                 )
             }
             MevSite::Lone { r#loop } => {
-                let (v, p_old_key, _) = self.mev_lone_plan(r#loop)?;
+                let (v, p_old) = self.mev_lone_plan(r#loop)?;
                 self.mev_lone_execute(
                     r#loop,
                     v,
-                    p_old_key,
+                    p_old,
                     crate::euler::MevCurveMint::Null(new_side),
                     Vec::new(),
                     provenance,

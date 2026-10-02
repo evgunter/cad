@@ -514,13 +514,11 @@ pub struct MefCreated {
 /// ([`Body::mev_fan_plan`]), consumed by the shared surgery
 /// ([`Body::mev_fan_execute`]). Crate-internal plumbing between
 /// [`Body::mev`] and [`Body::mev_null`].
-pub(crate) struct MevFanPlan<T: Real> {
+pub(crate) struct MevFanPlan {
     /// The shared start vertex of `he1`/`he2`.
     pub(crate) v: VertexKey,
-    /// `v`'s point (the certification gate's start endpoint).
-    pub(crate) p_old: Point3<T>,
-    /// `v`'s point key (the key the null lane's copy shares).
-    pub(crate) p_old_key: PointKey,
+    /// `v`'s point (the key the null lane's copy shares).
+    pub(crate) point: PointKey,
     /// The clockwise orbit run `[he1 .. he2)` to reassign.
     pub(crate) run: Vec<HalfEdgeKey>,
     /// The two fan half-edges, proven live.
@@ -2390,8 +2388,9 @@ impl<T: Decide> Body<T> {
         // against old point → new point (D4 ¶2 at attachment), then
         // the moved run's own carriers against the endpoints the move
         // gives them.
+        let p_old = self.resolve_vertex_point(plan.v)?;
         let certified =
-            self.certify_edge_spec(curve.spec(false, plan.p_old, point), plan.p_old, point, tol)?;
+            self.certify_edge_spec(curve.spec(false, p_old, point), p_old, point, tol)?;
         self.certify_rebased_run(&plan.run, point, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation). ----
         let rows = self.plan_site_rows(
@@ -2415,7 +2414,7 @@ impl<T: Decide> Body<T> {
     /// `he_plus` lands before `he1`, `he_minus` before `he2` (both
     /// before `he1`, plus first, for a strut), and every loop keeps its
     /// `first`.
-    fn mev_fan_site(&self, plan: &MevFanPlan<T>) -> Result<Vec<SiteFace<T>>, EulerOpError> {
+    fn mev_fan_site(&self, plan: &MevFanPlan) -> Result<Vec<SiteFace<T>>, EulerOpError> {
         let (he1, he2) = (plan.he1.key(), plan.he2.key());
         let strut: [SiteHalf; 2] = [SiteHalf::NewPlus, SiteHalf::NewMinus];
         let mut rewired: Vec<(LoopKey, Vec<SiteHalf>)> = Vec::new();
@@ -2468,7 +2467,7 @@ impl<T: Decide> Body<T> {
         &self,
         he1: HalfEdgeKey,
         he2: HalfEdgeKey,
-    ) -> Result<MevFanPlan<T>, EulerOpError> {
+    ) -> Result<MevFanPlan, EulerOpError> {
         let (he1_live, he1_data) = self.resolve_half_edge_live(he1)?;
         let (v, he1_prev, he1_loop) = (he1_data.start, he1_data.prev, he1_data.parent_loop);
         let (he2_live, he2_data) = self.resolve_half_edge_live(he2)?;
@@ -2479,7 +2478,7 @@ impl<T: Decide> Body<T> {
         // The op rewrites v's emanating; a dangling start vertex (or
         // point) is tier-1-invalid input caught here. The point is the
         // certification's start endpoint (he_plus runs old → new).
-        let (p_old_key, p_old) = self.resolve_vertex_point_keyed(v)?;
+        let point = self.resolve_vertex_point_key(v)?;
         // The clockwise run [he1 .. he2): members of the next(mate(·))
         // orbit walk (bounded, D9), empty for a strut.
         let orbit = self
@@ -2497,8 +2496,7 @@ impl<T: Decide> Body<T> {
         let he2_prev = self.require_live(he2_prev)?;
         Ok(MevFanPlan {
             v,
-            p_old,
-            p_old_key,
+            point,
             run,
             he1: he1_live,
             he2: he2_live,
@@ -2519,7 +2517,7 @@ impl<T: Decide> Body<T> {
     /// (mev_null's documented order).
     pub(crate) fn mev_fan_execute(
         &mut self,
-        plan: MevFanPlan<T>,
+        plan: MevFanPlan,
         point_key: PointKey,
         mint: MevCurveMint<T>,
         rows: Vec<SiteRows<T>>,
@@ -2527,8 +2525,7 @@ impl<T: Decide> Body<T> {
     ) -> MevCreated {
         let MevFanPlan {
             v,
-            p_old: _,
-            p_old_key: _,
+            point: _,
             run,
             he1,
             he2,
@@ -2608,7 +2605,8 @@ impl<T: Decide> Body<T> {
         tol: Tol,
     ) -> Result<MevCreated, EulerOpError> {
         // ---- Preconditions. ----
-        let (v, _, p_old) = self.mev_lone_plan(loop_key)?;
+        let (v, _) = self.mev_lone_plan(loop_key)?;
+        let p_old = self.resolve_vertex_point(v)?;
         // ---- Geometry gate (still no mutation). ----
         let certified =
             self.certify_edge_spec(curve.spec(false, p_old, point), p_old, point, tol)?;
@@ -2644,19 +2642,18 @@ impl<T: Decide> Body<T> {
     /// [`MevSite::Lone`]'s precondition block, shared by [`Body::mev`]
     /// and [`Body::mev_null`]: the loop resolves and is empty; its
     /// vertex and point resolve. Pure — no mutation. Returns the lone
-    /// vertex, its point key and its point.
+    /// vertex and its point.
     pub(crate) fn mev_lone_plan(
         &self,
         loop_key: LoopKey,
-    ) -> Result<(VertexKey, PointKey, Point3<T>), EulerOpError> {
+    ) -> Result<(VertexKey, PointKey), EulerOpError> {
         let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(loop_key),
         })?;
         let LoopBoundary::Empty { vertex: v } = loop_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: loop_key });
         };
-        let (p_old_key, p_old) = self.resolve_vertex_point_keyed(v)?;
-        Ok((v, p_old_key, p_old))
+        Ok((v, self.resolve_vertex_point_key(v)?))
     }
 
     /// The lone-site surgery (infallible mutation phase), shared by
@@ -3541,16 +3538,19 @@ impl<T: Decide> Body<T> {
         crate::readback::vertex_point_ref(self, vertex).map_err(Into::into)
     }
 
-    /// [`Body::resolve_vertex_point`], with the key the point sits on.
-    pub(crate) fn resolve_vertex_point_keyed(
+    /// The key of a vertex's point, both resolving, with the misses
+    /// named as [`Body::resolve_vertex_point`] names them.
+    pub(crate) fn resolve_vertex_point_key(
         &self,
         vertex: VertexKey,
-    ) -> Result<(PointKey, Point3<T>), EulerOpError> {
-        let point = self.resolve_vertex_point(vertex)?;
-        let Some(v) = self.get_vertex(vertex) else {
-            unreachable!("`vertex` proven live by resolve_vertex_point")
-        };
-        Ok((v.point, point))
+    ) -> Result<PointKey, EulerOpError> {
+        use crate::readback::DanglingRef;
+        let v = self
+            .get_vertex(vertex)
+            .ok_or(DanglingRef::Entity(EntityId::Vertex(vertex)))?;
+        self.get_point(v.point)
+            .ok_or(DanglingRef::Geometry(GeomRef::Point(v.point)))?;
+        Ok(v.point)
     }
 
     /// The attachment gate (D4 ¶2 at operation time): certifies an
