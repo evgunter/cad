@@ -2,11 +2,12 @@
 id: verbs-1031b-assigner-checker-divergence
 kind: issue
 title: the winding assigner/checker divergence: merge_faces assigns arc-bounded roles validate check 6 cannot check
-status: open
+status: closed
 opened: 2026-09-03
 refs: [1671, m6-sense-gate-recorded-residuals]
 priority: P1
 cost: H
+closed: 2026-10-02
 ---
 
 ## The divergence
@@ -179,3 +180,18 @@ The `all_lines` gate: the checker's named spelling is gone (the carrier
 class is `LoopCarriers`, computed once in the shared function); the
 test re-derivation in `m5_s10_face_sense.rs`'s `planar_arm_reaches`
 stays, re-cut to `Line`-or-`Circle`.
+
+## Closed 2026-10-02 — at JOIN's opening
+
+The divergence this row names is gone: the merge's role assigner
+(`merge_faces`, through `Body::planar_loop_winding_decided`) and tier
+3's check 6 (`validate.rs`, through `Body::planar_loop_winding`) read
+one function on one carrier set. The ellipse remainder on the checker
+side is RESTFRONT's
+`check-6-planar-arm-skips-ellipse-and-nurbs-loops`.
+
+The third site, the join's `ring_run_ccw`, still spells the Newell and
+perimeter sum out itself and shares only `conic_segment_term`. It winds a
+spline or spiric run edge by its chord, where the shared function
+answers `Unsupported`. That residue is its own row:
+`ring-run-winding-is-a-second-spelling-of-the-loop-winding-sum`.

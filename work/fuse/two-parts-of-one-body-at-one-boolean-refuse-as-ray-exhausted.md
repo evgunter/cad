@@ -5,7 +5,8 @@ title: Two Parts selecting one body at one boolean are DM5-distinct inputs carry
 status: open
 opened: 2026-09-04
 priority: P0
-cost: D
+cost: M
+design: true
 ---
 
 ## What

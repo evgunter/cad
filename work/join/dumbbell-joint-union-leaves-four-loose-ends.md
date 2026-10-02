@@ -4,7 +4,7 @@ kind: issue
 title: A dumbbell's two halves unioned across a declared joint disc refuse Join(UnpairedLooseEnds { count: 4 }), torus or cylinder handle alike
 status: open
 opened: 2026-09-25
-refs: [torus-operand-gate-admission]
+refs: [an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired]
 priority: P0
 cost: H
 ---

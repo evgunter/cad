@@ -4,9 +4,10 @@ kind: issue
 title: A declared coplanar merge leaves a collinear valence-2 vertex that an earlier fold step's cut made, so a union's finished body depends on member order
 status: open
 priority: P1
-cost: D
+cost: M
 opened: 2026-09-24
 refs: [declared-flush-union-edge-and-vertex-names-follow-member-order]
+design: true
 ---
 
 
