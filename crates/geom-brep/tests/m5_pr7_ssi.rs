@@ -3637,16 +3637,19 @@ fn a_plane_flush_with_a_walls_edge_reports_a_side_region() {
 }
 
 /// **No answer forks on the sign of an offset inside the band.** The
-/// corner clip `x + z = d` and the edge plane `x = off`, half an ε and
-/// three ε inside and outside the 1 m wall: inside, the plane meets the
-/// domain within the band and the answer is the region with its reach,
-/// whichever side of the band's zero the plane sits; outside, the plane
-/// misses the domain, and the exact empty answer stands. Every ε.
+/// corner clip `x + z = d` and the edge plane `x = off`, half an ε,
+/// three ε and four fifths of `Kε` inside and outside the 1 m wall:
+/// inside, the plane meets the domain within the band and the answer is
+/// the region with a reach that holds the crossings, whichever side of
+/// the band's zero the plane sits; outside, the plane misses the
+/// domain, and the exact empty answer stands. Every ε.
 #[test]
 fn an_offset_inside_the_band_reports_a_region_inside_and_nothing_outside() {
     let eps = band().zero();
     let wall = flat_wall(1.0, 1.0);
-    for k in [0.5, 3.0] {
+    // Four fifths of the band's escalate width is still in band at the
+    // corner (whose distance is `d/√2`) and at the side.
+    for k in [0.5, 3.0, 0.8 * band().escalate() / eps] {
         let d = k * eps;
         for (what, plane) in [
             (format!("the corner clip {k}ε"), corner_clip(d)),
