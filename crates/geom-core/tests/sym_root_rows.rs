@@ -600,26 +600,29 @@ fn a_comparison_of_two_constants_is_a_theorem() {
     assert_ne!(l, "theorem", "A0 is the dial that decides it");
 }
 
-/// **DECIDE-9's shape: a zero factor times a factor the read settled.**
+/// **A zero that does not depend on the read's arm is a theorem.**
 /// `dihedral_wedge`'s margin is `sin θ · arm`; at a tangent join `sin θ`
 /// is the zero form under the early walk's rules, and the lever arm is
 /// a `min` the read settles. `Z = sqrt(x)² − x` is zero the same way
 /// (rule A, early walk only — the plain form keeps the root), and
-/// `min(x, 3)` over `x ∈ [1, 2]` is the read's.
+/// `min(x, 3)` over `x ∈ [1, 2]` is the read's. A product with an
+/// ungated zero factor, and a `copysign` of one, rest on that zero
+/// alone; a zero the read itself reached stays `sign_gated`, through a
+/// product too.
 #[test]
 fn a_zero_factor_times_a_read_factor() {
     fn z(x: Sym<Interval>) -> Sym<Interval> {
         x.sqrt().powi(2) - x
     }
     // `(shape, shipped, read shut)`.
-    let shapes: [(&str, fn() -> Sym<Interval>, &str, &str); 4] = [
+    let shapes: [(&str, fn() -> Sym<Interval>, &str, &str); 5] = [
         (
             "Z · min(x, 3)",
             || {
                 let x = over("x", 1.0, 2.0);
                 z(x) * x.min(lit(3.0))
             },
-            "sign_gated",
+            "theorem",
             "theorem",
         ),
         (
@@ -628,7 +631,16 @@ fn a_zero_factor_times_a_read_factor() {
                 let x = over("x", 1.0, 2.0);
                 z(x).copysign(x.min(lit(3.0)) - lit(1.5))
             },
-            "sign_gated",
+            "theorem",
+            "theorem",
+        ),
+        (
+            "Z · (min(x, 3) - x)",
+            || {
+                let x = over("x", 1.0, 2.0);
+                z(x) * (x.min(lit(3.0)) - x)
+            },
+            "theorem",
             "theorem",
         ),
         (
