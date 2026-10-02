@@ -62,8 +62,10 @@
 //!   the quartic is `F·(1 + t²)²` — a repeated complex pair the ladder
 //!   cannot answer. It is decided FIRST, geometrically
 //!   (`bool_circle_torus_coaxial_tilt`, `_offset`, both metres), and the
-//!   constant residual then decides it (`bool_circle_torus_coaxial_residual`):
-//!   zero is [`CircleRoots::OnSurface`] (a rim circle of the torus), and
+//!   constant residual then decides it, its spread from the in-band
+//!   offset and tilt charged (`bool_circle_torus_coaxial_residual`,
+//!   [`super::circle_roots`], "A constant residual"): zero is
+//!   [`CircleRoots::OnSurface`] (a rim circle of the torus), and
 //!   definite a [`CircleRoots::Miss`].
 //! - **Parallel axes** (the circle's plane perpendicular to `â`, off
 //!   the axis — the lily's pose): `h` is constant, the plane meets the
@@ -89,7 +91,8 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{
-    CircleRoots, HalfAngleFrame, HalfAngleRows, Harmonics, half_angle_roots, rounding_charge,
+    CircleRoots, HalfAngleFrame, HalfAngleRows, Harmonics, constant_residual_roots,
+    half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -184,19 +187,33 @@ pub(super) fn circle_torus_roots<T: Decide>(
     );
     if parallel {
         return match decide("bool_circle_torus_coaxial_offset", Margin::of(offset), band) {
-            // Coaxial: the residual is one value along the carrier.
+            // Coaxial: the residual is one value along the carrier, to
+            // within its spread about the reading at `θ = 0`. Every
+            // carrier point lies within `δ = offset + √2·tilt` of the
+            // coaxial circle of the same radius (a translation by the
+            // offset, then a turn of at most a right angle, whose chord
+            // `2ρ·sin(α/2)` is at most `√2·ρ·sin α`), on which the
+            // residual is constant. The residual is `(g² − r²)/2r` in
+            // the distance `g` from the core circle, which is
+            // 1-Lipschitz, so between two points `d` apart with `g` at
+            // most `G` it moves at most `d·G/r`; every point in play has
+            // `g ≤ g₀ + 2δ`. The reading is within `δ·G/r` of the
+            // coaxial value and so is every carrier point: the spread is
+            // twice that.
             Ok(Sign::Zero) => {
                 let constant = geom_brep::implicit_residual(torus, point_at(T::zero()));
-                match decide(
+                let delta = offset + T::from_f64(core::f64::consts::SQRT_2) * tilt;
+                let g0 = (minor_radius.powi(2) + two * minor_radius * constant)
+                    .max(T::zero())
+                    .sqrt();
+                let spread = two * delta * (g0 + two * delta) / minor_radius;
+                constant_residual_roots(
+                    constant,
+                    spread,
                     "bool_circle_torus_coaxial_residual",
-                    Margin::of(constant),
                     band,
                 )
-                .map_err(escalated)?
-                {
-                    Sign::Zero => Ok(CircleRoots::OnSurface),
-                    Sign::Positive | Sign::Negative => Ok(CircleRoots::Miss),
-                }
+                .map_err(escalated)
             }
             Ok(Sign::Positive) => parallel_axes_roots(
                 &ParallelPose {
@@ -711,6 +728,66 @@ mod tests {
             matches!(door(pose, 2.0, 4.0), CircleRoots::Uncertain),
             "a graze is not a certified count"
         );
+    }
+
+    /// **A near-coaxial carrier whose in-band offset and tilt carry its
+    /// residual across zero is never a miss**, at any admissible `K`.
+    /// The circle is coaxial to within `0.99·zero` of offset and of tilt,
+    /// at a tube distance `δ = −8.2e-10` inside, and `θ = 0` is turned to
+    /// where its residual is lowest, past the escalation threshold at
+    /// `K = 1.5`; elsewhere the residual is positive, so the carrier
+    /// crosses the tube. Escalating or answering `OnSurface` or
+    /// `Uncertain` is sound; `Miss` is not.
+    #[test]
+    fn a_near_coaxial_carrier_spanning_zero_is_not_a_miss() {
+        let zero = 1e-9;
+        let delta = -8.2e-10;
+        let (offset, tilt) = (0.99 * zero, 0.99 * zero);
+        let (phi, psi) = (3.338_f64, 10f64.to_radians());
+        let h0 = (RT + delta) / 2f64.sqrt();
+        let rho = R + h0;
+        let c = Point3::new(offset * phi.cos(), offset * phi.sin(), h0);
+        let beta = tilt / rho;
+        let n = Vec3::new(beta.sin() * psi.cos(), beta.sin() * psi.sin(), beta.cos());
+        let u0 = n.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
+        let v0 = n.cross(u0);
+        let surface = torus::<f64>();
+        let at = |u: Vec3<f64>, t: f64| {
+            let v = n.cross(u);
+            geom_brep::implicit_residual(&surface, c + (u * t.cos() + v * t.sin()) * rho)
+        };
+        let samples: Vec<f64> = (0..3600)
+            .map(|i| f64::from(i) * core::f64::consts::PI / 1800.0)
+            .collect();
+        let t_min = samples
+            .iter()
+            .copied()
+            .min_by(|a, b| at(u0, *a).total_cmp(&at(u0, *b)))
+            .unwrap();
+        let u = u0 * t_min.cos() + v0 * t_min.sin();
+        let high = samples.iter().map(|t| at(u, *t)).fold(f64::MIN, f64::max);
+        assert!(
+            at(u, 0.0) < -1.5 * zero && high > 0.0,
+            "the pose's premise: read at θ = 0 past 1.5·zero, positive elsewhere: \
+             {} .. {high}",
+            at(u, 0.0)
+        );
+        for k in [1.5, 1.2, 2.0, 2.5, 3.0, 10.0] {
+            let got = roots_of(
+                c,
+                n,
+                rho,
+                u,
+                0.0,
+                1.0,
+                &surface,
+                Band::new(zero, k * zero).unwrap(),
+            );
+            assert!(
+                !matches!(got, Ok(CircleRoots::Miss)),
+                "K = {k}: a carrier crossing the tube certified a miss"
+            );
+        }
     }
 
     /// Coaxial with the torus: constant residual, answered before the

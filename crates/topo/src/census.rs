@@ -611,7 +611,7 @@ impl Candidates {
                 if plant == Some(f.key) {
                     empty_box()
                 } else {
-                    face_box(body, f.key, pad).unwrap_or_else(|_| Aabb::poison())
+                    face_box(body, f.key, pad, band).unwrap_or_else(|_| Aabb::poison())
                 }
             })
             .collect();
@@ -2465,11 +2465,14 @@ fn sweep_conformal_patches<T: Decide>(
 pub(crate) fn face_reach<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
+    band: Band,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let surface = body
         .get_face(f)
         .and_then(|d| body.surfaces.get(d.surface))?;
-    match crate::boolean::boxes::face_box_rule(surface) {
+    // A cylinder whose axis has no decided length is a broken carrier,
+    // and a description with no claim in it answers `None`.
+    match crate::boolean::boxes::face_box_rule(surface, band).ok()? {
         crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f),
         crate::boolean::boxes::FaceBoxRule::ControlNet(patch) => {
             if patch.is_placeholder() {
@@ -2552,10 +2555,10 @@ pub(crate) fn face_reach<T: Decide>(
             // coordinate is linear along the surface, so the face's
             // axial extremes lie ON the boundary, but not
             // necessarily at a boundary VERTEX.
-            let h = boundary_axial(body, f, origin, axis)?;
+            let h = boundary_axial(body, f, origin, axis.get())?;
             let slab = span_pts(crate::boolean::boxes::slab_extent(
                 &crate::boolean::boxes::SpanBox::point(origin),
-                &crate::boolean::boxes::SpanBox::vector(axis),
+                &crate::boolean::boxes::UnitSpanBox::exact(axis),
                 h,
                 radius,
             ));
@@ -4720,7 +4723,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
         }
         Some((lo, hi))
     };
-    let reach_box = |f: FK| face_reach(body, f);
+    let reach_box = |f: FK| face_reach(body, f, band);
 
     // Arm 1: cross-solid proximity — curved × curved, (F5) curved ×
     // planar, and the planar × planar pairs the exact sweeps cannot
@@ -6837,9 +6840,14 @@ mod tests {
             assert_eq!(seeds.len(), 2);
             let mut reaches = Vec::new();
             for &f in &seeds {
-                let r = face_reach(&body, f);
+                let r = face_reach(&body, f, Band::linear(Tol::witness()).unwrap());
                 reaches.push(format!("{r:?}"));
-                let b = crate::boolean::boxes::face_box(&body, f, 1e-9);
+                let b = crate::boolean::boxes::face_box(
+                    &body,
+                    f,
+                    1e-9,
+                    Band::linear(Tol::witness()).unwrap(),
+                );
                 reaches.push(format!("face_box: {b:?}"));
             }
             let errs = census_and_certify(
@@ -6879,7 +6887,13 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let seeds = swap_placeholders(&mut body);
-        let b = crate::boolean::boxes::face_box(&body, seeds[0], 1e-9).unwrap();
+        let b = crate::boolean::boxes::face_box(
+            &body,
+            seeds[0],
+            1e-9,
+            Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap();
         eprintln!("[face_box] masquerade box = {b:?}");
         let far = bvh::Aabb::from_points([
             Point3::new(0.0, 100.0, 100.0),

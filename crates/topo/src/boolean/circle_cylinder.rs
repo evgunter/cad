@@ -172,6 +172,7 @@ pub(super) fn circle_cylinder_roots<T: Decide>(
             // spread the roots can have.
             lever: two * radius,
             noise,
+            // `h` is the residual itself, already divided by `2r`.
             f_per_metre: T::one(),
         },
         &CIRCLE_CYLINDER_LADDER_ROWS,

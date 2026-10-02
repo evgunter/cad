@@ -30,7 +30,7 @@ use editor_core::{
     HitTestError, InterrogateError, MateSide, NameLookupError, NodePickError, NodeStanding,
     UnnamedEntity,
 };
-use pncad::document::{EditError, RecipeNodeId};
+use pncad::document::{EditError, RecipeNodeId, Said, Speaker};
 use pncad::mesh::TessellateError;
 use test_utils::refusal::tagged;
 use viewer::camera::{CameraError, CameraOp, CameraOpError};
@@ -231,6 +231,7 @@ fn mate_tool_error_forwards_its_frame_arm() {
     let outer = MateToolError::Frame {
         side: MateSide::A,
         error: inner,
+        held: pncad::document::HeldNodes::default(),
     }
     .to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
@@ -287,7 +288,10 @@ fn pick_index_error_says_only_that_its_root_was_not_indexed() {
         .to_string();
         assert_eq!(
             outer,
-            format!("root 000000000007 could not be indexed: {inner}")
+            format!(
+                "root 000000000007 could not be indexed: {}",
+                Said(&inner, Speaker::TAG.about(node))
+            )
         );
     }
 }
@@ -397,7 +401,11 @@ fn edge_names_refused_forwards_its_first_refusal() {
         refused: 1,
     }
     .to_string();
-    let fault = EdgeNameFault::Unnamed(first).to_string();
+    let fault = Said(
+        &EdgeNameFault::Unnamed(first),
+        Speaker::TAG.about(RecipeNodeId(tagged(4))),
+    )
+    .to_string();
     assert_eq!(
         said,
         format!(

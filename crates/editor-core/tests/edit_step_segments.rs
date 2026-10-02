@@ -273,7 +273,7 @@ fn lateral(
     e: CanonicalSegment,
 ) -> Option<FaceKey> {
     let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
-    let name = fixture::fname(node, RoleSeg::Lateral(piece));
+    let name = fixture::fname(node, RoleSeg::Lateral(piece.into()));
     match ev.value(node)?.name_table.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Face(f) => Some(f),

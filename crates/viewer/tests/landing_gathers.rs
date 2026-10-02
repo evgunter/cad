@@ -310,7 +310,7 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
         "the registry has no subject and says so by reporting nothing"
     );
     assert!(
-        viewer::frame::product_badge(session.product_fault()).is_some(),
+        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_some(),
         "this IS the fault channel's own case"
     );
     assert!(session.at_rest().is_none(), "a part has no A5 badge");
@@ -336,7 +336,7 @@ fn a_document_with_no_body_lands_a_clean_report() {
         session.product_fault()
     );
     assert!(
-        viewer::frame::product_badge(session.product_fault()).is_none(),
+        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_none(),
         "which the badge channel deliberately stays quiet about"
     );
     let report = session.checks().expect("the registry still reports");

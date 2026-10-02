@@ -1081,7 +1081,7 @@ mod pattern_tests {
             node,
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .unwrap();
@@ -1879,7 +1879,7 @@ mod display_tests {
     fn the_rim_walk_reports_cardinality_as_a_fact() {
         let cube = super::walk_tests::cube();
 
-        let wall = cube.side_faces[0][0];
+        let wall = cube.side_faces()[0][0];
         let Rim::One(rim) = rim_between(&cube.body, cube.top, wall)
             .expect("a sound body raises no emission refusal")
         else {
@@ -2003,7 +2003,7 @@ mod walk_tests {
 
     fn rim1() -> Rim1 {
         let cube = cube();
-        let (top, wall) = (cube.top, cube.side_faces[0][0]);
+        let (top, wall) = (cube.top, cube.side_faces()[0][0]);
         let body = &cube.body;
         let (he, mate) = face_half_edges(body, top)
             .unwrap()

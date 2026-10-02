@@ -397,6 +397,8 @@ fn ray_asked_at(actions: &[PickAction], step: IdStep, cursor: [f64; 2]) -> bool 
 /// one evaluation, through one camera, under one display view.
 #[derive(Clone, Copy)]
 struct RayQuestion<'a> {
+    /// The landed document `eval` answers, which the news speaks from.
+    doc: &'a Doc<ProfileProgram>,
     eval: &'a Evaluation<f64>,
     camera: &'a Camera,
     viewport: ViewportSize,
@@ -430,6 +432,7 @@ fn cursor_news(
     ray_asked: bool,
 ) -> Option<frame::Message> {
     let RayQuestion {
+        doc,
         eval,
         camera,
         viewport,
@@ -440,9 +443,9 @@ fn cursor_news(
         .faces_under_cursor(eval, camera, viewport, cursor, display)
         .map(|faces| faces.into_iter().map(|face| face.name).collect());
     match &from_ray {
-        Err(refusal) if !ray_asked => Some(frame::pick_refusal(refusal)),
+        Err(refusal) if !ray_asked => Some(frame::pick_refusal(refusal, doc)),
         _ => idpass::disagreement(index, answer, outstanding, from_ray.as_deref())
-            .map(|report| report.notice()),
+            .map(|report| report.notice(doc)),
     }
 }
 
@@ -796,7 +799,7 @@ impl ViewerBehavior<'_> {
         // below asks the ray at this frame's cursor, and so words its
         // refusal itself ([`cursor_news`] reads it).
         let ray_asked = cursor_px.is_some_and(|cursor| ray_asked_at(&actions, step, cursor));
-        if let (Some(index), Some(eval)) = (on_screen, self.session.evaluation()) {
+        if let (Some(index), Some((doc, eval))) = (on_screen, self.session.landed_pair()) {
             for action in actions {
                 if skips_the_ray(action, step) {
                     continue;
@@ -807,7 +810,7 @@ impl ViewerBehavior<'_> {
                     // is churn in the one log a test reads.
                     Ok(SessionOp::Hover(face)) if face.as_ref() == self.session.hover() => {}
                     Ok(op) => self.ops.push(op),
-                    Err(error) => self.notices.push(frame::pick_refusal(&error)),
+                    Err(error) => self.notices.push(frame::pick_refusal(&error, doc)),
                 }
             }
         } else if let Some(refusal) = pickcache::unindexed(&actions, self.index, self.indexing) {
@@ -836,7 +839,12 @@ impl ViewerBehavior<'_> {
             self.tools,
             self.drafts,
         );
-        *self.held_edges_refused = composed.edges().held_refused.clone();
+        let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        *self.held_edges_refused = composed
+            .edges()
+            .held_refused
+            .clone()
+            .map(|refused| frame::Spelled::in_landed(refused, landed));
         // **The three lanes this pane composes itself**, each as the
         // value that owns the display seam's rule
         // ([`marks::LegLane`]) rather than as a bare `Vec` each block
@@ -1002,8 +1010,10 @@ impl ViewerBehavior<'_> {
         // asked — no evaluation to ask it of — is no comparison either.
         let outstanding = self.id_log.outstanding();
         let said = outstanding.and_then(|_| {
+            let (doc, eval) = self.session.landed_pair()?;
             let question = RayQuestion {
-                eval: self.session.evaluation()?,
+                doc,
+                eval,
                 camera: self.camera,
                 viewport,
                 cursor: cursor_px?,
@@ -1299,7 +1309,7 @@ mod tests {
         // and the tree row is the channel. Both halves asserted, since
         // silence is only correct while the other channel speaks.
         assert!(
-            product_badge(Some(fault)).is_none(),
+            product_badge(Some(fault), session.committed_doc()).is_none(),
             "a failed root is the tree's to badge: {fault}"
         );
         assert!(
@@ -1721,9 +1731,9 @@ mod tests {
     #[test]
     fn a_ray_refusal_the_pick_path_did_not_ask_for_is_said_by_the_comparison() {
         let fixture = refused_ray();
-        let foreign = fixture
+        let (foreign_doc, foreign) = fixture
             .foreign
-            .evaluation()
+            .landed_pair()
             .expect("the other document lands");
         let display = DisplayView::none();
         let at = fixture.cursor;
@@ -1751,6 +1761,7 @@ mod tests {
             "the hover asks the ray"
         );
         let asked = RayQuestion {
+            doc: foreign_doc,
             eval: foreign,
             camera: &fixture.camera,
             viewport: fixture.pane,
@@ -1788,7 +1799,7 @@ mod tests {
             .expect_err("the moved ray is refused");
         assert_eq!(
             cursor_news(&fixture.index, unasked, answer, log.outstanding(), false),
-            Some(frame::pick_refusal(&refusal)),
+            Some(frame::pick_refusal(&refusal, foreign_doc)),
             "the comparison says the refusal in the pick path's own words"
         );
     }
@@ -1802,16 +1813,17 @@ mod tests {
     /// the clear value, it was misreported both ways: as *id buffer
     /// nothing* against a ray that named a face, and as silent
     /// agreement against a ray that named nothing. The two rows below
-    /// each ask one of those cursors.
+    /// each ask one of those cursors. The ray's names come back as the
+    /// landed document speaks them, role path included.
     fn unassigned_id_news(
         wanted: impl Fn(&[StableName]) -> bool,
-    ) -> (u32, Vec<StableName>, Option<frame::Message>) {
+    ) -> (u32, Vec<StableName>, Vec<String>, Option<frame::Message>) {
         let tol = Tol::witness();
         let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
         let mut session = DocSession::inline(doc, tol);
         session.pump();
         let index = plate_index(&session, a_delta(0.5));
-        let eval = session.evaluation().expect("the plate lands");
+        let (landed, eval) = session.landed_pair().expect("the plate lands");
         let unassigned = index.ids().ids().max().expect("the plate draws patches") + 1;
         assert!(
             index.name_of(unassigned).is_none(),
@@ -1850,6 +1862,7 @@ mod tests {
         }
         .expect("a cursor arriving is a new question");
         let question = RayQuestion {
+            doc: landed,
             eval,
             camera: &camera,
             viewport: pane,
@@ -1858,14 +1871,18 @@ mod tests {
         };
         let answer = (u64::from(serial) << 32) | u64::from(unassigned);
         let news = cursor_news(&index, question, answer, log.outstanding(), true);
-        (unassigned, from_ray, news)
+        let spoken = from_ray
+            .iter()
+            .map(|name| idpass::NameAndPath(name, pncad::document::Speaker::of(landed)).to_string())
+            .collect();
+        (unassigned, from_ray, spoken, news)
     }
 
     /// Over what the ray calls empty space, an unassigned id is said,
     /// not agreed with.
     #[test]
     fn an_unassigned_id_over_empty_space_is_said_as_that_id() {
-        let (id, _, news) = unassigned_id_news(<[StableName]>::is_empty);
+        let (id, _, _, news) = unassigned_id_news(<[StableName]>::is_empty);
         assert_eq!(
             news,
             Some(frame::Message::new(
@@ -1883,17 +1900,21 @@ mod tests {
     /// id, not as the id buffer naming nothing.
     #[test]
     fn an_unassigned_id_against_a_named_face_is_said_as_that_id() {
-        let (id, from_ray, news) = unassigned_id_news(|names| names.len() == 1);
-        let named = from_ray
+        let (id, from_ray, spoken, news) = unassigned_id_news(|names| names.len() == 1);
+        let (named, said) = from_ray
             .first()
+            .zip(spoken.first())
             .expect("the helper returns the one-face answer it was asked for");
+        assert!(
+            said.contains("Extrude") && said.ends_with(&format!("({:?})", named.path)),
+            "the face's minter is said as the landed document holds it, then its path: {said}"
+        );
         assert_eq!(
             news.expect("an unassigned id against a named face is a disagreement")
                 .text(),
             format!(
                 "picking paths disagree at the cursor: id buffer id {id}, \
-                 which no patch of this picture draws, ray {named} ({:?})",
-                named.path
+                 which no patch of this picture draws, ray {said}"
             ),
         );
     }

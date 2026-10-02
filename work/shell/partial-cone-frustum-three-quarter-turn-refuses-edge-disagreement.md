@@ -53,9 +53,10 @@ false posture, and no line would be right.
 
 What would close it is a hyperbolic edge carrier, and that is a
 ratified decision rather than a SHELL unit: `crates/geom-brep/src/intersect.rs`'s
-C5 table routes the plane×cone generic tilt "to rung 3 explicitly and
-permanently — the conic trio (parabola/hyperbola) does NOT land in
-M5" (R1, "permanent until a PR moves it"). Parked on that decision:
+C5 table keeps the parabolic and hyperbolic plane×cone sections out of
+the inventory — "parabola and hyperbola are outside the conic inventory
+by decision, not by omission" (R1, "permanent until a PR moves it"; the
+tilted ellipse is exact, Ev 2026-10-01). Parked on that decision:
 the SHELL program does not carry conics on its own, and the standing
 refusal is loud on every partial-revolve cone at any turn angle. If
 Ev wants partial-revolve cones to shell, the fork is C5 R1's — a
