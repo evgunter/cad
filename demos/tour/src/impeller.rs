@@ -177,47 +177,47 @@ fn build_doc(tol: Tol) -> Recipe {
         })
     };
 
-    let hub_plane = insert(&mut doc, frame_at(0.0));
+    let hub_plane = insert(&mut doc, Box::new(frame_at(0.0)));
     let hub_p = insert(
         &mut doc,
-        Node::Profile(ProfileProgram {
+        Box::new(Node::Profile(ProfileProgram {
             plane: hub_plane,
             loops: vec![hub_polygon()],
             ids: Vec::new(),
-        }),
+        })),
     );
     let hub_e = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: hub_p,
             distance: len(HUB_H),
-        },
+        }),
     );
 
-    let blade_plane = insert(&mut doc, frame_at(BLADE_Z0));
+    let blade_plane = insert(&mut doc, Box::new(frame_at(BLADE_Z0)));
     let blade_p = insert(
         &mut doc,
-        Node::Profile(ProfileProgram {
+        Box::new(Node::Profile(ProfileProgram {
             plane: blade_plane,
             loops: vec![blade_polygon()],
             ids: Vec::new(),
-        }),
+        })),
     );
     let blade_e = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: blade_p,
             distance: len(BLADE_H),
-        },
+        }),
     );
 
     // The axis the blades step about: the hub's own.
     let axis = insert(
         &mut doc,
-        Node::Datum(Datum::Axis {
+        Box::new(Node::Datum(Datum::Axis {
             origin: [len(0.0), len(0.0), len(0.0)],
             direction: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
+        })),
     );
 
     // **The two slots, one parameter.** The count IS `blades`; the
@@ -225,24 +225,26 @@ fn build_doc(tol: Tol) -> Recipe {
     // promotion. Nothing downstream has to be told the blades moved.
     let group = insert(
         &mut doc,
-        Node::placed_union(
-            blade_e,
-            pe("blades"),
-            PatternKind::Circular {
-                axis,
-                step: pe("360 deg / scalar(blades)"),
-            },
-        )
-        .expect("a Circular rule is parametric, so it carries a count"),
+        Box::new(
+            Node::placed_union(
+                blade_e,
+                pe("blades"),
+                PatternKind::Circular {
+                    axis,
+                    step: pe("360 deg / scalar(blades)"),
+                },
+            )
+            .expect("a Circular rule is parametric, so it carries a count"),
+        ),
     );
     let solid = insert(
         &mut doc,
-        Node::Boolean {
+        Box::new(Node::Boolean {
             op: BooleanOp::Union,
             a: hub_e,
             b: group,
             declare: None,
-        },
+        }),
     );
     Recipe { doc, group, solid }
 }

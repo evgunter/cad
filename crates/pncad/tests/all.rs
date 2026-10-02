@@ -2074,7 +2074,9 @@ fn insert(
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
     let applied = pncad::document::apply(
         &doc,
-        &pncad::document::DocEdit::InsertNode { node },
+        &pncad::document::DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         pncad::tolerance::Tol::witness(),
         &pncad::document::RefusingReach,
     )
@@ -3079,12 +3081,8 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     };
     // Save snapshot + ONE-edit log; the file's current state is the
     // replayed result, and that is what a resolve must pin.
-    let text = pncad::document::save(
-        &origin,
-        &[pncad::document::LoggedEdit::bare(edit.clone())],
-        Tol::witness(),
-    )
-    .expect("the logged document saves");
+    let text = pncad::document::save(&origin, std::slice::from_ref(&edit), Tol::witness())
+        .expect("the logged document saves");
     dir.write("logged.pncad", &text);
     let replayed = pncad::document::apply(
         &origin,
@@ -3380,9 +3378,11 @@ fn asm2a_assembly(
             let dx = 10.0 * i as f64;
             doc = pncad::document::apply(
                 &doc,
-                &pncad::document::DocEdit::SetPlacement {
-                    node: id,
-                    frame: pncad::document::Frame::translation([dx, 0.0, 0.0]),
+                &pncad::document::DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(pncad::document::Placement::literal(
+                        &pncad::document::Frame::translation([dx, 0.0, 0.0]),
+                    )),
                 },
                 Tol::witness(),
                 &pncad::document::RefusingReach,
@@ -3464,6 +3464,51 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
         pncad::export::export_document_step(&ev, &doc, &StepOptions::default(), Tol::witness())
             .expect("the assembly exports");
     assert!(step.contains("MANIFOLD_SOLID_BREP"));
+}
+
+/// **STEP refuses unplaced parts** (A11 (2)): STEP writes one world,
+/// and an instance whose offset was cleared lives in its group's own
+/// space. The whole-document door and the per-node door both refuse,
+/// naming the part, its group's root and the cause, with how to place
+/// it — and the placed instance beside it still exports alone.
+#[test]
+fn step_export_refuses_an_unplaced_part_naming_it_and_the_cause() {
+    use pncad::document::{DocEdit, Unplaced};
+    let dir = WsDir::new("p2-step-unplaced");
+    let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "p2-step-unplaced-part");
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let (doc, ids) = asm2a_assembly("p2-step-unplaced", doc_ref, 2);
+    let doc = pncad::document::apply(
+        &doc,
+        &DocEdit::SetOffset {
+            instance: ids[1],
+            offset: None,
+        },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("an offset clears")
+    .doc;
+    let ev = asm2a_eval(&doc, &ws);
+    let opts = StepOptions::default();
+    for err in [
+        pncad::export::export_document_step(&ev, &doc, &opts, Tol::witness())
+            .expect_err("the document holds an unplaced part"),
+        pncad::export::step_for_node(&ev, ids[1], &opts, Tol::witness())
+            .expect_err("the unplaced instance alone"),
+    ] {
+        let pncad::export::ExportError::Unplaced { parts } = &err else {
+            panic!("expected the unplaced refusal, got {err:?}")
+        };
+        assert_eq!(parts, &vec![(ids[1], ids[1], Unplaced::NoOffset)]);
+        let text = err.to_string();
+        assert!(
+            text.contains(pncad::document::UNPLACED_RECOURSE),
+            "the refusal says how to place it: {text}"
+        );
+    }
+    pncad::export::step_for_node(&ev, ids[0], &opts, Tol::witness())
+        .expect("the placed instance exports");
 }
 
 /// Row 5b (E2E) — A4's pin gate observed end to end: the part document
@@ -3619,13 +3664,15 @@ fn asm_r2a_mated_assembly(
     };
     let (doc, _) = insert(
         doc,
+        // The second instance is the mate's first operand: the mate
+        // places its group on the first's.
         Node::Mate {
-            a: face_head(name(ids[0])),
-            b: face_head(name(ids[1])),
+            a: face_head(name(ids[1])),
+            b: face_head(name(ids[0])),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: axis([30.0, 0.0, 0.0]),
-                b: axis([0.0, 0.0, 0.0]),
+                a: axis([0.0, 0.0, 0.0]),
+                b: axis([30.0, 0.0, 0.0]),
                 primitive: MatePrimitive::FrameCoincidence,
                 sense: AxisSense::Aligned,
                 clocking: None,
@@ -3661,10 +3708,14 @@ fn asm_r2a_child_mated_probe() {
     let (doc_ref, body) = asm2a_part_and_body(&dir, "part.pncad", "asm-r2a-probe-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
     let (doc, ids) = asm_r2a_mated_assembly("asm-r2a-probe-asm", doc_ref, body);
-    // The mate SOLVED the second instance's placement: it is recipe
-    // data, not a recorded frame, so the registry stays empty.
+    // The mate SOLVED the second instance's pose: the mate door took
+    // its offset when the mate placed its group on the first's, so the
+    // pose is recipe data, not a stored frame.
     assert!(
-        doc.placements().is_empty(),
+        matches!(
+            doc.node(ids[1]),
+            Some(pncad::document::Node::InstantiatePart { offset: None, .. })
+        ),
         "the pose is solved, not stored"
     );
     let opts = pncad::document::EvalOptions {
@@ -3771,7 +3822,12 @@ fn asm_r2b_child_crossing_probe() {
     let doc = pncad::document::apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::instantiate_part_with(doc_ref, record),
+            node: Box::new(Node::instantiate_part_with(
+                doc_ref,
+                record,
+                None,
+                Some(pncad::document::Placement::IDENTITY),
+            )),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3779,12 +3835,22 @@ fn asm_r2b_child_crossing_probe() {
     .expect("the crossing-bearing instance inserts")
     .doc;
 
-    // The whole group split out — accepted, and the remainder is
-    // itself a crossing-bearing document.
+    // The whole group split out, with the mate placing it — accepted,
+    // and the remainder is itself a crossing-bearing document.
     let store: std::sync::Arc<dyn pncad::document::PartResolver> = std::sync::Arc::new(ws.clone());
+    let group_and_mate = ids
+        .iter()
+        .copied()
+        .chain(
+            doc.order()
+                .iter()
+                .copied()
+                .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. }))),
+        )
+        .collect();
     let split = pncad::document::split(
         &doc,
-        &ids.iter().copied().collect(),
+        &group_and_mate,
         pncad::document::DocumentId::derive("asm-r2b-probe-split"),
         Tol::witness(),
         Some(&store),
@@ -3889,9 +3955,11 @@ fn asm2b_outer(
         if i > 0 {
             doc = pncad::document::apply(
                 &doc,
-                &pncad::document::DocEdit::SetPlacement {
-                    node: id,
-                    frame: pncad::document::Frame::translation([100.0, 0.0, 0.0]),
+                &pncad::document::DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(pncad::document::Placement::literal(
+                        &pncad::document::Frame::translation([100.0, 0.0, 0.0]),
+                    )),
                 },
                 Tol::witness(),
                 &pncad::document::RefusingReach,
@@ -6456,6 +6524,73 @@ mod the_hollowed_box_through_the_facade {
             ),
             "the interval hollow is a body"
         );
+    }
+}
+
+/// **STEP export refuses an unplaced group anywhere in the part tree**:
+/// a sub-assembly holding an unplaced instance refuses `Unplaced` on its
+/// own, and the outer document instancing it refuses `UnplacedBelow`
+/// naming the group, the route it arrived by and its cause — rather
+/// than write the sub-assembly's world without it.
+#[test]
+fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
+    use pncad::document::DocEdit;
+    let dir = WsDir::new("r2-step-sub");
+    let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "r2-step-sub-part");
+    let (sub, ids) = asm2a_assembly("r2-step-sub-asm", doc_ref, 2);
+    let sub = pncad::document::apply(
+        &sub,
+        &DocEdit::SetOffset {
+            instance: ids[1],
+            offset: None,
+        },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("an offset clears")
+    .doc;
+    let text = pncad::document::save(&sub, &[], Tol::witness()).expect("saves");
+    dir.write("sub.pncad", &text);
+    let sub_ref = pncad::document::DocRef {
+        id: sub.id(),
+        pin: pncad::document::content_pin(&sub, Tol::witness()).expect("pin"),
+    };
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let opts = StepOptions::default();
+    let ev_sub = asm2a_eval(&sub, &ws);
+    let sub_err = pncad::export::export_document_step(&ev_sub, &sub, &opts, Tol::witness());
+    assert!(
+        matches!(sub_err, Err(pncad::export::ExportError::Unplaced { .. })),
+        "the sub-assembly alone refuses: {sub_err:?}"
+    );
+    let (outer, outer_ids) = asm2a_assembly("r2-step-sub-outer", sub_ref, 1);
+    let ev = asm2a_eval(&outer, &ws);
+    let expected = pncad::document::CarriedUnplaced {
+        route: pncad::document::Route {
+            through: outer_ids[0],
+            of: sub.id(),
+            via: Vec::new(),
+        },
+        group: ids[1],
+        cause: pncad::document::Unplaced::NoOffset,
+    };
+    match pncad::export::export_document_step(&ev, &outer, &opts, Tol::witness()) {
+        Err(e @ pncad::export::ExportError::UnplacedBelow { .. }) => {
+            let said = e.to_string();
+            let pncad::export::ExportError::UnplacedBelow { groups } = e else {
+                unreachable!()
+            };
+            assert_eq!(groups, vec![expected]);
+            assert!(
+                said.contains("Recourse:") && said.contains("through instance"),
+                "{said}"
+            );
+        }
+        other => panic!("the outer document refuses naming the group below: {other:?}"),
+    }
+    match pncad::export::step_for_node(&ev, outer_ids[0], &opts, Tol::witness()) {
+        Err(pncad::export::ExportError::UnplacedBelow { groups }) => assert_eq!(groups.len(), 1),
+        other => panic!("the instance alone refuses too: {other:?}"),
     }
 }
 

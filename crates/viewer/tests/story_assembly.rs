@@ -123,6 +123,7 @@ fn close3(got: Vec3<f64>, want: Vec3<f64>, what: &str) {
 /// asserting it is display state and never a document edit.
 fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
     let history_len = session.history().len();
+    let before = session.doc().node(instance).cloned();
     for op in [
         SessionOp::BeginFreeMove { instance },
         SessionOp::PreviewFreeMove {
@@ -141,9 +142,10 @@ fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
         history_len,
         "the probe leaves no history state"
     );
-    assert!(
-        session.doc().placements().get(&instance).is_none(),
-        "the probe authors no placement"
+    assert_eq!(
+        session.doc().node(instance).cloned(),
+        before,
+        "the probe leaves the instance's offset where it stood"
     );
 }
 

@@ -34,6 +34,7 @@ use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
     class_admission_tag, maintenance_tag, mate_fault_tag, mate_primitive_tag, subgroup_tag,
+    unplaced_tag,
 };
 use pncad::document as d;
 use pncad::tolerance::Tol;
@@ -713,11 +714,19 @@ impl MateFault {
             .map(|cause| cause.into_value(py).into_any())
     }
 
-    /// The instance a self-mate names twice, or the instance whose
-    /// part a lever or a face frame was asked of.
+    /// The instance a self-mate names twice, the instance whose part
+    /// a lever or a face frame was asked of, or whose checked offset
+    /// faulted (`mate_offset_disagrees`, `mate_offset_unchecked`).
     #[getter]
     fn instance(&self) -> Option<NodeId> {
         self.payload().instance.map(NodeId)
+    }
+
+    /// The root of a faulted checked offset's group: the member whose
+    /// offset places the group the solve placed the instance in.
+    #[getter]
+    fn root(&self) -> Option<NodeId> {
+        self.payload().root.map(NodeId)
     }
 
     /// The face a `from_face` frame named, as its name text in the
@@ -972,6 +981,25 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
     super::value::with_carried(py, err, fault.carried_chain(), None)
 }
 
+/// [`d::SolvedPoses::placement`]'s refusal, raised: the solve's own
+/// fault as `MateError`, and the two placement refusals as the
+/// `EvaluationError` the instance's own row would carry.
+fn pose_err(py: Python<'_>, instance: NodeId, refusal: &d::PoseRefusal) -> PyErr {
+    let kind = match refusal {
+        d::PoseRefusal::Mate(fault) => return mate_err(py, fault),
+        d::PoseRefusal::Unplaced { group, cause, .. } => d::NodeErrorKind::Unplaced {
+            group: *group,
+            cause: *cause,
+        },
+        d::PoseRefusal::Placement { node, error } => d::NodeErrorKind::PlacementRefused {
+            node: *node,
+            error: error.clone(),
+        },
+    };
+    let err = super::value::refused(py, instance, &kind, refusal.to_string(), None);
+    super::value::with_carried(py, err, kind.carried_chain(), None)
+}
+
 /// The document's solved poses: each instance's pose relative to its
 /// group root, each mate's role, and the per-node refusals.
 #[pyclass(frozen, module = "pncad")]
@@ -1000,29 +1028,45 @@ impl SolvedPoses {
         self.0.root(instance.0).map(NodeId)
     }
 
-    /// An instance's pose RELATIVE TO ITS GROUP ROOT. The root's
-    /// own entry is the identity, bit-exactly.
+    /// An instance's pose in its group's own space: where it sits when
+    /// the group's frame is the identity — relative to its root when no
+    /// placer stands on the path from the root, and in an unplaced
+    /// group the pose the group is evaluated at.
     fn relative(&self, instance: &NodeId) -> Option<Frame> {
         self.0.relative(instance.0).map(Frame)
     }
 
-    /// **The instance's world placement**: the group's recorded
-    /// frame composed onto the solved relative pose.
+    /// Why an instance's group is **unplaced** — `no_offset` (no member
+    /// carries an offset) or `dead_gauge` (its gauge chain names a
+    /// deleted gauge) — or `None` when it is placed or the node is not
+    /// a live instance. An unplaced group lives in its own space: it
+    /// evaluates in its own frame, and nothing outside it is compared
+    /// with it.
+    fn unplaced(&self, instance: &NodeId) -> Option<&'static str> {
+        self.0
+            .unplaced(instance.0)
+            .map(|cause| unplaced_tag(&cause))
+    }
+
+    /// **The instance's world placement, at the document's own
+    /// parameters**: its group's frame — the gauge chain composed with
+    /// the root's offset — composed into the solved pose.
     ///
-    /// A singleton group returns its recorded frame VERBATIM — the
-    /// mate-less document's placement is bit-for-bit what it was
-    /// before mates existed.
+    /// A lone instance returns its offset's frame on its gauge, bit for
+    /// bit, and on the world at the empty offset the identity.
     ///
-    /// `doc` is read for its placement registry, and it must be the
+    /// `doc` is read for its gauges and offsets, and it must be the
     /// document this solve is OF: passing a different one would
-    /// compose this document's relative poses onto that one's group
-    /// frames, which is not a pose of either. The door refuses that
-    /// first — a `SolvedPoses` carries the id of the document
-    /// `solve_document` solved, and a mismatch raises `MateError`
-    /// with tag `mate_poses_of_another_document` before any frame is
-    /// read.
+    /// compose this document's poses onto that one's placements, which
+    /// is not a pose of either. The door refuses that first — a
+    /// `SolvedPoses` carries the id of the document `solve_document`
+    /// solved, and a mismatch raises `MateError` with tag
+    /// `mate_poses_of_another_document` before any frame is read.
     ///
-    /// Raises `MateError` when the instance's group did not solve.
+    /// Raises `MateError` when the instance's group did not solve, and
+    /// `EvaluationError` — kind `unplaced`, or `placement_refused` with
+    /// the placement's own refusal as the cause — when nothing places
+    /// its group or a placement on its frame does not evaluate.
     fn placement(
         &self,
         py: Python<'_>,
@@ -1032,7 +1076,7 @@ impl SolvedPoses {
         self.0
             .placement(&doc.inner, instance.0)
             .map(Frame)
-            .map_err(|fault| mate_err(py, &fault))
+            .map_err(|refusal| pose_err(py, *instance, &refusal))
     }
 
     fn __repr__(&self) -> String {
@@ -1074,12 +1118,9 @@ pub(crate) fn solve_document(
     SolvedPoses(d::solve_document(&doc.inner, &reach, tol))
 }
 
-/// The **placement groups**: instances coupled by mates, each
-/// listed with its group's members in document order.
-///
-/// The partition placement is keyed by. A mate-less document's
-/// groups are all singletons, which is why placement stayed
-/// per-instance before mates existed.
+/// The **placement groups**: instances coupled by PLACING mates — both
+/// instances on one gauge — each listed with its group's members in
+/// document order. A mate-less document's groups are all singletons.
 #[pyfunction]
 pub(crate) fn groups(doc: &super::doc::Doc) -> Vec<Vec<NodeId>> {
     d::groups(&doc.inner)
@@ -1088,12 +1129,13 @@ pub(crate) fn groups(doc: &super::doc::Doc) -> Vec<Vec<NodeId>> {
         .collect()
 }
 
-/// An instance's group ROOT: the document-order-first instance of
-/// its group, whose recorded frame places the whole group.
+/// An instance's group ROOT: the earliest member, in document order,
+/// that carries an offset — whose offset on the group's gauge places
+/// the whole group — or the earliest instance when none does or its
+/// gauge chain names a deleted gauge, and the group is unplaced.
 ///
-/// Answers the instance itself for a node that is not in any group,
-/// which is the kernel's own total shape — a singleton is its own
-/// root and a non-instance has no group to be second in.
+/// Answers the node itself for a node that is not a live instance,
+/// which is the kernel's own total shape.
 #[pyfunction]
 pub(crate) fn root_of(doc: &super::doc::Doc, instance: &NodeId) -> NodeId {
     NodeId(d::root_of(&doc.inner, instance.0))
@@ -1128,51 +1170,34 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 
 // ---- The accepted edit's maintenance ----
 
-/// One act of automatic maintenance an accepted edit performed: what
-/// an ordinary edit's motion of the mate graph forced on the placement
-/// registry, or a reference its delete stranded.
+/// One act of automatic maintenance an accepted edit performed: the
+/// offset the mate door cleared, or a reference its delete stranded.
 ///
 /// It rides the accepted edit rather than being an edit of its own —
-/// automatic maintenance is the invariant's own bookkeeping,
-/// deterministic from the edit, so a replay reproduces it and undo
-/// (keeping the prior document) restores it exactly. What the record
-/// adds is VISIBILITY: an absorbed cluster's frame is consumed here,
-/// where a caller can read what was consumed, and a stranded name is
-/// said at the delete rather than at the next evaluation.
+/// automatic maintenance is deterministic from the edit, so a replay
+/// reproduces it and undo (keeping the prior document) restores it
+/// exactly. What the record adds is VISIBILITY: a cleared offset is
+/// said where it was cleared, with the offset it held, and a stranded
+/// name is said at the delete rather than at the next evaluation.
 ///
 /// Payload attributes are present on every arm, `None` where
-/// inapplicable: `survived`, `absorbed`, `absorbed_frame`, `source`,
-/// `target`, `frame`, `gauge` for the four cluster acts; `node` and
-/// `name` for a strand, `name` alone for a `stranded_appearance`,
-/// whose carrier is the appearance store and not a node, and `node`
-/// alone for an `orphaned_declare`, whose subject is the surviving
-/// declaration rather than anything the edit broke.
-/// (`source`/`target` rather than `from`/`to`: `from` is a Python
-/// keyword.)
+/// inapplicable: `node` and `offset` for an `offset_cleared` — a
+/// member of the mate's first operand's group, now placed on the
+/// second's, and the offset it gave up; `node` and `name` for a
+/// strand, `name` alone for a `stranded_appearance`, whose carrier is
+/// the appearance store and not a node, and `node` alone for an
+/// `orphaned_declare`, whose subject is the surviving declaration
+/// rather than anything the edit broke.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Maintenance(pub(crate) d::Maintenance);
 
-impl Maintenance {
-    /// The cluster act this row is, or `None` for a strand — the one
-    /// place the four cluster attributes narrow, so each getter below
-    /// states only which act carries it.
-    fn cluster(&self) -> Option<&d::ClusterMaintenance> {
-        match &self.0 {
-            d::Maintenance::Cluster(act) => Some(act),
-            d::Maintenance::Strand { .. }
-            | d::Maintenance::StrandedAppearance { .. }
-            | d::Maintenance::OrphanedDeclare { .. } => None,
-        }
-    }
-}
-
 #[pymethods]
 impl Maintenance {
-    /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`,
-    /// `strand`, `stranded_appearance` or `orphaned_declare`, the seven
-    /// the stub lists for this attribute. The
-    /// word decides which of the payload attributes below carry.
+    /// The stable tag: `offset_cleared`, `strand`,
+    /// `stranded_appearance` or `orphaned_declare`, the four the stub
+    /// lists for this attribute. The word decides which of the payload
+    /// attributes below carry.
     // The map is `crate::tags::maintenance_tag`, whose words
     // `TAG_INVENTORY` pins.
     #[getter]
@@ -1180,23 +1205,23 @@ impl Maintenance {
         maintenance_tag(&self.0)
     }
 
-    /// The node this row is about: the surviving node whose payload
-    /// carries a stranded name, or the declaration an
-    /// `orphaned_declare` left with no consumer. `None` for a
-    /// `stranded_appearance`, which has no carrying node to name, and
-    /// for the cluster acts, which name gauges through their own
-    /// attributes.
+    /// The node this row is about: the instance whose offset the mate
+    /// door cleared, the surviving node whose payload carries a
+    /// stranded name, or the declaration an `orphaned_declare` left
+    /// with no consumer. `None` for a `stranded_appearance`, which has
+    /// no carrying node to name.
     ///
-    /// The two arms answer different questions with one attribute on
+    /// The arms answer different questions with one attribute on
     /// purpose: each is the node a reader would go and look at, which
     /// is the whole use of the getter. `variant` says which question
     /// was answered.
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match &self.0 {
+            d::Maintenance::OffsetCleared { instance, .. } => Some(NodeId(instance.id())),
             d::Maintenance::Strand { node, .. } => Some(NodeId(node.id())),
             d::Maintenance::OrphanedDeclare { declare } => Some(NodeId(declare.id())),
-            d::Maintenance::Cluster(_) | d::Maintenance::StrandedAppearance { .. } => None,
+            d::Maintenance::StrandedAppearance { .. } => None,
         }
     }
 
@@ -1213,85 +1238,22 @@ impl Maintenance {
             d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
                 super::doc::name_text(py, name.name()).map(Some)
             }
-            d::Maintenance::Cluster(_) | d::Maintenance::OrphanedDeclare { .. } => Ok(None),
-        }
-    }
-
-    /// The gauge that survived a join: the earlier of the two.
-    #[getter]
-    fn survived(&self) -> Option<NodeId> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Join { survived, .. } => Some(NodeId(survived)),
-            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
-        }
-    }
-
-    /// The absorbed cluster's former gauge.
-    #[getter]
-    fn absorbed(&self) -> Option<NodeId> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Join { absorbed, .. } => Some(NodeId(absorbed)),
-            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
-        }
-    }
-
-    /// The absorbed cluster's frame, consumed into this record —
-    /// `None` when the row was absent (the identity).
-    #[getter]
-    fn absorbed_frame(&self) -> Option<Frame> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Join {
-                absorbed_frame: f, ..
-            } => f.map(Frame),
-            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
-        }
-    }
-
-    /// The gauge a split separated FROM, or a rewrite's dead gauge.
-    #[getter]
-    fn source(&self) -> Option<NodeId> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Split { from, .. } | M::GaugeRewrite { from, .. } => Some(NodeId(from)),
-            M::Join { .. } | M::Drop { .. } => None,
-        }
-    }
-
-    /// The new cluster's gauge, or the dead gauge's successor.
-    #[getter]
-    fn target(&self) -> Option<NodeId> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Split { to, .. } | M::GaugeRewrite { to, .. } => Some(NodeId(to)),
-            M::Join { .. } | M::Drop { .. } => None,
-        }
-    }
-
-    /// The minted, rewritten or dropped frame, `None` for the
-    /// identity.
-    #[getter]
-    fn frame(&self) -> Option<Frame> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Split { frame, .. } | M::GaugeRewrite { frame, .. } | M::Drop { frame, .. } => {
-                frame.map(Frame)
+            d::Maintenance::OffsetCleared { .. } | d::Maintenance::OrphanedDeclare { .. } => {
+                Ok(None)
             }
-            // A join CONSUMES a frame rather than minting one, and
-            // names it `absorbed_frame`.
-            M::Join { .. } => None,
         }
     }
 
-    /// The dead gauge whose record went with its last instance.
+    /// The offset the mate door cleared, for an `offset_cleared`.
     #[getter]
-    fn gauge(&self) -> Option<NodeId> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Drop { gauge, .. } => Some(NodeId(gauge)),
-            M::Join { .. } | M::Split { .. } | M::GaugeRewrite { .. } => None,
+    fn offset(&self) -> Option<super::place::Placement> {
+        match &self.0 {
+            d::Maintenance::OffsetCleared { offset, .. } => {
+                Some(super::place::Placement(offset.clone()))
+            }
+            d::Maintenance::Strand { .. }
+            | d::Maintenance::StrandedAppearance { .. }
+            | d::Maintenance::OrphanedDeclare { .. } => None,
         }
     }
 
@@ -1323,5 +1285,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("UNDER_RECOURSE", d::UNDER_RECOURSE)?;
     m.add("CONTRADICTORY_RECOURSE", d::CONTRADICTORY_RECOURSE)?;
     m.add("NO_AT_REST_RECORD_RECOURSE", d::NO_AT_REST_RECORD_RECOURSE)?;
+    m.add("OFFSET_RECOURSE", d::OFFSET_RECOURSE)?;
+    m.add("UNPLACED_RECOURSE", d::UNPLACED_RECOURSE)?;
     Ok(())
 }

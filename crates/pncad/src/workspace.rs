@@ -781,7 +781,6 @@ fn load_fault(error: &PersistError) -> ResolveFault {
         | PersistError::Unreadable { .. }
         | PersistError::Dimension { .. }
         | PersistError::EditReplay { .. }
-        | PersistError::MaintenanceFrame { .. }
         | PersistError::Snapshot(_)
         | PersistError::ToleranceInvalid { .. } => ResolveFault::Unresolved,
     }

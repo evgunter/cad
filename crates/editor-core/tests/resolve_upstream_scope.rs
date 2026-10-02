@@ -679,6 +679,8 @@ fn hand_eval(
     let recomputed = order.len();
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        unplaced: Default::default(),
+        unplaced_below: Default::default(),
         document: doc.id(),
         prior_refused: None,
         order,

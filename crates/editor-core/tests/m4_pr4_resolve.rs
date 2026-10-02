@@ -321,6 +321,8 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     );
     let ev = Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        unplaced: Default::default(),
+        unplaced_below: Default::default(),
         document: doc.id(),
         prior_refused: None,
         order: vec![node],
@@ -752,10 +754,10 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         apply_with_names(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::declare_rest(vec![(
+                node: Box::new(Node::declare_rest(vec![(
                     SitedRef::at_mint(cap_a.clone()),
                     SitedRef::at_mint(cap_b.clone()),
-                )])
+                )]))
             },
             &ev,
             Tol::witness(),
@@ -772,10 +774,10 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     let err = apply_with_names(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::declare_rest(vec![(
+            node: Box::new(Node::declare_rest(vec![(
                 SitedRef::at_mint(cap_a.clone()),
                 SitedRef::at_mint(bogus.clone()),
-            )]),
+            )])),
         },
         &ev,
         Tol::witness(),
@@ -797,10 +799,10 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         apply_with_names(
             &doc2,
             &DocEdit::InsertNode {
-                node: Node::declare_rest(vec![(
+                node: Box::new(Node::declare_rest(vec![(
                     SitedRef::at_mint(cap_a),
                     SitedRef::at_mint(cap_c),
-                )])
+                )]))
             },
             &ev,
             Tol::witness(),
@@ -830,7 +832,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
         apply_with_names(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::fillet(a, len(0.1), vec![rim.clone()])
+                node: Box::new(Node::fillet(a, len(0.1), vec![rim.clone()]))
             },
             &ev,
             Tol::witness(),
@@ -847,7 +849,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let err = apply_with_names(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(a, len(0.1), vec![bogus.clone()]),
+            node: Box::new(Node::fillet(a, len(0.1), vec![bogus.clone()])),
         },
         &ev,
         Tol::witness(),
@@ -1384,6 +1386,8 @@ fn one_node_eval(
     );
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        unplaced: Default::default(),
+        unplaced_below: Default::default(),
         document,
         prior_refused: None,
         order: vec![node],

@@ -2520,11 +2520,11 @@ fn a_fillet_cannot_be_a_loops_closing_corner() {
         let (doc, plane) = insert(doc, fixture::xy_frame());
         let attempt = doc.apply(
             &editor_core::DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane,
                     loops: vec![head(closer.clone())],
                     ids: Vec::new(),
-                }),
+                })),
             },
             tol(),
             &editor_core::RefusingReach,
@@ -2635,11 +2635,11 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
     let applied = doc
         .apply(
             &editor_core::DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane,
                     loops: vec![program],
                     ids: Vec::new(),
-                }),
+                })),
             },
             tol(),
             &editor_core::RefusingReach,

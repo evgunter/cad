@@ -3,10 +3,11 @@
 //!
 //! The edit door reports a stranded payload name, a stranded
 //! appearance key and a declaration left with no consumer on
-//! `Applied::maintenance`; a value edit reports nothing, because a
-//! profile's names are its minted steps and no value moves one. The log keeps only
-//! the cluster acts, because replay re-derives the rest, so the
-//! session's outcome is the one road the other rows have to a user.
+//! `Applied::maintenance`, and a mate that joined two groups reports the
+//! offset it cleared; a value edit reports nothing, because a
+//! profile's names are its minted steps and no value moves one. The log
+//! keeps only the edits, because replay re-derives every row, so the
+//! session's outcome is the one road the rows have to a user.
 //! Each row here drives a real session through one of the viewer's
 //! edit doors, asserts the rows on `OpOutcome::maintenance`, and reads
 //! the status line the frame would compose from that outcome through
@@ -593,20 +594,23 @@ fn an_edit_that_renumbers_nothing_leaves_the_line_to_its_verdict() {
     );
 }
 
-/// **A cluster act rides the outcome and is not worded on the line** —
-/// the one arm `frame::maintenance_notice` holds silent, and the reason
-/// is on that function. Every other arm is its own sentence.
+/// **The mate door's offset clear rides the outcome and is not worded
+/// on the line** — the one arm `frame::maintenance_notice` holds
+/// silent, and the reason is on that function. Every other arm is its
+/// own sentence.
 #[test]
-fn a_cluster_act_is_carried_but_not_worded() {
-    let gauge = RecipeNodeId(tagged(7));
-    let act =
-        Maintenance::Cluster(pncad::document::ClusterMaintenance::Drop { gauge, frame: None });
+fn an_offset_clear_is_carried_but_not_worded() {
+    let minter = RecipeNodeId(tagged(7));
+    let act = Maintenance::OffsetCleared {
+        instance: SpokenNode::absent(RecipeNodeId(tagged(5))),
+        offset: pncad::document::Placement::IDENTITY,
+    };
     assert_eq!(frame::maintenance_notice(&act), None);
     let strand = Maintenance::Strand {
         node: SpokenNode::absent(RecipeNodeId(tagged(3))),
         name: SpokenName::absent(StableName {
             kind: EntityKind::Face,
-            node: gauge,
+            node: minter,
             path: vec![RoleSeg::Lateral(
                 ProfileEdgeRef::Piece {
                     step: StepId(tagged(1)),

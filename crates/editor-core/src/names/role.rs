@@ -1293,10 +1293,16 @@ pub enum RoleSeg {
         /// The source edge whose blend the arc bounds.
         edge: NameRef,
     },
-    /// The torus band face rounding a CLOSED chain (argument: the
-    /// chain's source edges as a sorted set — a rim is a cycle with no
-    /// distinguished first edge, so the SET is the covariant identity;
-    /// the N3 [`RoleSeg::Merged`] precedent, same canonical order).
+    /// The one blend face a chain of several source edges is carved
+    /// into — a CLOSED chain's torus band, or an open fillet's cylinder
+    /// or chamfer's flat strip carved across joints where consecutive
+    /// links lie on the same two faces
+    /// (argument: the chain's source edges as a sorted set — a rim is a
+    /// cycle with no distinguished first edge, and an open chain's walk
+    /// order depends on which link seeded it, so the SET is the
+    /// covariant identity; the N3 [`RoleSeg::Merged`] precedent, same
+    /// canonical order). A one-link open band is a
+    /// [`RoleSeg::BlendFace`].
     BandFace(Vec<StableName>),
     /// A band trimline on one support (a rim edge yields one per
     /// side).
@@ -1603,6 +1609,7 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::PlacedUnion { .. }
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
+        | Node::Gauge { .. }
         | Node::Mate { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,

@@ -75,9 +75,11 @@ fn two_group_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeId>)
     }
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: editor_core::Frame::translation([5.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(
+                &editor_core::Frame::translation([5.0, 0.0, 0.0]),
+            )),
         },
     );
     (store, doc, ids)
@@ -278,9 +280,10 @@ fn row1_split_plain_subtree_preserves_structure() {
         None,
     )
     .expect("legal");
-    assert!(
-        out.remainder.placements().is_empty(),
-        "a plain cut leaves the remainder instance at identity"
+    assert_eq!(
+        fixture::offset_of(&out.remainder, out.instance),
+        Some(editor_core::Placement::IDENTITY),
+        "a plain cut leaves the remainder instance at the empty offset"
     );
 
     let mut store = PartStore::default();
@@ -376,10 +379,10 @@ fn row2_inline_inverts_split_and_undo_restores() {
             "{name:?} re-resolves as {expected:?} after the round trip"
         );
     }
-    // And the restored placement is the original frame, bit for bit.
+    // And the restored offset is the original, bit for bit.
     assert!(
-        inlined.doc.placement(back).bit_eq(&doc.placement(ids[1])),
-        "the round trip restores the group frame exactly"
+        fixture::same_offset(&inlined.doc, back, &doc, ids[1]),
+        "the round trip restores the root's offset exactly"
     );
     let _ = names1;
 }
@@ -758,9 +761,11 @@ fn row3_further_typed_refusals() {
     let (host2, inst2) = insert(host2, Node::instantiate_part(doc_ref));
     let (host2, _) = step(
         host2,
-        DocEdit::SetPlacement {
-            node: inst2,
-            frame: editor_core::Frame::translation([3.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: inst2,
+            offset: Some(editor_core::Placement::literal(
+                &editor_core::Frame::translation([3.0, 0.0, 0.0]),
+            )),
         },
     );
     match inline(&host2, inst2, &resolver, Tol::witness()) {
@@ -783,11 +788,11 @@ fn row3_further_typed_refusals() {
 
 // ---- Row 4: roots and placements, both sides ----
 
-/// Row 4 — the A10/A11 maintenance through the recorded edits
-/// produces the expected root and placement lists on both sides, each
-/// its own assertion.
+/// Row 4 — the A10 maintenance and A4's offset rules, through the
+/// recorded edits, produce the expected roots and offsets on both
+/// sides, each its own assertion.
 #[test]
-fn row4_roots_and_placements_land_as_the_rules_say() {
+fn row4_roots_and_offsets_land_as_the_rules_say() {
     // The hoisted single-group cut.
     let (_, doc, ids) = two_group_assembly("asm4-r4");
     let out = split(
@@ -810,18 +815,17 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
         "the part's root is the cut root"
     );
     assert!(
-        out.remainder
-            .placement(out.instance)
-            .bit_eq(&doc.placement(ids[1])),
-        "the hoisted frame is the group's old frame"
+        fixture::same_offset(&out.remainder, out.instance, &doc, ids[1]),
+        "the hoisted offset is the root's old offset"
     );
-    assert!(
-        out.part.placements().is_empty(),
-        "the hoisted group sits at identity in the part"
+    assert_eq!(
+        fixture::offset_of(&out.part, mapped),
+        Some(editor_core::Placement::IDENTITY),
+        "the hoisted root lands at the empty chain in the part"
     );
 
-    // The multi-group cut: both frames MOVE, the remainder instance
-    // sits at identity, and the part keeps the cut roots' LIST order
+    // The multi-group cut: both offsets MOVE, the remainder instance
+    // sits at the empty offset, and the part keeps the cut roots' LIST order
     // even where insertion order disagrees.
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-r4b-part", 0.0, 1.0), Tol::witness());
@@ -833,9 +837,11 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
         if dx != 0.0 {
             let (next, _) = step(
                 doc2,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: editor_core::Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(
+                        &editor_core::Frame::translation([dx, 0.0, 0.0]),
+                    )),
                 },
             );
             doc2 = next;
@@ -868,21 +874,19 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
         &[out2.node_map[&inst[2]], out2.node_map[&inst[0]]],
         "the part keeps the cut roots' A10 list order"
     );
-    assert!(
-        out2.remainder.placement(out2.instance).is_identity_bits(),
-        "a multi-group cut leaves the remainder instance at identity"
+    assert_eq!(
+        fixture::offset_of(&out2.remainder, out2.instance),
+        Some(editor_core::Placement::IDENTITY),
+        "a multi-group cut leaves the remainder instance at the empty offset"
     );
     assert!(
-        out2.part
-            .placement(out2.node_map[&inst[2]])
-            .bit_eq(&doc2.placement(inst[2])),
-        "the moved frame is verbatim"
+        fixture::same_offset(&out2.part, out2.node_map[&inst[2]], &doc2, inst[2]),
+        "the moved offset is verbatim"
     );
-    assert!(
-        out2.part
-            .placement(out2.node_map[&inst[0]])
-            .is_identity_bits(),
-        "an unplaced cut instance stays unplaced"
+    assert_eq!(
+        fixture::offset_of(&out2.part, out2.node_map[&inst[0]]),
+        Some(editor_core::Placement::IDENTITY),
+        "a cut instance at the empty offset stays there"
     );
 }
 
@@ -1003,9 +1007,11 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
         let (next, i) = insert(doc, Node::instantiate_part(doc_ref));
         let (next, _) = step(
             next,
-            DocEdit::SetPlacement {
-                node: i,
-                frame: editor_core::Frame::translation([dx, 0.0, 0.0]),
+            DocEdit::SetOffset {
+                instance: i,
+                offset: Some(editor_core::Placement::literal(
+                    &editor_core::Frame::translation([dx, 0.0, 0.0]),
+                )),
             },
         );
         doc = next;
@@ -1092,16 +1098,14 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
             "{name:?} re-resolves as {expected:?} after the round trip"
         );
     }
-    // And the moved frames ride verbatim, both hops.
+    // And the moved offsets ride verbatim, both hops.
     assert!(
-        out.part
-            .placement(out.node_map[&i1])
-            .bit_eq(&doc.placement(i1)),
-        "the moved frame is verbatim in the part"
+        fixture::same_offset(&out.part, out.node_map[&i1], &doc, i1),
+        "the moved offset is verbatim in the part"
     );
     assert!(
-        inlined.doc.placement(back(i2)).bit_eq(&doc.placement(i2)),
-        "the round trip restores the frame bit for bit"
+        fixture::same_offset(&inlined.doc, back(i2), &doc, i2),
+        "the round trip restores the offset bit for bit"
     );
 }
 

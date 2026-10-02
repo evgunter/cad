@@ -16,9 +16,10 @@
 //! - **loft**: each segment's wall is its own NURBS surface under its
 //!   own key, so no rung merges them; the boolean refuses the body's
 //!   spline edges before its gate is reached.
-//! - **fillet**: the subdivided rim is a two-link chain whose joint is
-//!   collinear, and the blend door refuses it as unbuilt junction
-//!   carry-through.
+//! - **fillet, chamfer**: the subdivided rim is a two-link chain whose
+//!   joint is collinear. Both links lie on the same two faces (the one
+//!   wall and the cap), so the blend carves them as one band across the
+//!   joint, as built.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -26,9 +27,10 @@ use std::f64::consts::FRAC_PI_2;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{ClosedLoop, Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start};
-use sweep::blend::BlendError;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
 use topo::{Body, BooleanError, EdgeKey, FaceKey, union, validate_closed};
+
+use crate::common::oracles;
 
 /// `[0,2]²` whose bottom side is authored as `line(1)` and then the
 /// straight continuation to `(2, 0)`: five vertices, four corners, and
@@ -91,6 +93,22 @@ fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
         body.get_surface(key_of(body, f)),
         Some(geom::Surface::Plane { .. })
     )
+}
+
+/// The one face of `body` all of whose vertices satisfy `on`.
+fn face_on(body: &Body<f64>, on: impl Fn(Point3<f64>) -> bool) -> FaceKey {
+    let hits: Vec<FaceKey> = body
+        .faces()
+        .map(|(f, _)| f)
+        .filter(|f| {
+            body.vertices().all(|(v, vd)| {
+                let touches = body.faces_of_vertex(v).is_some_and(|fs| fs.contains(f));
+                !touches || on(*body.get_point(vd.point).unwrap())
+            })
+        })
+        .collect();
+    assert_eq!(hits.len(), 1, "exactly one face lies there");
+    hits[0]
 }
 
 fn volume(body: &Body<f64>, t: Tol) -> f64 {
@@ -246,26 +264,160 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
     );
 }
 
-/// **Fillet: the subdivided rim is a two-link chain.** Every edge of
-/// the prism requested at once refuses as unbuilt junction
-/// carry-through: the one wall keeps the continuation's rim vertices.
-/// The plain cube's twelve edges, the same request without the
-/// subdivision, build.
-#[test]
-fn subdivided_rim_fillet_refuses_as_junction_carry_through() {
-    let t = Tol::witness();
-    let plain = cube_at(0.0, 0.0, 0.0, 2.0);
-    let all: Vec<_> = plain.edges().map(|(k, _)| k).collect();
-    let f = sweep::fillet::fillet_edges(&plain, &all, 0.25, t).unwrap();
-    assert_eq!(topo::validate_geometric(&f.body, t), Ok(()));
+/// The blend radius the rows below request.
+const R: f64 = 0.25;
 
+/// **Fillet and chamfer: a subdivided rim is ONE band across its
+/// joint.** Every edge of the prism as built — the twelve cube edges,
+/// two of them split at the continuation's rim vertices — blends as
+/// the plain cube does, the two halves of each split rim carved as one
+/// band face whose trimlines carry the joint's feet. Its volume is the
+/// plain cube's closed form for both verbs. (The extrusion builds one
+/// wall over the run, so both halves already lie on the same two faces;
+/// no merge is needed first.)
+#[test]
+fn subdivided_rim_blends_as_one_band_as_built() {
+    let t = Tol::witness();
     let ex = subdivided_prism(t);
-    let req: Vec<_> = ex.body.edges().map(|(k, _)| k).collect();
+    // One wall over the run, as built: there is no strut at the
+    // continuation and nothing for the merge to do.
+    let mut merged = ex.body.clone();
+    assert!(merged.merge_coplanar_faces(t).unwrap().groups.is_empty());
+    let req: Vec<_> = merged.edges().map(|(k, _)| k).collect();
     assert_eq!(req.len(), 14, "12 cube edges + the split rims");
-    let err = sweep::fillet::fillet_edges(&ex.body, &req, 0.25, t).unwrap_err();
-    assert!(
-        matches!(err.error, BlendError::UnsupportedChain { detail, .. }
-            if detail.contains("junction carry-through")),
-        "{err}"
+    let joints: Vec<topo::VertexKey> = merged
+        .vertices()
+        .map(|(v, _)| v)
+        .filter(|v| merged.edges_of_vertex(*v).is_some_and(|es| es.len() == 2))
+        .collect();
+    assert_eq!(joints.len(), 2, "the continuation's two rim vertices");
+
+    let f = sweep::fillet::fillet_edges(&merged, &req, R, t).expect("the merged prism fillets");
+    assert_eq!(validate_closed(&f.body), Ok(()), "fillet: tier 2");
+    assert_eq!(
+        topo::validate_geometric(&f.body, t),
+        Ok(()),
+        "fillet: tier 3"
     );
+    // The plain cube's 26 faces, 48 edges and 24 vertices, plus each
+    // joint's two feet, each splitting one trimline.
+    assert_eq!(f.body.faces().count(), 26, "fillet: faces");
+    assert_eq!(f.body.edges().count(), 52, "fillet: edges");
+    assert_eq!(f.body.vertices().count(), 28, "fillet: vertices");
+    assert_eq!(
+        f.blend_faces.len(),
+        12,
+        "one band per chain, as on the cube"
+    );
+    assert_eq!(f.corner_faces.len(), 8);
+    let rec = f.naming.as_ref().expect("birth records");
+    assert_eq!(rec.joined_blends.len(), 2, "the two split rims");
+    for (band, edges) in &rec.joined_blends {
+        assert_eq!(edges.len(), 2, "one band over both halves");
+        assert!(
+            matches!(
+                f.body.get_surface(key_of(&f.body, *band)),
+                Some(geom::Surface::Cylinder { .. })
+            ),
+            "a straight band is one cylinder"
+        );
+    }
+    for v in &joints {
+        assert!(rec.dead.vertices.contains(v), "the joint is retired");
+        assert_eq!(
+            rec.feet.iter().filter(|(_, src, _)| src == v).count(),
+            2,
+            "a joint leaves a foot on each support"
+        );
+    }
+    sweep::test_support::assert_naming_totality(&merged, &f, &req, "merged fillet");
+    // A filleted cube of side `a` is the shrunk cube swept by the ball.
+    let want = oracles::rounded_box_volume(2.0 - 2.0 * R, R);
+    let got = volume(&f.body, t);
+    assert!(
+        (got - want).abs() <= 1e-12 * want,
+        "fillet: {got} vs {want}"
+    );
+    // And the result is a maximal-faced operand: the boolean's gates —
+    // F7's among them — pass it, and a disjoint union adds the cube.
+    let u = union(&f.body, &cube_at(5.0, 5.0, 5.0, 1.0), t).expect("the band is maximal");
+    let got = volume(&u.body().expect("non-empty").body, t);
+    assert!(
+        (got - (want + 1.0)).abs() <= 1e-12 * want,
+        "fillet ∪ far cube: {got} vs {}",
+        want + 1.0
+    );
+
+    let c = sweep::chamfer::chamfer_edges(&merged, &req, R, t).expect("the merged prism chamfers");
+    assert_eq!(validate_closed(&c.body), Ok(()), "chamfer: tier 2");
+    assert_eq!(
+        topo::validate_geometric(&c.body, t),
+        Ok(()),
+        "chamfer: tier 3"
+    );
+    assert_eq!(c.body.faces().count(), 26, "chamfer: faces");
+    assert_eq!(c.body.edges().count(), 52, "chamfer: edges");
+    assert_eq!(c.body.vertices().count(), 28, "chamfer: vertices");
+    let want = oracles::chamfered_cube_volume(2.0, R);
+    let got = volume(&c.body, t);
+    assert!(
+        (got - want).abs() <= 1e-12 * want,
+        "chamfer: {got} vs {want}"
+    );
+}
+
+/// **A boolean's merged faces carry the same joint.** Two flush unit
+/// cubes unioned into a `2 × 1 × 1` box, their touching faces and
+/// coplanar sides declared: each long side is one face, but the merge
+/// keeps the vertices where the operands' rims met, so
+/// each of the four long edges is two collinear links on the same two
+/// faces. Every edge fillets, each long edge as one band, at the
+/// rounded box's closed form.
+#[test]
+fn a_union_of_flush_cubes_fillets_its_split_rims_as_one_band() {
+    let t = Tol::witness();
+    let (ca, cb) = (cube_at(0.0, 0.0, 0.0, 1.0), cube_at(1.0, 0.0, 0.0, 1.0));
+    // The touching pair, and the four pairs of coplanar sides the
+    // union's merge stage glues once declared.
+    let x1 = |p: Point3<f64>| p.x == 1.0;
+    let mut decls = topo::BooleanDeclarations::none();
+    decls.coincident_faces.push(topo::FacePairDeclaration::rest(
+        face_on(&ca, x1),
+        face_on(&cb, x1),
+    ));
+    let sides: [fn(Point3<f64>) -> bool; 4] = [
+        |p| p.y == 0.0,
+        |p| p.y == 1.0,
+        |p| p.z == 0.0,
+        |p| p.z == 1.0,
+    ];
+    for side in sides {
+        decls.coincident_faces.push(topo::FacePairDeclaration::rest(
+            face_on(&ca, side),
+            face_on(&cb, side),
+        ));
+    }
+    let r = topo::union_with(&ca, &cb, &decls, t).expect("flush cubes union");
+    let body = &r.body().expect("non-empty").body;
+    assert_eq!(body.faces().count(), 6, "the merged box has six faces");
+    let req: Vec<_> = body.edges().map(|(k, _)| k).collect();
+    assert_eq!(req.len(), 16, "12 box edges, the four long ones split");
+
+    let f = sweep::fillet::fillet_edges(body, &req, R, t).expect("the union fillets");
+    assert_eq!(topo::validate_geometric(&f.body, t), Ok(()), "tier 3");
+    assert_eq!(f.blend_faces.len(), 12, "one band per box edge");
+    let rec = f.naming.as_ref().expect("birth records");
+    assert_eq!(rec.joined_blends.len(), 4, "the four long edges");
+    sweep::test_support::assert_naming_totality(body, &f, &req, "union fillet");
+    // The shrunk box `a × b × c` swept by the ball: core, six slabs,
+    // twelve quarter-cylinders summing to `π r² (a + b + c)`, and one
+    // ball's worth of octants.
+    let (a, b, c) = (2.0 - 2.0 * R, 1.0 - 2.0 * R, 1.0 - 2.0 * R);
+    let pi = core::f64::consts::PI;
+    let want = a * b * c
+        + 2.0 * R * (a * b + b * c + c * a)
+        + pi * R * R * (a + b + c)
+        + (4.0 / 3.0) * pi * R.powi(3);
+    let got = volume(&f.body, t);
+    assert!((got - want).abs() <= 1e-12 * want, "{got} vs {want}");
 }

@@ -166,6 +166,9 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     /// D-5): every instance's pose relative to its group root, and
     /// every mate's role.
     pub poses: &'a crate::mate::SolvedPoses,
+    /// The nodes whose inputs lie in two spaces, each naming the
+    /// unplaced group it would compare (`mate::solve::spaces_of`).
+    pub across: &'a std::collections::BTreeMap<RecipeNodeId, (RecipeNodeId, crate::mate::Unplaced)>,
     /// Where profile geometry comes from, and over which environment.
     pub lane: LaneEnv<'a, T>,
 }
@@ -336,9 +339,21 @@ where
         Node::InstantiatePart {
             doc_ref, interface, ..
         } => {
-            let placement = env.poses.placement(doc, id).map_err(NodeErrorKind::Mate)?;
-            wire_instantiate_part(id, doc_ref, interface, placement, env, tol)
+            if let Some(fault) = env.poses.fault(id) {
+                return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
+            }
+            let frame = instance_frame(doc, id, env.poses, env.lane.params, tol)?
+                .unwrap_or(crate::placement::Motion::Identity);
+            let pose = env.poses.pose(id).unwrap_or(crate::mate::solve::Pose {
+                left: None,
+                right: crate::placement::Frame::IDENTITY,
+            });
+            let map = pose.compose_around(frame).non_identity();
+            wire_instantiate_part(id, doc_ref, interface, map, env, tol)
         }
+        // A gauge DENOTES NO BODY (A11 (2)): its slots evaluated above,
+        // and the instances on it read where it sits.
+        Node::Gauge { .. } => Ok(OpOut::plain(ValuePayload::Gauge, names::empty())),
         // A mate DENOTES NO BODY (A12): it evaluates to its role in
         // the solve. A refusing mate fails here rather than at the
         // instance it would have placed, so the message names the mate.
@@ -356,6 +371,39 @@ where
     }
 }
 
+/// **The frame an instance's group sits in, in this lane** (A11 (5)):
+/// its gauge chain composed with its group root's offset, evaluated at
+/// `env`; the identity in an unplaced group's own space. `None` for a
+/// node that is not a posed instance — the solve's own fault is the
+/// op's to raise.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::PlacementRefused`] carrying the refusal of the
+/// gauge or root offset that did not evaluate.
+pub(crate) fn instance_frame<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    id: RecipeNodeId,
+    poses: &crate::mate::SolvedPoses,
+    env: &crate::expr::ParamEnv<T>,
+    tol: Tol,
+) -> Result<Option<crate::placement::Motion<T>>, NodeErrorKind> {
+    if poses.fault(id).is_some() {
+        return Ok(None);
+    }
+    let (Some(space), Some(root)) = (poses.space(id), poses.root(id)) else {
+        return Ok(None);
+    };
+    if let crate::mate::Space::Own { .. } = space {
+        return Ok(Some(crate::placement::Motion::Identity));
+    }
+    let band = geom_core::predicate::Band::linear(tol)
+        .map_err(|error| NodeErrorKind::Mate(Box::new(crate::mate::MateFault::Band { error })))?;
+    crate::mate::solve::group_frame(doc, root, env, band)
+        .map(Some)
+        .map_err(|(node, error)| NodeErrorKind::PlacementRefused { node, error })
+}
+
 /// ASM-2A D-3: materialize an instance through the shipped doors.
 ///
 /// Resolve (memoized per reference), take the referenced document's A10
@@ -367,7 +415,7 @@ fn wire_instantiate_part<T>(
     id: RecipeNodeId,
     doc_ref: &crate::ident::DocRef,
     interface: &crate::node::InterfaceRecord,
-    placement: crate::placement::Frame,
+    map: Option<geom_core::Affine3<T>>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
@@ -408,10 +456,9 @@ where
         }
     }
     // The identity fast-path is the composition rule's
-    // (`placement::Motion`): admitted only for a BIT-exact identity
-    // frame, since any other value could round, and `transform_rigid`
-    // is what decides whether it stayed rigid.
-    let map = placement.motion::<T>().non_identity();
+    // (`placement::Motion`): taken only for a BIT-exact identity, since
+    // any other value could round, and `transform_rigid` is what
+    // decides whether it stayed rigid.
     let placed = place(&part.body, map.as_ref(), Placing::of(id, 0, 1, 0)?, tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN declared contacts survive
@@ -423,7 +470,9 @@ where
     let carried = crate::assembly::CarriedDeclarations {
         minted: carry_up(
             &part.minted,
-            part.carried.iter().map(|r| (&r.route, &r.declaration)),
+            part.carried
+                .iter()
+                .map(|r| (&r.route, r.declaration.clone())),
             id,
             doc_ref.id,
         )
@@ -431,11 +480,27 @@ where
         .collect(),
         unminted: carry_up(
             &part.unminted,
-            part.carried_unminted.iter().map(|r| (&r.route, &r.refusal)),
+            part.carried_unminted
+                .iter()
+                .map(|r| (&r.route, r.refusal.clone())),
             id,
             doc_ref.id,
         )
         .map(|(route, refusal)| crate::assembly::CarriedRefusal { route, refusal })
+        .collect(),
+        unplaced: carry_up(
+            &part.unplaced,
+            part.carried_unplaced
+                .iter()
+                .map(|r| (&r.route, (r.group, r.cause))),
+            id,
+            doc_ref.id,
+        )
+        .map(|(route, (group, cause))| crate::assembly::CarriedUnplaced {
+            route,
+            group,
+            cause,
+        })
         .collect(),
     };
     Ok(OpOut {
@@ -457,7 +522,7 @@ where
 /// one route rule.
 fn carry_up<'a, P: Clone + 'a>(
     own: &'a [P],
-    below: impl Iterator<Item = (&'a crate::assembly::Route, &'a P)> + 'a,
+    below: impl Iterator<Item = (&'a crate::assembly::Route, P)> + 'a,
     node: RecipeNodeId,
     of: crate::ident::DocumentId,
 ) -> impl Iterator<Item = (crate::assembly::Route, P)> + 'a {
@@ -472,7 +537,7 @@ fn carry_up<'a, P: Clone + 'a>(
                 payload.clone(),
             )
         })
-        .chain(below.map(move |(route, payload)| (route.through_instance(node), payload.clone())))
+        .chain(below.map(move |(route, payload)| (route.through_instance(node), payload)))
 }
 
 /// Stamps every UNSOURCED description of `body` with this node's
@@ -4569,7 +4634,7 @@ mod route_tests {
             let applied = doc
                 .apply(
                     &DocEdit::InsertNode {
-                        node: Node::declare_rest(Vec::new()),
+                        node: Box::new(Node::declare_rest(Vec::new())),
                     },
                     Tol::witness(),
                     &crate::mate::RefusingReach,

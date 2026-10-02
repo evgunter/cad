@@ -11,9 +11,9 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, LoggedEdit,
-    Maintenance, Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SitedRef, SnapshotError,
-    SplitError, content_pin, evaluate, inline, load, save, split,
+    CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
+    Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SitedRef, SnapshotError, SplitError,
+    content_pin, evaluate, inline, load, save, split,
 };
 use fixture::resolver::PartStore;
 use fixture::{die, insert, len, on_frame, square, step};
@@ -182,12 +182,9 @@ fn a_label_survives_save_and_load_and_replays_from_the_log() {
     assert_eq!(loaded.doc.label(extrude), Some(&label("base plate")));
     assert!(loaded.doc.bit_eq(&labelled), "the snapshot round-trips");
 
-    let edits = [LoggedEdit {
-        edit: DocEdit::SetLabel {
-            node: extrude,
-            label: Some(label("base plate")),
-        },
-        maintenance: Vec::new(),
+    let edits = [DocEdit::SetLabel {
+        node: extrude,
+        label: Some(label("base plate")),
     }];
     let logged = load(&save(&doc, &edits, tol).expect("saves"), tol).expect("loads");
     assert_eq!(
@@ -369,10 +366,10 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
     let twice = refusal(
         &doc,
         DocEdit::InsertNode {
-            node: Node::Union {
+            node: Box::new(Node::Union {
                 members: vec![extrude, extrude],
                 declare: None,
-            },
+            }),
         },
     );
     let EditError::DuplicateInput { node, input } = &twice else {
@@ -760,9 +757,11 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
 
     let (placed, _) = step(
         host.clone(),
-        DocEdit::SetPlacement {
-            node: inst,
-            frame: editor_core::Frame::translation([3.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: inst,
+            offset: Some(editor_core::Placement::literal(
+                &editor_core::Frame::translation([3.0, 0.0, 0.0]),
+            )),
         },
     );
     let refused = inline(&placed, inst, &resolver, tol).expect_err("a placed plain part");
@@ -775,10 +774,9 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
         "the root is the part's, spoken from the part"
     );
     assert!(
-        refused.to_string().contains(&format!(
-            "the part's root Extrude \"bracket\" ({})",
-            tag(body.0)
-        )),
+        refused
+            .to_string()
+            .contains(&format!("part root Extrude \"bracket\" ({})", tag(body.0))),
         "{refused}"
     );
 
@@ -804,4 +802,179 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
             tag(by.0)
         )
     );
+}
+
+/// **The analysis doors speak the node they refuse about** from the
+/// document they were handed, and a report's human form speaks its
+/// nodes from the document its caller hands `render`, at the moment of
+/// rendering: a rename between two renders shows in the second. The
+/// goldening form keeps the full id, and no label.
+#[test]
+fn the_analysis_doors_and_reports_speak_the_labelled_node() {
+    use editor_core::range::{RangeField, RangeSeed, derive};
+    use editor_core::{
+        LeafHistogram, LiftRefusal, MassBasis, McMeasure, McRefusal, McReport, ParamBox, ParamName,
+        Sensitivity, SensitivityOutcome, SlotId, StackupRefusal, render_sensitivity, sensitivities,
+    };
+
+    let doc = ProfileDoc::empty_derived("node-labels-analysis", Tol::witness());
+    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, profile, Some("sketch"));
+    let doc = set_label(doc, extrude, Some("base plate"));
+    let (p, e) = (tag(profile.0), tag(extrude.0));
+    let plate = format!("Extrude \"base plate\" ({e})");
+
+    let unknown_slot = derive(
+        &doc,
+        &RangeField::Slot {
+            node: extrude,
+            slot: SlotId::Radius,
+        },
+        RangeSeed::symmetric(0.25),
+        Tol::witness(),
+    )
+    .expect_err("an extrude carries no radius slot");
+    assert!(
+        unknown_slot
+            .to_string()
+            .starts_with(&format!("{plate} carries no ")),
+        "{unknown_slot}"
+    );
+
+    let not_a_measure = sensitivities(&doc, extrude, None, None, false, Tol::witness())
+        .expect_err("an extrude is not a measure");
+    assert_eq!(
+        not_a_measure.to_string(),
+        format!("{plate} is not a Measure node")
+    );
+
+    let pinned = Sensitivity {
+        document: doc.id(),
+        param: ParamName::new("w").expect("an identifier"),
+        outcome: SensitivityOutcome::Unliftable {
+            node: extrude,
+            refusal: LiftRefusal::PinnedSection {
+                section: profile,
+                param: ParamName::new("w").expect("an identifier"),
+            },
+        },
+    };
+    assert_eq!(
+        render_sensitivity(&pinned, &doc),
+        format!(
+            "unliftable at {plate}: w feeds the section of Profile \"sketch\" ({p}), which \
+             stays f64 (C6/D9)"
+        )
+    );
+
+    // The raise sites below hold the document; a value built here with
+    // the spoken node they build says what their sentences say.
+    assert_eq!(
+        McRefusal::NominalDoesNotBuild {
+            node: doc.spoken(extrude),
+            cause: "a cause".to_owned(),
+        }
+        .to_string(),
+        format!(
+            "the document does not build at its nominal ({plate}), so there is nothing to \
+             replay: a cause"
+        )
+    );
+    assert_eq!(
+        StackupRefusal::MeasureRefusedAtNominal {
+            node: doc.spoken(extrude),
+            cause: "a cause".to_owned(),
+        }
+        .to_string(),
+        format!("{plate} refuses at the nominal build, so there is no nominal to report: a cause")
+    );
+    assert!(
+        StackupRefusal::LeafDiverged {
+            leaf: Box::new(ParamBox::from_axes(Default::default())),
+            node: doc.spoken(extrude),
+            cause: "a cause".to_owned(),
+        }
+        .to_string()
+        .starts_with(&format!(
+            "a certified leaf tied to this build by its content keys refused at {plate} on \
+             replay"
+        ))
+    );
+
+    let mc = McReport {
+        document: doc.id(),
+        samples: 4,
+        seed: 7,
+        measures: vec![McMeasure {
+            node: extrude,
+            mean: 1.0,
+            sigma: 0.0,
+            min: 1.0,
+            max: 1.0,
+            measured: 4,
+            unmeasured: 0,
+        }],
+        assertions: Vec::new(),
+        outside_box: 0.0,
+    };
+    let histogram = LeafHistogram {
+        document: doc.id(),
+        measurement: extrude,
+        rows: Vec::new(),
+        uncovered: Ok(0.0),
+        basis: MassBasis::Priced,
+    };
+    assert!(
+        mc.render(&doc).contains(&format!("  {plate}: mean 1 ")),
+        "{}",
+        mc.render(&doc)
+    );
+    assert!(
+        histogram
+            .render(&doc)
+            .starts_with(&format!("ADVISORY leaf-mass histogram of {plate} — ")),
+        "{}",
+        histogram.render(&doc)
+    );
+    let renamed = set_label(doc, extrude, Some("lid"));
+    let lid = format!("Extrude \"lid\" ({e})");
+    assert!(mc.render(&renamed).contains(&format!("  {lid}: mean")));
+    assert!(histogram.render(&renamed).contains(&lid));
+    let full = extrude.full().to_string();
+    for golden in [mc.serialize(), histogram.serialize()] {
+        assert!(
+            golden.contains(&full) && !golden.contains("base plate"),
+            "the goldening form keeps the full id and no label: {golden}"
+        );
+    }
+}
+
+/// **A report renders only from the document it was taken of.** Ids are
+/// not document-scoped, so another document can hold the same id as a
+/// different node; rendering from it fails loud rather than naming that
+/// node.
+#[test]
+#[should_panic(expected = "its node ids would name another document's nodes")]
+fn a_report_rendered_from_another_document_fails_loud() {
+    use editor_core::{ParamName, Sensitivity, SensitivityOutcome, render_sensitivity};
+    let doc = ProfileDoc::empty_derived("node-labels-taken-of", Tol::witness());
+    let (doc, [_, _, extrude]) = block(doc, 0.0);
+    let other = ProfileDoc::empty_derived("node-labels-another", Tol::witness());
+    let (other, [_, _, same]) = block(other, 0.0);
+    assert_eq!(
+        extrude, same,
+        "the two documents hold one id as two nodes: the hazard this guards"
+    );
+    let entry = Sensitivity {
+        document: doc.id(),
+        param: ParamName::new("w").expect("an identifier"),
+        outcome: SensitivityOutcome::Unliftable {
+            node: extrude,
+            refusal: editor_core::LiftRefusal::PinnedSection {
+                section: extrude,
+                param: ParamName::new("w").expect("an identifier"),
+            },
+        },
+    };
+    let _ = render_sensitivity(&entry, &other);
 }

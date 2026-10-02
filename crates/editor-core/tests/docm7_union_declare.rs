@@ -602,10 +602,10 @@ fn the_edit_door_refuses_a_union_declare_that_is_not_a_declare() {
     let (doc, far) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let refused = doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Union {
+            node: Box::new(Node::Union {
                 members: vec![a, b],
                 declare: Some(far),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -671,10 +671,10 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     let future = fixture::next_mint(&doc);
     let refused = doc.apply(
         &DocEdit::InsertNode {
-            node: Node::declare_rest(vec![(
+            node: Box::new(Node::declare_rest(vec![(
                 SitedRef::new(a, fname(future, wall(&doc, a, 0))),
                 SitedRef::new(b, fname(b, wall(&doc, b, 0))),
-            )]),
+            )])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -698,7 +698,7 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     ] {
         let refused = doc.apply(
             &DocEdit::InsertNode {
-                node: Node::declare_rest(vec![sides]),
+                node: Box::new(Node::declare_rest(vec![sides])),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -978,7 +978,9 @@ fn a_declared_unions_document_replays_in_document_order() {
         let node = crate::fixture::as_authored(doc.node(*id).expect("a live node"));
         replay = replay
             .apply(
-                &DocEdit::InsertNode { node },
+                &DocEdit::InsertNode {
+                    node: Box::new(node),
+                },
                 Tol::witness(),
                 &editor_core::RefusingReach,
             )

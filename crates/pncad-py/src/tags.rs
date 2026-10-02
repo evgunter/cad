@@ -64,8 +64,8 @@
 //! may speak one word for two unrelated things and neither has to
 //! remark on it: `band` is minted by sixteen maps and `escalated` by
 //! ten, for refusals with nothing in common but the English word;
-//! `join` is a phase of a boolean, a phase of a split op AND an act
-//! of cluster maintenance; `empty` is a band with no width and the
+//! `join` is a phase of a boolean and a phase of a split op; `empty`
+//! is a band with no width and the
 //! residual subgroup that no motion satisfies. A caller reads a word
 //! off ONE attribute of one type, never off this file, so a
 //! coincidence between two attributes is not a collision and pinning
@@ -131,13 +131,14 @@ use pncad::analysis::{
 use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
-    ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
-    EditError, EvalError, FacePoseRefusal, FaceRefusal, FrameFault, InlineError, InterfaceCrossing,
-    LeverRefusal, Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
-    MetaVersionError, MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
+    DimensionError, Distribution, DistributionFault, DistributionField, EditError, EvalError,
+    FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
+    MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
+    MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError,
     PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
     RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError,
-    SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, UpdateError,
+    SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced,
+    UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -314,6 +315,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
+        R::AcrossSpaces { .. } => "across_spaces",
         _ => unmirrored_select_tag(UnmirroredSelect::Refusal),
     }
 }
@@ -601,7 +603,12 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // not per wrapper: which invariant broke is what a caller
         // branches on.
         EditError::Roots(fault) => root_fault_tag(fault),
-        EditError::PlacementOnNonInstance { .. } => "placement_on_non_instance",
+        EditError::OffsetOnNonInstance { .. } => "offset_on_non_instance",
+        EditError::GaugeOnNonPlaced { .. } => "gauge_on_non_placed",
+        EditError::GaugeNotLive { .. } => "gauge_not_live",
+        EditError::NotAGauge { .. } => "not_a_gauge",
+        EditError::GaugeCycle { .. } => "gauge_cycle",
+        EditError::WouldStartPlacing { .. } => "would_start_placing",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
@@ -617,8 +624,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // The solve's own per-mate admission, met at the door: the
         // word is the door's, the fault's word rides `inner_variant`.
         EditError::MateRefused { .. } => "mate_refused",
-        EditError::MaintenanceRefused { .. } => "maintenance_refused",
-        EditError::MaintenanceUnrecorded { .. } => "maintenance_unrecorded",
     }
 }
 
@@ -1014,8 +1019,15 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
         C::MateSelf => "mate_self",
         C::MateUnleverable => "mate_unleverable",
+        // A checked offset's two faults: the statement refuted, or
+        // not decidable — different recourses.
+        C::MateOffsetDisagrees => "mate_offset_disagrees",
+        C::MateOffsetUnchecked => "mate_offset_unchecked",
         C::MateFaceUnresolved => "mate_face_unresolved",
         C::CrossingUnverified => "crossing_unverified",
+        // A node reading an unplaced group's space beside another.
+        C::Unplaced => "unplaced",
+        C::PlacementRefused => "placement_refused",
     }
 }
 
@@ -1134,6 +1146,10 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Part { .. } => None,
         NodeErrorKind::Mate(_) => None,
         NodeErrorKind::CrossingUnverified { .. } => None,
+        NodeErrorKind::Unplaced { .. } => None,
+        // The placement's own refusal is a whole `NodeErrorKind`: its
+        // word is the arm, as for `PlacementAxis`.
+        NodeErrorKind::PlacementRefused { error, .. } => Some(node_error_tag(error.kind().class())),
         NodeErrorKind::MeasureRefResolve { error } => Some(resolve_error_tag(error)),
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Some(interrogate_error_tag(error)),
         NodeErrorKind::MeasureNonFinite { source } => Some(eval_error_tag(source)),
@@ -1172,17 +1188,10 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         // says which of the three ways the D7 producer convention was
         // broken rather than which door broke it.
         EditError::MetaUnversioned { error, .. } => Some(meta_version_error_tag(error)),
-        // The maintenance's refusal carries the prior solve's own
-        // fault, when it recorded one: that fault's word is the arm.
-        EditError::MaintenanceRefused {
-            fault: Some(fault), ..
-        } => Some(mate_fault_tag(fault)),
-        EditError::MaintenanceRefused { fault: None, .. } => None,
         // The admission's refusal IS the solve's fault about the mate,
         // so its word is the fault's — the recourse a caller branches
         // on is the mate fault's own.
         EditError::MateRefused { fault, .. } => Some(mate_fault_tag(fault)),
-        EditError::MaintenanceUnrecorded { .. } => None,
         EditError::Roots(_) => None,
         EditError::UnknownNode { .. } => None,
         EditError::UnresolvedInput { .. } => None,
@@ -1237,7 +1246,12 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::MetaNonFinite { .. } => None,
         EditError::MetaNotSet { .. } => None,
         EditError::RebindMetadataCollision { .. } => None,
-        EditError::PlacementOnNonInstance { .. } => None,
+        EditError::OffsetOnNonInstance { .. } => None,
+        EditError::GaugeOnNonPlaced { .. } => None,
+        EditError::GaugeNotLive { .. } => None,
+        EditError::NotAGauge { .. } => None,
+        EditError::GaugeCycle { .. } => None,
+        EditError::WouldStartPlacing { .. } => None,
         EditError::PlacementRuleMismatch { .. } => None,
         EditError::EmptyPlacementList { .. } => None,
         EditError::ImproperPlacement { .. } => None,
@@ -1764,17 +1778,26 @@ pub fn reach_refusal_tag(refusal: &ReachRefusal) -> &'static str {
     }
 }
 
-/// The stable tag for what a frame fails to be a placement
-/// (`Frame::placement_fault`): the word `PersistError`'s
-/// `maintenance_frame` arm publishes on `inner_variant` — a recorded
-/// maintenance row's frame held to the `SetPlacement` door's rule at
-/// load. Exhaustive so a new way for a frame to fail arrives here as
-/// a compile error.
-pub fn frame_fault_tag(fault: &FrameFault) -> &'static str {
-    match fault {
-        FrameFault::NonFinite => "non_finite",
-        FrameFault::Improper { .. } => "improper",
-        FrameFault::NotRigid { .. } => "not_rigid",
+/// The stable tag for why a group is unplaced (A11 (2)): no member
+/// carries an offset, or its gauge chain names a deleted gauge.
+pub fn unplaced_tag(cause: &Unplaced) -> &'static str {
+    match cause {
+        Unplaced::NoOffset => "no_offset",
+        Unplaced::DeadGauge { .. } => "dead_gauge",
+    }
+}
+
+/// The stable tag for why a checked offset could not be checked — the
+/// inner arm of [`mate_fault_tag`]'s `mate_offset_unchecked`: a
+/// placement the check reads did not evaluate, the member's part reach
+/// is not in hand, the check landed in the ambiguity band, or a refused
+/// mate leaves the member with no pose.
+pub fn offset_check_tag(cause: &OffsetCheck) -> &'static str {
+    match cause {
+        OffsetCheck::Placement { .. } => "placement_refused",
+        OffsetCheck::Unleverable(_) => "unleverable",
+        OffsetCheck::Indeterminate(_) => "indeterminate",
+        OffsetCheck::Unreached { .. } => "unreached",
     }
 }
 
@@ -1860,11 +1883,13 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         // through: a root fault is the same fact here as at the edit
         // door, so it keeps the tag it has there.
         SnapshotError::Roots(fault) => root_fault_tag(fault),
-        SnapshotError::PlacementSite { .. } => "placement_site",
+        // A gauge reference naming a live non-gauge, or a gauge that
+        // would sit on itself — the edit door's two words for it.
+        SnapshotError::NotAGauge { .. } => "not_a_gauge",
+        SnapshotError::GaugeCycle { .. } => "gauge_cycle",
         SnapshotError::PlacementNonFinite { .. } => "placement_non_finite",
         SnapshotError::PlacementImproper { .. } => "placement_improper",
         SnapshotError::PlacementNonRigid { .. } => "placement_non_rigid",
-        SnapshotError::PlacementNotGauge { .. } => "placement_not_gauge",
         SnapshotError::MateAlignment { .. } => "mate_alignment",
         SnapshotError::PlacementRule { .. } => "placement_rule",
         SnapshotError::MeasureRefs { .. } => "measure_refs",
@@ -1899,7 +1924,6 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         PersistError::Dimension { .. } => "dimension",
         PersistError::Snapshot(_) => "snapshot",
         PersistError::EditReplay { .. } => "edit_replay",
-        PersistError::MaintenanceFrame { .. } => "maintenance_frame",
         PersistError::ToleranceConflict { .. } => "tolerance_conflict",
         PersistError::ToleranceInvalid { .. } => "tolerance_invalid",
     }
@@ -2075,6 +2099,8 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         E::EmptyBoolean { .. } => "empty_boolean",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
+        E::Unplaced { .. } => "unplaced",
+        E::UnplacedBelow { .. } => "unplaced_below",
     }
 }
 
@@ -2089,6 +2115,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::RootPoisoned => "root_poisoned",
         K::PlacedUnderTwoRoots => "placed_under_two_roots",
         K::NoBodyRoots => "no_body_roots",
+        K::Unplaced => "unplaced",
         K::Graft => "graft_refused",
         K::RootInvalid => "root_invalid",
         K::ProductInvalid => "product_invalid",
@@ -2270,6 +2297,7 @@ pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
 pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
     match err {
         AssemblyError::Product(inner) => product_error_tag(inner),
+        AssemblyError::Space { .. } => "own_space",
         AssemblyError::Mint { .. } => "unminted_mates",
         AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
         AssemblyError::AtRest { .. } => "at_rest",
@@ -2360,6 +2388,15 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::SeveredEdge { .. } => "severed_edge",
         SplitError::OperandSeveredFromMate { .. } => "operand_severed_from_mate",
         SplitError::TornGroup { .. } => "torn_group",
+        SplitError::CutHoldsGauge { .. } => "cut_holds_gauge",
+        SplitError::TwoAnchors { .. } => "two_anchors",
+        SplitError::DeadGaugeReference { .. } => "dead_gauge_reference",
+        SplitError::UnplacedAlone { .. } => "unplaced_alone",
+        SplitError::WouldStartPlacing { .. } => "would_start_placing",
+        SplitError::PlacingMateLeft { .. } => "placing_mate_left",
+        SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
+        SplitError::MateFaceFrameCrosses { .. } => "mate_face_frame_crosses",
+        SplitError::HoistedMemberOffset { .. } => "hoisted_member_offset",
         SplitError::UncutParamReference { .. } => "uncut_param_reference",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
@@ -2388,6 +2425,13 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
         InlineError::ParamConflict { .. } => "param_conflict",
         InlineError::UnplaceableFrame { .. } => "unplaceable_frame",
+        InlineError::MatePlaced { .. } => "mate_placed",
+        InlineError::Unplaced { .. } => "unplaced",
+        InlineError::NeedsAGauge { .. } => "needs_a_gauge",
+        InlineError::PartDeadGauge { .. } => "part_dead_gauge",
+        InlineError::MateFrameCrosses { .. } => "mate_frame_crosses",
+        InlineError::MateFaceFrameCrosses { .. } => "mate_face_frame_crosses",
+        InlineError::MatePairSplits { .. } => "mate_pair_splits",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
@@ -2536,6 +2580,7 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
         HitTestError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         HitTestError::Ambiguous { .. } => "ambiguous",
         HitTestError::Unnamed { .. } => "unnamed",
+        HitTestError::AcrossSpaces { .. } => "across_spaces",
     }
 }
 
@@ -3090,13 +3135,13 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 }
 
 /// The stable tag for one act of maintenance an accepted edit
-/// performed — what the mate graph's motion forced on the placement
-/// registry, or a reference the edit stranded.
+/// performed — the offset the mate door cleared, or a reference the
+/// edit stranded.
 ///
-/// The word decides which payload attributes carry: a `join` names
-/// the gauge that survived and the one absorbed, a `split` the two
-/// gauges it left behind, a `gauge_rewrite` the cluster whose gauge
-/// moved, a `drop` the registry row that went away, a `strand` the
+/// The word decides which payload attributes carry: an
+/// `offset_cleared` names the instance whose offset the mate door
+/// cleared — a member of the mate's first operand's group, now placed
+/// on the second's — and carries that offset, a `strand` the
 /// surviving node and the name whose minting node the edit deleted,
 /// and a `stranded_appearance` that same name with no carrying node,
 /// because the appearance store is what carries it. An
@@ -3105,10 +3150,7 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 /// dangling there, the node is simply no longer read.
 pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
-        Maintenance::Cluster(ClusterMaintenance::Join { .. }) => "join",
-        Maintenance::Cluster(ClusterMaintenance::Split { .. }) => "split",
-        Maintenance::Cluster(ClusterMaintenance::GaugeRewrite { .. }) => "gauge_rewrite",
-        Maintenance::Cluster(ClusterMaintenance::Drop { .. }) => "drop",
+        Maintenance::OffsetCleared { .. } => "offset_cleared",
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::OrphanedDeclare { .. } => "orphaned_declare",
