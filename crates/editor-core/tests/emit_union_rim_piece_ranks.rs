@@ -22,7 +22,9 @@
 use std::collections::BTreeMap;
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{declared_union, failure, flush_pairs, run};
+use crate::docm7_union_declare::{
+    declared_union, declared_union_classed, failure, flush_pairs, run,
+};
 use crate::emit_shared_rim_several::{Bx, document, is_rim_piece, permutations, probe_corpus};
 use crate::fixture::{ang, face_vertices, fname, insert, len, scl, table, wall};
 
@@ -452,8 +454,8 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// `work/emit/an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order.md`
 /// owns it.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r5poke", "U", 4, 12287979260198783469),
-    ("r5pokehi", "U", 4, 14661618627442665079),
+    ("r5poke", "U", 4, 3338318820429833347),
+    ("r5pokehi", "U", 4, 4874358057828698747),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.
@@ -1005,15 +1007,21 @@ fn a_h_contact(
 /// `"fuse"` or the refusal's variant.
 fn outcomes(blocks: &[Bx], creation: &[usize], ah: Option<usize>) -> Vec<(Vec<usize>, String)> {
     let (doc, ids) = document(blocks, creation);
-    let mut pairs = flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1]));
+    let mut pairs: Vec<_> = flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1]))
+        .into_iter()
+        .map(|p| (p, editor_core::BooleanCoincidence::Continuation))
+        .collect();
     if let Some(h) = ah {
-        pairs.push(a_h_contact(&doc, ids[0], ids[h]));
+        pairs.push((
+            a_h_contact(&doc, ids[0], ids[h]),
+            editor_core::BooleanCoincidence::REST,
+        ));
     }
     permutations(&(0..blocks.len()).collect::<Vec<_>>())
         .into_iter()
         .map(|order| {
             let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let (docx, union, _) = declared_union(doc.clone(), &members, pairs.clone());
+            let (docx, union, _) = declared_union_classed(doc.clone(), &members, pairs.clone());
             let ev = run(&docx);
             let variant = |shown: String| {
                 shown
@@ -1044,7 +1052,7 @@ fn orders_that(outcomes: &[(Vec<usize>, String)], what: &str) -> Vec<Vec<usize>>
 /// **A covered contact is a contact, in every member order** (DM4's
 /// contact rule). `row` is `a`, `b`, `g`, `h`, with `(a, b)` declared
 /// and `(a, h)` not; `b` covers the `(a, h)` contact. Every one of the 24
-/// orders refuses `UndeclaredContact`, naming a face of `a` and a face
+/// orders refuses `UndeclaredCoincidence`, naming a face of `a` and a face
 /// of `h`, whichever order the members are in and whichever order they
 /// were created in (`rowids`). Judged in the fold, 6 orders fused, 8
 /// refused the contact and 10 refused `DeclareResolve`.
@@ -1078,7 +1086,7 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
             );
             let ev = run(&docx);
             match failure(&ev, union) {
-                Some(editor_core::NodeErrorKind::UndeclaredContact { finding, .. }) => {
+                Some(editor_core::NodeErrorKind::UndeclaredCoincidence { finding, .. }) => {
                     let mut sites = [finding.pair.0.at, finding.pair.1.at];
                     sites.sort();
                     let mut ah = [ids[0], ids[3]];
@@ -1107,7 +1115,7 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
 }
 
 /// **The covered-contact row itself: `{a, b, h}`.** Undeclared, `(a, h)`
-/// refuses `UndeclaredContact` in all six orders; judged in the fold,
+/// refuses `UndeclaredCoincidence` in all six orders; judged in the fold,
 /// `[a, b, h]` and `[b, a, h]` fused, because `b` had covered the contact
 /// before `h` joined. Declared, those two orders fuse: `b` consumed `a`'s
 /// wall whole before the pair's step, so the declaration is satisfied
@@ -1119,7 +1127,7 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
 fn a_contact_b_covers_refuses_undeclared_and_is_satisfied_declared_where_b_consumed_the_face() {
     let undeclared = outcomes(&[A, B, H], &[0, 1, 2], None);
     assert_eq!(
-        orders_that(&undeclared, "UndeclaredContact").len(),
+        orders_that(&undeclared, "UndeclaredCoincidence").len(),
         6,
         "{undeclared:?}"
     );

@@ -202,7 +202,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         // Since R3 (LIB-PYG5) the undeclared-coincidence refusal
         // surfaces as the typed refusal-menu variant, finding attached.
         Some(NodeResult::Failed(e)) => assert!(
-            matches!(e.kind, NodeErrorKind::UndeclaredContact { .. }),
+            matches!(e.kind, NodeErrorKind::UndeclaredCoincidence { .. }),
             "expected the UndeclaredContact menu, got {:?}",
             e.kind
         ),
@@ -463,7 +463,7 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![
+        Node::declare_continuation(vec![
             (
                 SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
                 SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
