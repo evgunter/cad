@@ -126,29 +126,35 @@ march domain's diagonal, and a march speed that is not positive and
 finite, a step that is not finite or does not move the state
 (`SsiError::StepUnusable`), or one that collapses into the band
 (`StepCollapsed`) refuses naming the speed. The longest step is
-`SSI_STEP_MAX` of the caller's feature extent, and `march_both`, the
-one place a whole branch is known, marches once more any trace that
-has length but too few samples for the cubic fit: its steps are then
-capped at the trace's own polyline length over the fewest odd count
-that gives the fit its samples (five). The count is odd so that a seed
-near the branch's middle does not walk a state onto each end; that
-lowers the odds of a state landing in band of the boundary and
-guarantees nothing
-(`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
-A trace with no length to cut, or one the re-march leaves still too
-short, refuses as the march's limit (`SsiError::TraceUnresolved`): the
-surfaces touch at a point, the branch is shorter than the boundary
-search resolves at the step, it runs within the band of the domain's
-boundary (a plane flush with a face's edge, whose states are never
-decided inside), or no crossing settles at either end
-(`work/ssi/ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal.md`).
-The fit therefore only sees a trace with the samples it needs or a
-non-finite sample, which it refuses by name. The extent keeps its other
-roles: the lever arm's clamp, the seeding floor and the tube ladder.
+`SSI_STEP_MAX` of the caller's feature extent. Before any march, the
+plane × NURBS lane decides its own domain boundary, the wall's knot
+rectangle, against the plane, one side at a time
+(`geom_brep::boundary_section`: plane × one boundary curve of the
+wall, the same door the boolean's NURBS crossing layer reads). A side
+either lies in the plane (`Side`), or meets it at isolated crossings,
+each found to the sweep floor and decided transversal along the side.
+A corner on the plane is classified by the plane distance's two inward
+partials over a corner cell. If both are one-signed and the locus
+leaves the domain there, the corner is a `Corner`; otherwise a branch
+starts at it. In the band the pass does not pick a side: it reports
+the region with its certified reach, which asserts no topology, only
+that the cell's solution set is at most one arc lying within `reach`
+of the corner or side. Whether a vertex lies on a face stays the
+consumer's decision, and the exact empty answer stands outside the
+domain. The one refusal the pass keeps is a graze, the locus tangent to
+a side, and it names the side. The crossings are the only ends a
+branch has: a trace runs from one to the crossing on the side it
+leaves, its step capped at their distance over five. A branch shorter
+than a fixed multiple of the band takes the Hermite cubic through its
+two certified ends and their tangents as its candidate instead of a
+march. Either way the certificate decides, and a short candidate it
+refuses is a sized refusal in the branch's length. The extent keeps
+its other roles: the lever arm's clamp, the seeding floor and the tube ladder.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
-zero by enclosure), *accounted* (contained in a found branch's tube), or
-refined to the named floor, where the op refuses
+zero by enclosure), *accounted* (contained in a found branch's tube,
+or in a boundary contact's certified region), or refined to the named
+floor, where the op refuses
 `SsiError::ExhaustivenessInconclusive`. Each floor is minted once over
 the domain it bisects (`SweepFloor`), and a floor that domain cannot
 resolve refuses `SsiError::FloorUnresolvable` before any sweep runs:

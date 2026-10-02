@@ -7,6 +7,7 @@ opened: 2026-10-02
 priority: P2
 cost: M
 design: true
+needs_ev: true
 ---
 
 
@@ -80,3 +81,58 @@ matters as much as the vertex touch.
 should yield it, by recognizing the edge or by tracing along the
 boundary with the open-end decision read along the branch, rather than
 refuse.
+
+## Design (designer pair, converged in 3 rounds, 2026-10-02)
+
+The binding text is C3 in `crates/geom-brep/README.md`, as this row's
+`[ev]` PR edits it. The build covers:
+
+- **`geom_brep::boundary_section`.** Plane × one boundary curve of a
+  NURBS wall. It answers either `On` (the side lies in the plane), or
+  certified roots with their slope margins.
+  - Root isolation runs to the sweep floor minted per side
+    (`SweepFloor`), and `SSI_BOUNDARY_BISECTIONS` retires.
+  - An unclamped wall needs a side extraction first.
+  - The boolean's NURBS crossing layer reuses this door once it is
+    wired.
+- **SSI's boundary pass.** It runs before seeding in `plane_nurbs_ssi`.
+  - A corner on the plane is classified by the plane distance's two
+    inward partials over a corner cell (`NurbsBoxes::deriv_box`), walking
+    the tube ladder. The result is a branch start, a `Corner`, or a graze.
+  - In band, the pass reports `Corner { corner, reach }` or
+    `Side { side, reach }`. Here `reach` is |φ| / inf |∂φ| over the cell,
+    plus ε.
+  - The exact empty answer stands outside the domain.
+  - The only refusal the pass keeps is a graze (a double root along a
+    side). Its ending names the side and the move-the-geometry lever.
+- **Output and accounting.**
+  - `SsiOutcome.boundary: Vec<SsiBoundaryContact>`. Its type doc and
+    Display say "region", not "contact".
+  - The exhaustiveness sweep banks contact regions beside tubes, and the
+    receipt counts them apart.
+- **Branches.**
+  - Open branches name their two crossings, and
+    `BranchEnd::BoundaryInBand` goes.
+  - A trace runs from one crossing to the crossing on the side it
+    leaves, with its step capped at |AB|/5. A match that is missing or
+    doubled is a defect.
+  - `push_boundary`, `ssi_branch_open_end`, the short-branch re-march
+    and `TraceUnresolved` retire.
+  - Each known end is settled onto both surfaces, or refuses
+    `EndNotOnLocus`.
+- **Short clips.** Below a fixed multiple of Kε, the candidate is the
+  Hermite cubic through the two certified ends and their tangents.
+  - C2's three limbs decide it.
+  - A failure is a sized refusal in |AB|.
+  - Pin it with a test row over √2·Kε ≤ |AB| < 5Kε at ε 1e-9 and 1e-12.
+- **Test rows.** The two `TraceUnresolved` rows in `m5_pr7_ssi.rs` flip
+  to `Ok` with contacts, and the open-end escalation row retires.
+
+**Precondition.** The march collapses on curved walls (designer A
+measured 7–10 nm steps at κ ≈ 3/m). A separate row is being filed for
+it, and it must land before any curved-wall row of this build.
+
+**For the future join.** SSI's corner margin and the boolean's vertex
+margin can differ by up to ε. So the join must accept a `Corner` region
+whose reach contains both its crossing vertices, and take the Hermite
+candidate from those vertices.
