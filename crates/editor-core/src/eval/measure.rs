@@ -514,7 +514,7 @@ fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Opt
     let from = |p: Point3<T>| (p - origin).norm();
     match c {
         Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
-        Curve3::Circle { center, radius, .. } => Some(from(*center) + radius.abs()),
+        Curve3::Circle { center, radius, .. } => Some(from(*center) + *radius),
         // The semi-axes carry no order and no sign (`geom_brep::Conic`):
         // the reach is the larger MAGNITUDE.
         Curve3::Ellipse {
