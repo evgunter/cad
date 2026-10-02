@@ -233,16 +233,25 @@ pub(crate) fn wedge_decided<T: Decide>(
     let arm = folded_lever_arm(s1, s2, p, extent);
     if std::env::var_os("SYM15_PROBE").is_some() {
         let probe_surface = |s: &Surface<T>| match s {
-            Surface::Cylinder { origin, axis, radius, .. } => {
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => {
                 let q = p - *origin;
                 let h = q.dot(*axis);
                 let w = q - *axis * h;
                 format!(
                     "Cylinder origin={origin:?} axis={axis:?} radius={radius:?}\n    q={q:?}\n    h={h:?}\n    w={w:?}\n    w.norm_sq={:?}\n    resid={:?}",
-                    w.norm_squared(), crate::implicit_residual(s, p)
+                    w.norm_squared(),
+                    crate::implicit_residual(s, p)
                 )
             }
-            Surface::Plane { normal, .. } => format!("Plane normal={normal:?} resid={:?}", crate::implicit_residual(s, p)),
+            Surface::Plane { normal, .. } => format!(
+                "Plane normal={normal:?} resid={:?}",
+                crate::implicit_residual(s, p)
+            ),
             other => format!("{:?}", other.kind()),
         };
         eprintln!(

@@ -889,20 +889,40 @@ mod sym15_probe {
             let poisons = |f: f64| {
                 let built = chain(links, JOINT_SIGMA * f, POSITION_BOUND, tol);
                 let row = sym_leaf(links, &built.doc);
-                let p = row.first.as_deref().is_some_and(|s| s.contains("margin is invalid"));
-                eprintln!("SYM15 PB f={f:.6e} certifies={} poison={p} first={:?}", row.certifies, row.first);
+                let p = row
+                    .first
+                    .as_deref()
+                    .is_some_and(|s| s.contains("margin is invalid"));
+                eprintln!(
+                    "SYM15 PB f={f:.6e} certifies={} poison={p} first={:?}",
+                    row.certifies, row.first
+                );
                 p
             };
             let f0 = CERTIFIABLE_FRACTION_BY_LINKS[links - 1];
             let (mut lo, mut hi) = (f0 * 0.98, f0 * 1.02);
             assert!(!poisons(lo) && poisons(hi));
-            for _ in 0..12 { let mid = 0.5 * (lo + hi); if poisons(mid) { hi = mid } else { lo = mid } }
-            eprintln!("SYM15 POISON_ONSET links={links} eps={} lo={lo:.6e} hi={hi:.6e}", tol.eps());
+            for _ in 0..12 {
+                let mid = 0.5 * (lo + hi);
+                if poisons(mid) { hi = mid } else { lo = mid }
+            }
+            eprintln!(
+                "SYM15 POISON_ONSET links={links} eps={} lo={lo:.6e} hi={hi:.6e}",
+                tol.eps()
+            );
             return;
         }
-        let f: f64 = std::env::var("SYM15_F").map_or(CERTIFIABLE_FRACTION_BY_LINKS[links - 1], |s| s.parse().unwrap());
+        let f: f64 = std::env::var("SYM15_F")
+            .map_or(CERTIFIABLE_FRACTION_BY_LINKS[links - 1], |s| {
+                s.parse().unwrap()
+            });
         let built = chain(links, JOINT_SIGMA * f * over, POSITION_BOUND, tol);
         let row = sym_leaf(links, &built.doc);
-        eprintln!("SYM15 RESULT links={links} f={f} over={over} eps={} certifies={} first={:?}", tol.eps(), row.certifies, row.first);
+        eprintln!(
+            "SYM15 RESULT links={links} f={f} over={over} eps={} certifies={} first={:?}",
+            tol.eps(),
+            row.certifies,
+            row.first
+        );
     }
 }
