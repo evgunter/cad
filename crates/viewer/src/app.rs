@@ -942,7 +942,12 @@ impl ViewerApp {
         // it did not survive, so the act that accepts the next one is
         // what retires it; `frame::tool_notice` reads from the event
         // whether the pick is lost for good.
-        self.notices.extend(dropped.iter().map(frame::tool_notice));
+        let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        self.notices.extend(
+            dropped
+                .iter()
+                .map(|notice| frame::tool_notice(notice, landed)),
+        );
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
         // build is never paid for, only avoided. `scene::fit_delta`
@@ -1754,7 +1759,7 @@ impl ViewerApp {
                 frame::index_badge(
                     self.picks.error(),
                     self.session.doc(),
-                    self.session.evaluation(),
+                    self.session.landed_pair(),
                 ),
                 frame::projection_badge(self.projection_fault.as_ref()),
             ]
@@ -1781,7 +1786,10 @@ impl ViewerApp {
                 draw_badge(ui, &self.theme, &badge);
             }
             // And the held edges the mark could not tell held or not.
-            if let Some(badge) = frame::held_edges_badge(self.held_edges_refused.as_ref()) {
+            if let Some(badge) = frame::held_edges_badge(
+                self.held_edges_refused.as_ref(),
+                self.session.landed_pair().map(|(doc, _)| doc),
+            ) {
                 draw_badge(ui, &self.theme, &badge);
             }
             ui.separator();
@@ -2014,7 +2022,12 @@ impl eframe::App for ViewerApp {
         // A declined pick answers an act the user aimed at the
         // document, like every other rank-2 notice this frame.
         let declined = self.tools.feed(self.session.doc(), &ops);
-        self.notices.extend(declined.iter().map(frame::tool_notice));
+        let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        self.notices.extend(
+            declined
+                .iter()
+                .map(|notice| frame::tool_notice(notice, landed)),
+        );
 
         self.perform_batch(ops);
     }
@@ -4798,7 +4811,15 @@ mod properties_pane_tests {
             named: drawn.len() - 1,
             refused: 1,
         };
-        let badge = crate::frame::held_edges_badge(Some(&refused)).expect("a refusal badges");
+        let (landed, _) = driven.app.session.landed_pair().expect("the plate lands");
+        let refused_said =
+            pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
+        assert!(
+            refused_said.contains("of Extrude"),
+            "the refusal's node is said as the landed document holds it: {refused_said}"
+        );
+        let badge =
+            crate::frame::held_edges_badge(Some(&refused), Some(landed)).expect("a refusal badges");
         let badged = driven.quiet();
         assert!(
             badged.iter().any(|(run, _)| run == badge.label()),
@@ -4833,7 +4854,7 @@ mod properties_pane_tests {
             .map(|(run, _)| run)
             .find(|run| run.contains("the tool loaded no edges:"))
             .unwrap_or_else(|| panic!("the refused load is on the line: {said:?}"));
-        assert!(line.contains(&refused.to_string()), "{line}");
+        assert!(line.contains(&refused_said), "{line}");
         assert!(!line.contains("has no edges to select"), "{line}");
         assert_eq!(
             driven.app.tools.blend().map(crate::blend::BlendTool::count),

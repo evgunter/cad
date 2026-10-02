@@ -33,7 +33,7 @@ use crate::common;
 use common::{ang, len, len3, plate_index, scl3, session_insert};
 use pncad::document::{
     Dimension, Doc, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId,
-    SlotId,
+    Said, SlotId, Speaker,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
@@ -1076,8 +1076,9 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     assert_eq!(
         refused.map(|event| event.to_string()),
         Some(format!(
-            "{} has no edges to select: {standing}",
-            whole(target)
+            "{} has no edges to select: {}",
+            whole(target),
+            Said(&standing, Speaker::TAG.about(target))
         )),
     );
     assert_eq!(

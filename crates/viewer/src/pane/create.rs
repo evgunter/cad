@@ -7,7 +7,8 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 use pncad::document::{
-    AxisSense, BooleanOp, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, SpokenNode,
+    AxisSense, BooleanOp, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, Said,
+    Speaker, SpokenNode,
 };
 use pncad::select::SplitHalf;
 
@@ -985,10 +986,16 @@ impl ViewerBehavior<'_> {
             ui.label("face");
             match self.drafts.held_face() {
                 // The drawn body a pick is on, in the one sentence
-                // this crate names that scope with
-                // (`Display for BlendTarget`): a target that grew a
-                // third component would name the wrong scope here too.
-                Some(face) => ui.weak(BlendTarget::of_face(face).to_string()),
+                // this crate names that scope with (`Say for
+                // BlendTarget`), its node said from the landed
+                // document the pick was read off.
+                Some(face) => {
+                    let target = BlendTarget::of_face(face);
+                    ui.weak(match self.session.landed_pair() {
+                        Some((landed, _)) => Said(&target, Speaker::of(landed)).to_string(),
+                        None => target.to_string(),
+                    })
+                }
                 None => ui.weak("none picked"),
             };
         });
@@ -1683,8 +1690,8 @@ impl ViewerBehavior<'_> {
     /// button is disabled instead and says what it wants.
     pub(crate) fn all_edges_row(&mut self, ui: &mut egui::Ui, held: Option<BlendTarget>) {
         let target = held.or_else(|| BlendTarget::of_selection(self.session.selection()));
-        let ready = target.zip(self.session.evaluation()).zip(self.index);
-        let Some(((target, eval), index)) = ready else {
+        let ready = target.zip(self.session.landed_pair()).zip(self.index);
+        let Some(((target, (landed, eval)), index)) = ready else {
             ui.add_enabled(false, egui::Button::new("Select all edges"))
                 .on_disabled_hover_text(
                     "click an edge or a face of the body first, and let it evaluate — \
@@ -1712,7 +1719,7 @@ impl ViewerBehavior<'_> {
             .and_then(|tool| tool.load_all_edges(target, eval, index));
         if let Some(event) = event {
             self.notices
-                .push(frame::tool_notice(&ToolNotice::Blend(event)));
+                .push(frame::tool_notice(&ToolNotice::Blend(event), Some(landed)));
         }
     }
 

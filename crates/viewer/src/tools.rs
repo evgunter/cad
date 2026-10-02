@@ -35,7 +35,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId, Said, Speaker};
 
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{BooleanTool, DuplicateTool, PartTool, PatternTool, SplitTool, TransformTool};
@@ -267,6 +267,18 @@ impl core::fmt::Display for ToolNotice {
             Self::Seated { tool, event } => tool.says(event),
         };
         f.write_str(&said)
+    }
+}
+
+impl ToolNotice {
+    /// **The sentence the line shows**: the blend tool's nodes said
+    /// from `landed`, the landed document its picks and loads were read
+    /// off, and by their tags with nothing landed.
+    pub fn said(&self, landed: Option<&Doc<ProfileProgram>>) -> String {
+        match (self, landed) {
+            (Self::Blend(event), Some(doc)) => ToolKind::Blend.says(&Said(event, Speaker::of(doc))),
+            _ => self.to_string(),
+        }
     }
 }
 

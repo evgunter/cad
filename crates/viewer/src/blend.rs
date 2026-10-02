@@ -65,7 +65,9 @@
 
 use std::collections::BTreeSet;
 
-use pncad::document::{Doc, Evaluation, Expr, NodeStanding, ProfileProgram, RecipeNodeId};
+use pncad::document::{
+    Doc, Evaluation, Expr, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker,
+};
 use pncad::prelude::StableName;
 
 use crate::pickindex::EdgeNamesRefused;
@@ -144,13 +146,17 @@ impl BlendTarget {
 /// sentence is how the refusal names it: a target that grew a third
 /// component while the sentence still named two would name the wrong
 /// scope.
+impl Say for BlendTarget {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        let Self { node, body } = self;
+        write!(f, "{} body {body}", by.node(*node))
+    }
+}
+
+/// The sentence where no document is at hand: the node by its tag.
 impl core::fmt::Display for BlendTarget {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self { node, body } = self;
-        // The NODE half is the node's tag: a target is a value with no
-        // document at hand. The body half is this scope's own and has
-        // no other home.
-        write!(f, "node {node} body {body}")
+        self.say(f, Speaker::TAG)
     }
 }
 
@@ -286,26 +292,32 @@ pub enum BlendEvent {
     },
 }
 
-impl core::fmt::Display for BlendEvent {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Say for BlendEvent {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::OtherTarget { held, picked } => write!(
                 f,
-                "the held edges are on {held}, so the edge on {picked} was not taken; \
-                 cancel to start on another body"
+                "the held edges are on {}, so the edge on {} was not taken; cancel to start on \
+                 another body",
+                Said(held, by),
+                Said(picked, by)
             ),
             Self::NoEdgesOnTarget { target } => {
-                write!(f, "{target} has no edges to select")
+                write!(f, "{} has no edges to select", Said(target, by))
             }
             Self::EdgesUnnamed { refused } => {
-                write!(f, "the tool loaded no edges: {refused}")
+                write!(f, "the tool loaded no edges: {}", Said(refused, by))
             }
-            Self::TargetHasNoValue { target, standing } => {
-                write!(f, "{target} has no edges to select: {standing}")
-            }
+            Self::TargetHasNoValue { target, standing } => write!(
+                f,
+                "{} has no edges to select: {}",
+                Said(target, by),
+                Said(standing, by.about(target.node))
+            ),
             Self::TargetLost { target, edges } => write!(
                 f,
-                "{target} is no longer in the document; the tool dropped all {edges} picked edges"
+                "{} is no longer in the document; the tool dropped all {edges} picked edges",
+                Said(target, by)
             ),
             Self::EdgesLost {
                 target,
@@ -313,11 +325,19 @@ impl core::fmt::Display for BlendEvent {
                 kept,
             } => write!(
                 f,
-                "an edit removed {} of the picked edges from {target}; the tool dropped them and \
+                "an edit removed {} of the picked edges from {}; the tool dropped them and \
                  still holds {kept}",
-                names.len()
+                names.len(),
+                Said(target, by)
             ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for BlendEvent {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
     }
 }
 
@@ -683,7 +703,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used, clippy::panic)]
 
-    use super::{BlendEvent, BlendTarget, BlendTool};
+    use super::{BlendEvent, BlendTarget, BlendTool, Said, Speaker};
     use crate::pickindex::{EdgeId, EdgeNameFault, EdgeNamesRefused};
     use crate::session::EdgeSelection;
     use crate::test_support::plate_indexed;
@@ -730,7 +750,9 @@ mod tests {
         let said = partly.to_string();
         assert!(
             said.contains(&refused.to_string())
-                && said.contains(&EdgeNameFault::Unnamed(first).to_string()),
+                && said.contains(
+                    &Said(&EdgeNameFault::Unnamed(first), Speaker::TAG.about(extrude)).to_string()
+                ),
             "the index's own words, through its Display: {said}"
         );
         assert!(
