@@ -33,9 +33,10 @@ decision.
 
 - `face of feature N` — `matetool::face_of` (`matetool.rs`), the mate
   panel item and its drop notice;
-- `feature N body B` — `Display for BlendTarget` (`blend.rs`), which
-  the face-frame datum form draws for its held face through
-  `BlendTarget::of_face` (`pane/create.rs`, near lines 854-858).
+- `<node> body B` — `Say for BlendTarget` (`blend.rs`), which the
+  blend panel's target line and the face-frame datum form draw from the
+  landed document, the form for its held face through
+  `BlendTarget::of_face` (`pane/create.rs`, `datum_face_frame_rows`).
 
 The same kind of held value — a face the user clicked — is said as the
 face in one panel and as the drawn body it sits on in another. The
