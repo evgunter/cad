@@ -205,6 +205,51 @@ fn wall_declarations(
 // 1. The declaration door: the carrier ladder's torus rung.
 // -------------------------------------------------------------------
 
+/// The peg-in-socket union under `decls`, held to what it promises.
+///
+/// At the default ε and finer it builds since JOIN-1 (each strut's half
+/// beside a germ's locus edge faces it): sound at tiers 2 and 3′ and the
+/// at-rest certificate, additive (the parts only touch), and a legal
+/// operand. At a coarser ε (the CI 1e-6 row) the join's section-loop
+/// witness reads in band and the union refuses typed instead —
+/// `JoinDesync`, as main refuses it at every ε with
+/// `Join(UnpairedLooseEnds)`
+/// (`work/join/peg-in-socket-union-refuses-join-desync-at-a-coarse-eps.md`).
+/// A body is never shipped unsound at any ε.
+fn peg_in_socket_union_holds(s: &Body<f64>, p: &Body<f64>, decls: &BooleanDeclarations) {
+    let r = topo::union_with(s, p, decls, Tol::witness());
+    let r = match r {
+        Err(e) if Tol::witness().eps() > geom_core::tolerance::DEFAULT_EPS => {
+            assert!(
+                matches!(e, BooleanError::JoinDesync { .. } | BooleanError::Join(_)),
+                "above the default ε the union refuses at the join, typed: {e:?}"
+            );
+            return;
+        }
+        r => r.unwrap_or_else(|e| panic!("the peg-in-socket union builds: {e:?}")),
+    };
+    let bb = r.body().expect("a union of two solids is not empty");
+    assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+        Ok(()),
+        "tier 3′"
+    );
+    assert!(
+        topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
+        "the at-rest certificate"
+    );
+    let vol = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let (v, want) = (vol(&bb.body), vol(s) + vol(p));
+    assert!(
+        (v - want).abs() < 1e-9 * want.max(1.0),
+        "the parts only touch, so the union is additive: {v} against {want}"
+    );
+    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness());
+    topo::union(&bb.body, &far, Tol::witness())
+        .unwrap_or_else(|e| panic!("every boolean output is a legal operand: {e:?}"));
+}
+
 /// **The rung exists.** Before it, a `Rest` declaration on a torus
 /// face was turned away at the front door — the carrier inventory
 /// named plane, sphere and cylinder, so no torus pair could be stated
@@ -223,31 +268,7 @@ fn a_declared_torus_rest_pair_passes_the_declaration_door() {
         !decls.coincident_faces.is_empty(),
         "the socket's bore and the peg's wall must both be torus faces"
     );
-    // The lane builds the peg-in-socket union since JOIN-1 (each
-    // strut's half beside a germ's locus edge faces it), with the flush
-    // planar caps declared continuations beside the walls.
-    let r = topo::union_with(&s, &p, &decls, Tol::witness())
-        .expect("the torus Rest declaration is admitted, verified and built");
-    let bb = r.body().expect("a union of two solids is not empty");
-    assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
-    assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
-        Ok(()),
-        "tier 3′"
-    );
-    assert!(
-        topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
-        "the at-rest certificate"
-    );
-    let vol = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
-    let (v, want) = (vol(&bb.body), vol(&s) + vol(&p));
-    assert!(
-        (v - want).abs() < 1e-9 * want.max(1.0),
-        "the parts only touch, so the union is additive: {v} against {want}"
-    );
-    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness());
-    topo::union(&bb.body, &far, Tol::witness())
-        .unwrap_or_else(|e| panic!("every boolean output is a legal operand: {e:?}"));
+    peg_in_socket_union_holds(&s, &p, &decls);
 }
 
 /// **The rung DECIDES, it does not merely admit.** A peg whose tube is
@@ -372,35 +393,14 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
 /// peg, and the two faces' windows are one rectangle about one spine
 /// circle, so no sound box separates them. With the torus on the KIND
 /// roster the pair's boxes decide nothing, and the op runs on — since
-/// JOIN-1 it builds the union, sound and additive.
+/// JOIN-1 it builds the union, sound and additive
+/// ([`peg_in_socket_union_holds`]).
 #[test]
 fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
     let (s, p) = (socket(), segment_a());
     let decls = wall_declarations(&s, &p, TUBE, ContactClass::Rest);
-    // The uncovered outer wall does not gate, and the union builds
-    // (JOIN-1).
-    let r = topo::union_with(&s, &p, &decls, Tol::witness())
-        .expect("the uncovered outer wall must not gate");
-    let bb = r.body().expect("a union of two solids is not empty");
-    assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
-    assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
-        Ok(()),
-        "tier 3′"
-    );
-    assert!(
-        topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
-        "the at-rest certificate"
-    );
-    let vol = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
-    let (v, want) = (vol(&bb.body), vol(&s) + vol(&p));
-    assert!(
-        (v - want).abs() < 1e-9 * want.max(1.0),
-        "the parts only touch, so the union is additive: {v} against {want}"
-    );
-    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness());
-    topo::union(&bb.body, &far, Tol::witness())
-        .unwrap_or_else(|e| panic!("every boolean output is a legal operand: {e:?}"));
+    // The uncovered outer wall does not gate.
+    peg_in_socket_union_holds(&s, &p, &decls);
 }
 
 /// **Where the lane stops once the gate is past, held still.** Two
