@@ -202,6 +202,19 @@ pub(super) enum CircleRoots<T> {
     CountDisagrees,
 }
 
+impl<T> From<TorusRoots<T>> for CircleRoots<T> {
+    /// The quartic ladder's answer in the doors' shape: it has no
+    /// on-surface case (no line lies on a torus).
+    fn from(roots: TorusRoots<T>) -> Self {
+        match roots {
+            TorusRoots::Certified { count, ts } => Self::Certified { count, thetas: ts },
+            TorusRoots::Miss => Self::Miss,
+            TorusRoots::Uncertain => Self::Uncertain,
+            TorusRoots::CountDisagrees => Self::CountDisagrees,
+        }
+    }
+}
+
 /// A degree-2 trigonometric polynomial
 /// `c₀ + c₁ cos θ + s₁ sin θ + c₂ cos 2θ + s₂ sin 2θ`.
 pub(super) struct Harmonics<T> {

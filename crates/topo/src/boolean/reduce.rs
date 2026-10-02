@@ -51,6 +51,7 @@
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 
 use super::boxes;
+use super::circle_roots::CircleRoots;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
 use super::plane_eq::{LadderRefusal, PlaneDesc};
 use super::refusal_routes::NeighbourOffset;
@@ -1976,92 +1977,67 @@ fn wall_crossing<T: Decide>(
     t1: T,
     band: Band,
 ) -> Result<SpanVerdict<T>, BooleanError> {
-    let mut roots = [T::zero(); 4];
-    // The carrier's metres per unit of its parameter, so that a root's
-    // distance from the span's ends is metered as a length: a `Line`'s
-    // parameter runs `|dir|` metres per unit, a `Circle`'s is an angle and
-    // its arc length is `radius·Δθ`, an `Ellipse`'s at least
-    // `minor·Δθ`. The wall and sphere quadratics take
-    // any non-zero `dir`; the torus quartic
-    // ([`super::solid_contain::line_torus_roots`]) assumes it UNIT, the
-    // `Line` carrier's convention, which nothing checks.
-    let (count, metres_per_param) = match *carrier {
-        geom::Curve3::Line { origin, dir } => (
-            line_wall_root_count(origin, dir, (t1 - t0).abs(), surface, &mut roots, band)?,
-            dir.norm(),
-        ),
+    // A root's distance from an end of the span is metered as a length:
+    // the parameter gap times the carrier's speed AT that end, so that
+    // `Zero` means the root sits at the end's own point. A `Line`'s
+    // parameter runs `|dir|` metres per unit, a `Circle`'s `radius`, an
+    // `Ellipse`'s `|C′(t)|`, which varies over `[b, a]` (`geom_brep::Conic`).
+    // The wall and sphere quadratics take any non-zero `dir`; the torus
+    // quartic ([`super::solid_contain::line_torus_roots`]) assumes it UNIT,
+    // the `Line` carrier's convention, which nothing checks.
+    let found = match *carrier {
+        geom::Curve3::Line { origin, dir } => {
+            match line_wall_roots_of(origin, dir, (t1 - t0).abs(), surface, band)? {
+                Ok(found) => found,
+                Err(verdict) => return Ok(verdict),
+            }
+        }
         // The circle root doors ([`super::circle_roots`]), one per kind,
         // one answer shape. A circle against any other kind has no root
         // lane here.
-        geom::Curve3::Circle { radius, .. } => {
-            use super::circle_roots::CircleRoots;
-            let found = match surface {
-                geom::Surface::Sphere { .. } => {
-                    super::circle_sphere::circle_sphere_roots(carrier, t0, t1, surface, band)?
-                }
-                geom::Surface::Cylinder { .. } => {
-                    super::circle_cylinder::circle_cylinder_roots(carrier, t0, t1, surface, band)?
-                }
-                geom::Surface::Torus { .. } => {
-                    super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band)?
-                }
-                _ => return Ok(SpanVerdict::Unsettled),
-            };
-            match found {
-                CircleRoots::Certified { count, thetas } => {
-                    roots = thetas;
-                    (Ok(count), radius)
-                }
-                // A circle ON the surface: its residual is a zero
-                // constant, the circle rung's analogue of the ruling that
-                // lies on a wall.
-                CircleRoots::OnSurface => (Err(SpanVerdict::Constant), radius),
-                CircleRoots::Uncertain => (Err(SpanVerdict::Unsettled), radius),
-                CircleRoots::Miss => (Err(SpanVerdict::Miss), radius),
-                CircleRoots::CountDisagrees => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "the constructed roots of a quartic disagree in number with its \
-                               certified count",
-                    });
-                }
+        geom::Curve3::Circle { .. } => match surface {
+            geom::Surface::Sphere { .. } => {
+                super::circle_sphere::circle_sphere_roots(carrier, t0, t1, surface, band)?
             }
-        }
+            geom::Surface::Cylinder { .. } => {
+                super::circle_cylinder::circle_cylinder_roots(carrier, t0, t1, surface, band)?
+            }
+            geom::Surface::Torus { .. } => {
+                super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band)?
+            }
+            _ => return Ok(SpanVerdict::Unsettled),
+        },
         // The ellipse door ([`super::ellipse_roots`]), on the kinds whose
         // residual along it is a degree-2 trigonometric polynomial. Against
         // a torus it is degree four (an octic in the half-angle), which no
-        // ladder here solves, so that cell is `Unsettled`. A root's
-        // distance from an end is metered at the semi-minor axis, the
-        // carrier's least speed, so a gap it calls definite is one in arc
-        // length too.
-        geom::Curve3::Ellipse { minor, .. } => {
-            use super::circle_roots::CircleRoots;
-            let found = match surface {
-                geom::Surface::Sphere { .. } | geom::Surface::Cylinder { .. } => {
-                    super::ellipse_roots::ellipse_roots(carrier, t0, t1, surface, band)?
-                }
-                _ => return Ok(SpanVerdict::Unsettled),
-            };
-            match found {
-                CircleRoots::Certified { count, thetas } => {
-                    roots = thetas;
-                    (Ok(count), minor)
-                }
-                CircleRoots::OnSurface => (Err(SpanVerdict::Constant), minor),
-                CircleRoots::Uncertain => (Err(SpanVerdict::Unsettled), minor),
-                CircleRoots::Miss => (Err(SpanVerdict::Miss), minor),
-                CircleRoots::CountDisagrees => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "the constructed roots of a quartic disagree in number with its \
-                               certified count",
-                    });
-                }
+        // lane here solves, so that cell is `Unsettled`.
+        geom::Curve3::Ellipse { .. } => match surface {
+            geom::Surface::Sphere { .. } | geom::Surface::Cylinder { .. } => {
+                super::ellipse_roots::ellipse_roots(carrier, t0, t1, surface, band)?
             }
-        }
+            _ => return Ok(SpanVerdict::Unsettled),
+        },
         _ => return Ok(SpanVerdict::Unsettled),
     };
-    let count = match count {
-        Ok(count) => count,
-        Err(verdict) => return Ok(verdict),
+    let speed_at = |t: T| match *carrier {
+        geom::Curve3::Line { dir, .. } => dir.norm(),
+        geom::Curve3::Circle { radius, .. } => radius,
+        _ => geom_brep::Conic::of(carrier).map_or(T::zero(), |c| c.speed_at(t)),
+    };
+    let (count, roots) = match found {
+        CircleRoots::Certified { count, thetas } => (count, thetas),
+        // A carrier ON the surface: its residual is a zero constant —
+        // the ruling that lies on a wall, the circle or ellipse that lies
+        // on a sphere, wall or torus.
+        CircleRoots::OnSurface => return Ok(SpanVerdict::Constant),
+        CircleRoots::Uncertain => return Ok(SpanVerdict::Unsettled),
+        CircleRoots::Miss => return Ok(SpanVerdict::Miss),
+        CircleRoots::CountDisagrees => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "the constructed roots of a quartic disagree in number with its \
+                       certified count",
+            });
+        }
     };
     let ts = &roots[..count];
     // Whether some root sits at an end of the span, and whether some
@@ -2071,13 +2047,11 @@ fn wall_crossing<T: Decide>(
     let mut at_end = false;
     let mut crossed_elsewhere = false;
     for &t in ts {
-        // Each gap is a length: `metres_per_param` turns a carrier
-        // parameter difference into arc length.
         let mut interior = true;
-        for gap in [t - t0, t1 - t] {
+        for (gap, end) in [(t - t0, t0), (t1 - t, t1)] {
             match decide(
                 "bool_wall_root_in_span",
-                Margin::of(gap * metres_per_param),
+                Margin::of(gap * speed_at(end)),
                 band,
             ) {
                 Ok(Sign::Positive) => {}
@@ -2152,24 +2126,33 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
     }
 }
 
-/// The certified LINE × wall roots, per kind, written into `roots`:
-/// `Ok(count)` for a certified root set, `Err(verdict)` for the answers
-/// that are not one. `span` is the run of the line's parameter the
-/// edge covers, the lever the wall's axis-parallel rung is metered over.
-fn line_wall_root_count<T: Decide>(
+/// The certified LINE × wall roots, per kind, in the root doors' answer
+/// shape — or, for the one answer that shape has no word for, the
+/// verdict itself: an axis-parallel line's residual is constant along it
+/// without being zero ([`SpanVerdict::Constant`]). `span` is the run of
+/// the line's parameter the edge covers, the lever the wall's
+/// axis-parallel rung is metered over.
+fn line_wall_roots_of<T: Decide>(
     origin: Point3<T>,
     dir: geom_core::Vec3<T>,
     span: T,
     surface: &geom::Surface<T>,
-    roots: &mut [T; 4],
     band: Band,
-) -> Result<Result<usize, SpanVerdict<T>>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, SpanVerdict<T>>, BooleanError> {
+    use super::solid_contain::WallRoots;
+    let two = |ts: [T; 2]| CircleRoots::Certified {
+        count: 2,
+        thetas: [ts[0], ts[1], T::zero(), T::zero()],
+    };
     // The certified roots, per kind. Every lane answers the same three
     // ways — a certified root set, a definite miss, or no certain
     // count — and the cylinder adds a fourth, the axis-parallel line
     // whose residual is constant. A line never lies on a torus or a
-    // sphere, so neither has such a case.
-    Ok(match *surface {
+    // sphere, so neither has such a case. A tangency is not a crossing
+    // this lane can act on — the material verdicts behind a pierce are
+    // first-order, and along a tangency every first-order datum ties —
+    // so it keeps the door.
+    Ok(Ok(match *surface {
         geom::Surface::Cylinder {
             origin: c_origin,
             axis,
@@ -2182,18 +2165,10 @@ fn line_wall_root_count<T: Decide>(
             decision: BooleanDecision::WallRoots(fault.rung),
             diag: fault.diag,
         })? {
-            super::solid_contain::WallRoots::Two(ts) => {
-                roots[..2].copy_from_slice(&ts);
-                Ok(2)
-            }
-            // A tangency is not a crossing this lane can act on: the
-            // material verdicts behind a pierce are first-order, and
-            // along a tangency every first-order datum ties. It keeps
-            // the door.
-            super::solid_contain::WallRoots::Tangent => return Ok(Err(SpanVerdict::Unsettled)),
-            // A constant residual, or no root on the infinite line at all.
-            super::solid_contain::WallRoots::AxisParallel => return Ok(Err(SpanVerdict::Constant)),
-            super::solid_contain::WallRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
+            WallRoots::Two(ts) => two(ts),
+            WallRoots::Tangent => CircleRoots::Uncertain,
+            WallRoots::AxisParallel => return Ok(Err(SpanVerdict::Constant)),
+            WallRoots::Miss => CircleRoots::Miss,
         },
         // The quartic: the ray lane's own certified root door, over the
         // edge's span instead of a ray's forward half. It answers only
@@ -2206,7 +2181,7 @@ fn line_wall_root_count<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } => match super::solid_contain::line_torus_roots(
+        } => super::solid_contain::line_torus_roots(
             origin,
             dir,
             center,
@@ -2218,20 +2193,8 @@ fn line_wall_root_count<T: Decide>(
         .map_err(|diag| BooleanError::Escalated {
             decision: BooleanDecision::TorusRoots,
             diag,
-        })? {
-            super::solid_contain::TorusRoots::Certified { count, ts } => {
-                *roots = ts;
-                Ok(count)
-            }
-            super::solid_contain::TorusRoots::Uncertain => return Ok(Err(SpanVerdict::Unsettled)),
-            super::solid_contain::TorusRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
-            super::solid_contain::TorusRoots::CountDisagrees => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "the constructed roots of a quartic disagree in number with its \
-                           certified count",
-                });
-            }
-        },
+        })?
+        .into(),
         // The quadratic, the ray lane's own. No line lies on a sphere,
         // so it has no constant case either.
         geom::Surface::Sphere { center, radius, .. } => {
@@ -2240,17 +2203,13 @@ fn line_wall_root_count<T: Decide>(
                     decision: BooleanDecision::SphereRoots,
                     diag,
                 })? {
-                super::solid_contain::WallRoots::Two(ts) => {
-                    roots[..2].copy_from_slice(&ts);
-                    Ok(2)
-                }
-                super::solid_contain::WallRoots::Tangent => return Ok(Err(SpanVerdict::Unsettled)),
-                super::solid_contain::WallRoots::AxisParallel
-                | super::solid_contain::WallRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
+                WallRoots::Two(ts) => two(ts),
+                WallRoots::Tangent => CircleRoots::Uncertain,
+                WallRoots::AxisParallel | WallRoots::Miss => CircleRoots::Miss,
             }
         }
-        _ => return Ok(Err(SpanVerdict::Unsettled)),
-    })
+        _ => CircleRoots::Uncertain,
+    }))
 }
 
 /// What one edge×curved-face pair asks of the sweep.
@@ -3474,7 +3433,7 @@ mod declaration_order_rows {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod wall_root_tests {
-    use super::{BooleanDecision, BooleanError, line_wall_root_count};
+    use super::{BooleanDecision, BooleanError, line_wall_roots_of};
     use crate::boolean::WallRung;
     use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -3496,13 +3455,11 @@ mod wall_root_tests {
             radius: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let mut roots = [0.0; 4];
-        let got = line_wall_root_count(
+        let got = line_wall_roots_of(
             Point3::new(d, -2.0, 0.5),
             Vec3::new(0.0, 1.0, 0.0),
             4.0,
             &wall,
-            &mut roots,
             b,
         );
         let Err(err) = got else {
@@ -3568,6 +3525,49 @@ mod edge_span_tests {
         assert!(
             matches!(far, Ok(SpanVerdict::Constant)),
             "drifting inside the band over [1000, 1001], the residual is constant: {far:?}"
+        );
+    }
+    /// **A root's distance from an end is metered at the carrier's speed
+    /// THERE.** An ellipse of semi-axes 1 and 0.05 is crossed square by a
+    /// wall at `θ = π/2 − 2e-8`, 2e-8 m of arc short of the span's end
+    /// `π/2` of the span `[π/2 − 0.1, π/2]` (the wall's other crossings lie
+    /// outside it), where the carrier runs at 1 m/rad — past the escalation
+    /// threshold, so the root is interior and goes on to the trim (which
+    /// an empty body cannot give, so `Unsettled`). Metered at the
+    /// semi-minor axis, the least speed, the same gap reads 1e-9 m, inside
+    /// the zero band: the root read as the end's own incidence, and the
+    /// span `NoInterior`.
+    #[test]
+    fn a_root_near_an_end_is_metered_at_the_ends_speed() {
+        let band = Band::new(1e-9, 1e-8).expect("a band");
+        let ellipse = geom::Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major: 1.0,
+            minor: 0.05,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let root = core::f64::consts::FRAC_PI_2 - 2e-8;
+        let p = ellipse.eval(root);
+        let wall = geom::Surface::Cylinder {
+            origin: Point3::new(p.x + 0.3, p.y, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.3,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let y = Body::<f64>::new();
+        let got = wall_crossing(
+            &y,
+            FaceKey::default(),
+            &wall,
+            &ellipse,
+            core::f64::consts::FRAC_PI_2 - 0.1,
+            core::f64::consts::FRAC_PI_2,
+            band,
+        );
+        assert!(
+            matches!(got, Ok(SpanVerdict::Unsettled)),
+            "the root is interior, and the empty body has no trim to place it in: {got:?}"
         );
     }
 }
