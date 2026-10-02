@@ -1502,3 +1502,22 @@ This builds Ev's PR 3734 ruling.
 - `a-carried-rows-route-says-its-first-instance-by-tag`
 - The product row gained the forward sites.
 - The viewer row gained about 80 reads.
+
+## 2026-10-02 — memoized refusals speak their inner nodes through the frame (PR 3782)
+
+`NodeErrorKind`, `MateFault`, `LeverRefusal`, `FaceRefusal`, `OffsetCheck`, `PoseRefusal`, `PartFault`, `NamingError` and `SelectionRefusal` keep bare ids and gain `Say`.
+
+- **One-time naming.** `Speaker::about` says the row's own node once ("this mate", "this node"), so "Mate X … mate X's" is gone.
+- **Parts.**
+  - A part's ids keep their tags unless the frame holds the part.
+  - `PartFault::spoken` and `line_in_part` assert the part's id and its pin (`spoken::assert_pinned`).
+- **`EditError::MateRefused`** gains `HeldNodes`, which is spoken at the door.
+- **Python.** `SolvedPoses` speaks `fault()` from its solve-time copy and `placement()` from the document passed in.
+- **`SelectionRefusal::payload`** prints full ids. A refused-selection clearance report's `content_key` moves.
+- **Prose census** now reads `impl Say` as well. It had lost PR 3760's sentences.
+
+Filed:
+- `work/lib/the-clearance-payload-spells-a-node-standing-in-its-own-words` (P4)
+- `work/census/prose-census-finds-sentence-impls-by-their-trait-names` (P4)
+
+**Ruling (mine): `product-refusals-speak-the-node` is not a fork.** PR 3760's pattern settles it. `ProductError` keeps ids and gains `Say`, and `PartFault::PartProduct` holds the error rather than a pre-rendered string. The ruling is recorded on the row and dispatched.

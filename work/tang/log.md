@@ -252,3 +252,13 @@ only red is the ε=1e-6 row, which is REACH's filed
 over it, annotated on the PR. A class finding from this unit:
 reviewers twice found a claim of mutant coverage that held only at
 function level. Briefs now ask for the mutant run, not the claim.
+
+## 2026-10-02 — the E batch lands (PR 3784) (TANG orchestrator)
+
+Review tier: the orchestrator's read (diff read; `gate ok` green).
+`loop_shape` is now `loop_circle`, and the three classes nothing read
+are gone. `RimRouting::Cusp`'s refusal names both real gaps, the
+pair's locus arm and the kiss-edge consumer. The coaxiality docs name
+the axis-shaped channel. `tangent_locus`'s doc states the ruled reason
+a circle arm waits. Sweep siblings fixed in `docs/KERNEL-VERBS.md` and
+`verbs_cylsph_tangent_residuals.rs`. Both rows closed.

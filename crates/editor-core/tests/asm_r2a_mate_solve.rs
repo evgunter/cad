@@ -1841,7 +1841,7 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
             &reach,
         )
         .expect_err("the rider contradicts the coincidence");
-    let EditError::MateRefused { node, fault } = err else {
+    let EditError::MateRefused { node, fault, .. } = err else {
         panic!("expected MateRefused, got {err:?}");
     };
     let id = node.id();

@@ -309,3 +309,25 @@ public coincidence class, `Continuation`, every declaration site speaks.
 
 No pair here enters the tally. The dual-review row (DR-37) rides this
 PR's last commit. — (REACH orchestrator)
+## 2026-10-01 — the slab cut closes (PR 3627)
+
+`slab-cut-cylinder-refuses-sector-side` went to a dual review: a certified
+side verdict that changes which curved refusals become bodies.
+
+- **Unilateral MAJOR (one reviewer, executed).** Turning refusals into
+  bodies shipped WRONG ∩ bodies: a bar on a cylinder's top, ten of
+  fifteen chord poses. The root cause was not the charge itself. The
+  planar-side join took any straight chord in a cylinder wall as the
+  section. It now reads one only when its midpoint lies on the wall. The
+  other reviewer probed vertex-touch poses, which were all right.
+- **Bilateral.** The threshold's dimension was misspelt
+  (`2·sqrt(band·R)` for `2·sqrt(band/R)`), and the planted unit red
+  could not catch a lever or sagitta error.
+- **Class finding.** The sibling conic arm judges an arc by window alone,
+  the same shape this fix closes for lines. It is filed on HONE.
+- **Delta review, then the main merge.** Approved, 1006 bodies against an
+  oracle. The merge's follow-ups pinned the arm's Zero branch and gave
+  the off-wall distance one home.
+
+The dual-review row (DR-35) rides this PR's last commit.
+— (REACH orchestrator)

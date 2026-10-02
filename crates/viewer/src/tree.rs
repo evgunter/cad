@@ -1181,7 +1181,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
-        // The kernel's own words: "repair node {p}" — the gauge, or
+        // The kernel's own words: "repair <the node>" — the gauge, or
         // the root whose offset did not evaluate.
         NodeErrorKind::PlacementRefused { node, .. } => Some(*node),
         // Names the unplaced group's root as evidence of which space

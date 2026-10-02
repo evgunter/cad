@@ -1,5 +1,7 @@
-//! **The census over `Display` impls that render a payload through
-//! `Debug`** — the mechanical half of the prose gate.
+//! **The census over `Display` and `Say` impls that render a payload
+//! through `Debug`** — the mechanical half of the prose gate. A
+//! sentence written over a speaker (`editor_core::spoken::Say`) is its
+//! type's `Display`, said by tag, so it is read the same way.
 //!
 //! [`crate::errors::reads_as_prose`] rejects the field-brace
 //! fingerprint `" { "`, and [`crate::py::typed_err`] asserts it on
@@ -25,8 +27,8 @@
 //! down.
 //!
 //! So this guard samples nothing. It reads the SITE: every
-//! `{binding:?}` in every format string inside every `impl Display` in
-//! the tree, resolved to the field type the binding is declared at,
+//! `{binding:?}` in every format string inside every `impl Display`
+//! and `impl Say` in the tree, resolved to the field type the binding is declared at,
 //! and asked whether that type's `Debug` can carry the fingerprint. A
 //! site is flagged for the type it renders, never for a value someone
 //! thought to construct, so a variant nobody sampled is not a variant
@@ -1329,19 +1331,25 @@ fn clone_variant(variant: &VariantShape) -> VariantShape {
     }
 }
 
-/// Every `Debug` rendering inside every `impl Display` in the tree.
+/// Every `Debug` rendering inside every `impl Display` and `impl Say`
+/// in the tree.
 fn census(sources: &[Source]) -> Vec<Site> {
     let types = type_table(sources);
     let mut out = Vec::new();
     for source in sources {
         let (code, text) = (&source.code, &source.text);
         let module = module_path(&source.file);
-        for (found, _) in code.match_indices("Display for ") {
+        // A sentence written over a speaker (`spoken::Say`) is that
+        // type's `Display`, said by tag.
+        let impls = code
+            .match_indices("Display for ")
+            .chain(code.match_indices("Say for "));
+        for (found, head) in impls {
             let window = found.saturating_sub(200);
             if !code[window..found].contains("impl") {
                 continue;
             }
-            let Some((display_type, after)) = ident_at(code, found + "Display for ".len()) else {
+            let Some((display_type, after)) = ident_at(code, found + head.len()) else {
                 continue;
             };
             let Some(open) = code[after..].find('{').map(|o| after + o) else {
