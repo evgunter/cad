@@ -904,6 +904,38 @@ mod subdivision_guard_rows {
         }
     }
 
+    /// **The Taylor remainder is charged.** `F = c₀ + 4 cos θ − cos 2θ`
+    /// has `F′ = F″ = F‴ = 0` at `θ = 0` and `F⁗ = −12`: a fourth-order
+    /// graze, `F ≈ F(0) − θ⁴/2`. With `F(0) = 3·10⁻⁴` it crosses at
+    /// `θ ≈ ±0.156`, inside the first cut's piece about zero, whose ends
+    /// read the same sign. The derivatives to third order at that piece's
+    /// midpoint say `F` barely moves; only `M₄ = A₁ + 16A₂` says it can
+    /// fall `1.2·10⁻³` over the half-width, so the piece is split and the
+    /// two roots found. Without it the piece reads clear, and the turn a
+    /// certified `Miss`.
+    #[test]
+    fn a_fourth_order_graze_is_not_read_clear() {
+        let f = Harmonics {
+            c0: -3.0 + 3e-4,
+            c1: 4.0,
+            s1: 0.0,
+            c2: -1.0,
+            s2: 0.0,
+        };
+        let value = |t: f64| f.c0 + f.c1 * t.cos() + f.c2 * (2.0 * t).cos();
+        assert_eq!(sign_changes(&value), 2);
+        match walk(&f, &value, 0.0, 1e-9) {
+            CircleRoots::Certified { count, thetas } => {
+                assert_eq!(count, 2, "certified {count} roots of 2");
+                for &t in &thetas[..count] {
+                    assert!(value(t).abs() <= 1e-9, "root {t} reads {:e}", value(t));
+                }
+            }
+            CircleRoots::Uncertain => {}
+            other => panic!("{other:?} for a residual crossing twice"),
+        }
+    }
+
     /// **A located root must read ON the surface.** The residual is
     /// `sin θ` resolved only to steps of `20ε` — never zero, its sign
     /// change a jump from `−10ε` to `+10ε` — the harmonics exact to within
