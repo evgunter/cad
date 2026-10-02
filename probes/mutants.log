@@ -1,0 +1,36 @@
+=== mutant allow0:  1 file changed, 2 insertions(+), 2 deletions(-)
+  [1e-9 topo]         FAIL [   0.207s] (20/20) topo::all door_backstop_settled_residue::a_settled_in_band_coincidence_builds_whichever_way_its_residue_falls
+  [1e-9 topo]         FAIL [   0.243s] (12/20) topo boolean::ops::tests::volume_backstop_allows_what_a_declared_pair_may_move
+  [1e-9 topo]      Summary [   0.513s] 20 tests run: 18 passed, 2 failed, 2097 skipped
+  [1e-9 sweep]      Summary [   0.725s] 11 tests run: 11 passed, 1898 skipped
+  [1e-12 topo]         FAIL [   0.280s] (11/20) topo boolean::ops::tests::volume_backstop_allows_what_a_declared_pair_may_move
+  [1e-12 topo]      Summary [   0.553s] 20 tests run: 19 passed, 1 failed, 2097 skipped
+  [1e-12 sweep]      Summary [   0.792s] 11 tests run: 11 passed, 1898 skipped
+=== mutant allow100:  1 file changed, 2 insertions(+), 2 deletions(-)
+  [1e-9 topo]         FAIL [   0.184s] (10/20) topo boolean::ops::tests::volume_backstop_allows_what_a_declared_pair_may_move
+  [1e-9 topo]      Summary [   0.472s] 20 tests run: 19 passed, 1 failed, 2097 skipped
+  [1e-9 sweep]      Summary [   0.672s] 11 tests run: 11 passed, 1898 skipped
+  [1e-12 topo]         FAIL [   0.228s] (11/20) topo boolean::ops::tests::volume_backstop_allows_what_a_declared_pair_may_move
+  [1e-12 topo]      Summary [   0.448s] 20 tests run: 19 passed, 1 failed, 2097 skipped
+  [1e-12 sweep]      Summary [   0.675s] 11 tests run: 11 passed, 1898 skipped
+=== mutant nointerval:  1 file changed, 1 insertion(+)
+  [1e-9 topo]         FAIL [   0.221s] (18/20) topo::all contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex
+  [1e-9 topo]      Summary [   0.477s] 20 tests run: 19 passed, 1 failed, 2097 skipped
+  [1e-9 sweep]      Summary [   0.700s] 11 tests run: 11 passed, 1898 skipped
+  [1e-12 topo]         FAIL [   0.193s] (19/20) topo::all contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex
+  [1e-12 topo]      Summary [   0.424s] 20 tests run: 19 passed, 1 failed, 2097 skipped
+  [1e-12 sweep]      Summary [   0.786s] 11 tests run: 11 passed, 1898 skipped
+=== mutant nomaterial:  1 file changed, 1 insertion(+)
+  [1e-9 topo]         FAIL [   0.219s] (11/20) topo boolean::ops::tests::volume_backstop_joint_and_sign_arms
+  [1e-9 topo]      Summary [   0.432s] 20 tests run: 19 passed, 1 failed, 2097 skipped
+  [1e-9 sweep]      Summary [   0.938s] 11 tests run: 11 passed, 1898 skipped
+  [1e-12 topo]         FAIL [   0.256s] (12/20) topo boolean::ops::tests::volume_backstop_joint_and_sign_arms
+  [1e-12 topo]      Summary [   0.500s] 20 tests run: 19 passed, 1 failed, 2097 skipped
+  [1e-12 sweep]      Summary [   0.758s] 11 tests run: 11 passed, 1898 skipped
+=== mutant nounion:  1 file changed, 1 insertion(+), 1 deletion(-)
+  [1e-9 topo]         FAIL [   0.188s] (12/20) topo boolean::ops::tests::volume_backstop_joint_and_sign_arms
+  [1e-9 topo]      Summary [   0.384s] 20 tests run: 19 passed, 1 failed, 2097 skipped
+  [1e-9 sweep]      Summary [   0.642s] 11 tests run: 11 passed, 1898 skipped
+  [1e-12 topo]         FAIL [   0.185s] (11/20) topo boolean::ops::tests::volume_backstop_joint_and_sign_arms
+  [1e-12 topo]      Summary [   0.449s] 20 tests run: 19 passed, 1 failed, 2097 skipped
+  [1e-12 sweep]      Summary [   0.749s] 11 tests run: 11 passed, 1898 skipped
