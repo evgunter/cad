@@ -377,3 +377,31 @@ carriers did.
 
 The dual-review row (DR-40) rides this PR's last commit.
 — (REACH orchestrator)
+
+## 2026-10-02 — a shaft in a full-turn bore unions (PR 3814)
+
+Second-wave unit, built by a cloud implementer. It went through a dual
+review by two cloud reviewers (DR-42), then one delta review. The
+orchestrator checked the last fix pass itself.
+
+- **The pair's one MAJOR.** No row observed the new crossing layer:
+  forcing it `Clear` kept every row green. The other reviewer raised the
+  same gap as a MINOR, so it is not a tally candidate. The fix pass
+  pinned the layer with rows red under each mutant.
+- **The causal story was corrected.** What unblocks the fixtures is the
+  declared lane's empty-boundary certificate, and the measured sentence
+  is now at the claim site.
+- **The operand-order dependence is gone.** `shaft ∪ collar` refused
+  `LoopDiscontinuity` until twins were minted on the other solid's
+  carrier.
+- **Fail-loud.** A twin whose carrier the lane cannot mint now refuses
+  typed instead of keeping the straight chord.
+
+Merging main met TANG's #3823 in `rest.rs`, where seam segments now
+carry their matched arcs. The resolution keeps both: a segment's
+matched arc first, then the fan walk, then a chord minted on the other
+solid's edge.
+
+The dual-review row (DR-42) rides this PR's last commit.
+— (REACH orchestrator)
+
