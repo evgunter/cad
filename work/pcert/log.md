@@ -475,3 +475,14 @@ Signed (PCERT orchestrator).
 - **3812.** It carries part 2 and the literal walk branch (my ruling: a branch is structure, C4's "chosen once by the loop walk"). It must show the nine widening rows going green on its own head, which is the delta review's pre-merge check.
   - `chaintol` stays red until `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin` lands.
   - The trio (3759 + 3812 + the loop-decision unit) lands together, or chaintol is re-baselined with that row named. I'll decide when 3812's dual review is in.
+
+## 2026-10-02 — 3759 settled; 3812 dual review adjudicated
+
+- **3759 settled.** Both delta rounds are in. MINOR-A (a spurious discontinuity at gap position 0) is fixed at `e3d330393`, with a row covering every gap position and `revert()`. I accepted it on my own read: a small fix with its own row.
+- **3812 dual review, frozen head 47f6f723.** R1 (comment 5952460526): APPROVE-WITH-FIXES. R2 (comment 5953499653): NOT-MERGEABLE-AS-IS.
+  - **Correspondence:**
+    - Bilateral: `samples: 0` on point Interval; pin docs measured against the intermediate head; the narrowed dial-set gate; the `MAX_BRANCH_PERIODS` boundary; the `periodic_branch` class left at three sites; the duplicate unlogged door; the fuzz being f64-only and coverage-thin (R1 NOTE-6/S5 sits at NOTE, R2's at MAJOR).
+    - R1 only: the sphere twin refusing at Interval (MAJOR).
+    - R2 only: the frame premise unenforced over a box (MAJOR, a false accept); 4 of 12 mutants surviving, M8 unsound (MAJOR); CI red on the cut_cylinder sidecar (MAJOR); m10_9's bracket and pad refusing (a regression); stale work notes.
+  - The fix list is the union, with all four MAJORs blocking. A confirming review follows the fix pass.
+  - `m10_9`: fix the fillet-meridian radius term if it is a spelling question. Otherwise leave it as an asserted, disclosed regression at P0, like chaintol.
