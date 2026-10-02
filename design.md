@@ -2,149 +2,177 @@
 
 ## For Ev
 
-**Recommendation (likely).** The boolean door ships a result only after
-the at-rest gate of the currency its result claims. That is tier 3, or
-tier 3′ over the result's own contact records when it carries any. The
-verdict rides the result: `BooleanBody.body` becomes a
-`topo::AtRestBody`, a body kept with its tier-3 verdict, whose only
-`Validated` constructor is the gate.
-Operands stay plain for now: typing them `&AtRestBody` is the end state
-of a general door rule, not of this decision. The backstop keeps its
-inequalities and retires its positivity arm (`encloses_material`),
-which re-reads tier 3's +V check at another band. DESIGN.md gains one
-sentence beside D1's tier-2 sentence, which stays as written.
+**Recommendation (likely).** Make the finished body a type:
+`topo::AtRestBody`, a body kept with its tier-3 verdict.
+- **Every verb door takes finished bodies and returns one** (boolean,
+  split, extrude, revolve, loft, blend, shell, import). It guarantees
+  tier 3, or tier 3′ when the result carries contacts. Each body pays
+  for that once, at the door that built it.
+- **Euler operators work on construction state** (`Body`). A body they
+  build becomes finished only by passing `AtRestBody::validate`.
+- **For the boolean:**
+  - operands are `&AtRestBody`;
+  - the gate is `T::gate_at_rest_kept`, then the census over the
+    result's contact records;
+  - `BooleanBody.body` is an `AtRestBody`.
+- **D1's tier-2 sentence is changed**, not supplemented.
+- **The backstop keeps its volume inequalities and retires its
+  positivity arm** (`encloses_material`).
+- **One fix lands before or with the gate.** Tier 3's volume-sign check
+  (check 7) must take the arm's interval re-derivation. Today check 7
+  refuses a valid sliver that the door ships.
 
-**Terms.** *Tier 3* (`validate_geometric`): carriers certified, planar
-residuals, dihedrals, no scaffold at rest, positive-volume sign. *Tier
-3′* (`validate_pseudomanifold`): tier 3 plus the coincidence census,
-checked both ways against declared contacts. *Currency*: the tier a
-result's wrapper claims (`BooleanBody` with contacts is 3′-grade). A
-*scaffold* is the stand-in description an edge carries before its faces
-exist. A *door* is a public construction entry.
+**Terms.**
+- *Tier 3* (`validate_geometric`): carriers certified, planar residuals,
+  dihedrals, no scaffold at rest, positive-volume sign (check 7).
+- *Tier 3′*: tier 3 plus the coincidence census, checked both ways
+  against declared contacts.
+- *Currency*: the tier a result's wrapper claims.
+- *Scaffold*: the stand-in description an edge carries before its faces
+  exist.
+- *Construction state*: a body mid-build, tier 1 or tier 2.
 
 **Premise check (sure).** The "PR 3 description gap" in `gate`'s doc is
-closed history. In M3 PR 3 boolean seam edges carried chord-line
-scaffolds and honest descriptions were "a PR 6 obligation"; PR 6a stage
-C (`82ffba91f1`) delivered them ("tier-3 passes directly on split and
-boolean results"). The door stops at tier 2 only because the comment
-was never updated.
+closed history.
+- In M3 PR 3, seam edges carried chord-line scaffolds.
+- PR 6a stage C (`82ffba91f1`) gave them honest descriptions: "tier-3
+  passes directly on split and boolean results".
+- The door stops at tier 2 only because that comment was never updated.
+- The 52 shipped tier-3 failures are 49 test fixtures handed in below
+  tier 3, and 3 slivers from a filed door defect. Neither is a question
+  about descriptions.
 
-The 52 shipped tier-3 failures are 49 test fixtures handed in below
-tier 3 and 3 slivers from a filed door defect; with the dual review's
-off-carrier body, none is a question about descriptions.
+**The question under it: which doors owe tier 3.** It is decided by the
+door's role, not door by door:
+- Euler operators legitimately hand back scaffolding.
+- Verbs and import hand back solids someone will use: an operand, a
+  product root, an export.
 
-**Final state.**
-- **The gate.** `gate` runs `T::gate_at_rest_kept`, then
-  `T::gate_at_rest_declared` over the result's contacts. Both go through
-  `AtRestPolicy`, like the backstop: present at every certifying scalar,
-  absent at duals, whose outcome says so. `validate_geometric` runs
-  tiers 1 and 2 first, so this is one gate with no repeated tier 1.
-- **Refusals** are tier 3's own typed findings under `ResultInvalid`.
-  The arc-in-a-plane body refuses `PlanarBoundaryResidual`. The three
-  slivers refuse `ScaffoldAtRest`, and on the ∩ `LaminaWedge`.
-- **The three slivers' cause.** `describe_minted_edges` leaves a
-  `Scaffold` in place on a seam it reads as smooth (its
-  `Scaffold(_) => false` arm). The seam's angle is read over the seam's
-  own length (`work/contact/seam-description-reads-a-dihedral-at-the-seams-own-length`).
-  That filed item is P3 today. It lands before or with the gate, or
-  those rows pin the refusal until it does.
-- **What tier 3 cannot see.** A valid solid of the wrong shape still
-  passes. That is the backstop's job: ∩ ≤ each operand, ∪ ≤ A + B,
-  ∖ ≥ A − B. The 4 short positive ∩ bodies are caught only if each is
-  also off its carriers. Only one is known to be.
-- **Cost.** Tier 3 is about 15 % of op time on both corpora; the census
-  at the door is unmeasured. If it proves comparable to the op, the
-  fallback is tier 3 at the door and the census at the document's
-  assembly gate (lean against: the door would ship a 3′ claim unchecked).
+Today one type (`Body`) means both, so the boundary lives in a
+"workspace convention" recorded nowhere, and the doors disagree. Shell
+gates tier 3. The boolean, split and the sweeps gate tier 2. Blend
+gates tier 2 in debug builds only.
 
-**Operands: why not in the type now (likely).**
-- **The end state I lean towards.** Every verb door returns an
-  `AtRestBody` and takes `&AtRestBody` operands. The verdict is then
-  paid once per body: an operand that already carries its verdict is
-  not re-gated. A sub-tier-3 operand becomes unrepresentable, so no
-  refusal can name the wrong party. It also ends
-  `work/hone/a-stranded-operand-reaches-the-classification-invariant`,
-  where an operand whose edges lie off its own surfaces ends every
-  boolean on a kernel-invariant error.
-- **Why it waits.** That end state only holds once every producer
-  returns `AtRestBody`. Today extrude, revolve, loft, split and blend
-  return plain bodies, and so do the editor's node outputs and Python's
-  handle. Typed operands now would re-gate each of those at the boolean
-  seam. That is the triple pay the rule exists to avoid, and the refusal
-  would belong to the producing door.
-- **So it is a follow-on**: the door rule's last step, decided when the
-  sweep doors adopt the rule; it changes nothing about the result gate.
-- **Meanwhile** a result from a sub-tier-3 operand ships iff it passes
-  tier 3; every such operand in the corpus is a test fixture.
+Once the finished body is a type, typed operands are the same rule read
+from the input side: a verb consumes what verbs produce. That makes four
+things true:
+- a sub-tier-3 operand cannot be represented;
+- the stranded-operand kernel invariant
+  (`work/hone/a-stranded-operand-reaches-the-classification-invariant`)
+  becomes a typed refusal at `validate`, naming the operand's entities;
+- no refusal names the wrong party;
+- nothing is gated twice, because a kept verdict cannot be carried to
+  another body.
 
-**The backstop's +V arm (likely).** Both are absent at duals (the dual
-`AtRestPolicy` runs no backstop either), so nothing is lost there. Where
-both run they read one predicate, a bounded result encloses material,
-at two bands: check 7 at ε with zero exempt, `encloses_material` at the
-exact band after interval re-derivation. Two readings of one rule can
-disagree on an in-band negative. The better reading is a fix to check 7 itself, where the item
-`work/contact/volume-door-reads-a-tiny-valid-boolean-result-wrong`
-already points. It is not a second copy at the door.
+**Final state, boolean.**
+- **Refusals** are tier 3's typed findings under `ResultInvalid`. The
+  dual review's arc-in-a-plane body refuses `PlanarBoundaryResidual`.
+  The three slivers refuse `ScaffoldAtRest` (and `LaminaWedge` on the
+  ∩) until the seam-lever item lands with the fix to
+  `describe_minted_edges`' `Scaffold(_) => false` arm, which leaves a
+  smooth seam's scaffold in place.
+  (Item: `work/contact/seam-description-reads-a-dihedral-at-the-seams-own-length`.)
+- **The backstop** catches what tier 3 cannot: a valid solid of the
+  wrong shape (∩ ≤ each operand, ∪ ≤ A + B, ∖ ≥ A − B).
+- **At duals both are absent**: the dual `AtRestPolicy` runs neither,
+  and its outcome says so.
 
-**Ratified text (likely).** D1's tier-2 sentence ("Finished bodies must
-pass tier 2…") stays true as a floor: Euler operators are public doors,
-and they legitimately return tier-2 scaffolding. It was written in the
-M1 sweep (`ea81facfc0`), while tier 3 was "named now, not implemented".
+**Measured: check 7 against the valid sliver (sure).** The probe is
+`contact9_side_codes`' corner pose, ∩ at ε = 1e-12.
+- The exact volume is 5.83e-19 m³. `mass_properties` reads −2.96e-16 m³,
+  and `validate_geometric` refuses it as `NegativeVolume`.
+- The door ships it today. `encloses_material`'s interval re-derivation
+  straddles zero, so the arm passes.
+- At ε = 1e-9 the same pose passes tier 3, and so does the slab pose at
+  1e-12.
 
-An added sentence carries the rule, naming its doors (Euler operators
-are doors too). Reversible: one gate call, one wrapper field. Proposed:
+So a tier-3 gate at the door refuses this valid body unless check 7
+takes the interval re-derivation first. That item is
+`work/contact/volume-door-reads-a-tiny-valid-boolean-result-wrong`: P3
+today, P1 under the gate. Once check 7 has the re-derivation, the arm
+reads the same predicate the same way and retires as a duplicate.
 
-> A door that ships a finished body — a verb door: boolean, split, the
-> sweeps, blend, shell, import — runs the at-rest gate of the currency
-> its result claims, once, at the door's end, over the state the caller
-> will see; the verdict rides the result. Euler operators are the doors
-> that ship scaffolding.
+**Ratified text: a change in substance.** D1 currently reads: "Finished
+bodies must pass tier 2; tier-1-only states are visible solely inside
+operation sequences, never across an API boundary at rest." It was
+written in the M1 sweep (`ea81facfc0`), while tier 3 was "named now,
+not implemented". The new rule raises the bar for finished bodies to
+tier 3, and a second sentence beside it would set two bars on one
+thing. Proposed:
 
-Shell and import follow it; split, the sweeps and blend are its
-follow-on. It binds future doors, so it is yours to ratify.
+> A finished body (`AtRestBody`) passes tier 3, or tier 3′ when it
+> carries contacts; every door that returns or consumes one pays that
+> gate once, at the door that built it. Construction state (tier 1, or
+> tier 2 without geometric certification) is what Euler operators hand
+> back, and becomes a finished body only through the at-rest gate.
 
-**Rejected.** *The product gate alone*: one door late, under the wrong
-node, while the API, verb seat and Python ship the body onward, where a
-later union can hide it. *Checks 3 and 5 only*: a second tier-3 roster
-kept in step by hand, exempting the door's own scaffold and lamina
-findings. *Only findings the door introduced*: attribution across zip
-and merge, and a broken operand passes straight through.
+Tier 2's definition in the tier list is untouched. The sentence binds
+future doors, so it is yours to ratify.
+
+**Consequences.**
+- **Cost.** About 15 % of op time for tier 3, measured on both corpora.
+  The census at the door is unmeasured. If it proves comparable to the
+  op, the fallback is tier 3 at the door and the census at the assembly
+  gate. I lean against that: the door would claim a 3′ currency it did
+  not check.
+- **Reach.** The type runs through `topo`, `sweep`, `verbs`, the
+  evaluator and Python's handle.
+- **Fixtures.** The 49 fixtures take the description step
+  (`describe_as_intersections`), or refuse at `validate`.
+- **Reversible.** Dropping the operand type returns to gating the
+  result alone.
+
+**Rejected.**
+- *Gate the result, keep operands plain.* My round-1 position; answered
+  below.
+- *Rely on the product gate.* One door late, under the wrong node, and
+  a later union can hide the defect.
+- *Gate checks 3 and 5 only.* A second tier-3 roster kept in step by
+  hand.
+- *Refuse only the findings the door introduced.* Needs attribution
+  across the zip and the merge, and a broken operand passes through.
 
 ## For the orchestrator
 
-**What moved me.**
-- *Operands.* The other report's sequencing argument. `&AtRestBody`
-  operands are sound only once every producer returns `AtRestBody`.
-  Before that, they re-gate sweep and editor outputs at the boolean's
-  seam. So it belongs to the general door rule as its last step, not to
-  this decision. I still lean towards it as the end state.
-  - *What I correct in their report:* "pays tier 3 three times" holds
-    only for re-gating plain operands. A typed operand carries its
-    verdict and pays nothing.
-- *DESIGN text.* An added sentence carries the rule. It should list the
-  verb doors, because Euler operators are public doors that ship tier 2
-  legitimately.
-- *What did not move me:* retiring `encloses_material`. The brief's
-  premise is false: the backstop does not run at duals.
-  `impl AtRestPolicy for Dual<T>` in `crates/topo/src/props.rs` takes
-  `_op, _a, _b…` and runs nothing, exactly as `gate_at_rest` does. So
-  nothing is lost at duals. Where both run, the arm is check 7's
-  predicate read at a different band.
-- **Final state now:** the other report's, except the +V arm.
+**What moved me this round.** The round-1 sequencing argument that moved
+me (typed operands are sound only once every producer returns
+`AtRestBody`) is about the cost of the change. `designer.md` §4 says to
+disregard that, and d1's final state answers it by including the
+producers. My first argument (each body pays once; the stranded operand
+becomes a typed refusal) was never answered, so it stands and I return
+to it. d1 also moved me on two points: the D1 sentence is a change, not
+an addition; and tier-2-only bodies are not "Euler scaffolding", hence
+"construction state" in the proposed wording.
 
-**Unverified in the other report:** "the 4 short positive
-intersections … refuse at tier 3" — only the cited one is known to.
+**What I add.**
+- **The question under both positions** is whether "finished body" is a
+  type. If it is, typed operands are not a separate decision.
+- **The check-7 dependency is on the gate, not on retiring the arm.**
+  With tier 3 gated, check 7 refuses the sliver whether or not the arm
+  exists. So the check-7 fix is a precondition of the gate, and the
+  arm's retirement follows from the gate with no further dependency.
+- **Converged:** the final state now matches d1's revised report.
 
-**Census cost at the door is unmeasured**: instrument
-`gate_at_rest_declared` beside the `gate_at_rest` probe before choosing
-the recommendation over its fallback.
+**Probe.** A temporary test appended to
+`crates/topo/tests/contact9_side_codes.rs` ran ∩, − and ∪ on the corner
+and slab poses at `CAD_TOLERANCE_EPS` = 1e-12 and 1e-9, reading
+`mass_properties` and `validate_geometric`. Only the 1e-12 corner ∩
+failed (`NegativeVolume`). The probe is reverted and not committed.
 
-**Off-question defects, unfiled** (the door-rule follow-on if
-ratified, else SWEEP and BLEND): the "workspace convention" that callers
-re-validate at rest is cited by `extrude.rs`, `revolve/mod.rs` and
-`loft.rs` and recorded nowhere; `Extruded::body`'s doc says a smooth cap
-rim refuses, yet the door ships it; blend's tier-2 postcondition is only
-a `debug_assert_eq!` (`sweep/src/blend/surgery.rs`).
+**Sequencing (not Ev's).**
+1. Check-7 interval re-derivation.
+2. Seam lever, with the `Scaffold(_) => false` arm.
+3. The boolean gate and operand type (callers wrap sweep outputs with
+   `validate` meanwhile).
+4. Sweep, blend and split doors.
+5. Retire `encloses_material`.
 
-**Process.** Read the d1 report for this round on your instruction
-(`memories/orchestration-model.md`); full history fetched; built nothing.
+**Unmeasured.** The census cost at the door; whether all 4 short
+positive ∩ bodies fail tier 3; which findings the 42 sweep results
+carry.
+
+**Unfiled, for the door-contract work.**
+- The unrecorded "workspace convention" (`extrude.rs`, `revolve/mod.rs`,
+  `loft.rs`).
+- `Extruded::body` documents a refusal for a body its door ships.
+- Blend's tier-2 postcondition is debug-only.
