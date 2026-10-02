@@ -2,9 +2,10 @@
 id: full-turn-bore-rest-mate-does-not-union
 kind: issue
 title: A declared cylindrical Rest on a full-turn bore does not union - an on-carrier ruling crossing a rim's interior is recorded by nobody
-status: open
+status: review
 opened: 2026-10-01
 refs: [full-period-wall-has-no-containment-verdict]
+branch: reach/fullturn-bore-mate
 ---
 
 Found by the `reach-fullperiod` lane. Giving the face door a verdict on
