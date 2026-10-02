@@ -765,3 +765,172 @@ mod fuzz_rows {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod graze_rows {
+    //! Grazes at a vertex, by depths of a few bands either side of zero —
+    //! the poses where a certified `Miss` is wrong if it is ever wrong —
+    //! on circles and ellipses in every stored order and sign, through the
+    //! degree-2 doors' certified subdivision.
+
+    use core::f64::consts::{FRAC_PI_2, PI};
+
+    use super::*;
+    use crate::boolean::circle_cylinder::circle_cylinder_roots;
+    use geom_core::{Point3, Vec3};
+    use test_utils::fuzz;
+
+    fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
+        loop {
+            let v = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            if v.norm() > 0.2 && v.norm() < 1.0 {
+                return v.normalize();
+            }
+        }
+    }
+
+    /// **No certified `Miss` on a graze within the band, or across it.** A
+    /// carrier (a circle, or an ellipse of semi-axes 0.5–5 m and
+    /// eccentricity up to 40, stored in either order and either sign, its
+    /// centre up to 1 km out) meets a small sphere or wall (radius
+    /// 1–100 µm) at one of its vertices, the surface set off along the
+    /// carrier's outward normal there by `gap` — drawn from −40 to 40
+    /// bands — so the carrier's least distance from the surface IS `gap`
+    /// (the carrier bends away from it on both sides). The wall's axis
+    /// lies along the carrier's tangent at the vertex, so the door takes
+    /// its subdivision, not a first-harmonic arm. Every certified root
+    /// must read ON the surface (its true distance inside the zero band),
+    /// and a `Miss` needs `gap` past the zero band.
+    ///
+    /// Charging the harmonics' rounding at the SIGNED `major` (a negative
+    /// one under-charged ~180× at a kilometre) certified misses on
+    /// crossings 1e-10 m deep at ε = 1e-12; dropping the subdivision's
+    /// Taylor remainder certified misses on grazes at ε = 1e-9.
+    #[test]
+    fn no_certified_miss_on_a_graze() {
+        let mut rng = fuzz::start("ellipse_roots::no_certified_miss_on_a_graze");
+        for eps in [1e-12, 1e-9] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            let (mut certified, mut misses, mut declined) = (0, 0, 0);
+            for i in 0..fuzz::scaled(800) {
+                let n = unit(&mut rng);
+                let u = unit(&mut rng);
+                let u_ref = (u - n * u.dot(n)).normalize();
+                let big = rng.range(0.5, 5.0);
+                let circle = i % 4 == 0;
+                let small = if circle {
+                    big
+                } else {
+                    big / rng.range(1.0, 40.0)
+                };
+                let (mut major, mut minor) = if rng.below(2) == 0 {
+                    (big, small)
+                } else {
+                    (small, big)
+                };
+                if !circle && rng.below(2) == 0 {
+                    major = -major;
+                }
+                if !circle && rng.below(3) == 0 {
+                    minor = -minor;
+                }
+                let far = if rng.below(3) == 0 { 1000.0 } else { 1.0 };
+                let center = Point3::new(
+                    rng.range(-far, far),
+                    rng.range(-far, far),
+                    rng.range(-far, far),
+                );
+                let e = if circle {
+                    geom::Curve3::Circle {
+                        center,
+                        axis: n,
+                        radius: major,
+                        u_ref,
+                    }
+                } else {
+                    geom::Curve3::Ellipse {
+                        center,
+                        axis: n,
+                        major,
+                        minor,
+                        u_ref,
+                    }
+                };
+                // A vertex: the ends of the stored axes.
+                let vertex = FRAC_PI_2 * f64::from(u32::try_from(rng.below(4)).unwrap());
+                let p = e.eval(vertex);
+                let outward = (p - center).normalize();
+                let tangent = n.cross(outward);
+                let r = 10f64.powf(rng.range(-6.0, -4.0));
+                let gap = eps * rng.range(-40.0, 40.0);
+                let hub = p + outward * (r + gap);
+                let x = Vec3::new(1.0, 0.0, 0.0);
+                let s = if rng.below(2) == 0 {
+                    geom::Surface::Sphere {
+                        center: hub,
+                        radius: r,
+                        axis: n,
+                        u_ref: (x - n * x.dot(n)).normalize(),
+                    }
+                } else {
+                    geom::Surface::Cylinder {
+                        origin: hub,
+                        axis: tangent,
+                        radius: r,
+                        u_ref: outward,
+                    }
+                };
+                let (t0, t1) = (vertex - 0.5, vertex + 0.5);
+                let got = if circle {
+                    match s {
+                        geom::Surface::Cylinder { .. } => {
+                            circle_cylinder_roots(&e, t0, t1, &s, band)
+                        }
+                        _ => continue,
+                    }
+                } else {
+                    ellipse_roots(&e, t0, t1, &s, band)
+                };
+                let distance = |q: Point3<f64>| match s {
+                    geom::Surface::Sphere { center, radius, .. } => (q - center).norm() - radius,
+                    geom::Surface::Cylinder {
+                        origin,
+                        axis,
+                        radius,
+                        ..
+                    } => {
+                        let w = q - origin;
+                        (w - axis * w.dot(axis)).norm() - radius
+                    }
+                    _ => unreachable!(),
+                };
+                let label = format!(
+                    "ε {eps}, case {i}: gap {gap:e}, {e:?} against {s:?} — {}",
+                    fuzz::replay()
+                );
+                match got {
+                    Ok(CircleRoots::Miss) => {
+                        misses += 1;
+                        assert!(gap > eps, "{label}: a certified Miss");
+                    }
+                    Ok(CircleRoots::Certified { count, thetas }) => {
+                        certified += 1;
+                        for &t in &thetas[..count] {
+                            let off = distance(e.eval(t)).abs();
+                            assert!(off <= eps, "{label}: root {t} lies {off} off");
+                        }
+                    }
+                    Ok(CircleRoots::CountDisagrees) => panic!("{label}: CountDisagrees"),
+                    _ => declined += 1,
+                }
+                let _ = PI;
+            }
+            println!("ε {eps}: {certified} certified, {misses} misses, {declined} declined");
+        }
+    }
+}

@@ -1442,9 +1442,11 @@ fn mint_offset<T: Decide>(
 ///
 /// - a **line** segment: its endpoints (distance to a point is convex
 ///   along a line, so a segment attains its maximum at an end);
-/// - a **circle** or **ellipse**: centre distance plus the (major)
-///   radius, whatever the parameter span — a closed rim, whose two
-///   endpoints coincide, is exactly the case sampling misses;
+/// - a **circle** or **ellipse**: centre distance plus the radius, or
+///   the larger semi-axis MAGNITUDE (the mint certifies an ellipse
+///   stored with `minor > major` or a negative `major`), whatever the
+///   parameter span — a closed rim, whose two endpoints coincide, is
+///   exactly the case sampling misses;
 /// - a **spiric** (a curve on a torus): centre distance plus `R + r`;
 /// - a **NURBS** carrier: its control points (the convex-hull property
 ///   of positive weights).
@@ -1466,7 +1468,12 @@ fn pose_reach<T: Real>(surfaces: [&Surface<T>; 2], carrier: &Curve3<T>, t0: T, t
                 .norm()
                 .max((*origin + *dir * t1 - anchor).norm()),
             Curve3::Circle { center, radius, .. } => (*center - anchor).norm() + radius.abs(),
-            Curve3::Ellipse { center, major, .. } => (*center - anchor).norm() + major.abs(),
+            Curve3::Ellipse {
+                center,
+                major,
+                minor,
+                ..
+            } => (*center - anchor).norm() + major.abs().max(minor.abs()),
             Curve3::Spiric {
                 center,
                 major_radius,
@@ -2555,5 +2562,48 @@ mod shift_chart_v_rows {
             panic!("a harmonic image shifts");
         };
         assert_eq!(p0.y, 1.25);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod pose_reach_rows {
+    use geom::{Curve3, Surface};
+    use geom_core::{Point3, Vec3};
+
+    use super::pose_reach;
+
+    /// **The reach bounds every point of an ellipse in any stored order or
+    /// sign.** The mint certifies an ellipse stored with `minor > major`
+    /// and one with a negative `major` (its `u_ref` flipped); the reach
+    /// must still be at least each point's distance from the surface's
+    /// anchor, round the whole turn. Read at `|major|`, the first falls
+    /// short by `minor − major`.
+    #[test]
+    fn the_reach_bounds_an_ellipse_in_any_stored_frame() {
+        let sphere = Surface::Sphere {
+            center: Point3::new(0.3, -0.2, 0.1),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for (major, minor, u) in [(0.5, 0.9, 1.0), (-0.9, 0.5, -1.0), (0.9, -0.5, 1.0)] {
+            let e = Curve3::Ellipse {
+                center: Point3::new(0.1, 0.2, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                major,
+                minor,
+                u_ref: Vec3::new(u, 0.0, 0.0),
+            };
+            let reach = pose_reach([&sphere, &sphere], &e, 0.0, 0.5);
+            for k in 0..=720 {
+                let t = core::f64::consts::TAU * f64::from(k) / 720.0;
+                let far = (e.eval(t) - Point3::new(0.3, -0.2, 0.1)).norm();
+                assert!(
+                    reach >= far,
+                    "({major}, {minor}): the reach {reach} falls short of {far} at θ = {t}"
+                );
+            }
+        }
     }
 }

@@ -934,8 +934,10 @@ pub struct ConicHarmonics<T> {
     pub s2: T,
     /// A bound on every magnitude the coefficients are built from (m²,
     /// before the `2r` division), the rounding of the projection
-    /// included: `(|C₀ − o| + a)² + r²` — the scale their rounding is
-    /// charged against.
+    /// included: `(|C₀ − o| + max(|a|, |b|))² + r²` — the scale their
+    /// rounding is charged against, read at the semi-axes' MAGNITUDES
+    /// (a signed or ordered read under-charges a negative `major`, or a
+    /// `minor` stored larger).
     pub terms: T,
 }
 
@@ -960,7 +962,7 @@ fn quadric_harmonics<T: Real>(
         s1: two * b * e.dot(vp) / per,
         c2: (aa - bb) * half / per,
         s2: a * b * up.dot(vp) / per,
-        terms: (d.norm() + a).powi(2) + r.powi(2),
+        terms: (d.norm() + conic.speed_hi()).powi(2) + r.powi(2),
     }
 }
 
