@@ -137,10 +137,14 @@ bridged residue, and the declaration bridges only the third
 (`ContactVerdict::{Definite, Bridged}`; `ContactRefusal::{Contradicted,
 Escalated, Undeclared, NotCertifiable}`). `Rest`: carrier
 non-contradiction through the kind ladder (`carrier_eq`: plane, sphere,
-cylinder, torus; angular margins levered at the consumed extent, length
-margins at unit arm), senses opposed as an exact bit, overlap definitely
-positive on C3's chart authority; contradicted by definitely distinct
-carriers, aligned senses, definite separation on the patch. `Tangent`:
+cylinder, torus), the pair read as one displacement over the consumed
+extent — position data at a pivot, plus the angular data levered from
+it to the extent's far reach, plus the radius differences; senses
+opposed as an exact bit; overlap definitely positive on C3's chart
+authority. Bridged only where that displacement's upper bound is in band
+at every consumed point; contradicted by a consumed point (a face
+vertex, or the whole extent) definitely off the other carrier, aligned
+senses, definite separation on the patch; escalated between. `Tangent`:
 first-order tangency along the witnessed locus, locus on both surfaces
 within ε; contradicted by definite normal independence, definite
 crossing (as far as the sampled κ_rel sees it, C1), definite separation;
@@ -154,8 +158,10 @@ in `BooleanDeclarations::coincident_faces` (`FacePairDeclaration`) and
 on mate nodes (`crates/editor-core/ASSEMBLY.md`); bodies carry only
 verified records in the `BooleanBody` wrapper, never persisted. Replay
 is scalar-generic; an indeterminate verification at an interval scalar
-aborts. Failures, all typed: `UndeclaredContact`, `ContactContradicted`
-(at use and at rest), `StaleContactDeclaration`, `CensusEscalated`.
+aborts. Failures, all typed: `UndeclaredContact` (the census) and
+`UndeclaredCoincidence` (the boolean), `ContactContradicted`
+(at use and at rest), `ContinuationContradicted` (at use),
+`StaleContactDeclaration`, `CensusEscalated`.
 Invariant: every definite verdict wins over every declaration.
 
 **Continuation.** Two faces, one from each operand, on one carrier
@@ -201,11 +207,18 @@ verified seam, or a structural tangency (an edge described
 carrier with the target. It is never read from values: a root
 verdict of "tangent" is a band decision, so a graze within the band
 refuses, and an exact tangency is reached only through structure or a
-declaration. An edge decided to lie identically on the other operand's
-carrier, when every surface of a face it bounds is decided distinct
-from that carrier by the carrier ladder, is an ON event under the
-reduction's trilean (exactly-on ⇒ ON, in-band ⇒ escalate), as an edge
-lying in a partner's plane is; where the ladder does not decide a
+declaration. A covered LINE touching a cylinder or a sphere inside
+the edge is read again on the edge's fragments once both sweep
+directions have run: where the other operand has a vertex at the touch,
+whether it builds does not depend on which operand is A, and with no
+vertex there it refuses in both orders. A covered arc, and a covered
+line against a torus, keep the refusal where the touch is inside the
+edge: their residual is not convex, so a fragment's ends need not see
+every touch. An edge decided to lie identically on the other
+operand's carrier, when every surface of a face it bounds is decided
+distinct from that carrier by the carrier ladder, is an ON event under
+the reduction's trilean (exactly-on ⇒ ON, in-band ⇒ escalate), as an
+edge lying in a partner's plane is; where the ladder does not decide a
 parent distinct, the cosurface question keeps its door.
 
 **C5 — The signed gap.** For a declared pair on same-kind carriers with a

@@ -209,6 +209,101 @@ fn the_near_tangent_family_builds_to_1e_6_and_escalates_at_1e_8() {
     }
 }
 
+/// **The near-tangent family at the finer bands.** At `δ = 1e-5` and
+/// `1e-6` the section circle is a few millimetres across and the
+/// meridians cross the partner sphere at a slope of `√(4.5δ)`, so the
+/// pierce points are placed only as well as the extremes of the circle
+/// × sphere residual are evaluated. Each δ builds under every op to its
+/// cap closed form wherever it is a definite depth with a decade to
+/// spare (`δ ≥ 10·Kε`): at ε = 1e-9 and 1e-12, not at 1e-6, where the
+/// pole's side of the other sphere is inside the band.
+#[test]
+fn the_near_tangent_family_builds_to_1e_6_at_the_finer_bands() {
+    let escalate = Band::linear(Tol::witness()).unwrap().escalate();
+    let deltas: Vec<f64> = [1e-5, 1e-6]
+        .into_iter()
+        .filter(|&delta| delta >= 10.0 * escalate)
+        .collect();
+    if deltas.is_empty() {
+        test_utils::vacuity::stood_down(
+            "coarse eps",
+            "at this band the near-tangent depths are inside the escalation gap",
+        );
+        return;
+    }
+    let a = ball(R1, 0.0);
+    let (va, vb) = (ball_volume(R1), ball_volume(R2));
+    for delta in deltas {
+        let d = R1 + R2 - delta;
+        let b = ball(R2, d);
+        let lens = lens_volume(R1, R2, d);
+        for (label, op, x, y, expected) in [
+            ("A ∪ B", BooleanOp::Union, &a, &b, va + vb - lens),
+            ("A ∩ B", BooleanOp::Intersect, &a, &b, lens),
+            ("A ∖ B", BooleanOp::Subtract, &a, &b, va - lens),
+            ("B ∖ A", BooleanOp::Subtract, &b, &a, vb - lens),
+        ] {
+            let label = format!("δ = {delta:e}, {label}");
+            let body = run(op, x, y);
+            assert_body(&label, &body, expected);
+            assert_pierces_on_the_section(&label, &body, d);
+        }
+    }
+}
+
+/// Every vertex off the axis lies within ε of the section circle,
+/// read off the radii alone: the radical plane at `y* = r1 − h` with
+/// `h = δ(2r2 − δ)/2d`, the circle's radius `√(h(2r1 − h))`, every
+/// factor free of cancellation, and `δ = (r1 − d) + r2` exact. The
+/// volume cannot see a misplaced pierce on a lens this thin; this can.
+fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
+    let eps = Tol::witness().get().eps;
+    let delta = (R1 - d) + R2;
+    let h = delta * (2.0 * R2 - delta) / (2.0 * d);
+    let (y_star, a) = (R1 - h, (h * (2.0 * R1 - h)).sqrt());
+    let mut pierces = 0;
+    for (key, _) in body.vertices() {
+        let p = topo::readback::vertex_point(body, key).unwrap();
+        let off_axis = p.x.hypot(p.z);
+        if off_axis <= eps {
+            continue;
+        }
+        pierces += 1;
+        let off = (p.y - y_star).hypot(off_axis - a);
+        assert!(
+            off <= eps,
+            "{label}: vertex {p:?} is {off:e} off the section circle (y {y_star}, radius {a})"
+        );
+    }
+    assert!(pierces >= 2, "{label}: the section's pierce vertices exist");
+}
+
+/// **Where the near-tangent family stops at ε = 1e-12.** At `δ = 1e-7`
+/// the slope at the pierce is `≈ 6.7e-4`, and the `f64` evaluation of
+/// the residual's near extreme cannot place the pierce point to within
+/// `1e-12`: the circle × sphere roots answer uncertain and every op
+/// refuses at the pierce door
+/// (`work/reach/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
+#[test]
+fn the_near_tangent_family_stops_at_1e_7_at_eps_1e_12() {
+    if Tol::witness().get().eps != 1e-12 {
+        test_utils::vacuity::stood_down(
+            "eps other than 1e-12",
+            "the f64 placement frontier is measured at the finest band only",
+        );
+        return;
+    }
+    let a = ball(R1, 0.0);
+    let b = ball(R2, R1 + R2 - 1e-7);
+    for op in OPS {
+        let e = refusal(op, &a, &b);
+        assert!(
+            matches!(e, topo::BooleanError::CurvedPierceUnsupported { .. }),
+            "δ = 1e-7 under {op:?}: expected the pierce door, got {e:?}"
+        );
+    }
+}
+
 /// **The tangent pairs are the honest frontier.** Touching externally
 /// (`d = r1 + r2`) or internally (`d = r1 − r2`), the two balls meet at
 /// one pole, where a meridian of each touches the other sphere without
@@ -607,6 +702,259 @@ fn the_snowman_waist_fillets() {
                 );
             }
             ref other => panic!("the band is a torus, got {other:?}"),
+        }
+    }
+}
+
+/// The boolean's body, `None` for an empty result; a refusal fails
+/// with the payload.
+fn run_or_empty(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
+    let out = match op {
+        BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
+        BooleanOp::Intersect => topo::boolean::intersect(a, b, Tol::witness()),
+        BooleanOp::Subtract => topo::boolean::subtract(a, b, Tol::witness()),
+    }
+    .unwrap_or_else(|e| panic!("{op:?} refused: {e:?}"));
+    out.body().map(|b| b.body.clone())
+}
+
+/// The union (`max`) or intersection (`min`) of the balls `(r, c)` on
+/// the y axis, as an [`Axi`].
+fn axi_balls(balls: &'static [(f64, f64)], union: bool) -> Axi {
+    Axi {
+        r2: Box::new(move |y| {
+            let slices = balls
+                .iter()
+                .map(|&(r, c)| (r * r - (y - c).powi(2)).max(0.0));
+            if union {
+                slices.fold(0.0, f64::max)
+            } else {
+                slices.fold(f64::INFINITY, f64::min)
+            }
+        }),
+        breaks: balls.iter().flat_map(|&(r, c)| [c - r, c + r]).collect(),
+    }
+}
+
+/// **A ball strictly inside a body of two or three spheres**, or
+/// holding one, with no boundary crossing. Each small ball's sphere
+/// crosses the CARRIER of a big sphere face in a circle on the part
+/// that face's trim has cut away, so the carriers meet while the faces
+/// do not; the extent scan asks the faces, through the section
+/// certificate's witness on that circle, and every op builds — in both
+/// operand orders, against the slice integral.
+#[test]
+fn a_ball_inside_a_two_sphere_body_builds() {
+    const SNOWMAN: &[(f64, f64)] = &[(R1, 0.0), (R2, D)];
+    const CHAIN: &[(f64, f64)] = &[(R1, 0.0), (R2, D), (0.6, 2.3)];
+    let snowman = run(BooleanOp::Union, &ball(R1, 0.0), &ball(R2, D));
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let chain = run(BooleanOp::Union, &snowman, &ball(0.6, 2.3));
+    for (label, body, balls, union, (r, c)) in [
+        ("snowman", &snowman, SNOWMAN, true, (0.5, 0.75)),
+        ("lens", &lens, SNOWMAN, false, (0.6, 0.8)),
+        ("lens in", &lens, SNOWMAN, false, (0.9, 1.0)),
+        ("chain", &chain, CHAIN, true, (0.5, 1.9)),
+    ] {
+        let small = ball(r, c);
+        let mut spheres = balls.to_vec();
+        spheres.push((r, c));
+        let (big_axi, small_axi) = (axi_balls(balls, union), axi_ball(r, c, f64::INFINITY));
+        for op in OPS {
+            for (name, x, y, x_axi, y_axi) in [
+                (
+                    format!("{label} {op:?} ball({r}, {c})"),
+                    body,
+                    &small,
+                    &big_axi,
+                    &small_axi,
+                ),
+                (
+                    format!("ball({r}, {c}) {op:?} {label}"),
+                    &small,
+                    body,
+                    &small_axi,
+                    &big_axi,
+                ),
+            ] {
+                let want = axi_op(op, x_axi, y_axi, &spheres);
+                match run_or_empty(op, x, y) {
+                    Some(out) => assert_body(&name, &out, want),
+                    // Nested operands leave nothing only where the
+                    // oracle does: the inner one less the outer.
+                    None => assert!(want.abs() <= 1e-12, "{name}: empty against {want}"),
+                }
+            }
+        }
+    }
+}
+
+/// **A lens beside a slab whose plane cuts only the lens's trimmed-away
+/// sphere.** The slab's facing plane crosses the CARRIER of one of the
+/// lens's sphere faces, in a circle wholly inside the plane face, on
+/// the part of that sphere the lens does not keep: the circle is not an
+/// escape of the trimmed group, the faces never meet, and every op
+/// builds — the two bodies are disjoint, so the oracle is the lens's
+/// two caps and the slab's box, in both operand orders.
+#[test]
+fn a_lens_beside_a_slab_its_trimmed_sphere_crosses_builds() {
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let v_lens = lens_volume(R1, R2, D);
+    for (label, (y0, y1)) in [("below", (-3.0, -0.5)), ("above", (1.6, 3.0))] {
+        let slab: Body<f64> =
+            sweep::test_support::brick((-2.0, 2.0), (y0, y1), (-2.0, 2.0), Tol::witness());
+        let v_slab = 16.0 * (y1 - y0);
+        for (op, x, y, want) in [
+            (BooleanOp::Union, &lens, &slab, v_lens + v_slab),
+            (BooleanOp::Union, &slab, &lens, v_lens + v_slab),
+            (BooleanOp::Intersect, &lens, &slab, 0.0),
+            (BooleanOp::Intersect, &slab, &lens, 0.0),
+            (BooleanOp::Subtract, &lens, &slab, v_lens),
+            (BooleanOp::Subtract, &slab, &lens, v_slab),
+        ] {
+            let name = format!("slab {label}: {op:?}");
+            match run_or_empty(op, x, y) {
+                Some(out) => assert_body(&name, &out, want),
+                None => assert!(want == 0.0, "{name}: empty against {want}"),
+            }
+        }
+    }
+}
+
+/// A 6 × 1 × 6 slab whose near face lies in the plane at distance `s`
+/// from the origin along the y axis tilted by `tilt` degrees about x —
+/// toward azimuth π/2 of the lens's chart for a positive tilt, 3π/2 for
+/// a negative one, so the plane's circle on a lens sphere stays clear of
+/// the seam meridians in `z = 0`. Wide enough that its side faces clear
+/// every sphere.
+fn tilted_slab(tilt: f64, s: f64) -> Body<f64> {
+    use geom_core::{Affine3, Point3, Vec3};
+    let rot = Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::new(1.0, 0.0, 0.0),
+        tilt.to_radians(),
+    );
+    let n = rot.transform_vec(Vec3::new(0.0, 1.0, 0.0));
+    let slab: Body<f64> =
+        sweep::test_support::brick((-3.0, 3.0), (0.0, 1.0), (-3.0, 3.0), Tol::witness());
+    topo::transform_rigid(&slab, &(Affine3::translation(n * s) * rot), Tol::witness()).unwrap()
+}
+
+/// **A tilted slab against the lens, away from its seam.** The slab's
+/// near plane, at 0.985 from the unit sphere's centre, cuts that
+/// sphere's carrier in a circle wholly inside the plane face, and no
+/// edge of either body crosses a face.
+///
+/// - Tilted 60° (toward azimuth π/2 and 3π/2), the circle lies on the
+///   part of the unit sphere the lens trims away: the lens's faces are
+///   certified apart from the plane face, so it is no escape, and every
+///   op builds against the lens's caps and the slab's 36.
+/// - Tilted 20°, the circle lies inside the lens's top face: the plane
+///   cuts a cap of height 0.015 off the lens, a real escape of a
+///   TRIMMED group, which the re-chart cannot serve. Every op refuses
+///   it typed. Skipping the trimmed group without asking whether its
+///   faces meet the plane face would instead build tier-3-valid bodies
+///   short or long by that cap.
+#[test]
+fn a_tilted_slab_against_the_lens_builds_or_refuses_the_trimmed_escape() {
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let v_lens = lens_volume(R1, R2, D);
+    let v_slab = 36.0;
+    for tilt in [60.0, -60.0] {
+        let slab = tilted_slab(tilt, 0.985);
+        for (op, x, y, want) in [
+            (BooleanOp::Union, &lens, &slab, v_lens + v_slab),
+            (BooleanOp::Union, &slab, &lens, v_lens + v_slab),
+            (BooleanOp::Intersect, &lens, &slab, 0.0),
+            (BooleanOp::Intersect, &slab, &lens, 0.0),
+            (BooleanOp::Subtract, &lens, &slab, v_lens),
+            (BooleanOp::Subtract, &slab, &lens, v_slab),
+        ] {
+            let name = format!("slab tilted {tilt}°: {op:?}");
+            match run_or_empty(op, x, y) {
+                Some(out) => assert_body(&name, &out, want),
+                None => assert!(want == 0.0, "{name}: empty against {want}"),
+            }
+        }
+    }
+    for tilt in [20.0, -20.0] {
+        let slab = tilted_slab(tilt, 0.985);
+        for (x, y) in [(&lens, &slab), (&slab, &lens)] {
+            for op in OPS {
+                let e = refusal(op, x, y);
+                assert!(
+                    matches!(
+                        e,
+                        topo::BooleanError::FallbackExtentUnsupported { what, .. }
+                            if what.contains("TRIMMED sphere face group escapes")
+                    ),
+                    "slab tilted {tilt}° under {op:?}: expected the trimmed escape, got {e:?}"
+                );
+            }
+        }
+    }
+}
+
+/// **A millimetre lens inside a ball, at the tolerance that cannot
+/// place the section circle.** The lens of [`R1`], [`R2`], [`D`] scaled
+/// by `k = 1e-3`, inside `ball(0.9k)` centred at `(0.1, 1, −0.1)·k`: the
+/// ball's sphere crosses the carriers of both lens spheres off the
+/// lens's faces. At ε 1e-6 the band is a thousandth of the bodies, and
+/// the section certificate's witness on one crossing circle lands in
+/// it: no point placed, so the pair refuses with the certificate's own
+/// reason (R-undec) as `FallbackExtentUnsupported`, never as spheres
+/// that meet, and never as apart. At every other ε the circles are
+/// certified off the faces and every op builds against the caps,
+/// to 1e-9 of the result (the volumes are of order k³).
+#[test]
+fn a_millimetre_lens_inside_a_ball_refuses_its_unplaced_circle_at_1e_6() {
+    let k = 1e-3;
+    let tol = Tol::witness();
+    let lens = run(
+        BooleanOp::Intersect,
+        &ball(R1 * k, 0.0),
+        &ball(R2 * k, D * k),
+    );
+    let shift = geom_core::Affine3::translation(geom_core::Vec3::new(0.1 * k, k, -0.1 * k));
+    let b = topo::transform_rigid(&ball(0.9 * k, 0.0), &shift, tol).unwrap();
+    let (v_lens, v_ball) = (lens_volume(R1 * k, R2 * k, D * k), ball_volume(0.9 * k));
+    for (op, x, y, want) in [
+        (BooleanOp::Union, &lens, &b, v_ball),
+        (BooleanOp::Union, &b, &lens, v_ball),
+        (BooleanOp::Intersect, &lens, &b, v_lens),
+        (BooleanOp::Intersect, &b, &lens, v_lens),
+        (BooleanOp::Subtract, &lens, &b, 0.0),
+        (BooleanOp::Subtract, &b, &lens, v_ball - v_lens),
+    ] {
+        let label = format!("ε {} {op:?}", tol.eps());
+        if tol.eps() == 1e-6 {
+            let e = refusal(op, x, y);
+            assert!(
+                matches!(
+                    e,
+                    topo::BooleanError::FallbackExtentUnsupported { what, .. }
+                        if what.contains("no witness could place")
+                ),
+                "{label}: expected the certificate's undecided refusal, got {e:?}"
+            );
+            continue;
+        }
+        match run_or_empty(op, x, y) {
+            None => assert!(want == 0.0, "{label}: empty against {want}"),
+            Some(out) => {
+                assert_eq!(topo::validate(&out), Ok(()), "{label}: tier 1");
+                assert_eq!(topo::validate_closed(&out), Ok(()), "{label}: tier 2");
+                assert_eq!(
+                    topo::validate_geometric(&out, tol),
+                    Ok(()),
+                    "{label}: tier 3"
+                );
+                let v = topo::mass_properties(&out, tol).unwrap().volume;
+                assert!(
+                    (v - want).abs() <= 1e-9 * want,
+                    "{label}: volume {v} against {want}"
+                );
+            }
         }
     }
 }

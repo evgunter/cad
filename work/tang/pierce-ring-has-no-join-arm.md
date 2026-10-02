@@ -162,6 +162,16 @@ both sides) has nothing missing for this pose — the section and its
 plane are the coplanar pose's — so this is the third carrier on which
 the ring lane, and only it, is owed.
 
+## Evidence (2026-10-02, the circle × cylinder cell): parallel cylinders that pierce
+
+Two unit cylinders, `z ∈ [0, 2]` and `z ∈ [0.5, 2.5]`, axes `d` apart,
+`d ∈ {0.3, 0.8, 1.2, 1.6, 1.9}`: each rim circle's pierce of the other
+wall is certified by the circle × cylinder root lane and passes its
+sector side, and every op refuses
+`Join(SectionArcWindow { case: NoChartedRun })`. Pinned by
+`crates/sweep/tests/tang_circle_cylinder.rs`,
+`parallel_cylinders_that_pierce_stop_at_the_pierce_ring`.
+
 ## 2026-10-01 — re-measured on main (TANG)
 
 Every door was measured at `origin/main` `6000ec92d`, under all three ops
@@ -370,3 +380,16 @@ the poses that stopped one layer early now reach this unit's doors:
   ε row) now reaches this door rather than the sector side.
 - The story suite's rook keeps its square crown for this door; its
   module docs say so (`crates/viewer/tests/story_authoring.rs`).
+
+## Evidence (2026-10-02, `reach/tilted-sphere-pair`): tilted sphere pairs and plane cuts
+
+Once a sphere section tilted against the chart has an arc rule (the
+wall lane's run-side rule, `chord_join::select_arc_by_run_side`), the
+ring is where every tilted pose whose pierce lands inside a face stops:
+ball(1) at `(2, 2, 0.5)` against ball(1) at `(3.3, 2, 0.7)`, and against
+ball(0.7) at `(2.9, 2.3, 1.1)`, refuse `Join(SectionArcSide { case:
+NoCertifiedRun })` under ∪, ∩ and ∖ — the run the chord is handed is
+null scaffolding, the run-side rule's form of `NoChartedRun`
+(`crates/sweep/tests/tilted_sphere_pair.rs`,
+`a_tilted_section_stops_at_the_pierce_ring_and_the_planar_side`). Their
+in-seam-plane siblings, whose pierces land on the seams, build.

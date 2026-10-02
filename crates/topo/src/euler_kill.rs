@@ -348,7 +348,7 @@ pub struct KvfsResult {
     pub killed_surface: Option<SurfaceKey>,
     /// The vertex's point (dead key), if killing the vertex orphaned it
     /// and it was removed; `None` if another vertex still references it
-    /// (never, with M1's per-vertex minting — the scan is the rule).
+    /// (an op's copies of one vertex share its point, `Body::mev_null`).
     pub killed_point: Option<PointKey>,
 }
 
@@ -775,9 +775,10 @@ impl<T: Decide> Body<T> {
     ///
     /// A killed null edge moves nothing because its two vertices hold
     /// one point: [`Body::mev_null`] mints them so, and both re-basing
-    /// gates refuse to move one end of one. Nothing else enforces it,
-    /// and the doors that write vertex points (`replace_face`,
-    /// `offset_*`) take tier-2-valid bodies, which hold no null edge.
+    /// gates refuse to move one end of one. The doors that move
+    /// vertices (`replace_face`, `offset_*`, through
+    /// `Body::move_vertices`) take tier-2-valid bodies, which hold no
+    /// null edge.
     ///
     /// A merge that moves nothing, or moves its members within band,
     /// goes through `kev_describing(he, &[], tol)`
@@ -912,7 +913,9 @@ impl<T: Decide> Body<T> {
     /// half, loop or face that does not resolve); the merged endpoints
     /// resolve (`StaleKey` / [`EulerOpError::StaleGeometry`], the
     /// surviving vertex's point among them); the spec certifies against
-    /// them ([`EulerOpError::RebasedCarrier`] naming the edge). Then,
+    /// them ([`EulerOpError::RebasedCarrier`] naming the edge, or
+    /// [`EulerOpError::NurbsLaneUnsupported`] where a plane × NURBS spec
+    /// meets a scalar whose policy holds no lane). Then,
     /// where the merged fan is not empty, the killed edge's curve entry
     /// resolves (`StaleGeometry`); and unless it is a null edge, where a
     /// member is left unlisted, the surviving vertex's point resolves
@@ -932,7 +935,10 @@ impl<T: Decide> Body<T> {
         he: HalfEdgeKey,
         redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
         tol: Tol,
-    ) -> Result<KevResult, EulerOpError> {
+    ) -> Result<KevResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let plan = self.kev_plan(he)?;
@@ -1173,7 +1179,10 @@ impl<T: Decide> Body<T> {
         plan: &KevPlan,
         redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
         tol: Tol,
-    ) -> Result<Vec<(EdgeKey, EdgeCurve<T>)>, EulerOpError> {
+    ) -> Result<Vec<(EdgeKey, EdgeCurve<T>)>, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         // The survivor's point, resolved at the first question that
         // needs it and not before.
         let mut p_v: Option<Point3<T>> = None;
@@ -1199,7 +1208,7 @@ impl<T: Decide> Body<T> {
             self.check_description_adjacent(edge, &spec.description)?;
             let (p_start, p_end) = self.rebased_endpoints(edge, &plan.fan, survivor_point()?)?;
             let curve = self
-                .certify_edge_spec(spec.clone(), p_start, p_end, tol)
+                .certify_edge_spec(Some(edge), spec.clone(), p_start, p_end, tol)
                 .map_err(|e| match e {
                     EulerOpError::Certification { error } => {
                         EulerOpError::RebasedCarrier { edge, error }

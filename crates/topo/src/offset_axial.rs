@@ -490,7 +490,12 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
     let chart_of = |face: FaceKey| charts.iter().find(|(k, _)| *k == face).map(|(_, c)| c);
 
     // ---- Decide: every corner, before anything is written. ----
-    let mut moved: Vec<(VertexKey, Point3<T>)> = Vec::new();
+    //
+    // A corner whose charts the moves leave in place keeps its point;
+    // the moved corners on one point are solved once, over every chart
+    // meeting any of them, and move together (the planar door's rule,
+    // `offset_planes_together`).
+    let mut at_vertex = Vec::new();
     for (vertex, _) in body.vertices() {
         if !scope.holds_vertex(vertex) {
             continue;
@@ -506,13 +511,37 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
             .get_vertex(vertex)
             .and_then(|v| body.get_point(v.point).copied())
             .ok_or(ReplaceFaceError::Corrupt)?;
-        let arms = corner_arms(body, vertex)?;
-        moved.push((
-            vertex,
-            solve_corner(vertex, here, &at, &arms, &frame, band)?,
-        ));
+        at_vertex.push((vertex, here, at));
     }
-    let point_at = |v: VertexKey| moved.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
+    let mut position: Vec<(VertexKey, Point3<T>)> = Vec::new();
+    let mut asked: Vec<VertexKey> = Vec::new();
+    for (vertex, here, at) in &at_vertex {
+        if asked_to_move(at, band)? {
+            asked.push(*vertex);
+        } else {
+            position.push((*vertex, *here));
+        }
+    }
+    let mut moved: Vec<(Vec<VertexKey>, Point3<T>)> = Vec::new();
+    for group in crate::replace_face::group_by_point(body, asked)? {
+        let mut at: Vec<&MovedChart<T>> = Vec::new();
+        let mut arms: Vec<T> = Vec::new();
+        let mut here = None;
+        for (vertex, at_here, charts) in at_vertex.iter().filter(|(v, ..)| group.contains(v)) {
+            for c in charts {
+                if !at.iter().any(|q| q.old_key == c.old_key) {
+                    at.push(c);
+                }
+            }
+            arms.extend(corner_arms(body, *vertex)?);
+            here.get_or_insert(*at_here);
+        }
+        let here = here.ok_or(ReplaceFaceError::Corrupt)?;
+        let point = solve_corner(group[0], here, &at, &arms, &frame, band)?;
+        position.extend(group.iter().map(|&v| (v, point)));
+        moved.push((group, point));
+    }
+    let point_at = |v: VertexKey| position.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
 
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
@@ -520,8 +549,9 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         if !scope.holds_edge(edge) {
             continue;
         }
-        let (fa, fb) =
-            crate::replace_face::edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
+        let (fa, fb) = crate::readback::edge_sides(body, edge)
+            .map_err(|_| ReplaceFaceError::Corrupt)?
+            .faces();
         let (ca, cb) = (
             chart_of(fa).ok_or(ReplaceFaceError::Corrupt)?,
             chart_of(fb).ok_or(ReplaceFaceError::Corrupt)?,
@@ -1029,6 +1059,23 @@ fn rigid_shift<T: Real>(old: &Surface<T>, new: &Surface<T>) -> Option<Vec3<T>> {
 // The corner
 // ---------------------------------------------------------------------
 
+/// Whether the moves ask the corner on `at`'s charts to move —
+/// decided from the request (how far its charts are offset), before
+/// any meter runs on the corner. Metering a motion of zero would call
+/// every corner of a stationary body degenerate, and the refusals' own
+/// words have to stay true.
+fn asked_to_move<T: Decide>(
+    at: &[&MovedChart<T>],
+    band: Band,
+) -> Result<bool, ReplaceFaceError<T>> {
+    let requested = at.iter().fold(T::zero(), |acc, c| acc + c.distance.abs());
+    match decide("offset_axial_request", Margin::of(requested), band) {
+        Ok(Sign::Zero) => Ok(false),
+        Ok(_) => Ok(true),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
+    }
+}
+
 /// The corner: the profile solve, then the azimuth (module docs).
 fn solve_corner<T: Decide>(
     vertex: VertexKey,
@@ -1043,17 +1090,6 @@ fn solve_corner<T: Decide>(
         surfaces: at.len(),
         what,
     };
-    // A corner asked to move nothing does not move, and is answered
-    // before any meter runs: metering a motion of zero would call every
-    // corner of a stationary body degenerate, and the refusals' own
-    // words have to stay true.
-    let requested = at.iter().fold(T::zero(), |acc, c| acc + c.distance.abs());
-    match decide("offset_axial_request", Margin::of(requested), band) {
-        Ok(Sign::Zero) => return Ok(here),
-        Ok(_) => {}
-        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
-    }
-
     // A corner where every chart is a PLANE has no axis in it, and the
     // planar door's own solve answers it — the same arithmetic, so an
     // all-planar corner of a mixed body reads exactly as it would on an

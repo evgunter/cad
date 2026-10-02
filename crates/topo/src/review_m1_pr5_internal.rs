@@ -241,10 +241,6 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "insert_void",
         "calls `insert_voids` with the one destination as a slice — same body, same assertion",
     ),
-    (
-        "set_edge_curve_nurbs_lane",
-        "`set_edge_curve` with the NURBS certifier injected — same body, same assertion",
-    ),
     // ---- Pipelines composed of asserting operators. ----
     (
         "merge_coplanar_faces",

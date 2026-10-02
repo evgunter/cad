@@ -10,7 +10,7 @@ use crate::names::SplitHalf;
 // PR-1). Imported, never redefined: the boolean's own refusals must
 // carry the same words this node authors, and `crate::names::flush`
 // owns the single upward re-export.
-use topo::ContactClass;
+use topo::BooleanCoincidence;
 
 /// The [`Node`] variants whose payload REFERENCES no [`StableName`], as
 /// a PATTERN.
@@ -436,10 +436,11 @@ pub enum SlotId {
     /// sharpening of the design's `(step, arg)` sketch — a profile is
     /// plane + several loops, so the address needs it. Step indices are
     /// stable under every slot edit because program STRUCTURE changes
-    /// only by [`crate::DocEdit::SetProgram`], which reports every name
-    /// its reshaping strands and rebinds every name it moves (V2,
-    /// `crates/profile/README.md`); for the carrier loop forms
-    /// (`circle`/`circle_split`) `step` is 0.
+    /// only by [`crate::DocEdit::SetProgram`], which keeps every kept
+    /// step's names as they are spelled and reports every name on a
+    /// piece the new program does not draw and the old one drew, or
+    /// could not be replayed to say (V2, `crates/profile/README.md`);
+    /// for the carrier loop forms (`circle`/`circle_split`) `step` is 0.
     Profile {
         /// The loop's index in the program (description order).
         loop_: u32,
@@ -610,7 +611,9 @@ impl SlotId {
             // Count, so `is_structural` stays false for every StepArg:
             // program structure is the STEP LIST, which no slot
             // addresses — it changes by `DocEdit::SetProgram`, which
-            // rebinds every kept name and retires the rest (DM7).
+            // rewrites no name and reports every one whose piece the
+            // new program does not draw, unless the old one under the
+            // current values did not draw it either (DM7).
             Self::Profile { arg, .. } => arg.dimension(),
         }
     }
@@ -2298,7 +2301,7 @@ pub enum Node<P> {
     /// whose boxes meet, or between which a pair is declared, are
     /// evaluated as the two-member union of just those two, with the
     /// pairs declared between them, and two members
-    /// that touch with the contact undeclared refuse `UndeclaredContact`
+    /// that touch with the contact undeclared refuse `UndeclaredCoincidence`
     /// exactly as a pair boolean's operands do. That holds in every
     /// member order, and for a contact a third member covers too. The
     /// fold then builds the body and judges no contact of its own. The
@@ -2565,18 +2568,21 @@ pub enum Node<P> {
     /// whose SHAPE is wrong rather than whose kind is
     /// (`a_declared_pair_side_that_is_a_bare_name_does_not_load`).
     Declare {
-        /// The declared contact pairs, each with the CLASS it asserts
-        /// (CONTACT-DESIGN C4).
+        /// The declared pairs, each with the COINCIDENCE it asserts
+        /// (CONTACT-DESIGN C4): a contact of a class, or a continuation
+        /// — the valid inputs to a boolean, where a mate takes a
+        /// [`ContactClass`] alone.
         ///
         /// The class rides every pair rather than a node-level
         /// default: a declaration is "these two faces are in contact,
-        /// of THIS kind", and one `Declare` node may carry pairs of
-        /// different kinds. A class-less pair is unrepresentable —
-        /// there is no constructor that omits it and no default to
-        /// fall back to, because defaulting would let a `Tangent`
-        /// intent be verified against the conformal table.
+        /// of THIS kind" (or "these two faces are one surface carried
+        /// on"), and one `Declare` node may carry pairs of different
+        /// kinds. A class-less pair is unrepresentable — there is no
+        /// constructor that omits it and no default to fall back to,
+        /// because defaulting would let a `Tangent` intent be verified
+        /// against the conformal table.
         #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        pairs: Vec<((SitedRef, SitedRef), ContactClass)>,
+        pairs: Vec<((SitedRef, SitedRef), BooleanCoincidence)>,
     },
     /// An instance of another document's product (ASSEMBLY-DESIGN
     /// A2/A3, ASM-2A D-1): a LEAF — its material crosses the document
@@ -3345,12 +3351,12 @@ impl<P> Node<P> {
     /// EVERY node kind — not only the union, the list-input kinds and
     /// the boolean. That is wider than DM5's text, and deliberately:
     ///
-    /// - The duplicate clause is sound everywhere because no node kind
-    ///   in this crate has a meaning for the same input twice. A
-    ///   boolean with `a == b` is a self-operation whose result is one
-    ///   of its own operands; a `Split` cutting a body by itself is the
-    ///   same; a `Mate` between a part and itself has no relative
-    ///   frame. The one kind that could plausibly want a repeat is
+    /// - The duplicate clause is over the same input NODE: one node id
+    ///   at two seats of any kind. It is not a claim about the bodies
+    ///   those seats evaluate to. Two distinct nodes that evaluate to
+    ///   one body (two `Part`s of one split half) are admitted, and the
+    ///   boolean answers them (`A ∪ A = A`, `A − A` empty). The one kind
+    ///   that could plausibly want a repeat is
     ///   [`Node::Measure`], and it does not: its edges come from the
     ///   measurement's own node set, which DEDUPS before `inputs`
     ///   returns, so a measurement over one body twice presents one
@@ -4051,7 +4057,22 @@ impl<P> Node<P> {
     /// [`Node::Declare`] directly.
     pub fn declare_rest(pairs: Vec<(SitedRef, SitedRef)>) -> Self {
         Node::Declare {
-            pairs: pairs.into_iter().map(|p| (p, ContactClass::Rest)).collect(),
+            pairs: pairs
+                .into_iter()
+                .map(|p| (p, BooleanCoincidence::REST))
+                .collect(),
+        }
+    }
+
+    /// A `Declare` node whose every pair asserts a CONTINUATION — one
+    /// carrier, aligned senses: two stacked parts' outer walls. Named
+    /// at the call site for the reason [`Node::declare_rest`] gives.
+    pub fn declare_continuation(pairs: Vec<(SitedRef, SitedRef)>) -> Self {
+        Node::Declare {
+            pairs: pairs
+                .into_iter()
+                .map(|p| (p, BooleanCoincidence::Continuation))
+                .collect(),
         }
     }
 

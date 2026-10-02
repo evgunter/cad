@@ -228,7 +228,14 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     let plane_of = |face: FaceKey| planes.iter().find(|(k, _)| *k == face).map(|(_, p)| p);
 
     // ---- Decide: every corner, before anything is written. ----
-    let mut moved: Vec<(VertexKey, Point3<T>)> = Vec::new();
+    //
+    // A corner whose planes the moves leave in place is not moved, and
+    // keeps its point. The moved corners on one point — an op's copies
+    // of one vertex — are solved ONCE, over every plane meeting any of
+    // them, and move together (`replace_face::group_by_point`): the
+    // copies stay on one point, or the solve refuses because their
+    // planes no longer concur.
+    let mut at_vertex = Vec::new();
     for (vertex, _) in body.vertices() {
         if !scope.holds_vertex(vertex) {
             continue;
@@ -244,10 +251,35 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
             .get_vertex(vertex)
             .and_then(|v| body.get_point(v.point).copied())
             .ok_or(ReplaceFaceError::Corrupt)?;
-        let arms = corner_arms(body, vertex, here)?;
-        moved.push((vertex, solve_corner(vertex, here, &at, &arms, band)?));
+        at_vertex.push((vertex, here, at));
     }
-    let point_at = |v: VertexKey| moved.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
+    let mut position: Vec<(VertexKey, Point3<T>)> = Vec::new();
+    let mut asked: Vec<VertexKey> = Vec::new();
+    for (vertex, here, at) in &at_vertex {
+        if asked_to_move(at, band)? {
+            asked.push(*vertex);
+        } else {
+            position.push((*vertex, *here));
+        }
+    }
+    let mut moved: Vec<(Vec<VertexKey>, Point3<T>)> = Vec::new();
+    for group in crate::replace_face::group_by_point(body, asked)? {
+        let mut at: Vec<&MovedPlane<T>> = Vec::new();
+        let mut arms: Vec<T> = Vec::new();
+        for (vertex, here, planes) in at_vertex.iter().filter(|(v, ..)| group.contains(v)) {
+            for p in planes {
+                if !at.iter().any(|q| q.old_key == p.old_key) {
+                    at.push(p);
+                }
+            }
+            arms.extend(corner_arms(body, *vertex, *here)?);
+        }
+        let planes: Vec<(Vec3<T>, T)> = at.iter().map(|p| (p.normal, p.c)).collect();
+        let point = solve_planar_corner(group[0], &planes, &arms, band)?;
+        position.extend(group.iter().map(|&v| (v, point)));
+        moved.push((group, point));
+    }
+    let point_at = |v: VertexKey| position.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
 
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
@@ -255,8 +287,9 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
         if !scope.holds_edge(edge) {
             continue;
         }
-        let (fa, fb) =
-            crate::replace_face::edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
+        let (fa, fb) = crate::readback::edge_sides(body, edge)
+            .map_err(|_| ReplaceFaceError::Corrupt)?
+            .faces();
         let (pa, pb) = (
             plane_of(fa).ok_or(ReplaceFaceError::Corrupt)?,
             plane_of(fb).ok_or(ReplaceFaceError::Corrupt)?,
@@ -478,31 +511,21 @@ fn restate<T: Real>(
     })
 }
 
-/// The corner: `nᵢ·x = cᵢ` over the distinct moved planes at a vertex.
-fn solve_corner<T: Decide>(
-    vertex: VertexKey,
-    here: Point3<T>,
+/// Whether the moves ask the corner on `at`'s planes to move —
+/// decided from the request (how far its planes are offset), before
+/// any meter runs on the corner. Metering a motion of zero would call
+/// every corner of a stationary body singular, and the refusals' own
+/// words have to stay true.
+fn asked_to_move<T: Decide>(
     at: &[&MovedPlane<T>],
-    arms: &[T],
     band: Band,
-) -> Result<Point3<T>, ReplaceFaceError<T>> {
-    // **A corner that is not asked to move does not move**, and it is
-    // answered before any meter runs. Metering a motion of zero would
-    // classify every corner of a stationary body as unsolvable and say
-    // "singular" about geometry that is nothing of the kind — the
-    // refusal's own words have to stay true.
+) -> Result<bool, ReplaceFaceError<T>> {
     let requested = at.iter().fold(T::zero(), |acc, p| acc + p.delta.norm());
     match decide("offset_together_request", Margin::of(requested), band) {
-        Ok(Sign::Zero) => return Ok(here),
-        Ok(_) => {}
-        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        Ok(Sign::Zero) => Ok(false),
+        Ok(_) => Ok(true),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
-    solve_planar_corner(
-        vertex,
-        &at.iter().map(|p| (p.normal, p.c)).collect::<Vec<_>>(),
-        arms,
-        band,
-    )
 }
 
 /// The corner solve itself, over `(n̂, c)` plane equations — shared with
@@ -607,7 +630,7 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
 }
 
 /// The chord length of every edge ending at a vertex — the lengths the
-/// corner's conditioning is levered by (see [`solve_corner`]).
+/// corner's conditioning is levered by (see [`solve_planar_corner`]).
 ///
 /// **The axial door keeps its own copy, levered by ARC LENGTH, and the
 /// difference is load-bearing rather than a duplication to collapse.**

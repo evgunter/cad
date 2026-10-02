@@ -18,10 +18,10 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey, VertexKey};
 use crate::ray_parity::ParityRows;
-use crate::splitting::PointInLoopError;
 use crate::splitting::containment::{
     BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
 };
+use crate::splitting::{PointInLoopError, Uncrossable};
 use crate::validate::decide;
 
 /// The typed `contfp` verdict.
@@ -59,19 +59,9 @@ pub enum ContainError {
     RayExhausted,
     /// The face's topology could not be walked.
     Corrupt,
-    /// A **loop no available walk expresses at this point**: it has an
-    /// edge on a carrier the in-plane walk has no crossing row for (a
-    /// spiric, a spline), and the point lies within reach of that edge,
-    /// where a crossing could change the answer: every scheduled ray
-    /// from the point could meet a ball that edge lies in.
-    ///
-    /// The name is older than that meaning. It is kept because tier 3's
-    /// census renders this arm (`validate.rs`, RESTFRONT's ground), and a
-    /// rename has to move that match with it.
-    ArcLoopUnsupported {
-        /// The loop whose region no available walk expresses.
-        r#loop: crate::entity::LoopKey,
-    },
+    /// The walk could not read a loop at this point: an edge of it it
+    /// has no crossing row for stood in the way of every ray.
+    Uncrossable(Uncrossable),
 }
 
 impl From<PointInLoopError> for ContainError {
@@ -80,6 +70,7 @@ impl From<PointInLoopError> for ContainError {
             PointInLoopError::Escalated { diag, .. } => Self::Escalated(diag),
             PointInLoopError::RayExhausted { .. } => Self::RayExhausted,
             PointInLoopError::CorruptLoop { .. } => Self::Corrupt,
+            PointInLoopError::Uncrossable(u) => Self::Uncrossable(u),
         }
     }
 }
@@ -113,13 +104,9 @@ impl core::fmt::Display for ContainError {
                  resolve; repair the body's topology before asking it a containment \
                  question"
             ),
-            Self::ArcLoopUnsupported { r#loop } => write!(
+            Self::Uncrossable(u) => write!(
                 f,
-                "contfp: loop {loop:?} has an edge on a spiric or spline carrier, which \
-                 the in-plane walk cannot cross, and the point lies within that edge's \
-                 reach, so no available walk expresses the region there — refused \
-                 rather than answered; model the boundary with lines, circles or \
-                 ellipses"
+                "contfp: {u}. Recourse: model the outline with lines, circles or ellipses"
             ),
         }
     }
@@ -156,11 +143,9 @@ pub fn contfp<T: Decide>(
     // Interior/exterior: inside the outer loop AND outside every ring,
     // each read on its edges' own carriers by a walk that trusts the
     // pre-pass above — `q` is definitely off every edge — so it answers
-    // inside or outside. Its `None` is an edge it cannot cross standing
-    // in the way of every ray: a refusal, typed.
+    // inside or outside.
     let inside = |(lk, lp): &(LoopKey, CarrierLoop<T>)| -> Result<bool, ContainError> {
-        carrier_loop_side(*lk, lp, normal, q, band)?
-            .ok_or(ContainError::ArcLoopUnsupported { r#loop: *lk })
+        Ok(carrier_loop_side(*lk, lp, normal, q, band)?)
     };
     let (outer, rings) = read.split_first().ok_or(ContainError::Corrupt)?;
     if !inside(outer)? {
@@ -320,17 +305,8 @@ fn boundary_pre_pass<T: Decide>(
     for &lk in loops {
         let cycle = loop_cycle_points(body, lk)?;
         for (v, _, p) in &cycle {
-            let margin = Margin::norm3(q - *p);
-            match decide("bool_contact_vertex", margin, band) {
-                Ok(Sign::Zero) => return Ok(PrePass::On(FaceContainment::OnVertex(*v))),
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Negative) => {
-                    return Err(ContainError::Escalated(crate::invalid_margin::invalid(
-                        band,
-                        "bool_contact_vertex",
-                    )));
-                }
-                Err(diag) => return Err(ContainError::Escalated(diag)),
+            if super::one_vertex(q, *p, band).map_err(ContainError::Escalated)? {
+                return Ok(PrePass::On(FaceContainment::OnVertex(*v)));
             }
         }
     }
@@ -925,13 +901,13 @@ pub(super) fn point_on_circle<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<Option<(Vec3<T>, T)>, Indeterminate> {
-    let w = q - center;
-    let height = w.dot(axis);
-    let radial = w - axis * height;
-    let r_norm = radial.norm();
-    let d = ((r_norm - radius).powi(2) + height.powi(2)).sqrt();
+    let d = crate::splitting::containment::circle_miss(q, center, axis, radius);
     match decide("bool_contact_arc", Margin::of(d), band) {
-        Ok(Sign::Zero) => Ok(Some((radial, r_norm))),
+        Ok(Sign::Zero) => {
+            let w = q - center;
+            let radial = w - axis * w.dot(axis);
+            Ok(Some((radial, radial.norm())))
+        }
         Ok(Sign::Positive) => Ok(None),
         Ok(Sign::Negative) => Err(crate::invalid_margin::invalid(band, "bool_contact_arc")),
         Err(diag) => Err(diag),

@@ -198,7 +198,7 @@ use topo::{
 use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, Joint, OpenBand, RequestedBoundary};
 use super::arms::EdgeBlend;
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
-use super::build::{Blended, face_cycle, fan_at};
+use super::build::{Blended, face_cycle, face_cycle_edges, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
 use super::open::planar::{BlankPlan, Corner, JointPlan, blank_phase, corner_plan, joint_plan};
 use super::open::ruled::{RuledPlan, ruled_phase};
@@ -403,10 +403,11 @@ enum HostFoot {
 /// It is reachable through `topo`'s public `kef` — kill one of a sphere
 /// wall's two seam meridians and the remaining face carries both rim
 /// arcs — and through no sweep or boolean door. It refuses at the
-/// half-band gate on BOTH routes, and never carves:
+/// half-band gate (on the `Struts` route, a full revolve's plane side
+/// being one face), and never carves:
 /// `work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`,
 /// rowed by
-/// `fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate_on_both_routes`.
+/// `fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`.
 ///
 /// A RINGED host is served under [`Self::Struts`]: the band's host trim
 /// becomes that face's new outer boundary, and each ring is admissible
@@ -1172,15 +1173,14 @@ fn resolve_rim<'a, T: Decide + Bounds>(
                 "a rim's curved support carries rings of its own",
             ));
         }
-        let on_boundary: Vec<EdgeKey> = face_cycle(body, s)
+        let on_boundary: Vec<EdgeKey> = face_cycle_edges(body, s)
             .ok_or_else(|| {
                 not_intact(
                     EntityId::Face(s),
                     "a rim's curved support has no boundary cycle that walks",
                 )
             })?
-            .iter()
-            .filter_map(|he| body.get_half_edge(*he).map(|h| h.edge))
+            .into_iter()
             .filter(|e| chain_edges.contains(e))
             .collect();
         if on_boundary != [link.edge] {
@@ -1364,15 +1364,14 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
                 "a seam-split rim's support carries rings of its own",
             ));
         }
-        let carried: Vec<EdgeKey> = face_cycle(body, f)
+        let carried: Vec<EdgeKey> = face_cycle_edges(body, f)
             .ok_or_else(|| {
                 not_intact(
                     EntityId::Face(f),
                     "a rim arc's support has no boundary cycle that walks",
                 )
             })?
-            .iter()
-            .filter_map(|he| body.get_half_edge(*he).map(|h| h.edge))
+            .into_iter()
             .filter(|e| chain_edges.contains(e))
             .collect();
         if carried != [link.edge] {
@@ -1417,15 +1416,14 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
             hosts.iter().all(|&h| h == host),
             "hostless routing admits one host face for the whole rim"
         );
-        let mut cycle: Vec<EdgeKey> = face_cycle(body, host)
+        let mut cycle: Vec<EdgeKey> = face_cycle_edges(body, host)
             .ok_or_else(|| {
                 not_intact(
                     EntityId::Face(host),
                     "a rim's host support has no outer cycle that walks",
                 )
             })?
-            .iter()
-            .filter_map(|he| body.get_half_edge(*he).map(|h| h.edge))
+            .into_iter()
             .collect();
         cycle.sort_unstable();
         cycle.dedup();
@@ -1515,16 +1513,9 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         }
         let (mut host_seam, mut mate_seam) = (None, None);
         for seam in seams {
-            let (fp, fm) = edge_faces(body, seam)
-                .ok_or_else(|| not_intact(EntityId::Edge(seam), "a seam meridian's two faces"))?;
-            let (sp, sm) = (
-                surface_of(fp).ok_or_else(|| {
-                    not_intact(EntityId::Face(fp), "a seam meridian's first support")
-                })?,
-                surface_of(fm).ok_or_else(|| {
-                    not_intact(EntityId::Face(fm), "a seam meridian's second support")
-                })?,
-            );
+            let (sp, sm) = topo::readback::edge_sides(body, seam)
+                .map_err(|_| not_intact(EntityId::Edge(seam), "a seam meridian's two faces"))?
+                .surfaces();
             // A CO-SURFACE edge is what a chart seam is, and it is what
             // makes the dihedral zero by construction rather than by a
             // sampled normal.
@@ -1768,16 +1759,9 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
             .collect();
         let (mut host_seam, mut mate_seam) = (None, None);
         for e in extras {
-            let (fp, fm) = edge_faces(body, e)
-                .ok_or_else(|| not_intact(EntityId::Edge(e), "a seam meridian's two faces"))?;
-            let (sp, sm) = (
-                surface_of(fp).ok_or_else(|| {
-                    not_intact(EntityId::Face(fp), "a seam meridian's first support")
-                })?,
-                surface_of(fm).ok_or_else(|| {
-                    not_intact(EntityId::Face(fm), "a seam meridian's second support")
-                })?,
-            );
+            let (sp, sm) = topo::readback::edge_sides(body, e)
+                .map_err(|_| not_intact(EntityId::Edge(e), "a seam meridian's two faces"))?
+                .surfaces();
             let slot = if sp == sm && sp == host_surface {
                 &mut host_seam
             } else if sp == sm && sp == mate_surface {
@@ -3211,7 +3195,7 @@ pub(super) struct ExpectedSource {
 /// boolean outputs, which is why neither is read off the key and why
 /// [`retire_fragment`] exists.
 #[allow(clippy::too_many_arguments)] // three call sites, each the split's own inputs.
-pub(super) fn split_fragment<T: Decide>(
+pub(super) fn split_fragment<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     vertex: VertexKey,
@@ -3302,7 +3286,7 @@ pub(super) fn retire_fragment(rec: &mut BlendNaming, dying: EdgeKey, source: Edg
 /// The chord is scaffolding: a radial line between the two points,
 /// upgraded to nothing later because a strut never survives the carve
 /// (it dies at its crossing by `kef` or by the closure `kev`).
-fn strut_foot<T: Decide + Bounds>(
+fn strut_foot<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     he: HalfEdgeKey,
     v: VertexKey,
@@ -3322,7 +3306,7 @@ fn strut_foot<T: Decide + Bounds>(
     Ok(created)
 }
 
-fn rim_phase<T: Decide + Bounds>(
+fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
     ring: LoopKey,
@@ -3572,14 +3556,14 @@ fn rim_phase<T: Decide + Bounds>(
                  not been killed"
             )
         };
-        let (fa, fb) = (face_of_half(body, hp), face_of_half(body, hm));
+        let spur = topo::readback::edge_sides(body, *sp).is_ok_and(|x| x.plus.face == x.minus.face);
         let Some((mr, msrc)) = remnant_at(*v) else {
             unreachable!(
                 "rim fusion: `remnants` and `struts_p` are both one row per `plane_walk` \
                  position, keyed by the same rim vertex"
             )
         };
-        if fa.is_some() && fa == fb {
+        if spur {
             // The closure vertex. Kill the strut from its FOOT side:
             // the rim vertex dies, and its remaining edge — the upper
             // meridian remnant — fan-merges onto the foot, becoming
@@ -3719,7 +3703,7 @@ fn trim_chords<T: Decide>(
 /// reconstructed; the description pass restates it as the tangential
 /// contact locus once the band's torus exists.
 #[allow(clippy::too_many_arguments)]
-fn mef_trim<T: Decide + Bounds>(
+fn mef_trim<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     he1: HalfEdgeKey,
     he2: HalfEdgeKey,
@@ -3975,7 +3959,7 @@ struct ArcPlan<T: Real> {
 /// source; every naming row names the source the split recovers,
 /// because a birth record names the SOURCE entity an output was minted
 /// for and the live piece is a mid-call fragment of it.
-fn rim_phase_annulus<T: Decide + Bounds>(
+fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
     ann: &AnnulusRim,
@@ -4532,16 +4516,6 @@ pub(super) fn face_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option
     Some(body.get_loop(loop_of_half(body, he)?)?.face)
 }
 
-/// The two faces an edge separates — `he_plus`'s, then `he_minus`'s.
-/// Equal on a co-surface seam of a wall the charts did not split.
-fn edge_faces<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(FaceKey, FaceKey)> {
-    let ed = body.get_edge(e)?;
-    Some((
-        face_of_half(body, ed.he_plus)?,
-        face_of_half(body, ed.he_minus)?,
-    ))
-}
-
 // ------------------------------------------------------------------
 // The surgery's ONE face-destroying door. Every `kef` in this file and
 // in `open/` is `kef_minted`; nothing else calls `Body::kef`
@@ -4630,7 +4604,7 @@ impl SourceFaces {
 /// reconstruction into a variant this kernel already stores and
 /// certifies, rather than a taxonomy scramble at adoption time
 /// (the rule is `DESIGN.md`'s prefer-intrinsic paragraph under D2).
-fn attach_contact<T: Decide + Bounds>(
+fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     carrier: ContactCarrier<T>,
@@ -4638,19 +4612,17 @@ fn attach_contact<T: Decide + Bounds>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BlendError> {
-    let ed = body
-        .get_edge(edge)
-        .ok_or_else(|| not_intact(EntityId::Edge(edge), "an edge awaiting its description"))?;
-    let (he_plus, he_minus) = (ed.he_plus, ed.he_minus);
-    let (Some(s1), Some(s2)) = (
-        face_of_half(body, he_plus).and_then(|f| body.get_face(f).map(|fd| fd.surface)),
-        face_of_half(body, he_minus).and_then(|f| body.get_face(f).map(|fd| fd.surface)),
-    ) else {
-        return Err(not_intact(
+    let sides = topo::readback::edge_sides(body, edge).map_err(|what| match what {
+        topo::DanglingRef::Entity(EntityId::Edge(_)) => {
+            not_intact(EntityId::Edge(edge), "an edge awaiting its description")
+        }
+        _ => not_intact(
             EntityId::Edge(edge),
             "the two faces a described edge separates, or their surfaces",
-        ));
-    };
+        ),
+    })?;
+    let he_plus = sides.plus.half_edge;
+    let (s1, s2) = sides.surfaces();
     let (p0, p1) = {
         let start = body
             .get_half_edge(he_plus)
@@ -4773,7 +4745,7 @@ fn attach_contact<T: Decide + Bounds>(
             MustCarryRefusal::InBand(source) => BlendError::Escalated {
                 site: BlendSite::Link { edge: link },
                 decision: BlendDecision::ContactSecondOrder,
-                source,
+                source: source.diag(),
             },
             MustCarryRefusal::Refuted => BlendError::SurgeryInvariant {
                 at: EntityId::Edge(edge),

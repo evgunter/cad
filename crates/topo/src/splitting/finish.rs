@@ -36,9 +36,9 @@
 //! knowledge, Program 14.12) — mixed above/below section faces in one
 //! shell is a typed kernel-bug error; a shell with NO section face
 //! (an uncut component) falls back to its first vertex's cached side.
-//! A shell consisting **only** of section faces bounds no volume —
-//! the second half of the one-sided-tangency net (the join's
-//! zero-area check is the first) — and is refused typed
+//! A shell consisting **only** of section faces bounds no volume. The
+//! join's zero-area check refuses every section that could make one, so
+//! such a shell is a kernel defect, refused loudly
 //! ([`SplitFinishError::DegenerateSide`]).
 //!
 //! # Coplanar artifacts (documented, F7)
@@ -130,11 +130,13 @@ pub struct SplitNaming {
     /// log). Section faces appear here too (they are minted by the
     /// same mefs); consumers exclude the keys listed in `sections`.
     pub face_fragments: Vec<(FaceKey, FaceKey)>,
-    /// Null-edge vertex pairs `(above copy, below original)` from the
-    /// reduction's F9 records, in record order: the above-side
-    /// coincident copies with the vertices they were minted at (the
-    /// naming layer derives the above copy's parentage through the
-    /// below original's birth record).
+    /// Null-edge vertex pairs `(copy, original)` from the reduction's
+    /// F9 records, in record order: each coincident copy with the
+    /// vertex it was minted at (the naming layer derives the copy's
+    /// parentage through the original's birth record). Which side
+    /// holds which is not fixed — the copy is the Above end save for
+    /// a whole-orbit strut, and the mirrored lane swaps the sides —
+    /// so consumers read a key's side from the body that holds it.
     pub vertex_pairs: Vec<(crate::entity::VertexKey, crate::entity::VertexKey)>,
 }
 
@@ -147,9 +149,10 @@ pub enum SplitFinishError {
         /// How many solids the operand holds.
         count: usize,
     },
-    /// A component consists only of section faces — it bounds no
-    /// volume (the one-sided tangency residue): no degenerate body is
-    /// ever emitted.
+    /// A component consists only of section faces, so it bounds no
+    /// volume (kernel bug, loudly: the join's area certificate refuses
+    /// every zero-area section before the finish runs). No degenerate
+    /// body is ever emitted.
     DegenerateSide {
         /// The offending shell (in the discarded scratch body).
         shell: ShellKey,
@@ -217,6 +220,22 @@ pub enum SplitFinishError {
         /// The hole's section face (in the discarded scratch body).
         hole: FaceKey,
     },
+    /// A finished side fails tier 2 ([`crate::validate_closed`]): a
+    /// split never returns a body that is not a closed solid. Reached
+    /// by a kernel defect, or by an operand that was not a closed
+    /// solid to begin with: the operand is never validated, and the
+    /// one tier-2 finding the reduction refuses is an empty OUTER loop
+    /// on a face rule (a) measures at an ON vertex
+    /// ([`super::SplitReduceError::CorruptOperand`], via
+    /// `rules::face_extent`). Only the direct run's refusal
+    /// is ever surfaced (a mirrored run's is replaced by it), so
+    /// `side` is in the caller's orientation.
+    ResultInvalid {
+        /// The side whose body failed.
+        side: PlaneSide,
+        /// The validator's findings.
+        errors: Vec<crate::validate::ValidationError>,
+    },
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -234,14 +253,9 @@ impl core::fmt::Display for SplitFinishError {
             ),
             Self::DegenerateSide { side, .. } => write!(
                 f,
-                "the piece on the {} side of the plane bounds no volume (the residue of a \
-                 one-sided tangency: only section faces). Recourse: move the split plane \
-                 off the tangency",
-                match side {
-                    super::PlaneSide::Below => "below",
-                    super::PlaneSide::On => "on",
-                    super::PlaneSide::Above => "above",
-                }
+                "the piece on the {} side of the plane bounds no volume: it holds only \
+                 section faces (kernel bug)",
+                side.word()
             ),
             Self::TornComponent { shell } => write!(
                 f,
@@ -288,6 +302,21 @@ impl core::fmt::Display for SplitFinishError {
                  would taper to a knife edge nobody asked for. Recourse: move the split \
                  plane off the tangency"
             ),
+            Self::ResultInvalid { side, errors } => match errors.as_slice() {
+                [first, ..] => write!(
+                    f,
+                    "the piece on the {} side of the plane is not a closed solid ({} \
+                     finding(s)); the first: {first}",
+                    side.word(),
+                    errors.len(),
+                ),
+                [] => write!(
+                    f,
+                    "the piece on the {} side of the plane is not a closed solid. {}",
+                    side.word(),
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                ),
+            },
         }
     }
 }
@@ -301,7 +330,7 @@ impl std::error::Error for SplitFinishError {}
 ///
 /// [`SplitFinishError`]; the scratch body is discarded on `Err` (the
 /// operand was never touched).
-pub(super) fn split_finish<T: Decide>(
+pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     red: SplitReduction<T>,
     completed: &[CompletedSection],
     face_fragments: Vec<(FaceKey, FaceKey)>,
@@ -342,8 +371,16 @@ pub(super) fn split_finish<T: Decide>(
         vertex_pairs: red
             .null_edges
             .iter()
-            .map(|r| (r.attr.above_end, r.attr.below_end))
-            .collect(),
+            .map(|r| {
+                if r.attr.below_end == r.at_vertex {
+                    Ok((r.attr.above_end, r.at_vertex))
+                } else if r.attr.above_end == r.at_vertex {
+                    Ok((r.attr.below_end, r.at_vertex))
+                } else {
+                    Err(SplitFinishError::Corrupt)
+                }
+            })
+            .collect::<Result<_, _>>()?,
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
@@ -364,7 +401,8 @@ pub(super) fn split_finish<T: Decide>(
             return Err(SplitFinishError::Corrupt);
         };
         let u_ref = below_chord_u_ref(&body, section)?;
-        let normal_of = |side: PlaneSide| section_loops::section_normal(red.plane.normal, side);
+        let normal_of =
+            |side: PlaneSide| section_loops::section_normal(red.plane.normal.get(), side);
         let plane_for = |side: PlaneSide| Surface::Plane {
             origin: red.plane.origin,
             normal: normal_of(side),
@@ -421,7 +459,7 @@ pub(super) fn split_finish<T: Decide>(
         &mut body,
         &mut section_side,
         &mut naming,
-        red.plane.normal,
+        red.plane.normal.get(),
         band,
         tol,
     )?;
@@ -506,7 +544,7 @@ pub(super) fn split_finish<T: Decide>(
 ///
 /// [`SplitFinishError::NestingContradiction`]; [`SplitFinishError::Euler`]
 /// and [`SplitFinishError::Corrupt`] from the surgery.
-fn nest_hole_sections<T: Decide>(
+fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     section_side: &mut SecondaryMap<FaceKey, PlaneSide>,
     naming: &mut SplitNaming,
@@ -654,7 +692,7 @@ fn section_plane_restatements<T: Decide>(
 /// opposed is a wedge end nothing declared and refuses
 /// ([`SplitFinishError::SectionCusp`]).
 /// Escalations are typed ([`SplitFinishError::DescribeEscalated`]).
-fn describe_section_boundary<T: Decide>(
+fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     band: geom_core::Band,
@@ -864,8 +902,9 @@ fn whole_body_side<T: Decide>(
             below: SplitPart::Body(body),
             naming: SplitNaming::default(),
         }),
-        // Every vertex ON: a zero-volume operand — nothing legal
-        // reaches here (tier 2 refused it long ago).
+        // Every vertex ON: a zero-volume operand, which no closed
+        // solid is; the operand is never validated, so this refuses
+        // here.
         None => Err(SplitFinishError::Corrupt),
     }
 }

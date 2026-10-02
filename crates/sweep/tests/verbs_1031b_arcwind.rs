@@ -1,23 +1,14 @@
-//! **VERBS-1031B — the arc-bounded winding arm**, measured at the
-//! teapot cup.
+//! **VERBS-1031B — the teapot cup's latitude annuli**, measured.
 //!
-//! The cup is the live consumer of `merge_coplanar_faces`' coplanar
-//! pair. MEASURED composition, which is not the one the spec predicted:
-//! `shell_open` on the teapot's own stepped meridian leaves TWO
-//! full-valence coplanar pairs per side — FOUR latitude annuli in all
-//! (the two shoulders and their cavity twins, each seam two disjoint
-//! collinear Line segments with all four endpoints at valence 4) —
-//! plus two pole-split base caps: six groups, not the spec's eight.
-//! The spec's "three pairs per side" is REFUTED by the run; the
-//! remaining coplanar-adjacent pairs are the six `PeriodClosure`
-//! skips, a different refusal and not this unit's business. The
-//! merge's surgery completes on all six groups; what refused was the
-//! ROLE pass, because the merged annulus is bounded by circles and the
-//! winding functional was line-bounded only.
-//!
-//! Both rows here are measurements of doors, not of a shape: one names
-//! what the merge does, one names what the boolean gate says about the
-//! unmerged operand. They move independently and are meant to.
+//! The cup was the live consumer of `merge_coplanar_faces`' coplanar
+//! pair: `shell_open` on the teapot's stepped meridian left four split
+//! latitude annuli (the two shoulders and their cavity twins) and two
+//! pole-split base caps, and the merge's ROLE pass had to learn
+//! circle-bounded windings to put each annulus's outline in its outer
+//! slot. The full revolve now builds every plane wall whole
+//! (`crates/sweep/README.md`, "Walls: one per run"), so the cup is born
+//! in the merged state: the rows pin that census, the annulus roles on
+//! the cup as built, and where its boolean stands.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -84,7 +75,7 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 fn teapot_cup(tol: Tol) -> Body<f64> {
     let body = teapot_pot(tol);
     let chart = plane_chart_at(&body, TOP);
-    assert_eq!(chart.len(), 2, "a full revolve's cap is two half-discs");
+    assert_eq!(chart.len(), 1, "a full revolve builds its cap whole");
     topo::shell_open(&body, 1.0 / 128.0, &chart, tol)
         .expect("the cup opens")
         .body
@@ -95,36 +86,9 @@ fn cutter(tol: Tol) -> Body<f64> {
     sweep::test_support::brick((0.02, 0.2), (-0.01, 0.1), (0.0, 0.3), tol)
 }
 
-/// **The differential**: the UNMERGED cup is a non-maximal operand and
-/// the boolean gate says so, at `gate_maximal_faces`' same-surface-key
-/// planar branch. This row does not move with the winding arm — it is
-/// the statement that the cup's coplanar pairs are real, read by a
-/// second door that never consults `loop_winding`.
-///
-/// The PAYLOAD is pinned, not just the variant: the register cites this
-/// file as the pin for the refusals the unit's PR quotes, and a variant
-/// match alone would let the door move to a different edge silently.
-#[test]
-fn the_unmerged_cup_is_a_non_maximal_operand() {
-    let tol = Tol::witness();
-    let cup = teapot_cup(tol);
-    let out = topo::boolean::subtract(&cup, &cutter(tol), tol);
-    let Err(topo::BooleanError::NonMaximalFaces { operand, edge }) = out else {
-        panic!("the unmerged cup's own coplanar pairs are what F7 refuses, got {out:?}");
-    };
-    assert_eq!(operand, topo::Operand::A, "the cup is operand A");
-    assert_eq!(
-        format!("{edge:?}"),
-        "EdgeKey(3v1)",
-        "the same shared edge the PR quotes"
-    );
-}
-
 /// The radii of every circular carrier one loop rides, sorted — the
-/// role decision made observable from outside: on a merged latitude
-/// annulus the OUTER loop must ride the larger circle and the ring the
-/// smaller, and that assignment is exactly what a positively-wound
-/// outline buys.
+/// role decision made observable from outside: on a latitude annulus
+/// the OUTER loop must ride the larger circle and the ring the smaller.
 fn loop_radii(body: &Body<f64>, l: topo::LoopKey) -> Vec<f64> {
     let topo::LoopBoundary::Cycle { first } = body.get_loop(l).expect("live loop").boundary else {
         return vec![];
@@ -146,122 +110,81 @@ fn loop_radii(body: &Body<f64>, l: topo::LoopKey) -> Vec<f64> {
     out
 }
 
-/// The merge, run on a cup and reported as the facts the acceptance
-/// pins: the census delta, the group shapes, and the annulus roles.
-struct Merged {
-    census: ((usize, usize, usize), (usize, usize, usize)),
-    /// Groups that minted a RING — the full-valence pairs, whose seam
-    /// is two disjoint collinear segments and whose merged survivor is
-    /// a genuine annulus.
-    annuli: usize,
-    /// Groups that killed a VERTEX — the pole-split caps, half-A's
-    /// valence-2 machinery, reachable only once the role pass stops
-    /// refusing the whole call.
-    pole_caps: usize,
-    /// Pairs left to the period-closure refusal: a curved run that
-    /// would close its chart's full period is not a coplanar merge.
-    period_closures: usize,
-    /// `(outer radii, ring radii)` for every survivor carrying a ring.
-    annulus_roles: Vec<(Vec<f64>, Vec<f64>)>,
-}
-
-fn merge_the_cup(mut cup: Body<f64>, tol: Tol) -> (Body<f64>, Merged) {
-    let census = |b: &Body<f64>| (b.faces().count(), b.vertices().count(), b.edges().count());
-    let before = census(&cup);
-    let out = cup
-        .merge_coplanar_faces(tol)
-        .unwrap_or_else(|e| panic!("the cup's coplanar pairs must merge, got {e:?}"));
-    let annulus_roles = out
-        .groups
-        .iter()
-        .filter(|g| !g.rings_made.is_empty())
-        .map(|g| {
-            let f = cup.get_face(g.kept).expect("the survivor is live");
+/// `(outer radii, ring radii)` for every face of `body` carrying a ring.
+fn annulus_roles(body: &Body<f64>) -> Vec<(Vec<f64>, Vec<f64>)> {
+    body.faces()
+        .filter(|(_, f)| !f.rings.is_empty())
+        .map(|(_, f)| {
             (
-                loop_radii(&cup, f.outer),
-                f.rings
-                    .iter()
-                    .map(|&r| loop_radii(&cup, r))
-                    .fold(vec![], |mut acc, mut r| {
-                        acc.append(&mut r);
-                        acc
-                    }),
+                loop_radii(body, f.outer),
+                f.rings.iter().flat_map(|&r| loop_radii(body, r)).collect(),
             )
         })
-        .collect();
-    let m = Merged {
-        census: (before, census(&cup)),
-        annuli: out
-            .groups
-            .iter()
-            .filter(|g| !g.rings_made.is_empty())
-            .count(),
-        pole_caps: out
-            .groups
-            .iter()
-            .filter(|g| !g.killed_vertices.is_empty())
-            .count(),
-        period_closures: out
-            .skipped
+        .collect()
+}
+
+/// The census, the four latitude annuli's roles, and tier 3 — what the
+/// merge used to produce, which the cup now carries as built.
+fn assert_the_cup_as_built(label: &str, cup: &Body<f64>, tol: Tol) {
+    assert_eq!(
+        (
+            cup.faces().count(),
+            cup.vertices().count(),
+            cup.edges().count()
+        ),
+        (19, 24, 36),
+        "{label}: the census the merge used to reach"
+    );
+    let roles = annulus_roles(cup);
+    // Two shoulders and their cavity twins; the mouth's rim carries
+    // the cavity's ring as well.
+    assert!(roles.len() >= 4, "{label}: {roles:?}");
+    for (outer, ring) in &roles {
+        assert!(
+            outer.last() > ring.last(),
+            "{label}: the OUTER loop rides the larger circle: outer {outer:?}, ring {ring:?}"
+        );
+    }
+    assert_eq!(
+        topo::validate_geometric(cup, tol),
+        Ok(()),
+        "{label}: tier 3"
+    );
+    let mut merged = cup.clone();
+    let out = merged.merge_coplanar_faces(tol).expect("the merge runs");
+    assert!(
+        out.groups.is_empty(),
+        "{label}: no coplanar pair is left to merge: {:?}",
+        out.groups
+    );
+    // The curved runs closing their chart's full period are still the
+    // merge's to decline, by design.
+    assert_eq!(
+        out.skipped
             .iter()
             .filter(|s| matches!(s.reason, topo::MergeCoplanarError::PeriodClosure { .. }))
             .count(),
-        annulus_roles,
-    };
-    (cup, m)
+        6,
+        "{label}: six period-closure skips"
+    );
 }
 
-/// **The acceptance: the cup merges.** Every coplanar pair the cup owns
-/// closes — four full-valence latitude annuli (two per side: the
-/// shoulder and its cavity twin) and the two pole-split base caps —
-/// and the body that comes out is tier-3 valid.
-///
-/// The four annuli are what this unit bought: their survivors' outline
-/// and ring are both circles, so the role pass had nothing to read
-/// until the winding functional learned arcs. The two base caps are
-/// half-A's machinery, and they were never the defect — they were
-/// unreachable because the first refusal aborted the whole call.
-///
-/// The six period-closure skips are not failures and never were: a
-/// curved run closing its chart's full period is a seam the merge
-/// declines by design.
+/// **The cup is maximal as built.** The full revolve builds every plane
+/// wall whole — the shoulders as annuli whose inner circle is a ring,
+/// the base as one disc — and the shell offsets them as such, so the
+/// cup carries the census and the annulus roles `merge_coplanar_faces`
+/// used to produce from four split annuli and two pole-split caps, and
+/// the merge finds nothing to do.
 #[test]
-fn the_cup_merges_and_its_annuli_take_their_roles() {
+fn the_cup_is_maximal_as_built_and_its_annuli_take_their_roles() {
     let tol = Tol::witness();
-    let (cup, m) = merge_the_cup(teapot_cup(tol), tol);
-    assert_eq!(
-        m.census,
-        ((25, 26, 48), (19, 24, 36)),
-        "six faces absorbed, two poles killed, twelve edges eaten"
-    );
-    assert_eq!(
-        (m.annuli, m.pole_caps, m.period_closures),
-        (4, 2, 6),
-        "four annuli, two pole caps, six period-closure skips"
-    );
-    assert_eq!(
-        topo::validate_geometric(&cup, tol),
-        Ok(()),
-        "tier 3 on the merged cup"
-    );
-    for (outer, ring) in &m.annulus_roles {
-        assert_eq!(
-            (outer.len(), ring.len()),
-            (2, 2),
-            "each annulus is two circles outside and two inside"
-        );
-        assert!(
-            outer[0] > ring[1],
-            "the OUTER loop rides the larger circle: outer {outer:?}, ring {ring:?}"
-        );
-    }
+    assert_the_cup_as_built("cup", &teapot_cup(tol), tol);
 }
 
 /// **The re-posed twin.** The same cup under a rigid transform off every
-/// axis plane merges identically — the winding arm reads the loop's own
-/// geometry against the face's own normal, so no axis is special to it.
+/// axis plane is the same cup.
 #[test]
-fn the_re_posed_cup_merges_identically() {
+fn the_re_posed_cup_is_the_same_cup() {
     let tol = Tol::witness();
     let turned = topo::transform_rigid(
         &teapot_cup(tol),
@@ -279,54 +202,40 @@ fn the_re_posed_cup_merges_identically() {
         tol,
     )
     .expect("and so is a translation");
-    let (cup, m) = merge_the_cup(posed, tol);
-    assert_eq!(m.census, ((25, 26, 48), (19, 24, 36)), "the same census");
-    assert_eq!(
-        (m.annuli, m.pole_caps, m.period_closures),
-        (4, 2, 6),
-        "the same groups"
-    );
-    assert_eq!(
-        topo::validate_geometric(&cup, tol),
-        Ok(()),
-        "tier 3 on the re-posed merged cup"
-    );
-    for (outer, ring) in &m.annulus_roles {
-        assert!(
-            outer[0] > ring[1],
-            "the same roles: outer {outer:?}, ring {ring:?}"
-        );
-    }
+    assert_the_cup_as_built("re-posed cup", &posed, tol);
 }
 
-/// **The boolean after the merge, MEASURED.** The merge was the
-/// precondition F7 was asking for, and with it satisfied the subtract
-/// walks past that gate, past the crossing layer, and stops at the
-/// join: `UnpairedLooseEnds { count: 4 }`. That is this row's whole
-/// content — it records where the cup's boolean actually stands, and
-/// the boundary it names belongs to the join, not to the coplanar pair
-/// this unit repaired.
+/// **The boolean on the cup, MEASURED.** F7 does not answer and the
+/// crossing layer passes: the subtract stops at the join,
+/// `UnpairedLooseEnds { count: 4 }`. That is this row's whole content —
+/// it records where the cup's boolean actually stands, and the boundary
+/// it names belongs to the join.
 ///
-/// The crossing layer's door it used to stop at was the cutter's edge
-/// `x = 0.02, y = 0.1` (along `z`) against the cup's half-cylinder
-/// face `3v1`: the line straddles the carrier and crosses it once, at
-/// azimuth ≈ 65°, OUTSIDE that half's window. The straddle arm read the
+/// The crossing layer's door it once stopped at was the cutter's edge
+/// `x = 0.02, y = 0.1` (along `z`) against one of the cup's
+/// half-cylinder faces: the line straddles the carrier and crosses it
+/// once, OUTSIDE that half's window. The straddle arm read the
 /// accounted-for crossing as a contradiction; it is now the certified
-/// negative (`SpanVerdict::Elsewhere`), and the sibling half `9v1`
-/// records the crossing on its own visit.
+/// negative (`SpanVerdict::Elsewhere`), and the sibling half records
+/// the crossing on its own visit.
 #[test]
-fn the_boolean_after_the_merge_reaches_the_join() {
+fn the_boolean_on_the_cup_reaches_the_join() {
     let tol = Tol::witness();
-    let (cup, _) = merge_the_cup(teapot_cup(tol), tol);
-    let out = topo::boolean::subtract(&cup, &cutter(tol), tol);
+    let out = topo::boolean::subtract(&teapot_cup(tol), &cutter(tol), tol);
     assert!(
         matches!(
             out,
-            Err(topo::BooleanError::Join(
-                topo::SplitJoinError::UnpairedLooseEnds { count: 4 }
-            ))
+            Err(topo::BooleanError::VolumeUnmeasured {
+                operand: None,
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::props::PropsError::NotIsoRectangle {
+                        what: "props_rim_level"
+                    },
+                    ..
+                },
+            })
         ),
-        "the merged cup clears F7 and the crossing layer and stops at the join, got {:?}",
+        "the cup clears F7 and the crossing layer and stops at the join, got {:?}",
         out.map(|_| "Ok")
     );
 }

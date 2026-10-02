@@ -18,8 +18,8 @@ use common::{brick, flush_declarations, prism_z};
 use geom_core::{Point3, Tol, Vec3};
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{
-    Body, BooleanDeclarations, BooleanError, BooleanResult, SplitPlane, intersect_with,
-    mass_properties, split, subtract_with, union_with, validate_pseudomanifold,
+    Body, BooleanDeclarations, BooleanError, BooleanResult, intersect_with, mass_properties, split,
+    subtract_with, union_with, validate_pseudomanifold,
 };
 
 type Op = fn(
@@ -186,16 +186,39 @@ fn a_split_through_the_reflex_corner_whose_run_holds_the_whole_orbit() {
         (2.0, 0.0),
     ];
     let a = prism_z::<f64>(&reflex, 0.0, 1.0, tol).body;
+    let corner = a
+        .vertices()
+        .find(|(_, v)| {
+            a.get_point(v.point)
+                .is_some_and(|p| (p.x, p.y, p.z) == (0.0, 0.0, 1.0))
+        })
+        .map(|(k, _)| k)
+        .expect("the reflex top corner");
     for (n, above_v, below_v) in [
         ((1.0, 0.2, -1.0), 8.0, 6.0),
         ((1.0, 0.5, -0.5), 7.0, 7.0),
         ((1.0, 0.0, -1.0), 8.0, 6.0),
     ] {
-        let plane = SplitPlane {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            normal: Vec3::new(n.0, n.1, n.2).normalize(),
-        };
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(n.0, n.1, n.2).normalize(),
+            geom_core::Tol::witness(),
+        );
         let r = split(&a, &plane, tol).unwrap_or_else(|e| panic!("n = {n:?}: refused {e:?}"));
+        // Every null-edge pair is `(copy, original)`, whichever end
+        // the copy took: the corner's is the whole-orbit strut, whose
+        // copy is its below end.
+        let pairs = &r.naming.vertex_pairs;
+        for &(copy, _) in pairs {
+            assert!(
+                a.get_vertex(copy).is_none(),
+                "n = {n:?}: a pair's copy is minted by the split, {pairs:?}"
+            );
+        }
+        assert!(
+            pairs.iter().any(|&(_, original)| original == corner),
+            "n = {n:?}: the corner is its pair's original, {pairs:?}"
+        );
         for (part, want, side) in [(&r.above, above_v, "above"), (&r.below, below_v, "below")] {
             let b = part
                 .body()

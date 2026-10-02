@@ -686,7 +686,7 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::SetMembers { .. }
         // A program's continuous arguments are `Expr` literals, finite
         // by the construction door like an inserted profile's; its
-        // provenance is integers.
+        // step ids are integers.
         | DocEdit::SetProgram { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::DeleteNode { .. }
@@ -2350,7 +2350,7 @@ mod tests {
                                 rv_name(derived, crate::names::EntityKind::Face),
                             ),
                         ),
-                        crate::mate::ContactClass::Rest,
+                        topo::BooleanCoincidence::REST,
                     )],
                 },
             );

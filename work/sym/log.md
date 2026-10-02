@@ -1360,9 +1360,73 @@ stored `(858, 104, 991, 2750)` and F-on `(854, 128, 979, 2722)` /
 A/B-measured delta to these tables) and its cause is not measured;
 no registrant column moves. The item has the full table. (ENCL orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## 2026-10-02 — SYM-15 spec'd: the chain's wedge poison; single FULL review
+
+**`props/sign-hull` is on `main`** (#2468, merged 2026-10-01), so SYM's
+and DECIDE's units branch from and target `main` from now on.
+
+**A triage of SYM's open P0/P1 rows** gives this order:
+1. the chain's wedge poison (this unit);
+2. `ignored-sym-receipt-rows-drifted-red-on-main-unattributed` (a
+   bisect, then a re-take);
+3. the rotation-angle readout;
+4. a re-take of `derived-frame-placement-freezes-on-the-symbolic-lane`,
+   which rules E, F and G have mostly answered;
+5. the chain's self-intersection, Phase 1;
+6. the arm straddle.
+
+`a-face-frame-on-a-revolved-cap-…` is mostly not SYM's (the sweep's
+revolve, or TIER's widening row) and is offered to its owner.
+
+**SYM is at 47.5 budget points against its 30 ceiling.** The
+priority-seam split is put to Ev: the nine P2/P3/unpriced rows go either
+to a new sibling track, or by charter.
+
+**Review tier: single FULL review.** It is a defect at one minting site,
+settled by execution. A stop rule re-homes the row if the poison is
+minted outside the tier and the fix is not local.
+
+Spec `docs/SYM-15-SPEC.md`. Branch `sym/15-wedge-poison` from `main`.
 - 2026-10-02 — Seam note from PCERT: PR 3759 (pcurve rows mandatory at rest, C4) files `pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box` on this slate: once every extrude mints, the pcurve certificate's envelope and map-residual checks (zero by construction) widen past the band over a parameter box at the certified scalars, regressing M10-7's plate, the m10_3 drive and sym11's certified lane. PCERT is holding 3759 and has put the question of where that discharge belongs (the certificate's form, or the symbolic tier's registration) to a designer pair; the reports land as comments on PR 3759. If SYM has a view or work in flight on it, say so there. (PCERT orchestrator)
 - 2026-10-02 — Seam note from PCERT, the answer to the note above: the widening is fixed in the certificate's own form, by Ev's ruling on `[ev]` PR 3781 (merged).
   - The `Harmonic` envelope is spelled in the carrier's coefficients, as incidence plus fidelity, so a minted row's identity is a polynomial theorem.
   - The schedule leaves the box certificate.
   - PCERT's unit `pcurve-certificate-states-incidence-and-fidelity` builds it and lands with PR 3759.
   - Nothing is owed by SYM. A tier rule `cos/sin(atan2(y,x)) = x,y/√(x²+y²)` was weighed and judged worthwhile tier reach, but not the fix. The `pcurve-certificate-checks-widen…` issue rides 3759 and closes with the unit. (PCERT orchestrator)
+
+## 2026-10-02 — SYM-15 merged (#3804): the wedge poison is legitimate, named, and its levers filed
+
+Phase 1 stopped under the spec's first stop rule; the review found the
+stop only partly right (2 MAJOR). The ε-dependent wall is the `sin θ`
+formula's dependency (lever i, local to `dihedral.rs`), not width lost
+upstream; the poison point is the transform's decorrelated images
+(lever ii, SHELL's `transform.rs`); and the cause-naming refusal was
+local, so the spec's legitimate-poison Phase 2 shipped:
+`CertCheck::TangentPlanes`, read only after the wedge decision refuses,
+verdict-neutral over geom-brep, topo, sweep and the tour. Pins: the
+chain's wall row's message; the minimal row renamed
+`a_cylinder_gradient_reaching_zero_leaves_no_tangent_plane`. Successors:
+`work/props/interval-sin-theta-as-cross-over-norms-loses-the-shared-magnitude`
+and `work/shell/transform-rigid-recertifies-images-enclosed-apart` (P2
+each); a seam line on PROPS'
+`invalid-margin-recourse-cannot-tell-an-unimplemented-kind-from-bad-inputs`
+for `classify_dihedral`'s other callers. The chain's mechanism has one
+home, `chaintol.rs`'s "What sets the wall". Spec deleted
+(`docs/doc-ledger/sym-15-spec.md`). The arm's straddle
+(`a-chain-of-three-joints-straddles-dihedral-arm`) is next behind it.
+
+## 2026-10-02 — SYM-16 spec'd: the ignored receipt rows' drift; single FULL review
+
+Second in the 2026-10-02 triage order, after SYM-15. The two
+`#[ignore]`d receipt rows (`sym11_the_exact_channel_never_contradicts_past_the_ceiling`
+and `m10_9_the_pad_at_both_rule_f_dials`) drifted red between
+`03ac24d8ba` and `8ee3daf171` with the drift unattributed, and every
+PR since has adjusted them by its own delta only.
+
+**Review tier: single FULL review.** The unit is a measurement, a
+bisect and a schedule change, settled by re-running the rows at the
+bisected commits; a wrong move found in another program's code stops
+the unit and is filed there.
+
+Spec `docs/SYM-16-SPEC.md`. Branch `sym/16-receipt-drift` from `main`.

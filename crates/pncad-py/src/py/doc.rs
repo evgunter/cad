@@ -1103,9 +1103,12 @@ impl Doc {
     /// **A document a refactoring minted reads that refactoring's own
     /// record.** `SplitOutcome.remainder`, `SplitOutcome.part` and
     /// `InlineOutcome.doc` are values produced by applying a whole
-    /// edit LIST, so each reports what ITS list did — the offset a
-    /// re-anchored mate cleared, the names a reshaping stranded. The
-    /// document and that record cross
+    /// edit LIST, so each reports what ITS list did, net of what a
+    /// later edit in the same list took back: the names a departing
+    /// node stranded and the remainder still carries. An offset a
+    /// carried mate's insert cleared is re-stated by a later edit in
+    /// the list, so it is not reported. The document and that record
+    /// cross
     /// together, so a caller reading here after either door reads the
     /// record the kernel has rather than an empty list.
     ///
@@ -2003,7 +2006,7 @@ impl Node {
     /// `elevation` earns its keep because the kernel is fail-loud
     /// about coincidence: it never INFERS that two faces are the same
     /// face, so two solids merely touching on a shared plane are
-    /// refused (the `undeclared_contact` menu) until the author
+    /// refused (the `undeclared_coincidence` menu) until the author
     /// declares the contact. Authoring a genuine Boolean therefore
     /// needs solids that interpenetrate, which needs sketches at
     /// different heights — or the detect/declare protocol
@@ -2616,9 +2619,9 @@ impl Node {
     /// list is the SEALED hollow — every face offset inward, a cavity
     /// and no rim — which is legal and not a refusal.
     ///
-    /// Every face of one solid on a chart must be named together: a
-    /// full revolve's cap is two half-faces on one plane, and naming one
-    /// of them refuses (`shell`, the kernel's `OpenFaceChartPartial`).
+    /// Every face of one solid on a chart must be named together:
+    /// naming only some of the faces one solid has on one plane refuses
+    /// (`shell`, the kernel's `OpenFaceChartPartial`).
     /// Another solid's faces on that chart are its own, and opening one
     /// solid's never names them. The
     /// designation FREEZES in the sense `Node.fillet` states.
@@ -2727,7 +2730,7 @@ impl Node {
     /// Without it the kernel never infers that two faces are the same
     /// face, so operands that merely touch refuse, and that refusal is
     /// the typed MENU: an
-    /// `EvaluationError` with `kind == "undeclared_contact"` whose
+    /// `EvaluationError` with `kind == "undeclared_coincidence"` whose
     /// `finding` attribute carries the candidate declaration. The
     /// protocol that fills this argument is
     /// `Evaluation.find_flush_candidates` → inspect → `Node.declare`
@@ -2763,7 +2766,7 @@ impl Node {
     /// in: the fold's steps are pairs, and a declared pair is fed at
     /// the step its two members meet at. Without one, members that
     /// merely TOUCH refuse (`EvaluationError`,
-    /// `kind == "undeclared_contact"`), exactly as a binary boolean's
+    /// `kind == "undeclared_coincidence"`), exactly as a binary boolean's
     /// operands do.
     ///
     /// Refuses at `Doc.insert`, of the list as stated: fewer than two
@@ -4126,12 +4129,15 @@ impl DocEdit {
     /// inserted, so the door is told rather than guessing.
     ///
     /// A name on a profile piece spells its step's id, so a name on a
-    /// kept step keeps denoting its piece and is not touched. A step
-    /// the new program does not keep takes its id with it: every name
-    /// on it — a fillet's selection, a shell's mouth, a derived
-    /// frame's face, a paint — keeps its spelling, resolves to nothing,
-    /// and is reported as a `strand` or a `stranded_appearance` until
-    /// `DocEdit.rebind` repairs it.
+    /// kept step keeps denoting its piece wherever the new program
+    /// draws it and is not touched. A step the new program does not
+    /// keep takes its id with it: every name on it — a fillet's
+    /// selection, a shell's mouth, a derived frame's face, a paint —
+    /// keeps its spelling, resolves to nothing, and is reported as a
+    /// `strand` or a `stranded_appearance` until `DocEdit.rebind`
+    /// repairs it. So is a name on a kept step's piece the new program
+    /// stops drawing, as a fillet inserted before a leg takes the
+    /// leg's segment.
     ///
     /// Raises `StepHandleError` `handle_off_program` for a handle that
     /// is not a step of its loop's new program. Refuses

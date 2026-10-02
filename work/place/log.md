@@ -15,3 +15,49 @@ EDIT's narrative of P1, P2a and P2-core (the sittings, the cut, ruling C, A∘F�
 - The dual-review log's foot reads tally 10, with 15 fair pairs that found a MAJOR (DR-34).
 - Readout 2 was ruled (`7cb05367e`), so an L unit stays a concurrent pair.
 - `sweep reach_volume_backstop::an_open_sign…` is red on main at 1e-6 (REACH P0). Expect it on any run whose eps filter reaches `sweep`.
+
+## 2026-10-02 — first sitting: the track is taken
+
+The PLACE orchestrator holds the track (`status: active`). Order, per the plan:
+- the P2-split spec is drafted by a survey lane over `refactor.rs` as P2-core built it, and ruled here;
+- `split-and-inline-refusals-short-of-the-shape-guard` goes first, as its own small unit, so P2-split's build starts from arms that already state a recourse rather than carrying them (orchestrator's read);
+- `document-order-is-read-off-node-id-comparison-since-ids-are-digests` runs concurrently: its ground is the mate solve and the document, not `refactor.rs` (single review if the sweep fixes sites).
+
+`a-part-resting-on-a-gauge-cannot-follow-a-part-edit` is priced `H` with `design: true`: every candidate fix touches A11 (2), so it goes to a designer pair and then an `[ev]` PR, after P2-split's spec is out.
+
+## 2026-10-02 — split and inline refusals state their recourse (PR 3872)
+
+Review tier: orchestrator's read (mechanical message rewrites; CI green on `3555e6594`). Every split and inline arm now carries one recourse; `FILED_NO_RECOURSE` and its plumbing are gone. `Split/Pin` ends on `KERNEL_DEFECT_ENDING` (the part has replayed clean, so a pin refusal is this module's defect). `InlineError::Unresolved` renders as the evaluation door's `PartFault::Unresolved` does, through one shared `part::EPSILON_SEAM_RECOURSE`. The row's `StepMapDiverged` exists in neither enum.
+## 2026-10-02 — P2-split spec'd, and cut in three
+
+The survey lane wrote `## P2-split` in `docs/EDIT-PLACEMENT-SPEC.md` and found, beyond the row:
+- P2's ruling 1 was false: gauge references are reading edges, not inputs, so the DAG's check never sees them (`doc::gauge_ref_fault` keeps the chain acyclic). Corrected in place.
+- `carry` drops a carried member's checked offset (probe on `ef90c4dba`). Filed as `split-and-inline-drop-a-carried-members-checked-offset`.
+- No edit writes a mate's alignment except its insert, so re-spelling a `FromFace` side needs a door.
+
+Rulings (orchestrator): D2 follows A4 (an unplaced group votes its gauge; two anchors refuse); D3, a stand-in node takes the label of the node it stands in for. D1 (round trip against the hoist and the sugar) and the `FromFace` frame rule are both A4 sentences, so they go to a designer pair and one `[ev]` PR (`a-from-face-mate-side-cannot-cross-the-split-or-inline-seam`).
+
+The cut: P2-carry first (single full review), P2-split (dual, H) with `MateFaceFrameCrosses` still refusing and D1's two shapes pinned evaluation-equal, then P2-face after Ev rules. Alternative considered: hold all of P2-split for Ev; rejected, since everything but the face frame is A4 as written.
+
+## 2026-10-02 — document order read from the document (PR 3882)
+
+Review tier: single review (a sweep that fixed sites). The reviewer's verdict was APPROVE-WITH-FIXES. Its one MAJOR was executed: `product::unplaced_groups`, a twin of the `parts.rs` expression the sweep fixed, still listed unplaced groups in id order into `ProductError::Unplaced` and the gate's own-space loop. The fix pass:
+- gave "unplaced groups in document order" one home, `Evaluation::unplaced_in_order` / `unplaced_groups`, read by product, parts and export;
+- pinned the deleted-node branch and `pairs_in_order` (now `pncad_py::node_map::in_document_order`, which fails loud on an unmapped target) with rows;
+- swept "root order"/"node order" doc phrases.
+
+Filed elsewhere: `work/chrome/display-prune-withdrawals-list-instances-in-id-order.md`, `work/vgeom/pick-ambiguity-lists-groups-in-id-order.md`, `work/wire/union-pairwise-refusal-names-its-pair-in-digest-id-order.md`. The orchestrator adjudicated the fix pass on its own read.
+
+## 2026-10-02 — split and inline keep a carried member's checked offset (PR 3885, P2-carry)
+
+Review tier: single full review. The verdict was APPROVE-WITH-FIXES; claims 1, 2, 3 and 5 held, and the reviewer executed its probe.
+
+The mechanism: `carry` re-states every offset a later carried mate's door cleared, with a recorded `SetOffset` after all carried nodes are in. `Recording` nets maintenance through `MaintenanceNet`. Skipping the door's clear was rejected, because replay runs the ordinary insert and would clear the offset again.
+
+The fix pass:
+- widened the rows to the reviewer's probe, killing three surviving mutants (per-insert re-statement, roots skipped, an invented identity offset);
+- swept the "what an outcome's maintenance holds" prose across two crates;
+- pinned the remainder-side improvement (a whole-document split of a declared union no longer reports a transient `OrphanedDeclare`);
+- made the re-statement fail loud.
+
+The orchestrator adjudicated the fix pass on its own read.

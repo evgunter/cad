@@ -631,11 +631,12 @@ fn a_severing_split_speaks_both_ends_and_prints_no_decimal_id() {
     assert_eq!(
         text,
         format!(
-            "split: the cut severs the edge from Extrude \"base plate\" ({}) to its input \
-             Profile \"sketch\" ({}). The consumer is kept and the input is cut, but a cut \
-             must be closed under inputs and consumers",
-            tag(extrude.0),
-            tag(profile.0)
+            "split: the cut severs the edge from Extrude \"base plate\" ({e}) to its input \
+             Profile \"sketch\" ({p}). The consumer is kept and the input is cut, but a cut \
+             must be closed under inputs and consumers. Recourse: add Extrude \"base plate\" \
+             ({e}) to the cut, or leave Profile \"sketch\" ({p}) out of it",
+            e = tag(extrude.0),
+            p = tag(profile.0)
         )
     );
     for id in [extrude, profile] {
@@ -796,10 +797,12 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     assert_eq!(
         refused.to_string(),
         format!(
-            "inline: InstantiatePart \"left bracket\" ({}) is consumed by Transform \"offset\" \
-             ({}) — the recipe cannot rewire a consumer onto a spliced product",
-            tag(inst.0),
-            tag(by.0)
+            "inline: InstantiatePart \"left bracket\" ({i}) is consumed by Transform \"offset\" \
+             ({b}), and the recipe cannot rewire a consumer onto a spliced product. Recourse: \
+             delete Transform \"offset\" ({b}), or re-author it without InstantiatePart \
+             \"left bracket\" ({i}), then inline",
+            i = tag(inst.0),
+            b = tag(by.0)
         )
     );
 }
@@ -977,6 +980,108 @@ fn a_report_rendered_from_another_document_fails_loud() {
         },
     };
     let _ = render_sensitivity(&entry, &other);
+}
+
+/// **A checks report holds ids and speaks them from the document the
+/// checks ran over**: a separation finding names both roots, and the
+/// refusal `enforce_checks` raises names its root, each as the
+/// document holds it, while the report's own `Display` (no document at
+/// hand) says each by its tag.
+#[test]
+fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
+    use editor_core::{CheckEvidence, ChecksConfig, Severity, enforce_checks, run_checks};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-checks", tol);
+    let (doc, [_, _, base]) = block(doc, 0.0);
+    let (doc, [_, _, boss]) = block(doc, 0.5);
+    let doc = set_label(doc, base, Some("base"));
+    let doc = set_label(doc, boss, Some("boss"));
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let (b, o) = (tag(base.0), tag(boss.0));
+    let strict = ChecksConfig {
+        connectedness: Severity::Error,
+        expected_components: [((base, 0), 2)].into_iter().collect(),
+        ..ChecksConfig::default()
+    };
+    let report = run_checks(&doc, &ev, &strict, tol).expect("the checks run");
+    assert!(
+        report.findings.iter().any(|finding| matches!(
+            finding.evidence,
+            CheckEvidence::NotSeparated { other_root, .. }
+                if finding.root == base && other_root == boss
+        )),
+        "the two overlapping roots are a separation finding: {report}"
+    );
+    let spoken = report.spoken(&doc);
+    assert!(
+        spoken.contains(&format!(
+            "check separation: Extrude \"base\" ({b}) output 0: not certifiably disjoint \
+             from Extrude \"boss\" ({o}) output 0"
+        )),
+        "the separation finding speaks both roots from the document: {spoken}"
+    );
+    assert!(
+        !spoken.contains(&format!("root {b}")) && !spoken.contains(&format!("root {o}")),
+        "no root is left at its bare tag: {spoken}"
+    );
+    let bare = report.to_string();
+    assert!(
+        bare.contains(&format!("root {b} output 0"))
+            && bare.contains(&format!("root {o} output 0"))
+            && !bare.contains("\"base\""),
+        "with no document at hand each root is its tag: {bare}"
+    );
+
+    let refusal = enforce_checks(&report, &strict).expect_err("connectedness is at Error");
+    let spoken = refusal.spoken(&doc);
+    assert!(
+        spoken.contains(&format!(
+            "check connectedness: Extrude \"base\" ({b}) output 0:"
+        )),
+        "the refusal speaks its root from the document: {spoken}"
+    );
+    assert!(
+        refusal.to_string().contains(&format!("root {b} output 0")),
+        "and its own Display says the tag: {refusal}"
+    );
+}
+
+/// The checks report is a report: rendered from another document that
+/// holds the same id, it fails loud rather than naming that document's
+/// node.
+#[test]
+#[should_panic(expected = "its node ids would name another document's nodes")]
+fn a_checks_report_spoken_from_another_document_fails_loud() {
+    use editor_core::{ChecksConfig, run_checks};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-checks-taken-of", tol);
+    let (doc, [_, _, base]) = block(doc, 0.0);
+    let (doc, _) = block(doc, 0.5);
+    let other = ProfileDoc::empty_derived("node-labels-checks-another", tol);
+    let (other, [_, _, same]) = block(other, 0.0);
+    assert_eq!(
+        base, same,
+        "the two documents hold one id as two nodes: the hazard this guards"
+    );
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
+    assert!(
+        report.findings.iter().any(|finding| finding.root == base),
+        "a finding names the root the other document also holds: {report}"
+    );
+    let _ = report.spoken(&other);
 }
 
 /// **A selection door's refusal holds ids and is spoken by the frame**
@@ -1216,5 +1321,125 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
             && line.contains("reference resolves through this node, which")
             && line.matches(&t).count() == 1,
         "{line}"
+    );
+}
+
+/// **An edit refusal spoken again from a later version of its document
+/// says each node as that version holds it** (`EditError::respoken`): a
+/// rename since the refusal is the label it says, in a node arm, a root
+/// arm and a name arm. A node the later version does not hold is said as
+/// the door said it — the node a refused insert was minting keeps its
+/// kind, a node deleted since keeps its label — and `LabelUnchanged`,
+/// whose sentence is about the label the node held at the refusal, stays
+/// as raised. Red if a renamed node keeps its old label, if a node the
+/// later version lacks drops to its tag, or if `LabelUnchanged` takes
+/// the new label.
+#[test]
+fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
+    let doc = ProfileDoc::empty_derived("node-labels-respoken", Tol::witness());
+    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, profile, Some("sketch"));
+    let doc = set_label(doc, extrude, Some("base plate"));
+    let (p, e) = (tag(profile.0), tag(extrude.0));
+
+    let dangle = refusal(&doc, DocEdit::DeleteNode { id: profile });
+    let twice = refusal(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Union {
+                members: vec![extrude, extrude],
+                declare: None,
+            }),
+        },
+    );
+    let roots = refusal(
+        &doc,
+        DocEdit::SetRoots {
+            roots: vec![profile, extrude],
+        },
+    );
+    let unreferenced = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
+    let rebind = refusal(
+        &doc,
+        DocEdit::Rebind {
+            from: unreferenced.clone(),
+            to: fixture::fname(extrude, fixture::wall(&doc, extrude, 1)),
+        },
+    );
+    let unchanged = refusal(
+        &doc,
+        DocEdit::SetLabel {
+            node: extrude,
+            label: Some(label("base plate")),
+        },
+    );
+
+    let later = set_label(doc, profile, Some("pad"));
+    let later = set_label(later, extrude, Some("slab"));
+
+    let said = dangle.respoken(&later).to_string();
+    assert!(
+        said.starts_with(&format!(
+            "Profile \"pad\" ({p}) is still an input to Extrude \"slab\" ({e})"
+        )),
+        "a node arm says both nodes' new labels: {said}"
+    );
+    let EditError::DuplicateInput { node, input } = twice.respoken(&later) else {
+        panic!("respoken keeps the arm, got {twice:?}");
+    };
+    assert_eq!(
+        (node.kind(), node.label(), input),
+        (Some("Union"), None, later.spoken(extrude)),
+        "the minted node, which no version holds, by its kind; the input as renamed"
+    );
+    let EditError::Roots(RootFault::Ancestor {
+        ancestor,
+        descendant,
+    }) = roots.respoken(&later)
+    else {
+        panic!("respoken keeps the arm, got {roots:?}");
+    };
+    assert_eq!(
+        (ancestor, descendant),
+        (later.spoken(profile), later.spoken(extrude)),
+        "a root arm says both roots as renamed"
+    );
+    assert_eq!(
+        rebind.respoken(&later),
+        EditError::RebindNoReferences {
+            name: later.spoken_name(&unreferenced)
+        },
+        "a name arm says its minting node as renamed"
+    );
+    assert_eq!(
+        unchanged.respoken(&later),
+        unchanged,
+        "LabelUnchanged says the label the node held when the door refused"
+    );
+
+    let (deleted, _) = step(later.clone(), DocEdit::DeleteNode { id: extrude });
+    let said = dangle.respoken(&deleted).to_string();
+    assert!(
+        said.starts_with(&format!(
+            "Profile \"pad\" ({p}) is still an input to Extrude \"base plate\" ({e})"
+        )),
+        "a node deleted since is said as the door said it: {said}"
+    );
+
+    // Absent at the refusal, held again by the version it is spoken
+    // from (an undo of the delete): the sentence is that the node is not
+    // there, so it keeps its tag.
+    let unknown = refusal(
+        &deleted,
+        DocEdit::SetLabel {
+            node: extrude,
+            label: Some(label("back")),
+        },
+    );
+    let said = unknown.respoken(&later).to_string();
+    assert!(
+        matches!(unknown, EditError::UnknownNode { .. })
+            && said.starts_with(&format!("node {e} is not live")),
+        "an absent node stays absent though the later version holds it: {said}"
     );
 }

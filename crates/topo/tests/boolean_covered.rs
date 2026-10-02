@@ -182,7 +182,7 @@ fn stretches(
     out: &topo::BooleanBody<f64>,
     rows: &[(topo::VertexKey, topo::VertexKey)],
 ) -> Vec<Ends> {
-    let fused = out.naming.fused_into().expect("the fusions do not cycle");
+    let fused = out.naming.fused_into();
     let at = |v| {
         let v = fused.get(&v).copied().unwrap_or(v);
         let p = topo::readback::vertex_point(&out.body, v).expect("a held end is live");
@@ -204,7 +204,7 @@ fn stretches(
 /// a fragment of.
 fn a_face(out: &topo::BooleanBody<f64>, f: FaceKey) -> FaceKey {
     let rows = &out.naming.face_fragments_b;
-    topo::fragment_root(f, rows.len(), |k| {
+    topo::lineage_root(f, rows.len(), |k| {
         rows.iter().find(|(new, _)| *new == k).map(|&(_, up)| up)
     })
     .expect("the fragment rows do not cycle")

@@ -289,22 +289,13 @@ fn megascale_washer_matches_and_validates() {
 /// replaces: the old report named a face's volume, this one names the
 /// chord.
 ///
-/// **Check 8 (the pcurve pass) no longer reads the chord.** It used to,
-/// once per half-edge, because `mef` left both pieces of the minted wall
-/// half-minted. `mef` now mints the row of each half it adds to a
-/// complete face, and a secant has no chart image that certifies, so
-/// neither piece has a closed-form row set: the operator leaves both
-/// storing nothing, the state the minting pass gives a face its lane
-/// does not cover. The pass says nothing about a face with no row, and
-/// the loud reading moves to where the pass RUNS — `mint_pcurves` over
-/// this body refuses, pinned below.
-///
-/// The closed form's typed refusal — the actual subject — is untouched
-/// and still read directly from `mass_properties`. The tier-3
-/// `VolumeUncomputable` lane keeps its own pins on bodies that ARE at
-/// rest and merely uncomputable (`m5_pr12_fix_pass`, `step-import`'s
-/// `nurbs_import` / `freecad` / `wild`), so nothing lost coverage —
-/// this fixture stopped being an example of it.
+/// **Check 8 (the pcurve pass) reads both pieces.** `mef` mints the
+/// row of each half it adds to a complete face, and a secant has no
+/// chart image that certifies, so neither piece has a closed-form row
+/// set: the operator, mid-surgery, leaves both storing nothing. At rest
+/// that is a finding: tier 3 re-derives each rowless piece and names
+/// the refusal its walk meets, and `mint_pcurves` over this body refuses
+/// with the first of them, pinned below.
 #[test]
 fn diagonal_chord_split_refuses_typed_not_silent() {
     use topo::{FaceSurface, LoopBoundary, MassPropsError, MefSite, ValidationError};
@@ -321,8 +312,8 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
         Tol::witness(),
     )
     .unwrap();
+    let wall = t.walls()[0][1].expect("outer wall face");
     let mut body = t.body;
-    let wall = t.walls[0][1].expect("outer wall face");
     let outer = body.get_face(wall).unwrap().outer;
     let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("wall loop must be a cycle");
@@ -354,17 +345,34 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
     }
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert_eq!(
-        errs,
-        vec![ValidationError::ScaffoldAtRest { edge: split.edge }],
-        "tier 3 must name the planted chord for having no at-rest description, \
-         and nothing else; got {errs:?}"
+        errs.first(),
+        Some(&ValidationError::ScaffoldAtRest { edge: split.edge }),
+        "tier 3 names the planted chord for having no at-rest description; got {errs:?}"
     );
+    let pieces = [wall, split.face];
+    let rowless: Vec<&topo::PcurveMintError> = errs[1..]
+        .iter()
+        .map(|e| match e {
+            ValidationError::Pcurve { finding } => finding,
+            other => panic!("beside the chord, only the pcurve pass speaks: {other:?}"),
+        })
+        .collect();
+    assert_eq!(rowless.len(), 2, "one refusal per rowless piece: {errs:?}");
     for he in [split.he_plus, split.he_minus] {
         assert!(body.pcurve(he).is_none(), "{he:?} carries a row");
     }
-    assert!(
-        topo::mint_pcurves(&mut body, Tol::witness()).is_err(),
-        "the minting pass refuses a wall a secant bounds"
+    for &face in &pieces {
+        assert!(
+            body.pcurves()
+                .all(|(he, _)| body.face_of_half_edge(he) != Some(face)),
+            "{face:?} stores no row"
+        );
+    }
+    let refused = topo::mint_pcurves(&mut body, Tol::witness())
+        .expect_err("the minting pass refuses a wall a secant bounds");
+    assert_eq!(
+        &refused, rowless[0],
+        "tier 3 reads the mint's own refusal first"
     );
 }
 

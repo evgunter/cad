@@ -58,6 +58,7 @@ pub mod description;
 pub mod dihedral;
 pub mod edge_nurbs;
 pub mod enters;
+pub mod extent;
 pub mod fitted_lane;
 pub mod implicit;
 pub mod intersect;
@@ -89,9 +90,9 @@ pub use description::{
 };
 pub use dihedral::{
     DIHEDRAL_ARM, DihedralClass, MaterialPairing, MaterialWedge, MustCarryDescription,
-    MustCarryRefusal, MustCarryVerdict, SecondOrder, classify_dihedral, classify_material_pairing,
-    classify_material_pairing_as, folded_lever_arm, material_kappa_rel, must_carry_over_edge,
-    tangent_second_order,
+    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder, classify_dihedral,
+    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, material_kappa_rel,
+    must_carry_over_edge, tangent_second_order,
 };
 pub use edge_nurbs::{
     CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal, PlaneNurbsLimbs,
@@ -101,17 +102,18 @@ pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, enters_material,
     enters_material_order2,
 };
+pub use extent::ExtentBall;
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
 pub use implicit::{
-    ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, circle_arc_residual_range,
-    circle_residual_curvature_bound, circle_residual_extremes, circle_sphere_harmonic,
-    cone_elevation, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
-    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
-    min_radius_of_curvature,
+    ARC_RESIDUAL_SAMPLES, CircleCylinderHarmonics, CircleSphereHarmonic, circle_arc_residual_range,
+    circle_cylinder_harmonics, circle_residual_curvature_bound, circle_residual_extremes,
+    circle_sphere_harmonic, cone_elevation, curvature_lever_arm, implicit_gradient,
+    implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
+    implicit_residual, min_radius_of_curvature,
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
@@ -138,9 +140,10 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    ChartStretchInf, ChartWindow, EnvelopeStatement, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, SpiricImage, UncoveredClass,
-    chart_pcurve, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, MAX_BRANCH_PERIODS,
+    NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
+    PcurveKind, SpiricImage, UncoveredClass, chart_pcurve, chart_stretch_inf, chart_stretch_sup,
+    chart_stretch_sup_v, whole_periods,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

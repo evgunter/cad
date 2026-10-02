@@ -36,7 +36,12 @@ use topo::{
 /// **No description step**, unlike `prism_z`: these operands reach the
 /// boolean ops with their conventional chords, which is the state this
 /// suite's falsification targets were written against.
-fn tprism<T: Decide>(profile: &[(f64, f64)], z0: f64, z1: f64, m: [[f64; 3]; 3]) -> Body<T> {
+fn tprism<T: Decide + topo::AtRestPolicy>(
+    profile: &[(f64, f64)],
+    z0: f64,
+    z1: f64,
+    m: [[f64; 3]; 3],
+) -> Body<T> {
     let mut body = Body::<T>::new();
     common::prism_ops(
         &mut body,
@@ -380,14 +385,11 @@ fn a_multi_spike_shared_corner_vertex() {
         Tol::witness(),
     )
     .body;
-    // REVIEW VERDICT: for z-parallel prisms a shared corner VERTEX
-    // forces AB's vertical corner edge to lie IN C's vertical side
-    // plane (any vertical plane through the vertex contains it) — the
-    // documented boundary-on-boundary class. Refusal is typed,
-    // deterministic, operand-preserving, with the on-edge count 4;
-    // multi-spike vv sites AWAY from pre-existing corners are the
-    // half-plane-sector class where the dot order is forced (see the
-    // fig151 variants above). If this ever succeeds it must be exact.
+    // A shared corner VERTEX of z-parallel prisms puts AB's vertical
+    // corner edge along C's: the section segment up that edge names the
+    // edge at both ends in both solids, and each solid folds the edge
+    // into its In run by its own membership at both ends, so the joint
+    // builds.
     match topo::intersect_with(
         &ab,
         &c,
@@ -396,13 +398,19 @@ fn a_multi_spike_shared_corner_vertex() {
     ) {
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));
+            assert_eq!(
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+                Ok(()),
+                "tier 3′"
+            );
+            assert!(
+                topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
+                "the at-rest certificate"
+            );
             assert_eq!(vol(&bb.body), 0.5, "corner-vertex meet EXACT");
         }
         Ok(BooleanResult::Empty) => panic!("nonempty overlap"),
-        Err(_) => {
-            let e = assert_typed_refusal(topo::intersect_with, &ab, &c);
-            assert!(e.contains("UnpairedLooseEnds { count: 4 }"), "got {e}");
-        }
+        Err(e) => panic!("the corner-vertex meet builds: {e:?}"),
     }
 }
 

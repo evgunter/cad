@@ -319,7 +319,10 @@ impl<T: Decide> Body<T> {
     /// edge ([`EulerOpError::NullScaffoldCurve`]), its spec is
     /// adjacency-coherent on the moved charts
     /// ([`EulerOpError::DescriptionNotAdjacent`]) and certifies at its
-    /// endpoints ([`EulerOpError::RechartFalsifies`]). Then no unlisted
+    /// endpoints ([`EulerOpError::RechartFalsifies`]; the plane × NURBS
+    /// lane is the scalar's policy, [`crate::AtRestPolicy::nurbs_lane`],
+    /// and a scalar holding none refuses that class
+    /// [`EulerOpError::NurbsLaneUnsupported`]). Then no unlisted
     /// edge is stranded ([`EulerOpError::RechartUndescribed`], every one
     /// named). Then per moved face in order onto a plane that is not its
     /// old chart, per loop (outer, then rings) and half-edge in cycle
@@ -340,7 +343,10 @@ impl<T: Decide> Body<T> {
         charts: Vec<Rechart<T>>,
         redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
         tol: Tol,
-    ) -> Result<Vec<SurfaceKey>, EulerOpError> {
+    ) -> Result<Vec<SurfaceKey>, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
@@ -378,8 +384,19 @@ impl<T: Decide> Body<T> {
                 return Err(EulerOpError::DescriptionNotAdjacent { edge });
             }
             let (p_start, p_end) = self.edge_endpoints(edge)?;
-            let curve = EdgeCurve::certify(spec.clone(), p_start, p_end, resolve(sides), band)
-                .map_err(|error| EulerOpError::RechartFalsifies { edge, error })?;
+            let curve =
+                crate::policy_lane::certify(spec.clone(), p_start, p_end, resolve(sides), band)
+                    .map_err(|refusal| match refusal {
+                        crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                            EulerOpError::NurbsLaneUnsupported {
+                                edge: Some(edge),
+                                scalar,
+                            }
+                        }
+                        crate::policy_lane::ByPolicy::Refused(error) => {
+                            EulerOpError::RechartFalsifies { edge, error }
+                        }
+                    })?;
             written.push((edge, sides, curve));
         }
 
@@ -711,30 +728,12 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         moved: impl Fn(FaceKey) -> Option<Slot>,
     ) -> Result<Sides, EulerOpError> {
-        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
-        let side = |he: HalfEdgeKey| {
-            let he_data = self.resolve_half_edge(he)?;
-            let face = self
-                .get_loop(he_data.parent_loop)
-                .ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Loop(he_data.parent_loop),
-                })?
-                .face;
-            let surface = self
-                .get_face(face)
-                .ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Face(face),
-                })?
-                .surface;
-            Ok::<_, EulerOpError>((surface, moved(face).unwrap_or(Slot::Kept(surface))))
-        };
-        let (plus, plus_after) = side(edge_data.he_plus)?;
-        let (minus, minus_after) = side(edge_data.he_minus)?;
+        let sides = crate::readback::edge_sides(self, edge)?;
+        let after =
+            |side: crate::readback::EdgeSide| moved(side.face).unwrap_or(Slot::Kept(side.surface));
         Ok(Sides {
-            before: [plus, minus],
-            after: [plus_after, minus_after],
+            before: [sides.plus.surface, sides.minus.surface],
+            after: [after(sides.plus), after(sides.minus)],
         })
     }
 
@@ -804,23 +803,11 @@ impl<T: Decide> Body<T> {
     /// neither, so no row changes what it is ABOUT. What it does change
     /// is what the row must agree WITH, and the tier-3 pcurve pass
     /// re-derives that agreement from the edge's CURRENT curve on every
-    /// run — so on a COMPLETE face a row left saying the old carrier's
-    /// image is refused per half-edge, loud, which is where the surface
-    /// setter was silent.
-    ///
-    /// **Two faces of the pass are silent, and neither is this door's
-    /// to close.** A face whose chart mints nothing holds no minted row
-    /// for a carrier swap to stale at all. A HALF-MINTED face does hold
-    /// them, and the pass skips its re-certification entirely — it
-    /// reports the missing rows and then measures nothing else about
-    /// that face
-    /// (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`),
-    /// so a row this door stales there is accepted unmeasured. That is
-    /// the pass's property for every content staleness in the tree, not
-    /// a fact about carrier swaps, and dropping rows here would buy a
-    /// `MissingCache` on that one face at the price of a re-mint on
-    /// every swap that certifies — including the upgrades this door
-    /// exists for, whose rows stay true within band.
+    /// run — so a row left saying the old carrier's image is refused
+    /// per half-edge, loud, on a complete face and on the rows a
+    /// half-minted one stores alike, which is where the surface setter
+    /// was silent. A face whose chart mints nothing holds no minted row
+    /// for a carrier swap to stale at all.
     ///
     /// **A null edge's first description re-mints its loops.**
     /// [`Body::mev_null`] adds two halves with no carrier to derive a
@@ -845,16 +832,34 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::DescriptionNotAdjacent`] on an
     /// `Intersection`/`Seam` description whose surfaces are not the
     /// edge's faces' surfaces; [`EulerOpError::Certification`] on a
-    /// failed gate; [`EulerOpError::PcurveMint`] where a null edge's
-    /// face is re-minted and a half-edge of it does not resolve. The
-    /// body is untouched on `Err`.
+    /// failed gate, whose plane × NURBS lane is the scalar's policy
+    /// ([`crate::AtRestPolicy::nurbs_lane`]), and
+    /// [`EulerOpError::NurbsLaneUnsupported`] where that class meets a
+    /// scalar holding none; [`EulerOpError::PcurveMint`] where a null
+    /// edge's face is re-minted and a half-edge of it does not resolve.
+    /// The body is untouched on `Err`.
     pub fn set_edge_curve(
         &mut self,
         edge: EdgeKey,
         curve: EdgeCurveSpec<T>,
         tol: Tol,
-    ) -> Result<CurveKey, EulerOpError> {
-        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec, tol)
+    ) -> Result<CurveKey, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let (p_start, p_end) = self.edge_endpoints(edge)?;
+        self.check_description_adjacent(edge, &curve.description)?;
+
+        let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, tol)?;
+        let rows = self.null_description_rows(edge, &certified, tol)?;
+
+        // ---- Mutation (infallible from here on). ----
+        let new = self.replace_edge_curve(edge, certified);
+        crate::pcurves::apply_site_rows(self, rows, None);
+
+        #[cfg(debug_assertions)]
+        self.assert_tier1_postcondition("set_edge_curve");
+        Ok(new)
     }
 
     /// Re-states `edge` as an image in `chart`, keeping its carrier,
@@ -897,7 +902,10 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         chart: SurfaceKey,
         tol: Tol,
-    ) -> Result<(), EulerOpError> {
+    ) -> Result<(), EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         let curve_key = self
             .get_edge(edge)
             .ok_or(EulerOpError::StaleKey {
@@ -917,41 +925,8 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
-    /// [`Body::set_edge_curve`] with the certification door supplied by
-    /// the caller — the one axis on which the two attach doors differ
-    /// (the plane × NURBS lane, M7-8). Every precondition, every
-    /// adjacency rule and every mutation below is shared verbatim, so
-    /// the doors cannot drift apart.
-    pub(crate) fn set_edge_curve_via(
-        &mut self,
-        edge: EdgeKey,
-        curve: EdgeCurveSpec<T>,
-        certify: impl FnOnce(
-            &Self,
-            EdgeCurveSpec<T>,
-            geom_core::Point3<T>,
-            geom_core::Point3<T>,
-            Tol,
-        ) -> Result<geom_brep::EdgeCurve<T>, EulerOpError>,
-        tol: Tol,
-    ) -> Result<CurveKey, EulerOpError> {
-        let (p_start, p_end) = self.edge_endpoints(edge)?;
-        self.check_description_adjacent(edge, &curve.description)?;
-
-        let certified = certify(self, curve, p_start, p_end, tol)?;
-        let rows = self.null_description_rows(edge, &certified, tol)?;
-
-        // ---- Mutation (infallible from here on). ----
-        let new = self.replace_edge_curve(edge, certified);
-        crate::pcurves::apply_site_rows(self, rows, None);
-
-        #[cfg(debug_assertions)]
-        self.assert_tier1_postcondition("set_edge_curve");
-        Ok(new)
-    }
-
     /// **The rows a null edge's first description writes**, decided
-    /// before [`Body::set_edge_curve_via`] mutates: one plan per face
+    /// before [`Body::set_edge_curve`] mutates: one plan per face
     /// the edge's halves are on, for [`crate::pcurves::apply_site_rows`].
     ///
     /// Empty unless `edge` is a null edge ([`crate::CurveGeom::NullScaffold`]):
@@ -1407,11 +1382,8 @@ mod tests {
 
     /// `edge`'s two faces, `he_plus`'s first.
     fn faces_of(body: &Body<f64>, edge: EdgeKey) -> [FaceKey; 2] {
-        let e = body.get_edge(edge).unwrap();
-        [
-            body.face_of_half_edge(e.he_plus).unwrap(),
-            body.face_of_half_edge(e.he_minus).unwrap(),
-        ]
+        let (plus, minus) = crate::readback::edge_sides(body, edge).unwrap().faces();
+        [plus, minus]
     }
 
     /// The edges with a half on `face`, in edge-arena order.
@@ -1980,17 +1952,14 @@ mod tests {
     fn push_out_top_and_front(body: &mut Body<f64>, d: f64) {
         let vertices: Vec<_> = body.vertices().map(|(k, _)| k).collect();
         for v in vertices {
-            let old = body.get_vertex(v).unwrap().point;
-            let mut p = *body.get_point(old).unwrap();
+            let mut p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
             if p.y == 0.0 {
                 p.y = -d;
             }
             if p.z == 1.0 {
                 p.z = 1.0 + d;
             }
-            let new = body.add_point(p);
-            body.get_vertex_mut(v).unwrap().point = new;
-            body.remove_point_if_orphaned(old);
+            body.move_vertices(&[v], p).unwrap();
         }
     }
 

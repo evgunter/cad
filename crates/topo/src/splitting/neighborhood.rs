@@ -123,7 +123,9 @@ pub(super) fn sector_face<T: Decide>(
     })?;
     match resolved.carrier {
         SectorCarrier::Plane => Ok((resolved.face, resolved.normal, true)),
-        SectorCarrier::Cylinder => Ok((resolved.face, resolved.normal, false)),
+        SectorCarrier::Cylinder | SectorCarrier::Cone => {
+            Ok((resolved.face, resolved.normal, false))
+        }
         SectorCarrier::Sphere => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: resolved.face,
             kind: geom::SurfaceKind::Sphere,
@@ -149,7 +151,7 @@ pub(super) fn sector_face<T: Decide>(
 ///   certified point-set-diameter lower bound; the chord collapses on
 ///   near-closed arcs).
 #[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic jet) — one internal tuple
-fn chord<T: Decide>(
+pub(super) fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
@@ -178,17 +180,10 @@ fn chord<T: Decide>(
             let (t0, t1) = curve.params();
             // The base-endpoint jet: outgoing tangent, plus the raw
             // second derivative and squared speed for the C12.2
-            // second-order descent (M5 PR 9). Walking the minus half
-            // reverses the FIRST derivative only — position along the
-            // walk is c(t₁ − τ), so d²/dτ² = +c″(t₁): no sign flip on
-            // the curvature datum.
-            let (tangent, deriv2, speed_sq) = if he == edge.he_plus {
-                let d = curve.carrier().deriv(t0);
-                (d, curve.carrier().deriv2(t0), d.norm_squared())
-            } else {
-                let d = curve.carrier().deriv(t1);
-                (-d, curve.carrier().deriv2(t1), d.norm_squared())
-            };
+            // second-order descent (M5 PR 9).
+            let (tangent, _) = curve.walk_tangents(he == edge.he_plus);
+            let deriv2 = curve.walk_departure_deriv2(he == edge.he_plus);
+            let speed_sq = tangent.norm_squared();
             let chord_len = p_final.distance(p_base);
             let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord_len);
             Ok((
@@ -243,7 +238,7 @@ pub fn classify_neighborhood<T: Decide>(
         //   contact) classifies On for rule (b)'s adjudication;
         //   in-band escalates typed.
         let class = if let Some((deriv2, speed_sq)) = conic_jet {
-            let margin = Margin::of(dir_a.dot(plane.normal));
+            let margin = Margin::of(dir_a.dot(plane.normal.get()));
             match decide("split_conic_departure", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,
@@ -264,7 +259,7 @@ pub fn classify_neighborhood<T: Decide>(
                     match geom_brep::enters_material_order2(
                         deriv2,
                         speed_sq,
-                        geom_brep::ReferenceNormal::of_split_plane(plane.normal),
+                        geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
                         dir_a.norm(),
                         band,
                     ) {
@@ -320,7 +315,7 @@ pub fn classify_neighborhood<T: Decide>(
             },
         )?;
         if let Some(bisector) = wide {
-            let margin = Margin::levered(bisector.dot(plane.normal), arm);
+            let margin = Margin::levered(bisector.dot(plane.normal.get()), arm);
             let class = match decide("split_bisector_side", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,
@@ -336,7 +331,7 @@ pub fn classify_neighborhood<T: Decide>(
     }
 
     rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
-    rules::apply_rule_b(vertex, &mut entries)?;
+    rules::apply_rule_b(body, vertex, &mut entries, band)?;
     Ok(entries)
 }
 

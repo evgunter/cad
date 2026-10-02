@@ -57,6 +57,8 @@ mod revolve_common;
 
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "at_rest_pcurve_faces.rs"]
+mod at_rest_pcurve_faces;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
@@ -149,6 +151,10 @@ mod shellfix1_bitdump;
 mod shellfix1_r1_probes;
 #[path = "sym11_far_placement_rows.rs"]
 mod sym11_far_placement_rows;
+#[path = "tilted_sphere_pair.rs"]
+mod tilted_sphere_pair;
+#[path = "tilted_sphere_pair_k_rows.rs"]
+mod tilted_sphere_pair_k_rows;
 #[path = "topo_ring_nesting.rs"]
 mod topo_ring_nesting;
 #[path = "torax_axial.rs"]
@@ -170,6 +176,8 @@ mod verbs_shell;
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]
 mod band_annulus_host_boundary;
+#[path = "band_clearance_screen_reads_every_feature.rs"]
+mod band_clearance_screen_reads_every_feature;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
@@ -228,6 +236,10 @@ mod extrude_acceptance;
 mod extrude_interval;
 #[path = "issue93_az_intersect.rs"]
 mod issue93_az_intersect;
+#[path = "join1_r2_probes.rs"]
+mod join1_r2_probes;
+#[path = "join1_r2_rand.rs"]
+mod join1_r2_rand;
 #[path = "join_whole_orbit_cylinder.rs"]
 mod join_whole_orbit_cylinder;
 #[path = "k_report.rs"]
@@ -326,6 +338,14 @@ mod r1_probes_issue1362_donut;
 mod r2_sense_fold_probes;
 #[path = "ray_wall_margin_twins.rs"]
 mod ray_wall_margin_twins;
+#[path = "reach_aligned_half_rods.rs"]
+mod reach_aligned_half_rods;
+#[path = "reach_cone_split.rs"]
+mod reach_cone_split;
+#[path = "reach_continuation.rs"]
+mod reach_continuation;
+#[path = "reach_split_gate_per_face.rs"]
+mod reach_split_gate_per_face;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
 #[path = "reach_wall_chord_rows.rs"]
@@ -354,6 +374,8 @@ mod review_blend6_r1_probes;
 mod review_blend6_r2_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
+#[path = "review_cleave_wrongarc.rs"]
+mod review_cleave_wrongarc;
 #[path = "review_closed_chain_junctions_r2_probes.rs"]
 mod review_closed_chain_junctions_r2_probes;
 #[path = "review_contact_edge_must_carry_r2_probes.rs"]
@@ -442,12 +464,21 @@ mod s16_box_soundness;
 mod s393_start_frame_door;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "seam_vertex_sites.rs"]
+mod seam_vertex_sites;
+
+#[path = "run_walls_built.rs"]
+mod run_walls_built;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
+#[path = "split_cylindrical_feature_box.rs"]
+mod split_cylindrical_feature_box;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
+#[path = "split_tangent_edge_curved.rs"]
+mod split_tangent_edge_curved;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -565,6 +596,14 @@ mod germ_sphere_no_crossings;
 mod germ_torus_doors;
 #[path = "germ_torus_rods.rs"]
 mod germ_torus_rods;
+#[path = "join1_delta_probes.rs"]
+mod join1_delta_probes;
+#[path = "join1_mechanisms.rs"]
+mod join1_mechanisms;
+#[path = "join1_r1_probes.rs"]
+mod join1_r1_probes;
+#[path = "join1_r1_rows.rs"]
+mod join1_r1_rows;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]
@@ -583,6 +622,8 @@ mod mate7a_torus_rest;
 mod pi_seam_and_kiss_through_the_boolean;
 #[path = "snowman.rs"]
 mod snowman;
+#[path = "tang_circle_cylinder.rs"]
+mod tang_circle_cylinder;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
@@ -808,5 +849,10 @@ mod review_3701_probes;
 #[path = "review_ring2_r1_e2e.rs"]
 mod review_ring2_r1_e2e;
 
+#[path = "full_turn_bore_mate.rs"]
+mod full_turn_bore_mate;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
+
+#[path = "join1_delta2_harness.rs"]
+mod join1_delta2_harness;

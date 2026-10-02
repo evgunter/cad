@@ -43,3 +43,31 @@ cylinder quadrature lane, which reads stored harmonic pcurves and
 does not need a conic trim. The dispatch is by carrier kind today
 (C5, "never a runtime fallback"), so the second wants a structural
 test of the outline rather than a retry on refusal.
+
+## Measured (JOIN-1, 2026-10-02, branch `join/1-germ-locus`)
+
+A second witness: the merged teapot cup minus
+`brick((0.02, 0.2), (-0.01, 0.1), (0, 0.3))`
+(`crates/sweep/tests/verbs_1031b_arcwind.rs`
+`the_boolean_after_the_merge_passes_the_join`). Once the join pairs
+the section segments that run along the cup's seam edges, the subtract
+builds and refuses
+`VolumeUnmeasured { operand: None, source: Face { source: NotIsoRectangle { what: "props_rim_level" } } }`
+on a wall half-cylinder the cutter notches along two rulings and an arc.
+
+(Superseded the same day: BAND's one-wall-per-run sweeps, PR 3736,
+rebuilt the cup without the merge, and that cup's subtract refuses
+`Join(UnpairedLooseEnds { count: 4 })` on main and on JOIN-1 alike —
+`the_boolean_on_the_cup_reaches_the_join`. The witness above is the
+merged cup's.)
+
+## Evidence (2026-10-01, TANG's circle × cylinder cell): Ev's engraving pose, slid across the rim
+
+The engraving pose of `work/tang/pierce-ring-has-no-join-arm.md` with its tool slid to
+`x = 0.035`, so the pocket crosses the cylinder's rim, used to refuse at the curved
+pierce arm (a rim circle against the tool's arc wall). With the circle × cylinder root
+lane it builds as far as the volume backstop and refuses
+`VolumeUnmeasured { operand: None, source: Face { source: NotIsoRectangle { what: "props_rim_level" } } }`:
+the result's wall is notched by the pocket. Pinned by
+`crates/editor-core/tests/pierce_ring_engraving.rs`,
+`a_pocket_across_the_rim_stops_at_the_notched_walls_volume`, which reds when this row lands.

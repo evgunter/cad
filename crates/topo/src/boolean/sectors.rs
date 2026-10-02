@@ -142,7 +142,7 @@ impl<T: geom_core::Real> BoolSector<T> {
 }
 
 fn corrupt(operand: Operand, vertex: VertexKey) -> BooleanError {
-    BooleanError::CorruptOperand { operand, vertex }
+    BooleanError::corrupt_at(operand, vertex)
 }
 
 /// Builds the sector array of `vertex`'s neighborhood (module docs).
@@ -209,11 +209,7 @@ pub(super) fn build_sectors<T: Decide>(
             | geom::Curve3::Ellipse { .. }
             | geom::Curve3::Spiric { .. } => {
                 let (t0, t1) = curve.params();
-                let tangent = if he == edge.he_plus {
-                    curve.carrier().deriv(t0)
-                } else {
-                    -curve.carrier().deriv(t1)
-                };
+                let (tangent, _) = curve.walk_tangents(he == edge.he_plus);
                 let extent =
                     geom_brep::edge_extent(curve.carrier(), t0, t1, p_end.distance(p_base));
                 Ok((tangent.normalize() * extent, Reach::Extent(extent)))
@@ -344,6 +340,15 @@ pub(super) fn sector_face<T: Decide>(
         | SectorCarrier::Cylinder
         | SectorCarrier::Sphere
         | SectorCarrier::Torus => {}
+        // The boolean's sector algebra has no cone arm: a cone-carried
+        // sector refuses here, typed, as the split lane's does not.
+        SectorCarrier::Cone => {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand,
+                face: resolved.face,
+                kind: geom::SurfaceKind::Cone,
+            });
+        }
     }
     Ok((resolved.face, resolved.normal))
 }
@@ -611,6 +616,7 @@ fn at_departure<T: Decide>(
 pub(super) fn tangent_lump<T: Decide>(
     sector_surface: &geom::Surface<T>,
     other_surface: &geom::Surface<T>,
+    reach: geom_brep::ExtentBall<T>,
     other_outward: OutwardNormal<T>,
     p: geom_core::Point3<T>,
     op: super::BooleanOp,
@@ -621,7 +627,7 @@ pub(super) fn tangent_lump<T: Decide>(
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
-    let locus_dir = match tangent_locus(sector_surface, other_surface, band) {
+    let locus_dir = match tangent_locus(sector_surface, other_surface, reach, band) {
         Ok(TangentLocus::Line { dir, .. }) => dir,
         Err(TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
@@ -798,6 +804,87 @@ pub(super) fn bound_edges<T: Decide>(
         out.push((edge(orbit[1 % orbit.len()])?, s.start));
     }
     Ok(out)
+}
+
+/// **The one fold rule for an on-bound**: an edge read On against the
+/// partner face, between bounds read `before` and `after`, joins the In
+/// run unless both neighbours read Out. Both classifiers call it — the
+/// vertex-on-face resolution of its entries and the vertex-vertex
+/// attribution of an edge-sector crossing — so at every site, in every
+/// op, a section segment along the edge is attributed to the flanking
+/// sector on the Out side, and the two ends of the segment put their
+/// null edges into the same face.
+pub(super) fn fold_on_bound(before: SideCode, after: SideCode) -> SideCode {
+    match (before, after) {
+        (SideCode::Out, SideCode::Out) => SideCode::Out,
+        _ => SideCode::In,
+    }
+}
+
+/// One of an on-bound's two flanking sectors, in orbit order: `Before`
+/// holds the bound as its START, `After` as its END.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Flank {
+    /// The flanker holding the on-bound as its start.
+    Before,
+    /// The flanker holding the on-bound as its end.
+    After,
+}
+
+/// **Where [`fold_on_bound`] puts the crossing** at an on-bound whose
+/// flankers' other bounds read `before` and `after`: on the flanker
+/// whose key is not the fold, since the on-bound joins the run its
+/// fold names and the transition lies across that flanker. `None` when
+/// both keys read the fold: the run goes on through the bound and
+/// nothing crosses there. Every attribution of a crossing along an
+/// edge calls this: the vertex-vertex edge-sector and edge-edge
+/// resolutions ([`super::recl`]).
+pub(super) fn crossing_flank(before: SideCode, after: SideCode) -> Option<Flank> {
+    let fold = fold_on_bound(before, after);
+    match (before == fold, after == fold) {
+        (true, false) => Some(Flank::After),
+        (false, true) => Some(Flank::Before),
+        _ => None,
+    }
+}
+
+/// **The cell a germ lies in** ([`super::Locus`]), derived from the
+/// sector the germ was attributed to and its bounds' readings against
+/// the partner face as first read, before any rewrite. The germ ray is
+/// the intersection of the sector's face with the partner face, so a
+/// bound read On lies along it: a real edge there is `OnEdge`, and
+/// anything else — a bisector, or no bound On — leaves the germ inside
+/// the sector's face. Called by every site kind, before that site's
+/// surgery moves the orbit the bounds are read from.
+pub(super) fn germ_locus<T: Decide>(
+    body: &Body<T>,
+    s: &BoolSector<T>,
+    read: (SideCode, SideCode),
+) -> Result<super::Locus, BooleanError> {
+    let on_start = read.0 == SideCode::On && s.start_edge();
+    let on_end = read.1 == SideCode::On && s.end_edge();
+    let edge = |he: HalfEdgeKey| {
+        body.get_half_edge(he)
+            .map(|h| h.edge)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a germ sector's half-edge no longer resolves",
+            })
+    };
+    match (on_start, on_end) {
+        (false, false) => Ok(super::Locus::InFace(s.face)),
+        (false, true) => Ok(super::Locus::OnEdge(edge(s.he)?)),
+        (true, false) => {
+            let orbit = body
+                .vertex_orbit(s.he)
+                .ok_or(BooleanError::ClassificationInvariant {
+                    what: "a germ sector's vertex orbit does not walk",
+                })?;
+            Ok(super::Locus::OnEdge(edge(orbit[1 % orbit.len()])?))
+        }
+        (true, true) => Err(BooleanError::ClassificationInvariant {
+            what: "a germ sector with both edge bounds on the partner face",
+        }),
+    }
 }
 
 /// Whether `dir`, coplanar with `s`, runs into its face: within the
@@ -979,7 +1066,7 @@ pub(super) fn pair_search<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::contact::ContactClass;
+    use crate::contact::BooleanCoincidence;
     use geom_core::Tol;
 
     fn band() -> Band {
@@ -1363,7 +1450,7 @@ mod tests {
             p,
             d,
             arm,
-            DeclarationRead::Spent(ContactClass::Tangent),
+            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
             b,
         )
         .expect_err("an in-band sagitta escalates the reading");
@@ -1374,7 +1461,7 @@ mod tests {
             decision,
             BooleanDecision::Coincidence(
                 Coincide::TangentSide,
-                DeclarationRead::Spent(ContactClass::Tangent)
+                DeclarationRead::Spent(BooleanCoincidence::TANGENT)
             )
         );
         assert_eq!(diag.predicate, Some("tangent_sector_order2"));
@@ -1596,6 +1683,12 @@ mod tests {
         )
     }
 
+    /// A ball over the fixtures' plate and cylinders: their verdicts are
+    /// exact, so the extent only has to enclose them.
+    fn fixture_reach() -> geom_brep::ExtentBall<f64> {
+        geom_brep::ExtentBall::new(geom_core::Point3::new(2.0, 0.5, 1.0), 4.0)
+    }
+
     /// A y-axis cylinder at height `zc`, radius `r`.
     fn y_cyl(zc: f64, r: f64) -> geom::Surface<f64> {
         geom::Surface::Cylinder {
@@ -1619,13 +1712,14 @@ mod tests {
         let lump = tangent_lump(
             &y_cyl(1.5, 0.5),
             &plate_top(),
+            fixture_reach(),
             plate_out,
             p,
             super::super::BooleanOp::Union,
             Operand::B,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(ContactClass::Tangent),
+            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
             b,
         )
         .unwrap();
@@ -1636,13 +1730,14 @@ mod tests {
         let lump = tangent_lump(
             &plate_top(),
             &y_cyl(1.5, 0.5),
+            fixture_reach(),
             wall_out,
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(ContactClass::Tangent),
+            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
             b,
         )
         .unwrap();
@@ -1663,13 +1758,14 @@ mod tests {
         let lump = tangent_lump(
             &y_cyl(1.25, 0.25),
             &y_cyl(1.5, 0.5),
+            fixture_reach(),
             fat_out,
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
             0.25,
-            DeclarationRead::Spent(ContactClass::Tangent),
+            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
             b,
         )
         .unwrap();
@@ -1691,13 +1787,14 @@ mod tests {
             tangent_lump(
                 &y_cyl(1.5, 0.5),
                 &plate_top(),
+                fixture_reach(),
                 plate_out,
                 p,
                 super::super::BooleanOp::Union,
                 Operand::A,
                 FaceKey::default(),
                 arm,
-                DeclarationRead::Spent(ContactClass::Tangent),
+                DeclarationRead::Spent(BooleanCoincidence::TANGENT),
                 b,
             )
         };
@@ -1728,13 +1825,14 @@ mod tests {
         match tangent_lump(
             &y_cyl(2.5, 0.5),
             &plate_top(),
+            fixture_reach(),
             plate_out,
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(ContactClass::Tangent),
+            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
             b,
         ) {
             Err(BooleanError::ClassificationInvariant { .. }) => {}
@@ -1749,13 +1847,14 @@ mod tests {
         match tangent_lump(
             &sphere,
             &plate_top(),
+            fixture_reach(),
             plate_out,
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(ContactClass::Tangent),
+            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
             b,
         ) {
             Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}

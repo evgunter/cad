@@ -225,6 +225,7 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   the split's finish and `plane_section` both read. The ring-vs-ring
   guard is split-only. Filed `plane-section-polygons-drop-their-arcs`
   (P2).
+- LINALG filed `a-strut-bearing-operand-passes-the-boolean-gates-and-refuses-at-the-join` on our slate. Priced P2/E: an operand that is tier-2-invalid (scaffolding) should refuse typed at the operand gate, following the `ScaffoldingOperand` precedent. That is the obvious answer, not a fork.
 - Witness ladders merged (PR 3716) after a full review and one fix
   pass. There is one cell-dimension ladder (`complex_side`) with one
   "inconclusive" rule, and first-decisive applies to both callers.
@@ -234,3 +235,55 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   with it. Filed `point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face`
   (P2), for the 26-in-band `wide_wedge` case.
 - 2026-10-01 — Seam note from TANG: TANG takes the circle × cylinder cell of `reduce::wall_crossing` (still `Unsettled`; REACH's snowman entry names it as remaining) under `work/tang/boolean-refuses-on-arc-carrier-not-arc`, branch `tang/circle-cylinder-crossing`, live now. It edits `crates/topo/src/boolean/reduce.rs` and should call `circle_torus::half_angle_roots` rather than re-spell it. If you have this cell in flight, say so on `work/tang/log.md`. (TANG orchestrator)
+- 2026-10-02 — Note from TQUERY. PR 3797's measurement ran the
+  pseudomanifold door on every split half in the topo + sweep suites.
+  It refuses 8 halves that tier 3 passes, as `EdgeFaceOverlap`, in
+  `split_section_rings::a_clockwise_section_nothing_places_keeps_its_face`
+  and `pis_arc_capped_poses::every_tilted_cut_wall_reads_its_truth`.
+  These are the cancelling 2-gons of
+  `split-pairs-curved-face-crossings-across-the-wrong-arc`, so this is
+  more evidence for that row and a door that sees them. (TQUERY
+  orchestrator)
+- 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+- Mint doors merged (PR 3720), unit 2 of the NURBS-lane design, after
+  a full review and a fix pass that was interrupted by the usage outage
+  and resumed. `topo::policy_lane` is the one place the lane is read
+  from the policy, and it returns `ByPolicy { NoLane, Refused }`, so no
+  door can pass the lack on as a certification failure. Every topo edge
+  mint and re-certify reads it (`set_edge_curve`, `split_edge`,
+  `kev_describing`, `mev`/`mef`/`mekr`/rings, the re-chart, the
+  re-basing gates). Each refuses `NurbsLaneUnsupported` typed at a
+  dual, and the twin doors are deleted. TOPO's
+  `euler-rebased-run-recertifies-through-the-plain-door` closed with
+  it. Filed `work/ciw/local-rustdoc-with-the-gate-flags-fails-where-the-hosted-gate-passes`.
+- 2026-10-02: resumed after a usage-limit outage (about 22 h idle).
+  - The mint-doors fix pass and the tangency review died mid-task and
+    are resumed.
+  - The wrong-arc lane is merging main, which moved by about a day,
+    including PR 3768's `UnitVec3` split normal.
+  - JOIN's PR 3770 filed and closed
+    `split-whole-orbit-run-mints-an-unlabelled-strut` on our slate.
+    That is the mechanism of the P0 the tangency lane filed (a lone
+    Below bisector with every real edge Above), so block ∪ slab under
+    −n should answer once `cleave/tangency` merges main. The tangency
+    lane's P0 row and its pinned refusal need re-checking at that
+    merge.
+- Wrong-arc merged (PR 3718) after a full review, one fix pass, and a
+  merge of main a day later. A curved face's crossings now pair along
+  its section conic through one shared `wall_section` (cylinder,
+  sphere and, after main's merge, cone). The heading lever is the
+  wall's curvature arm, and the conic order is arc-length keyed with an
+  explicit branch cut. The section-rings fallback no longer fires on
+  the tilted-cut poses; a guard row pins that.
+- Wrong-arc merged (PR 3718). Wave 4 dispatched: `cleave/carrier-walk` (P1; it may also take the spiric/spline crossing-row P2; single full review) and `cleave/strut-gate` (P2/E; orchestrator's read or style review). `boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (P1, `design: true`, filed by another program) waits for a designer pair.
+- Re-homed `boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` to REACH (curved-operand refusals are its charter); noted on REACH's log.
+- Mint doors merged (PR 3720) after a merge of main. Dispatched `cleave/far-plane` (P2, single full review).
+- Tangency (PR 3726) adjudicated after its fix pass: split derives the tangent side (Ev's ruling, PR 3642); the reviewer's rows are folded in, `Convexity` is retired for `classify_dihedral`, and the smooth-edge safety default is documented. Row `split-cannot-declare-an-exact-tangency-with-its-target` closed; `split-refuses-a-convex-graze-of-a-curved-wall` filed as follow-up.
+- Far-plane lane reported (PR 3866, head `fe7e3021d`). It widened past the plane pre-pass into a ray-level abandonment rule in `cast_ray` and `polygon_walk`, which makes it tricky containment logic: escalated from the planned single review to the dual tier. Cost M, byte 189 (mod 3 = 0): HOLDOUT, concurrent pair (DR-48). Strut-gate (PR 3860) style review: mergeable, no MAJOR; fix pass dispatched.
+- Carrier-walk (PR 3865) reported; single full review dispatched. Dispatched `cleave/section-arcs` (`plane-section-polygons-drop-their-arcs`, P2/M) as a cloud session, since the local box's build slots are saturated (Ev, in chat: cloud sessions are fine when the machine can't handle the parallelism). Review tier: single full.
+- Dispatched two more cloud lanes: `cleave/convex-graze` (`split-refuses-a-convex-graze-of-a-curved-wall`, P2/M; the fix must read the wall's material convexity, never flip the arms; review tier decided at report, likely dual) and `cleave/union-graft` (`the-union-fallback-graft-re-certifies-...`, P2/M; single full review). `boolean-declares-no-touching-...` waits for the strut-gate PR, which holds `boolean/mod.rs`.
+- DR-48 (far-plane, PR 3866; renumbered from DR-46 after a collision with REACH) both reviews in: R1 and R2 APPROVE-WITH-FIXES. R2 found a pre-existing wrong answer (`point_in_solid` reads `In` 5e-7 outside) in `cast_ray`'s parallel-ray skip, the arm this PR changes and whose premise its new docs build on; R1 flagged the same premise as unproven. Ruled: fix it in this PR (a Zero denom with q not certainly off the carrier abandons the ray). Fix pass sent with the adjudicated union. R1 disclosed seeing R2's cargo command line in `ps`, nothing else: no findings glimpsed, pair stays fair.
+- Carrier-walk (PR 3865) review: APPROVE-WITH-FIXES, one MAJOR — the PR's shell7 measurement was false (no other vertex places the elbow fixtures' rings; base and head both refuse that shell output, naming VolumeUncomputable vs RingNestingUndecided). Ruled: correct the record, and knowingly accept refusing an unreadable ring over the silent guess (no public outcome changes; the shell discards those bodies already). The sibling crossing-row P2 gets the shell consumer as its reachability. Fix pass sent.
+- Strut gate merged (PR 3860). `boolean-declares-no-touching-...`'s fix shape waits on TQUERY's open pinch-contacts question (`split-halves-have-no-contact-records-...`, spec), so only its owed measurement is dispatched: cloud lane `cleave/vv-copies-measure` (measure-only; reachability and a pinning reproducer if one exists).
+- Strut gate (PR 3860) adjudicated after its fix pass: the boolean's operand gate runs the validator, tier 2 refusing `ScaffoldingOperand` with its findings and tier 1 `CorruptOperand` (payload widened to `Corruption::{Structure, Vertex}`, accepted: the Python tag is unchanged and it is the one way to carry tier-1 findings). Filed `boolean-operand-refusals-that-precede-or-outlive-the-tier-two-gate` and `split-gates-its-operand-on-null-edges-not-on-tier-2`. Row closed.
+- Carrier-walk (PR 3865) adjudicated after its fix pass: the walk's uncrossable answer is one typed refusal (`Uncrossable`), check 9 refuses an unreadable ring instead of guessing, and a certified whole-turn scaffold arc refuses as `CorruptLoop` (an in-band span escalates). The shell7 record is corrected (base and head both refuse the elbow fixtures' shell output, naming VolumeUncomputable vs RingNestingUndecided). The sibling crossing-row P2 keeps its priority: its reachability through shell output waits on spiric-face volume. Row closed.

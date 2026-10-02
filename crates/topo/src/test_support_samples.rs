@@ -178,7 +178,7 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     v.extend(
         [
             "a declared face's surface kind is outside the Rest ladder's inventory \
-             (plane, sphere, cylinder)",
+             (plane, sphere, cylinder, torus)",
             "the (carrier kind, surface-kind pair) triple is outside the jet \
              certificate's span-bound lane (the order-k boundary)",
         ]
@@ -192,9 +192,11 @@ fn contain_errors() -> Vec<ContainError> {
         ContainError::Escalated(diag()),
         ContainError::RayExhausted,
         ContainError::Corrupt,
-        ContainError::ArcLoopUnsupported {
+        ContainError::Uncrossable(crate::splitting::Uncrossable {
             r#loop: LoopKey::default(),
-        },
+            edge: crate::entity::EdgeKey::default(),
+            carrier: crate::splitting::UncrossableCarrier::Spiric,
+        }),
     ]
 }
 
@@ -374,6 +376,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::ChartWindingUnsupported,
         PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
+        PcurveCertifyError::BranchOutOfReach,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
             sample: 4,
@@ -405,6 +408,8 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         PcurveMintError::OuterSpansPeriod,
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
+        PcurveMintError::Unminted { face },
+        PcurveMintError::RowInterval { half_edge },
         PcurveMintError::UncertifiedImage { half_edge },
         PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
@@ -428,6 +433,10 @@ fn props_errors() -> Vec<PropsError> {
             what: "a trim edge that is not an iso-parameter line",
         },
         PropsError::NappeSpanning,
+        PropsError::SphereLoop {
+            what: "props_sphere_loop_closed",
+        },
+        PropsError::SenseContradicted,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",

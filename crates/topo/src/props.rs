@@ -42,6 +42,7 @@ use geom_brep::props::{
 use geom_brep::recourse::{
     Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
+use geom_core::interval::Interval;
 use geom_core::k_stats::Detached;
 use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::Key;
@@ -624,6 +625,58 @@ impl<T: Decide> PastTarget<'_, T> {
     /// and `area_pad` are its half-widths.
     pub(crate) fn props(&self) -> MassProperties<T> {
         fold_runs(&self.walk.runs).0
+    }
+
+    /// **The enclosure re-derived in interval arithmetic** —
+    /// `(volume, surface area)`, each an interval holding the exact
+    /// value of the body's stored geometry.
+    ///
+    /// [`Self::props`] is not that. Its closed-form faces are evaluated
+    /// at the walk's scalar and its fold sums in it, so at `f64` both
+    /// round, and the pads, which are the quadrature's half-widths
+    /// only, say nothing of it: two congruent bodies measured through
+    /// different face orders can differ by ulps with zero pads on
+    /// both. Here every closed-form face is re-derived at the interval
+    /// scalar over its own stored geometry (the walk's lane,
+    /// [`QuadLane`]'s `closed_form`), every quadrature face contributes
+    /// the enclosure its lane returned rather than the midpoint and
+    /// half-width rounded from it, and the sum is interval arithmetic.
+    /// The quadrature faces stay at the rounds this walk reached.
+    ///
+    /// `None` when the walk holds no certified lane, so has no interval
+    /// door to re-derive through.
+    ///
+    /// # Errors
+    ///
+    /// The property layer's refusal of a face whose closed form does
+    /// not hold at the interval scalar — the face's geometry read with
+    /// no rounding to hide behind, which can leave a classification
+    /// open that the walk's scalar decided.
+    pub(crate) fn interval_volume(&self) -> Option<Result<(Interval, Interval), MassPropsError>> {
+        let walk = &self.walk;
+        let lane = walk.quad?;
+        let measure = || {
+            let (mut flux, mut area) = (Interval::zero(), Interval::zero());
+            for run in &walk.runs {
+                let (f, a) = match run.contribution.enclosure {
+                    Some(enclosure) => enclosure,
+                    None => {
+                        let (face, surface) = resolve_face(walk.body, run.face)?;
+                        let loops = face_loops(walk.body, face)?;
+                        let c = (lane.closed_form)(surface, &loops, face.sense, walk.band)
+                            .map_err(|source| MassPropsError::Face {
+                                face: run.face,
+                                source,
+                            })?;
+                        (c.flux, c.area)
+                    }
+                };
+                flux = flux + f;
+                area = area + a;
+            }
+            Ok((flux / Interval::from_f64(3.0), area))
+        };
+        Some(measure())
     }
 
     /// **One round further** on every face that met the target at a
@@ -1328,6 +1381,7 @@ mod face_walk_composition_tests {
                 area: 0.0,
                 flux_pad: 0.0,
                 area_pad: 0.0,
+                enclosure: None,
             },
             open_at: None,
             converged_at: None,
@@ -1495,6 +1549,7 @@ mod continuation_refusal_order_tests {
                 area: 0.0,
                 flux_pad: 0.0,
                 area_pad: 0.0,
+                enclosure: None,
             },
             open_at,
             converged_at: None,
@@ -1680,6 +1735,11 @@ struct FaceFlux<T> {
     area: T,
     flux_pad: f64,
     area_pad: f64,
+    /// The quadrature's flux and area enclosures as the lane returned
+    /// them, before [`quad_lane::mid_pad`] rounded them to a midpoint
+    /// and a half-width; `None` for a closed-form face, whose
+    /// enclosure [`PastTarget::interval_volume`] re-derives.
+    enclosure: Option<(Interval, Interval)>,
 }
 
 /// One face's contribution and where its refinement stopped — the unit
@@ -1706,6 +1766,58 @@ struct FaceRun<T> {
     refusal: Option<PropsError>,
 }
 
+/// A face and its surface, or the walk's typed refusal of a key that
+/// does not resolve.
+fn resolve_face<T: Real>(
+    body: &Body<T>,
+    face_key: FaceKey,
+) -> Result<(&crate::entity::Face, &Surface<T>), MassPropsError> {
+    let Some(face) = body.faces.get(face_key) else {
+        return Err(MassPropsError::Corrupt {
+            what: "face key does not resolve",
+        });
+    };
+    let Some(surface) = body.surfaces.get(face.surface) else {
+        return Err(MassPropsError::Corrupt {
+            what: "face surface key does not resolve",
+        });
+    };
+    Ok((face, surface))
+}
+
+/// A face's loops flattened, the outer first, then the rings.
+fn face_loops<T: Decide>(
+    body: &Body<T>,
+    face: &crate::entity::Face,
+) -> Result<Vec<Vec<LoopEdge<T>>>, MassPropsError> {
+    core::iter::once(&face.outer)
+        .chain(&face.rings)
+        .map(|&lk| Ok(loop_edges(body, lk)?.0))
+        .collect()
+}
+
+/// **A face's closed form**, at whatever scalar its geometry is read
+/// at: a plane over every loop, any other surface over its outer loop
+/// and its sense. The face walk runs it at the walk's scalar, and
+/// [`QuadLane`]'s `closed_form` at the interval scalar over the same
+/// geometry lifted.
+fn closed_form_of<U: Decide>(
+    surface: &Surface<U>,
+    loops: &[Vec<LoopEdge<U>>],
+    sense: bool,
+    band: Band,
+) -> Result<FaceContribution<U>, PropsError> {
+    match *surface {
+        Surface::Plane { origin, .. } => planar_face(origin, loops),
+        _ => curved_face(
+            surface,
+            loops.first().map_or(&[][..], Vec::as_slice),
+            sense,
+            band,
+        ),
+    }
+}
+
 /// The per-face body of the flux walk (module docs): resolve the
 /// surface, flatten the loops, dispatch closed form vs certified
 /// quadrature over the round window asked for. Every refusal that
@@ -1719,32 +1831,20 @@ fn face_flux<T: Decide>(
     tol: Tol,
     window: RoundWindow,
 ) -> Result<FaceRun<T>, MassPropsError> {
-    let Some(face) = body.faces.get(face_key) else {
-        return Err(MassPropsError::Corrupt {
-            what: "face key does not resolve",
-        });
-    };
-    let Some(surface) = body.surfaces.get(face.surface) else {
-        return Err(MassPropsError::Corrupt {
-            what: "face surface key does not resolve",
-        });
-    };
+    let (face, surface) = resolve_face(body, face_key)?;
     let wrap = |source| MassPropsError::Face {
         face: face_key,
         source,
     };
     let mut flux_pad = 0.0f64;
     let mut area_pad = 0.0f64;
+    let mut enclosure = None;
     let mut open_at = None;
     let mut converged_at = None;
     let mut refusal = None;
     let contribution: FaceContribution<T> = match *surface {
-        Surface::Plane { origin, .. } => {
-            let mut loops = Vec::with_capacity(1 + face.rings.len());
-            for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-                loops.push(loop_edges(body, lk)?.0);
-            }
-            planar_face(origin, &loops).map_err(wrap)?
+        Surface::Plane { .. } => {
+            closed_form_of(surface, &face_loops(body, face)?, face.sense, band).map_err(wrap)?
         }
         _ => {
             if !face.rings.is_empty() {
@@ -1759,14 +1859,18 @@ fn face_flux<T: Decide>(
             // winding-derived end to end (the signed UV area IS
             // s_f·|Ω| through the stored loop traversal), exactly
             // the class the S10 module docs keep bit-free.
-            let is_trimmed = outer.iter().any(|e| {
-                matches!(
-                    e.carrier,
-                    geom::Curve3::Ellipse { .. }
-                        | geom::Curve3::Spiric { .. }
-                        | geom::Curve3::Nurbs(_)
-                )
-            });
+            // A cone face is the exception: its closed form reads the
+            // boundary's vector area, whatever trims it
+            // (`geom_brep::props::cone_face_closed_form`).
+            let is_trimmed = !matches!(surface, Surface::Cone { .. })
+                && outer.iter().any(|e| {
+                    matches!(
+                        e.carrier,
+                        geom::Curve3::Ellipse { .. }
+                            | geom::Curve3::Spiric { .. }
+                            | geom::Curve3::Nurbs(_)
+                    )
+                });
             // A described NURBS face ALWAYS takes the quadrature
             // lane (M6-3): its flux has no closed form regardless
             // of what bounds it, and the patch engine reads the
@@ -1808,6 +1912,7 @@ fn face_flux<T: Decide>(
                     let (ac, ap) = quad_lane::mid_pad(bounds.area);
                     flux_pad += fp;
                     area_pad += ap;
+                    enclosure = Some((bounds.flux, bounds.area));
                     FaceContribution {
                         flux: T::from_f64(fc),
                         area: T::from_f64(ac),
@@ -1819,7 +1924,7 @@ fn face_flux<T: Decide>(
                 // walk holding no [`QuadLane`] (a `_structural` door,
                 // which is how a dual measures) — whose honest outcome
                 // on a trimmed face is the closed form's typed refusal.
-                None => curved_face(surface, &outer, face.sense, band).map_err(wrap)?,
+                None => closed_form_of(surface, &[outer], face.sense, band).map_err(wrap)?,
             }
         }
     };
@@ -1830,6 +1935,7 @@ fn face_flux<T: Decide>(
             area: contribution.area,
             flux_pad,
             area_pad,
+            enclosure,
         },
         open_at,
         converged_at,
@@ -2412,6 +2518,18 @@ pub struct QuadLane<T: Decide> {
         Tol,
         RoundWindow,
     ) -> Result<RoundOutcome, PropsError>,
+    /// One closed-form face's flux and area re-derived in interval
+    /// arithmetic over its stored geometry — `quad_lane::closed_form`
+    /// (`wiring_rows` pins the pointer). The closed forms run at the
+    /// walk's scalar, where an `f64` sum rounds with no pad to say so;
+    /// this is the enclosure a decision about a rounding-scale sign
+    /// reads instead ([`PastTarget::interval_volume`]).
+    closed_form: fn(
+        &Surface<T>,
+        &[Vec<LoopEdge<T>>],
+        bool,
+        Band,
+    ) -> Result<FaceContribution<Interval>, PropsError>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
@@ -2426,6 +2544,7 @@ impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
     pub const fn certified() -> Self {
         Self {
             cut_face_rounds: quad_lane::cut_face_rounds::<T>,
+            closed_form: quad_lane::closed_form::<T>,
         }
     }
 }
@@ -2523,8 +2642,8 @@ mod wiring_rows {
     use super::{AtRestPolicy, QuadLane, ShellDoor, quad_lane};
 
     /// `Ok(())` when the quadrature door holds
-    /// `quad_lane::cut_face_rounds`; otherwise the name of the field
-    /// that moved.
+    /// `quad_lane::cut_face_rounds` and `quad_lane::closed_form`;
+    /// otherwise the name of the field that moved.
     fn holds_the_certified_quadrature<T: super::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
@@ -2532,6 +2651,12 @@ mod wiring_rows {
             quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _) -> _,
         ) {
             return Err("cut_face_rounds is not `quad_lane::cut_face_rounds`");
+        }
+        if !std::ptr::fn_addr_eq(
+            QuadLane::<T>::certified().closed_form,
+            quad_lane::closed_form::<T> as fn(_, _, _, _) -> _,
+        ) {
+            return Err("closed_form is not `quad_lane::closed_form`");
         }
         Ok(())
     }
@@ -2737,8 +2862,15 @@ pub trait AtRestPolicy: Decide {
 
     /// **This scalar's plane × NURBS lane, or `None` where it may not
     /// certify** — the ONE seam the `Some` comes from for an operation
-    /// generic over its scalar that re-certifies edge carriers (the
-    /// transform, [`crate::transform_rigid`]).
+    /// generic over its scalar that certifies edge carriers, read
+    /// through `crate::policy_lane`: the transform
+    /// ([`crate::transform_rigid`]); the Euler surface's attachment gate,
+    /// which every door that mints or re-describes an edge runs — the
+    /// new-edge mints ([`Body::mev`], [`Body::mef`], [`Body::mekr`] and
+    /// the ring doors), [`Body::set_edge_curve`], [`Body::split_edge`]
+    /// and [`Body::kev_describing`]'s list; the re-chart
+    /// ([`Body::set_face_surfaces_describing`]); and the re-basing gate
+    /// of a fan `mev` and of the kill doors' merge.
     ///
     /// `None` is certification rights (DL1), the same fact as
     /// [`AtRestPolicy::fitted_lane`]'s: the certificate of an
@@ -2748,7 +2880,8 @@ pub trait AtRestPolicy: Decide {
     /// [`geom_core::CertifiedBounds`]. An operation holding `None`
     /// refuses that class typed, naming the scalar
     /// ([`crate::TransformError::NurbsLaneUnsupported`] at the
-    /// transform).
+    /// transform, [`crate::EulerOpError::NurbsLaneUnsupported`] at an
+    /// Euler door).
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
 
     /// **This scalar's shell door, or `None` where it may not form the
@@ -3302,7 +3435,7 @@ mod at_rest_policy_tests {
 
     /// A unit cube and a half-height brick on it, the second standing
     /// in as a union's "result" that is smaller than an operand.
-    fn planted_union<T: Decide>(tol: Tol) -> (Body<T>, Body<T>) {
+    fn planted_union<T: Decide + crate::props::AtRestPolicy>(tol: Tol) -> (Body<T>, Body<T>) {
         let brick = crate::test_support_fixtures::brick::<T>;
         (
             brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),

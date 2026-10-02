@@ -84,6 +84,8 @@ mod asm_upd_pin_update;
 mod assemble_one_local_battery;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
+#[path = "band_run_wall_names.rs"]
+mod band_run_wall_names;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
@@ -294,6 +296,8 @@ mod msolve7_member_residue;
 mod msolve8_levered_clash;
 #[path = "msolve9_from_face.rs"]
 mod msolve9_from_face;
+#[path = "on_verdict_rows.rs"]
+mod on_verdict_rows;
 #[path = "onb_seam_class_interval.rs"]
 mod onb_seam_class_interval;
 #[path = "onb_wall_normal_census.rs"]
@@ -576,6 +580,8 @@ mod switch_slots;
 mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
+#[path = "union_pinch_member_order.rs"]
+mod union_pinch_member_order;
 #[path = "unreadable_by_this_build.rs"]
 mod unreadable_by_this_build;
 
@@ -697,3 +703,5 @@ mod emit_union_borders;
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
 mod emit_union_rim_piece_ranks;
+#[path = "run_wall_offers.rs"]
+mod run_wall_offers;

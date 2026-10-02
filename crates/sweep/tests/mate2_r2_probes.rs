@@ -202,16 +202,16 @@ fn peg_along_y(y0: f64, h: f64) -> Body<f64> {
     )
 }
 
-/// Full-period BORE against a 3-arc peg: the PR's narrower-class claim
-/// says this must still refuse (the containment door's full-period
-/// remainder ⇒ `Undecided` ⇒ the frontier), even though the same mate
-/// with an arc-split bore now unions.
+/// Full-period BORE against a 3-arc peg: the bore is one face, the peg
+/// three, and two of the peg's seam rulings cross the bore's rims away
+/// from any vertex. `never_silent` holds the union to additivity, tier 3
+/// and the pseudomanifold census.
 #[test]
-fn r2_full_period_bore_still_refuses_typed() {
+fn r2_full_period_bore_unions() {
     let c = revolved_collar();
     let p = peg_along_y(0.5, 2.0);
     let bore = walls_at(&c, 0.5);
-    eprintln!("revolved collar: {} bore face(s) at r = 0.5", bore.len());
+    assert_eq!(bore.len(), 1, "the revolved collar's bore is one face");
     let mut decls = BooleanDeclarations::none();
     for &fa in &bore {
         for &fb in &walls_at(&p, 0.5) {
@@ -221,26 +221,13 @@ fn r2_full_period_bore_still_refuses_typed() {
         }
     }
     let e = never_silent("full-period bore x 3-arc peg", &c, &p, &decls);
-    // HARDENED on adoption (MATE-2 fix pass): this row is now the
-    // unit's only `cargo test` guard that `Undecided` keeps the typed
-    // frontier — the behaviour's other live pin is the lily's tour
-    // probe, which does not run when the render lane is skipped, and a
-    // `reduce.rs`-only change skips it. So the KIND is asserted rather
-    // than noted: the no-verdict endpoint must keep the REDUCTION's
-    // door, not some door further downstream, because a refusal that
-    // moved downstream would mean the widening had swallowed the
-    // no-verdict case after all.
-    match e {
-        Some(topo::BooleanError::CurvedPierceUnsupported { .. }) => {}
-        Some(other) => panic!("refused, but not at the reduction's door: {other:?}"),
-        None => panic!("the narrower-class claim is FALSE: a full-period bore unioned"),
-    }
+    assert!(e.is_none(), "the full-period bore mate refused: {e:?}");
 }
 
-/// The mirror: arc-split collar against a FULL-REVOLVE peg (one
-/// full-period wall face on the peg side).
+/// The mirror: arc-split collar against a FULL-REVOLVE peg, held to
+/// the same `never_silent` checks as the bore row.
 #[test]
-fn r2_full_period_peg_still_refuses_typed() {
+fn r2_full_period_peg_unions() {
     // The collar along Y, arc-split (extruded on the peg's plane).
     let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(0.0, 1.0, 0.0)));
     let o = Point2::new(0.0, 0.0);
@@ -272,7 +259,6 @@ fn r2_full_period_peg_still_refuses_typed() {
     .unwrap()
     .body;
     let pw = walls_at(&p, 0.5);
-    eprintln!("revolved peg: {} wall face(s) at r = 0.5", pw.len());
     let mut decls = BooleanDeclarations::none();
     for &fa in &walls_at(&c, 0.5) {
         for &fb in &pw {
@@ -282,21 +268,7 @@ fn r2_full_period_peg_still_refuses_typed() {
         }
     }
     let e = never_silent("3-arc collar x full-period peg", &c, &p, &decls);
-    // **MEASURED ON ADOPTION, and the row's premise does not hold.**
-    // This scene never reaches the reduction at all: the full revolve
-    // leaves the peg's wall as TWO faces on one carrier, and the
-    // operand gate refuses `NonMaximalFaces` before any sweep runs. So
-    // this is not a full-period pin — the bore row above is the one
-    // that reaches the containment door's period guard — and asserting
-    // `CurvedPierceUnsupported` here would be pinning a door this
-    // configuration cannot get to. What the row does keep is the
-    // never-silent contract, which is unconditional and is exactly
-    // what `never_silent` already checked above.
-    match e {
-        Some(topo::BooleanError::CurvedPierceUnsupported { .. }) => {}
-        Some(other) => eprintln!("refused before the reduction, as measured: {other:?}"),
-        None => panic!("the narrower-class claim is FALSE: a full-period peg unioned"),
-    }
+    assert!(e.is_none(), "the full-period peg mate refused: {e:?}");
 }
 
 /// Claim-7 measurement: how far from BITWISE is the unit's partial-

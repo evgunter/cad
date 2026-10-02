@@ -115,8 +115,12 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "onb_wall_frame_interval.rs"]
 mod onb_wall_frame_interval;
+#[path = "pcurve_frame_premise_rows.rs"]
+mod pcurve_frame_premise_rows;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
+#[path = "props_sphere_circle_loop.rs"]
+mod props_sphere_circle_loop;
 #[path = "props_sphere_pole_side.rs"]
 mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
@@ -152,6 +156,8 @@ mod chart_incidence;
 mod cone_incidence_fuzz;
 #[path = "offset_mint.rs"]
 mod offset_mint;
+#[path = "pcurve_cone_section.rs"]
+mod pcurve_cone_section;
 #[path = "pcurve_conic.rs"]
 mod pcurve_conic;
 #[path = "pcurve_general.rs"]

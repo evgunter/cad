@@ -50,8 +50,8 @@
 
 use pncad::document::{
     DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node, ParamEnv,
-    ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, StepId,
-    ValuePayload, resolve_loops, unparse,
+    ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
+    StepId, ValuePayload, resolve_loops, unparse,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
@@ -386,20 +386,23 @@ pub fn held_loops(
     node: RecipeNodeId,
 ) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
     let Some(Node::Profile(program)) = doc.node(node) else {
-        return Err(HeldRefusal::NotAProfile { node });
+        return Err(HeldRefusal::NotAProfile {
+            node: doc.spoken(node),
+        });
     };
-    held_program(node, program, &doc.param_env::<f64>())
+    held_program(doc.spoken(node), program, &doc.param_env::<f64>())
 }
 
 /// [`held_loops`] of a program in hand — `node` only names it in a
-/// refusal, and `env` is the parameter environment it resolves under.
+/// refusal, spoken by the caller from the document that holds it, and
+/// `env` is the parameter environment it resolves under.
 ///
 /// # Errors
 ///
 /// [`HeldRefusal::Driven`] or [`HeldRefusal::Resolve`], as
 /// [`held_loops`].
 pub fn held_program(
-    node: RecipeNodeId,
+    node: SpokenNode,
     program: &ProfileProgram,
     env: &ParamEnv<f64>,
 ) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
@@ -427,18 +430,6 @@ pub fn held_program(
         .map_err(|(slot, source)| HeldRefusal::Resolve { slot, source })
 }
 
-/// **Every step of `program` kept where it is** — the `ids` of a
-/// `DocEdit::SetProgram` (and a `SessionOp::EditProfile`) that moves
-/// numbers and nothing else.
-#[must_use]
-pub fn kept_in_place(program: &ProfileProgram) -> Vec<Vec<Option<StepId>>> {
-    program
-        .ids
-        .iter()
-        .map(|ids| ids.iter().copied().map(Some).collect())
-        .collect()
-}
-
 /// **Whether `loops` under `ids` is `base` itself** — every step kept
 /// in place and the program bit-equal to `base`, blind to notation: a
 /// `DocEdit::SetProgram` of them would write nothing.
@@ -448,7 +439,7 @@ pub fn is_committed(
     loops: &[LoopProgram],
     ids: &[Vec<Option<StepId>>],
 ) -> bool {
-    ids == kept_in_place(base).as_slice()
+    ids == base.kept_in_place().as_slice()
         && *base
             == ProfileProgram {
                 plane: base.plane,
@@ -462,16 +453,16 @@ pub fn is_committed(
 pub enum HeldRefusal {
     /// The node is not a profile.
     NotAProfile {
-        /// The node named.
-        node: RecipeNodeId,
+        /// The node named, as the document held it.
+        node: SpokenNode,
     },
     /// One or more arguments are expressions, which the editor's
     /// plain-number steps cannot hold. Each is named with its source
     /// text; an empty source is an address the node lists and carries
     /// no expression for.
     Driven {
-        /// The profile node.
-        node: RecipeNodeId,
+        /// The profile node, as the document held it.
+        node: SpokenNode,
         /// Every driven argument, in slot order.
         slots: Vec<(SlotId, String)>,
     },
@@ -488,13 +479,12 @@ pub enum HeldRefusal {
 impl core::fmt::Display for HeldRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAProfile { node } => write!(f, "node {} is not a profile", node),
+            Self::NotAProfile { node } => write!(f, "{node} is not a profile"),
             Self::Driven { node, slots } => {
                 write!(
                     f,
-                    "node {}'s program is driven by expressions, which the editor's \
-                     number fields cannot hold — edit those in the slot rows: ",
-                    node
+                    "{node}'s program is driven by expressions, which the editor's number \
+                     fields cannot hold — edit those in the slot rows: "
                 )?;
                 for (index, (slot, source)) in slots.iter().enumerate() {
                     if index > 0 {

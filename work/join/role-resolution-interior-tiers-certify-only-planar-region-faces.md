@@ -40,7 +40,7 @@ Swapping the chord midpoint for the on-carrier one is not the fix by
 itself: CONTACT-2 tried it and three rows moved to the refusal in §2
 (`curved_mergedoor`
 `floating_and_mid_bore_pegs_refuse_at_the_zip_seam_chord_today` and
-`consumed_side_of_the_pair_is_gone_and_one_record_ships`,
+`consumed_side_of_the_pair_is_gone_and_one_record_ships` (now `consumed_side_of_the_pair_leaves_the_door_nothing_to_record`),
 `r1_probes_m9_3` `probe_partial_engagement_never_silent`). There the rim
 lies ON the other body's bore wall, so the on-carrier point reads
 `OnBoundary`, and today the off-region chord midpoint decides them —
@@ -91,6 +91,31 @@ rather than refused. The chord-midpoint tier is gone.
   remains is that a curved region's interior is not read, which
   `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`
   now carries for both callers of the ladder.
+
+## A second reproducer: declared rounded continuations (REACH, PR 3657)
+
+Measured on `reach/cosurface-continuation` after `3aff2e6a07`, with the
+anchor instrumented at `resolve_roles_geometric`'s mixed-verdict return:
+the rounded 6 × 4 × 1 plate (corner fillets r = 0.5) and a rounded
+plate of the same outline 0.5 thick, either sunk inside it
+(z 0.25..0.75) or flush with its top (z 0.5..1) or bottom (z 0..0.5),
+every finding declared as the continuation it is. Subtract and
+intersect refuse `Join(SectionLoopMixed)`, decided at
+`Anchor::ChordMidpoint` in all six; the union refuses
+`FallbackExtentUnsupported` instead
+(`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
+The rows are
+`declared_rounded_continuations_inside_a_wall_refuse_typed` in
+`crates/sweep/tests/reach_continuation.rs`. The sharp outline builds
+all three ops on the same poses.
+
+CLEAVE #3716 resolved this reproducer. On PR 3657 with `origin/main`
+merged in, none of the six refuses `SectionLoopMixed`. Five build at the
+oracle, valid at tier 3 and 3′. The flush-top intersect builds the right
+body, but the volume backstop then refuses it on a rounding tie
+(`work/reach/volume-backstop-refuses-a-closed-form-rounding-tie.md`).
+The row is now
+`declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect`.
 
 ## Closed 2026-10-02 — at JOIN's opening, on what main already carries
 

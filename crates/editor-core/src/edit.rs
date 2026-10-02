@@ -19,7 +19,7 @@ use crate::doc::{
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
-use crate::names::EntityKind;
+use crate::names::{EntityKind, ProfileEdgeRef};
 use crate::node::{
     AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault, SlotId,
     StableName, StepId,
@@ -148,6 +148,11 @@ pub enum DocEdit<P> {
     /// [`Maintenance::Strand`] / [`Maintenance::StrandedAppearance`]
     /// exactly as a delete reports it (DM7: the subject is the edit
     /// that removes a name's referent, of which the delete is one).
+    /// So is a name on a kept step's piece that the new program does
+    /// not draw under the current parameters and the old one did, or
+    /// could not be replayed to say — a fillet inserted or moved before
+    /// a leg takes the leg's segment (`names/README.md`, "Undrawn pieces
+    /// vanish rather than alias").
     ///
     /// A program byte-identical to the current one, keeping every
     /// step, is legal and reports nothing.
@@ -511,10 +516,9 @@ impl<P> DocEdit<P> {
     pub(crate) fn writes_a_mates_datum(&self) -> bool {
         match self {
             Self::InsertNode { node } => matches!(&**node, Node::Mate { .. }),
-            // A reshaping rebinds or retires the NAMES a mate's heads
-            // hold — `Rebind`'s motion over every name at once — and
-            // never touches a datum; a head it strands is N5's, the
-            // solve's at evaluation.
+            // A reshaping rewrites no name and never touches a datum;
+            // a head whose piece it stops drawing is N5's, the solve's
+            // at evaluation.
             Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
@@ -1019,8 +1023,9 @@ pub enum EditError {
     /// document never minted — one its mint log does not hold. The
     /// node half's rule ([`EditError::DeclareNamesMissingNode`]) for
     /// the half of a name that is a step id: a never-minted id is a
-    /// typo, or a name carried from another branch of the document. (A step a `SetProgram` dropped was minted, so a name on
-    /// it is ALLOWED — it strands, DM7.)
+    /// typo, or a name carried from another branch of the document. (A
+    /// step a `SetProgram` dropped was minted, so a name on it is
+    /// ALLOWED — it strands, DM7.)
     NameStepNeverMinted {
         /// The name.
         name: SpokenName,
@@ -1611,6 +1616,198 @@ impl EditError {
     /// the forwarded layer owns that text.
     pub fn problem(&self) -> impl core::fmt::Display + '_ {
         Problem(self)
+    }
+
+    /// **This refusal with every node it names spoken again from
+    /// `doc`, a later version of the document it was raised in**
+    /// ([`SpokenNode::respoken`], whose rule and soundness argument
+    /// this follows), so a label changed since the door refused is the
+    /// one it says.
+    ///
+    /// **`doc` must be a version of the document whose door raised
+    /// this refusal.** The refusal carries no [`crate::DocumentId`] to
+    /// check that by, so the caller answers for it — and a refusal a
+    /// split or an inline forwards (`SplitError::PartEdit`,
+    /// `InlineError::Edit`) was spelled in another document than the
+    /// one the caller holds.
+    ///
+    /// **An arm whose sentence is about the state the door saw stays
+    /// as raised**: [`EditError::LabelUnchanged`] (about the label the
+    /// node held, which said with a later one would claim a label the
+    /// refused edit never offered), [`EditError::NodeIdCollides`]
+    /// (about an id the log already held, which spoken from a version
+    /// holding it would name that node as the insert's), and the arms
+    /// that say a node is not live — said from a version that holds it
+    /// again, `X "plate" is not live` would contradict itself.
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        let mut again = self.clone();
+        match &mut again {
+            Self::UnknownSlot { id, slot: _ } => {
+                *id = id.respoken(doc);
+            }
+            Self::ProfileProgramRefused { node, refusal: _ }
+            | Self::RepeatedDesignation {
+                node,
+                first: _,
+                again: _,
+            }
+            | Self::SelectionNotCanonical { node, at: _ }
+            | Self::SetMembersOnNonList { node }
+            | Self::SetProgramOnNonProfile { node }
+            | Self::StepIdsRefused { node, fault: _ }
+            | Self::TooFewMembers { node, found: _ }
+            | Self::SlotUnknownDocParam {
+                node,
+                name: _,
+                slot: _,
+            }
+            | Self::SlotDocParamDimension {
+                node,
+                name: _,
+                slot: _,
+                declared: _,
+                referenced: _,
+            }
+            | Self::PayloadUnknownDocParam { node, name: _ }
+            | Self::PayloadDocParamDimension {
+                node,
+                name: _,
+                declared: _,
+                referenced: _,
+            }
+            | Self::MeasureMalformed { node, fault: _ }
+            | Self::PathOffTree {
+                node,
+                slot: _,
+                path: _,
+            }
+            | Self::WitnessOnNonSketch { node }
+            | Self::DuplicateWitnessEntry { node }
+            | Self::OffsetOnNonInstance { node }
+            | Self::GaugeOnNonPlaced { node }
+            | Self::PlacementRuleMismatch { node }
+            | Self::EmptyPlacementList { node }
+            | Self::ImproperPlacement {
+                node,
+                at: _,
+                determinant: _,
+            }
+            | Self::NonFinitePlacement { node, at: _ }
+            | Self::NonRigidPlacement {
+                node,
+                at: _,
+                check: _,
+            }
+            | Self::NonFiniteAlignment { node }
+            | Self::UpdateOnNonInstance { node }
+            | Self::PinUnchanged { node, pin: _ } => {
+                *node = node.respoken(doc);
+            }
+            Self::WouldCycle { at } => {
+                *at = at.respoken(doc);
+            }
+            Self::DuplicateInput { node, input } | Self::DeclareInputNotDeclare { node, input } => {
+                *node = node.respoken(doc);
+                *input = input.respoken(doc);
+            }
+            Self::DeleteWouldDangle { id, referenced_by } => {
+                *id = id.respoken(doc);
+                *referenced_by = referenced_by.respoken(doc);
+            }
+            Self::AssertionTarget { node, measure }
+            | Self::AssertionDimension {
+                node,
+                measure,
+                measured: _,
+                bound: _,
+            } => {
+                *node = node.respoken(doc);
+                *measure = measure.respoken(doc);
+            }
+            Self::NameStepNeverMinted { name, step: _ }
+            | Self::RebindUnknownName { name }
+            | Self::RebindIdentity { name }
+            | Self::RebindNoReferences { name }
+            | Self::NameUnresolvedInEvaluation { name }
+            | Self::RebindAppearanceCollision { name, kind: _ }
+            | Self::AppearanceWrongKind { name }
+            | Self::AppearanceNotSet { name, kind: _ }
+            | Self::MetaUnversioned {
+                name,
+                key: _,
+                error: _,
+            }
+            | Self::MetaNonFinite {
+                name,
+                key: _,
+                path: _,
+            }
+            | Self::MetaNotSet { name, key: _ }
+            | Self::RebindMetadataCollision { name, key: _ } => {
+                *name = name.respoken(doc);
+            }
+            Self::GaugeNotLive { node, gauge: _ } => {
+                *node = node.respoken(doc);
+            }
+            Self::NotAGauge { node, gauge } | Self::GaugeCycle { node, gauge } => {
+                *node = node.respoken(doc);
+                *gauge = gauge.respoken(doc);
+            }
+            Self::WouldStartPlacing { mate } => {
+                *mate = mate.respoken(doc);
+            }
+            Self::MateRefused {
+                node,
+                held,
+                fault: _,
+            } => {
+                *node = node.respoken(doc);
+                *held = held.respoken(doc);
+            }
+            Self::Roots(fault) => *fault = fault.respoken(doc),
+            Self::LabelUnchanged { node: _ }
+            | Self::NodeIdCollides { id: _ }
+            | Self::UnknownNode { id: _ }
+            | Self::UnresolvedInput { input: _ }
+            | Self::ReadSiteMissingNode { at: _ }
+            | Self::DeclareNamesMissingNode { name: _ }
+            | Self::RebindTargetMissingNode { name: _ }
+            | Self::AppearanceNamesMissingNode { name: _ }
+            | Self::SlotDimensionMismatch {
+                slot: _,
+                expected: _,
+                found: _,
+            }
+            | Self::StructuralSlotNeedsStructuralEdit { slot: _ }
+            | Self::NotStructuralSlot { slot: _ }
+            | Self::ContinuousParamCannotBeCount { name: _ }
+            | Self::DocParamNotDeclared { name: _, door: _ }
+            | Self::DocParamCountHasNoUnit { name: _ }
+            | Self::DocParamCountHasNoDistribution { name: _ }
+            | Self::DocParamUnitMismatch {
+                name: _,
+                unit: _,
+                declared: _,
+            }
+            | Self::DocParamValueKindMismatch {
+                name: _,
+                declared: _,
+                offered: _,
+            }
+            | Self::Dimension(_)
+            | Self::NonFiniteDocParam { name: _, field: _ }
+            | Self::InvalidDistribution { name: _, fault: _ }
+            | Self::RebindKindMismatch { from: _, to: _ }
+            | Self::EmptyWitnessBulk
+            | Self::EvaluationOfAnotherDocument {
+                expected: _,
+                found: _,
+            }
+            | Self::InvalidTolerance { value: _ }
+            | Self::PlacementAxis { error: _ } => {}
+        }
+        again
     }
 
     #[allow(clippy::too_many_lines)] // one arm per variant, each short
@@ -2411,14 +2608,16 @@ pub enum Maintenance {
     /// and carries `name`, whose referent the edit removed — the node
     /// that minted it ([`DocEdit::DeleteNode`]), or the profile step
     /// it named a piece of ([`DocEdit::SetProgram`], for a name on a
-    /// step the reshaping did not keep).
+    /// step the reshaping did not keep, or on a kept step's piece it
+    /// stopped drawing).
     ///
     /// Either way the name still says exactly what it always said.
     /// After a delete what is gone is the node that minted it, so
     /// evaluation answers [`crate::resolve::ResolveError::NodeGone`] —
     /// rung 1 of the N5 ladder. After a reshaping what is gone is the
-    /// step: its id is never minted again, so no program draws the
-    /// piece and evaluation answers
+    /// piece: a dropped step's id is never minted again, and a kept
+    /// step's piece reported here is one the new program does not
+    /// draw, so evaluation answers
     /// [`crate::resolve::ResolveError::Vanished`], rung 3. Either way
     /// the name resolves to nothing and [`DocEdit::Rebind`] is the
     /// repair, from the spelling this row carries. A name is not a
@@ -2432,7 +2631,8 @@ pub enum Maintenance {
         /// The surviving node whose payload carries the name.
         node: SpokenNode,
         /// The name it carries: its minting node is the one a delete
-        /// removed, or its locator names a step a reshaping dropped.
+        /// removed, or its locator names a step a reshaping dropped or
+        /// a kept step's piece it stopped drawing.
         name: SpokenName,
     },
     /// **An appearance attachment this edit stranded** (DM7): the
@@ -2744,27 +2944,92 @@ fn settle_step_ids(
     Ok((minted, dropped))
 }
 
+/// **The pieces of kept steps a `SetProgram` stops drawing**, among
+/// those a name in `doc` spells ([`StableName::step_pieces`]): not drawn
+/// by `new` and drawn by `old` where it replays, under `doc`'s current
+/// parameters, as
+/// [`crate::ProfilePayload::drawn_pieces`] answers — the one authority
+/// on which pieces a program draws. A kept step's piece goes undrawn
+/// when another piece takes its segment (N1, "Undrawn pieces vanish
+/// rather than alias"): a fillet inserted or moved before its leg.
+///
+/// A piece `old` draws and `new` does not is the edit's to report; one
+/// `old` already left undrawn is not, since the edit removed nothing.
+/// Where `old` does not replay under the current parameters (a legal
+/// at-rest state) there is no drawn set to compare against, and every
+/// named kept piece `new` does not draw is reported: the edit removes
+/// the referent's future either way. Neither program is replayed when
+/// no name spells a kept step's piece.
+fn undrawn_kept_pieces<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    old: &P,
+    new: &P,
+    dropped: &std::collections::BTreeSet<StepId>,
+    tol: Tol,
+) -> Result<std::collections::BTreeSet<ProfileEdgeRef>, EditError> {
+    let Some(ids) = old.step_ids() else {
+        return Ok(std::collections::BTreeSet::new());
+    };
+    let kept: std::collections::BTreeSet<StepId> = ids
+        .iter()
+        .flatten()
+        .filter(|s| !dropped.contains(s))
+        .copied()
+        .collect();
+    let named: std::collections::BTreeSet<ProfileEdgeRef> = doc
+        .name_carriers()
+        .flat_map(|c| c.name().step_pieces())
+        .filter(|p| p.step().is_some_and(|s| kept.contains(&s)))
+        .collect();
+    if named.is_empty() {
+        return Ok(named);
+    }
+    let env = doc.param_env::<f64>();
+    let refused = |refusal| EditError::ProfileProgramRefused {
+        node: doc.spoken(node),
+        refusal: Box::new(refusal),
+    };
+    let before = match old.drawn_pieces(&env, tol) {
+        Ok(drawn) => Some(drawn),
+        Err(refusal @ crate::ProgramRefusal::Pieces(_)) => return Err(refused(refusal)),
+        Err(_) => None,
+    };
+    let after = new.drawn_pieces(&env, tol).map_err(refused)?;
+    Ok(named
+        .into_iter()
+        .filter(|p| before.as_ref().is_none_or(|b| b.contains(p)) && !after.contains(p))
+        .collect())
+}
+
 /// **The names a `SetProgram` stranded**: every carried name that
 /// spells a piece of a step the reshaping dropped
-/// ([`StableName::piece_steps`]) — [`Maintenance::Strand`] on its
-/// carrying node, [`Maintenance::StrandedAppearance`] on a store key,
-/// in that order. Nothing is rewritten: the name keeps its spelling
-/// and resolves `Vanished`, since the dropped id is never minted
-/// again. A step id is unique across the document, so which node
+/// ([`StableName::piece_steps`]), or a kept step's piece it stopped
+/// drawing (`undrawn`, [`undrawn_kept_pieces`]) —
+/// [`Maintenance::Strand`] on its carrying node,
+/// [`Maintenance::StrandedAppearance`] on a store key, in that order.
+/// Nothing is rewritten: the name keeps its spelling and resolves
+/// `Vanished`. A step id is unique across the document, so which node
 /// minted the name does not enter. The rows speak their nodes from
 /// `before`.
 fn stranded_steps<P>(
     before: &Doc<P>,
     doc: &Doc<P>,
     dropped: &std::collections::BTreeSet<StepId>,
+    undrawn: &std::collections::BTreeSet<ProfileEdgeRef>,
 ) -> Vec<Maintenance> {
-    if dropped.is_empty() {
+    if dropped.is_empty() && undrawn.is_empty() {
         return Vec::new();
     }
     let mut strands = Vec::new();
     let mut keys = Vec::new();
     for carrier in doc.name_carriers() {
-        if carrier.name().piece_steps().is_disjoint(dropped) {
+        let gone = carrier
+            .name()
+            .step_pieces()
+            .iter()
+            .any(|p| undrawn.contains(p) || p.step().is_some_and(|s| dropped.contains(&s)));
+        if !gone {
             continue;
         }
         match carrier {
@@ -2855,9 +3120,10 @@ pub struct Applied<P> {
     /// `Carrier::ALL`, which is `pub(crate)`. In-crate the order has
     /// one home all the same: one roster, `Carrier::ALL`, drives the
     /// walk both doors read (`Doc::name_carriers`) — filtered on the
-    /// deleted node for a delete, on the dropped steps for a program
-    /// edit — so the strands' order is that roster's, and a reader who
-    /// wants to see why reads it there.
+    /// deleted node for a delete, on the dropped steps and the
+    /// undrawn kept pieces for a program edit — so the strands' order
+    /// is that roster's, and a reader who wants to see why reads it
+    /// there.
     ///
     /// Each boundary is held by the row whose fixture actually
     /// produces the pair of kinds it separates:
@@ -2883,9 +3149,11 @@ pub struct Applied<P> {
 ///
 /// [`Applied::maintenance`] is a function of one `(document, edit)`
 /// pair and answers what that edit did. An action — a cascade delete
-/// ([`cascade_delete_order`]'s sequence), a program written as several
-/// one-slot writes — is several edits, and a row one of them reported
-/// can be about nothing the action leaves behind. This is the one
+/// ([`cascade_delete_order`]'s sequence), a parameter's value and its
+/// notation written together — is several edits, and a row one of them
+/// reported can be about nothing the action leaves behind: a cascade's
+/// early delete strands a name on a carrier a later one deletes. This
+/// is the one
 /// spelling of which rows survive, so every caller that holds a
 /// sequence (the viewer's session, the pre-click count a chrome states
 /// before a cascade) answers the same.
@@ -3824,12 +4092,10 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     node: doc.spoken(*node),
                     refusal: Box::new(refusal),
                 })?;
+            let undrawn = undrawn_kept_pieces(doc, *node, payload, rewritten, &dropped, tol)?;
             new.nodes.insert(*node, probe);
             new.mint = mint;
-            // DM7: a name on a kept step keeps denoting its pieces and
-            // is not touched; a name on a dropped step denotes nothing
-            // from here on, and the door says so.
-            reported = stranded_steps(doc, &new, &dropped);
+            reported = stranded_steps(doc, &new, &dropped, &undrawn);
             // Structural whatever moved: the edit's class is a
             // rewrite of program structure — verbs, order, count —
             // and the record classifies the edit, as

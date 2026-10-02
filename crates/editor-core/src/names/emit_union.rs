@@ -544,7 +544,12 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 continue;
             };
             let EntityKey::Edge(r) = e.key else { continue };
-            for f in edge_faces(m.body, r)? {
+            let (plus, minus) = topo::readback::edge_sides(m.body, r)
+                .map_err(|_| NamingError::Emission {
+                    what: "a member edge without two faces",
+                })?
+                .faces();
+            for f in [plus, minus] {
                 sides.extend(unique_name(m.table, EntityKey::Face(f)).map(|f| (*n, f)));
             }
         }
@@ -673,24 +678,6 @@ fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
 /// both ends and both faces).
 fn straight<T: geom_core::Decide>(body: &topo::Body<T>, e: topo::EdgeKey) -> bool {
     topo::query::edge_carrier_kind(body, e) == Some(topo::query::CurveKind::Line)
-}
-
-/// The two faces edge `e` of `body` lies between.
-fn edge_faces<T: geom_core::Decide>(
-    body: &topo::Body<T>,
-    e: topo::EdgeKey,
-) -> Result<[topo::FaceKey; 2], NamingError> {
-    let bug = || NamingError::Emission {
-        what: "a member edge without two faces",
-    };
-    let edge = body.get_edge(e).ok_or_else(bug)?;
-    let face = |he| {
-        body.get_half_edge(he)
-            .and_then(|h| body.get_loop(h.parent_loop))
-            .map(|l| l.face)
-            .ok_or_else(bug)
-    };
-    Ok([face(edge.he_plus)?, face(edge.he_minus)?])
 }
 
 /// The face a member's table names `name`, when it names one face.

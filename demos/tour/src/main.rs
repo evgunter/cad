@@ -51,6 +51,7 @@ mod bodies;
 mod bool_bodies;
 mod booleans;
 mod bossplate;
+mod bracket;
 mod bud;
 mod chain;
 mod chaintol;
@@ -70,6 +71,7 @@ mod lily;
 mod mate7a_r2_probes;
 mod mcchain;
 mod mcplate;
+mod oracles;
 mod plate;
 #[cfg(feature = "probe")]
 mod probe;
@@ -78,6 +80,7 @@ mod ring;
 mod rocker;
 mod scalar;
 mod skinned;
+mod snowman;
 mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
@@ -353,6 +356,16 @@ struct StepFrontierPin {
     pinned: fn(&pncad::step_export::StepExportError) -> bool,
     /// What to do with the scene when the export stops refusing.
     retire: &'static str,
+}
+
+/// Whether a boolean result declares no contacts, which is how its
+/// body is routed: a TRANSVERSE curved boolean declares none and takes
+/// plain tier 3, because the 3′ census is exact-on-planar by ruling
+/// (C12.4/OQ5: a TOUCHING curved result refuses there — pinned in
+/// `sweep/tests/m5_pr9_boss_union.rs`); a result that declares some
+/// takes 3′ with them.
+fn declares_no_contacts(contacts: &ContactRecords) -> bool {
+    contacts.vv.is_empty() && contacts.a_on_b.is_empty() && contacts.b_on_a.is_empty()
 }
 
 /// The writer's named subset frontier, as one list. Refusals in this
@@ -817,7 +830,9 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
-    println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
+    println!(
+        "\n-- the rocker plate (fillets in the profile, the branch PICKED, and on the solid) --"
+    );
     for stop in rocker::stops(tol) {
         visit(&stop);
     }
@@ -848,19 +863,27 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
-    println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
+    println!("\n-- the Klein bottle: a non-orientable surface, two bodies deep --");
     for stop in klein::stops(tol) {
         visit(&stop);
     }
     klein::wall_probes::<f64>(tol);
 
-    println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
+    println!("\n-- the tilted cut (an engraved cap, an exact ellipse section) --");
     for stop in curvedcut::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
     for stop in bossplate::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the snowman (two coaxial balls under every boolean; the waist rolled into a \
+         torus band; a head moved off the axis in the seam plane builds too) --"
+    );
+    for stop in snowman::stops(tol) {
         visit(&stop);
     }
 
@@ -962,7 +985,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
-         split/inline, the update door) --"
+         gauges, split/inline, the update door) --"
     );
     for stop in assembly::stops(work, tol) {
         visit(&stop);

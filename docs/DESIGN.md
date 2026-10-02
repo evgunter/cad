@@ -306,8 +306,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      either**: a census finding with no backing declaration is
      `UndeclaredContact` (discovery is never declaration); a
      declaration with no geometric witness is
-     `StaleContactDeclaration`. Structural sharing (same key) is the
-     coincidence ladder's first rung and needs no record.
+     `StaleContactDeclaration`. Structural sharing (same surface or
+     point key) is the coincidence ladder's first rung and needs no
+     record: an op that cuts one vertex into copies hands each copy the
+     original's point, as it hands a cut face's fragments one surface.
    - Contact records carry two granularities: vertex (`VvContact`,
      `VfContact`) — edge-on-face and coincident-edge *segments*
      certified by reconstruction from their bounding vertex records
@@ -328,7 +330,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    (recipe data) — near-coincidence NEVER silently becomes contact
    (escalated typed error instead); (ii) result-side touching arises
    only from those intentional coincidences propagated through the
-   boolean node, and the result carries machine-checkable
+   boolean node, or from an op's copies of one vertex, which share its
+   point; the boolean's result carries machine-checkable
    declared-contact records (the ON-set survivors, carried across
    seam-zip/merge mints by a descendant map, never re-derived);
    (iii) an *undeclared* contact discovered at validation is a hard
@@ -490,7 +493,12 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   Circle-carrier arm), so the oblique-trihedron octant faces store
   their rows; the cone/torus oblique classes have no ring-computable
   meters composite and refuse with the class named, their faces left
-  uncached until each class's route lands.
+  uncached, excused by C4's exemption until each class's route lands.
+  The same exemption covers a spline carrier at the closed-form door
+  and the zero-offset spiric, mirror-torus spiric and no-fitted
+  classes. Each class has its own PCERT row: the torus general circle,
+  the cone section, the spline carrier, and the spiric and no-fitted
+  classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest; what is missing is
   the join window itself (`run_azimuth_window`/`chart_pcurve` have no

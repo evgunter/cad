@@ -41,8 +41,10 @@
 //!   arm (`analytic_derive`). Any other carrier outside the closed-form
 //!   classes that can still lie on the chart refuses
 //!   [`PcurveCertifyError::UnsupportedCarrier`] with the class named,
-//!   and its face stays uncached — the cone/torus oblique classes have
-//!   no honest route (no ring-computable meters composite). A carrier
+//!   and its face stays uncached, excused by C4's exemption
+//!   ([`not_owed`]) until the class's route lands — the cone/torus
+//!   oblique classes have no honest route yet (no ring-computable
+//!   meters composite). A carrier
 //!   that cannot lie on its face
 //!   ([`PcurveCertifyError::CarrierOffChart`]) is a defect, and the
 //!   pass refuses with it.
@@ -151,13 +153,14 @@
 //! this crate: the
 //! splitting lane (on each side it produces), the boolean pipeline (on
 //! the finished body), [`crate::Body::merge_coplanar_faces`] (on the
-//! staged result before commit, and only when the input carried
-//! caches), and [`crate::transform`] (which re-derives when the operand
-//! carried caches), and [`crate::shell`](mod@crate::shell) (on the
+//! staged result before commit, when the input carried rows — as an
+//! input at rest does on every face whose chart mints), and
+//! [`crate::transform`] (on the same terms), and
+//! [`crate::shell`](mod@crate::shell) (on the
 //! assembled thin solid). **Downstream crates hold the same posture and
-//! are part of the list**: `sweep`'s revolve and tube, loft, fillet
-//! build and fillet surgery, and `step_import`'s assembly all re-mint
-//! on the body they return.
+//! are part of the list**: `sweep`'s extrude, revolve and tube, loft,
+//! fillet build and fillet surgery, and `step_import`'s assembly all
+//! re-mint on the body they return.
 //!
 //! **Transfers the map** — the graft (`boolean::combine`, and
 //! [`crate::graft_disjoint`] through it) remaps each row onto the
@@ -231,11 +234,10 @@
 //! leaves complete, or storing nothing where the closed-form lane
 //! cannot mint it. On a spline
 //! chart, or a destination that was unminted or half-minted, the drop
-//! is the whole answer; [`crate::Body::drop_rows`] states what it gives
-//! up there — a rowless CURVED destination trades a loud reading (the
-//! moved rows re-certified against its chart and refused) for a silent
-//! one (a face this pass says nothing about). Their old `Neither`
-//! reading was the one the guard's table could not see: no posture
+//! is the whole answer, and the producer's closing mint re-derives the
+//! destination; a body left at rest without it reads loud at tier 3,
+//! which re-derives a face that stores no row ([`validate_pcurves`]).
+//! Their old `Neither` reading was the one the guard's table could not see: no posture
 //! makes a claim about what a row MEANS, and these doors changed
 //! nothing else. Two more doors move a RUN of half-edges between two
 //! faces' loops rather than a whole loop — [`crate::Body::mef`]'s
@@ -256,11 +258,8 @@
 //! surface setter's sibling, which is NOT the same case: a carrier swap
 //! moves neither the row's key nor its chart, and pass 2 re-derives
 //! every row's agreement from the edge's current carrier, so what it
-//! stales is refused loud on a COMPLETE face — and on a half-minted one
-//! this pass measures no stored row at all, which is its property
-//! everywhere and not that door's
-//! (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`).
-//! So it keeps the rows it finds, as a `Neither` door does, with one
+//! stales is refused loud, on a complete face and on the rows a
+//! half-minted one stores alike. So it keeps the rows it finds, as a `Neither` door does, with one
 //! exception: a null edge's first description is the first door that
 //! can derive the rows of its halves, and on a face the site mint
 //! selects ([`StoredRows::remints`]) it re-mints every loop no other
@@ -282,14 +281,13 @@
 //! its key until the slot is reused, so surgery on a body that already
 //! carries caches can leave a row attached to a half-edge that no
 //! longer means what the cache says (or, once a slot is recycled, to a
-//! different half-edge entirely). What bounds it is the backstop, and
-//! the backstop's reach is exactly one shape: the tier-3 pcurve pass
-//! reads a face it finds INCOMPLETE, and a face whose rows are all
-//! present but no longer certify against the current
-//! carrier/surface/window or break their loop's continuity, and
-//! reports either loud. It says nothing about the two shapes outside
-//! that — a COMPLETE face whose rows were stated in another chart and
-//! certify against this one anyway, and a face on a chart
+//! different half-edge entirely). What bounds it is the backstop, the
+//! tier-3 pcurve pass: it reports a face that stores none of its rows
+//! or misses some, saying why by re-deriving it, and a stored row that
+//! no longer certifies against the current carrier/surface/window or
+//! breaks its loop's continuity. It says nothing about the two shapes
+//! outside that — a COMPLETE face whose rows were stated in another
+//! chart and certify against this one anyway, and a face on a chart
 //! [`chart_mints`] refuses, which the pass skips entirely. So the
 //! posture is fail-loud where the pass looks, and an op that mutates
 //! an already-minted body must either clear the map or re-mint before
@@ -327,7 +325,8 @@
 
 use geom::Surface;
 use geom_brep::{
-    ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, UncoveredClass, chart_pcurve,
+    BranchMiss, ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, UncoveredClass, chart_pcurve,
+    whole_periods,
 };
 use geom_core::Tol;
 use geom_core::k_stats::decide;
@@ -425,10 +424,12 @@ pub enum PcurveMintError {
         r#loop: LoopKey,
     },
     /// A half-edge carries no stored pcurve at rest although its face
-    /// carries some: the face's cache set is incomplete. A face with
-    /// NO caches is legal everywhere (planar faces, frontier charts,
-    /// and any body that never ran the minting pass); a half-minted
-    /// one is a defect.
+    /// carries some: the face's cache set is incomplete, a defect. A
+    /// face that stores none is [`PcurveMintError::Unminted`], or the
+    /// refusal its derivation meets; a planar face stores none by
+    /// construction, and a face of an uncovered class
+    /// ([`PcurveCertifyError::UnsupportedCarrier`]) none until its
+    /// route lands.
     ///
     /// **On the output of `mev`, `mef` and `mekr`, and of the doors
     /// that move a loop or run onto a face (`kfmrh`, `ring_move`,
@@ -466,6 +467,23 @@ pub enum PcurveMintError {
         /// The half-edge with no stored cache.
         half_edge: HalfEdgeKey,
     },
+    /// A face on a chart that mints stores none of its rows, and the
+    /// minting pass derives and certifies every one of them: the body
+    /// was not minted after it was built or edited. Rows are mandatory
+    /// at rest (C4), so this is a producer's omission, or an assembly
+    /// of Euler operations left without its closing mint.
+    Unminted {
+        /// The face that stores no row.
+        face: FaceKey,
+    },
+    /// A stored row states a carrier interval that is not its edge's:
+    /// every row is stated over exactly its edge's certified interval
+    /// (the mint copies it, a split restricts it), so this row is about
+    /// another edge — a row left from before a split or a carrier swap.
+    RowInterval {
+        /// The half-edge whose row states the wrong interval.
+        half_edge: HalfEdgeKey,
+    },
     /// A classification escalated (sliver band or poison).
     Escalated {
         /// The half-edge under classification.
@@ -478,11 +496,11 @@ pub enum PcurveMintError {
     /// A half-edge's walked image is a `Fitted` or `General` one, and
     /// its face stores no pcurve rows, so no certificate bounds the
     /// image against its carrier: the description refuses rather than
-    /// claim a bound it does not hold. The face is either unminted or
-    /// one the mint leaves uncached for a pair no lane covers yet
-    /// ([`PcurveCertifyError::UnsupportedCarrier`]) — a legal at-rest
-    /// state, not a defect. A face that stores OTHER rows refuses
-    /// [`PcurveMintError::MissingCache`] instead.
+    /// claim a bound it does not hold. The face is either unminted
+    /// (tier 3's [`PcurveMintError::Unminted`]) or one the mint leaves
+    /// uncached for a pair no lane covers yet
+    /// ([`PcurveCertifyError::UnsupportedCarrier`]). A face that stores
+    /// OTHER rows refuses [`PcurveMintError::MissingCache`] instead.
     UncertifiedImage {
         /// The half-edge whose image has no stored certificate.
         half_edge: HalfEdgeKey,
@@ -555,6 +573,18 @@ impl core::fmt::Display for PcurveMintError {
                 f,
                 "half-edge {half_edge:?} carries no pcurve although its face's chart mints \
                  them: the body changed after minting. Recourse: re-mint the \
+                 body, and report the op that returned it"
+            ),
+            Self::Unminted { face } => write!(
+                f,
+                "face {face:?} stores no pcurve although its chart mints them and every one \
+                 derives and certifies: the body was not minted after it was built or edited. \
+                 Recourse: re-mint the body, and report the op that returned it"
+            ),
+            Self::RowInterval { half_edge } => write!(
+                f,
+                "the pcurve of half-edge {half_edge:?} is stated over a carrier interval that \
+                 is not its edge's: the body changed after minting. Recourse: re-mint the \
                  body, and report the op that returned it"
             ),
             Self::Escalated { half_edge, cause } => write!(
@@ -718,6 +748,73 @@ fn analytic_derive<T: AtRestPolicy>(
         }
         image => image.map_err(certify),
     }
+}
+
+/// **Whether a stored row states its edge's whole interval** — copied
+/// from the edge at the mint and at a split; one stated over more or
+/// less of the carrier is about another edge
+/// ([`PcurveMintError::RowInterval`]). Measured where the edge's own
+/// endpoint pinning is (certification's check 3): the carrier at the
+/// row's ends against the edge's vertices, in metres. A row that copied
+/// its edge's interval evaluates exactly what that check did, so it
+/// reads that check's verdict; a parameter difference instead would be
+/// radians against a band in metres, and at an interval scalar would
+/// carry the copy's own width twice. Read by tier 3 on every stored row
+/// ([`validate_pcurves`]) and by a producer's closing mint on every row
+/// it carries ([`carry_rows`]).
+fn row_interval<T: Decide>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+    row: &PcurveCache<T>,
+    carrier: &geom::Curve3<T>,
+    band: Band,
+) -> Result<(), PcurveMintError> {
+    let (r0, r1) = row.params();
+    let (start, end) = edge_vertex_points(body, he)?;
+    match [(r0, start), (r1, end)]
+        .into_iter()
+        .map(|(r, p)| {
+            decide(
+                "pcurve_row_interval",
+                Margin::of(carrier.eval(r).distance(p)),
+                band,
+            )
+        })
+        .find(|v| !matches!(v, Ok(Sign::Zero)))
+    {
+        None => Ok(()),
+        Some(Ok(_)) => Err(PcurveMintError::RowInterval { half_edge: he }),
+        Some(Err(cause)) => Err(PcurveMintError::Escalated {
+            half_edge: he,
+            cause,
+        }),
+    }
+}
+
+/// The points of `half_edge`'s edge's vertices, in its `he_plus`
+/// order: where the carrier's certified interval starts and ends.
+fn edge_vertex_points<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+) -> Result<(geom_core::Point3<T>, geom_core::Point3<T>), PcurveMintError> {
+    let he = body
+        .get_half_edge(half_edge)
+        .ok_or(PcurveMintError::Corrupt)?;
+    let edge = body.get_edge(he.edge).ok_or(PcurveMintError::Corrupt)?;
+    let plus = body
+        .get_half_edge(edge.he_plus)
+        .ok_or(PcurveMintError::Corrupt)?;
+    let point = |v| {
+        body.get_vertex(v)
+            .and_then(|v| body.get_point(v.point))
+            .copied()
+            .ok_or(PcurveMintError::Corrupt)
+    };
+    let end = body
+        .get_half_edge(edge.he_minus)
+        .ok_or(PcurveMintError::Corrupt)?
+        .start;
+    Ok((point(plus.start)?, point(end)?))
 }
 
 /// The certified carrier and parameter interval of `half_edge`'s edge.
@@ -1499,7 +1596,7 @@ fn chart_u_arm<T: Real>(chart: DescribedChart<'_, T>, v: T) -> ChartArm<T> {
 /// `u` stretch sits under the band reads `Zero` and takes no shift at
 /// all (which is honest — no `u` displacement on it moves a point
 /// past ε), one whose stretch lands inside the band escalates, and
-/// only a definitely-metric chart reaches the periodic rounding. The
+/// only a definitely-metric chart reaches the branch decision. The
 /// paragraph above describes the last of the three.
 ///
 /// **Why a NURBS chart needs this (#327).** A full-period cylinder
@@ -1807,8 +1904,9 @@ impl<T: Real> StoredRows<T> {
     /// a row onto a face no mint has run over: the site mint leaves a
     /// face storing no row as found, and `mev_null` derives none. So a
     /// face storing any row was minted, and a half missing one arrived
-    /// after that mint; a face storing none was never minted, is the
-    /// minting pass's, and stays rowless.
+    /// after that mint; a face storing none — never minted, or emptied
+    /// by a door — is the producer's closing mint's, and stays rowless
+    /// until it runs.
     ///
     /// **A loop a null edge holds open cannot be walked**: the edge's
     /// halves have no carrier. So no door before the edge leaves the
@@ -2052,8 +2150,9 @@ pub(crate) enum SplitRowError {
 ///
 /// # `None`, and what it does NOT claim
 ///
-/// - `half_edge` carries no row (the ordinary case: an all-planar
-///   body, or a body that never ran the minting pass);
+/// - `half_edge` carries no row (an all-planar body, a face of an
+///   uncovered class, or one a door has left rowless for its
+///   producer's closing mint);
 /// - the row's image is [`Pcurve::Fitted`] or [`Pcurve::General`],
 ///   whose certification doors are the fitted door's
 ///   ([`PcurveCache::certify_fitted`] / [`PcurveCache::certify_general`],
@@ -2160,9 +2259,9 @@ pub fn mint_pcurves<T: AtRestPolicy>(body: &mut Body<T>, tol: Tol) -> Result<(),
     // The whole-body entry is the only one that can make that claim: a
     // row whose half-edge is dead is reachable from no face, so the
     // subset entry below clears through the faces it is given.
-    body.pcurves.clear();
+    let found = core::mem::take(&mut body.pcurves);
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-    mint_faces(body, &faces, band)?;
+    mint_faces(body, &faces, band, &found)?;
     Ok(())
 }
 
@@ -2218,13 +2317,20 @@ pub fn mint_pcurves_of<T: AtRestPolicy>(
     tol: Tol,
 ) -> Result<usize, PcurveMintError> {
     let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
+    let mut found = FoundRows::new();
     for &face in faces {
-        clear_face_caches(body, face);
+        for (he, row) in clear_face_caches(body, face) {
+            found.insert(he, row);
+        }
     }
     let before = body.pcurves.len();
-    mint_faces(body, faces, band)?;
+    mint_faces(body, faces, band, &found)?;
     Ok(body.pcurves.len() - before)
 }
+
+/// The rows a mint cleared before re-deriving, by half-edge: what it
+/// carries onto a face whose rows it cannot derive ([`carry_rows`]).
+type FoundRows<T> = slotmap::SecondaryMap<HalfEdgeKey, PcurveCache<T>>;
 
 /// The mint itself, over the faces it is handed: the shared body of
 /// [`mint_pcurves`] and [`mint_pcurves_of`], which differ only in which
@@ -2233,53 +2339,131 @@ fn mint_faces<T: AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     band: Band,
+    found: &FoundRows<T>,
 ) -> Result<(), PcurveMintError> {
     for &face in faces {
         match mint_face(body, face, band) {
             Ok(()) => {}
-            // A pair the chart can hold but no route covers yet (an
-            // oblique torus circle, a tilted cone section, a spline
-            // carrier on an analytic chart): the face is left uncached,
-            // which `validate_pcurves` reads as absence rather than a
-            // claim. `mint_face` stores rows only once every half-edge
+            // Rows not owed ([`not_owed`]): a pair the chart can hold
+            // but no route covers yet (an oblique torus circle, a tilted
+            // cone section, a spline carrier on an analytic chart), or a
+            // fitted face at a scalar with no fitted door. The at-rest
+            // pass excuses exactly these, by the same predicate.
+            // `mint_face` stores rows only once every half-edge
             // certified, so a refused face holds none and there is
-            // nothing to clear. Each class leaves this arm in the change
-            // that wires its route. The sphere's general circle has
-            // left it: its route is the fitted lane (`analytic_derive`),
-            // so a general circle that route refuses — an arc through a
-            // pole of the chart, a certificate that does not hold —
-            // propagates, and the class itself reaching here would be a
-            // derivation that skipped its route. Every OTHER failure —
-            // a carrier off its face, an image that is not its
-            // carrier's, a covered class whose residuals, envelope,
-            // continuity or closure refuse — is a genuine defect and
-            // propagates.
-            Err(PcurveMintError::Certify {
-                error: PcurveCertifyError::UnsupportedCarrier { class, .. },
-                ..
-            }) if class != UncoveredClass::SphereGeneralCircle => {}
-            // A scalar with NO fitted door (`AtRestPolicy::fitted_lane`
-            // answers `None`: a dual, DL1) certifies nothing fitted, so
-            // a face only the fitted lane can image is not owed rows
-            // there, and is left rowless rather than refused. The rule
-            // is the scalar's, not a class's: at every scalar that holds
-            // the door, a fitted refusal propagates.
-            Err(PcurveMintError::Certify {
-                error: PcurveCertifyError::FittedLaneUnsupported { .. },
-                ..
-            }) if T::fitted_lane().is_none() => {}
+            // nothing to clear. Every OTHER failure — a carrier off its
+            // face, an image that is not its carrier's, a general sphere
+            // circle its fitted route refuses, a covered class whose
+            // residuals, envelope, continuity or closure refuse — is a
+            // genuine defect and propagates.
+            // A row the face held is carried, re-certified, so the
+            // mint never drops a certificate it cannot re-derive
+            // ([`carry_rows`]).
+            Err(e) if not_owed::<T>(&e) => carry_rows(body, face, band, found)?,
             Err(e) => return Err(e),
         }
     }
     Ok(())
 }
 
-/// Drops any caches minted for `face` before its walk refused — a
-/// face outside the lane's coverage stores NOTHING (a half-minted
-/// face is the defect `validate_pcurves` hunts).
-fn clear_face_caches<T: Decide>(body: &mut Body<T>, face: FaceKey) {
+/// **The rows a face held, carried across a mint that cannot derive
+/// them**: each one the face's loops reach in `found` is re-certified
+/// through its own door against the current carrier and surface, over
+/// the window those rows hull out to, and stored. So a row the mint has
+/// no route to — a `Fitted` row on a class the closed-form lane does not
+/// cover, stated by a certifying door — survives a producer's closing
+/// mint (a transform, a merge) exactly when it still certifies, and a
+/// half the face held no row for stays without one, for tier 3 to read.
+///
+/// # Errors
+///
+/// [`PcurveMintError::Certify`] for a carried row that no longer
+/// certifies, and [`PcurveMintError::RowInterval`] for one whose
+/// interval is no longer its edge's ([`row_interval`]): the producer
+/// refuses rather than drop it or store it stale.
+fn carry_rows<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    band: Band,
+    found: &FoundRows<T>,
+) -> Result<(), PcurveMintError> {
+    let face_data = body.get_face(face).ok_or(PcurveMintError::Corrupt)?;
+    let surface = body
+        .get_surface(face_data.surface)
+        .cloned()
+        .ok_or(PcurveMintError::Corrupt)?;
+    let mut held: Vec<(HalfEdgeKey, &PcurveCache<T>)> = Vec::new();
+    for lp in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+        if let LoopRows::Cycle(cycle) = loop_rows(body, lp) {
+            held.extend(
+                cycle
+                    .into_iter()
+                    .filter_map(|he| found.get(he).map(|row| (he, row))),
+            );
+        }
+    }
+    let Some(window) = hull_of(held.iter().map(|(_, row)| {
+        let (t0, t1) = row.params();
+        row.pcurve().chart_box(t0, t1)
+    })) else {
+        return Ok(());
+    };
+    let mut carried = Vec::with_capacity(held.len());
+    for (he, row) in held {
+        let (carrier, _, _) = half_edge_carrier(body, he)?;
+        // A producer that moved the edge's interval under the row
+        // refuses here, not later at tier 3.
+        row_interval(body, he, row, &carrier, band)?;
+        let (t0, t1) = row.params();
+        let mate = mate_surface(body, he);
+        let restated = match row.pcurve() {
+            Pcurve::Fitted(image) => match T::fitted_lane() {
+                Some(lane) => PcurveCache::certify_fitted(
+                    std::sync::Arc::clone(image),
+                    t0,
+                    t1,
+                    &carrier,
+                    &surface,
+                    mate.as_ref(),
+                    window,
+                    band,
+                    lane,
+                ),
+                None => Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
+            },
+            Pcurve::General(image) => PcurveCache::certify_general(
+                std::sync::Arc::clone(image),
+                t0,
+                t1,
+                &carrier,
+                &surface,
+                mate.as_ref(),
+                window,
+                band,
+                T::fitted_lane(),
+            ),
+            image => PcurveCache::certify(image.clone(), t0, t1, &carrier, &surface, window, band),
+        }
+        .map_err(|error| PcurveMintError::Certify {
+            half_edge: he,
+            error,
+        })?;
+        carried.push((he, restated));
+    }
+    for (he, row) in carried {
+        body.pcurves.insert(he, row);
+    }
+    Ok(())
+}
+
+/// Drops `face`'s rows before it is re-derived, and returns them for
+/// the mint to carry where it cannot derive the face ([`carry_rows`]).
+fn clear_face_caches<T: Decide>(
+    body: &mut Body<T>,
+    face: FaceKey,
+) -> Vec<(HalfEdgeKey, PcurveCache<T>)> {
     let Some(face_data) = body.get_face(face) else {
-        return;
+        return Vec::new();
     };
     let loops: Vec<LoopKey> = core::iter::once(face_data.outer)
         .chain(face_data.rings.iter().copied())
@@ -2297,36 +2481,93 @@ fn clear_face_caches<T: Decide>(body: &mut Body<T>, face: FaceKey) {
         };
         hes.extend(cycle);
     }
-    for he in hes {
-        body.pcurves.remove(he);
-    }
+    hes.into_iter()
+        .filter_map(|he| body.pcurves.remove(he).map(|row| (he, row)))
+        .collect()
 }
 
-/// Mints the caches of one face (module docs: the two-pass shape — walk
-/// the loops to pin branches, then certify every pcurve against the
-/// chart window the walk's images hull out to, [`certify_walked`]).
+/// Mints the caches of one face: [`derive_face`], stored.
 fn mint_face<T: AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     band: Band,
 ) -> Result<(), PcurveMintError> {
+    let rows = derive_face(body, face, band)?;
+    for (half_edge, cache) in rows {
+        body.pcurves.insert(half_edge, cache);
+    }
+    Ok(())
+}
+
+/// **Whether a face's refusal means its rows are not owed**: the one
+/// reading, shared by the minting pass ([`mint_faces`]), which leaves
+/// such a face storing nothing, and the at-rest pass
+/// ([`validate_pcurves`]), which reports nothing about it. Two arms, and
+/// only these:
+///
+/// - **an uncovered class** — a pair the chart can hold but no lane
+///   covers yet ([`PcurveCertifyError::UnsupportedCarrier`], whose
+///   `class` names it); each class leaves this arm in the change that
+///   wires its route. The sphere's general circle has left it: its
+///   route is the fitted lane ([`analytic_derive`]), so that class
+///   reaching here would be a derivation that skipped its route;
+/// - **a scalar with no fitted door** ([`AtRestPolicy::fitted_lane`]
+///   answers `None`, as a dual's does) refusing a face only the fitted
+///   lane can image ([`PcurveCertifyError::FittedLaneUnsupported`]):
+///   that scalar certifies nothing fitted, so it owes no fitted row. The
+///   rule is the scalar's, not a class's — at every scalar that holds
+///   the door, a fitted refusal is a finding.
+fn not_owed<T: AtRestPolicy>(e: &PcurveMintError) -> bool {
+    match e {
+        PcurveMintError::Certify { error, .. } => match error {
+            PcurveCertifyError::UnsupportedCarrier { class, .. } => {
+                *class != UncoveredClass::SphereGeneralCircle
+            }
+            PcurveCertifyError::FittedLaneUnsupported { .. } => T::fitted_lane().is_none(),
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+/// **The minting pass over one face, storing nothing** (module docs:
+/// the two-pass shape — walk the loops to pin branches, then certify
+/// every pcurve against the chart window the walk's images hull out
+/// to, [`certify_walked`]). [`mint_face`] stores what this derives;
+/// [`validate_pcurves`] reads a face that does not store its rows
+/// through it, so "what the mint would write here" has one answer.
+///
+/// A face on a chart that mints nothing ([`DescribedChart::minting`])
+/// derives no row.
+///
+/// # Errors
+///
+/// The face's refusal ([`first_owed`]), read whole: the walk's
+/// ([`walk_loop`]) or a certification's.
+fn derive_face<T: AtRestPolicy>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<Certified<T, HalfEdgeKey>, PcurveMintError> {
     let face_data = body.get_face(face).ok_or(PcurveMintError::Corrupt)?;
-    let surface_key = face_data.surface;
+    let surface = body
+        .get_surface(face_data.surface)
+        .ok_or(PcurveMintError::Corrupt)?;
+    let Some(chart) = DescribedChart::minting(surface) else {
+        return Ok(Vec::new());
+    };
     let loops: Vec<LoopKey> = core::iter::once(face_data.outer)
         .chain(face_data.rings.iter().copied())
         .collect();
-    let surface = body
-        .get_surface(surface_key)
-        .cloned()
-        .ok_or(PcurveMintError::Corrupt)?;
-    let Some(chart) = DescribedChart::minting(&surface) else {
-        return Ok(());
-    };
     let mut walked: Vec<Walked<T>> = Vec::new();
-    for lp in loops {
-        walk_loop(body, face, lp, chart, band, &mut walked)?;
+    let mut refused: Vec<PcurveMintError> = Vec::new();
+    let mut broken: Vec<LoopKey> = Vec::new();
+    for &lp in &loops {
+        if let Err(e) = walk_loop(body, face, lp, chart, band, &mut walked) {
+            refused.push(e);
+            broken.push(lp);
+        }
     }
-    let shared: &Body<T> = body;
     // U2's `General` arm certifies at the FITTED grade: the same five
     // checks in the same order, but check 4 is the full C2 certificate
     // against the operand PAIR, so it needs the mate the edge's own
@@ -2349,8 +2590,8 @@ fn mint_face<T: AtRestPolicy>(
             w.t0,
             w.t1,
             &w.carrier,
-            &surface,
-            mate_surface(shared, w.key).as_ref(),
+            surface,
+            mate_surface(body, w.key).as_ref(),
             window,
             band,
             T::fitted_lane(),
@@ -2363,8 +2604,8 @@ fn mint_face<T: AtRestPolicy>(
                 w.t0,
                 w.t1,
                 &w.carrier,
-                &surface,
-                mate_surface(shared, w.key).as_ref(),
+                surface,
+                mate_surface(body, w.key).as_ref(),
                 window,
                 band,
                 lane,
@@ -2374,12 +2615,53 @@ fn mint_face<T: AtRestPolicy>(
             "certify_walked hands the fitted door only Fitted and General images: {closed:?}"
         ),
     };
-    let rows = certify_walked(walked, &surface, band, Some(&fitted))
-        .map_err(|(half_edge, error)| PcurveMintError::Certify { half_edge, error })?;
-    for (half_edge, cache) in rows {
-        body.pcurves.insert(half_edge, cache);
+    if !refused.is_empty() {
+        // A walk stops at the first refusal of its loop, so an edge
+        // whose rows are not owed would hide every edge after it: the
+        // face is read whole before it is excused ([`not_owed`]). Whole
+        // means the mint's own reading of every edge it could image —
+        // each run of covered edges a broken loop leaves walked through
+        // its joints ([`walk_runs`]), and every image derived, on those
+        // runs and on the loops that walked, certified through the
+        // mint's doors against the window they hull out to — so a
+        // covered edge's refusal, a joint's or a certificate's, is the
+        // face's whichever uncovered edge shares the face.
+        if refused.iter().all(not_owed::<T>) {
+            for lp in broken {
+                if let LoopRows::Cycle(cycle) = loop_rows(body, lp) {
+                    walk_runs(body, chart, &cycle, band, &mut walked, &mut refused);
+                }
+            }
+            if let Err(certs) = certify_walked(walked, surface, band, Some(&fitted)) {
+                refused.extend(
+                    certs
+                        .into_iter()
+                        .map(|(half_edge, error)| PcurveMintError::Certify { half_edge, error }),
+                );
+            }
+        }
+        return Err(first_owed::<T>(refused));
     }
-    Ok(())
+    certify_walked(walked, surface, band, Some(&fitted)).map_err(|refused| {
+        first_owed::<T>(
+            refused
+                .into_iter()
+                .map(|(half_edge, error)| PcurveMintError::Certify { half_edge, error })
+                .collect(),
+        )
+    })
+}
+
+/// The refusal a face reports: its first whose rows are owed, or — when
+/// none is ([`not_owed`]) — its first, which excuses the face. So a
+/// face is excused only when every refusal it meets is, whichever edge
+/// the walk meets first.
+fn first_owed<T: AtRestPolicy>(refused: Vec<PcurveMintError>) -> PcurveMintError {
+    let at = refused.iter().position(|e| !not_owed::<T>(e)).unwrap_or(0);
+    refused
+        .into_iter()
+        .nth(at)
+        .unwrap_or(PcurveMintError::Corrupt)
 }
 
 /// The rows [`certify_walked`] certified, in walk order.
@@ -2399,8 +2681,9 @@ type FittedDoor<'a, T, K> =
 ///
 /// **Check 5 is vacuous on both callers of this pass.** The window IS
 /// the hull of exactly the boxes checked against it, so no minted
-/// pcurve can escape it, and [`validate_pcurves`] re-derives its window
-/// the same self-referential way. The crate's one non-tautological
+/// pcurve can escape it. [`validate_pcurves`] does not use this pass's
+/// window: it measures stored rows against the hull of the stored rows,
+/// which is vacuous the same way. The crate's one non-tautological
 /// caller is [`split_cache`], whose halves pass by the box's
 /// restriction monotonicity; what the precondition buys is stated
 /// once, at `geom_brep::PcurveCache`'s module docs. The vacuity at mint is deliberate: a freshly derived
@@ -2419,17 +2702,19 @@ type FittedDoor<'a, T, K> =
 ///
 /// # Errors
 ///
-/// The first half-edge whose certification refused, with the refusal.
+/// Every half-edge whose certification refused, with its refusal, in
+/// walk order.
 fn certify_walked<T: Decide, K: Copy>(
     walked: Vec<Walked<T, K>>,
     surface: &Surface<T>,
     band: Band,
     fitted: Option<FittedDoor<'_, T, K>>,
-) -> Result<Certified<T, K>, (K, PcurveCertifyError)> {
+) -> Result<Certified<T, K>, Vec<(K, PcurveCertifyError)>> {
     let Some(window) = hull_of(walked.iter().map(|w| w.pcurve.chart_box(w.t0, w.t1))) else {
         return Ok(Vec::new());
     };
     let mut rows = Vec::with_capacity(walked.len());
+    let mut refused = Vec::new();
     for w in walked {
         let cache = match (&w.pcurve, fitted) {
             (Pcurve::Fitted(_) | Pcurve::General(_), Some(fitted)) => fitted(&w, window),
@@ -2442,11 +2727,17 @@ fn certify_walked<T: Decide, K: Copy>(
                 window,
                 band,
             ),
+        };
+        match cache {
+            Ok(cache) => rows.push((w.key, cache)),
+            Err(error) => refused.push((w.key, error)),
         }
-        .map_err(|error| (w.key, error))?;
-        rows.push((w.key, cache));
     }
-    Ok(rows)
+    if refused.is_empty() {
+        Ok(rows)
+    } else {
+        Err(refused)
+    }
 }
 
 /// One half-edge of a face as a site mint's plan phase names it,
@@ -2748,13 +3039,13 @@ pub(crate) fn site_rows_owed<T: Decide>(
 ///   set, it stores nothing** ([`SiteRows::Clear`]): a carrier outside
 ///   the chart's closed-form classes, a certification that refuses, a
 ///   branch that meets no neighbour, a loop that does not close. The
-///   face is unminted, which is a legal at-rest state, and never
-///   half-minted. Where the minting pass would RAISE on that face, the
-///   operator does not: it runs mid-surgery, on states a later door
-///   finishes describing, and a producer's final pass is where such a
-///   face is minted or refused. A caller that runs no pass reads a
-///   rowless face, which tier 3's pcurve pass says nothing about
-///   (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
+///   face is unminted, never half-minted. Where the minting pass would
+///   RAISE on that face, the operator does not: it runs mid-surgery, on
+///   states a later door finishes describing (C4: a door may drop rows
+///   mid-surgery), and a producer's final pass is where such a face is
+///   minted or refused. A body left at rest without that pass reads
+///   loud at tier 3, which re-derives the rowless face and reports the
+///   refusal the mint would raise ([`validate_pcurves`]).
 ///
 /// **Cost.** One walk and one certification per half-edge of the loops
 /// the surgery rewires, and one presence read per half-edge of the rest
@@ -2843,7 +3134,7 @@ pub(crate) fn site_rows<T: Decide>(
             carriers.push(carrier);
             Ok(WalkItem { base, t0, t1, plus })
         };
-        let pinned = match walk_cycle(chart, halves.len(), item, band) {
+        let pinned = match walk_cycle(chart, halves.len(), item, band, true) {
             Ok(pinned) => pinned,
             Err(WalkFail::Item(ItemFail::Corrupt)) => return Err(SiteRowRefusal::Corrupt),
             Err(WalkFail::Item(ItemFail::Derive) | WalkFail::Miss { .. } | WalkFail::NotClosed) => {
@@ -2934,19 +3225,12 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
     let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(cycle.len());
     let item = |i: usize| -> Result<WalkItem<T>, PcurveMintError> {
         let he = cycle[i];
-        let (carrier, t0, t1) = half_edge_carrier(body, he)?;
-        let base = if surface.spline_chart().is_some() {
-            // Spline charts derive from the edge's intensional
-            // description (M6-3) — see `nurbs_iso_derive`.
-            nurbs_iso_derive(body, he, surface, band)?
-        } else {
-            analytic_derive(&carrier, t0, t1, surface, band, he)?
-        };
+        let (carrier, t0, t1, base) = derive_image(body, he, surface, band)?;
         let plus = is_plus(body, he)?;
         carriers.push(carrier);
         Ok(WalkItem { base, t0, t1, plus })
     };
-    let walked = walk_cycle(chart, cycle.len(), item, band).map_err(|fail| match fail {
+    let walked = walk_cycle(chart, cycle.len(), item, band, true).map_err(|fail| match fail {
         WalkFail::Item(e) => e,
         WalkFail::Miss {
             index,
@@ -2961,6 +3245,13 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
             half_edge: cycle[index],
             cause,
         },
+        WalkFail::Miss {
+            index,
+            miss: PinMiss::OutOfReach,
+        } => PcurveMintError::Certify {
+            half_edge: cycle[index],
+            error: PcurveCertifyError::BranchOutOfReach,
+        },
         WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
     })?;
     out.extend(cycle.iter().zip(carriers).zip(walked).map(
@@ -2973,6 +3264,118 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
         },
     ));
     Ok(())
+}
+
+/// **The runs of covered edges in a loop the walk could not close**:
+/// the loop read as the mint reads it, minus the edges it cannot image.
+/// Each half-edge's image is derived ([`derive_image`]), and every
+/// maximal run of consecutive derived images — cyclically, so a run may
+/// cross the loop's start — is walked as an open chain ([`walk_cycle`]
+/// without the closure), its joints pinned and checked exactly as the
+/// loop's own walk would. The pinned images join `out` for
+/// certification; a derivation's refusal, a joint's or a key's joins
+/// `refused`.
+fn walk_runs<T: AtRestPolicy>(
+    body: &Body<T>,
+    chart: DescribedChart<'_, T>,
+    cycle: &[HalfEdgeKey],
+    band: Band,
+    out: &mut Vec<Walked<T>>,
+    refused: &mut Vec<PcurveMintError>,
+) {
+    let surface = chart.surface();
+    type Derived<T> = (HalfEdgeKey, geom::Curve3<T>, WalkItem<T>);
+    let mut items: Vec<Option<Derived<T>>> = cycle
+        .iter()
+        .map(|&he| {
+            let derived =
+                derive_image(body, he, surface, band).and_then(|(carrier, t0, t1, base)| {
+                    let plus = is_plus(body, he)?;
+                    Ok((he, carrier, WalkItem { base, t0, t1, plus }))
+                });
+            derived.map_err(|e| refused.push(e)).ok()
+        })
+        .collect();
+    let n = items.len();
+    let start = items
+        .iter()
+        .position(Option::is_none)
+        .map_or(0, |gap| (gap + 1) % n.max(1));
+    let mut runs: Vec<Vec<Derived<T>>> = Vec::new();
+    let mut run: Vec<Derived<T>> = Vec::new();
+    for k in 0..n {
+        match items[(start + k) % n].take() {
+            Some(item) => run.push(item),
+            None => runs.push(core::mem::take(&mut run)),
+        }
+    }
+    runs.push(run);
+    for run in runs.into_iter().filter(|run| !run.is_empty()) {
+        let (keys, (carriers, mut walk_items)): (Vec<_>, (Vec<_>, Vec<_>)) = run
+            .into_iter()
+            .map(|(he, carrier, item)| (he, (carrier, Some(item))))
+            .unzip();
+        let item = |j: usize| walk_items[j].take().ok_or(PcurveMintError::Corrupt);
+        match walk_cycle(chart, keys.len(), item, band, false) {
+            Ok(pinned) => out.extend(keys.iter().zip(carriers).zip(pinned).map(
+                |((&key, carrier), (pcurve, t0, t1))| Walked {
+                    key,
+                    carrier,
+                    pcurve,
+                    t0,
+                    t1,
+                },
+            )),
+            Err(WalkFail::Miss {
+                index,
+                miss: PinMiss::Discontinuity,
+            }) => refused.push(PcurveMintError::LoopDiscontinuity {
+                half_edge: keys[index],
+            }),
+            Err(WalkFail::Miss {
+                index,
+                miss: PinMiss::Escalated(cause),
+            }) => refused.push(PcurveMintError::Escalated {
+                half_edge: keys[index],
+                cause,
+            }),
+            Err(WalkFail::Miss {
+                index,
+                miss: PinMiss::OutOfReach,
+            }) => refused.push(PcurveMintError::Certify {
+                half_edge: keys[index],
+                error: PcurveCertifyError::BranchOutOfReach,
+            }),
+            Err(WalkFail::Item(e)) => refused.push(e),
+            Err(WalkFail::NotClosed) => unreachable!("an open run checks no closure"),
+        }
+    }
+}
+
+/// **One half-edge's chart image on the chart's principal branch**,
+/// with its carrier and interval — the derivation the walk pins
+/// ([`walk_loop`]). The one step that forks by chart: a SPLINE chart
+/// derives from the edge's description ([`nurbs_iso_derive`]), every
+/// analytic chart from the carrier's closed form ([`chart_pcurve`]).
+///
+/// # Errors
+///
+/// A key that did not resolve, or the derivation's refusal.
+fn derive_image<T: AtRestPolicy>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(geom::Curve3<T>, T, T, Pcurve<T>), PcurveMintError> {
+    let (carrier, t0, t1) = half_edge_carrier(body, he)?;
+    let base = if surface.spline_chart().is_some() {
+        // Spline charts derive from the edge's intensional
+        // description (M6-3) — see `nurbs_iso_derive`.
+        nurbs_iso_derive(body, he, surface, band)?
+    } else {
+        analytic_derive(&carrier, t0, t1, surface, band, he)?
+    };
+    Ok((carrier, t0, t1, base))
 }
 
 /// One half-edge of a cycle as [`walk_cycle`] reads it: its chart
@@ -2996,6 +3399,10 @@ pub(crate) enum PinMiss {
     /// No representation fits and one of them escalated: the first
     /// such cause, deterministically.
     Escalated(Indeterminate),
+    /// No representation fits, none escalated, and one sat more than
+    /// [`geom_brep::MAX_BRANCH_PERIODS`] periods from the predecessor's
+    /// exit.
+    OutOfReach,
 }
 
 /// Why [`walk_cycle`] refused, with the index of the item it refused
@@ -3020,8 +3427,9 @@ pub(crate) enum WalkFail<E> {
 /// cycle order, asking `item` for each in turn (so an item's refusal
 /// is reported in cycle order, before any later item is read), pins
 /// each image's entry to its predecessor's exit ([`pin_branch`]), and
-/// checks the closure ([`loop_closes`]). Returns each item's pinned
-/// image with its interval.
+/// checks the closure ([`loop_closes`]) when `closes` — an open run of
+/// a loop ([`walk_runs`]) has no closure to check. Returns each item's
+/// pinned image with its interval.
 ///
 /// This is the whole of the minting walk except the derivation, and
 /// none of it needs the fitted lane: both of its callers —
@@ -3032,6 +3440,7 @@ fn walk_cycle<T: Decide, E>(
     len: usize,
     mut item: impl FnMut(usize) -> Result<WalkItem<T>, E>,
     band: Band,
+    closes: bool,
 ) -> Result<Vec<Pinned<T>>, WalkFail<E>> {
     // The chart's own u period (`chart_u_period`): `τ` on an analytic
     // azimuth chart, the knot-domain length on a NURBS chart closed in
@@ -3060,7 +3469,8 @@ fn walk_cycle<T: Decide, E>(
     // ordinary loop) or one full period around the chart (a loop that
     // wraps the periodic chart — the seam case, where the seam edge's
     // two half-edges take the two branches).
-    if let (Some(start), Some(end)) = (first_entry, prev_exit)
+    if closes
+        && let (Some(start), Some(end)) = (first_entry, prev_exit)
         && !loop_closes(chart, start, end, u_period, band)
     {
         return Err(WalkFail::NotClosed);
@@ -3093,17 +3503,17 @@ fn pin_branch<T: Decide>(
     let twin = sphere_twin(chart.surface(), &base);
     // A WRONG candidate's escalation is not the loop's
     // verdict: the base representation of a pole-crossing
-    // sphere pcurve sits π off, which lands its
-    // whole-period rounding EXACTLY on an integer
-    // boundary — at the interval scalar that floor spans
-    // two integers and the continuity margin becomes a
-    // full-period enclosure. The twin still fits exactly.
+    // sphere pcurve sits π off, which puts its gap EXACTLY
+    // on a half-period mark of the branch decision
+    // (`whole_periods`), so no branch is decided for it.
+    // The twin still fits exactly.
     // So escalations are DEFERRED per candidate and
     // surfaced (first one, deterministically) only when
     // no candidate fits — single-candidate charts keep
     // their old escalate-immediately behavior through
     // exactly that arm.
     let mut deferred: Option<Indeterminate> = None;
+    let mut out_of_reach = false;
     let candidates: Vec<Pcurve<T>> = core::iter::once(base).chain(twin).collect();
     for cand in candidates {
         let raw = cand.eval(entry_t);
@@ -3111,20 +3521,19 @@ fn pin_branch<T: Decide>(
         // spline chart whose whole u stretch sits under
         // the band: the lever is zero in metres) has no
         // branch to pick — every azimuth agrees there, and
-        // the whole-period rounding below would land on an
-        // integer boundary (the gap need not be a period at
-        // all), which the interval scalar honestly reports
-        // as a two-integer floor. Skip the shift; downstream
-        // joints anchor their own branches.
+        // the gap need not be near a whole period at all, so
+        // the branch decision below could sit on a
+        // half-period mark. Skip the shift; downstream joints
+        // anchor their own branches.
         //
         // **The in-band arm takes the same skip, and this
         // is the argument for it — which is NOT that a
         // sub-tolerance lever is harmless.** An escalated
         // arm means the lever's own size is undecided, so
         // whether a period shift is even meaningful is
-        // undecided with it, and rounding on an undecided
-        // lever would MANUFACTURE a branch choice from a
-        // measurement that refused. Skipping keeps the
+        // undecided with it, and deciding a branch through an
+        // undecided lever would MANUFACTURE a branch choice
+        // from a measurement that refused. Skipping keeps the
         // decision unmade. What makes that safe is not the
         // skip: it is that the continuity margins below run
         // unconditionally on the unshifted candidate and are
@@ -3138,17 +3547,41 @@ fn pin_branch<T: Decide>(
             Margin::of(joint_arm.magnitude()),
             band,
         ) {
-            Ok(Sign::Zero) | Err(_) => T::zero(),
+            Ok(Sign::Zero) | Err(_) => Ok(T::zero()),
             Ok(Sign::Positive | Sign::Negative) => match u_period {
-                Some(p) => (prev.x - raw.x).periodic_branch(p),
-                None => T::zero(),
+                Some(p) => whole_periods(
+                    "pcurve_loop_branch",
+                    prev.x - raw.x,
+                    p,
+                    |gap| joint_arm.meter(gap),
+                    band,
+                ),
+                None => Ok(T::zero()),
             },
         };
+        let ku = match ku {
+            Ok(k) => k,
+            Err(miss) => {
+                defer(miss, &mut deferred, &mut out_of_reach);
+                continue;
+            }
+        };
         let mut shifted = cand.shift_branch(ku, u_period.unwrap_or_else(T::zero));
-        if v_arm.is_some() {
+        if let Some(polar) = v_arm {
             let ry = shifted.eval(entry_t).y;
-            let kv = (prev.y - ry).periodic_branch(tau);
-            shifted = shift_polar_branch(&shifted, kv, tau);
+            match whole_periods(
+                "pcurve_loop_branch",
+                prev.y - ry,
+                tau,
+                |gap| Margin::levered(gap, polar),
+                band,
+            ) {
+                Ok(kv) => shifted = shift_polar_branch(&shifted, kv, tau),
+                Err(miss) => {
+                    defer(miss, &mut deferred, &mut out_of_reach);
+                    continue;
+                }
+            }
         }
         let entry = shifted.eval(entry_t);
         let arm = chart_u_arm(chart, prev.y);
@@ -3172,7 +3605,28 @@ fn pin_branch<T: Decide>(
             return Ok(shifted);
         }
     }
-    Err(deferred.map_or(PinMiss::Discontinuity, PinMiss::Escalated))
+    Err(match deferred {
+        Some(cause) => PinMiss::Escalated(cause),
+        None if out_of_reach => PinMiss::OutOfReach,
+        None => PinMiss::Discontinuity,
+    })
+}
+
+/// A candidate's branch [`pin_branch`] could not decide: an undecided
+/// mark is the first deferred cause, a gap past
+/// [`geom_brep::MAX_BRANCH_PERIODS`] is remembered by type, and a gap
+/// on a mark is the wrong candidate (a sphere's base image, π off its
+/// twin) and costs nothing.
+fn defer(miss: BranchMiss, deferred: &mut Option<Indeterminate>, out_of_reach: &mut bool) {
+    match miss {
+        BranchMiss::Undecided(cause) => {
+            if deferred.is_none() {
+                *deferred = Some(cause);
+            }
+        }
+        BranchMiss::OutOfReach => *out_of_reach = true,
+        BranchMiss::OnMark => {}
+    }
 }
 
 /// The chart image of one walked half-edge, in loop direction.
@@ -3232,6 +3686,9 @@ fn chart_edge<T: Decide>(
         // `_` arm there already answers from `eval` over the span
         // hull.
         Pcurve::Spiric { .. } => false,
+        // A cone section's image is curved in both channels, and takes
+        // the same envelope door.
+        Pcurve::ConeSection { .. } => false,
         Pcurve::Fitted(_) | Pcurve::General(_) => false,
     };
     if straight {
@@ -3292,7 +3749,7 @@ fn chart_edge<T: Decide>(
 /// Nothing is read from the pcurve CACHES except a `Fitted`/`General`
 /// image's certificate: every chart image is re-derived by the loop
 /// walk, exactly as [`mint_pcurves`] derives it, so a body that never
-/// ran the minting pass (every extrude) describes perfectly well.
+/// ran the minting pass describes as well as one that did.
 ///
 /// # Which charts this describes
 ///
@@ -3458,31 +3915,67 @@ pub fn chart_boundary<T: AtRestPolicy>(
     ChartBound::assembled(outer, rings, period, u_arm, band)
 }
 
-/// The at-rest pcurve pass the tier-3 validator runs (spec §5:
-/// **certificate present + replay passes + trim containment**).
+/// The at-rest pcurve pass the tier-3 validator runs (C4: on every
+/// chart that mints, **every half-edge stores its certified row** —
+/// except on a face whose rows are not owed ([`not_owed`]), the
+/// exemption C4 keeps until each uncovered class's route lands — and
+/// every stored row re-certifies).
 ///
-/// For every face that **carries at least one** stored cache (a body
-/// that never ran the minting pass has none, and the pass says nothing
-/// about it — absence is never a claim; the mint leaves a face uncached
-/// only for a pair no lane covers yet,
-/// [`PcurveCertifyError::UnsupportedCarrier`], and refuses a carrier
-/// off its face):
+/// For every face whose chart mints ([`DescribedChart::minting`]):
 ///
-/// 1. the cache set of that face is COMPLETE — every half-edge of
-///    every loop carries one (a half-minted face is a defect, not a
-///    licence to derive the rest);
-/// 2. the face's chart window is re-derived from the STORED caches and
-///    each cache is **re-certified** against it — the stored
-///    certificate is never consulted (re-certification re-derives, it
-///    does not trust, exactly as [`geom_brep::EdgeCurve::recertify`]);
-/// 3. the loop's one-branch continuity is re-checked on the stored
-///    pcurves, so a body whose branches were tampered with fails here
-///    even if each pcurve certifies in isolation.
+/// 1. **A face that stores none of its rows is re-derived** — the
+///    minting pass over it, storing nothing ([`derive_face`]) — so the
+///    finding says why the rows are missing: they derive and certify
+///    ([`PcurveMintError::Unminted`]: the body was not minted after it
+///    was built or edited), or the derivation refuses (that refusal).
+///    A face whose rows are not owed ([`not_owed`]: an uncovered class,
+///    or a fitted face at a scalar with no fitted door) is excused here
+///    by the same predicate as at the mint, read over the whole face:
+///    every edge the mint can image is walked through its joints and
+///    certified as the mint would, so a covered edge's refusal is the
+///    face's whichever uncovered edge shares it.
+///    A face a null edge holds open ([`held_open`]) is not derived: the
+///    edge has no carrier to derive from, and the scaffold is tier 2's
+///    finding at rest.
+/// 2. **A face that stores some of its rows** reports each gap
+///    ([`PcurveMintError::MissingCache`]), and the derivation's refusal
+///    where it refuses; the rows it does store are measured as a
+///    complete face's are, below.
+/// 3. **Every stored row states its edge's interval**
+///    ([`PcurveMintError::RowInterval`] where it does not — a row left
+///    from before a split or a carrier swap) **and is re-certified**
+///    against the window the face's stored rows hull out to, on a
+///    complete face and a half-minted one alike. The stored certificate
+///    is never consulted (re-certification re-derives, it does not
+///    trust, exactly as [`geom_brep::EdgeCurve::recertify`]). The window
+///    is the stored rows' and not a fresh walk's: a loop's rows may
+///    stand a whole period over, or on a sphere's involution twin, from
+///    a fresh walk and describe the same face (`Body::revert`'s
+///    re-statement), so no branch enters what a row is measured
+///    against.
+/// 4. **Each loop's one-branch continuity is re-checked** on the stored
+///    pcurves, as the mint's walk reads the loop: every joint exactly,
+///    except the one the walk lets wrap (into the cycle's first
+///    half-edge), read as the closure, which may wrap the chart by a
+///    whole period. The chain runs once around from the loop's first
+///    stored row. A half-edge that stores no row is carried by the image
+///    the mint would derive there, pinned as the walk pins it, so the
+///    rows either side of a gap are measured across it and the wrap is
+///    read whenever the chain reaches it (at the next stored row, where
+///    the gap is the cycle's first half-edge); a gap the derivation
+///    cannot place breaks the chain. So a body whose branches were
+///    tampered with fails here even if each pcurve certifies in
+///    isolation, and the verdict hangs neither on which half-edge is the
+///    gap nor on the branch the loop's rows stand on.
+///
+/// **Check 5 (trim containment) is vacuous here**: every row is
+/// measured against the hull of the stored rows, its own box among
+/// them. What it would take to restore a window check that can fail is
+/// `work/pcert/at-rest-trim-containment-checks-against-the-stored-hull`.
 ///
 /// Returns the findings in face-arena / loop / cycle order (D9),
-/// empty when the body is clean. Bodies with no stored caches (every
-/// all-planar body, and every body built before a curved face existed)
-/// produce no findings — absence is not a defect.
+/// empty when the body is clean. A planar face stores nothing and is
+/// not read.
 pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<PcurveMintError> {
     let mut findings = Vec::new();
     // The fitted door every `Fitted`/`General` row re-derives through,
@@ -3497,47 +3990,79 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
         let Some(chart) = DescribedChart::minting(surface) else {
             continue;
         };
-        // Passes 0 and 1, over ONE walk of the face's loops
-        // ([`stored_rows`], shared with `split_cache` and the Euler
-        // operators' site mint): the window its stored rows hull out
-        // to, and the presence check over the half-edges that walk
-        // reached ([`StoredRows::complete`]).
-        //
-        // No window at all is a face that carries no cache: a body
-        // that never ran the minting pass (every sweep output, every
-        // pre-M5 body) simply has none, absence is not a defect, and
-        // the pass says nothing about it. Once ONE half-edge of a face
-        // carries a cache, the set must be COMPLETE: a half-minted
-        // face is the defect this checks for.
+        // One walk of the face's loops ([`stored_rows`], shared with
+        // `split_cache` and the Euler operators' site mint): the rows
+        // it stores, the window they hull out to, and the gaps.
         let stored = stored_rows(body, face);
-        let Some(window) = stored.window else {
-            continue;
-        };
-        if !stored.complete() {
+        // Every stored row is measured against the window the stored
+        // rows hull out to, on a complete face and a half-minted one
+        // alike. The derivation's window is no reference for them: a
+        // loop's rows may stand one whole period over (or, on a sphere,
+        // on the involution twin) from a fresh walk and describe the
+        // same face — the re-statement `Body::revert` makes — so what a
+        // row may not do is checked where no branch enters: its
+        // interval against its edge's (below).
+        let window = if stored.complete() {
+            stored.window
+        } else {
+            // A loop a null edge holds open cannot be walked (its halves
+            // have no carrier), so there is no derivation to read; the
+            // scaffold is tier 2's finding at rest, and the gaps are
+            // reported as found.
+            let open = match stored.open_loops(body) {
+                Ok(open) => !open.is_empty(),
+                Err(_) => {
+                    findings.push(PcurveMintError::Corrupt);
+                    continue;
+                }
+            };
+            let refusal = if open {
+                None
+            } else {
+                derive_face(body, face_key, band).err()
+            };
+            if stored.window.is_none() {
+                match refusal {
+                    None if stored.gaps.is_empty() || open => {}
+                    None => findings.push(PcurveMintError::Unminted { face: face_key }),
+                    Some(e) if not_owed::<T>(&e) => {}
+                    Some(e) => findings.push(e),
+                }
+                continue;
+            }
             findings.extend(stored.gaps.iter().map(|gap| match *gap {
                 RowGap::Corrupt => PcurveMintError::Corrupt,
                 RowGap::Missing { half_edge, .. } => PcurveMintError::MissingCache { half_edge },
             }));
+            if let Some(e) = refusal.filter(|e| !not_owed::<T>(e)) {
+                findings.push(e);
+            }
+            stored.window
+        };
+        let Some(window) = window else {
             continue;
-        }
+        };
         let cycles: Vec<Vec<HalfEdgeKey>> = stored
             .loops
             .into_iter()
             .filter_map(|(_, cycle)| cycle)
             .collect();
-        // Pass 2: replay every stored certificate against that window.
+        // Re-certify every stored row against the window.
         for cycle in &cycles {
             for &he in cycle {
                 let Some(cache) = body.pcurve(he) else {
                     continue;
                 };
-                let carrier = match half_edge_carrier(body, he) {
-                    Ok((c, _, _)) => c,
+                let (carrier, _, _) = match half_edge_carrier(body, he) {
+                    Ok(found) => found,
                     Err(e) => {
                         findings.push(e);
                         continue;
                     }
                 };
+                if let Err(e) = row_interval(body, he, cache, &carrier, band) {
+                    findings.push(e);
+                }
                 let mate = mate_surface(body, he);
                 if let Err(error) =
                     cache.recertify(&carrier, surface, mate.as_ref(), window, band, lane)
@@ -3549,52 +4074,103 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 }
             }
         }
-        // Pass 3: the one-branch loop continuity of the STORED pcurves.
+        // The one-branch loop continuity of the STORED pcurves, read as
+        // the mint's walk reads a loop: every joint pinned exactly, except
+        // the one the walk lets wrap — into the cycle's first half-edge,
+        // whose image the walk takes on its own branch — which is read as
+        // the closure (it may wrap the chart by a whole period). The chain
+        // starts at the loop's first stored row and runs once around back
+        // to it. A half-edge that stores no row is carried by the image the
+        // mint would derive for it ([`derive_image`]), pinned to the chain
+        // as the walk pins it ([`pin_branch`]); where that half-edge is the
+        // cycle's first, the wrap passes to the next stored row the chain
+        // reaches. So the rows either side of a gap are measured across
+        // it, the wrap is read whenever the chain reaches it, and a loop's
+        // verdict does not hang on which half-edge is the gap, nor on the
+        // branch its rows stand on (a loop moved a whole period over reads
+        // as it did). A gap the derivation cannot place breaks the chain
+        // until the next stored row.
         let v_meter = v_meter(chart);
-        for cycle in &cycles {
-            let mut prev_exit: Option<geom_core::Point2<T>> = None;
-            let mut first_entry: Option<geom_core::Point2<T>> = None;
-            for &he in cycle {
-                let Some(cache) = body.pcurve(he) else {
-                    continue;
-                };
+        let u_period = chart_u_period(surface, band);
+        let ends = |he: HalfEdgeKey| -> Result<Option<(Pcurve<T>, T, T)>, PcurveMintError> {
+            let plus = is_plus(body, he)?;
+            Ok(body.pcurve(he).map(|cache| {
                 let (t0, t1) = cache.params();
-                let plus = match is_plus(body, he) {
-                    Ok(v) => v,
+                let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
+                (cache.pcurve().clone(), entry_t, exit_t)
+            }))
+        };
+        let derived = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
+            let (_, t0, t1, base) = derive_image(body, he, surface, band).ok()?;
+            let plus = is_plus(body, he).ok()?;
+            let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
+            Some((base, entry_t, exit_t))
+        };
+        for cycle in &cycles {
+            let n = cycle.len();
+            let mut rows = Vec::with_capacity(n);
+            for &he in cycle {
+                match ends(he) {
+                    Ok(row) => rows.push(row),
                     Err(e) => {
                         findings.push(e);
-                        continue;
+                        rows.push(None);
                     }
+                }
+            }
+            let Some(anchor) = rows.iter().position(Option::is_some) else {
+                continue;
+            };
+            let mut prev_exit: Option<geom_core::Point2<T>> = rows[anchor]
+                .as_ref()
+                .map(|(pcurve, _, exit_t)| pcurve.eval(*exit_t));
+            // Whether the chain has passed the cycle's first half-edge
+            // since its last stored row, so the next stored row's joint
+            // is the wrap.
+            let mut wrap_due = false;
+            for k in 1..=n {
+                let i = (anchor + k) % n;
+                if i == 0 {
+                    wrap_due = true;
+                }
+                let he = cycle[i];
+                let Some((pcurve, entry_t, exit_t)) = &rows[i] else {
+                    prev_exit = prev_exit.and_then(|prev| {
+                        let (base, entry_t, exit_t) = derived(he)?;
+                        pin_branch(chart, base, entry_t, prev, u_period, band)
+                            .ok()
+                            .map(|pinned| pinned.eval(exit_t))
+                    });
+                    continue;
                 };
-                let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
-                let entry = cache.pcurve().eval(entry_t);
+                let entry = pcurve.eval(*entry_t);
                 if let Some(prev) = prev_exit {
-                    let arm = chart_u_arm(chart, prev.y);
-                    for margin in [
-                        arm.meter(entry.x - prev.x),
-                        Margin::metered_sup(entry.y - prev.y, v_meter),
-                    ] {
-                        match decide("pcurve_loop_continuity", margin, band) {
-                            Ok(Sign::Zero) => {}
-                            Ok(Sign::Positive | Sign::Negative) => {
-                                findings.push(PcurveMintError::LoopDiscontinuity { half_edge: he });
+                    if wrap_due {
+                        if !loop_closes(chart, entry, prev, u_period, band) {
+                            findings.push(PcurveMintError::LoopNotClosed { face: face_key });
+                        }
+                    } else {
+                        let arm = chart_u_arm(chart, prev.y);
+                        for margin in [
+                            arm.meter(entry.x - prev.x),
+                            Margin::metered_sup(entry.y - prev.y, v_meter),
+                        ] {
+                            match decide("pcurve_loop_continuity", margin, band) {
+                                Ok(Sign::Zero) => {}
+                                Ok(Sign::Positive | Sign::Negative) => {
+                                    findings
+                                        .push(PcurveMintError::LoopDiscontinuity { half_edge: he });
+                                }
+                                Err(cause) => findings.push(PcurveMintError::Escalated {
+                                    half_edge: he,
+                                    cause,
+                                }),
                             }
-                            Err(cause) => findings.push(PcurveMintError::Escalated {
-                                half_edge: he,
-                                cause,
-                            }),
                         }
                     }
                 }
-                if first_entry.is_none() {
-                    first_entry = Some(entry);
-                }
-                prev_exit = Some(cache.pcurve().eval(exit_t));
-            }
-            if let (Some(start), Some(end)) = (first_entry, prev_exit)
-                && !loop_closes(chart, start, end, chart_u_period(surface, band), band)
-            {
-                findings.push(PcurveMintError::LoopNotClosed { face: face_key });
+                wrap_due = false;
+                prev_exit = Some(pcurve.eval(*exit_t));
             }
         }
     }
@@ -3660,8 +4236,8 @@ pub(crate) mod staleness_posture {
         /// Leaves the map exactly as it found it — a primitive, or a
         /// write the map is not keyed on. What this bucket rests on is
         /// the tier-3 pcurve pass, and only as far as that pass looks
-        /// (module docs): it reports an INCOMPLETE face, and a face
-        /// whose rows no longer certify; it is silent about a complete
+        /// (module docs): it reports a face missing any of its rows,
+        /// and a stored row that no longer certifies; it is silent about a complete
         /// face whose rows were stated in another chart and certify
         /// against this one, and about any face on a chart
         /// [`super::chart_mints`] refuses.
@@ -4001,11 +4577,6 @@ pub(crate) mod staleness_posture {
              on whose only gaps a null edge holds open, every loop no other null edge holds \
              open is re-minted whole before the door mutates, and on one no null edge is \
              left on, every loop, whatever it missed",
-            ),
-            (
-                "set_edge_curve_nurbs_lane",
-                Completes,
-                "`set_edge_curve` with the NURBS certifier injected",
             ),
             (
                 "describe_at_rest",
@@ -4401,7 +4972,7 @@ mod stretch_meter {
                 "an in-band lever ({span:e}) escalates rather than deciding"
             );
         }
-        // And a real chart reaches the periodic rounding.
+        // And a real chart reaches the branch decision.
         assert_eq!(
             decide(
                 "pcurve_loop_pole_joint",
@@ -4533,6 +5104,12 @@ mod recourse_tests {
             PcurveMintError::MissingCache {
                 half_edge: HalfEdgeKey::default(),
             },
+            PcurveMintError::Unminted {
+                face: FaceKey::default(),
+            },
+            PcurveMintError::RowInterval {
+                half_edge: HalfEdgeKey::default(),
+            },
             PcurveMintError::Escalated {
                 half_edge: HalfEdgeKey::default(),
                 cause,
@@ -4545,7 +5122,7 @@ mod recourse_tests {
                 face: FaceKey::default(),
             },
         ];
-        assert_eq!(arms.len(), 12, "an arm was added without a row here");
+        assert_eq!(arms.len(), 14, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             match arm {
@@ -4577,8 +5154,8 @@ mod recourse_tests {
 /// Called directly, not through a body: the one arm that reaches it is
 /// an `Intersection` seam on a spline chart, and attaching that edge
 /// needs the plane × NURBS lane, which only a certifying scalar holds
-/// (`Body::set_edge_curve_nurbs_lane`'s `CertifiedBounds` block), so no
-/// `Dual64` body carries one.
+/// (`AtRestPolicy::nurbs_lane` is `None` at a dual), so no `Dual64`
+/// body carries one.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod derive_without_a_door {

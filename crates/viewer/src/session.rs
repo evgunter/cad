@@ -234,7 +234,10 @@ fn driver_of(
     let row = props::slot_rows(doc, node)
         .into_iter()
         .find(|row| row.slot == slot)
-        .ok_or(Refusal::NoSuchSlot { node, slot })?;
+        .ok_or_else(|| Refusal::NoSuchSlot {
+            node: doc.spoken(node),
+            slot,
+        })?;
     Ok((row.driver, row.value.ok()))
 }
 
@@ -1302,7 +1305,7 @@ impl DocSession {
                 // `Assembly`, and a document with no gate to run never
                 // gave it away.
                 let (at_rest, body) = if assembly_shaped {
-                    let (verdict, kept) = badge(assemble_gathered(product, self.tol));
+                    let (verdict, kept) = badge(doc, assemble_gathered(product, self.tol));
                     (Some(verdict), kept)
                 } else {
                     (None, Some(Arc::new(product.body.into_body())))
@@ -2430,8 +2433,8 @@ impl DocSession {
     /// committing it** — the edit door's own `Applied::maintenance` for
     /// the one `SetProgram` the op would commit, netted by
     /// [`MaintenanceNet`] as the commit nets it: every name on a step
-    /// the reshaping drops, stranded. Empty when the op would write
-    /// nothing.
+    /// the reshaping drops, or on a kept step's piece it stops drawing,
+    /// stranded. Empty when the op would write nothing.
     ///
     /// The profile editor reads it BEFORE its Apply, while the person
     /// can still keep the step; the op's outcome carries the same rows
@@ -2478,7 +2481,9 @@ impl DocSession {
         // person meant. Compared by value, so a unit rewrite since the
         // load does not refuse.
         if current != base {
-            return Err(Refusal::ProfileEditStale { node });
+            return Err(Refusal::ProfileEditStale {
+                node: doc.spoken(node),
+            });
         }
         let loops = carry_unmoved(doc, node, current, loops, &ids, self.notation)?;
         let unchanged = sketch::is_committed(current, &loops, &ids);
@@ -2570,9 +2575,14 @@ impl DocSession {
         let resolver = self.run_resolver();
         let memo = self.memo_under(&resolver);
         let judged = evaluate_beside(&staged.doc, memo.as_deref(), &resolver, self.tol);
-        if let Some(refused) =
-            RefusedBoolean::read(&judged, node, (op, [a, b]), declare, self.generation)
-        {
+        if let Some(refused) = RefusedBoolean::read(
+            &staged.doc,
+            &judged,
+            node,
+            (op, [a, b]),
+            declare,
+            self.generation,
+        ) {
             return OpOutcome::refused(Refusal::Contact(Box::new(refused)));
         }
         self.record_run(staged)
@@ -2704,7 +2714,7 @@ impl DocSession {
         let step = match self.landed_pair() {
             None => Err(DuplicateFault::NotLanded),
             Some(_) if self.busy() => Err(DuplicateFault::Stale),
-            Some((_, eval)) => combine::duplicate_step(eval, input, self.tol),
+            Some((doc, eval)) => combine::duplicate_step(doc, eval, input, self.tol),
         };
         let step = match step {
             Ok(step) => step,
@@ -2779,10 +2789,14 @@ impl DocSession {
     /// wrong-kind refuse the same arm, because both mean "there is
     /// nothing of that kind there to consume".
     fn require_kind(&self, node: RecipeNodeId, wanted: NodeKindWanted) -> Result<(), Refusal> {
-        if admits(self.committed_doc().node(node), wanted) {
+        let doc = self.committed_doc();
+        if admits(doc.node(node), wanted) {
             Ok(())
         } else {
-            Err(Refusal::WrongNodeKind { node, wanted })
+            Err(Refusal::WrongNodeKind {
+                node: doc.spoken(node),
+                wanted,
+            })
         }
     }
 
@@ -3141,15 +3155,19 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
 
 /// One A5 verdict as the badge that shows it — the gate's own
 /// vocabulary either way: a certification with its minted count, or
-/// the typed refusal rendered by its own `Display` — **and the
-/// aggregate the gate hands back with it**.
+/// the typed refusal with its nodes spoken from `doc`, the landed
+/// document the gate judged — **and the aggregate the gate hands back
+/// with it**.
 ///
 /// The gate CONSUMES the product it judges. A certification returns
 /// the same body on its `Assembly` and a refusal returns nothing, so
 /// the body is an `Option` here for the same reason
 /// [`Gathered::body`] is one, and this is the one place that fact is
 /// read off the gate's own result type.
-fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
+fn badge(
+    doc: &Doc<ProfileProgram>,
+    verdict: Result<Assembly<f64>, AssemblyError>,
+) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
     match verdict {
         Ok(assembly) => (
             AtRestBadge::Certified {
@@ -3159,7 +3177,7 @@ fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> (AtRestBadge, Option<
         ),
         Err(refusal) => (
             AtRestBadge::Refused {
-                message: refusal.to_string(),
+                message: refusal.spoken(doc),
             },
             None,
         ),

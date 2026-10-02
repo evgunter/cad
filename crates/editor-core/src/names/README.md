@@ -51,7 +51,9 @@ subdivided axis run — an on-axis side carried by several collinear legs, which
 the continuation verbs author — is structurally a pole and takes `Pole(v)` like
 the run's tips. A FULL revolve deletes the axis run outright, so an interior
 vertex of it has no body entity and nothing to name: the export's `None` is the
-answer there, and the run's tips are the only named on-axis vertices. Totality
+answer there. Nor does a tip where a plane wall meets the axis: the full revolve
+builds that disc whole, its centre no vertex, so it too exports `None`; the tips
+a cone or a curved wall ends on are the named on-axis vertices. Totality
 is the check on that silence — `check_total` refuses a table leaving a LIVE body
 vertex unnamed, so a `None` standing over surviving geometry cannot pass.
 
@@ -161,6 +163,12 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   - A step that `SetProgram` drops takes its id with it. A name on that step
     keeps its spelling and resolves `Vanished`, and DM7's report names it.
     Because the id is never minted again, no later program can draw it.
+  - A `SetProgram` that keeps a step can still leave one of its pieces
+    undrawn, when a piece it adds or moves earlier on the same carrier
+    takes the segment: a fillet inserted before a leg takes the leg's.
+    A name on that piece keeps its spelling and resolves `Vanished`, and
+    DM7's report names it, as it does for a dropped step. It comes back
+    only when a later program draws it again.
 - **The canonical numbering is not a name.** It is still the order in which
   the emitters, the loft's correspondence and the viewer's per-segment marks
   iterate (V3, DM8). When a profile's value is built, the naming anchor
@@ -183,11 +191,13 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   piece after the start vertex. `LateralEdge` and `BandRim` are minted only
   where an entity exists, so a station inside a run has none; rims and cap
   vertices stay per piece. A run wall is not a merge and never `Merged`.
-  Covers and offers (N3) read one constituents view shared by every role
-  that holds a set (`Merged`, `LoftWall`, a run wall): `Lateral([p0, p1])`
+  Covers and offers (N3) read one constituents view shared by every row
+  that holds a set of names — a `Merged` face, and a run held by
+  `Lateral`, `Band`, `BandPi` or `Meridian(end, ·)`: `Lateral([p0, p1])`
   covers `Lateral([p0])`, so a selection made before a station was inserted
   is offered the run wall, and an edit that breaks a run offers its pieces'
-  walls.
+  walls. A `LoftWall` holds one locator per section of ONE wall, not a set
+  of walls, so it has no constituents in that view.
 
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment:

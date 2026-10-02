@@ -65,10 +65,11 @@ fn notched(dy: f64) -> ProfileLoop<f64> {
 }
 
 fn plane_y1() -> topo::SplitPlane<f64> {
-    topo::SplitPlane {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-    }
+    topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// The two face surfaces an edge actually lies between, in this body.
@@ -222,12 +223,22 @@ fn coplanar_split_e2e_volume_and_watertight() {
         .volume;
     let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
     let mut total = 0.0;
+    let mut shared_points = 0;
     for (name, part) in [("above", &result.above), ("below", &result.below)] {
         let b = part.body().expect("side has material");
         assert_eq!(
             topo::validate_geometric(b, Tol::witness()),
             Ok(()),
             "{name} at tier 3"
+        );
+        // The pinch's tip copies share the cut vertex's point (D1 tier
+        // 3′), so the census clears the touch with no records.
+        let points: std::collections::BTreeSet<_> = b.vertices().map(|(_, v)| v.point).collect();
+        shared_points += b.vertices().count() - points.len();
+        assert_eq!(
+            topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), Tol::witness()),
+            Ok(()),
+            "{name} passes the pseudomanifold door with no records"
         );
         total += topo::mass_properties(b, Tol::witness())
             .unwrap_or_else(|e| panic!("{name} mass properties: {e:?}"))
@@ -240,6 +251,7 @@ fn coplanar_split_e2e_volume_and_watertight() {
         (total - v0).abs() <= 1e-12 * v0,
         "volume conserved: {total} vs {v0}"
     );
+    assert!(shared_points > 0, "a pinch half holds copies on one point");
 }
 
 /// PROBE 5: a DECLARED locus through the coplanar restatement. The

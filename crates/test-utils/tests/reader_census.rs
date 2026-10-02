@@ -371,6 +371,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the Boolean's decision sites, code view
     },
     Entry {
+        path: "crates/topo/src/boolean/ops.rs",
+        disposition: Shared, // the smooth seam arm's route through the rule, code view
+    },
+    Entry {
         path: "crates/topo/src/boolean/wall_section_rows.rs",
         disposition: Shared, // the window-construction site list, code view
     },
@@ -475,6 +479,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/viewer/tests/tree_badges.rs",
         disposition: Shared, // the standing doors' as-drawn census, code view
+    },
+    Entry {
+        path: "tools/k-lint/tests/construction_coupled.rs",
+        disposition: Shared, // rule (5)'s pin on the fitted lane: code view to locate, literal view to read
     },
     Entry {
         path: "tools/k-lint/tests/predicate_roster.rs",

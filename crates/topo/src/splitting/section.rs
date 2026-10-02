@@ -74,7 +74,7 @@ pub struct Section<T: Real> {
 #[derive(Debug)]
 pub enum SectionError<T: Real> {
     /// The reduce or join stage refused, exactly as it does for
-    /// [`super::split`] (a pure-tangency section included).
+    /// [`super::split`] (a curved face's zero-area graze included).
     Split(SplitError),
     /// Whether a section polygon is an outline or a hole cannot be
     /// read: its winding is in the band (`diag`), or (`None`) zero, or
@@ -86,11 +86,8 @@ pub enum SectionError<T: Real> {
         diag: Option<Indeterminate>,
     },
     /// Nothing decides which outline encloses a hole — an outline edge
-    /// on a spiric or NURBS carrier, a contact or containment in the
-    /// band, or a clockwise sliver the join mints when it chords a
-    /// curved face across the wrong arc, which touches the outline
-    /// around it
-    /// (`work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`).
+    /// on a spiric or NURBS carrier, or a contact or containment in the
+    /// band ([`super::section_loops`]'s `nest` says what else could).
     /// The split keeps such a hole as a face of its own; a region list
     /// cannot state it.
     UnplacedHole {
@@ -180,10 +177,11 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// # Errors
 ///
 /// [`SectionError`]: [`SectionError::Split`] passes the reduce and join
-/// stages' refusals through unchanged — in particular a pure-tangency
-/// section REFUSES (`DegenerateSection`, exactly as [`super::split`]
-/// does) rather than reporting a degenerate zero-area trace.
-pub fn plane_section<T: geom_core::Decide>(
+/// stages' refusals through unchanged — in particular a zero-area
+/// section (a curved face's graze) REFUSES (`DegenerateSection`,
+/// exactly as [`super::split`] does) rather than reporting a
+/// degenerate trace.
+pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -193,7 +191,7 @@ pub fn plane_section<T: geom_core::Decide>(
         .map_err(|e| SectionError::Split(SplitError::Reduce(SplitReduceError::from(e))))?;
     // The below loops are read, so the frame is the below section
     // face's: its outward normal, and `u_ref × v_ref` equals it.
-    let normal = section_loops::section_normal(plane.normal, PlaneSide::Below);
+    let normal = section_loops::section_normal(plane.normal.get(), PlaneSide::Below);
 
     let mut u_ref = None;
     let mut v_ref = None;

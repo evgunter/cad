@@ -5,7 +5,7 @@ scene into a store and evaluates what it reads back; here nothing goes
 near disk that this file did not put there. Two part documents are
 authored, written into a workspace, instantiated into two assembly
 documents, mated, solved, gathered and gated — the whole of the audit's
-rows 46 and 47 through the public doors.
+row 44 through the public doors.
 
 THE SCENE IS `bench_scene.py`, AND THE ORACLE COMES FROM THE TOUR
 -----------------------------------------------------------------
@@ -16,7 +16,9 @@ with the earliest as root, the far post's solved translation, the
 identity rotation two aligned frame-coincidence mates compose to, two
 minted declarations, and a gate that certifies. Every number below is
 that scene's, re-derived from the same base dimensions rather than
-copied as a total.
+copied as a total. The tour's bench also stands on a turntable gauge
+and carries a crate, whose declaration is a third; this scene
+authors neither (`bench_scene.py`'s header).
 
 The constants, the two part shapes and the two assembly recipes live
 in `bench_scene.py`, which both this file and `test_assembly_eval.py`
@@ -169,7 +171,7 @@ SPELLINGS = {"pattern": Node.pattern, "placed_union": Node.placed_union}
 
 
 class TestBenchLayout(BenchWorkspace):
-    """Row 47: the flat-pack. The posts on their side and the shelf
+    """Row 44's flat-pack: The posts on their side and the shelf
     beside them, nothing touching — A5's disjoint half.
 
     The layout has no mates, so the group, the solve and the minted
@@ -455,7 +457,7 @@ class TestBenchLayout(BenchWorkspace):
 
 
 class TestBenchStand(BenchWorkspace):
-    """Row 46: the assembled bench. Two posts and a shelf, the shelf
+    """Row 44's assembled bench: Two posts and a shelf, the shelf
     SEATED on the posts by mates — only the root post keeps an offset,
     and the other two poses are solved."""
 
@@ -1209,6 +1211,21 @@ class TestAssemblyRefusals(BenchWorkspace):
             product(doc, evaluate(doc))
         self.assertEqual(gather.exception.variant, "root_failed")
 
+    def test_a_gather_refusal_speaks_its_root_from_the_evaluated_document(self):
+        doc = Doc("no-resolver-labelled")
+        lonely = doc.insert(Node.instantiate_part(self.post_ref))
+        doc.apply(DocEdit.set_label(lonely, "lonely post"))
+        ev = evaluate(doc)
+        # The message says the root as the evaluation's document holds
+        # it, label and all; said by tag it would read `node <tag>`.
+        # The payload keeps the full id either way.
+        for door in (product, pncad.product_named):
+            with self.assertRaises(pncad.ProductError) as gather:
+                door(doc, ev)
+            self.assertEqual(gather.exception.variant, "root_failed")
+            self.assertIn('InstantiatePart "lonely post" (', str(gather.exception))
+            self.assertEqual(gather.exception.node, lonely)
+
     def test_a_moved_pin_refuses_and_carries_its_recourse_once_by_either_door(self):
         doc, post_i, _ = self.two_instances()
         # A part legitimately changes on disk. The assembly still pins
@@ -1662,6 +1679,31 @@ class TestRefactorings(BenchWorkspace):
 
     def volume(self, doc):
         return product(doc, evaluate(doc, resolver=self.ws)).mass_properties().volume
+
+    def test_split_and_inline_list_their_node_maps_in_document_order(self):
+        # A NodeId has no order a caller can read, so the list's own
+        # order is the only one it gets: the document's. Six instances
+        # make an id order that happens to match it a 1-in-720 accident.
+        doc = Doc("refactor-order")
+        cut = []
+        for i in range(6):
+            node = doc.insert(Node.instantiate_part(self.post_ref))
+            doc.apply(
+                DocEdit.set_offset(node, Placement.literal(Frame.translation((i * m, 0 * m, 0 * m))))
+            )
+            cut.append(node)
+        outcome = pncad.split(doc, cut, random_document_id())
+        self.assertEqual([a for a, _ in outcome.node_map], cut)
+        self.assertEqual([b for _, b in outcome.node_map], outcome.part.order())
+
+        self.ws.create(outcome.part)
+        spliced = pncad.inline(outcome.remainder, outcome.instance, self.ws)
+        self.assertEqual([a for a, _ in spliced.node_map], outcome.part.order())
+        landed = {b for _, b in spliced.node_map}
+        self.assertEqual(
+            [b for _, b in spliced.node_map],
+            [n for n in spliced.doc.order() if n in landed],
+        )
 
     def test_split_then_inline_preserves_the_products_material_exactly(self):
         doc, _, shelf_i = self.layout()

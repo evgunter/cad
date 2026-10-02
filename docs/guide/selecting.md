@@ -277,7 +277,7 @@ let seam = StableName {
     node,
     path: vec![RoleSeg::Seam {
         a: face(vec![RoleSeg::Cap(CapEnd::End)]).into(),
-        b: face(vec![RoleSeg::Band(ProfileEdgeRef::Piece { step: StepId(1), role: PieceRole::Leg })]).into(),
+        b: face(vec![RoleSeg::Band(ProfileEdgeRef::Piece { step: StepId(1), role: PieceRole::Leg }.into())]).into(),
     }],
 };
 
@@ -476,10 +476,10 @@ let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
 // The refusal IS the menu: it carries the candidate
 // declaration — the pair by stable name, with its relation — in
 // the detector's own value shape.
-let NodeErrorKind::UndeclaredContact { finding, .. } = &e.kind else {
+let NodeErrorKind::UndeclaredCoincidence { finding, .. } = &e.kind else {
     panic!("expected the refusal menu, got {:?}", e.kind);
 };
-assert_eq!(finding.class, ContactClass::Rest);
+assert_eq!(finding.class, BooleanCoincidence::REST);
 
 // The declare arm: detect, INSPECT, declare, and the SAME doors
 // that refused now verify the declared contact. (Declaring the
@@ -488,7 +488,7 @@ assert_eq!(finding.class, ContactClass::Rest);
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
 assert_eq!(findings.len(), 1);
-assert_eq!(findings[0].class, ContactClass::Rest);
+assert_eq!(findings[0].class, BooleanCoincidence::REST);
 let (applied, decl) = declare_all(&doc, &findings, tol).expect("declarable");
 // `applied` is the accepted edit whole: the document, and the
 // maintenance the insert performed. A caller that keeps

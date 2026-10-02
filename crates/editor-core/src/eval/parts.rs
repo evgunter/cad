@@ -68,7 +68,7 @@ use crate::ident::DocRef;
 use crate::names::NameTable;
 use crate::node::RecipeNodeId;
 use crate::part::{PartResolver, ResolveFault};
-use crate::sentence::{PASS_A_RESOLVER, Recourse, Staged};
+use crate::sentence::{PASS_A_RESOLVER, Recourse};
 use geom_core::Tol;
 
 /// **How deep an assembly may nest**: a document `MAX_DEPTH` documents
@@ -111,8 +111,9 @@ pub(crate) struct PartValue<T: Decide> {
     /// The same for the refusals it carried up.
     pub carried_unminted: Arc<Vec<crate::assembly::CarriedRefusal>>,
     /// The referenced document's own UNPLACED GROUPS, by root, with
-    /// their causes: material its world product leaves out (A9), which
-    /// the instantiating document must still be able to name.
+    /// their causes, in that document's order: material its world
+    /// product leaves out (A9), which the instantiating document must
+    /// still be able to name.
     pub unplaced: Arc<Vec<(RecipeNodeId, crate::mate::Unplaced)>>,
     /// The same for the unplaced groups it carried up from its parts.
     pub carried_unplaced: Arc<Vec<crate::assembly::CarriedUnplaced>>,
@@ -201,19 +202,14 @@ pub enum PartFault {
     /// a failed or poisoned root (no body-denoting root, an invalid
     /// gather, a name collision).
     ///
-    /// The refusal crosses in both halves, the
-    /// [`crate::checks::ChecksError::Product`] shape: `kind` is the
-    /// class a consumer branches on, `message` the gather's own
-    /// sentence a reader reads — it carries the node ids and finding
-    /// lists the class drops. Neither half is a substring hunt through
-    /// the other, and both come off ONE [`crate::product::ProductError`].
+    /// The gather's refusal crosses whole, its ids the part's: its
+    /// class ([`crate::ProductRefusal::kind`]) is what a consumer
+    /// branches on, and its sentence is said by the frame that hands the
+    /// fault out ([`PartFault::spoken`]).
     PartProduct {
-        /// Which arm of the product door refused.
-        kind: crate::product::ProductErrorKind,
-        /// The product door's diagnosis without the gather's labels
-        /// (its stage word, and the `root N output M` subject of a
-        /// listed finding): this sentence names the stage itself.
-        message: String,
+        /// The product door's refusal, in the REFERENCED document's id
+        /// space.
+        refusal: crate::product::ProductRefusal,
     },
     /// The reference CHAIN returned to a document it had already
     /// entered — the same (id, pin), so the same content: descending
@@ -282,10 +278,7 @@ impl crate::spoken::Say for PartFault {
             ),
             // The resolver knows what went wrong in its store, so its
             // message states the recourse of a pin or a lookup. The ε
-            // seam's is the same whatever the store: a document keeps
-            // the ε it was written at, a process holds one, and the
-            // recorded-ε edit moves a part onto another while it keeps
-            // its id, whether that was minted or derived.
+            // seam's is the same whatever the store.
             Self::Unresolved { fault, message } => match fault {
                 ResolveFault::PinMismatch => {
                     write!(f, "the reference's pin does not hold: {message}")
@@ -294,11 +287,7 @@ impl crate::spoken::Say for PartFault {
                     f,
                     "the referenced document's recorded tolerance disagrees with this process's: \
                      {message}. {}",
-                    Recourse(
-                        "open the part in a process at its own tolerance, record the edit that \
-                         sets this process's tolerance, save it over its file, then accept its \
-                         updated version here"
-                    )
+                    Recourse(crate::part::EPSILON_SEAM_RECOURSE)
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
@@ -331,9 +320,13 @@ impl crate::spoken::Say for PartFault {
                     )),
                 )
             }
-            Self::PartProduct { kind, message } => {
-                write!(f, "the part has no product: {message}")?;
-                match product_recourse(*kind) {
+            Self::PartProduct { refusal } => {
+                write!(
+                    f,
+                    "the part has no product: {}",
+                    refusal.error().bare_said(by)
+                )?;
+                match product_recourse(refusal.kind()) {
                     ProductRecourse::InThePart(action) => write!(f, ". {}", InThePart(action)),
                     ProductRecourse::KernelDefect => {
                         write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING)
@@ -668,21 +661,13 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // truth about what instantiating a document means.
         let product = match crate::product::product_recorded(doc, &evaluation, tol) {
             Ok(product) => product,
-            Err(e) => return Err(product_fault(&e, evaluation)),
+            Err(e) => return Err(product_fault(e, evaluation)),
         };
         // The part's unplaced groups are not in its product (A9), so
         // they cross beside it: its own, and those its parts carried up
         // to it, read off the evaluation rather than the product so a
         // group below an instance no root gathers is named too.
-        let unplaced = Arc::new(
-            evaluation
-                .unplaced
-                .values()
-                .copied()
-                .collect::<BTreeMap<_, _>>()
-                .into_iter()
-                .collect(),
-        );
+        let unplaced = Arc::new(evaluation.unplaced_groups(doc));
         let carried_unplaced = Arc::new(evaluation.all_unplaced_below());
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
@@ -807,11 +792,9 @@ impl<T: Decide> Entered<T> {
 /// the very refusal the part's evaluation raised, a seam fault any
 /// number of documents down included.
 ///
-/// Every OTHER refusal crosses as its class beside its sentence, both
-/// read off the one error — the pairing
-/// [`PartFault::PartProduct`] states.
+/// Every OTHER refusal crosses whole ([`PartFault::PartProduct`]).
 fn product_fault<T: Decide>(
-    error: &crate::product::ProductError,
+    error: crate::product::ProductError,
     mut evaluation: super::Evaluation<T>,
 ) -> PartFault {
     use super::NodeStanding;
@@ -819,7 +802,7 @@ fn product_fault<T: Decide>(
         Some(super::NodeResult::Failed(failure)) => Ok(super::NodeRefusal::from(failure.kind)),
         _ => Err(PartFault::RootFailureUnrecorded { node: failed }),
     };
-    let carried = match *error {
+    let carried = match error {
         crate::product::ProductError::Root(NodeStanding::Failed { node }) => {
             refusal_at(node).map(|refusal| PartFault::PartRootFailed { node, refusal })
         }
@@ -831,8 +814,7 @@ fn product_fault<T: Decide>(
             })
         }
         _ => Ok(PartFault::PartProduct {
-            kind: error.kind(),
-            message: error.sentence().to_string(),
+            refusal: error.into(),
         }),
     };
     carried.unwrap_or_else(|unrecorded| unrecorded)
