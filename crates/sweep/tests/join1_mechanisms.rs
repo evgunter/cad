@@ -193,50 +193,15 @@ fn the_incidence_check_reads_the_whole_site() {
     }
 }
 
-/// **FUSE's stacked plates** (`work/fuse/a-union-glues-same-sense-cosurface-walls-without-merging-them`):
-/// two 6 × 4 × 1 plates stacked at `z ∈ [0, 1]` and `[1, 2]`. With only
-/// the mating plane declared the union ships ten faces, each wall pair
-/// two coplanar neighbours, exactly as on main: a declared union's
-/// continuation is FUSE's issue, and its refusal lands with REACH's PR
-/// 3657 (`reach/cosurface-continuation`), not here. With every flush
-/// pair declared it builds the 6-face box, a legal operand.
-#[test]
-fn a_stacked_plates_union_builds_as_on_main() {
-    use topo::flush::{declare_all, find_flush_candidates};
-    let a = sweep::test_support::brick((0.0, 6.0), (0.0, 4.0), (0.0, 1.0), tol());
-    let b = sweep::test_support::brick((0.0, 6.0), (0.0, 4.0), (1.0, 2.0), tol());
-    let found = find_flush_candidates(&a, &b, tol()).unwrap();
-    let mating: Vec<_> = found
-        .iter()
-        .filter(|f| f.evidence.relation == topo::PlaneRelation::SameOpposite)
-        .cloned()
-        .collect();
-    let r = topo::union_with(&a, &b, &declare_all(&mating), tol());
-    let faces = r
-        .as_ref()
-        .ok()
-        .and_then(|r| r.body())
-        .map(|bb| bb.body.faces().count());
-    assert_eq!(faces, Some(10), "as on main: the walls unmerged: {r:?}");
-    let r = topo::union_with(&a, &b, &declare_all(&found), tol());
-    let faces = r
-        .as_ref()
-        .ok()
-        .and_then(|r| r.body())
-        .map(|bb| bb.body.faces().count());
-    assert_eq!(faces, Some(6), "the declared stack is the box: {r:?}");
-    assert_sound("plates ∪", r, 48.0);
-}
-
 /// **The north-star crosslap** (`demos/tour/src/crosslap.rs`;
 /// `test_north_star.py`'s `TestCrosslapGlued`): two notched beams mated.
 /// With the mate's `SameOpposite` pairs alone declared, the beams' tops
-/// and bottoms flush across the notches are a continuation, routed to the
-/// declared-REST door, which glues it at the scene's oracle exactly as on
-/// main (its unmerged pairs are FUSE's issue, refused by REACH's PR 3657).
-/// With every flush pair declared it builds 14 faces, a legal operand.
+/// and bottoms flush across the notches are an undeclared continuation,
+/// refused at the reduction. With every finding declared (the mate and
+/// the continuations) the union builds at the scene's oracle, 14 faces,
+/// sound and a legal operand.
 #[test]
-fn the_declared_crosslap_glues_as_on_main() {
+fn the_declared_crosslap_glues() {
     use sweep::test_support::brick;
     use topo::flush::{declare_all, find_flush_candidates};
     let sub = |a: &topo::Body<f64>, b: &topo::Body<f64>| match topo::subtract(a, b, tol()).unwrap()
@@ -258,12 +223,17 @@ fn the_declared_crosslap_glues_as_on_main() {
         .filter(|f| f.evidence.relation == topo::PlaneRelation::SameOpposite)
         .cloned()
         .collect();
-    let r = topo::union_with(&a, &b, &declare_all(&mate), tol())
-        .unwrap_or_else(|e| panic!("the declared mate glues: {e:?}"));
-    let bb = r.body().expect("a body");
-    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).expect("tier 3′");
-    let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
-    assert!((v - 1.875).abs() < 1e-9, "the scene's oracle: {v}");
+    let r = topo::union_with(&a, &b, &declare_all(&mate), tol());
+    assert!(
+        matches!(
+            r,
+            Err(BooleanError::UndeclaredCoincidence {
+                relation: topo::PlaneRelation::SameOriented,
+                ..
+            })
+        ),
+        "the mate alone leaves the continuations undeclared: {r:?}"
+    );
     let r = topo::union_with(&a, &b, &declare_all(&found), tol());
     let faces = r
         .as_ref()

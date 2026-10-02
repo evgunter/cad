@@ -78,10 +78,9 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
     let b = brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol());
     let (va, vb) = (0.75 * 2.0, 0.0625 * 4.0);
     let vi = 0.25 * 0.125 / 2.0 * 2.0;
-    // Undeclared, the union refuses: it would keep the hexagon's and the
-    // box's `y = −0.5` faces as two coplanar neighbours, a continuation
-    // no declaration licenses (DESIGN, "Maximal faces"). JOIN-1's fix
-    // pass, delta review.
+    // Undeclared, the op refuses: the hexagon's and the box's `y = −0.5`
+    // faces are a continuation no declaration licenses (topo README C4,
+    // the reduction's continuation scan).
     for (what, r) in [
         ("hex ∪ box", topo::union(&hex, &b, tol())),
         ("box ∪ hex", topo::union(&b, &hex, tol())),
@@ -112,9 +111,18 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
         topo::union_with(&b, &hex, &d, tol()),
         va + vb - vi,
     );
-    // The ∖ and ∩ of the same pose build soundly on the head.
-    assert_sound("hex ∖ box", topo::subtract(&hex, &b, tol()), va - vi);
-    assert_sound("hex ∩ box", topo::intersect(&hex, &b, tol()), vi);
+    // The ∖ and ∩ of the same pose, declared, build soundly too.
+    let d = declare_all(&find_flush_candidates(&hex, &b, tol()).unwrap());
+    assert_sound(
+        "hex ∖ box, declared",
+        topo::subtract_with(&hex, &b, &d, tol()),
+        va - vi,
+    );
+    assert_sound(
+        "hex ∩ box, declared",
+        topo::intersect_with(&hex, &b, &d, tol()),
+        vi,
+    );
 }
 
 /// `review_m3_pr55`'s multi-spike corner pose, which the head now

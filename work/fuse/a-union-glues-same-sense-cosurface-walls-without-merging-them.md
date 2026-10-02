@@ -2,11 +2,12 @@
 id: a-union-glues-same-sense-cosurface-walls-without-merging-them
 kind: issue
 title: A union glues same-sense cosurface walls into one body without merging them, so its output fails the maximal-faces precondition as an operand
-status: open
+status: closed
 opened: 2026-10-01
 priority: P0
 cost: M
 refs: [cosurface-disjoint-curved-walls-refuse]
+closed: 2026-10-01
 ---
 
 
@@ -43,26 +44,23 @@ the kernel derives) is the open question on
 this output should merge or refuse. Either way, the op should not hand
 back a body that its own next op rejects.
 
-## What JOIN-1 (PR 3790) does and does not change here
+## Closed (REACH, branch `reach/cosurface-continuation`)
 
-JOIN-1 detects the planar case where the same-sense pair meets along
-an edge both operands hold (`recl.rs` `resolve_edge_edge`, the
-touching arm, at a seam the union glues). It acts on that finding only
-where the chord join would otherwise newly build such a body:
+Closed by the continuation ruling's implementation (PR 3613's design,
+built on `reach/cosurface-continuation`). Measured on the row's own
+sharp stack (`crates/sweep/tests/reach_continuation.rs`):
 
-- **Undeclared union** (nothing declared at all): refuses
-  `UndeclaredCoincidence { relation: SameOriented }` naming the pair.
-  This is R1's hexagon ∪ box poses and R2's case390, which refused on
-  main.
-- **Declared union** with the pair undeclared: the chord join is not
-  run. The REST door gets the reduction, as on main when the join
-  refused. It builds the body main built, or the finding's refusal
-  stands.
+- Mating plane only: the union now refuses at the reduction,
+  `UndeclaredCoincidence { relation: SameOriented }` naming a wall pair
+  (an undeclared continuation), instead of shipping 10 faces.
+- Mating plane plus the four wall continuations (what the flush
+  detector now reports for aligned pairs): 6 faces, and the result
+  unions again, with a clear plate and with a third stacked plate.
 
-So this issue's rows behave as on main: the stacked plates
-(`join1_mechanisms::a_stacked_plates_union_builds_as_on_main`, ten
-faces), the crosslap, the two-peg mate and the peg ∪ collar
-(`join1_delta_probes::the_peg_collar_unions_are_operands`, still
-ignored). Refusing them is REACH's PR 3657 (`reach/cosurface-continuation`,
-Ev's ruling on PR 3613).
-
+The twin the row suspected in `demos/tour/src/twopeg.rs` was real at
+the peg ends as well as the walls: each peg's top, flush with Q's top,
+shipped as a disc beside an annulus. Declared as continuations, the
+discs now merge into the top face (`m9_3_zip`'s ring count went from 2
+to 0). The curved half of the row's last paragraph (a gate arm for
+curved cosurface adjacency) is filed as
+`work/reach/maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip.md`.

@@ -260,9 +260,12 @@ mod tests {
                 .filter(|finding| finding.check == CheckId::Separation)
                 .count();
             assert_eq!(
-                separation, shape.separation,
-                "{}: separation findings ({}) — {report}",
-                shape.name, shape.why
+                separation,
+                shape.separation,
+                "{}: separation findings ({}) — {}",
+                shape.name,
+                shape.why,
+                report.spoken(&shape.doc)
             );
         }
     }

@@ -39,6 +39,7 @@ use super::{
 };
 use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
 use crate::body::Body;
+use crate::contact::BooleanCoincidence;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::MevSite;
 use crate::null::{NewVertexSide, NullEdge};
@@ -364,7 +365,7 @@ fn record_germ_dir<T: Decide>(
         Coincide::TangentLocus,
         &[],
     );
-    if read != DeclarationRead::Spent(crate::contact::ContactClass::Tangent) {
+    if read != DeclarationRead::Spent(BooleanCoincidence::TANGENT) {
         return germ_dir(sa, sb, read, band);
     }
     let surface_of = |body: &Body<T>, face| {

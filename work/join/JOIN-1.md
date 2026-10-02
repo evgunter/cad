@@ -82,17 +82,13 @@ Frontier refusals that became `JoinDesync`/`SeamOrientation` are filed
 
 ## Fix pass 2 (delta review, PR 3790)
 
-- **The chord join never builds a continuation.** At an edge-edge seam
-  a union glues, two flanking faces can abut along the edge on one plane
-  with their senses aligned. That is a continuation (topo README C4).
-  - Undeclared union: refuses `UndeclaredCoincidence { relation:
-    SameOriented }`, naming the pair.
-  - Declared union with that pair undeclared: handed to the declared-REST
-    door, as on main when the join refused. It builds what main built,
-    or the refusal stands. Refusing those main-building bodies is REACH's
-    PR 3657.
-  - Pair declared: the output's merge stage glues it.
-  - Touching-only edges (assemblies) are unaffected.
+- **No continuation check of JOIN-1's own.** An undeclared same-sense
+  continuation is refused at the reduction by REACH's scan (PR 3657,
+  `reduce::refuse_undeclared_continuations`), which landed while this
+  fix pass was open. A declared one is glued by the output's merge
+  stage. The fix pass's own edge-edge check (`recl.rs`, then routed by
+  provenance) was a strict subset of that scan, and was dropped at the
+  merge.
 - **The scaffold restatement is gone**, except between the two faces of
   a recorded curved merge skip.
 - **A strut's half faces the germ along its own edge** (`insert` spike
@@ -101,8 +97,16 @@ Frontier refusals that became `JoinDesync`/`SeamOrientation` are filed
 - `place_germ` refuses to overwrite another event's germ;
   `along_edge_spec` runs on the both-`OnEdge` lane only.
 
-Main da396111f → fix-pass-2 head, release, with a legal-operand column:
-hexagon ∪∖∩ box 2508 refusals → sound, 288 → `UndeclaredCoincidence`;
-R2 seeds 6–15 (30000 ops) 517 → sound, 17 → `UndeclaredCoincidence`;
-no sound body lost, no wrong body, every build a legal operand.
+Main da396111f → fix-pass-2 head, release, with a legal-operand column
+(measured before REACH's merge): hexagon ∪∖∩ box 2508 refusals → sound,
+288 → `UndeclaredCoincidence`; R2 seeds 6–15 (30000 ops) 517 → sound,
+17 → `UndeclaredCoincidence`; no sound body lost, no wrong body, every
+build a legal operand.
+
+Since main carries REACH, JOIN-1 newly builds several declared-
+continuation unions main refused. Each row now asserts a sound, legal
+operand: the rabbet step
+(`zip/a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends`,
+closed), mate7a's torus peg-in-socket, and the `curved_mergedoor`
+scenes C and D, through the join.
 

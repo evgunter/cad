@@ -1622,3 +1622,30 @@ The rule is now stated in the viewer README.
 - `check-findings-speak-their-root-by-tag`
 - `a-carried-rows-route-says-its-first-instance-by-tag`
 - the earlier P3/P4 label rows
+
+## 2026-10-02 — EditError re-speaks from a later version (PR 3832); check findings speak their root (PR 3833)
+
+**PR 3832: re-speaking edit refusals**
+
+- `SpokenNode`, `SpokenName`, `HeldNodes`, `RootFault` and `EditError` all gain `respoken(doc)`.
+- The rule: a node the later document holds is spoken as that document holds it now. Otherwise it keeps the spelling it was raised with. The mint-chain soundness argument has one home, at `SpokenNode::respoken`.
+- This replaced the row's specified `doc.spoken` rule. That rule would have dropped every refused insert's minting node to a bare tag.
+- Arms whose sentence asserts absence or collision stay as raised, alongside `LabelUnchanged`.
+- The viewer's `Refusal::Edit` now re-speaks within `batch_refusal`. Every viewer walk, `held_by` sets included, follows the one rule.
+- `replaces_the_document` is an exhaustive match over `SessionOp`.
+
+**PR 3833: check findings and reports**
+
+- `CheckFinding` gains `Say`.
+- `ChecksReport` and `CheckRefusal` carry `document` and `speaker` / `spoken`, with an assert on the document id (the PR 3749 pattern). The assert refuses another document, not another version of the same one.
+- The viewer's checks window speaks from the landed pair.
+- Python `Evaluation.doc` is shared through an `Arc`. Reports and findings speak from it.
+- Python equality means the same findings over the same document; labels are not compared.
+
+**Labels residue still open**
+
+- `a-cluster-act-speaks-its-gauges-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- `a-selected-node-deleted-is-said-by-tag-where-the-tools-say-its-label`
+- the part design row (needs a designer pair)
+- earlier P3/P4 rows

@@ -20,7 +20,8 @@ use common::brick;
 use geom_core::Tol;
 use topo::flush::{FlushRefusal, FlushRung, declare, declare_all, find_flush_candidates};
 use topo::{
-    Body, BooleanResult, ContactClass, FaceKey, PlaneRelation, mass_properties, query, union_with,
+    Body, BooleanCoincidence, BooleanResult, FaceKey, PlaneRelation, mass_properties, query,
+    union_with,
 };
 
 /// A flush stack: two bricks meeting on z = 1, independently authored
@@ -93,7 +94,7 @@ fn the_stacks_shared_cap_is_one_same_opposite_finding() {
     );
     let finding = &found[0];
     assert_eq!(finding.pair, (cap_at(&a, 1.0), cap_at(&b, 1.0)));
-    assert_eq!(finding.class, ContactClass::Rest);
+    assert_eq!(finding.class, BooleanCoincidence::REST);
     assert_eq!(
         finding.evidence.relation,
         PlaneRelation::SameOpposite,
@@ -167,7 +168,7 @@ fn declare_all_round_trips_into_a_union_that_builds() {
         decls
             .coincident_faces
             .iter()
-            .all(|d| d.class == ContactClass::Rest),
+            .all(|d| d.class == BooleanCoincidence::REST),
         "the finding's class travels into the declaration"
     );
     let BooleanResult::Body(built) =
@@ -200,13 +201,13 @@ fn declare_declares_exactly_one_finding() {
 
 /// **A report is a SET, and declaring part of it declares part of it.**
 ///
-/// The stepped fixture carries a `SameOriented` flush wall pair (the
-/// merge-stage flavor) beside its resting cap pair. Declaring only the
-/// wall leaves the cap coincidence undeclared, and the op says so
-/// (`UndeclaredCoincidence`) rather than proceeding. Declaring BOTH —
-/// no declaration is contradicted, the verifier agrees each pair is one
-/// plane — the union builds: the cube with the bar on it, `1 + 0.25`,
-/// sound at every tier.
+/// The stepped fixture carries a `SameOriented` flush wall pair (a
+/// continuation) beside its resting cap pair. Declare BOTH — no
+/// declaration is contradicted, the verifier agrees each pair is one
+/// plane — and the union still refuses, at `RestZipUnsupported`: a
+/// named capability frontier of the declared zip, downstream of every
+/// verification the declarations pass. Detection cannot see that
+/// frontier and does not claim to.
 ///
 /// The fully declared union used to meet the declared-REST zip's
 /// `ChordBetweenIsolatedPierces` frontier: the chord join refused, and

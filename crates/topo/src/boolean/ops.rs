@@ -713,25 +713,6 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // returned, so every refusal the pipeline meets first stands
     // verbatim ([`interior_loop_verdict`]).
     let interior_loops = interior_loop_verdict(op, a, b, &red, decls, band);
-    // A declared union whose classification found a same-sense
-    // continuation at a seam it glues, the pair undeclared
-    // (`BooleanReduction::continuation`): the chord join would keep the
-    // pair as two coplanar neighbours, so it is not run. The REST door
-    // gets the unmutated reduction, as it does when the join refuses:
-    // it builds what it built before the finding existed, or the
-    // finding's `UndeclaredCoincidence` stands. Which of the REST zip's
-    // bodies keep such a pair is
-    // `work/fuse/a-union-glues-same-sense-cosurface-walls-without-merging-them`,
-    // and its refusal REACH's `reach/cosurface-continuation`.
-    if let Some(err) = red.continuation.take() {
-        return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
-            Some(result) => {
-                interior_loops?;
-                Ok(Joined::Answered(Box::new(result)))
-            }
-            None => Err(err),
-        };
-    }
     let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
     // The join carves both reduction operands through the Euler
@@ -1783,7 +1764,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
                 {
                     geom_brep::EdgeDescription::Intersection { s1: d1, s2: d2, .. }
                     | geom_brep::EdgeDescription::TangentIntersection { s1: d1, s2: d2, .. } => {
-                        !((*d1 == s1 && *d2 == s2) || (*d1 == s2 && *d2 == s1))
+                        !Body::<T>::cites_pair((*d1, *d2), s1, s2)
                     }
                     // A chart image cites ONE adjacent surface (its
                     // residual chart); stale iff neither side is it
@@ -2147,10 +2128,11 @@ pub(super) fn declared_surface_pairs<T: Real>(
                  b: fb,
                  class,
              }| {
-                // Only the CONFORMAL class declares a merge-stage
-                // coincidence; a `Tangent` pair's carriers are DISTINCT
-                // by its own verification and never merge.
-                if class != crate::contact::ContactClass::Rest {
+                // A one-carrier declaration (`Rest` or a continuation)
+                // licenses a merge-stage coincidence; a `Tangent` pair's
+                // carriers are DISTINCT by its own verification and never
+                // merge.
+                if !class.is_one_carrier() {
                     return None;
                 }
                 // A-clone surface keys ARE result keys (carve/clone

@@ -30,10 +30,10 @@ counted 288 such poses among the hex-prism ∪ box battery, R2 found the
 same in random z-prism pairs (`join1_r2_rand::r2_rand_seed2_case390`).
 JOIN-1's fix pass first restated the scaffold, which only hid it: the
 body then passed every tier and was still no legal operand (two
-same-sense coplanar neighbours). Fix pass 2 removed the restatement:
-an undeclared union refuses that pose at the op
-(`UndeclaredCoincidence`, the continuation undeclared), and a pair
-declared is merged. The gate would
+same-sense coplanar neighbours). Fix pass 2 removed the restatement.
+That pose is an undeclared continuation, which the reduction now
+refuses (`UndeclaredCoincidence`, REACH's scan), and declared, the pair
+is merged. The gate would
 still pass the next cause of a scaffold at rest the same way.
 
 ## The fix

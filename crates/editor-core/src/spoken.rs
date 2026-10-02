@@ -1,8 +1,10 @@
 //! **How a sentence names a recipe node** (DESIGN.md Band 1, "Node
 //! labels"): a person reads a node as its kind, its label and its tag,
 //! `Extrude "base plate" (3fa9c1d2a0b1)`, or as its kind and tag when
-//! it has no label, `Extrude 3fa9c1d2a0b1`; a node the document does
-//! not hold reads `node 3fa9c1d2a0b1`.
+//! it has no label, `Extrude 3fa9c1d2a0b1`; spoken from a document that
+//! does not hold it, `node 3fa9c1d2a0b1`. A sentence spoken again from
+//! a later version of its document ([`SpokenNode::respoken`]) says a
+//! node that version does not hold as it first said it.
 //!
 //! Four spellings, one home each:
 //!
@@ -104,9 +106,11 @@ impl StepId {
 /// and its tag (`Extrude "base plate" (3fa9c1d2a0b1)`, with a `"` or
 /// `\` in the label escaped by a `\`), its kind and
 /// tag when it has no label (`Extrude 3fa9c1d2a0b1`), or
-/// `node 3fa9c1d2a0b1` for an id the document does not hold.
+/// `node 3fa9c1d2a0b1` for an id the document it was spoken from did
+/// not hold.
 ///
-/// Built by [`Doc::spoken`] from the document that holds the node.
+/// Built by [`Doc::spoken`] from the document that holds the node, and
+/// spoken again from a later version by [`SpokenNode::respoken`].
 /// The tag is always said: labels repeat, and a kept sentence finds
 /// its node after a rename by the tag.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -171,7 +175,7 @@ impl SpokenNode {
     }
 
     /// The node's kind noun ([`node_kind_noun`]), `None` when the
-    /// document did not hold the node.
+    /// document it was first spoken from did not hold the node.
     #[must_use]
     pub fn kind(&self) -> Option<&'static str> {
         self.kind
@@ -182,6 +186,34 @@ impl SpokenNode {
     #[must_use]
     pub fn label(&self) -> Option<&Label> {
         self.label.as_deref()
+    }
+
+    /// **This node spoken again from `doc`, a later version of the
+    /// document it was spoken from**: as `doc` holds it now, or as it
+    /// was first spoken when either document lacks it. A node `doc`
+    /// does not hold — one a refused insert was minting, one a later
+    /// edit deleted — keeps what it was; a node the first document did
+    /// not hold stays `node <tag>`, since a sentence names a node by
+    /// its tag alone only to say that it is not there.
+    ///
+    /// **Within one document's history an id names one node**, which
+    /// is what makes this sound. An id is the head of the document's
+    /// mint chain at the insert that minted it ([`crate::mint`]), a
+    /// digest of every minting edit before it, so two versions that
+    /// part from one value — an undo, then a different insert — mint
+    /// different ids from there on (pinned by the viewer's
+    /// `node_labels::an_undo_then_a_different_insert_mints_a_different_id`).
+    /// An id is not document-scoped, so `doc` is never a version of
+    /// another document: that document's chain says nothing about
+    /// these ids. Every `respoken` in this tree and the viewer cites
+    /// this paragraph.
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        if self.kind.is_some() && doc.node(self.id).is_some() {
+            doc.spoken(self.id)
+        } else {
+            self.clone()
+        }
     }
 }
 
@@ -253,6 +285,14 @@ impl SpokenName {
     pub fn minter(&self) -> &SpokenNode {
         &self.0.minter
     }
+
+    /// This name with its minter spoken again from `doc`, a later
+    /// version of the document it was spoken from
+    /// ([`SpokenNode::respoken`]).
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        Self::new(self.name().clone(), self.minter().respoken(doc))
+    }
 }
 
 impl fmt::Display for SpokenName {
@@ -316,6 +356,15 @@ impl<P> HoldsNodes for Doc<P> {
 /// with no document at hand. Empty, every node is said by its tag.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HeldNodes(Box<[SpokenNode]>);
+
+impl HeldNodes {
+    /// These nodes spoken again from `doc`, a later version of the
+    /// document they were held from ([`SpokenNode::respoken`]).
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        Self(self.0.iter().map(|node| node.respoken(doc)).collect())
+    }
+}
 
 impl HoldsNodes for HeldNodes {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
