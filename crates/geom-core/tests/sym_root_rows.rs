@@ -702,39 +702,54 @@ fn decide9_review_probes() {
             let y = over("y", 3.0, 4.0);
             (x.min(lit(3.0)) - x).copysign(y)
         }),
-        ("copysign(min(x,3) - x, min(x,3)) [gated zero, gated sign]", || {
-            let x = over("x", 1.0, 2.0);
-            (x.min(lit(3.0)) - x).copysign(x.min(lit(3.0)))
-        }),
+        (
+            "copysign(min(x,3) - x, min(x,3)) [gated zero, gated sign]",
+            || {
+                let x = over("x", 1.0, 2.0);
+                (x.min(lit(3.0)) - x).copysign(x.min(lit(3.0)))
+            },
+        ),
         ("copysign(Z, y) [ungated zero, plain sign]", || {
             let x = over("x", 1.0, 2.0);
             let y = over("y", 3.0, 4.0);
             z(x).copysign(y)
         }),
-        ("Z * (1 / (min(x,3) - x)) [read arm is zero: no value]", || {
-            let x = over("x", 1.0, 2.0);
-            z(x) * (lit(1.0) / (x.min(lit(3.0)) - x))
-        }),
+        (
+            "Z * (1 / (min(x,3) - x)) [read arm is zero: no value]",
+            || {
+                let x = over("x", 1.0, 2.0);
+                z(x) * (lit(1.0) / (x.min(lit(3.0)) - x))
+            },
+        ),
         ("Z * (1 / min(x - 1.5, 3)) [pole inside the box]", || {
             let x = over("x", 1.0, 2.0);
             z(x) * (lit(1.0) / (x - lit(1.5)).min(lit(3.0)))
         }),
-        ("Z * min(x,3) + (min(x,3) - x) [sum of ungated and gated zero]", || {
-            let x = over("x", 1.0, 2.0);
-            z(x) * x.min(lit(3.0)) + (x.min(lit(3.0)) - x)
-        }),
-        ("sqrt(Z * min(x,3)) [atom over the new ungated zero]", || {
-            let x = over("x", 1.0, 2.0);
-            (z(x) * x.min(lit(3.0))).sqrt()
-        }),
+        (
+            "Z * min(x,3) + (min(x,3) - x) [sum of ungated and gated zero]",
+            || {
+                let x = over("x", 1.0, 2.0);
+                z(x) * x.min(lit(3.0)) + (x.min(lit(3.0)) - x)
+            },
+        ),
+        (
+            "sqrt(Z * min(x,3)) [atom over the new ungated zero]",
+            || {
+                let x = over("x", 1.0, 2.0);
+                (z(x) * x.min(lit(3.0))).sqrt()
+            },
+        ),
         ("min(x,3) * Z [zero on the right]", || {
             let x = over("x", 1.0, 2.0);
             x.min(lit(3.0)) * z(x)
         }),
-        ("(Z * min(x,3)) * (min(x,3) - x) [ungated product times gated zero]", || {
-            let x = over("x", 1.0, 2.0);
-            (z(x) * x.min(lit(3.0))) * (x.min(lit(3.0)) - x)
-        }),
+        (
+            "(Z * min(x,3)) * (min(x,3) - x) [ungated product times gated zero]",
+            || {
+                let x = over("x", 1.0, 2.0);
+                (z(x) * x.min(lit(3.0))) * (x.min(lit(3.0)) - x)
+            },
+        ),
     ];
     for (what, build) in probes {
         let on = row(what, how(SymRules::shipped(), build));
