@@ -11,9 +11,12 @@
 //! names keep denoting its pieces wherever the new program draws them,
 //! and nothing is rewritten or reported, while a dropped step's names
 //! keep their spelling, resolve `Vanished`, and are reported stranded.
-//! A value edit moves no name at all: which loop is outer, which way a
-//! loop runs and how many segments a step draws are decisions about
-//! geometry, not about what the author made.
+//! A value edit moves no piece's locator: which loop is outer, which
+//! way a loop runs and how many segments a step draws are decisions
+//! about geometry, not about what the author made. (It can change which
+//! pieces one swept wall holds — runs are decided on the values, N1
+//! "Swept walls over a run" — and then a run wall's name vanishes with
+//! an N3 offer; no row here edits pieces into or out of collinearity.)
 //!
 //! The fixture most rows share is `edit_ruled_carve`'s sunk rod: a
 //! block with a rod's section standing on its top edge, whose two
@@ -41,10 +44,10 @@ use crate::fixture;
 
 use editor_core::{
     Attr, CapEnd, Datum, Dimension, DocEdit, DocParam, EditError, EntityKind, EvalOptions, Expr,
-    LoggedEdit, LoopProgram, Maintenance, NameRef, Node, NodeErrorKind, NodeResult, ParamName,
-    PersistError, PieceRole, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, ResolveError, Rgba8, RoleSeg, SlotId, StableName, StepArg, StepId,
-    StepIdFault, apply, load, save,
+    LoopProgram, Maintenance, NameRef, Node, NodeErrorKind, NodeResult, ParamName, PersistError,
+    PieceRole, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, ResolveError, Rgba8, RoleSeg, SlotId, StableName, StepArg, StepId, StepIdFault,
+    apply, load, save,
 };
 use fixture::{ang, edge_of, ends, fname, insert, len, len2, minted, point, scl, table, tol};
 use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, rod_chord_at};
@@ -113,12 +116,15 @@ fn rod(label: &str, creases: &[usize]) -> Rod {
 /// The wall at canonical segment `k` of loop `l` of the profile `ext`
 /// sweeps, spelled by the piece it is under `doc`'s current values.
 fn wall_of(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, l: usize, k: usize) -> StableName {
-    fname(ext, RoleSeg::Lateral(fixture::piece(doc, ext, l, k)))
+    fname(ext, RoleSeg::Lateral(fixture::piece(doc, ext, l, k).into()))
 }
 
 /// A wall spelled by a step id and a role directly.
 fn wall_by(ext: RecipeNodeId, step: StepId, role: PieceRole) -> StableName {
-    fname(ext, RoleSeg::Lateral(ProfileEdgeRef::Piece { step, role }))
+    fname(
+        ext,
+        RoleSeg::Lateral(ProfileEdgeRef::Piece { step, role }.into()),
+    )
 }
 
 /// The ids a profile node holds, per loop.
@@ -467,8 +473,8 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::Strand {
-            node: fillet,
-            name: crease.clone(),
+            node: r.doc.spoken(fillet),
+            name: r.doc.spoken_name(&crease),
         }],
         "the crease's name strands, spelled as it was"
     );
@@ -562,7 +568,9 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     let applied = accepted(&doc, profile, vec![straight_after], keep);
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::StrandedAppearance { name: arc.clone() }],
+        vec![Maintenance::StrandedAppearance {
+            name: doc.spoken_name(&arc)
+        }],
         "the paint on the dropped step's arc strands"
     );
     let ev = fixture::run(&applied.doc, &EvalOptions::default());
@@ -611,16 +619,16 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::NameStepNeverMinted { name, step }) => {
-            assert_eq!((name, step), (unminted.clone(), next));
+            assert_eq!((name, step), (reshaped.spoken_name(&unminted), next));
         }
         other => panic!("a never-minted step refuses typed, got {other:?}"),
     };
     never(DocEdit::InsertNode {
-        node: Node::Datum(editor_core::Datum::FaceFrame {
+        node: Box::new(Node::Datum(editor_core::Datum::FaceFrame {
             at: r.rod,
             face: unminted.clone(),
             spin: fixture::ang(0.0),
-        }),
+        })),
     });
     let painted = paint(&reshaped, &dropped);
     never(DocEdit::SetAppearance {
@@ -659,10 +667,12 @@ fn a_reshaping_reports_its_strands_then_its_stranded_keys() {
         applied.maintenance,
         vec![
             Maintenance::Strand {
-                node: frame,
-                name: right.clone(),
+                node: doc.spoken(frame),
+                name: doc.spoken_name(&right),
             },
-            Maintenance::StrandedAppearance { name: right },
+            Maintenance::StrandedAppearance {
+                name: doc.spoken_name(&right)
+            },
         ]
     );
 }
@@ -691,7 +701,7 @@ fn every_step_id_fault_refuses_typed_before_the_program_is_checked() {
             set_program(&doc, profile, vec![square.clone()], ids).expect_err("the ids refuse");
         match err {
             EditError::StepIdsRefused { node, fault } => {
-                assert_eq!(node, profile);
+                assert_eq!(node.id(), profile);
                 fault
             }
             other => panic!("a step-id refusal, got {other:?}"),
@@ -773,7 +783,7 @@ fn the_insert_door_mints_every_step_and_refuses_ids_of_the_callers() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(preminted),
+            node: Box::new(Node::Profile(preminted)),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -798,12 +808,14 @@ fn a_node_that_holds_no_program_refuses() {
     let ids = keep_all(&r.doc, r.profile);
     assert_eq!(
         set_program(&r.doc, r.rod, vec![rod_loop(false)], ids.clone()).err(),
-        Some(EditError::SetProgramOnNonProfile { node: r.rod })
+        Some(EditError::SetProgramOnNonProfile {
+            node: r.doc.spoken(r.rod)
+        })
     );
     assert_eq!(
         set_program(&r.doc, RecipeNodeId(99), vec![rod_loop(false)], ids).err(),
         Some(EditError::UnknownNode {
-            id: RecipeNodeId(99)
+            id: editor_core::SpokenNode::absent(RecipeNodeId(99))
         })
     );
 }
@@ -886,34 +898,34 @@ fn extruded(label: &str, loops: Vec<LoopProgram>) -> (ProfileDoc, RecipeNodeId, 
 
 /// The rod document as a LOG: the empty document plus every edit that
 /// built it, the reshaping last.
-fn rod_log() -> (ProfileDoc, Vec<LoggedEdit<ProfileProgram>>) {
+fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
     let empty = ProfileDoc::empty_derived("set-program-log", tol());
     let r = rod("set-program-log", &[CREASE]);
     // The log is the edits `rod` applied, so it mints the same ids.
     let (plane, profile_node, rod_node) = (r.doc.order()[0], r.profile, r.rod);
-    let edits = vec![
+    let edits = [
         DocEdit::InsertNode {
-            node: fixture::xy_frame(),
+            node: Box::new(fixture::xy_frame()),
         },
         DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![rod_loop(false)],
                 ids: Vec::new(),
+            })),
+        },
+        DocEdit::InsertNode {
+            node: Box::new(Node::Extrude {
+                profile: profile_node,
+                distance: len(ROD_L),
             }),
         },
         DocEdit::InsertNode {
-            node: Node::Extrude {
-                profile: profile_node,
-                distance: len(ROD_L),
-            },
-        },
-        DocEdit::InsertNode {
-            node: Node::fillet(
+            node: Box::new(Node::fillet(
                 rod_node,
                 len(ROD_FILLET),
                 vec![lateral_edge(&r.doc, rod_node, CREASE)],
-            ),
+            )),
         },
         DocEdit::SetProgram {
             node: profile_node,
@@ -921,7 +933,7 @@ fn rod_log() -> (ProfileDoc, Vec<LoggedEdit<ProfileProgram>>) {
             ids: bump_ids(&rod_ids(&r.doc, profile_node)),
         },
     ];
-    (empty, LoggedEdit::bare_all(&edits))
+    (empty, edits.to_vec())
 }
 
 /// **A document whose log holds a `SetProgram` saves, loads and
@@ -933,7 +945,7 @@ fn a_log_holding_a_set_program_saves_loads_and_replays_identically() {
     let (empty, log) = rod_log();
     let mut applied = empty.clone();
     for entry in &log {
-        applied = editor_core::apply_logged(&applied, entry, tol())
+        applied = editor_core::apply_replayed(&applied, entry, tol())
             .expect("the log applies")
             .doc;
     }
@@ -971,10 +983,10 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
         loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).unwrap()],
         ids: vec![vec![None]],
     };
-    let wire = serde_json::to_string(&LoggedEdit::bare(edit)).expect("serializes");
+    let wire = serde_json::to_string(&edit).expect("serializes");
     assert_eq!(
         wire,
-        r#"{"edit":{"SetProgram":{"node":1,"loops":[{"Circle":{"centre":[{"Literal":{"value":0.0,"dim":"Length","unit":"m"}},{"Literal":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Literal":{"value":1.0,"dim":"Length","unit":"m"}}}}],"ids":[[null]]}},"maintenance":[]}"#
+        r#"{"SetProgram":{"node":1,"loops":[{"Circle":{"centre":[{"Literal":{"value":0.0,"dim":"Length","unit":"m"}},{"Literal":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Literal":{"value":1.0,"dim":"Length","unit":"m"}}}}],"ids":[[null]]}}"#
     );
 
     let r = rod("set-program-old-file", &[CREASE]);
@@ -1058,7 +1070,7 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     };
     let step_fault = |text: String, node: RecipeNodeId| match refused(text) {
         editor_core::SnapshotError::StepIds { node: at, fault } => {
-            assert_eq!(at, node);
+            assert_eq!(at.id(), node);
             fault
         }
         other => panic!("a step-id refusal, got {other:?}"),
@@ -1200,12 +1212,14 @@ fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
         .expect("a log holding a step id no program holds loads")
         .doc;
     match doctored.apply(
-        &DocEdit::InsertNode { node: next },
+        &DocEdit::InsertNode {
+            node: Box::new(next),
+        },
         tol(),
         &editor_core::RefusingReach,
     ) {
-        Err(e @ EditError::NodeIdCollides { id }) => {
-            assert_eq!(id, drawn, "the refusal names the id the insert drew");
+        Err(ref e @ EditError::NodeIdCollides { ref id }) => {
+            assert_eq!(id.id(), drawn, "the refusal names the id the insert drew");
             let text = e.to_string();
             assert!(
                 text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
@@ -1217,7 +1231,7 @@ fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
 }
 
 // ---------------------------------------------------------------- //
-// What cannot move a name: value edits (N1)
+// What cannot move a piece's locator: value edits (N1)
 // ---------------------------------------------------------------- //
 
 /// `At, Toward(+x), Fillet(r), Toward(+y), FarEndTo(2,2), LineTo(0,2),
@@ -1623,12 +1637,22 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
         },
     );
     let piece = fixture::piece(&doc, profile, 0, 2);
-    assert_eq!(wall_of(&doc, a, 0, 2), fname(a, RoleSeg::Lateral(piece)));
-    assert_eq!(wall_of(&doc, b, 0, 2), fname(b, RoleSeg::Lateral(piece)));
+    assert_eq!(
+        wall_of(&doc, a, 0, 2),
+        fname(a, RoleSeg::Lateral(piece.into()))
+    );
+    assert_eq!(
+        wall_of(&doc, b, 0, 2),
+        fname(b, RoleSeg::Lateral(piece.into()))
+    );
     let applied = set_value(&doc, "p", 0.75);
     assert_eq!(applied.maintenance, Vec::new());
     for ext in [a, b] {
-        let side = corners_of(&applied.doc, ext, &fname(ext, RoleSeg::Lateral(piece)));
+        let side = corners_of(
+            &applied.doc,
+            ext,
+            &fname(ext, RoleSeg::Lateral(piece.into())),
+        );
         assert!(
             has_corner3(&side, (2.0, 2.0, 0.0)) && has_corner3(&side, (0.0, 2.0, 0.0)),
             "{side:?}"
@@ -1817,11 +1841,13 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
     let (doc, blend) = insert(doc, Node::fillet(loft, len(0.05), edges.collect()));
     let report = |n: &StableName| {
         if n.kind == EntityKind::Face {
-            Maintenance::StrandedAppearance { name: n.clone() }
+            Maintenance::StrandedAppearance {
+                name: doc.spoken_name(n),
+            }
         } else {
             Maintenance::Strand {
-                node: blend,
-                name: n.clone(),
+                node: doc.spoken(blend),
+                name: doc.spoken_name(n),
             }
         }
     };

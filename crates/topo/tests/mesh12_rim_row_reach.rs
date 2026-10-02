@@ -344,7 +344,7 @@ fn the_mesh_lane_refuses_the_rim_only_cap_typed_at_zero_gap_and_in_the_band() {
         mesh::tessellate(&one_rim, 1e-4, tol).map(|_| ()),
         Err(mesh::TessellateError::MeridianFreeCurvedFace {
             face: first_face(&one_rim),
-            surface: geom_brep::SurfaceKind::Sphere,
+            surface: geom::SurfaceKind::Sphere,
         }),
     );
 

@@ -102,7 +102,7 @@ pub(super) fn split_connect<T: Decide>(
 ) -> Result<(Vec<CompletedSection>, FragmentRows), SplitJoinError> {
     let exact = order::exact_band().map_err(SplitJoinError::Band)?;
 
-    // The minted above-copy set (role resolution is key membership).
+    // The null edges' above ends (role resolution is key membership).
     let mut above_set: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
     for r in &red.null_edges {
         above_set.insert(r.attr.above_end, ());
@@ -126,7 +126,8 @@ pub(super) fn split_connect<T: Decide>(
         plane: red.plane,
         band,
         section: SectionCtx {
-            plane: red.plane,
+            origin: red.plane.origin,
+            normal: red.plane.normal,
             plane_key: None,
         },
     };
@@ -310,7 +311,7 @@ fn line_pairs<T: Decide>(
     for c in crossings {
         spread = spread.max((c.point - crossings[0].point).norm());
     }
-    let d = normal.cross(red.plane.normal);
+    let d = normal.cross(red.plane.normal.get());
     match decide(
         "split_join_face_line",
         Margin::levered(d.norm(), spread),
@@ -359,7 +360,8 @@ fn line_pairs<T: Decide>(
 /// scale — so the margin is how far the section runs from tangent to
 /// the wall there; on a sphere it is the section circle's radius). On
 /// the conics that reach here (a tilted ellipse or a rim circle on a
-/// cylinder, a polar circle on a sphere) `h` vanishes nowhere, so one
+/// cylinder, a polar circle on a sphere, an ellipse or an axis-normal
+/// circle on a cone) `h` vanishes nowhere, so one
 /// sign holds all round; opposite definite signs are a broken
 /// invariant. The outward normal is the wall's gradient at the
 /// crossing ([`geom_brep::implicit_outward_normal`]): a crossing lies
@@ -412,7 +414,7 @@ fn conic_pairs<T: Decide>(
     let Some(WallSection {
         wall,
         case: SectionCase::Conic(conic),
-    }) = wall_section(body, band, &red.plane, face, at)?
+    }) = wall_section(body, band, red.plane.origin, red.plane.normal, face, at)?
     else {
         return Ok(Vec::new());
     };
@@ -425,7 +427,7 @@ fn conic_pairs<T: Decide>(
         let theta = conic.param(c.point);
         let out = geom_brep::implicit_outward_normal(&wall, sense, c.point).vec();
         let tangent = conic.tangent(theta);
-        let sine = red.plane.normal.cross(out).dot(tangent) / tangent.norm();
+        let sine = red.plane.normal.get().cross(out).dot(tangent) / tangent.norm();
         let arm = geom_brep::curvature_lever_arm(&wall, c.point);
         let sign = match decide("split_join_conic_heading", Margin::levered(sine, arm), band) {
             Ok(Sign::Zero) => return Err(refuse(ConicCrossingsCase::Grazing)),
@@ -670,7 +672,7 @@ impl<T: Decide> Sweep<T> {
         for i in 0..points.len() {
             let a = points[i] - origin;
             let b = points[(i + 1) % points.len()] - origin;
-            twice_area = twice_area + a.cross(b).dot(self.plane.normal);
+            twice_area = twice_area + a.cross(b).dot(self.plane.normal.get());
             perimeter = perimeter + (b - a).norm();
         }
         // The conic excess pass (adds nothing for all-planar loops).
@@ -725,9 +727,11 @@ impl<T: Decide> Sweep<T> {
             let dt_signed = if forward { span } else { T::zero() - span };
             let a = a_pt - origin;
             let b = b_pt - origin;
-            let excess = (c_e - origin).cross(b_pt - a_pt).dot(self.plane.normal)
-                + sa * sb * axis_e.dot(self.plane.normal) * dt_signed
-                - a.cross(b).dot(self.plane.normal);
+            let excess = (c_e - origin)
+                .cross(b_pt - a_pt)
+                .dot(self.plane.normal.get())
+                + sa * sb * axis_e.dot(self.plane.normal.get()) * dt_signed
+                - a.cross(b).dot(self.plane.normal.get());
             twice_area = twice_area + excess;
             perimeter = perimeter + (sa * span.abs() - (b - a).norm());
         }

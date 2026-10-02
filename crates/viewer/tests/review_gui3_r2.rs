@@ -373,8 +373,7 @@ fn a_replayed_history_undoes_one_logged_edit_at_a_time() {
             expr: len(v),
         })
         .collect();
-    let mut history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
-        .expect("the log replays");
+    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
     assert_eq!(history.len(), 4);
     for expected in [0.008_f64, 0.007, 0.006] {
         history.undo().expect("a step back");
@@ -680,12 +679,9 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     let rows = session.tree_rows();
     assert!(tree::has_faults(&rows), "the document does not build");
 
-    let failed = rows
-        .iter()
-        .find(|row| row.id == bad)
-        .expect("the failing node has a row");
+    let failed = common::row_of(&rows, bad);
     let expected = match evaluation.result(bad).expect("the node has a result") {
-        pncad::document::NodeResult::Failed(error) => error.to_string(),
+        pncad::document::NodeResult::Failed(error) => error.spoken(session.committed_doc()),
         other => panic!("expected a failure, got {other:?}"),
     };
     assert_eq!(
@@ -697,10 +693,7 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
         "the badge is NodeError's own Display, not a sentence the panel wrote"
     );
 
-    let poisoned = rows
-        .iter()
-        .find(|row| row.id == downstream)
-        .expect("the downstream node has a row");
+    let poisoned = common::row_of(&rows, downstream);
     match &poisoned.status {
         viewer::tree::RowStatus::Poisoned { through, message } => {
             assert_eq!(*through, bad, "the poison names the failed ancestor");

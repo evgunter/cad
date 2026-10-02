@@ -11,7 +11,7 @@
 
 use crate::common::approx::band;
 use crate::common::operands;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};

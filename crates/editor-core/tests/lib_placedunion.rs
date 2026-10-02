@@ -116,14 +116,14 @@ fn the_fin_group_equals_the_transform_union_chain() {
         let tr = apply(
             &chain,
             &DocEdit::InsertNode {
-                node: Node::transform(
+                node: Box::new(Node::transform(
                     fin,
                     editor_core::Step::Rigid {
                         translation: [len(f64::from(i) * PITCH), len(0.0), len(0.0)],
                         axis: [scl(0.0), scl(0.0), scl(1.0)],
                         angle: ang(0.0),
                     },
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -137,12 +137,12 @@ fn the_fin_group_equals_the_transform_union_chain() {
                 let u = apply(
                     &chain,
                     &DocEdit::InsertNode {
-                        node: Node::Boolean {
+                        node: Box::new(Node::Boolean {
                             op: BooleanOp::Union,
                             a,
                             b: placed,
                             declare: None,
-                        },
+                        }),
                     },
                     Tol::witness(),
                     &editor_core::RefusingReach,
@@ -159,15 +159,17 @@ fn the_fin_group_equals_the_transform_union_chain() {
     let grouped = apply(
         &base_doc,
         &DocEdit::InsertNode {
-            node: Node::placed_union(
-                fin,
-                Expr::count(5),
-                PatternKind::Linear {
-                    direction: [scl(1.0), scl(0.0), scl(0.0)],
-                    spacing: len(PITCH),
-                },
-            )
-            .expect("a stepped rule takes a count"),
+            node: Box::new(
+                Node::placed_union(
+                    fin,
+                    Expr::count(5),
+                    PatternKind::Linear {
+                        direction: [scl(1.0), scl(0.0), scl(0.0)],
+                        spacing: len(PITCH),
+                    },
+                )
+                .expect("a stepped rule takes a count"),
+            ),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -441,7 +443,9 @@ fn the_edit_door_refuses_a_two_spelling_count() {
     assert!(matches!(
         apply(
             &doc,
-            &DocEdit::InsertNode { node: with_count },
+            &DocEdit::InsertNode {
+                node: Box::new(with_count)
+            },
             Tol::witness(),
             &editor_core::RefusingReach
         ),
@@ -456,7 +460,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: pattern_explicit
+                node: Box::new(pattern_explicit)
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -525,7 +529,9 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
     assert!(matches!(
         apply(
             &doc,
-            &DocEdit::InsertNode { node: empty },
+            &DocEdit::InsertNode {
+                node: Box::new(empty)
+            },
             Tol::witness(),
             &editor_core::RefusingReach
         ),
@@ -536,15 +542,17 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
     let zero = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::placed_union(
-                fin,
-                Expr::count(0),
-                PatternKind::Linear {
-                    direction: [scl(1.0), scl(0.0), scl(0.0)],
-                    spacing: len(2.0),
-                },
-            )
-            .expect("a stepped rule takes a count"),
+            node: Box::new(
+                Node::placed_union(
+                    fin,
+                    Expr::count(0),
+                    PatternKind::Linear {
+                        direction: [scl(1.0), scl(0.0), scl(0.0)],
+                        spacing: len(2.0),
+                    },
+                )
+                .expect("a stepped rule takes a count"),
+            ),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -569,7 +577,7 @@ fn the_wire_refuses_an_emptied_placement_list() {
     let one = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::placed_union_at(fin, vec![Frame::IDENTITY]),
+            node: Box::new(Node::placed_union_at(fin, vec![Frame::IDENTITY])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -608,7 +616,7 @@ fn the_wire_refuses_an_emptied_placement_list() {
 }
 
 /// **Explicit frames meet the A6/A11 bar at the EDIT door** — the same
-/// finite-and-proper test `SetPlacement` applies to a group frame,
+/// finite-and-proper test `SetOffset` applies to an instance offset,
 /// and the same typed refusals (review MINOR-2). A non-finite frame no
 /// longer reads as a separation failure; it says what it is.
 #[test]
@@ -625,7 +633,9 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
     assert!(matches!(
         apply(
             &doc,
-            &DocEdit::InsertNode { node: with(nan) },
+            &DocEdit::InsertNode {
+                node: Box::new(with(nan))
+            },
             Tol::witness(),
             &editor_core::RefusingReach
         ),
@@ -640,7 +650,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
     ));
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: with(mirror) }, Tol::witness(), &editor_core::RefusingReach),
+        apply(&doc, &DocEdit::InsertNode { node: Box::new(with(mirror)) }, Tol::witness(), &editor_core::RefusingReach),
         Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
     ));
 
@@ -658,7 +668,9 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         Node::<editor_core::ProfileProgram>::placed_union_at(fin, vec![Frame::IDENTITY, stretched]);
     match apply(
         &doc,
-        &DocEdit::InsertNode { node: two },
+        &DocEdit::InsertNode {
+            node: Box::new(two),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
@@ -666,7 +678,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
             assert_eq!(at, editor_core::FrameSite::Listed { index: 1 });
             let text = error.to_string();
             assert!(
-                text.contains("placement 1 of node") && text.contains("Recourse:"),
+                text.contains("placement 1 of PlacedUnion ") && text.contains("Recourse:"),
                 "names the listed placement and its recourse: {text}"
             );
         }
@@ -686,7 +698,9 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
     assert!(
         apply(
             &doc,
-            &DocEdit::InsertNode { node: with(turned) },
+            &DocEdit::InsertNode {
+                node: Box::new(with(turned))
+            },
             Tol::witness(),
             &editor_core::RefusingReach
         )
@@ -734,7 +748,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
     let grouped = apply(
         &gdoc,
         &DocEdit::InsertNode {
-            node: Node::placed_union_at(
+            node: Box::new(Node::placed_union_at(
                 gsolid,
                 places
                     .iter()
@@ -743,7 +757,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                             .expect("a literal axis has a definite direction")
                     })
                     .collect(),
-            ),
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -757,14 +771,14 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
         let tr = apply(
             &cdoc,
             &DocEdit::InsertNode {
-                node: Node::transform(
+                node: Box::new(Node::transform(
                     csolid,
                     editor_core::Step::Rigid {
                         translation: [len(t[0]), len(t[1]), len(t[2])],
                         axis: [scl(ax[0]), scl(ax[1]), scl(ax[2])],
                         angle: ang(an),
                     },
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -778,12 +792,12 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                 let u = apply(
                     &cdoc,
                     &DocEdit::InsertNode {
-                        node: Node::Boolean {
+                        node: Box::new(Node::Boolean {
                             op: BooleanOp::Union,
                             a,
                             b: placed,
                             declare: None,
-                        },
+                        }),
                     },
                     Tol::witness(),
                     &editor_core::RefusingReach,

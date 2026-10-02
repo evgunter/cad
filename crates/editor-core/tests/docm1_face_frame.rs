@@ -28,7 +28,7 @@ use editor_core::{
     all_edges, all_faces, apply, edge_carrier_kind, edge_frame, evaluate, face_carrier_kind,
     face_frame,
 };
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Tol, UnitVec3, Vec3};
 use topo::readback;
 use topo::{CurveKind, DatumValue};
@@ -676,7 +676,7 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
     // its node is live, and the table lacks it — N5's `Vanished`.
     let gone = fixture::fname(
         cube,
-        editor_core::RoleSeg::Lateral(fixture::no_piece_of(&doc)),
+        editor_core::RoleSeg::Lateral(fixture::no_piece_of(&doc).into()),
     );
     let rebind = |doc: &ProfileDoc, from: StableName, to: StableName| {
         apply(

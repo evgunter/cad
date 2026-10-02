@@ -48,7 +48,7 @@ fn clamp_lin_integral(a: f64, b: f64, h: f64, y1: f64, y2: f64) -> f64 {
 /// The volume of `{(x, y, z): (x−cx)² + (y−cy)² < r², 0 < z < h,
 /// n·(p − o) < 0}` by a 1-D quadrature in x of the exact y integral.
 fn disc_below(cx: f64, cy: f64, r: f64, h: f64, plane: &SplitPlane<f64>) -> f64 {
-    let n = plane.normal;
+    let n = plane.normal.get();
     let o = plane.origin;
     let m = 20000;
     let mut sum = 0.0;
@@ -96,8 +96,8 @@ fn sections(half: &Body<f64>, plane: &SplitPlane<f64>) -> Vec<(bool, usize)> {
             matches!(
                 half.get_surface(f.surface),
                 Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.cross(plane.normal).norm() < 1e-12
-                        && (*origin - plane.origin).dot(plane.normal).abs() < 1e-12
+                    if normal.cross(plane.normal.get()).norm() < 1e-12
+                        && (*origin - plane.origin).dot(plane.normal.get()).abs() < 1e-12
             )
         })
         .map(|(_, f)| (f.sense, f.rings.len()))
@@ -132,10 +132,11 @@ fn read_split(body: &Body<f64>, plane: &SplitPlane<f64>) -> Result<[Half; 2], St
 
 fn plane_at(o: [f64; 3], t: f64, phi: f64, flip: bool) -> SplitPlane<f64> {
     let s = if flip { -1.0 } else { 1.0 };
-    SplitPlane {
-        origin: Point3::new(o[0], o[1], o[2]),
-        normal: Vec3::new(t.sin() * phi.cos(), t.sin() * phi.sin(), t.cos()) * s,
-    }
+    topo::test_support::split_plane(
+        Point3::new(o[0], o[1], o[2]),
+        Vec3::new(t.sin() * phi.cos(), t.sin() * phi.sin(), t.cos()) * s,
+        tol(),
+    )
 }
 
 fn turned(body: &Body<f64>, turn: f64) -> Body<f64> {
@@ -388,7 +389,7 @@ fn a_keyed_cylinder_from_subtract_splits_into_counter_clockwise_sections() {
 /// The volume of (unit disc × [0, ∞)) ∩ box below `plane`, by a 1-D
 /// midpoint rule in x with the exact y integral.
 fn box_disc_below(plane: &SplitPlane<f64>, sx: (f64, f64), sy: (f64, f64), sz: (f64, f64)) -> f64 {
-    let (n, o) = (plane.normal, plane.origin);
+    let (n, o) = (plane.normal.get(), plane.origin);
     let m = 4000;
     let (x0, x1) = (sx.0.max(-1.0), sx.1.min(1.0));
     let sz = (sz.0.max(0.0), sz.1.min(2.5));
@@ -473,10 +474,12 @@ fn axis_parallel_cuts_left_to_the_book_rule_still_answer() {
                         phi,
                         flip,
                     );
-                    let plane = SplitPlane {
-                        origin: plane.origin,
-                        normal: Vec3::new(plane.normal.x, plane.normal.y, 0.0),
-                    };
+                    let n = plane.normal.get();
+                    let plane = topo::test_support::split_plane(
+                        plane.origin,
+                        Vec3::new(n.x, n.y, 0.0),
+                        tol(),
+                    );
                     let want = disc_below(0.0, 0.0, 1.0, h, &plane);
                     judge(
                         &mut t,

@@ -70,9 +70,11 @@ pub fn try_intersect_declared<S: Scalar>(
 /// The scene's flush contacts, DETECTED and then DECLARED — the two
 /// library doors a user would reach for, spelled the way a user would
 /// spell them: [`pncad::topo::flush::find_flush_candidates`] reports
-/// the cross-body `Rest` pairs the boolean's own verifier would accept
-/// — every carrier that verifier has a rung for, plane through torus
-/// — and [`pncad::topo::flush::declare_all`] turns the findings the
+/// the cross-body cosurface pairs the boolean's own verifier would
+/// accept — `Rest` contacts where the faces oppose, continuations
+/// where they face the same way, on every carrier that verifier has a
+/// rung for, plane through torus — and
+/// [`pncad::topo::flush::declare_all`] turns the findings the
 /// caller has seen into the declarations the op takes. The scene
 /// author BUILT the contact deliberately; this writes the intent down.
 /// Certification still happens inside the op through the verified
@@ -208,7 +210,7 @@ pub fn expect_seamed<S: Scalar>(what: &str, v: Verdict<S>, expected: f64) -> Boo
 pub(crate) mod census {
     use super::{Body, Scalar};
     use core::cell::RefCell;
-    use pncad::geom_brep::SurfaceKind;
+    use pncad::prelude::SurfaceKind;
     use pncad::prelude::query;
 
     type KindPair = (Option<SurfaceKind>, Option<SurfaceKind>);
@@ -243,7 +245,7 @@ pub(crate) mod census {
 #[cfg(test)]
 mod consumer_census {
     use super::*;
-    use pncad::geom_brep::SurfaceKind;
+    use pncad::prelude::SurfaceKind;
 
     /// **Every consumer of [`flush_declarations`] declares PLANAR
     /// contacts, except the plant's socket** — the claim the flush

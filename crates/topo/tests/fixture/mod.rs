@@ -54,6 +54,7 @@ use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::{Body, HalfEdgeKey};
 
+pub mod arc_chain;
 pub mod m7_8;
 
 /// The fixture's cylinder: offset from the sphere's centre so the two

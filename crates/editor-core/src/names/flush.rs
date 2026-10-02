@@ -72,18 +72,18 @@
 //! downstream still owns the ambiguity refusal); none ⇒ no finding;
 //! mixed ⇒ [`SelectRefusal::TiedDisagrees`].
 //!
-//! # What `Rest` means here
+//! # What a finding's class means here
 //!
-//! Cosurface contact on every carrier the `Rest` ladder verifies —
-//! plane, sphere, cylinder and torus — is the whole detector; the
-//! [`ContactClass::Rest`] tag names C4's coincident-carrier contact
-//! class, and a peg's wall in its bore is reported exactly as two
-//! flush plates' faces are. The evidence records which orientation
-//! the verifier decided: [`PlaneRelation::SameOpposite`] is the
-//! resting-contact flavor (opposed material sides — the REST lane's
-//! zip), [`PlaneRelation::SameOriented`] the merge-stage flavor
-//! (flush walls). Both are exactly the pairs the declared rung
-//! verifies. `Tangent`/`Fit` findings reuse this shape when their
+//! Cosurface pairs on every carrier the ladder verifies — plane,
+//! sphere, cylinder and torus — are the whole detector, and a peg's
+//! wall in its bore is reported exactly as two flush plates' faces
+//! are. The class is read off the orientation the verifier decided:
+//! [`PlaneRelation::SameOpposite`] is a `Rest` contact (opposed
+//! material sides — the REST lane's zip), and
+//! [`PlaneRelation::SameOriented`] a continuation
+//! ([`BooleanCoincidence::Continuation`]: two stacked parts' outer
+//! walls, which the union merges). Both are exactly the pairs the
+//! declared rung verifies under that class. `Tangent`/`Fit` findings reuse this shape when their
 //! demand arrives — the `class` field is the reserved slot, not a
 //! `flush: bool` — and tangency waits on a locus the verifier can
 //! check, which is a different kind of gap from the one the curved
@@ -125,7 +125,7 @@ use crate::node::{Node, RecipeNodeId, SitedRef};
 /// (SELECT-DESIGN §3d, "one vocabulary end-to-end") and `topo` cannot
 /// depend on this crate. Everything above re-exports it; nothing
 /// redefines it.
-pub use topo::ContactClass;
+pub use topo::{BooleanCoincidence, ContactClass};
 
 /// The rest of the kernel contact vocabulary, re-exported at the same
 /// door and for the same reason (see [`ContactClass`]): a refusal the
@@ -186,7 +186,8 @@ pub type FlushFinding = topo::flush::FlushFinding<(SitedRef, SitedRef)>;
 /// # Errors
 ///
 /// [`SelectRefusal::NodeHasNoValue`] when `a` or `b` has no value,
-/// carrying its standing;
+/// carrying its standing; [`SelectRefusal::AcrossSpaces`] when they
+/// live in different spaces ([`Evaluation::across_spaces`]);
 /// [`SelectRefusal::PairInBand`] when a pair's verify-door margin is
 /// indeterminate (never silently included or dropped),
 /// [`SelectRefusal::TiedDisagrees`] when a tied name's candidates
@@ -202,6 +203,9 @@ pub fn find_flush_candidates<T: Decide>(
 ) -> Result<Vec<FlushFinding>, SelectRefusal> {
     let va = ev.usable(a).map_err(SelectRefusal::NodeHasNoValue)?;
     let vb = ev.usable(b).map_err(SelectRefusal::NodeHasNoValue)?;
+    if let Some((group, cause)) = ev.across_spaces(a, b) {
+        return Err(SelectRefusal::AcrossSpaces { group, cause });
+    }
     let band = Band::linear(tol)?;
     let fa = face_candidates(va)?;
     let fb = face_candidates(vb)?;
@@ -311,7 +315,7 @@ fn pair_verdict<T: Decide>(
         // seat contributes the pair vocabulary and the tie-resolved
         // evidence, and takes the classification from the door that
         // decides it (`topo::flush::finding`).
-        (m, Some(relation)) if m == total => Ok(Some(finding(
+        (m, Some(relation)) if m == total => finding(
             (
                 SitedRef::new(at_a, na.clone()),
                 SitedRef::new(at_b, nb.clone()),
@@ -324,7 +328,9 @@ fn pair_verdict<T: Decide>(
                     FlushRung::DecidedCoincident
                 },
             },
-        ))),
+        )
+        .map(Some)
+        .map_err(SelectRefusal::DistinctFinding),
         _ => Err(tied_disagrees(na, ca, nb, matched, total)),
     }
 }
@@ -435,8 +441,8 @@ pub fn declare_node<P>(findings: &[FlushFinding]) -> Result<Node<P>, DeclareErro
 
 /// Declares ONE inspected finding: inserts a [`Node::Declare`] with
 /// its pair and returns the accepted insert whole — the edited
-/// document, its record and the cluster maintenance the insert
-/// performed, as one [`Applied`] — plus the Declare node's id, for the
+/// document, its record and the maintenance the insert reported, as
+/// one [`Applied`] — plus the Declare node's id, for the
 /// caller to wire into the consuming Boolean's `declare` input. Sugar
 /// over shipped vocabulary — nothing here detects (GS-Q3's no-fusion
 /// boundary: findings reach this door as VALUES the caller already
@@ -477,7 +483,9 @@ pub fn declare_all<P: Clone + crate::ProfilePayload>(
     // reach, and the refusing one is the honest value here.
     let applied = apply(
         doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         tol,
         &crate::mate::RefusingReach,
     )

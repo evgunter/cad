@@ -271,7 +271,7 @@ fn real_study(tol: Tol) {
     let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
     match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
         Ok(report) => {
-            println!("{}", indent(&report.render(&analyzed)));
+            println!("{}", indent(&report.render(&doc, &analyzed)));
             // What the captions below claim, asserted here — the cell panics
             // when the kernel stops doing what it narrates, the posture every
             // tour cell keeps. (A stackup that answered implies a leaf
@@ -427,7 +427,7 @@ fn real_study(tol: Tol) {
                 println!(
                     "     ∂web/∂{}: {}",
                     s.param.as_str(),
-                    render_sensitivity(&s.outcome)
+                    render_sensitivity(s, &doc)
                 );
             }
             println!(
@@ -450,9 +450,9 @@ fn real_study(tol: Tol) {
     // The advisory lane, which CAN answer at this box — and says what
     // it is on every line.
     let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("the nominal builds");
-    println!("{}", indent(&mc.render()));
+    println!("{}", indent(&mc.render(&doc)));
     assert!(
-        mc.render().contains("ADVISORY"),
+        mc.render(&doc).contains("ADVISORY"),
         "the advisory lane's label rides it"
     );
     assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
@@ -519,11 +519,11 @@ fn certified_study(tol: Tol) {
              regression, since this box is the one the cell exists to show certifying."
         ),
     };
-    println!("{}", indent(&report.render(&analyzed)));
+    println!("{}", indent(&report.render(&doc, &analyzed)));
     print_divergence(&report, bound, worst, &decided, tol);
     // The E11.6 datum: where each certified leaf's mass lands.
     let histogram = leaf_histogram(&doc, &analyzed, &verdict, measure, tol);
-    println!("{}", indent(&histogram.render()));
+    println!("{}", indent(&histogram.render(&doc)));
     println!(
         "   the assertion node {} is the recorded requirement, and THIS is what the CI \
          row gates on: {}",
@@ -570,7 +570,7 @@ fn certified_study(tol: Tol) {
         tol.k() * tol.eps()
     );
     let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("the nominal builds");
-    println!("{}", indent(&mc.render()));
+    println!("{}", indent(&mc.render(&doc)));
     assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
     // The advisory lane's own number, READ OFF THE REPORT rather than
     // asserted in prose. The first pass printed "0%" as a literal, so

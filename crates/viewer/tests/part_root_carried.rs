@@ -60,13 +60,7 @@ fn opened(path: std::path::PathBuf, instance: RecipeNodeId, tol: Tol) -> (TreeRo
     let mut session = DocSession::inline(Doc::empty_derived("partroot-boot", tol), tol);
     let outcome = session.perform(SessionOp::Open(path));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let row = |session: &DocSession| {
-        session
-            .tree_rows()
-            .into_iter()
-            .find(|row| row.id == instance)
-            .expect("the instance has a row")
-    };
+    let row = |session: &DocSession| common::row_of(&session.tree_rows(), instance).clone();
     let before = row(&session);
     session.pump();
     (before, row(&session))

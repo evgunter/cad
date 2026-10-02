@@ -18,10 +18,12 @@ use pncad::geom_core::Decide;
 #[cfg(feature = "probe")]
 use pncad::geom_core::Probe;
 
-/// The K funnel name the tour's authored frame axes are decided under.
+/// The K funnel name the tour's authored frame axes and cut directions
+/// are decided under.
 ///
-/// A scene that wants a sketch plane off the three world frames has to
-/// mint the frame witness, and the mint asks for a funnel name — which
+/// A scene that wants a sketch plane off the three world frames, or a
+/// split plane, has to mint a witness, and the mint asks for a funnel
+/// name — which
 /// a demo, as an outside consumer, has to invent. One name for the
 /// whole tour, because which scene asked is not what a K reader is
 /// after.
@@ -104,6 +106,31 @@ pub fn axis_frame<S: Scalar>(
         pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band"),
     )
     .expect("the scene's spine axis has a direction and its reference radial is off it")
+}
+
+/// **A split plane through `origin` across the authored direction
+/// `dir`**, the direction's length decided at the run's band.
+///
+/// `SplitPlane` takes a `UnitVec3`, and the kernel has no door from a
+/// point and a direction, so a scene that cuts writes the mint — band,
+/// funnel name and all — itself; this is the tour writing it once. The
+/// friction is recorded at `work/issues/kernel-split-plane-has-no-direction-door.md`.
+///
+/// # Panics
+///
+/// If the band cannot be formed, or if `dir` has no length — every
+/// scene here authors one that does.
+pub fn split_plane<S: Scalar>(
+    origin: pncad::geom_core::Point3<S>,
+    dir: pncad::geom_core::Vec3<S>,
+    tol: pncad::geom_core::Tol,
+) -> pncad::topo::splitting::SplitPlane<S> {
+    let band = pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band");
+    pncad::topo::splitting::SplitPlane {
+        origin,
+        normal: pncad::geom_core::UnitVec3::new(dir, TOUR_FRAME_AXIS, band)
+            .expect("the scene's cut direction has a length"),
+    }
 }
 
 /// A scalar the tour can build scenes at: kernel-decidable, certifying

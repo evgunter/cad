@@ -44,7 +44,7 @@ is the board and `work/README.md` its contract.
 | `docs/AXIS-DECLARATION-DESIGN.md` | Ratified (Ev, 2026-09-12, #2404); unbuilt | Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: `ParamSource` carries stored scalar fields only. Axis-shaped declarations invalidated structurally by placement-chain comparison, so no numerical check decides whether a rotation happened; absence of provenance refuses |
 | `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the opaque per-field `ParamSource` channel |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
-| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 on the `[ev]` PR of 2026-09-16); DOCM closed 2026-09-13, EDIT its successor | What a recipe reference may be, DM1–DM8: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` with `DocEdit::SetMembers`, all built (DOCM-1…DOCM-8) |
+| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 on the `[ev]` PR of 2026-09-16); DOCM closed 2026-09-13, EDIT its successor until 2026-10-02, then RECIPE (`docs/doc-ledger/edit-leaves-the-tracker.md`) | What a recipe reference may be, DM1–DM8: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` with `DocEdit::SetMembers`, all built (DOCM-1…DOCM-8) |
 | `crates/editor-core/IDENTITY.md` | Ratified (in-chat 2026-09-04); DOCM closed 2026-09-13 | A held value names the world it came from, DI1–DI5: history-branch validity of node ids, the memo as a pure function of the document, `Evaluation` carries its document's identity, forking is its own act |
 | `scripts/gates/README.md` | Ratified (Ev, 2026-09-06) | The CI gate directory: one home per gate, both CI halves, and the greps-vs-lints evaluation `S13` commissioned — `dylint`, `clippy::disallowed_*`, a proc-macro and a `syn` binary against the four grep gates. The four stay greps and the compound-bound-through-alias gap stays registered where it is disclosed. **The first design page outside `crates/<crate>/README.md`**: it sits beside the code it governs, which for these invariants is `scripts/gates/` and not a crate |
 | `tools/README.md` | Ratified (Ev, 2026-09-08) | The instrument crates' shared rule, clauses `CC1`–`CC5`: where a check owed on what a file says belongs, and in which voice it speaks. The subject is the **reading boundary** — Ev's scope ruling at ratification — of which the cross-column admission is the largest instance: `tess-lint` and `k-lint` both police a CSV column by column, and a property spanning two columns has no entry to live in; the class had eight instances in the tree and no statement. `CC1` (the check goes at the reading boundary and only there) and `CC5` (the harness voice, and the owed-test forwarded to `tess_lint::Report` and on to its module docs — the forwarding is what licenses a citation across cargo roots) are stated over readings generally; `CC2`, `CC3` and `CC4` are labelled as the per-column admissions table's own and do not generalise past it, `CC4` being that a producer-side entailment is **not** a disposition — this page once stated its opposite, and the row proving it wrong is now a test. **The second design page outside `crates/<crate>/README.md`**, and the first governing two sibling crates rather than one directory of scripts |
@@ -306,8 +306,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      either**: a census finding with no backing declaration is
      `UndeclaredContact` (discovery is never declaration); a
      declaration with no geometric witness is
-     `StaleContactDeclaration`. Structural sharing (same key) is the
-     coincidence ladder's first rung and needs no record.
+     `StaleContactDeclaration`. Structural sharing (same surface or
+     point key) is the coincidence ladder's first rung and needs no
+     record: an op that cuts one vertex into copies hands each copy the
+     original's point, as it hands a cut face's fragments one surface.
    - Contact records carry two granularities: vertex (`VvContact`,
      `VfContact`) — edge-on-face and coincident-edge *segments*
      certified by reconstruction from their bounding vertex records
@@ -328,7 +330,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    (recipe data) — near-coincidence NEVER silently becomes contact
    (escalated typed error instead); (ii) result-side touching arises
    only from those intentional coincidences propagated through the
-   boolean node, and the result carries machine-checkable
+   boolean node, or from an op's copies of one vertex, which share its
+   point; the boolean's result carries machine-checkable
    declared-contact records (the ON-set survivors, carried across
    seam-zip/merge mints by a descendant map, never re-derived);
    (iii) an *undeclared* contact discovered at validation is a hard
@@ -484,11 +487,13 @@ READMEs, and its schedule is the tracker. The lettered entries below
 are the ones other documents cite by letter ((a) composition surgery
 and (b) the SSI generic-`T` lift are discharged and keep no entry):
 
-- **(c) the fitted general-circle mint route** — `certify_fitted`'s
-  Circle-carrier arm is reachable from no mint site, so the
-  oblique-trihedron octant faces stay legally uncached; the cone/torus
-  oblique classes have no ring-computable meters composite and refuse
-  with the class named.
+- **(c) the oblique analytic-chart classes** — a sphere's general
+  circle mints through the fitted route
+  (`FittedLane::sphere_circle_image`, certified by `certify_fitted`'s
+  Circle-carrier arm), so the oblique-trihedron octant faces store
+  their rows; the cone/torus oblique classes have no ring-computable
+  meters composite and refuse with the class named, their faces left
+  uncached until each class's route lands.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest; what is missing is
   the join window itself (`run_azimuth_window`/`chart_pcurve` have no
@@ -1126,7 +1131,7 @@ Each layer depends only on the layers below it.
 | `mesh` / `stl` | Certified tessellation (watertight triangle meshes with source-`Face`/`Edge` back-references); STL export (binary + ASCII) |
 | `step-export` / `step-import` | STEP (AP214) analytic-subset export, and import of that subset as adoption (D7) |
 | `quantity` | Typed quantities at the API boundary (D6): `Length`, `Angle`, the unit table and the written forms |
-| `editor-core` | Headless document/editor layer AND the parametric layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + `apply`, pure over the document and the mated parts' reach — a function of the parts' pinned content; the log records the cluster maintenance each edit performed, so replay is pure over the log), parameter expressions, feature DAG evaluation, persistent naming, stable-reference/selection model, incremental evaluation (preview/commit, epochs, cancelation), assemblies, distributions and the subdivision driver, the checks registry. No rendering dependency. See `crates/editor-core/README.md` |
+| `editor-core` | Headless document/editor layer AND the parametric layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + `apply`, pure over the document and, where an inserted mate's datum needs them, the mated parts' reach — a function of the parts' pinned content; no edit records a frame, so the log is the edits themselves and replay is pure over the log), parameter expressions, feature DAG evaluation, persistent naming, stable-reference/selection model, incremental evaluation (preview/commit, epochs, cancelation), assemblies, distributions and the subdivision driver, the checks registry. No rendering dependency. See `crates/editor-core/README.md` |
 | `pncad` / `pncad-py` | The authoring façade (LIBRARY-DESIGN U1 — one crate to depend on, a prelude, f64-first signatures) and its PyO3 bindings, which speak the document layer |
 | `viewer` | The interaction layer over `editor-core`: `Camera`/`CameraOp` and `DocSession`/`SessionOp` as values with one `apply`/`perform` each, feature tree, property panel, selection, open/save, scene extraction — renderer-free and headless-tested; the eframe/wgpu application lives behind the non-default `app` feature. See `crates/viewer/README.md` |
 
@@ -1381,9 +1386,9 @@ Cross-milestone commitments; each binds at the layer named.
   formatting (serde_json with `float_roundtrip`) for finite values;
   NaN/inf refuse typed (`PersistError::NonFinite`); lossy formatters
   banned; enforced by a save/load/replay-identity test. Replay never
-  solves: a logged edit carries the cluster-maintenance rows it
-  performed, and load re-applies them, so a saved document reproduces
-  its placement registry bit for bit with no part store in hand.
+  solves: no edit records a frame (A11 (2)), so load re-applies the
+  edits alone, and a saved document reproduces its gauges and offsets
+  bit for bit with no part store in hand.
 - **Flags banked**: mate solving needs witnesses/interval contraction
   on SE(3), not ℝⁿ; recipe-level provenance carries **pattern indices**
   explicitly so references into indexed families never degrade to

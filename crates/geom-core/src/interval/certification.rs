@@ -26,17 +26,17 @@
 //! tokens and cannot tell lane evaluation at `T = Interval` from
 //! certification arithmetic written generically over the same bound; its
 //! header states this as a known gap. What holds the line is the type: a
-//! value typed `Interval` in an importing file has no `sqrt` and no
-//! `is_poison` to call.
+//! value typed `Interval` in an importing file has no `is_poison` and no
+//! transcendental to call, and its `sqrt` is [`Certification::sqrt`].
 //!
-//! **When rustc suggests `use geom_core::Real`.** Its help for `sqrt`
-//! or `is_poison` on an `Interval` here (E0599) is the one import the
-//! gate forbids in an importing file. Write instead:
-//! [`Certification::mag`], [`Certification::width`] or
-//! [`Certification::sqr`] for a certification bound, which takes no
-//! root; the lane `T` the function already holds, for evaluation;
-//! [`Interval::from_certified`] to cross a lane value in; and
-//! `!is_certified()` for the refusal.
+//! **When rustc suggests `use geom_core::Real`.** Its help for
+//! `is_poison` or a transcendental on an `Interval` here (E0599) is the
+//! one import the gate forbids in an importing file. Write instead:
+//! [`Certification::sqrt`] for a root; [`Certification::mag`],
+//! [`Certification::width`] or [`Certification::sqr`] for a
+//! certification bound; the lane `T` the function already holds, for
+//! evaluation; [`Interval::from_certified`] to cross a lane value in;
+//! and `!is_certified()` for the refusal.
 //!
 //! What stays inherent on [`Interval`]: [`Interval::from_bounds`] (the
 //! driver's door in), [`Interval::repr_bits`] (the identity channel),
@@ -46,7 +46,7 @@
 //! certification arithmetic, called from files that legitimately hold
 //! a lane `T: Real`.
 
-use interval_transcendentals::DInterval;
+use interval_transcendentals::{DInterval, Decoration};
 
 use super::Interval;
 use crate::real::Real;
@@ -83,10 +83,10 @@ pub(crate) mod sealed {
 /// its `lo`/`hi` are NaN only for NaI and the empty set: a refusal
 /// carrying real endpoints reports them.
 ///
-/// The constructors that restate a [`Real`] method (`point`, `zero`,
-/// `one`, `powi`) delegate to it and add nothing: they are the spellings
-/// a certification file, which has no `Real` in scope, builds brackets
-/// with.
+/// The doors that restate a [`Real`] method (`point`, `zero`, `one`,
+/// `powi`, `sqrt`) delegate to it and add nothing: they are the
+/// spellings a certification file, which has no `Real` in scope, builds
+/// brackets with.
 ///
 /// Sealed: implemented for [`Interval`] alone.
 pub trait Certification: sealed::Sealed + Copy {
@@ -150,6 +150,20 @@ pub trait Certification: sealed::Sealed + Copy {
     #[must_use]
     fn clamped_to(self, lo: f64, hi: f64) -> Self;
 
+    /// The intersection with `other`, where both enclose the SAME true
+    /// value by independent arguments — each is sound, so whatever lies
+    /// outside either is not the value, and the meet is the tighter
+    /// enclosure of the two.
+    ///
+    /// Refusal first: a refused argument makes the meet NaI, and so does
+    /// an empty meet, because two sound enclosures of one value cannot
+    /// be disjoint — an empty one says an argument behind either was
+    /// wrong. The endpoints are the backend's `intersection`'s, as in
+    /// [`Certification::clamped_to`], and the decoration the weaker of
+    /// the two arguments', since the meet rests on both.
+    #[must_use]
+    fn meet(self, other: Self) -> Self;
+
     /// Whether `x` lies in the enclosure. False for a refusal (nothing is
     /// known to lie in a bracket that may not certify) and for an `x` that
     /// is not a real number — NaN, or `±inf` even on an unbounded side.
@@ -186,6 +200,38 @@ pub trait Certification: sealed::Sealed + Copy {
     /// zero-straddling enclosure keeps the exact lower bound `0`.
     #[must_use]
     fn powi(self, n: i32) -> Self;
+
+    /// The square root — [`Real::sqrt`], the backend's: each endpoint is
+    /// the correctly rounded `f64` root stepped one ulp outward, with no
+    /// step where the root is provably exact (`√4 = 2`, `√0 = 0`).
+    ///
+    /// **A radicand that may be negative refuses.** One that straddles
+    /// zero comes back `Trv` (the backend roots its non-negative part
+    /// and records the domain miss), and one wholly below zero comes
+    /// back empty; a refused radicand stays refused. Where an outside
+    /// fact makes the radicand non-negative — Lagrange's identity, real
+    /// principal curvatures — that fact is stated first with
+    /// [`Certification::clamped_to`]`(0.0, f64::INFINITY)`, which keeps
+    /// the radicand's decoration; the root itself never clamps.
+    ///
+    /// An upper bound on the root is [`Certification::mag`] of it
+    /// (`NaN` for a refusal; the root's lower end is never negative).
+    #[must_use]
+    fn sqrt(self) -> Self;
+}
+
+impl Interval {
+    /// The one body of [`Certification::clamped_to`] and
+    /// [`Certification::meet`]: the backend's `intersection` with
+    /// `window`, re-read through `from_bounds` (so an empty or
+    /// infinity-only meet refuses) and capped at `dec`.
+    fn narrowed_to(self, window: DInterval, dec: Decoration) -> Self {
+        if !self.is_certified() {
+            return Self::refused();
+        }
+        let meet = self.0.intersection(window);
+        Self(DInterval::from_bounds(meet.lo(), meet.hi()).with_dec_capped(dec))
+    }
 }
 
 /// Raw `f64` comparisons inside these bodies are scalar-implementation
@@ -216,12 +262,22 @@ impl Certification for Interval {
     }
 
     fn clamped_to(self, lo: f64, hi: f64) -> Self {
-        if !self.is_certified() || lo.is_nan() || hi.is_nan() {
+        if lo.is_nan() || hi.is_nan() {
             return Self::refused();
         }
-        let meet = self.0.intersection(DInterval::from_bounds(lo, hi));
-        let narrowed = DInterval::from_bounds(meet.lo(), meet.hi());
-        Self(narrowed.with_dec_capped(self.0.decoration()))
+        self.narrowed_to(DInterval::from_bounds(lo, hi), self.0.decoration())
+    }
+
+    fn meet(self, other: Self) -> Self {
+        if !other.is_certified() {
+            return Self::refused();
+        }
+        let weaker = if other.0.decoration() < self.0.decoration() {
+            other.0.decoration()
+        } else {
+            self.0.decoration()
+        };
+        self.narrowed_to(other.0, weaker)
     }
 
     fn contains(self, x: f64) -> bool {
@@ -253,6 +309,10 @@ impl Certification for Interval {
 
     fn powi(self, n: i32) -> Self {
         Real::powi(self, n)
+    }
+
+    fn sqrt(self) -> Self {
+        Real::sqrt(self)
     }
 }
 
@@ -316,6 +376,39 @@ mod certification_door_tests {
         assert!(!Interval::hull(x, empty).is_certified());
         let trv = ri(-2.0, -1.0) / ri(0.0, 1.0);
         assert!(!Interval::hull(trv, x).is_certified());
+    }
+
+    /// `meet`'s three rules, each on the branch that carries it.
+    #[test]
+    fn the_meet_refuses_a_refused_or_disjoint_pair_and_keeps_the_weaker_decoration() {
+        let x = ri(1.0, 3.0);
+        let p = Interval::refused();
+        assert!(!p.meet(x).is_certified(), "refused receiver");
+        assert!(!x.meet(p).is_certified(), "refused argument");
+
+        let disjoint = x.meet(ri(4.0, 5.0));
+        assert!(
+            !disjoint.is_certified(),
+            "an empty meet refuses: {disjoint:?}"
+        );
+        let touching = x.meet(ri(3.0, 5.0));
+        assert!(touching.is_certified(), "{touching:?}");
+        assert!(touching.lo() == 3.0 && touching.hi() == 3.0, "{touching:?}");
+
+        // `x` is `Com`; an unbounded bracket is at best `Dac`. The meet
+        // is bounded, so without the cap it would read `Com` again.
+        let unbounded = ri(2.0, f64::INFINITY);
+        assert!(
+            x.0.decoration() > unbounded.0.decoration(),
+            "{x:?} {unbounded:?}"
+        );
+        for m in [x.meet(unbounded), unbounded.meet(x)] {
+            assert!(m.lo() == 2.0 && m.hi() == 3.0, "{m:?}");
+            assert!(
+                m.0.decoration() == unbounded.0.decoration(),
+                "the minimum: {m:?}"
+            );
+        }
     }
 
     #[test]
@@ -394,6 +487,60 @@ mod certification_door_tests {
         let tiny = x.powi(i32::MIN);
         assert!(tiny.is_certified(), "{tiny:?}");
         assert!(tiny.contains(0.0) && tiny.hi() < 1e-300, "{tiny:?}");
+    }
+
+    /// The root's three rows: a refused radicand stays refused (the
+    /// `Trv` ones with real endpoints included, one of them over a
+    /// non-negative bracket), a radicand that may be
+    /// negative refuses — straddling or wholly below zero — unless an
+    /// outside fact clamps it first, and a representable root takes no
+    /// outward step.
+    #[test]
+    fn sqrt_refuses_what_it_cannot_root_and_is_tight_where_exact() {
+        let trv = ri(-2.0, -1.0) / ri(0.0, 1.0);
+        assert!(trv.lo().is_finite() || trv.hi().is_finite(), "{trv:?}");
+        // The C9 hazard: a refusal whose endpoints are an ordinary
+        // non-negative radicand, which a root that re-minted its bracket
+        // from the endpoints would certify.
+        let trv_rootable = ri(-1.0, 16.0).sqrt() + Interval::one();
+        assert!(
+            !trv_rootable.is_certified() && trv_rootable.lo() >= 1.0 && trv_rootable.hi() <= 5.5,
+            "{trv_rootable:?}"
+        );
+        for refused in [Interval::refused(), trv, trv_rootable] {
+            let r = refused.sqrt();
+            assert!(!r.is_certified(), "refused in, refused out: {r:?}");
+            assert!(r.mag().is_nan(), "no upper bound read off a refusal: {r:?}");
+        }
+
+        let straddle = ri(-1e-300, 4.0);
+        let r = straddle.sqrt();
+        assert!(!r.is_certified(), "a straddling radicand refuses: {r:?}");
+        assert!(
+            !ri(-4.0, -1.0).sqrt().is_certified(),
+            "a negative radicand refuses"
+        );
+        let clamped = straddle.clamped_to(0.0, f64::INFINITY).sqrt();
+        assert!(clamped.is_certified(), "{clamped:?}");
+        assert!(clamped.lo() == 0.0 && clamped.hi() == 2.0, "{clamped:?}");
+
+        for (sq, root) in [
+            (4.0, 2.0),
+            (0.0, 0.0),
+            (0.25, 0.5),
+            (2f64.powi(100), 2f64.powi(50)),
+        ] {
+            let r = Interval::point(sq).sqrt();
+            assert!(
+                r.is_certified() && r.lo() == root && r.hi() == root,
+                "√{sq} = {root} exactly: {r:?}"
+            );
+        }
+        let two = Interval::point(2.0).sqrt();
+        assert!(
+            two.lo() < two.hi() && two.contains(2.0f64.sqrt()),
+            "{two:?}"
+        );
     }
 
     /// The crossing carries the scalar's refusal in the decoration and

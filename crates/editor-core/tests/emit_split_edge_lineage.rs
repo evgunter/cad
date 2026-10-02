@@ -87,7 +87,7 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_ranks_its_crossing
                     panic!("a vertex row names a vertex: {name:?}");
                 };
                 let p = point(half, v);
-                crossings.insert((*side, *rank), [p.x, p.y, p.z]);
+                crossings.insert((*side, *rank), p.to_array());
             }
             (EntityKind::Vertex, [RoleSeg::CrossingVertex { edge, .. }, ..]) if rim(edge) => {
                 panic!("a crossing of the rim is ranked one of two: {name:?}")

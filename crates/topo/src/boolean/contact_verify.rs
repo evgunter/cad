@@ -145,12 +145,21 @@ fn rest_pair_verdict<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<ContactVerdict, ContactRefusal> {
-    let outcome = super::rest::carrier_pair_verdict(a, fa, b, fb, true, band).ok_or(
-        ContactRefusal::NotCertifiable {
-            what: "a declared face's surface kind is outside the Rest ladder's inventory \
-                   (plane, sphere, cylinder)",
-        },
-    )?;
+    let outcome =
+        super::rest::carrier_pair_verdict(a, fa, b, fb, true, band).map_err(|unread| {
+            ContactRefusal::NotCertifiable {
+                what: match unread {
+                    super::rest::PairUnread::OutsideInventory => {
+                        "a declared face's surface kind is outside the Rest ladder's inventory \
+                     (plane, sphere, cylinder, torus)"
+                    }
+                    super::rest::PairUnread::Extent(_) => {
+                        "a declared face's consumed extent cannot be read (its box has no claim to \
+                     make, or its boundary cannot be walked)"
+                    }
+                },
+            }
+        })?;
     match outcome {
         Ok((CarrierRelation::SameOpposite, verdict)) => Ok(verdict),
         Ok((CarrierRelation::SameOriented, _)) => Err(ContactRefusal::Contradicted {
@@ -177,7 +186,9 @@ fn rest_pair_verdict<T: Decide>(
             steer: fit_steer(fact),
             diag,
         }),
-        Err(CarrierEqError::Escalated { diag, .. }) => Err(ContactRefusal::Escalated { diag }),
+        Err(CarrierEqError::Escalated { diag, .. } | CarrierEqError::Unsettled { diag }) => {
+            Err(ContactRefusal::Escalated { diag })
+        }
         Err(CarrierEqError::Undeclared { diag, .. }) => Err(ContactRefusal::Undeclared { diag }),
     }
 }
@@ -475,16 +486,16 @@ mod tests {
 
     fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::new(o[0], o[1], o[2]),
-            normal: Vec3::new(n[0], n[1], n[2]),
+            origin: Point3::from_array(o),
+            normal: Vec3::from_array(n),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
         geom::Curve3::Line {
-            origin: Point3::new(o[0], o[1], o[2]),
-            dir: Vec3::new(d[0], d[1], d[2]),
+            origin: Point3::from_array(o),
+            dir: Vec3::from_array(d),
         }
     }
 

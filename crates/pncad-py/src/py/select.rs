@@ -369,7 +369,7 @@ impl SideArg {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
-    reason = "each variant mirrors the documented `editor_core::CurveKind` variant of the same name"
+    reason = "each variant mirrors the documented `geom::CurveKind` variant of the same name"
 )]
 pub(crate) enum CurveKind {
     Line,
@@ -397,7 +397,7 @@ impl CurveKind {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
-    reason = "each variant mirrors the documented `geom_brep::SurfaceKind` variant of the same name"
+    reason = "each variant mirrors the documented `geom::SurfaceKind` variant of the same name"
 )]
 pub(crate) enum SurfaceKind {
     Plane,
@@ -774,9 +774,14 @@ fn fill(fields: &mut [(&'static str, Py<PyAny>)], attribute: &str, payload: Py<P
 /// the kernel's `Display`, because a candidate is spelled through
 /// `name_text` — the `StableName` alphabet Python speaks — where the
 /// kernel spells it kind-plus-minting-node. The arms this binding does
-/// not mirror fall back to that kernel prose. The fields are the
+/// not mirror fall back to that kernel prose, spoken from the evaluated
+/// document. The fields are the
 /// contract; the message is prose.
-pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
+pub(crate) fn select_refusal(
+    py: Python<'_>,
+    err: &s::SelectRefusal,
+    doc: &pncad::document::ProfileDoc,
+) -> PyErr {
     use s::SelectRefusal as R;
     let text = |v: &str| PyString::new(py, v).unbind().into_any();
     // `name` renders through `name_text` — the same alphabet every
@@ -837,7 +842,8 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
             format!(
                 "a decided atom could not read a candidate's position \
                  (the read-back refusal, surfaced rather than swallowed): \
-                 {error}"
+                 {}",
+                error.spoken(doc)
             )
         }
         R::NotADatum { datum, found } => {
@@ -857,10 +863,16 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
         R::DatumHasNoValue(standing) => {
             let [datum, _] = super::standing_fields(py, *standing);
             fill(&mut fields, "datum", datum);
-            format!("the node `datum_distance` references has no value: {standing}")
+            format!(
+                "the node `datum_distance` references has no value: {}",
+                standing.spoken(doc)
+            )
         }
         R::NodeHasNoValue(standing) => {
-            format!("a node the flush query reads has no value: {standing}")
+            format!(
+                "a node the flush query reads has no value: {}",
+                standing.spoken(doc)
+            )
         }
         R::NotALength { dim } => {
             fill(&mut fields, "dim", text(dimension_tag(*dim)));
@@ -894,7 +906,7 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
         // possible here, and the tag pin in `src/tests.rs` enumerates
         // the arms this binding speaks without being able to fail on a
         // new one.
-        other => other.to_string(),
+        other => other.spoken(doc),
     };
     typed_err(py, ErrorClass::Select, message, &fields)
 }

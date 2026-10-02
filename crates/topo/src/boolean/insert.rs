@@ -39,6 +39,7 @@ use super::{
 };
 use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
 use crate::body::Body;
+use crate::contact::BooleanCoincidence;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::MevSite;
 use crate::null::{NewVertexSide, NullEdge};
@@ -62,7 +63,7 @@ pub(super) fn insert_null_pairs<T: Decide>(
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     records: &[PairRecord],
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
     let survivors: Vec<&PairRecord> = records.iter().filter(|r| r.intersect).collect();
@@ -274,7 +275,7 @@ fn anchor_dir<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<Vec3<T>, Boo
 /// The record's germ direction, by declared class: a `Tangent` pair's
 /// sector normals are PARALLEL along the contact (the tangency), so
 /// its germ direction is the verified closed-form locus
-/// ([`super::rest::tangent_locus`] — the DEV-1 witness the door
+/// ([`geom_brep::tangent_locus`] — the DEV-1 witness the door
 /// derived), signed into the sector pair by the same membership test;
 /// every other pair takes the transverse normal cross ([`germ_dir`]).
 fn record_germ_dir<T: Decide>(
@@ -282,7 +283,7 @@ fn record_germ_dir<T: Decide>(
     b_body: &Body<T>,
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     // What the door read of the pair, which the questions below refuse
@@ -292,7 +293,7 @@ fn record_germ_dir<T: Decide>(
         Coincide::TangentLocus,
         &[],
     );
-    if read != DeclarationRead::Spent(crate::contact::ContactClass::Tangent) {
+    if read != DeclarationRead::Spent(BooleanCoincidence::TANGENT) {
         return germ_dir(sa, sb, read, band);
     }
     let surface_of = |body: &Body<T>, face| {
@@ -305,9 +306,10 @@ fn record_germ_dir<T: Decide>(
     };
     let s_a = surface_of(a_body, sa.face)?;
     let s_b = surface_of(b_body, sb.face)?;
-    let d = match super::rest::tangent_locus(&s_a, &s_b, band) {
-        Ok(super::rest::TangentLocus::Line { dir, .. }) => dir.normalize(),
-        Err(super::rest::TangentLocusError::Escalated(diag)) => {
+    let reach = declared.reach_of(super::Operand::A, sa.face, super::Operand::B, sb.face)?;
+    let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
+        Ok(geom_brep::TangentLocus::Line { dir, .. }) => dir.normalize(),
+        Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,
                 read,
@@ -319,8 +321,8 @@ fn record_germ_dir<T: Decide>(
         // produce. Listed rather than wildcarded, so a new
         // `TangentLocusError` arm is classified here deliberately.
         Err(
-            super::rest::TangentLocusError::NotTangent { .. }
-            | super::rest::TangentLocusError::Unsupported { .. },
+            geom_brep::TangentLocusError::NotTangent { .. }
+            | geom_brep::TangentLocusError::Unsupported { .. },
         ) => {
             return Err(BooleanError::ClassificationInvariant {
                 what: "declared-Tangent germ without a closed-form locus",

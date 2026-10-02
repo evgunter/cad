@@ -393,7 +393,7 @@ fn a_start_tangent_leaning_on_world_z_takes_the_first_rung_anyway() {
     let place = normal_start_place(&path);
     let (lo, _) = path.domain();
 
-    let (x, y, z) = (place.linear.c0, place.linear.c1, place.linear.c2);
+    let [x, y, z] = place.linear.cols();
     let tangent = path.deriv(lo) / path.deriv(lo).norm();
     assert!(
         (z - tangent).norm() < 1e-15,

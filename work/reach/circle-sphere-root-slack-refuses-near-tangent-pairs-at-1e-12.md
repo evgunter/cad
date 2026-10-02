@@ -38,3 +38,13 @@ first harmonic (its chain is a squared norm and a dot product), or
 whether the root's position needs a refinement step (one Newton step
 on the exact residual) before the slack is metered — the torus row
 asks the same question of its quartic.
+
+## Evidence (2026-10-02, the dual review of PR 3752): the cylinder instance
+
+The circle × cylinder door's square arm takes the same first-harmonic
+meters (`circle_roots::first_harmonic_roots`). At ε = 1e-12 it certifies
+none of 8,120 near-tangent poses (review 1, `circle_cylinder_probe.rs`,
+`probe_tilt_band_and_near_tangency`, run at `CAD_TOLERANCE_EPS=1e-12`; a reviewer probe outside the tree). Every one is refused
+`Uncertain`, none is answered wrongly. It is the same crowding: the
+root-slack charge at a shallow crossing is in the gap of the finest
+band.

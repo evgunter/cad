@@ -26,26 +26,11 @@ fn band() -> Band {
 }
 
 fn bits3(v: Vec3<f64>) -> [u64; 3] {
-    [v.x, v.y, v.z].map(f64::to_bits)
+    v.to_array().map(f64::to_bits)
 }
 
 fn bits12(a: &Affine3<f64>) -> [u64; 12] {
-    let l = a.linear;
-    [
-        l.c0.x,
-        l.c0.y,
-        l.c0.z,
-        l.c1.x,
-        l.c1.y,
-        l.c1.z,
-        l.c2.x,
-        l.c2.y,
-        l.c2.z,
-        a.translation.x,
-        a.translation.y,
-        a.translation.z,
-    ]
-    .map(f64::to_bits)
+    a.components().map(f64::to_bits)
 }
 
 // ---------------------------------------------------------------

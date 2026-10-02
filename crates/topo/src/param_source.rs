@@ -360,7 +360,7 @@ mod tests {
     /// is declared, and reds here until the census covers it.
     #[test]
     fn the_field_census_is_the_walks_scalar_data() {
-        use geom::test_support::SurfaceVariant as K;
+        use geom::SurfaceKind as K;
         use geom::{DatumValue, SurfaceData, SurfaceDatum as D};
         fn identity(field: SurfaceField) -> (K, D) {
             match field {
@@ -380,7 +380,7 @@ mod tests {
             let scalars: Vec<(K, D)> = data
                 .into_iter()
                 .filter(|(_, value)| matches!(value, DatumValue::Scalar(_)))
-                .map(|(d, _)| (K::from(&surface), d))
+                .map(|(d, _)| (surface.kind(), d))
                 .collect();
             let census: Vec<(K, D)> = SurfaceField::ALL
                 .iter()

@@ -653,8 +653,10 @@ pub enum CornerConfig {
     DependentNormals,
     /// A vertex where a CHART SEAM crosses an otherwise smooth rim: the
     /// two edges continuing the rim carry the same support pair, and the
-    /// other two are co-surface seam meridians (one surface on both
-    /// sides, so the dihedral there is zero by construction).
+    /// other one or two are co-surface seam meridians of those supports
+    /// (one surface on both sides, so the dihedral there is zero by
+    /// construction) — one where the other support is a whole face
+    /// carrying both arcs, as a full revolve's plane wall is.
     ///
     /// **Not a corner**, and that is the whole content of the tag. The
     /// surface is smooth through the point — the seam is where a chart
@@ -916,9 +918,14 @@ pub const FILLET3_CORNER_INDEPENDENCE_RECOURSE: &str = "tilt the faces meeting a
 /// **A recourse must be true at every site its tag can fire.** This
 /// tag's firing rule ([`battery::is_seam_vertex`](battery)) is purely
 /// INCIDENCE — two rim arcs carrying one support pair, plus two
-/// co-surface seam meridians — and never reads convexity, so it fires
-/// at a concave rim's seam vertex exactly as readily as at a convex
-/// one. The sentence conditions on nothing because the door it names
+/// co-surface seam meridians, or ONE where the other support is a whole
+/// face carrying the rim (a full revolve's plane disc or annulus) and
+/// `rim_of` lists the rim through the vertex, so the recourse's door is
+/// there wherever the tag fires (`run_walls_built`'s
+/// `seam_vertex_fires_only_where_rim_of_lists_the_rim` holds that over
+/// bodies of cocircular arcs and full revolves) — and never reads
+/// convexity, so it fires at a concave rim's seam vertex exactly as
+/// readily as at a convex one. The sentence conditions on nothing because the door it names
 /// serves both sides. Held to it by
 /// `review_blend1_r2_probes::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
 /// which asserts the sentence and the whole-rim CARVE together, convex
@@ -929,11 +936,17 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
      band)";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
-/// refusals: what remains outside is junction carry-through and rims
+/// refusals: what remains outside is junction carry-through (save
+/// consecutive plane–plane links on one support pair) and rims
 /// that are not whole circular rings between two coaxial surfaces of
 /// revolution.
 ///
-/// **Its open clause names BOTH terminations the surgery carves.** A
+/// **Its open clause names the one junction the surgery carves
+/// through**: consecutive plane–plane links on the same two support
+/// faces, the joint a coplanar-face merge leaves where a wall was
+/// subdivided — the band is one surface the joint only splits.
+///
+/// **And it names BOTH terminations the surgery carves.** A
 /// plane\u{2013}plane link ends at a uniform trivalent corner; a RULED link —
 /// a cylinder with a plane or another cylinder, along the ruling they
 /// share — ends at transverse caps, which is the OQ6 scope decision
@@ -974,10 +987,11 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// A merged flat top that is an ANNULUS carves through this clause:
 /// `ring_clearance_forms::the_bosss_top_outer_rim_carves_on_a_ringed_host`.
 /// `blend_recourse_followability` follows the clause to a carve.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend one-link open chains ending at fully requested trivalent plane\u{2013}plane \
-     corners of one convexity or at TRANSVERSE CAPS on a cylinder's ruling. For a fillet, \
-     a whole latitude rim between coaxial surfaces of revolution carves too, its rings \
-     clear of the band's setback; junction carry-through and run-outs are not implemented";
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both faces between fully requested trivalent \
+     plane\u{2013}plane corners of one convexity, or single cylinder-ruling links at TRANSVERSE \
+     CAPS. For a fillet, a whole latitude rim of coaxial surfaces of revolution carves, its \
+     rings clear of the band's setback; junction carry-through and run-outs are not \
+     implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
@@ -1348,6 +1362,7 @@ pub enum BlendError {
     ///
     /// Two families, and the second is not a shape of the chain in
     /// isolation: (a) the chain's own form — multi-link open chains
+    /// whose links do not share both supports, or are not plane–plane
     /// (junction carry-through), support pairs no arm covers, one-edge
     /// chains (a closed rim on EITHER material side is inside the door:
     /// the band adds material on a concave rim through the same carve);
@@ -1464,8 +1479,15 @@ pub enum BlendError {
         /// classified it — of the ring from the trimline on a support,
         /// of the edge from the region enclosing the sliver on a cap:
         /// definitely negative, or decided Zero — which is the ring or
-        /// edge touching it, never "no clearance was certified".
+        /// edge touching it, unless `bounded` says otherwise.
         margin: ClassifiedMargin,
+        /// Whether `margin` is a BOUND rather than a measurement: the
+        /// edge is an ellipse, a spiric oval or a NURBS curve, whose
+        /// reach the surgery reads off a certified bound rather than
+        /// its own window, so a refusal says only that the edge could
+        /// not be certified clear — not that it reaches the part the
+        /// blend replaces.
+        bounded: bool,
     },
     /// **The result's pcurve caches could not be re-minted** after the
     /// surgery — a chart image outside a derivation route, a loop that
@@ -1649,14 +1671,29 @@ impl fmt::Display for BlendError {
                 "{detail} — at {at}: the blend surgery contradicted its own earlier \
                  steps (a kernel bug); nothing about the body needs changing"
             ),
-            Self::RingClearance { margin, chain, .. } => {
+            Self::RingClearance {
+                margin,
+                chain,
+                bounded,
+                ..
+            } => {
                 let fate = match chain {
                     Convexity::Convex => "cuts away with the material it removes",
                     Convexity::Concave => "buries under the material it adds",
                 };
+                let what = if *bounded {
+                    "an edge cannot be certified clear of"
+                } else {
+                    "a ring or edge lies in"
+                };
+                let how = if *bounded {
+                    " — a bound over the edge, whose carrier has no exact clearance here"
+                } else {
+                    ""
+                };
                 write!(
                     f,
-                    "a ring or edge lies in the part of a face the blend {fate} ({margin}). {}",
+                    "{what} the part of a face the blend {fate} ({margin}{how}). {}",
                     BlendDecision::RingClearance.recourse(margin.arm())
                 )
             }
@@ -1922,11 +1959,13 @@ mod recourse_tests {
                 face: FaceKey::default(),
                 chain: Convexity::Convex,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
+                bounded: false,
             },
             BlendError::RingClearance {
                 face: FaceKey::default(),
                 chain: Convexity::Concave,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
+                bounded: false,
             },
             BlendError::Certify {
                 site: "blend face pcurves",
@@ -2060,11 +2099,41 @@ mod recourse_tests {
                     band: Band::new(1e-9, 1e-6).expect("a band"),
                     sign: Sign::Negative,
                 },
+                bounded: false,
             }
             .to_string();
             assert!(text.contains(says), "{chain}: {text}");
             assert!(!text.contains(never), "{chain}: {text}");
         }
+    }
+
+    /// **A `bounded` ring clearance says it could not certify the edge
+    /// clear, never that the edge reaches the part the blend replaces**
+    /// — the margin it carries is a bound, not a measurement.
+    #[test]
+    fn a_bounded_ring_clearance_says_it_could_not_certify() {
+        let render = |bounded| {
+            BlendError::RingClearance {
+                face: FaceKey::default(),
+                chain: Convexity::Convex,
+                margin: ClassifiedMargin {
+                    predicate: "fillet3_ring_clearance",
+                    reading: MarginDiag::value(-1e-3),
+                    band: Band::new(1e-9, 1e-6).expect("a band"),
+                    sign: Sign::Negative,
+                },
+                bounded,
+            }
+            .to_string()
+        };
+        let (bound, measured) = (render(true), render(false));
+        assert!(
+            bound.contains("cannot be certified clear") && bound.contains("a bound over the edge"),
+            "{bound}"
+        );
+        assert!(!bound.contains("lies in"), "{bound}");
+        assert!(measured.contains("a ring or edge lies in"), "{measured}");
+        assert!(!measured.contains("certified clear"), "{measured}");
     }
 
     /// **No refusal this enum can render carries a `Debug` field

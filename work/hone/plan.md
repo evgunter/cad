@@ -22,8 +22,7 @@ ground goes unproven.
   `point-in-loop-escalates-on-ray-level-margins-the-arc-walk-retries`,
   `sphere-seam-in-a-plane-face-loses-the-fallback-recut-to-the-tilted-section-refusal`,
   `split-shoulder-refuses-one-orientation-at-the-reduction`.
-- **Split soundness**: `split-hands-out-a-body-without-running-tier-3`,
-  `carve-removes-dropped-shells-by-unproven-cycle-walks`,
+- **Split soundness**: `carve-removes-dropped-shells-by-unproven-cycle-walks`,
   `split-section-spur-guard-skips-curved-spurs`,
   `a-split-half-loses-the-lineage-of-a-twice-crossed-edge`.
 - **One home**: `analytic-exact-elevations-have-inline-homes`,

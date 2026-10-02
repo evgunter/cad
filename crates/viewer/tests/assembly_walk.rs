@@ -196,7 +196,7 @@ fn the_exit_demo_walk() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == bench.post_b && !mates.is_empty()
+                if instance.id() == bench.post_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \

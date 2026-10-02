@@ -65,10 +65,11 @@ pub fn turned_cylinder(turn: f64, h: f64) -> Body<f64> {
 /// negated when `flip`.
 pub fn tilted(z: f64, t: f64, flip: bool) -> SplitPlane<f64> {
     let s = if flip { -1.0 } else { 1.0 };
-    SplitPlane {
-        origin: Point3::new(0.0, 0.0, z),
-        normal: Vec3::new(s * t.sin(), 0.0, s * t.cos()),
-    }
+    topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(s * t.sin(), 0.0, s * t.cos()),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// The planar faces of `half` lying in `plane`: its section faces.
@@ -78,8 +79,8 @@ pub fn section_faces(half: &Body<f64>, plane: &SplitPlane<f64>) -> Vec<FaceKey> 
             matches!(
                 half.get_surface(f.surface),
                 Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.cross(plane.normal).norm() < 1e-12
-                        && (*origin - plane.origin).dot(plane.normal).abs() < 1e-12
+                    if normal.cross(plane.normal.get()).norm() < 1e-12
+                        && (*origin - plane.origin).dot(plane.normal.get()).abs() < 1e-12
             )
         })
         .map(|(k, _)| k)

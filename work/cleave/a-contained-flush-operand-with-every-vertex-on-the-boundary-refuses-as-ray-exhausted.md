@@ -55,7 +55,7 @@ the pairwise chain `(a ∪ c) ∪ b` hits the same fallback.
 
 ## Not the same defect as the zip row
 
-`work/zip/two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted.md`
+`work/fuse/two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted.md`
 hands the boolean one body twice, which is a state no document should
 reach, and the fix it proposes is an operand-identity refusal before
 the kernel runs. That fix would not reach this case, because `b` and

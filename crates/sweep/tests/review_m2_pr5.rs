@@ -229,7 +229,13 @@ fn full_pappus_y(t: &Revolved<f64>) -> f64 {
         panic!("full revolve")
     };
     let meridians = &meridians[0];
-    let chain: Vec<EdgeKey> = meridians.iter().filter_map(|m| *m).collect();
+    // A run's segments share its one meridian: each edge once.
+    let mut chain: Vec<EdgeKey> = Vec::new();
+    for m in meridians.iter().flatten() {
+        if !chain.contains(m) {
+            chain.push(*m);
+        }
+    }
     meridian_pappus_volume(
         &t.body,
         &chain,
@@ -263,27 +269,29 @@ fn survives_wire_four_segment_dome_two_band_structure() {
     let vp = validated(vec![dome()]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    // k = 4 wire segments, 3 interior vertices:
-    // V = 2 tips + 3·2 = 8; E = 4 + 4 meridians + 3 + 3 half-rims = 14;
-    // F = 4 + 4 = 8; R = 0. Component E–P: 8 − 14 + 8 − 0 = 2 ⇒ g = 0.
-    assert_eq!(counts(&t.body), (8, 14, 8, 0));
+    // k = 4 wire segments, 3 interior vertices. Both tips end plane
+    // discs, built whole (no pole, no meridian, no π twin), so:
+    // V = 3·2 = 6; E = 4 meridians (cylinder, cone) + 3 + 3 half-rims
+    // = 10; F = 1 + 2 + 2 + 1 = 6; R = 0. 6 − 10 + 6 = 2 ⇒ g = 0.
+    assert_eq!(counts(&t.body), (6, 10, 6, 0));
     assert_eq!(t.body.solids().count(), 1);
     assert_eq!(t.body.shells().count(), 1);
-    // Exactly 4 surfaces: each segment's band pair shares ONE key.
+    // Exactly 4 surfaces: each curved segment's band pair shares ONE key.
     assert_eq!(t.body.surfaces().count(), 4);
     let RevolvedKind::Full {
         meridians,
         pi_walls,
         pi_meridians,
         pi_rims,
+        ..
     } = &t.kind
     else {
         panic!("full");
     };
     let meridians = &meridians[0];
-    for (j, pw) in pi_walls.iter().enumerate().take(4) {
-        let b1 = t.walls[0][j].expect("band-1 wall");
-        let b2 = pw.expect("band-2 wall");
+    for j in [1, 2] {
+        let b1 = t.walls()[0][j].expect("band-1 wall");
+        let b2 = pi_walls[j].expect("band-2 wall");
         assert_ne!(b1, b2, "bands are distinct faces");
         assert_eq!(
             wall_key(&t.body, b1),
@@ -291,49 +299,57 @@ fn survives_wire_four_segment_dome_two_band_structure() {
             "segment {j}: bands must share one surface key"
         );
     }
+    for j in [0, 3] {
+        assert!(t.walls()[0][j].is_some(), "segment {j}: the disc is built");
+        assert!(
+            pi_walls[j].is_none(),
+            "segment {j}: a plane wall has no π twin"
+        );
+    }
     assert!(
-        t.walls[0][4].is_none() && pi_walls[4].is_none(),
+        t.walls()[0][4].is_none() && pi_walls[4].is_none(),
         "axis run omitted"
     );
     // Wall catalog: plane, cylinder, cone, plane.
     let kind_of = |f: FaceKey| t.body.get_surface(wall_key(&t.body, f)).unwrap().clone();
     assert!(matches!(
-        kind_of(t.walls[0][0].unwrap()),
+        kind_of(t.walls()[0][0].unwrap()),
         Surface::Plane { .. }
     ));
     assert!(matches!(
-        kind_of(t.walls[0][1].unwrap()),
+        kind_of(t.walls()[0][1].unwrap()),
         Surface::Cylinder { .. }
     ));
     let Surface::Cone {
         apex, half_angle, ..
-    } = kind_of(t.walls[0][2].unwrap())
+    } = kind_of(t.walls()[0][2].unwrap())
     else {
         panic!("cone wall");
     };
     assert!(apex.distance(Point3::new(0.0, 2.0, 0.0)) < 1e-12);
     assert!((half_angle - FRAC_PI_2 / 2.0).abs() < 1e-12);
     assert!(matches!(
-        kind_of(t.walls[0][3].unwrap()),
+        kind_of(t.walls()[0][3].unwrap()),
         Surface::Plane { .. }
     ));
-    // Tips (axis endpoints) have valence exactly 2 (the two-band
-    // requirement; tier 2's strut ban forces this).
-    for p in [Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 1.5, 0.0)] {
-        assert_eq!(valence(&t.body, vertex_at(&t.body, p)), 2, "tip {p:?}");
-    }
-    // Interior vertices (both copies): two meridians + the band-1
-    // half-rim + the band-2 half-rim = valence 4. (Cross-check:
-    // 2E = 28 = 2 tips·2 + 6 interior·4.)
-    for p in [
-        Point3::new(1.0, 0.0, 0.0),
-        Point3::new(1.0, 1.0, 0.0),
-        Point3::new(0.5, 1.5, 0.0),
-        Point3::new(-1.0, 0.0, 0.0),
-        Point3::new(-1.0, 1.0, 0.0),
-        Point3::new(-0.5, 1.5, 0.0),
+    // Neither tip is a vertex: each disc's centre went with its slit.
+    // Interior vertices (both copies): the band-1 and band-2 half-rims
+    // plus one meridian per curved wall beside them — valence 4 between
+    // the cylinder and the cone, 3 beside a disc. (Cross-check:
+    // 2E = 20 = 2·4 + 4·3.)
+    for (p, valence_want) in [
+        (Point3::new(1.0, 0.0, 0.0), 3),
+        (Point3::new(1.0, 1.0, 0.0), 4),
+        (Point3::new(0.5, 1.5, 0.0), 3),
+        (Point3::new(-1.0, 0.0, 0.0), 3),
+        (Point3::new(-1.0, 1.0, 0.0), 4),
+        (Point3::new(-0.5, 1.5, 0.0), 3),
     ] {
-        assert_eq!(valence(&t.body, vertex_at(&t.body, p)), 4, "interior {p:?}");
+        assert_eq!(
+            valence(&t.body, vertex_at(&t.body, p)),
+            valence_want,
+            "interior {p:?}"
+        );
     }
     // Meridian descriptions: the angle-0 meridian of each PERIODIC
     // wall is that chart's own seam; the plane walls' meridians are
@@ -350,14 +366,14 @@ fn survives_wire_four_segment_dome_two_band_structure() {
     // Q3) saying a profile entity determined the locus. The row reads
     // those, and additionally pins each image to ITS OWN wall's chart
     // — teeth the variant test never had.
-    let wall_of = |seg: usize| wall_key(&t.body, t.walls[0][seg].unwrap());
-    assert_declared_image_in(&t.body, meridians[0].unwrap(), wall_of(0));
+    let wall_of = |seg: usize| wall_key(&t.body, t.walls()[0][seg].unwrap());
     assert_seam_of(&t.body, meridians[1].unwrap(), wall_of(1));
     assert_seam_of(&t.body, meridians[2].unwrap(), wall_of(2));
-    assert_declared_image_in(&t.body, meridians[3].unwrap(), wall_of(3));
-    assert!(meridians[4].is_none());
-    for (seg, pm) in pi_meridians.iter().enumerate().take(4) {
-        assert_declared_image_in(&t.body, pm.unwrap(), wall_of(seg));
+    for seg in [0, 3, 4] {
+        assert!(meridians[seg].is_none() && pi_meridians[seg].is_none());
+    }
+    for seg in [1, 2] {
+        assert_declared_image_in(&t.body, pi_meridians[seg].unwrap(), wall_of(seg));
     }
     // All 3 interior joins are transverse (plane×cyl, cyl×cone,
     // cone×plane): Intersection in BOTH bands.
@@ -385,8 +401,8 @@ fn survives_wire_four_segment_dome_two_band_structure() {
 #[test]
 fn survives_wire_cosurface_pair_inside_the_wire() {
     // Cylinder wall split into two collinear segments at (1, 1): the
-    // cosurface run must yield ONE cylinder key across all FOUR band
-    // faces, and the split rims (both bands) stay conventional.
+    // run is ONE cylinder wall in each band, and the split vertex has
+    // no entity (a full revolve keeps no station).
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 0.0),
@@ -397,7 +413,9 @@ fn survives_wire_cosurface_pair_inside_the_wire() {
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(counts(&t.body), (8, 14, 8, 0));
+    // Two rim circles of two halves each, the cylinder's two meridians,
+    // two whole discs and two cylinder bands.
+    assert_eq!(counts(&t.body), (4, 6, 4, 0));
     // plane + ONE cylinder + plane.
     assert_eq!(t.body.surfaces().count(), 3);
     let RevolvedKind::Full {
@@ -406,29 +424,14 @@ fn survives_wire_cosurface_pair_inside_the_wire() {
     else {
         panic!("full");
     };
-    let keys: Vec<_> = [
-        t.walls[0][1].unwrap(),
-        t.walls[0][2].unwrap(),
-        pi_walls[1].unwrap(),
-        pi_walls[2].unwrap(),
-    ]
-    .iter()
-    .map(|&f| wall_key(&t.body, f))
-    .collect();
+    let walls = t.walls();
+    assert_eq!(walls[0][1], walls[0][2], "one band-1 wall over the run");
+    assert_eq!(pi_walls[1], pi_walls[2], "one band-2 wall over the run");
+    assert_ne!(walls[0][1], pi_walls[1]);
     assert!(
-        keys.windows(2).all(|w| w[0] == w[1]),
-        "one cylinder key: {keys:?}"
+        t.rims[0][2].is_none() && pi_rims[2].is_none(),
+        "the split vertex has no rim"
     );
-    // The cosurface split vertex (canonical 2, at (1,1)): rims stay
-    // conventional in both bands — ONE surface on both sides
-    // under-determines the locus, so no Intersection can be cited, and
-    // the rim is an image in that one cylinder chart with the profile
-    // vertex's revolved pushforward as its authority. (Pre-U2 this
-    // read `MappedCurve`; the variant is gone, the two facts it stood
-    // for are asserted directly, and the chart is pinned besides.)
-    for e in [t.rims[0][2].unwrap(), pi_rims[2].unwrap()] {
-        assert_declared_image_in(&t.body, e, keys[0]);
-    }
     // The genuine corners at (1,0) and (1,2): Intersection both bands.
     for v in [1, 3] {
         for e in [t.rims[0][v].unwrap(), pi_rims[v].unwrap()] {
@@ -566,7 +569,7 @@ fn survives_washer_zip_lineage_and_seam_state() {
     // The Seam state: each wall's outer loop traverses its own
     // meridian TWICE (both halves in one face), each full-period rim
     // is a self-loop (start vertex = end vertex) spanning exactly τ.
-    for (j, w) in t.walls[0].iter().enumerate() {
+    for (j, w) in t.walls()[0].iter().enumerate() {
         let face = t.body.get_face(w.unwrap()).unwrap();
         let LoopBoundary::Cycle { first } = t.body.get_loop(face.outer).unwrap().boundary else {
             panic!("wall loop");
@@ -621,7 +624,7 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     // V4 E8 F4 R0: E–P = 0 ⇒ g = 1.
     assert_eq!(counts(&t.body), (4, 8, 4, 0));
     assert_eq!(t.body.surfaces().count(), 1, "one torus for all four walls");
-    let keys: Vec<_> = t.walls[0]
+    let keys: Vec<_> = t.walls()[0]
         .iter()
         .map(|w| wall_key(&t.body, w.unwrap()))
         .collect();
@@ -684,7 +687,7 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
         panic!("full")
     };
     let pi_edge = pi_meridians[0].unwrap();
-    let sphere_key = wall_key(&t.body, t.walls[0][0].unwrap());
+    let sphere_key = wall_key(&t.body, t.walls()[0][0].unwrap());
     let e = t.body.get_edge(pi_edge).unwrap();
     let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
@@ -763,7 +766,13 @@ fn survives_seam_alignment_under_rotated_placement_and_oblique_axis() {
         panic!("full")
     };
     let meridians = &meridians[0];
-    let chain: Vec<EdgeKey> = meridians.iter().filter_map(|m| *m).collect();
+    // A run's segments share its one meridian: each edge once.
+    let mut chain: Vec<EdgeKey> = Vec::new();
+    for m in meridians.iter().flatten() {
+        if !chain.contains(m) {
+            chain.push(*m);
+        }
+    }
     let axis_o3 = plane.to_world(axis.origin);
     let axis_d3 = plane.to_world(axis.origin + d) - axis_o3;
     let v = meridian_pappus_volume(&t.body, &chain, TAU, axis_o3, axis_d3);
@@ -1038,7 +1047,7 @@ fn survives_tight_but_definite_torus_clearance_is_accepted() {
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    let torus_walls = t.walls[0]
+    let torus_walls = t.walls()[0]
         .iter()
         .filter(|w| {
             matches!(
@@ -1336,7 +1345,7 @@ fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
     // Canonical segment 1 ((2,0)->(2,1)) is a cylinder; segment 0
     // ((1,0)->(2,0)) sweeps the bottom plane annulus.
     let plane_meridian = meridians[0].unwrap();
-    let plane_key = wall_key(&t.body, t.walls[0][0].unwrap());
+    let plane_key = wall_key(&t.body, t.walls()[0][0].unwrap());
     // Its honest state before the forgery: an image in the plane
     // annulus's chart, NOT that chart's seam, declared by the profile
     // segment. (Pre-U2 this was the `MappedCurve` variant; the seam
@@ -1370,12 +1379,11 @@ fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
 #[test]
 fn survives_wire_cosurface_pair_at_segment_zero() {
     // Two collinear oblique segments FROM the axis tip ((0,0)->(1,1)->
-    // (2,2)): the cosurface pair sits at wire vertex 1, so band-1 face
-    // 1 shares band-1 face 0's cone key, and the band-2 carving +
-    // set_face_surface(seed, Shared(wall0)) bookkeeping must still
-    // leave ONE cone key across all four cone band faces. The seed
-    // face still carries its Nurbs placeholder while the band-2 mefs
-    // run — this pins that ordering.
+    // (2,2)): one run, so ONE cone wall in each band, and the split
+    // vertex (wire vertex 1) has no entity in a full revolve. The run's
+    // band-2 wall is the surviving wire face, so this pins that its
+    // bookkeeping (set_face_surface(seed, Shared(wall0))) reads the
+    // run's wall.
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 1.0),
@@ -1385,9 +1393,9 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    // k = 3 wire segments (cone, cone, plane), 2 interior vertices:
-    // V = 2 + 2·2 = 6; E = 3 + 3 + 2 + 2 = 10; F = 6; E–P = 2, g = 0.
-    assert_eq!(counts(&t.body), (6, 10, 6, 0));
+    // The cone (apex, two meridians, two bands) and the top disc built
+    // whole (no pole): V = 1 + 2 = 3; E = 2 + 2 = 4; F = 2 + 1 = 3.
+    assert_eq!(counts(&t.body), (3, 4, 3, 0));
     // Surfaces: ONE cone + one plane.
     assert_eq!(t.body.surfaces().count(), 2);
     let RevolvedKind::Full {
@@ -1396,24 +1404,17 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
     else {
         panic!("full")
     };
-    let cone_faces = [
-        t.walls[0][0].unwrap(),
-        t.walls[0][1].unwrap(),
-        pi_walls[0].unwrap(),
-        pi_walls[1].unwrap(),
-    ];
-    let k0 = wall_key(&t.body, cone_faces[0]);
-    for f in &cone_faces[1..] {
-        assert_eq!(wall_key(&t.body, *f), k0, "one cone key across bands");
-    }
+    let walls = t.walls();
+    assert_eq!(walls[0][0], walls[0][1], "one band-1 wall over the run");
+    assert_eq!(pi_walls[0], pi_walls[1], "one band-2 wall over the run");
+    let k0 = wall_key(&t.body, walls[0][0].unwrap());
+    assert_eq!(wall_key(&t.body, pi_walls[0].unwrap()), k0);
     assert!(matches!(t.body.get_surface(k0), Some(Surface::Cone { .. })));
-    // The cosurface split rims (vertex 1) conventional in both bands —
-    // one cone on both sides under-determines the locus, so the rim is
-    // an image in that cone's chart declared by the profile's revolved
-    // vertex; the cone-plane corner (vertex 2) transverse in both.
-    for e in [t.rims[0][1].unwrap(), pi_rims[1].unwrap()] {
-        assert_declared_image_in(&t.body, e, k0);
-    }
+    assert!(
+        t.rims[0][1].is_none() && pi_rims[1].is_none(),
+        "the split vertex has no rim"
+    );
+    // The cone-plane corner (vertex 2) transverse in both bands.
     for e in [t.rims[0][2].unwrap(), pi_rims[2].unwrap()] {
         assert!(matches!(
             description(&t.body, e),
@@ -1421,12 +1422,14 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
         ));
     }
     // Pappus: cone r=z from 0..2 -> integral of z^2 dz = 8/3; top
-    // annulus dz = 0. V = pi * 8/3.
+    // disc dz = 0. V = pi * 8/3. The run is ONE meridian edge, so the
+    // oracle's midpoint rule (256 steps per edge, error ~1/(3n²) on a
+    // cone) is good to ~5e-6 here.
     assert!(my_signed_volume(&t.body) > 0.0);
     let v = full_pappus_y(&t);
     let exact = PI * 8.0 / 3.0;
     assert!(
-        (v - exact).abs() / exact < 1e-6,
+        (v - exact).abs() / exact < 1e-5,
         "megaphone volume {v} vs {exact}"
     );
 }
@@ -1491,9 +1494,10 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    // k = 3 (plane, cylinder, sphere), 2 interior vertices:
-    // V6 E10 F6 R0, 3 surfaces.
-    assert_eq!(counts(&t.body), (6, 10, 6, 0));
+    // k = 3 (plane, cylinder, sphere), 2 interior vertices; the base
+    // disc is built whole (no pole, no meridian): V5 E8 F5 R0, 3
+    // surfaces.
+    assert_eq!(counts(&t.body), (5, 8, 5, 0));
     assert_eq!(t.body.surfaces().count(), 3);
     let RevolvedKind::Full {
         meridians,
@@ -1505,7 +1509,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
         panic!("full")
     };
     let meridians = &meridians[0];
-    let sphere_key = wall_key(&t.body, t.walls[0][2].unwrap());
+    let sphere_key = wall_key(&t.body, t.walls()[0][2].unwrap());
     assert!(matches!(
         t.body.get_surface(sphere_key),
         Some(Surface::Sphere { .. })

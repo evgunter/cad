@@ -893,8 +893,8 @@ impl Cut {
 
     fn at(point: [f64; 3], normal: [f64; 3]) -> Self {
         Cut {
-            point: Point3::new(point[0], point[1], point[2]),
-            normal: Vec3::new(normal[0], normal[1], normal[2]).normalize(),
+            point: Point3::from_array(point),
+            normal: Vec3::from_array(normal).normalize(),
         }
     }
 
@@ -921,14 +921,11 @@ fn cut_by(cuts: &[Cut]) -> Body<f64> {
 
 /// `body` cut down to the side of every plane in `cuts` below it.
 fn cut_from(mut body: Body<f64>, cuts: &[Cut]) -> Body<f64> {
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     for cut in cuts {
         let result = split(
             &body,
-            &SplitPlane {
-                origin: cut.point,
-                normal: cut.normal,
-            },
+            &topo::test_support::split_plane(cut.point, cut.normal, geom_core::Tol::witness()),
             tol(),
         )
         .expect("the cut splits");

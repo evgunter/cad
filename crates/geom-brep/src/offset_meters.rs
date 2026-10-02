@@ -144,7 +144,7 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, norm_sq, norm_sup, sqrt_down, sqrt_up};
+use geom_core::interval::{div_down, norm_sq, norm_sup};
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
@@ -454,10 +454,11 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // A refused enclosure separates nothing from zero, and `0.0` is
     // the floor's conservative answer — asked by name, because a
     // refusal here carries real endpoints.
-    let a = if !sq.is_certified() {
+    let root_a = sq.sqrt();
+    let a = if !root_a.is_certified() {
         0.0
     } else {
-        sqrt_down(sq.lo())
+        root_a.lo()
     };
     // Assembly B: projection onto the enclosure's midpoint direction.
     // The direction is STRUCTURE (any direction is sound, and that is
@@ -498,11 +499,16 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // three components each carry the full width of two factors. On
     // the sphere-band fixture it is the assembly that moves the
     // certified curvature range from tens to fractions.
+    //
+    // The difference does not cancel in interval arithmetic, so its
+    // enclosure may reach below zero; Lagrange's identity is the
+    // outside fact that clamps it.
     let gram = norm_sq(&cell.s_u) * norm_sq(&cell.s_v) - dot(&cell.s_u, &cell.s_v).sqr();
-    let (c, gram_sup) = if !gram.is_certified() {
+    let root_c = gram.clamped_to(0.0, f64::INFINITY).sqrt();
+    let (c, gram_sup) = if !root_c.is_certified() {
         (0.0, f64::NAN)
     } else {
-        (sqrt_down(gram.lo()), sqrt_up(gram.hi()))
+        (root_c.lo(), root_c.hi())
     };
     let floor = if a > b { a } else { b };
     CellNormal {
@@ -740,9 +746,13 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
         return None;
     }
     // `H² − K` is nonnegative at every real point (the principal
-    // curvatures are real), so an enclosure whose upper end is
-    // negative is rounding, not geometry: the root is zero there.
-    let root = sqrt_up((h.sqr() - k).hi().max(0.0));
+    // curvatures are real): the outside fact that clamps the radicand.
+    // A sound enclosure of it reaches zero, so a refused root is a
+    // refused enclosure upstream, and it refuses the cell.
+    let root = (h.sqr() - k).clamped_to(0.0, f64::INFINITY).sqrt().mag();
+    if root.is_nan() {
+        return None;
+    }
     let (a_hi, a_lo) = (h.hi() + root, h.lo() - root);
     // Assembly B — Gershgorin on the shape operator `W = I⁻¹·II`,
     // `I⁻¹ = (1/A)·[[G, −F], [−F, E]]`. Its eigenvalues ARE the

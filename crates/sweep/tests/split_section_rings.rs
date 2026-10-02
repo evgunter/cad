@@ -21,18 +21,20 @@ use crate::common::bores::{
 use crate::common::cavity::{brick, cut, prism, rod};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::bored_cylinder;
-use topo::Body;
-use topo::splitting::{SplitError, SplitJoinError, SplitPlane, split};
+use topo::splitting::{SplitError, SplitPlane, split};
+use topo::validate::{validate_closed, validate_geometric};
+use topo::{Body, mass_properties};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
 fn at_x(x: f64) -> SplitPlane<f64> {
-    SplitPlane {
-        origin: Point3::new(x, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    }
+    topo::test_support::split_plane(
+        Point3::new(x, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// Each section face of `half` as `(sense, ring count)`, in face order.
@@ -359,10 +361,11 @@ fn a_hairline_slot_cut_nearly_along_its_axis_answers() {
     .map(|(x, y)| Point2::new(x, y));
     let body = cut("slot", &block, &prism(&outline, -0.5, 3.0));
     for delta in [lean, -lean] {
-        let plane = SplitPlane {
-            origin: Point3::new(0.0, 0.0, 1.25),
-            normal: Vec3::new(-s, -delta, -c).normalize(),
-        };
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 1.25),
+            Vec3::new(-s, -delta, -c).normalize(),
+            geom_core::Tol::witness(),
+        );
         halves_at_rest(&format!("off-axis by {delta:e}"), &body, &plane);
     }
 }
@@ -509,10 +512,11 @@ fn a_plane_through_a_seam_corner_is_one_section_face_per_half() {
         let cylinder = turned_cylinder(turn, 2.5);
         for flip in [false, true] {
             let s = if flip { -1.0 } else { 1.0 };
-            let plane = SplitPlane {
-                origin: Point3::new(turn.cos(), turn.sin(), z),
-                normal: Vec3::new(t.sin(), 0.0, t.cos()) * s,
-            };
+            let plane = topo::test_support::split_plane(
+                Point3::new(turn.cos(), turn.sin(), z),
+                Vec3::new(t.sin(), 0.0, t.cos()) * s,
+                tol(),
+            );
             let what = format!("seams at {turn}, corner at z = {z}, tilt {t}, flipped {flip}");
             for (side, half) in ["below", "above"]
                 .into_iter()
@@ -591,41 +595,56 @@ fn a_thin_tube_cut_at_a_tilt_is_one_annular_face_per_half() {
     }
 }
 
-/// **A plane through a notch's tip line refuses at the join, typed, as
-/// main does.** The block `[0, 4]² × [0, 2]` less a V-notch whose tip
-/// line is `x = 2, y = 2`, alone and with a second notch beside it, cut
-/// by planes through that tip line. The fixed partners of the line's
-/// crossings meet across a face an earlier chord divided, so they are
-/// returned to the book's rule, which leaves two ends unpaired:
-/// `Join(UnpairedLooseEnds { count: 2 })`, the refusal main gives. (It
-/// reached the Euler layer as `NotSameFace` before the partners were
-/// re-checked at use.) This row pins the refusal's stage and kind, not
-/// that the pose should refuse.
+/// **A plane through a notch's tip splits exactly.** The block
+/// `[0, 4]² × [0, 2]` less a V-notch whose tip line is `x = 2, y = 2`,
+/// alone and with a second notch (tip line `x = 1, y = 2`) beside it,
+/// cut by planes through the tips' bottom corners and tilted back over
+/// the block. The plane meets each notch only at its tip's bottom
+/// corner, a reflex vertex whose three edges read Above and whose
+/// reflex bisector reads Below: the splitter's whole-orbit strut. Both
+/// halves pass tiers 2 and 3; the below half is the notch-free wedge
+/// `y < 2 − t·z` of the block, `4·(4 − 2t)` for the tilt `t`, and the
+/// above half is the rest.
 #[test]
-fn a_plane_through_a_notch_tip_refuses_at_the_join() {
+fn a_plane_through_a_notch_tip_splits_exactly() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 2.0));
     let notch = [(1.0, 5.0), (2.0, 2.0), (3.0, 5.0)].map(|(x, y)| Point2::new(x, y));
     let v = cut("notch", &block, &prism(&notch, -1.0, 3.0));
     let second = [(0.5, 4.5), (1.0, 2.0), (1.5, 4.5)].map(|(x, y)| Point2::new(x, y));
     let two = cut("second notch", &v, &prism(&second, -1.0, 3.0));
     for (name, body) in [("one notch", &v), ("two notches", &two)] {
-        for (o, n) in [
-            (Point3::new(0.0, 2.0, 0.0), Vec3::new(0.0, 1.0, 0.3)),
-            (Point3::new(0.0, 1.0, 1.0), Vec3::new(0.0, 1.0, 1.0)),
+        let whole = mass_properties(body, tol()).unwrap().volume;
+        if name == "one notch" {
+            // The notch's part inside the block is the triangle
+            // (4/3, 4) (2, 2) (8/3, 4), area 4/3, two high.
+            assert!((whole - 88.0 / 3.0).abs() < 1e-12, "{name}: {whole}");
+        }
+        for (o, n, tilt) in [
+            (Point3::new(0.0, 2.0, 0.0), Vec3::new(0.0, 1.0, 0.3), 0.3),
+            (Point3::new(0.0, 1.0, 1.0), Vec3::new(0.0, 1.0, 1.0), 1.0),
         ] {
-            let plane = SplitPlane {
-                origin: o,
-                normal: n.normalize(),
-            };
-            assert!(
-                matches!(
-                    split(body, &plane, tol()),
-                    Err(SplitError::Join(SplitJoinError::UnpairedLooseEnds {
-                        count: 2
-                    }))
-                ),
-                "{name}, plane through {o:?}: refuses with two ends unpaired"
-            );
+            let plane =
+                topo::test_support::split_plane(o, n.normalize(), geom_core::Tol::witness());
+            let what = format!("{name}, plane through {o:?}");
+            let r = split(body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let below_want = 4.0 * (4.0 - 2.0 * tilt);
+            for (part, want, side) in [
+                (&r.below, below_want, "below"),
+                (&r.above, whole - below_want, "above"),
+            ] {
+                let b = part.body().unwrap_or_else(|| panic!("{what}: no {side}"));
+                assert_eq!(validate_closed(b), Ok(()), "{what} {side}: tier 2");
+                assert_eq!(
+                    validate_geometric(b, tol()),
+                    Ok(()),
+                    "{what} {side}: tier 3"
+                );
+                let v = mass_properties(b, tol()).unwrap().volume;
+                assert!(
+                    (v - want).abs() < 1e-12,
+                    "{what} {side}: volume {v}, want {want}"
+                );
+            }
         }
     }
 }

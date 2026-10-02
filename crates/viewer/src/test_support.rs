@@ -134,7 +134,13 @@ pub fn try_inserted(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), EditError> {
-    let (doc, minted) = try_edited(doc, DocEdit::InsertNode { node }, tol)?;
+    let (doc, minted) = try_edited(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+        tol,
+    )?;
     Ok((doc, minted.expect("an insert mints an id")))
 }
 
@@ -324,6 +330,17 @@ pub fn evaluated_insert(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> (Evaluation<f64>, RecipeNodeId) {
+    let (_, eval, id) = inserted_and_evaluated(doc, node, tol);
+    (eval, id)
+}
+
+/// [`evaluated_insert`] with the document the evaluation was taken of,
+/// for a row that speaks the evaluation's ids.
+pub fn inserted_and_evaluated(
+    doc: &Doc<ProfileProgram>,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, Evaluation<f64>, RecipeNodeId) {
     let (doc, id) = inserted(doc, node, tol);
     let eval = evaluate(
         &doc,
@@ -332,7 +349,7 @@ pub fn evaluated_insert(
         &EvalOptions::default(),
         tol,
     );
-    (eval, id)
+    (doc, eval, id)
 }
 
 /// **The volume of `node`'s single body in `eval`** — an extrude's, a
