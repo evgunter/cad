@@ -1846,6 +1846,9 @@ mod tests {
 /// anywhere between [`Standing::tone`] and the glyphs, turns a row red.
 #[cfg(test)]
 mod verdict_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
     use editor_core::RecipeEditRef;
     use pncad::document::{Doc, NodeStanding, ParamName, ProfileProgram, RecipeNodeId};
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
