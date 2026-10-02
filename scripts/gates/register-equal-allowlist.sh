@@ -51,10 +51,16 @@
 #   * `crates/geom-core/src/arc.rs` — `Arc2::register_endpoints`, the
 #     shared arc type's one spelling of an arc's four endpoint facts
 #     (the rim at each end is the radius; the landing from each end is
-#     the other). It proves none of them: its caller does, and the one
-#     caller is the profile's bulge-mode lowering (`profile::lower_arc`,
-#     whose doc carries the proof), so the lowering needs no entry of
+#     the other). It proves none of them: its caller does, so the
+#     callers need no entry of
 #     its own (Ev, #3453: the allowlist gains the shared type's site).
+#     Its callers are now every profile construction that proves its
+#     arc's endpoint facts (`profile::BuiltArc::register`, each
+#     construction's doc carrying the proof), and beside it
+#     `Arc2::register_centre`, a centre against another spelling of it,
+#     which the line×line fillet calls with its incoming foot's
+#     spelling (`profile/src/path.rs`, `register_incoming_tangency`,
+#     whose doc carries the proof).
 #   * `crates/sweep/src/swept.rs` — rigidity for a placed profile arc,
 #     both facts it places: `register_rigidity` (the placed rim
 #     `‖q_from − c‖` is the sketch rim) and `register_placed_landing`

@@ -170,11 +170,8 @@ pub(crate) struct LineFilletTrims<T: Real> {
     /// fillet arc's end.
     pub t2: Point2<T>,
     /// The fillet arc's bulge tan(φ/4), by the quarter-angle identity on
-    /// `half_tan` (see [`line_line_fillet_trims`]'s docs).
+    /// tan(φ/2) (see [`line_line_fillet_trims`]'s docs).
     pub bulge: T,
-    /// tan(φ/2): the corner's signed half-turn — its sign is the turn
-    /// side σ (positive = left/counterclockwise).
-    pub half_tan: T,
     /// The incoming leg's fit classification (`fillet_leg_fit`,
     /// exact-order band): `Positive` emits the straight piece + declared
     /// joint, `Zero` suppresses both (exact fit).
@@ -259,7 +256,6 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
         t1,
         t2,
         bulge,
-        half_tan,
         fit_in,
         fit_out,
     })

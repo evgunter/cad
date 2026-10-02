@@ -193,6 +193,35 @@ impl<T: Real> Arc2<T> {
         self.centre + Vec2::new(u.x * cos - u.y * sin, u.x * sin + u.y * cos) * self.radius
     }
 
+    /// **Registers the centre against another spelling of it**
+    /// ([`Real::register_equal`]), per component: `other` IS
+    /// `centre`. Each answer is handed back with the fact it states, for
+    /// the caller to handle by arm.
+    ///
+    /// **An axiom, not a check**, as [`Arc2::register_endpoints`] is:
+    /// sound only where the CALLER built both spellings so that they are
+    /// one point over the reals at every value of its inputs, and its
+    /// doc comment carries that proof — a fillet's centre spelled from
+    /// one tangent foot and from the other, say.
+    #[must_use = "a registration can be REFUSED, and a refusal a caller \
+                  drops is a lie nobody sees"]
+    pub fn register_centre(
+        self,
+        other: Point2<T>,
+        tol: Tol,
+    ) -> [(&'static str, SymRegistration); 2] {
+        [
+            (
+                "the centre's x from its other spelling",
+                self.centre.x.register_equal(other.x, tol),
+            ),
+            (
+                "the centre's y from its other spelling",
+                self.centre.y.register_equal(other.y, tol),
+            ),
+        ]
+    }
+
     /// **Registers the endpoint facts** of this arc between `a` and `b`
     /// ([`Real::register_equal`]): the rim at each end is the radius,
     /// the landing from `a` is `b` and the reversed arc's landing from
@@ -416,6 +445,27 @@ mod tests {
             [got[2], got[5], got[6], got[9]],
             [SymRegistration::Contradicted; 4],
             "a sweep that turns the wrong end onto the other: {got:?}"
+        );
+    }
+
+    /// **The centre's other spelling, and a planted lie, at the exact
+    /// witness.** The quarter circle's centre against itself is
+    /// witnessed in both components; against a point off by a half in x
+    /// the x component is refused typed, and y is not.
+    #[test]
+    fn register_centre_refuses_a_planted_lie_at_the_exact_witness() {
+        let (arc, _, _) = quarter_circle::<Interval>();
+        let answers = |other| arc.register_centre(other, Tol::witness()).map(|(_, a)| a);
+        assert_eq!(
+            answers(arc.centre),
+            [SymRegistration::Witnessed; 2],
+            "the centre against itself"
+        );
+        let off = Point2::new(arc.centre.x + Interval::from_f64(0.5), arc.centre.y);
+        assert_eq!(
+            answers(off),
+            [SymRegistration::Contradicted, SymRegistration::Witnessed],
+            "a centre planted off in x"
         );
     }
 

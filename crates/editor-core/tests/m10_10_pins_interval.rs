@@ -47,16 +47,6 @@ use geom_core::{SymRules, Tol};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{certifies_whole, over_band_set};
 
-/// The ε row this run is on, as the index into a three-row table
-/// (`1e-6`, `1e-9`, `1e-12`); any other ε has no measured row and
-/// fails loud rather than reading a neighbour's.
-fn eps_row(eps: f64) -> usize {
-    [1.0e-6, 1.0e-9, 1.0e-12]
-        .iter()
-        .position(|&e| (eps / e - 1.0).abs() < 1.0e-3)
-        .unwrap_or_else(|| panic!("no measured row at eps = {eps:e}: measure one and add it"))
-}
-
 /// **The shipped set carries the algebra, and the algebra is the only
 /// difference from M10-9's set.**
 #[test]

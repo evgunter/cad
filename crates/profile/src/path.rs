@@ -3287,7 +3287,7 @@ fn fillet_arc<T: Real>(carrier: ArcData<T>, bulge: T) -> BuiltArc<T> {
 /// door built: the centre, spelled from the arrival side
 /// ([`fillet_arc_carrier`]), IS `t1 + σ·r·n̂₁` — the incoming tangent
 /// point moved the radius along the incoming ray's left normal to the
-/// turn side — per component.
+/// turn side ([`Arc2::register_centre`]).
 ///
 /// **A theorem of the construction.** The fillet circle is the circle
 /// of radius r tangent to both carriers on the turn side of each, `t1`
@@ -3309,19 +3309,13 @@ fn register_incoming_tangency<T: Real>(
         Sign::Positive | Sign::Zero => T::one(),
     };
     let from_t1 = t1 + Vec2::new(-u1.y, u1.x) * (sgn * arc.radius);
-    for (what, built, held) in [
-        (
-            "the fillet centre's x from its incoming foot",
-            arc.center.x,
-            from_t1.x,
-        ),
-        (
-            "the fillet centre's y from its incoming foot",
-            arc.center.y,
-            from_t1.y,
-        ),
-    ] {
-        built.register_equal(held, tol).handle(what);
+    let carrier = Arc2 {
+        centre: arc.center,
+        radius: arc.radius,
+        sweep: T::zero(),
+    };
+    for (fact, answer) in carrier.register_centre(from_t1, tol) {
+        answer.handle(fact);
     }
 }
 
