@@ -1,6 +1,7 @@
-//! The rocker plate — the tour's arc-leg fillet stop (M5 S2 + S8).
+//! The rocker plate — the tour's fillet stop: a plate rounded in the
+//! profile and on the solid.
 //!
-//! Every corner of this part is authored through the PATHS lattice's
+//! Every corner of the outline and the eye slot is authored through the PATHS lattice's
 //! fillet doors, and between them they cover the whole corner taxonomy
 //! the S2 unit opened: **arc×line** (hub → lower flank), **line×line** (the
 //! keel knee), **line×arc** (flank → boss), **arc×line** again (boss →
@@ -17,16 +18,27 @@
 //! are what the #99/#100 escalation was about; nothing here is a
 //! typed-in tangent point.
 //!
+//! The keyhole through the arm is the 3-D counterpart: extruded sharp,
+//! then its two convex disc/slot creases are rounded by `fillet_edges`
+//! on the solid, selected by description (a line between a cylinder
+//! and a plane) and checked against the closed form for the section a
+//! convex ruled crease's rolling ball removes.
+//!
 //! Constructors are generic over [`Scalar`] (M4 PR 8b): the f64 tour
 //! and the Probe K-telemetry sweep build the SAME geometry.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::prelude::{
+    BlendError, Body, Convexity, CurveKind, CurveKindSet, EdgeKey, SurfaceKind, SurfaceKindSet,
+    fillet_edges, mass_properties, query, validate_geometric,
+};
 use pncad::profile::{
     ArcSide, ArcSweep, Center, Open, Profile, ProfileLoop, Radius, SegmentKind, SketchPlane, Start,
     ValidatedProfile,
 };
-use pncad::sweep::{Extrusion, extrude};
+use pncad::sweep::{Extruded, Extrusion, extrude};
+use pncad::topo::readback::euler_counts;
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -43,6 +55,19 @@ const R_BLEND: f64 = 0.5;
 const R_KNEE: f64 = 0.5;
 /// Radius of the eye slot's rounded tip (the arc×arc corner).
 const R_EYE: f64 = 0.25;
+/// Keyhole disc: centre (3.5, −1/4), R = 1/2 — in the arm's web,
+/// between the hub and the knee.
+const KEY: (f64, f64, f64) = (3.5, -0.25, 0.5);
+/// The keyhole slot's half-width.
+const KEY_W: f64 = 0.2;
+/// How far east of the disc's centre the slot ends.
+const KEY_SLOT: f64 = 0.8;
+/// The plate's thickness.
+const DEPTH: f64 = 0.5;
+/// Radius of the 3-D fillet on the keyhole's two convex creases: the
+/// eye tip's radius, the largest of the plate's radii the keyhole
+/// admits (walls 1 and 2 in [`crease_narration`]).
+const R_CREASE: f64 = R_EYE;
 /// Half the eye slot's tip separation: the two R = 1 slot carriers sit
 /// at (∓1/2, 0), so they cross at (0, ±√(1 − 1/4)) — the vesica of the
 /// S8 branch-selection fixture, at half its size.
@@ -213,22 +238,136 @@ fn eye<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
     .into()
 }
 
-/// The validated rocker profile: outline + eye slot.
-pub fn profile<S: Scalar>(tol: Tol) -> ValidatedProfile<S> {
-    Profile::new(SketchPlane::xy(), vec![outline(tol), eye(tol)])
-        .validate(tol)
-        .expect("the fillet-authored rocker profile validates")
+/// The keyhole through the arm: the [`KEY`] disc and a slot of
+/// half-width [`KEY_W`] running east to [`KEY_SLOT`] past the disc's
+/// centre.
+fn keyhole<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
+    let (kx, ky, kr) = KEY;
+    let x0 = kx + (kr * kr - KEY_W * KEY_W).sqrt();
+    let x1 = kx + KEY_SLOT;
+    Open.at(p2(x0, ky + KEY_W))
+        .arc_to(
+            Center {
+                c: p2(kx, ky),
+                winding: ArcSweep::Ccw,
+                p: p2(x0, ky - KEY_W),
+            },
+            tol,
+        )
+        .expect("the disc runs the long way round to the slot's lower wall")
+        .line_to(p2(x1, ky - KEY_W), tol)
+        .expect("the slot's lower wall")
+        .line_to(p2(x1, ky + KEY_W), tol)
+        .expect("the slot's end")
+        .line_to(Start, tol)
+        .expect("the slot's upper wall closes the keyhole")
+        .into()
 }
 
-/// The plate: profile extruded 1/2 m.
-pub fn rocker<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
+/// The validated rocker profile: outline, eye slot, keyhole.
+pub fn profile<S: Scalar>(tol: Tol) -> ValidatedProfile<S> {
+    Profile::new(
+        SketchPlane::xy(),
+        vec![outline(tol), eye(tol), keyhole(tol)],
+    )
+    .validate(tol)
+    .expect("the fillet-authored rocker profile validates")
+}
+
+/// The plate: the profile extruded [`DEPTH`], every vertical edge
+/// still as the extrude left it.
+fn plate<S: Scalar>(tol: Tol) -> Extruded<S> {
     extrude(
         &profile::<S>(tol),
-        Extrusion::Distance(S::from_f64(0.5)),
+        Extrusion::Distance(S::from_f64(DEPTH)),
         tol,
     )
     .expect("extrude rocker")
+}
+
+/// Whether `e` is a line between a cylinder and a plane — the
+/// kind-pair description of a disc-meets-slot crease, said with the
+/// kernel's own query predicates.
+fn cylinder_plane_line<S: Scalar>(body: &Body<S>, e: EdgeKey) -> bool {
+    query::edge_carrier_matches(body, e, CurveKindSet::just(CurveKind::Line))
+        && query::edge_adjacent_matches(
+            body,
+            e,
+            SurfaceKindSet::just(SurfaceKind::Cylinder),
+            SurfaceKindSet::just(SurfaceKind::Plane),
+        )
+}
+
+/// Every edge of the plate the kind-pair description matches: the
+/// keyhole's two creases, and the six vertical seams where a profile
+/// fillet meets a straight side — which are TANGENT, so the
+/// description alone over-selects (see [`stops`]).
+fn cylinder_plane_lines<S: Scalar>(body: &Body<S>) -> Vec<EdgeKey> {
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&e| cylinder_plane_line(body, e))
+        .collect()
+}
+
+/// The keyhole's convex creases: the kind-pair description, scoped to
+/// the struts the extrude stood up along the keyhole loop (the last
+/// hole, so the last entry of [`Extruded::walls`]). Of the keyhole's
+/// four struts, the two where the disc meets a slot wall match; the
+/// slot end's two corners are plane×plane.
+fn keyhole_creases<S: Scalar>(plate: &Extruded<S>) -> Vec<EdgeKey> {
+    let keyhole = plate.walls.last().expect("the plate has hole loops");
+    keyhole
+        .iter()
+        .map(|wall| wall.strut)
+        .filter(|&e| cylinder_plane_line(&plate.body, e))
+        .collect()
+}
+
+/// The rocker: the plate with its keyhole's two convex creases
+/// rounded at [`R_CREASE`] by `fillet_edges`.
+pub fn rocker<S: Scalar>(tol: Tol) -> Body<S> {
+    let plate = plate::<S>(tol);
+    fillet_edges(
+        &plate.body,
+        &keyhole_creases(&plate),
+        S::from_f64(R_CREASE),
+        tol,
+    )
+    .expect("the keyhole's creases round at R_CREASE")
     .body
+}
+
+/// The area one keyhole crease's fillet removes from the plate's
+/// section, in closed form. In the section, about the disc's centre:
+/// the crease is `V = (x0, w)` with `x0 = √(R² − w²)`; the rolling
+/// ball's centre `c = (cx, w + r)` sits at `R + r` from the centre
+/// (outside the disc) and `r` from the slot wall, so
+/// `cx = √((R + r)² − (w + r)²)`. Its feet are `F_b = (cx, w)` on the
+/// wall and `F_a = c·R/(R + r)` on the disc. The removed region is the
+/// quadrilateral `V F_b c F_a` less the ball's sector between its feet
+/// and the disc's segment between `V` and `F_a`.
+fn crease_cut(r: f64) -> f64 {
+    let (_, _, big_r) = KEY;
+    let w = KEY_W;
+    let x0 = (big_r * big_r - w * w).sqrt();
+    let cy = w + r;
+    let cx = ((big_r + r).powi(2) - cy * cy).sqrt();
+    let s = big_r / (big_r + r);
+    let quad = [(x0, w), (cx, w), (cx, cy), (cx * s, cy * s)];
+    let twice: f64 = (0..4)
+        .map(|i| {
+            let (p, q) = (quad[i], quad[(i + 1) % 4]);
+            p.0 * q.1 - q.0 * p.1
+        })
+        .sum();
+    // The ball's sector runs from F_b (straight down from c) round to
+    // F_a (towards the disc's centre).
+    let to_fb = -core::f64::consts::FRAC_PI_2;
+    let to_fa = (-cy).atan2(-cx);
+    let sector = 0.5 * r * r * (to_fb - to_fa).abs();
+    let phi = cy.atan2(cx) - w.atan2(x0);
+    let segment = 0.5 * big_r * big_r * (phi - phi.sin());
+    0.5 * twice.abs() - sector - segment
 }
 
 /// The S8 witness, read back off the VALIDATED profile: the one arc
@@ -245,7 +384,7 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
     // arc whose radius equals R_EYE", which would find the wrong arc
     // the moment two blends shared a radius, and nothing at all if
     // the stored radius drifted an ulp.
-    let eye_loop = vp.loops().last().expect("the profile has loops");
+    let eye_loop = vp.loops().get(1).expect("the eye is the profile's second loop");
     let blends = eye_loop.blend_arcs();
     let [blend] = blends.as_slice() else {
         panic!(
@@ -279,26 +418,124 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
     )
 }
 
-/// The stop, in tour order — a MONTAGE panel since the M6 curation
-/// unit. The `montage: false` it shipped with was a staging leftover
-/// from the demo unit ("the sheet refresh rides PR 11"); PR 11
-/// refreshed the sheet without flipping the flag back. The rocker is
-/// now the sheet's profile-fillet cell, which is what let the bracket
-/// cell retire.
+/// The keyhole's 3-D fillet, checked against its closed form, and the
+/// two radii the plate would naturally take that the kernel refuses,
+/// pinned live. Returns the narration line.
+fn crease_narration(tol: Tol) -> String {
+    let volume = |b: &Body<f64>| {
+        mass_properties(b, tol)
+            .expect("the rocker's mass properties are closed-form")
+            .volume
+    };
+    let plate = plate::<f64>(tol);
+
+    // The kind-pair description alone also matches the six vertical
+    // seams where a profile fillet meets a straight side. Those are
+    // tangent, and the selector has no convexity atom to leave them
+    // out, so the door refuses the whole request.
+    let described = cylinder_plane_lines(&plate.body);
+    assert_eq!(
+        described.len(),
+        8,
+        "the description matches the keyhole's two creases and the outline's six tangent seams"
+    );
+    let over = fillet_edges(&plate.body, &described, R_CREASE, tol);
+    assert!(
+        matches!(&over, Err(e) if matches!(e.error, BlendError::TangentialEdge { .. })),
+        "the description alone hands the door a tangent seam: {:?}",
+        over.as_ref().err()
+    );
+
+    let creases = keyhole_creases(&plate);
+    assert_eq!(creases.len(), 2, "the keyhole's two disc/slot creases");
+
+    // The plate's own blend radius: the ball rolls OUTSIDE the disc's
+    // wall, where its curvature sets no limit, but the headroom
+    // predicate reads `(1 − r/R)·r` whichever side the ball is on.
+    crate::walls::wall(
+        "rocker",
+        1,
+        "round the keyhole's creases at the outline's blend radius R_BLEND = R_disc",
+        fillet_edges(&plate.body, &creases, R_BLEND, tol),
+        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
+        "round the creases at R_BLEND",
+    );
+    // Above r ≈ 0.32 the slot end's corner enters the region the cap
+    // meter encloses the sliver with (an annulus about the ball's
+    // centre out to the crease), though it stays clear of the sliver
+    // itself: the margin is exactly ‖corner − c‖ − ‖V − c‖.
+    crate::walls::wall(
+        "rocker",
+        2,
+        "round the keyhole's creases at r = 0.4, where the sliver stays clear of the slot's end",
+        fillet_edges(&plate.body, &creases, 0.4, tol),
+        |e| {
+            matches!(
+                e.error,
+                BlendError::RingClearance {
+                    face,
+                    chain: Convexity::Convex,
+                    bounded: false,
+                    ..
+                } if face == plate.bottom || face == plate.top
+            )
+        },
+        "round the creases at the largest radius the slot admits",
+    );
+
+    let rounded = fillet_edges(&plate.body, &creases, R_CREASE, tol)
+        .expect("the keyhole's creases round at R_CREASE");
+    validate_geometric(&rounded.body, tol).expect("the rounded rocker is tier-3 valid");
+    let cut = crease_cut(R_CREASE);
+    let dv = volume(&rounded.body) - volume(&plate.body);
+    let want = -2.0 * cut * DEPTH;
+    assert!(
+        (dv - want).abs() < 1e-12,
+        "the two creases remove 2·A·depth = {want:e}, measured ΔV = {dv:e}"
+    );
+    let counts = euler_counts(&rounded.body);
+    // Each crease's fillet face adds a face, splits its vertical edge
+    // in two and both cap vertices in two, joined by a cap arc: +2
+    // vertices, +3 edges, +1 face per crease on the plate's 34/51/19.
+    assert_eq!(
+        (counts.v, counts.e, counts.f, counts.r, counts.genus()),
+        (38, 57, 21, 4, Ok(2)),
+        "census: the eye and the keyhole make genus 2"
+    );
+    format!(
+        "The keyhole is rounded on the SOLID: after the extrude, `fillet_edges` at \
+         r = {R_CREASE} on its two convex disc/slot creases. Selected as `Line` edges \
+         between a `Cylinder` and a `Plane`, scoped to the keyhole loop's struts — the \
+         description alone also matches the outline's six tangent seams, and the door \
+         refuses those (`TangentialEdge`): the selector has no convexity atom. Each crease \
+         removes A = {cut:.6e} m² of section, so ΔV = −2·A·{DEPTH} = {want:.6e} m³, \
+         measured {dv:.6e}. The outline's blend radius ({R_BLEND}) and r = 0.4 are \
+         refused (walls 1 and 2)."
+    )
+}
+
+/// The stop, in tour order — the montage's fillet cell: the plate
+/// rounded in the profile (six corners, 2-D) and on the solid (the
+/// keyhole's creases, 3-D).
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let note = eye_pick_narration(&profile::<f64>(tol));
+    let note = format!(
+        "{} {}",
+        eye_pick_narration(&profile::<f64>(tol)),
+        crease_narration(tol)
+    );
     vec![Stop {
         name: "rocker",
-        // Short — montage captions share the panel's width, and this
-        // stop became a panel at the M6 curation pass.
-        caption: "rocker plate — every corner filleted".to_string(),
+        // Short — montage captions share the panel's width.
+        caption: "rocker plate — filleted in 2-D and in 3-D".to_string(),
         montage: true,
-        story: "rocker plate — SIX filleted corners covering the whole taxonomy: \
-                arc x line (hub blend), line x line (keel knee), line x arc (boss \
-                blend), arc x line (boss exit), line x arc (hub return), and arc x \
-                arc at the eye slot's rounded tip",
+        story: "rocker plate — SIX corners filleted in the profile, covering the whole \
+                taxonomy: arc x line (hub blend), line x line (keel knee), line x arc \
+                (boss blend), arc x line (boss exit), line x arc (hub return), and arc x \
+                arc at the eye slot's rounded tip; then a keyhole whose two convex \
+                disc/slot creases are filleted on the solid",
         ops: "PATHS fillet doors on line/arc carriers -> Profile::validate \
-              -> extrude(Distance), genus 1",
+              -> extrude(Distance) -> query (Line, Cylinder|Plane) on the keyhole's \
+              struts -> fillet_edges, genus 2",
         delta: 5e-3,
         note: Some(note),
         // A plan-leaning camera on purpose: the fillets ARE the stop,

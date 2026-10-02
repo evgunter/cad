@@ -180,8 +180,9 @@ pub fn run(out: Option<String>, tol: Tol) {
         || vec![plain("chute", bodies::chute(tol).0)],
         tol,
     );
-    // The fillet gates are reified K-funnel predicates (S2's seven),
-    // so the rocker's six filleted corners get their own sweep group.
+    // The fillet gates are reified K-funnel predicates (S2's seven, and
+    // the 3-D blend battery), so the rocker's profile corners and its
+    // keyhole creases get their own sweep group.
     sweep(
         s,
         t,
