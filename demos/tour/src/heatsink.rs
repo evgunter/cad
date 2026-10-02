@@ -19,40 +19,50 @@
 //! out, `Instance(i)` naming preserved and `SlotId::Count` the
 //! structural slot the edit drives.
 //!
-//! # Two walls, both run live ([`wall_probes`])
+//! # Why the fins are sunk ([`flush_fins`], run live)
 //!
-//! **The fins are sunk 1/16 into the base rather than sitting flush on
-//! it** — "the table-leg pattern", a transversal union instead of a
-//! face contact. A real extruded heat sink's fins are flush with its
-//! base, and the flush document builds: fins sketched ON the base top,
-//! the five base-face pairs found by `find_flush_candidates` (each a
-//! `Rest`, `SameOpposite`), declared through `declare_node`, and the
-//! union against the five-shell `PlacedUnion` operand comes out at the
-//! closed-form volume of the rounded base + 5 fins. What refuses is the
-//! count EDIT. The `Declare`
-//! node names the five instances it was detected against, the edit to
-//! 7 makes `Instance(5)` and `Instance(6)` flush with nothing declaring
-//! them, and the union refuses `UndeclaredContact` on `Instance(5)`.
-//! No edit can extend the declaration on the live boolean (DM6: no edit
-//! rewires its `declare` input); the recourse is ruled and filed as
-//! `work/recipe/declared-pairs-are-a-booleans-own-payload.md`.
+//! **The fins sit 1/16 inside the base rather than flush on it** — "the
+//! table-leg pattern", a transversal union instead of a face contact.
+//! A real extruded heat sink's fins are flush with its base, and the
+//! flush document builds: fins sketched ON the base top, the five
+//! base-face pairs found by `find_flush_candidates` (each a `Rest`,
+//! `SameOpposite`), declared through `declare_node`, and the union
+//! against the five-shell `PlacedUnion` operand comes out at the
+//! closed-form volume of the rounded base + 5 fins.
+//!
+//! The count EDIT is what the flush document cannot take in one step.
+//! The `Declare` names the five instances it was detected against, the
+//! edit to 7 makes `Instance(5)` and `Instance(6)` flush with nothing
+//! declaring them, and the union refuses `UndeclaredContact` on
+//! `Instance(5)` — correctly. No edit extends the declaration on the
+//! live union (DM6: none rewires its `declare` input; the ruled
+//! recourse is `work/recipe/declared-pairs-are-a-booleans-own-payload.md`).
+//! The door that does exist is delete-and-re-add: delete the union and
+//! its `Declare`, detect again (seven pairs), declare, insert a new
+//! union — which builds at the closed-form volume of 7 fins. That is
+//! four edits per count step and a NEW union node, where this scene's
+//! subject is one edit recomputing only what is downstream of it, so
+//! the scene keeps the sunk fins and measures the door instead
+//! (`work/doors/a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added.md`).
+//!
+//! # One wall, run live ([`wall_probes`])
 //!
 //! **The base is rounded BEFORE the union, not after.** Filleting the
-//! base's twelve edges on the unioned part refuses: the union leaves
-//! the fins' rectangular feet as rings of the base's top face, and the
-//! blend's ring carry-through check covers circular rings only
+//! base's twelve edges on the unioned part refuses: the fins' feet are
+//! rectangular rings of the base's top face, and the blend's ring
+//! carry-through check covers circular rings only
 //! (`work/band/fillet-support-ring-must-be-a-circle.md`). Rounding the
 //! plate first, then standing the fins on it, is the order that builds.
 //!
 //! The radius is under 1/16 because the ninth fin's outer wall stands
 //! 1/16 inside the base's end face: at r = 1/16 that wall lands on the
 //! band's trimline, and the nine-fin union refuses
-//! `CurvedPierceUnsupported` there.
+//! `CurvedPierceUnsupported` there
+//! (`work/hone/a-wall-flush-with-a-fillets-tangent-line-refuses-the-pierce.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
-use std::f64::consts::PI;
 
 use pncad::document::{
     BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
@@ -103,15 +113,6 @@ const R: f64 = 0.03125;
 /// the base, a flush one 0.75 tall on the top face: the same gain.
 const FIN_GAIN: f64 = 0.1875 * 0.75 * 0.75;
 
-/// What rounding every edge of the base at radius `R` removes, in
-/// closed form: twelve straight bands, each `r²(1 − π/4)` per unit of
-/// length over the edge's length less the two corner setbacks, plus
-/// eight sphere-octant corners of `r³(1 − π/6)` each.
-fn fillet_loss() -> f64 {
-    let straight: f64 = BASE.iter().map(|l| 4.0 * (l - 2.0 * R)).sum();
-    straight * R * R * (1.0 - PI / 4.0) + 8.0 * R * R * R * (1.0 - PI / 6.0)
-}
-
 /// How a fin meets the base.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Seat {
@@ -128,6 +129,10 @@ struct Recipe {
     group: RecipeNodeId,
     /// The `Boolean(Union)` that folds the fin group into the base.
     solid: RecipeNodeId,
+    /// The node the union takes as its base operand.
+    base: RecipeNodeId,
+    /// The `Declare` feeding the union, when the fins sit flush.
+    declare: Option<RecipeNodeId>,
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
@@ -296,7 +301,13 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         },
         tol,
     );
-    Recipe { doc, group, solid }
+    Recipe {
+        doc,
+        group,
+        solid,
+        base,
+        declare,
+    }
 }
 
 /// The document's OWN final body, read back, gated on the exact
@@ -323,8 +334,9 @@ fn solidify<S: Scalar>(
     ((**body).clone(), (**contacts).clone())
 }
 
+/// The rounded plate's closed form plus `n` fins.
 fn volume(n: usize) -> f64 {
-    BASE.iter().product::<f64>() - fillet_loss() + n as f64 * FIN_GAIN
+    crate::oracles::rounded_box_volume(BASE, R) + n as f64 * FIN_GAIN
 }
 
 /// The recipe evaluated + solidified at every fin count the tour
@@ -384,36 +396,83 @@ fn outcome(ev: &Evaluation<f64>, node: RecipeNodeId) -> Result<(), &NodeErrorKin
     ev.node_error(node).map_or(Ok(()), |e| Err(&e.kind))
 }
 
-/// The two walls the module docs name, attempted for real.
-fn wall_probes(tol: Tol) {
-    // WALL 1 — flush fins, every foot declared. The declared union
-    // against the multi-shell group builds at the count it was
-    // detected at (`solidify` gates the exact volume), and the count
-    // edit is what refuses.
+/// Flush fins, measured live — the module docs' first section.
+///
+/// Not a wall: an undeclared contact after the count edit refusing is
+/// the boolean failing loud, and stays right whatever declaration door
+/// lands. What is missing is an edit that extends the declaration on
+/// the live union, and there is none to attempt; the delete-and-re-add
+/// that does exist is measured here instead.
+fn flush_fins(tol: Tol) {
     let flush = build_doc(tol, Seat::Flush, true);
+    let declare = flush.declare.expect("flush fins are declared");
     let ev5 = eval(&flush.doc, None, tol);
     solidify(&flush, &ev5, 5, tol);
     println!(
         "   flush fins, 5 declared Rest contacts: the union builds, volume {} (gated 1e-9)",
         volume(5)
     );
-    let ev7 = eval(&set_count(&flush.doc, flush.group, 7, tol), Some(&ev5), tol);
-    crate::walls::wall(
-        "heat sink",
-        1,
-        "flush fins, count edited 5 -> 7 under a 5-pair declaration",
-        outcome(&ev7, flush.solid),
-        |k| {
-            matches!(k, NodeErrorKind::UndeclaredContact { finding, .. }
-                if matches!(finding.pair.1.name.path.first(), Some(RoleSeg::Instance { i: 5, .. })))
-        },
-        "sit the scene's fins flush (`Seat::Flush`), drop the module docs' first wall, \
-         and re-count the edit's recompute/reuse pins: the Declare node is one more \
-         node upstream of the edit",
+
+    let doc7 = set_count(&flush.doc, flush.group, 7, tol);
+    let ev7 = eval(&doc7, Some(&ev5), tol);
+    let refusal = ev7.node_error(flush.solid).map(|e| &e.kind);
+    assert!(
+        matches!(refusal, Some(NodeErrorKind::UndeclaredContact { finding, .. })
+            if matches!(finding.pair.1.name.path.first(), Some(RoleSeg::Instance { i: 5, .. }))),
+        "the count edit leaves Instance(5) flush and undeclared: {refusal:?}"
+    );
+    println!(
+        "   flush fins, count edited 5 -> 7: the union refuses UndeclaredContact on Instance(5)"
     );
 
-    // WALL 2 — the base's twelve edges rounded AFTER the union, picked
-    // as the union's edges that came through from operand A.
+    // The recourse that exists: delete the union and its Declare,
+    // detect again at 7, declare, insert a NEW union.
+    let mut doc = doc7;
+    for id in [flush.solid, declare] {
+        doc = apply(&doc, &DocEdit::DeleteNode { id }, tol, &RefusingReach)
+            .expect("the union is a sink, and then its Declare is")
+            .doc;
+    }
+    let ev_cut = eval(&doc, Some(&ev7), tol);
+    let found = find_flush_candidates(&ev_cut, flush.base, flush.group, tol)
+        .expect("the fin feet are definite flush pairs");
+    assert_eq!(found.len(), 7, "one contact per fin: {found:#?}");
+    let redeclared = insert(
+        &mut doc,
+        declare_node(&found).expect("nonempty findings"),
+        tol,
+    );
+    let solid = insert(
+        &mut doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: flush.base,
+            b: flush.group,
+            declare: Some(redeclared),
+        },
+        tol,
+    );
+    let ev = eval(&doc, Some(&ev_cut), tol);
+    let readded = Recipe {
+        doc,
+        solid,
+        declare: Some(redeclared),
+        ..flush
+    };
+    solidify(&readded, &ev, 7, tol);
+    println!(
+        "   flush fins, delete + re-detect + re-add at 7: the union builds, volume {} \
+         (four edits; recomputed {}, reused {}; the union is a new node)",
+        volume(7),
+        ev.recomputed,
+        ev.reused
+    );
+}
+
+/// The wall the module docs name, attempted for real.
+fn wall_probes(tol: Tol) {
+    // The base's twelve edges rounded AFTER the union, picked as the
+    // union's edges that came through from operand A.
     let sharp = build_doc(tol, Seat::Sunk, false);
     let ev = eval(&sharp.doc, None, tol);
     let base_edges = select(
@@ -430,13 +489,14 @@ fn wall_probes(tol: Tol) {
     );
     crate::walls::wall(
         "heat sink",
-        2,
+        1,
         "fillet the base's twelve edges on the unioned part",
         outcome(&eval(&doc, Some(&ev), tol), rounded),
         |k| {
             matches!(k, NodeErrorKind::Blend {
                 error: BlendError::UnsupportedGeometry { detail, .. }, ..
-            } if detail.contains("ring"))
+            } if *detail == "a ring edge's carrier is not a circle, the only ring the \
+                              clearance check covers")
         },
         "move the scene's fillet below the union, so the count edit re-runs it, and \
          re-count the edit's recompute/reuse pins",
@@ -505,6 +565,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          after both edits (N1 Instance(i) wrapping)",
         names5.len()
     );
+    flush_fins(tol);
     wall_probes(tol);
 
     let recipe_ops = "ONE recipe doc: Profile -> Extrude -> Fillet (base), Profile -> Extrude \
@@ -537,8 +598,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 note: Some(format!(
                     "{recompute_story}; fins sunk 1/16 into a base rounded at r = 1/32 \
                      (volume {} = the rounded plate's closed form + {n} fins, gated 1e-9); \
-                     flush fins build, but a count edit outruns their declared contacts \
-                     (wall 1), and the base fillet refuses after the union (wall 2)",
+                     flush fins build, but a count edit outruns their declared contacts, \
+                     and the base fillet refuses after the union (wall 1)",
                     volume(n)
                 )),
                 view: View {

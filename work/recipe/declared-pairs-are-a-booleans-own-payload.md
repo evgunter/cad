@@ -40,20 +40,25 @@ Filed by the AUTHOR orchestrator on Ev's ruling.
 ## Also reached by: a count edit on a `PlacedUnion` (SHOW, 2026-10-02)
 
 A structural count edit makes a boolean newly flush without touching
-the boolean. `demos/tour/src/heatsink.rs`, wall 1 (`wall_probes`):
+the boolean. `demos/tour/src/heatsink.rs` (`flush_fins`, narrated live):
 fins sketched on the base top, `find_flush_candidates(base, group)`
 reports five `Rest`/`SameOpposite` pairs (base `Cap(End)` against
 `Instance { i, of: fin Cap(Start) }`), `declare_node` stores them, and
-the union against the five-shell group builds at exactly base + 5
-fins. `SetStructuralParam` to 7 then refuses the union
-`UndeclaredContact` on `Instance(5)` (and says nothing of
+the union against the five-shell group builds at the closed-form
+volume of base + 5 fins. `SetStructuralParam` to 7 then refuses the
+union `UndeclaredContact` on `Instance(5)` (and says nothing of
 `Instance(6)`: ZIP's `a-boolean-reports-one-undeclared-contact-per-refusal`).
-Declaring up front for nine fins is no way round: at five, the
-`Instance(5..8)` pairs refuse `DeclareResolve { Vanished }`.
+That refusal is correct and stays so after this row lands. Declaring up
+front for nine fins is no way round: at five, the `Instance(5..8)`
+pairs refuse `DeclareResolve { Vanished }`.
 
-So the scene keeps its fins sunk 1/16 into the base. With `SetDeclare`
-the flush edit is two edits — the count, then the re-detected pairs —
-and the recompute story counts both. The heat sink's probe makes the
-count edit alone, so it keeps refusing after this lands: whoever lands
-it re-authors that scene flush (`Seat::Flush`) with the two edits and
-drops the probe.
+The door that exists today is delete-and-re-add (`work/doors/a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added.md`):
+delete the union and its `Declare`, detect again (seven pairs), insert
+a new `Declare` and a new union. Measured in the scene: it builds at
+the closed-form volume of 7 fins. It costs four edits per count step
+and re-mints the union's id, and the scene's subject is one edit
+recomputing only what is downstream of it, so the scene keeps its fins
+sunk 1/16 into the base. With this row the flush edit becomes two
+edits — the count, then the re-detected pairs set on the live union —
+and the scene can be re-authored flush (`Seat::Flush`) with the recompute
+story counting both.

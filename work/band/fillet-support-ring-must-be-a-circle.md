@@ -20,14 +20,13 @@ Blend { verb: Fillet, error: UnsupportedGeometry { at: Edge(..),
   clearance check covers" } }
 ```
 
-Its doc says circles are "the only rings this kernel mints on planar
-faces at rest". That stopped being true when booleans could stand
-prisms on a face: a union leaves each prism's foot as a POLYGONAL ring
-of the face it stands on.
+A union leaves each prism standing on a planar face as a POLYGONAL
+ring of that face, so its doc's "the only rings this kernel mints on
+planar faces at rest" does not hold.
 
 ## Reached by
 
-`demos/tour/src/heatsink.rs`, wall 2 (`wall_probes`): the heat sink's
+`demos/tour/src/heatsink.rs`, wall 1 (`wall_probes`): the heat sink's
 `3 × 1 × 0.25` base unioned with five `0.1875 × 0.75` fins (sunk 1/16
 into it, or flush and declared: the same rings either way), then
 `Node::fillet(union, 31.25 mm, <the union's twelve FromA edges>)`. The
@@ -42,5 +41,5 @@ The clearance check over line rings: the margin between a straight
 ring edge and a straight (or circular) trimline is closed-form, as the
 circle cases are.
 
-When it lands, the heat sink's wall 2 refuses no longer and its probe
+When it lands, the heat sink's wall 1 refuses no longer and its probe
 says what to change in the scene.
