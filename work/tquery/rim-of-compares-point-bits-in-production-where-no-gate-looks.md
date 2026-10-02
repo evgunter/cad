@@ -6,7 +6,9 @@ status: open
 opened: 2026-09-24
 refs: [rim-of-refuses-extruded-multi-arc-rims, the-re-basing-gate-refuses-m7-8-where-nothing-moves]
 priority: P2
-cost: D
+cost: M
+design: true
+needs_ev: true
 ---
 
 
@@ -94,3 +96,48 @@ The related cost row
 (`rim-of-refuses-extruded-multi-arc-rims`, extruded arcs differing by
 ulps) is decided by the same repair, since a recipe read does not see
 ulps.
+
+## The repair the ruling named has nothing to read (2026-10-02)
+
+Measured by `tquery/rim-of-recipe` on main `5ab36cc95`, before any
+build: every curve of a kernel-direct body (`extrude`, `revolve`, the
+boolean, blend, `test_support`) is `GeomOrigin::KernelDirect`, so it
+carries no `GeomSource`. editor-core stamps one source per curve
+description (`stamp_minted_from`), so two arcs of one rim are always
+distinct sources. The fallback (`eq_bits`, allowlisted) keeps the bit
+identity, and with it the refusal of every extruded multi-arc rim.
+
+## The repair: `rim_of` reads structure, not carriers
+
+"These arcs are one rim" is already recorded in the body:
+- **One surface each side.** The producer decides, through its own
+  band, that a run of segments lies on one surface and shares the
+  key. `extrude`'s `cosurface` → `FaceSurface::Shared`; STEP import
+  dedupes by record.
+- **One circle.** Two circle arcs between the same two surface keys
+  that share a vertex lie on one circle, because distinct circles of
+  one surface pair's intersection are disjoint.
+
+So:
+
+- **Membership.** The rim of `seed` is the closed chain, through
+  shared vertex keys, of edges whose two side surface keys are the
+  seed's two. No carrier is compared. `CircleId`, `same_bits`,
+  `same_point_bits` and `same_vec_bits` are deleted, and the door's
+  bound narrows from `T: Bounds` to `T: Real`.
+- **Component.** The answer is the component through the seed. Other
+  rims on the same surface pair are not a refusal: a plane through a
+  torus, or a cylinder through a sphere, has two.
+- **Order.** The walk follows the half-edges on one fixed side of the
+  pair, so `rim_of(b)` is a rotation of `rim_of(a)` from any seed,
+  whatever winding each arc's carrier was stored with.
+- **Refusals.**
+  - `CoSurface` and `NotIntact`: unchanged.
+  - `NotOneRim`: names the vertex key where the chain dangles or
+    branches, in place of a carrier parameter.
+- **What moves.** Rows that pin the bit rule retire. The opposed-axis
+  rows become answered rotations.
+
+**Open:** whether the seed must still be a circle arc (`NotAnArc`), or
+the door names any closed edge chain between two surfaces (an ellipse
+rim from a tilted plane through a cylinder).
