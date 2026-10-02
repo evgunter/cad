@@ -236,7 +236,25 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         return Ok(None);
     };
 
-    // ---- 5. Patch discovery + cross-mate pairing. ----
+    // ---- 5. Patch discovery, the interior curve networks made
+    // congruent, cross-mate pairing. ----
+    let Some(a_patch) = patch_faces(&red.a, &a_seam, &a_rest)? else {
+        return Ok(None);
+    };
+    let Some(b_patch) = patch_faces(&red.b, &b_seam, &b_rest)? else {
+        return Ok(None);
+    };
+    let b_of: SecondaryMap<VertexKey, VertexKey> = vcorr.iter().map(|(a, &b)| (a, b)).collect();
+    let a_of: SecondaryMap<VertexKey, VertexKey> = vcorr.iter().map(|(a, &b)| (b, a)).collect();
+    let a_interior = interior_edges(&red.a, &a_patch, &a_seam)?;
+    let b_interior = interior_edges(&red.b, &b_patch, &b_seam)?;
+    if mirror_edges(&mut red.a, &b_interior, &a_of, &a_patch, &a_rings, &mut a_fragments, tol)?
+        .is_none()
+        || mirror_edges(&mut red.b, &a_interior, &b_of, &b_patch, &b_rings, &mut b_fragments, tol)?
+            .is_none()
+    {
+        return Ok(None);
+    }
     let Some(a_patch) = patch_faces(&red.a, &a_seam, &a_rest)? else {
         return Ok(None);
     };
@@ -886,6 +904,80 @@ fn realize_seam<T: Decide>(
         out.per_segment.push(edge);
     }
     Ok(Some(out))
+}
+
+/// The edges of `body` interior to its contact patch, as endpoint
+/// pairs: both sides on patch faces, and not on the seam. Arena order.
+fn interior_edges<T: Decide>(
+    body: &Body<T>,
+    patch: &[FaceKey],
+    seam: &SeamSet,
+) -> Result<Vec<(VertexKey, VertexKey)>, BooleanError> {
+    let in_patch = |he| {
+        body.face_of_half_edge(he)
+            .is_some_and(|f| patch.contains(&f))
+    };
+    let mut out = Vec::new();
+    for (key, edge) in body.edges() {
+        if seam.set.contains_key(key) || !in_patch(edge.he_plus) || !in_patch(edge.he_minus) {
+            continue;
+        }
+        let start = |he| {
+            body.get_half_edge(he)
+                .map(|h| h.start)
+                .ok_or_else(|| desync("REST lane: interior edge half no longer resolves"))
+        };
+        out.push((start(edge.he_plus)?, start(edge.he_minus)?));
+    }
+    Ok(out)
+}
+
+/// **The two operands' interior curve networks, made congruent.** The
+/// seam bounds the contact region on both solids alike, but each solid
+/// divides the region into faces its own way: a full-turn bore is one
+/// face where the shaft against it is three. Patches pair by vertex
+/// cycles, so every edge interior to the OTHER solid's patch is given
+/// a twin in `body`'s: found between the corresponding vertices, or
+/// minted as a chord in the patch face holding both. The chords are
+/// scaffolding — the zip removes both patches as interior — so they
+/// only have to divide the faces the way the other solid does.
+///
+/// `Ok(None)`: an interior edge whose ends have no counterpart here (a
+/// vertex of the other solid interior to the region), a closed one, or
+/// one whose host is not a single patch face — not this lane's frontier.
+fn mirror_edges<T: Decide>(
+    body: &mut Body<T>,
+    other_interior: &[(VertexKey, VertexKey)],
+    here: &SecondaryMap<VertexKey, VertexKey>,
+    patch: &[FaceKey],
+    rings: &SecondaryMap<VertexKey, FaceKey>,
+    fragments: &mut Vec<(FaceKey, FaceKey)>,
+    tol: Tol,
+) -> Result<Option<()>, BooleanError> {
+    let mut patch = patch.to_vec();
+    for &(ou, ov) in other_interior {
+        let (Some(&u), Some(&v)) = (here.get(ou), here.get(ov)) else {
+            return Ok(None);
+        };
+        if u == v {
+            return Ok(None);
+        }
+        if fan_edge_between(body, u, v)?.is_some() {
+            continue;
+        }
+        let fu = incident_faces(body, u, rings)?;
+        let fv = incident_faces(body, v, rings)?;
+        let host: Vec<FaceKey> = fu.iter().filter(|f| fv.contains(f)).copied().collect();
+        if !matches!(host[..], [f] if patch.contains(&f)) {
+            return Ok(None);
+        }
+        let minted = fragments.len();
+        if mint_chord(body, u, v, rings, fragments, tol)?.is_none() {
+            return Ok(None);
+        }
+        patch.extend(fragments[minted..].iter().map(|&(new, _)| new));
+    }
+    Ok(Some(()))
 }
 
 /// The existing edge from `u` to `v`, if any (structural fan walk —
