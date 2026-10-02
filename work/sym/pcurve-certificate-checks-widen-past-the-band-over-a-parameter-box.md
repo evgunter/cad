@@ -38,9 +38,18 @@ units of ε):
   together) is masked: no rule set lifts the plate past the
   certificate's ceiling.
 - **`m10_3_r2_probes_interval::a_consumer_drives_a_two_parameter_document_at_four_widths`**
-  (a plate with a parametric hole, plain drive) no longer certifies its
-  `1024·ε` box whole and refines to its 1024-leaf budget: 3 s → over
-  25 min.
+  (a plate with a parametric hole radius and depth, the default drive
+  at 1024 leaves) passes its invariants in 2833 s (it took 3 s) and now
+  reads:
+
+      half-width | cert | refused | splits | certified mass
+        0.125eps |   32 |       0 |     31 |         1.0000
+            1eps |    0 |    1024 |   1023 |         0.0000  (budget)
+            8eps |    0 |    1024 |   1023 |         0.0000  (budget)
+         1024eps |    0 |    1024 |   1023 |         0.0000  (budget)
+
+  so above an eighth of ε no leaf of that study certifies. It moved to
+  the slow set (`.config/nextest.toml`).
 - **`sweep`'s `sym11_far_placement_rows`**: the certified lane
   (`Sym<Interval>`, an `r` box of ±ε/64) refuses the stadium at the
   origin at every ε row (`Envelope`, enclosure `[0, 1.32e-9]` at
