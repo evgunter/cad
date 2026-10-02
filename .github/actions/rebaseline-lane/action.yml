@@ -38,7 +38,7 @@ description: >
 
 inputs:
   lane:
-    description: "Lane name, for messages (kernel / freecad / uv / wild)"
+    description: "Lane name, for messages and check names (kernel / freecad / uv / mc / wild / gui)"
     required: true
   dir:
     description: "The committed lane directory, repo-relative"
