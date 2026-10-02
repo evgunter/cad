@@ -930,3 +930,82 @@ fn narrow_review_dome_battery() {
     println!("NR SUMMARY builds={builds} bad={bad} refusals={refusals:?}");
     assert_eq!(bad, 0);
 }
+
+/// Narrow review: brick corners and tube rims on balls and domes —
+/// contact vertices on curved faces, every op both orders; every build
+/// read at tiers 2, 3′, the certificate, tier 3 and as an operand.
+#[test]
+#[ignore]
+fn narrow_review_corner_on_ball_battery() {
+    let tol = Tol::witness();
+    let mut builds = 0;
+    let mut bad = 0;
+    let mut refusals = std::collections::BTreeMap::<String, usize>::new();
+    let s3 = 3.0_f64.sqrt();
+    let s2 = 2.0_f64.sqrt();
+    let mut poses: Vec<(String, Body<f64>, Body<f64>)> = Vec::new();
+    for (bl, ball) in [
+        ("ball z", ball_poled_z(s3, Vec3::new(0.0, 0.0, 0.0), tol)),
+        ("ball y", sweep::test_support::ball_poled_y(s3, Vec3::new(0.0, 0.0, 0.0), tol)),
+    ] {
+        for (kl, x, y, z) in [
+            ("out", (1.0, 2.0), (1.0, 2.0), (1.0, 2.0)),
+            ("in", (0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
+            ("cross", (0.5, 1.0), (0.5, 1.0), (0.5, 2.5)),
+            ("edge-out", (1.0, 2.0), (-1.0, 1.0), (1.0, 2.0)),
+            ("slab", (-3.0, 3.0), (-3.0, 3.0), (1.0, 3.0)),
+            ("neg", (-2.0, -1.0), (1.0, 2.0), (-1.0, 0.0)),
+        ] {
+            poses.push((format!("{bl} brick {kl}"), ball.clone(), brick(x, y, z, tol)));
+        }
+        // A tube whose rim lies on the ball (radius 1 at height 1).
+        for (tl, z0, len) in [("tube up", 1.0, 1.0), ("tube down", -1.0, 2.0), ("tube through", 0.0, 3.0)] {
+            poses.push((format!("{bl} {tl}"), ball.clone(), rod_z(1.0, z0, len)));
+        }
+        // A ball of radius √2 at the origin: the tube rim at z = 1.
+        let small = ball_poled_z(s2, Vec3::new(0.0, 0.0, 0.0), tol);
+        poses.push((format!("{bl} small tube"), small.clone(), rod_z(1.0, 1.0, 1.0)));
+    }
+    for (label, p, q) in &poses {
+        for (xl, x, y) in [("ab", p, q), ("ba", q, p)] {
+            for (op, r) in [
+                ("union", topo::union(x, y, tol)),
+                ("subtract", topo::subtract(x, y, tol)),
+                ("intersect", topo::intersect(x, y, tol)),
+            ] {
+                let label = format!("{label} {xl} {op}");
+                match r {
+                    Ok(BooleanResult::Body(bb)) => {
+                        builds += 1;
+                        let t2 = topo::validate_closed(&bb.body).is_ok();
+                        let t3p = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok();
+                        let cert = topo::validate_geometric_certificate(&bb.body, tol).is_ok();
+                        let t3 = topo::validate_geometric(&bb.body, tol).is_ok();
+                        let v = topo::mass_properties(&bb.body, tol).map(|m| m.volume).unwrap_or(f64::NAN);
+                        let operand = std::panic::catch_unwind(|| {
+                            sweep::test_support::assert_legal_operand("probe", &bb.body, tol)
+                        })
+                        .is_ok();
+                        let ok = t2 && t3p && cert && t3 && operand;
+                        if !ok {
+                            bad += 1;
+                        }
+                        println!(
+                            "NR2 {label}: BUILD t2={t2} t3p={t3p} cert={cert} t3={t3} vol={v:.9} operand={operand}{}",
+                            if ok { "" } else { " BAD" }
+                        );
+                    }
+                    Ok(BooleanResult::Empty) => println!("NR2 {label}: EMPTY"),
+                    Err(e) => {
+                        let k = format!("{e:?}");
+                        let k = k.split([' ', '(', '{']).next().unwrap().to_string();
+                        println!("NR2 {label}: REFUSE {k}");
+                        *refusals.entry(k).or_default() += 1;
+                    }
+                }
+            }
+        }
+    }
+    println!("NR2 SUMMARY builds={builds} bad={bad} refusals={refusals:?}");
+    assert_eq!(bad, 0);
+}
