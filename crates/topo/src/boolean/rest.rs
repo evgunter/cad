@@ -5,7 +5,7 @@
 //! whose shared geometry lies entirely on both operands' boundaries:
 //! the contact region R is a union of coincident opposite-oriented
 //! face patches — on ANY carrier the ladder certifies (plane, sphere,
-//! cylinder; the C4 `Rest` inventory) — and its boundary ∂R — the
+//! cylinder, torus; the C4 `Rest` inventory) — and its boundary ∂R — the
 //! seam — runs along operand edges or across single faces, never
 //! through material. The chord joining ([`super::join`]) cannot
 //! complete such seams: at a REST site a germ direction lies in FOUR
@@ -25,25 +25,34 @@
 //! gates, coincidence doors, sweep splitting, classification — runs
 //! unchanged first; this lane consumes its RECORDS:
 //!
-//! 1. **Segments**: the null-pair germ records are matched into seam
-//!    segments by the SAME mutual-facing/nearest tests as the join
-//!    (`bool_join_chord` / `bool_join_facing` / `bool_join_nearest` —
-//!    reused predicate funnels, no new numeric predicate), with the
-//!    ambiguous face-pair identity dropped. Incomplete matching ⇒
-//!    not this frontier (the original join refusal stands).
-//! 2. **Lane door**: every declared face pair is verified through
-//!    [`super::oriented_plane_eq`]'s declared rung — a false
-//!    declaration refuses [`BooleanError::ContactContradicted`]
-//!    here, never a silent no-op. Opposite-oriented verified pairs
-//!    name the REST-contact surfaces.
-//! 3. **Undo the scaffolding**: the classification's null-edge struts
-//!    are removed (`kev`, reverse mint order) from clones of the
-//!    annotated operands — the sweep's edge splits and the pierce-ring
-//!    vertices remain (both are load-bearing: they make the seam
-//!    vertex sets congruent across the mate).
+//! 1. **REST-contact surfaces**: the `Rest` pairs the declaration door
+//!    verified one carrier with opposed senses (the reduction's
+//!    `rest_contacts`) name the REST-contact surfaces. The door verified
+//!    every declaration, and refused a false one
+//!    ([`BooleanError::ContactContradicted`]), before the reduction ran,
+//!    so this lane verifies nothing again. With no such pair the lane
+//!    is not this frontier, before matching runs.
+//! 2. **Segments**: the null-pair germ records are read, the
+//!    scaffolding is undone (step 3), and the germs are matched into
+//!    seam segments: first along circle arcs both operands carry
+//!    between the two sites ([`arcs_along`]), each such segment naming
+//!    its two arcs, then by facing along the straight chord through the
+//!    join's predicate funnels (`bool_join_chord` / `bool_join_facing` /
+//!    `bool_join_nearest`), with the ambiguous face-pair identity
+//!    dropped. Matching that leaves a germ unpaired is not this
+//!    frontier (the original join refusal stands), unless that germ's
+//!    arc lookup escalated, which is the refusal then.
+//! 3. **Undo the scaffolding**, inside step 2 between reading the germs
+//!    and matching them, so the arcs are found on the operands' own
+//!    vertex orbits: the classification's null-edge struts are removed
+//!    (`kev`, reverse mint order) from clones of the annotated operands
+//!    — the sweep's edge splits and the pierce-ring vertices remain
+//!    (both are load-bearing: they make the seam vertex sets congruent
+//!    across the mate).
 //! 4. **Seam realization** (splitting machinery reused): per segment
 //!    and per solid, either the segment already IS an operand edge
-//!    (structural fan walk — reused as the seam, minted nowhere), or
+//!    (the arc it was matched along, or a structural fan walk — reused
+//!    as the seam, minted nowhere), or
 //!    it is minted ONCE as a real chord through the standard
 //!    `mef`/`mekr` machinery in the unique face bounded by both
 //!    endpoints. No new region algebra: a segment that does not
@@ -74,9 +83,11 @@
 //! (REST rests are consumed into structure — the census's consumed
 //! class), tier gates, and the volume backstop.
 
-use geom_core::{Band, Bounds, Decide, Margin, Sign};
+use geom_brep::ExtentBall;
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
+use super::arcs::{ArcStep, arcs_along};
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
 use super::ops::{
@@ -85,14 +96,14 @@ use super::ops::{
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
-use super::zip::{ZipReport, zip_seam};
+use super::zip::{Joint, SeamCorrespondence, ZipReport, fuse_by_joint, zip_seam};
 use super::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
-    BooleanReduction, BooleanResult, BooleanResultKind, FacePairDeclaration, Operand, OperandKeys,
+    BooleanReduction, BooleanResult, BooleanResultKind, Operand, OperandKeys,
 };
 use super::{Coincide, DeclarationRead, RestZipFrontier};
 use crate::body::Body;
-use crate::contact::ContactClass;
+use crate::contact::BooleanCoincidence;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
@@ -117,13 +128,16 @@ fn unsupported(what: RestZipFrontier) -> BooleanError {
 
 /// One seam segment: the two end sites, as vertex keys per operand
 /// (the pre-insertion site vertices — they survive the scaffolding
-/// undo).
+/// undo), and, for a segment that runs along an arc of both operands,
+/// those two arcs ([`arcs_along`]): two vertices can bound more than
+/// one arc, so the ends alone do not name it.
 #[derive(Clone, Copy, Debug)]
 struct Segment {
     a_u: VertexKey,
     a_v: VertexKey,
     b_u: VertexKey,
     b_v: VertexKey,
+    arcs: Option<(EdgeKey, EdgeKey)>,
 }
 
 /// The declared-REST union lane (module docs). `red` is the finished
@@ -155,18 +169,17 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         return Ok(None);
     }
 
-    // ---- 1. Segments from the germ records (A-side geometry — the
-    // site points are bitwise-shared between the solids). ----
-    let Some(segments) = enumerate_segments(&red, band)? else {
-        return Ok(None);
-    };
-
-    // ---- 2. Lane door: verify every declared pair; collect the
-    // REST-contact (opposite-oriented) surface sets. ----
-    let (a_rest, b_rest) = verify_declared_pairs(a_pristine, b_pristine, decls, band)?;
+    // ---- 1. The REST-contact (opposite-oriented) surface sets. ----
+    let (a_rest, b_rest) = rest_surfaces(a_pristine, b_pristine, &red.rest_contacts)?;
     if a_rest.is_empty() || b_rest.is_empty() {
         return Ok(None); // no opposite-oriented contact declared
     }
+
+    // ---- 2. Segments from the germ records (A-side geometry — the
+    // site points are bitwise-shared between the solids). ----
+    let Some(segments) = enumerate_segments(&mut red, band)? else {
+        return Ok(None);
+    };
 
     // Vertex correspondence across the mate, operand keys — record
     // data end to end (F9): the segment end sites, EXTENDED by the
@@ -199,9 +212,6 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
 
-    // ---- 3. Undo the null-edge scaffolding (kev, reverse order). ----
-    undo_struts(&mut red)?;
-
     // Pierce-ring vertices: ring vertex → host face, per operand.
     let mut a_rings: SecondaryMap<VertexKey, FaceKey> = SecondaryMap::new();
     let mut b_rings: SecondaryMap<VertexKey, FaceKey> = SecondaryMap::new();
@@ -217,7 +227,10 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut b_fragments = Vec::new();
     let a_seam = realize_seam(
         &mut red.a,
-        &segments.iter().map(|s| (s.a_u, s.a_v)).collect::<Vec<_>>(),
+        &segments
+            .iter()
+            .map(|s| (s.a_u, s.a_v, s.arcs.map(|(ea, _)| ea)))
+            .collect::<Vec<_>>(),
         &a_rings,
         &mut a_fragments,
         tol,
@@ -227,7 +240,10 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     };
     let b_seam = realize_seam(
         &mut red.b,
-        &segments.iter().map(|s| (s.b_u, s.b_v)).collect::<Vec<_>>(),
+        &segments
+            .iter()
+            .map(|s| (s.b_u, s.b_v, s.arcs.map(|(_, eb)| eb)))
+            .collect::<Vec<_>>(),
         &b_rings,
         &mut b_fragments,
         tol,
@@ -357,6 +373,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         graft_faces,
         seam_edges,
         vertex_merges,
+        weld_merges_b: Vec::new(),
         merge_groups: merge_rows(&merged),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a: a_fragments,
@@ -419,15 +436,18 @@ fn patch_discards<T: Decide>(
 }
 
 // ---------------------------------------------------------------
-// 1. Segment enumeration.
+// 2. Segment enumeration.
 // ---------------------------------------------------------------
 
 /// Matches the germ records into seam segments — [`super::join`]'s
 /// mutual-facing/nearest tests with the (REST-ambiguous) face-pair
-/// identity dropped. `None`: matching did not complete — not this
-/// lane's frontier.
+/// identity dropped, after the arcs ([`arc_along`]). The germs are read
+/// first and the null-edge scaffolding is then undone (step 3), so the
+/// arcs are found on the operands' own vertex orbits. `None`: matching
+/// did not complete — not this lane's frontier; an escalated arc
+/// lookup on a germ left unpaired refuses instead.
 fn enumerate_segments<T: Decide>(
-    red: &BooleanReduction<T>,
+    red: &mut BooleanReduction<T>,
     band: Band,
 ) -> Result<Option<Vec<Segment>>, BooleanError> {
     let mut a_by_edge: SecondaryMap<EdgeKey, &BoolNullEdgeRecord<T>> = SecondaryMap::new();
@@ -478,11 +498,64 @@ fn enumerate_segments<T: Decide>(
     let escalate = |diag| {
         BooleanError::coincidence(
             Coincide::Join,
-            DeclarationRead::Spent(ContactClass::Rest),
+            DeclarationRead::Spent(BooleanCoincidence::REST),
             diag,
         )
     };
+    // ---- 3. Undo the null-edge scaffolding (kev, reverse order). ----
+    undo_struts(red)?;
     let mut segments = Vec::new();
+    // **Arcs first.** An arc's end germs need not face each other
+    // along its chord (a half circle's are square to it), so the
+    // straight test cannot pair them. Each germ looks up, once per
+    // operand, the arc it runs along from its site; two germs pair when
+    // each one's arcs arrive at the other's sites along the same two
+    // edges. A germ whose lookup escalates is left to the straight
+    // test, and its escalation stands only if that test leaves it
+    // unpaired.
+    let mut arcs: Vec<Result<Option<[ArcStep<T>; 2]>, geom_core::Indeterminate>> =
+        Vec::with_capacity(germs.len());
+    for g in &germs {
+        let (a, b) = sites[g.pair];
+        arcs.push(
+            match (
+                arc_along(&red.a, a, g.dir, band)?,
+                arc_along(&red.b, b, g.dir, band)?,
+            ) {
+                (Ok(None), _) | (_, Ok(None)) => Ok(None),
+                (Err(diag), _) | (_, Err(diag)) => Err(diag),
+                (Ok(Some(sa)), Ok(Some(sb))) => Ok(Some([sa, sb])),
+            },
+        );
+    }
+    for i in 0..germs.len() {
+        let Ok(Some([sa, sb])) = arcs[i] else {
+            continue;
+        };
+        if germs[i].used {
+            continue;
+        }
+        let back = (0..germs.len()).find(|&j| {
+            !germs[j].used
+                && sites[germs[j].pair] == (sa.to, sb.to)
+                && matches!(arcs[j], Ok(Some([ta, tb]))
+                    if ta.edge == sa.edge && tb.edge == sb.edge
+                        && (ta.to, tb.to) == sites[germs[i].pair])
+        });
+        let Some(j) = back else {
+            continue;
+        };
+        germs[i].used = true;
+        germs[j].used = true;
+        let ((au, bu), (av, bv)) = (sites[germs[i].pair], sites[germs[j].pair]);
+        segments.push(Segment {
+            a_u: au,
+            a_v: av,
+            b_u: bu,
+            b_v: bv,
+            arcs: Some((sa.edge, sb.edge)),
+        });
+    }
     loop {
         // Globally nearest mutually-facing unused pair (the join's
         // scan order and tie discipline).
@@ -539,7 +612,13 @@ fn enumerate_segments<T: Decide>(
             a_v: av,
             b_u: bu,
             b_v: bv,
+            arcs: None,
         });
+    }
+    for (g, arc) in germs.iter().zip(&arcs) {
+        if let (false, Err(diag)) = (g.used, arc) {
+            return Err(escalate(*diag));
+        }
     }
     if germs.iter().any(|g| !g.used) {
         return Ok(None); // leftover germs: not a pure REST seam
@@ -547,8 +626,28 @@ fn enumerate_segments<T: Decide>(
     Ok(Some(segments))
 }
 
+/// The one circle arc of `body` leaving `u` along `dir`
+/// ([`arcs_along`]): `None` when there is none, the alignment's
+/// escalation as the inner error, and a second such arc the typed
+/// refusal.
+fn arc_along<T: Decide>(
+    body: &Body<T>,
+    u: VertexKey,
+    dir: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<Result<Option<ArcStep<T>>, geom_core::Indeterminate>, BooleanError> {
+    Ok(match arcs_along(body, u, dir, band)? {
+        Err(diag) => Err(diag),
+        Ok(steps) => match steps[..] {
+            [] => Ok(None),
+            [step] => Ok(Some(step)),
+            _ => return Err(unsupported(RestZipFrontier::ParallelSeamEdges)),
+        },
+    })
+}
+
 // ---------------------------------------------------------------
-// 2. The lane door.
+// 1. The REST-contact surfaces.
 // ---------------------------------------------------------------
 
 /// The per-operand verified REST-contact (opposite-oriented declared)
@@ -556,36 +655,28 @@ fn enumerate_segments<T: Decide>(
 type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>);
 
 /// **The one flush-pair door**: the C4 verify ladder for a single
-/// cross-body face pair — descriptions through [`face_plane`]
-/// (outward, sense-folded), identity through [`face_oriented_source`]
-/// (oriented sources, S10: the descriptions compared are the two
-/// faces' OUTWARD normals, so rung 1's `orient` tags carry the face
-/// senses too — REST contact is precisely the `SameOpposite`
-/// verdict), and the verdict through [`super::oriented_plane_eq`] at
-/// the verification arm, **1 m** — a `T::one()` literal, spelled here,
-/// in [`carrier_pair_verdict`] and in [`geom_brep::tangent_locus`],
-/// which must agree. The declared rung contradicts only on DEFINITE
-/// margins, so the arm only meters the angular sliver band (exact
-/// fixtures decide definitely either way).
+/// cross-body PLANAR face pair — [`carrier_pair_relation`] restricted
+/// to two planes (descriptions through [`face_plane`], outward and
+/// sense-folded; S10's oriented sources, so rung 1's `orient` tags
+/// carry the face senses too — REST contact is precisely the
+/// `SameOpposite` verdict). It is that door, not a mirror of it: the
+/// verdict, the `decide` sites and the lever are the ones every carrier
+/// pair gets.
 ///
 /// **This door has NO in-tree consumer.** Verify-at-use stopped
 /// calling it at M9-1 and the flush detector followed when its scope
 /// became the `Rest` ladder's; what to do about a published door with
 /// no caller is `work/seat/flush-pair-relation-has-no-caller.md`.
-/// What it still IS is [`carrier_pair_relation`]'s planar projection,
-/// and the two cannot drift: that door's `(Plane, Plane)` case
-/// delegates to
-/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict),
-/// the very function [`super::oriented_plane_eq`] wraps here — one
-/// verdict function, one set of `decide` sites, one verification arm.
-/// (The #304 review's planted-drift probe showed a hand-mirrored arm
-/// passes every axis-aligned suite, which is why the arm is shared
-/// rather than mirrored.)
 ///
-/// `None`: not a planar pair — there is no plane description to
-/// compare (the REST lane treats it as an invariant violation at its
-/// own site; [`carrier_pair_relation`] is where a caller asks the
-/// same question of any carrier the ladder names).
+/// `Err`: a face that is not a plane, which this door has no
+/// description for ([`PairUnread::OutsideInventory`]; the REST lane
+/// treats it as an invariant violation at its own site, and
+/// [`carrier_pair_relation`] is where a caller asks the same question
+/// of any carrier the ladder names), or whose extent cannot be read.
+///
+/// # Errors
+///
+/// [`PairUnread`], as above.
 pub fn flush_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -593,15 +684,135 @@ pub fn flush_pair_relation<T: Decide>(
     fb: FaceKey,
     declared: bool,
     band: Band,
-) -> Option<Result<PlaneRelation, PlaneEqError>> {
-    let (pa, pb) = (face_plane(a, fa)?, face_plane(b, fb)?);
-    let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
-    let id = PlaneIdentity {
-        s1: ga.as_ref(),
-        s2: gb.as_ref(),
-        declared,
+) -> Result<Result<PlaneRelation, PlaneEqError>, PairUnread> {
+    face_plane(a, fa).ok_or(PairUnread::OutsideInventory)?;
+    face_plane(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    carrier_pair_relation(a, fa, b, fb, declared, band)
+}
+
+/// Which face of a pair, in the order a door took them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairFace {
+    /// The first face.
+    First,
+    /// The second face.
+    Second,
+}
+
+/// Why a face pair has no carrier reading: the door's input, not a
+/// verdict.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairUnread {
+    /// A face's surface kind is outside the ladder's inventory (cone,
+    /// NURBS, `Approx`), or its key does not resolve: there is no
+    /// description to compare.
+    OutsideInventory,
+    /// The face's consumed extent cannot be read ([`pair_extent`]): its
+    /// box has no claim to make (a NURBS placeholder, a boundary it
+    /// cannot read), or its boundary cannot be walked for the points
+    /// on it.
+    Extent(PairFace),
+}
+
+/// **A face's consumed extent**: a ball enclosing every point of it,
+/// the region over which a verdict about its carrier is consumed
+/// ([`pair_extent`]). A sphere's or a torus's own ball
+/// ([`ExtentBall::of_carrier`]: the torus's `R + r`, whatever the
+/// trim); otherwise the ball around the face's certified box, from the
+/// kernel's one kind→box rule (`census::face_reach`). `None` where that
+/// box has no claim to make, or the ball does not read.
+fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
+    let f = body.get_face(face)?;
+    let ball = match ExtentBall::of_carrier(body.get_surface(f.surface)?) {
+        Some(ball) => ball,
+        None => {
+            let (lo, hi) = crate::census::face_reach(body, face, band)?;
+            ExtentBall::of_box(lo, hi)
+        }
     };
-    Some(super::oriented_plane_eq(&pa, &pb, id, T::one(), band))
+    ball.readable()
+}
+
+/// The face's boundary vertex positions (outer loop then rings; an
+/// empty loop contributes its lone vertex): points known to lie on the
+/// face. `None` where the boundary cannot be walked.
+pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
+    let f = body.get_face(face)?;
+    let vertex_point = |vk| {
+        body.get_vertex(vk)
+            .and_then(|v| body.get_point(v.point))
+            .copied()
+    };
+    let mut out = Vec::new();
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        match body.get_loop(lk)?.boundary {
+            crate::entity::LoopBoundary::Empty { vertex } => out.push(vertex_point(vertex)?),
+            crate::entity::LoopBoundary::Cycle { first } => {
+                for he in body.loop_cycle(first)? {
+                    out.push(vertex_point(body.get_half_edge(he)?.start)?);
+                }
+            }
+        }
+    }
+    Some(out)
+}
+
+/// **A face pair's consumed extent**, as the carrier doors read it:
+/// one ball enclosing both faces ([`face_ball`]), since the verdict is
+/// consumed on each, and each face's boundary vertices, the points
+/// known to be consumed ([`super::carrier_eq::ConsumedExtent`]).
+#[derive(Clone, Debug)]
+pub(crate) struct PairExtent<T: geom_core::Real> {
+    /// The ball enclosing both faces.
+    pub(crate) reach: ExtentBall<T>,
+    /// The first face's boundary vertices, then the second's.
+    pub(crate) on: [Vec<Point3<T>>; 2],
+}
+
+impl<T: geom_core::Real> PairExtent<T> {
+    /// The extent as the ladder reads it, its faces in the order
+    /// measured, or the other way round when `swapped`.
+    pub(crate) fn consumed(&self, swapped: bool) -> super::carrier_eq::ConsumedExtent<'_, T> {
+        let [first, second] = &self.on;
+        super::carrier_eq::ConsumedExtent {
+            reach: self.reach,
+            on: if swapped {
+                [second, first]
+            } else {
+                [first, second]
+            },
+        }
+    }
+}
+
+/// [`PairExtent`] of `fa` on `a` and `fb` on `b`. Read on the operands
+/// at rest: mid-operation, a face whose boundary carries null
+/// scaffolding has no box to read, and the sites there take a declared
+/// pair's extent from [`super::DeclaredPairs::consumed`].
+///
+/// # Errors
+///
+/// The face whose extent cannot be read ([`PairUnread::Extent`]).
+pub(crate) fn pair_extent<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<PairExtent<T>, PairFace> {
+    let read = |body, face| face_ball(body, face, band).zip(face_witnesses(body, face));
+    let (ball_a, on_a) = read(a, fa).ok_or(PairFace::First)?;
+    let (ball_b, on_b) = read(b, fb).ok_or(PairFace::Second)?;
+    // Two readable balls enclose readably short of overflow, which the
+    // larger reach is what tips; the second face takes the blame
+    // rather than neither.
+    let reach = ExtentBall::enclosing(&[ball_a, ball_b])
+        .and_then(ExtentBall::readable)
+        .ok_or(PairFace::Second)?;
+    Ok(PairExtent {
+        reach,
+        on: [on_a, on_b],
+    })
 }
 
 /// The face's **oriented carrier description** — the curved
@@ -662,17 +873,18 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// **The one carrier-pair door**: [`flush_pair_relation`] for every
 /// carrier kind the `Rest` table names.
 ///
-/// Same descriptions-plus-identity construction, same verification
-/// arm (**1 m**, the literal [`flush_pair_relation`] spells), same shared-by-
-/// construction contract between the verify-at-use site and the
-/// detector's candidate-generation mode — only the carrier kind
-/// widens. The planar case reaches exactly the same numbers it
-/// reached before ([`mod@super::carrier_eq`]'s plane arm delegates), so
-/// this door is a superset of the old one rather than a replacement
-/// for it.
+/// Descriptions through [`face_carrier`], identity through
+/// [`face_oriented_source`], and the pair's consumed extent through
+/// [`pair_extent`]: a declared verdict that bridges is one whose
+/// displacement stays in band at every point of both faces
+/// ([`super::carrier_eq::pair_door_verdict`]). One door for the
+/// verify-at-use site and the detector's candidate-generation mode.
 ///
-/// `None`: a face whose surface kind is outside the ladder's
-/// inventory — there is no description to compare.
+/// # Errors
+///
+/// [`PairUnread`]: a face whose surface kind is outside the ladder's
+/// inventory — there is no description to compare — or whose extent
+/// cannot be read. The ladder's own refusals ride inside the `Ok`.
 pub fn carrier_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -680,14 +892,18 @@ pub fn carrier_pair_relation<T: Decide>(
     fb: FaceKey,
     declared: bool,
     band: Band,
-) -> Option<Result<CarrierRelation, CarrierEqError>> {
-    Some(carrier_pair_verdict(a, fa, b, fb, declared, band)?.map(|(rel, _)| rel))
+) -> Result<Result<CarrierRelation, CarrierEqError>, PairUnread> {
+    Ok(carrier_pair_verdict(a, fa, b, fb, declared, band)?.map(|(rel, _)| rel))
 }
 
 /// [`carrier_pair_relation`] plus the AQ6 trilean — the door the
 /// CONTACT verification uses, since only a caller that can see the
 /// bridged residue can enforce C4's "trusted exactly there" invariant.
 /// One traversal, two projections.
+///
+/// # Errors
+///
+/// As [`carrier_pair_relation`].
 pub fn carrier_pair_verdict<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -695,117 +911,47 @@ pub fn carrier_pair_verdict<T: Decide>(
     fb: FaceKey,
     declared: bool,
     band: Band,
-) -> Option<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>> {
-    let (ca, cb) = (face_carrier(a, fa)?, face_carrier(b, fb)?);
+) -> Result<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>, PairUnread> {
+    let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
+    let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
     let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
     let id = PlaneIdentity {
         s1: ga.as_ref(),
         s2: gb.as_ref(),
         declared,
     };
-    Some(super::carrier_eq::carrier_eq_verdict(
+    Ok(super::carrier_eq::pair_door_verdict(
         &ca,
         &cb,
         id,
-        T::one(),
+        &extent.consumed(false),
         band,
     ))
 }
 
-/// Verifies every declared face pair through the declared rung and
-/// returns the opposite-oriented (REST-contact) surface sets per
-/// operand. A definitely-distinct declared pair is the typed
-/// [`BooleanError::ContactContradicted`] — a false REST
-/// declaration refuses at the lane, never a silent no-op.
-fn verify_declared_pairs<T: Decide>(
+/// The REST-contact surface sets per operand: the surfaces of the
+/// `Rest` pairs the declaration door verified one carrier with opposed
+/// senses ([`BooleanReduction`]'s `rest_contacts`). The door refused
+/// every false declaration before the reduction ran, so this lane reads
+/// its certificates and verifies nothing again.
+fn rest_surfaces<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &BooleanDeclarations,
-    band: Band,
+    pairs: &[(FaceKey, FaceKey)],
 ) -> Result<RestSurfaces, BooleanError> {
+    let surface = |body: &Body<T>, f: FaceKey| {
+        body.get_face(f)
+            .map(|face| face.surface)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "REST lane: a verified declared face vanished",
+            })
+    };
     let mut a_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
     let mut b_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
-    for &FacePairDeclaration {
-        a: fa,
-        b: fb,
-        class,
-    } in &decls.coincident_faces
-    {
-        // Only the CONFORMAL class names REST-contact surfaces; a
-        // `Tangent` pair touches along a locus, was verified by its
-        // own C4 table at the front door, and licenses no patch.
-        if class != ContactClass::Rest {
-            continue;
-        }
-        // The one carrier-pair door: oriented sources, sense-folded
-        // descriptions, and the verification arm all live inside it —
-        // shared with the flush detector by construction, since that
-        // detector asks THIS function in its `declared: false`
-        // posture.
-        // The generalized door: planar pairs reach exactly the numbers
-        // the plane ladder always reached (its plane arm delegates),
-        // and a curved declared pair is verified rather than being
-        // silently outside the lane.
-        let relation = carrier_pair_relation(a, fa, b, fb, true, band).ok_or(
-            BooleanError::ClassificationInvariant {
-                what: "REST lane: a declared face lost its carrier",
-            },
-        )?;
-        match relation {
-            Ok(PlaneRelation::SameOpposite) => {
-                let sa = a
-                    .get_face(fa)
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "REST lane: declared A face vanished",
-                    })?
-                    .surface;
-                let sb = b
-                    .get_face(fb)
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "REST lane: declared B face vanished",
-                    })?
-                    .surface;
-                a_rest.insert(sa, ());
-                b_rest.insert(sb, ());
-            }
-            Ok(PlaneRelation::SameOriented) => {} // merge-stage pair
-            Ok(PlaneRelation::Distinct) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "REST lane: declared rung returned Distinct instead of contradicting",
-                });
-            }
-            Err(PlaneEqError::Contradicted { fact, diag }) => {
-                // C4's verify-at-use: the refusal names the pair, the
-                // CLASS that was claimed and the margin that decided —
-                // and steers to the class that would fit when the
-                // counter-evidence is a separation (AQ6).
-                return Err(BooleanError::ContactContradicted {
-                    declaration: crate::contact::DeclaredContact {
-                        a: fa,
-                        b: fb,
-                        class: ContactClass::Rest,
-                    },
-                    steer: super::contact_verify::fit_steer(fact),
-                    fact: Some(fact),
-                    margin: diag,
-                });
-            }
-            Err(PlaneEqError::Escalated { rung, diag }) => {
-                return Err(BooleanError::plane_identity(
-                    rung,
-                    super::PlaneDoor::OnPair(super::DeclarationRead::Spent(ContactClass::Rest)),
-                    diag,
-                ));
-            }
-            Err(PlaneEqError::Undeclared { diag, relation }) => {
-                // Unreachable with declared=true; refuse loudly anyway.
-                return Err(BooleanError::UndeclaredCoincidence {
-                    diag,
-                    pair: [(Operand::A, fa), (Operand::B, fb)],
-                    relation,
-                });
-            }
-        }
+    for &(fa, fb) in pairs {
+        a_rest.insert(surface(a, fa)?, ());
+        b_rest.insert(surface(b, fb)?, ());
     }
     Ok((a_rest, b_rest))
 }
@@ -859,13 +1005,14 @@ struct SeamSet {
     per_segment: Vec<EdgeKey>,
 }
 
-/// Realizes the seam in one solid: per segment, the existing operand
-/// edge (fan walk) or a minted chord through the standard splitting
-/// machinery. `Ok(None)`: a segment does not resolve structurally —
-/// not this lane's frontier (pre-identification phase).
+/// Realizes the seam in one solid: per segment, the arc it was matched
+/// along, else the existing operand edge (fan walk), else a minted chord
+/// through the standard splitting machinery. `Ok(None)`: a segment does
+/// not resolve structurally — not this lane's frontier
+/// (pre-identification phase).
 fn realize_seam<T: Decide>(
     body: &mut Body<T>,
-    segments: &[(VertexKey, VertexKey)],
+    segments: &[(VertexKey, VertexKey, Option<EdgeKey>)],
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -874,8 +1021,12 @@ fn realize_seam<T: Decide>(
         set: SecondaryMap::new(),
         per_segment: Vec::with_capacity(segments.len()),
     };
-    for &(u, v) in segments {
-        let edge = match fan_edge_between(body, u, v)? {
+    for &(u, v, arc) in segments {
+        let found = match arc {
+            Some(e) => Some(e),
+            None => fan_edge_between(body, u, v)?,
+        };
+        let edge = match found {
             Some(e) => e,
             None => match mint_chord(body, u, v, rings, fragments, tol)? {
                 Some(e) => e,
@@ -1365,6 +1516,10 @@ fn glue_pair<T: Decide>(
     vmap: &SecondaryMap<VertexKey, VertexKey>,
     tol: Tol,
 ) -> Result<ZipReport, BooleanError> {
+    let corr: SeamCorrespondence = vmap
+        .iter()
+        .map(|(a, &b)| (a, std::collections::BTreeSet::from([b])))
+        .collect();
     let rings_of = |body: &Body<T>, f: FaceKey| -> Result<Vec<LoopKey>, BooleanError> {
         Ok(body
             .get_face(f)
@@ -1393,7 +1548,7 @@ fn glue_pair<T: Decide>(
     }
     let shared = shared_run(body, fa, fb)?;
     let mut report = if shared.is_empty() {
-        zip_seam(body, fa, fb, vmap, tol)?
+        zip_seam(body, fa, fb, &corr, tol)?
     } else {
         slit_zip(body, fa, fb, &shared, vmap, tol)?
     };
@@ -1438,7 +1593,7 @@ fn glue_pair<T: Decide>(
         used.insert(db, ());
         let shared = shared_run(body, da, db)?;
         let rep = if shared.is_empty() {
-            zip_seam(body, da, db, vmap, tol)?
+            zip_seam(body, da, db, &corr, tol)?
         } else {
             slit_zip(body, da, db, &shared, vmap, tol)?
         };
@@ -1810,23 +1965,15 @@ fn zip_folded<T: Decide>(
             .ok_or_else(|| desync("REST lane: fold half no longer resolves"))?
             .next;
         // Wall off the 3-edge sliver [ha, hb, scaffold], fuse the
-        // vertex pair, retire the b copy (its remnant a copy lands in
-        // the b-side neighbor's loop — the fuse).
-        let made = body.mef(
-            MefSite::Chords {
-                he1: ha,
-                he2: hb_next,
-            },
-            geom_brep::EdgeCurveSpec::self_loop_circle_at(p),
-            FaceSurface::Inherit,
-            tol,
-        )?;
-        // The fuse merges the b copy into the a copy across a certified
-        // circle: the merged fan keeps its carriers, re-certified at the
-        // a copy under the run's band.
-        body.kev_describing(made.he_plus, &[], tol)
-            .map_err(|_| desync("REST lane: slit fuse kev refused"))?;
-        report.vertex_merges.push((eb, sa));
+        // vertex pair into the a copy, retire the b copy (its remnant a
+        // copy lands in the b-side neighbor's loop — the fuse).
+        let joint = Joint::Chord {
+            he1: ha,
+            he2: hb_next,
+        };
+        let (merge, _) = fuse_by_joint(body, joint, p, desync, tol)?;
+        debug_assert_eq!(merge, (eb, sa), "the slit fuse keeps the a copy");
+        report.vertex_merges.push(merge);
         report.seam_edges.push(edge_of(body, ha)?);
         body.kef_minting(hb, tol)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
@@ -1878,6 +2025,129 @@ mod tests {
             what(settle_glue(&body, &mut seam, &[killed, other])),
             "REST lane: an edge the glue reported interior survived it",
             "an interior report on a live edge is a desync"
+        );
+    }
+}
+
+/// **A declared `Rest` bridges only a displacement that stays in band
+/// at every point of the faces it is consumed on.** Each row poses a
+/// pair a datum-by-datum reading bridged — each datum in band at its
+/// own lever — while some consumed point stands at or past the band;
+/// the door reads the pair as one displacement and refuses it.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod lever_rows {
+    use super::*;
+    use crate::boolean::boxes::tests::torus_wall;
+    use crate::contact::ContactRefusal;
+    use crate::test_support::{CylFrame, cyl_wall_sheet};
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn door(a: &Body<f64>, fa: FaceKey, b: &Body<f64>, fb: FaceKey) -> Result<(), ContactRefusal> {
+        crate::boolean::contact_pair_verdict(
+            a,
+            fa,
+            b,
+            fb,
+            crate::contact::ContactClass::Rest,
+            None,
+            band(),
+        )
+        .map(|_| ())
+    }
+
+    /// A torus of `R + r = 2.5 m` against its twin tilted by `θ` about
+    /// `y` through the shared centre. At `θ = 0.6·Kε`, in band at one
+    /// metre, the tilt moves the tube's core circle by `θ·R = 1.2·Kε`
+    /// while no corner of the patch stands past the band: the door
+    /// refuses unsettled rather than bridging. At `2·Kε` a corner stands
+    /// past it, and the door contradicts.
+    #[test]
+    fn a_torus_tilt_is_read_at_the_ring() {
+        for (k, unsettled) in [(0.6, true), (2.0, false)] {
+            let theta = k * band().escalate();
+            let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
+            let (a, fa) = torus_wall(
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                2.0,
+                0.5,
+                u,
+                v,
+            );
+            let (mut b, fb) = torus_wall(
+                Point3::origin(),
+                Vec3::new(theta.sin(), 0.0, theta.cos()),
+                Vec3::new(theta.cos(), 0.0, -theta.sin()),
+                2.0,
+                0.5,
+                u,
+                v,
+            );
+            b.set_face_sense(fb, false).unwrap();
+            let read = door(&a, fa, &b, fb);
+            if unsettled {
+                assert!(
+                    matches!(read, Err(ContactRefusal::Escalated { .. })),
+                    "{k}·Kε: the swing at the ring is unsettled: {read:?}"
+                );
+            } else {
+                assert!(
+                    matches!(read, Err(ContactRefusal::Contradicted { .. })),
+                    "{k}·Kε: a corner past the band contradicts: {read:?}"
+                );
+            }
+        }
+    }
+
+    /// A 10 m cylinder wall against its twin tilted by `0.5·K·ε` about
+    /// `y` through the shared axis point at its foot: `0.5·Kε` at one
+    /// metre, while the far rim stands `5·Kε` off.
+    #[test]
+    fn a_cylinder_tilt_is_read_at_the_far_rim() {
+        let tol = Tol::witness();
+        let theta = 0.5 * band().escalate();
+        let (u, v) = ((0.2, 1.6), (0.0, 10.0));
+        let mut a = Body::<f64>::new();
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), None, u, v, tol);
+        let mut b = Body::<f64>::new();
+        let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), None, u, v, tol);
+        let sense = a.get_face(fa).unwrap().sense;
+        b.set_face_sense(fb, !sense).unwrap();
+        let read = door(&a, fa, &b, fb);
+        assert!(
+            matches!(read, Err(ContactRefusal::Contradicted { .. })),
+            "the tilt at the far rim contradicts the declaration: {read:?}"
+        );
+    }
+
+    /// **The offset and the tilt add.** A 1 m band of cylinder wall at
+    /// `9 ≤ v ≤ 10` against its twin tilted by `0.105·K·ε` about `y`
+    /// through the axis' foot at the origin: the axis offset at the
+    /// patch's middle reads `≈ 1.0·Kε` (just in band), the tilt over the
+    /// patch's extent another fraction of it, each in band on its own,
+    /// while the rim stands `1.05·Kε` off. Read datum by datum it
+    /// bridged; read as one displacement it does not.
+    #[test]
+    fn an_offset_and_a_tilt_in_band_each_do_not_bridge_their_sum() {
+        let tol = Tol::witness();
+        let theta = 0.105 * band().escalate();
+        let (u, v) = ((-0.3, 0.3), (9.0, 10.0));
+        let mut a = Body::<f64>::new();
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), None, u, v, tol);
+        let mut b = Body::<f64>::new();
+        let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), None, u, v, tol);
+        let sense = a.get_face(fa).unwrap().sense;
+        b.set_face_sense(fb, !sense).unwrap();
+        let read = door(&a, fa, &b, fb);
+        assert!(
+            matches!(read, Err(ContactRefusal::Contradicted { .. })),
+            "the rim stands past the band, so the declaration does not bridge: {read:?}"
         );
     }
 }

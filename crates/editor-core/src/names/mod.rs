@@ -64,9 +64,9 @@ pub(crate) use emit_union::{
     is_fold_qualified_member_edge, member_name, member_view, name_union,
 };
 pub use flush::{
-    CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclareError, DeclaredContact,
-    FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare, declare_all, declare_node,
-    find_flush_candidates,
+    BooleanCoincidence, CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict,
+    DeclareError, DeclaredContact, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare,
+    declare_all, declare_node, find_flush_candidates,
 };
 pub use geompred::{
     Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,
@@ -82,9 +82,9 @@ pub(crate) use nest::{read_door, write_door};
 pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;
 pub use role::{
-    CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, PieceRole, ProfileEdgeRef,
-    ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SectionCircle, SplitHalf,
-    StableName, band, band_pi, band_rim, carried, meridian_vertex,
+    CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, PieceRole, PieceRun,
+    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SectionCircle,
+    SplitHalf, StableName, band, band_pi, band_rim, carried, meridian_vertex,
 };
 pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{VerbatimEdge, verbatim_edge};

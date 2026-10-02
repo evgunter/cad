@@ -4,7 +4,8 @@
 //! and the cone's reads one (a rim: ⊥ the axis, centred on it). Every
 //! carrier failing them is decided by an incidence test
 //! (`pcurve_sphere_chart_incident`, `pcurve_cone_chart_incident`): on
-//! the chart, an uncovered class; off it, a carrier off the chart. A
+//! the chart, its image or an uncovered class; off it, a carrier off
+//! the chart. A
 //! gate that reads a SECOND, amplified quantity after an in-band first
 //! one — or a first-order quantity for a second-order departure — must
 //! not decide off-chart on its own; these rows build on-chart carriers
@@ -14,7 +15,7 @@
 
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
-use geom_brep::{PcurveCertifyError, UncoveredClass, chart_pcurve};
+use geom_brep::{Pcurve, PcurveCertifyError, UncoveredClass, chart_pcurve};
 use geom_core::{Point3, Tol, Vec3};
 
 /// The right circular cone of half-angle `alpha` about `+z` with its
@@ -54,12 +55,12 @@ fn section(alpha: f64, h: f64, theta: f64) -> (Point3<f64>, Vec3<f64>, Vec3<f64>
     (centre, Vec3::new(s, 0.0, c), u, k / a, k / a.sqrt())
 }
 
-/// A tilted plane section of a cone lies on it, and is uncovered; the
+/// A tilted plane section of a cone lies on it, and is imaged; the
 /// same ellipse moved off it by `2·K·ε` — just past the sliver, so a
 /// meter loose by more than a factor of two would excuse it — is a
 /// carrier off the chart.
 #[test]
-fn a_cone_section_is_uncovered_and_a_moved_one_is_off_the_chart() {
+fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     let alpha = 0.5;
     let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
     let on = Curve3::Ellipse {
@@ -73,14 +74,8 @@ fn a_cone_section_is_uncovered_and_a_moved_one_is_off_the_chart() {
     assert!(dist < 1e-14, "on the cone: {dist:e}");
     let got = chart_pcurve(&on, &cone(alpha), band());
     assert!(
-        matches!(
-            got,
-            Err(PcurveCertifyError::UnsupportedCarrier {
-                class: UncoveredClass::ConeSection,
-                ..
-            })
-        ),
-        "a cone section is uncovered: {got:?}"
+        matches!(got, Ok(Pcurve::ConeSection { .. })),
+        "a cone section derives its section image: {got:?}"
     );
     let shift = 2.0 * Tol::witness().k() * eps();
     let moved = Curve3::Ellipse {

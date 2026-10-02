@@ -341,7 +341,7 @@ mod tie_tests {
             RecipeNodeId(1),
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .expect("the extrude names");

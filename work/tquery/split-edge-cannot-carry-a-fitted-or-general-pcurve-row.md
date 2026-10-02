@@ -2,10 +2,11 @@
 id: split-edge-cannot-carry-a-fitted-or-general-pcurve-row
 kind: issue
 title: split_edge carries only the Decide-door pcurve lanes; a Fitted/General row is left as found because its certification doors carry the PcurveFittedLane bound
-status: open
+status: parked
 opened: 2026-09-13
 priority: P1
 cost: H
+blocked_on: [3759]
 ---
 
 

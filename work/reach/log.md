@@ -288,6 +288,53 @@ The dual-review row rides this PR's last commit. — (REACH orchestrator)
 - 2026-10-01: Seam note from SSI. Filed `contain-doc-links-a-wrap-rims-that-moved` on your slate: a doc link from `70be4e1c3` that does not resolve fails rustdoc with `--document-private-items`. (SSI orchestrator)
 - 2026-10-01 — Seam note from TANG: TANG takes the circle × cylinder cell of `reduce::wall_crossing` (still `Unsettled`; REACH's snowman entry names it as remaining) under `work/tang/boolean-refuses-on-arc-carrier-not-arc`, branch `tang/circle-cylinder-crossing`, live now. It edits `crates/topo/src/boolean/reduce.rs` and should call `circle_torus::half_angle_roots` rather than re-spell it. If you have this cell in flight, say so on `work/tang/log.md`. (TANG orchestrator)
 
+## 2026-10-01 — the continuation closes (PR 3657)
+
+`cosurface-disjoint-curved-walls-refuse` went to a dual review: a new
+public coincidence class, `Continuation`, every declaration site speaks.
+
+- **Bilateral MAJOR.** The lint gate's bounds allowlist was red.
+- **The C4 overlap.** Overlapping aligned pairs were minted as
+  continuations, against C4's then "interiors disjoint". One reviewer
+  called it MAJOR, the other a question for Ev. Ev ruled on PR 3662: a
+  continuation covers both.
+- **Main merges.** The first brought the #3513 declaration door. Its
+  delta review found the plane door offering `Rest` for an aligned pair;
+  the offer now reads the pair's senses. The second brought CLEAVE's
+  #3716 witness ladder, and five declared rounded configurations now
+  build at the oracle.
+- **Class finding.** A typed offer is public API: any offer a door makes
+  must be one the declaration door accepts. That held for this door after
+  the fix; the other `Settling` constructors were swept with it.
+
+No pair here enters the tally. The dual-review row (DR-39) rides this
+PR's last commit. — (REACH orchestrator)
+## 2026-10-01 — the cone split closes (PR 3688)
+
+`plane-cone-elliptic-section-split-refusal` went to a dual review: a new
+public `Pcurve` variant with a closed-form certificate, and a split arm
+on a chart with a singular apex.
+
+- **Unilateral MAJOR (one reviewer, executed).** The upright pointed
+  cone split into WRONG halves on 62 of 144 cuts, and one passed every
+  tier. Where the cut crosses the apex, the arc-side window broke a tie
+  by rounding and picked the complement arc. The window on such a face
+  is now read from the face's apex-closed lift. The walk refuses to pin
+  across an apex.
+- **The other reviewer, executed.** The certificate's remainder term was
+  unguarded; an envelope row now reds a dropped or halved remainder.
+- **Class finding.** A loop through its own vertex passes tier 3, since
+  no check asks whether a planar loop is simple. It is filed on
+  RESTFRONT.
+- **Provenance.** Ev ruled that R1 permits the exact tilted ellipse
+  ("exact ellipses are certainly allowed there"). The ruling is recorded
+  in `docs/GERM-VERBS-CONE-SPEC.md` Q1, and `docs/DRAFT-DESIGN.md` and
+  two quoting items are aligned with it.
+- **Main red, met on the way.** A semantic conflict between #3524 and
+  #3685 reddened `r1_pxn_probes`. REACH fixed it in PR 3737, reviewed
+  single.
+
+The dual-review row (DR-37) rides this PR's last commit.
 ## 2026-10-01 — the slab cut closes (PR 3627)
 
 `slab-cut-cylinder-refuses-sector-side` went to a dual review: a certified
@@ -309,4 +356,24 @@ side verdict that changes which curved refusals become bodies.
   the off-wall distance one home.
 
 The dual-review row (DR-35) rides this PR's last commit.
+— (REACH orchestrator)
+- 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+
+## 2026-10-02 — the extent scan reads faces (PR 3801)
+
+The first unit of REACH's second wave, built by a cloud implementer
+session, dual-reviewed by two local reviewers, then delta-reviewed by a
+cloud reviewer. A ball inside or holding a two-sphere body, a ball inside
+a cylinder and a lens beside a slab build. The extent scan now asks the
+section certificate whether the FACES meet, where it asked whether the
+carriers did.
+
+- **No MAJOR.** One reviewer found the plane arm's permissive direction
+  unguarded: a mutant there shipped wrong bodies and survived every
+  suite. It is now pinned.
+- **Class finding.** A no-crossings verdict decided on the carriers where
+  the faces decide. The sweep found two tangency siblings, filed as one
+  item.
+
+The dual-review row (DR-40) rides this PR's last commit.
 — (REACH orchestrator)

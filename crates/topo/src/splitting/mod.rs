@@ -13,8 +13,8 @@
 //!
 //! 1. **Operand gate (F5 → THE C5 table, M5 PR 5)**: every face's
 //!    `(kind × plane)` arm must be one the pipeline executes —
-//!    `Plane` (the M3 seam, bit-identical) or `Cylinder` (the rung-2
-//!    conic lane); other kinds refuse typed CITING their rung routing
+//!    `Plane` (the M3 seam, bit-identical), `Cylinder` or `Cone` (the
+//!    rung-2 conic lanes); other kinds refuse typed CITING their rung routing
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`] — per-arm
 //!    retirement, C12.1). Edge carriers `Line`/`Circle`/`Ellipse`
 //!    pass; `Nurbs` refuses
@@ -116,6 +116,18 @@ pub enum PlaneSide {
     Above,
 }
 
+impl PlaneSide {
+    /// The side as a refusal names it.
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Below => "below",
+            Self::On => "on",
+            Self::Above => "above",
+        }
+    }
+}
+
 /// What a neighborhood entry stands for (typed, F9-style — never
 /// inferred from array position).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -150,7 +162,7 @@ pub struct SectorEntry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NullEdgeRecord {
     /// The ON vertex whose neighborhood classification minted this
-    /// null edge (its below-side copy survives as `attr.below_end`).
+    /// null edge: the end of `attr` that is not the minted copy.
     pub at_vertex: VertexKey,
     /// The null edge itself.
     pub edge: EdgeKey,
@@ -191,7 +203,7 @@ pub enum SplitReduceError {
     /// The run's tolerance cannot form a valid band (D4 residue).
     Band(BandError),
     /// A face's `(kind × plane)` arm of THE C5 dispatch table is not
-    /// executed by the split pipeline (M5 PR 5: `Plane` and `Cylinder`
+    /// executed by the split pipeline (`Plane`, `Cylinder` and `Cone`
     /// are; the refusal retires PER ARM, never wholesale — C12.1). The
     /// Display cites the arm's rung routing from
     /// [`geom_brep::intersect::route`].
@@ -711,7 +723,14 @@ pub(crate) fn through_the_join<T: geom_core::Decide>(
 /// [`SplitError`], each stage's typed refusals passed through whole —
 /// including the one-sided-tangency degenerate section/side refusals
 /// (no degenerate body is ever emitted), and
-/// [`SplitFinishError::SectionCusp`] from either run.
+/// [`SplitFinishError::SectionCusp`] from either run. Each run gates
+/// its own sides at tier 2 ([`SplitFinishError::ResultInvalid`]), so a
+/// mirrored run whose side is not a closed solid surfaces the direct
+/// run's refusal, as any other mirror failure does. Tier 3 is
+/// deliberately not run on the sides: split accepts operands carrying
+/// scaffold edges tier 3 refuses, and a pinch side's touching pieces
+/// carry contacts split declares nowhere
+/// (`work/tquery/validate-passes-a-body-with-a-zero-width-slit-face.md`).
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
@@ -783,8 +802,13 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
 ) -> Result<SplitResult<T>, SplitError> {
     let (red, completed, fragments) = split_scratch(operand, plane, tol)?;
     let mut result = finish::split_finish(red, &completed, fragments, tol)?;
-    for part in [&mut result.above, &mut result.below] {
+    for (side, part) in [
+        (PlaneSide::Above, &mut result.above),
+        (PlaneSide::Below, &mut result.below),
+    ] {
         if let finish::SplitPart::Body(body) = part {
+            crate::validate::validate_closed(body)
+                .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             crate::pcurves::mint_pcurves(body, tol)?;
         }
     }

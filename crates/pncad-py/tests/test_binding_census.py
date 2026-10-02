@@ -2679,6 +2679,15 @@ NOT_BOUND = {
     # tier 3 refuses it at rest.
     "EdgeDescription": INTERIOR,
     "Extruded": INTERIOR,
+    # `Extruded::walls` / `Revolved::bands` elements — one swept wall
+    # per run of profile pieces. Behind the same door as their carriers:
+    # Python speaks the document layer and reads a wall by its NAME.
+    "SideWall": INTERIOR,
+    "BandWall": INTERIOR,
+    # The run a swept wall's role segment holds. Python never builds a
+    # name from parts: a run wall's name is the opaque text `select`
+    # answers, and the one-piece run is what `band(node, piece)` spells.
+    "PieceRun": SHAPE,
     # The pick index's memo across pictures (PERF-5): a cache handle
     # the viewer's index worker owns, threaded through
     # `NodePick::build_with`. Python reaches the pick vocabulary through
@@ -2723,6 +2732,15 @@ NOT_BOUND = {
     # the fault's own `str()`. Nothing in Python hands one out and no
     # bound door takes one.
     "NodeRefusal": INTERIOR,
+    # The wrapper `PartFault::PartProduct` and `ChecksError::Product`
+    # carry a gather refusal in, so those `Clone` types can hold one
+    # whole. Python never holds it: the part fault crosses as its node
+    # failure's tag word and prose, the checks refusal as
+    # `product_unavailable` and the refusal's prose.
+    "ProductRefusal": INTERIOR,
+    # The one generic both wrappers above are spellings of; Python holds
+    # neither, so it holds no instance of this either.
+    "Refusal": INTERIOR,
     # The kernel's reading of the refusals a failure carries, level by
     # level, with the document each level's node is in. Python reads the
     # same chain in its own shape: each level is an `EvaluationError`
@@ -3359,6 +3377,12 @@ MEMBERS_BOUND_AS = {
     # a crossing carries no provenance); the shape that hid it is
     # listed in `ARMS_SPELLED_BY_A_PROPERTY`.
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
+    # --- a wrapping arm flattened into its payload's words ---------
+    # `BooleanCoincidence::Contact(ContactClass)` crosses as the
+    # contact class's own words beside `Continuation`: the Python enum
+    # is flat, `Rest`, `Tangent`, `Continuation`, so the arm is every
+    # contact word.
+    "BooleanCoincidence::Contact": ("BooleanCoincidence.Rest", "BooleanCoincidence.Tangent"),
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
@@ -3653,6 +3677,7 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::PairInBand": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",
     "SelectRefusal::Band": "SelectRefusal.reason",
+    "SelectRefusal::DistinctFinding": "SelectRefusal.reason",
     "SplitError::EmptyCut": "SplitError.variant",
     "SplitError::UnknownCutNode": "SplitError.variant",
     "SplitError::PartIdCollides": "SplitError.variant",
@@ -3974,6 +3999,11 @@ MEMBERS_NOT_BOUND = {
     # itself and renders from it, so there is no second document to
     # check against and no id to read back.
     "McReport::document": SHAPE,
+    # The same for the checks report and its refusal: Python's
+    # `ChecksReport` holds the evaluated document and speaks from it,
+    # and `CheckRefusal` is raised with the message already spoken.
+    "ChecksReport::document": SHAPE,
+    "CheckRefusal::document": SHAPE,
     # The chain is authored through `Placement`'s constructors and
     # `then`, and read back only as its length: the steps are the
     # `Step` entry's `different-shape` argument, one level in.
@@ -4125,10 +4155,14 @@ class TestBindingCensus(unittest.TestCase):
         """A mapping to a spelling the stub does not declare is a
         claim nobody is checking — the failure mode that would make
         this whole roster decorative."""
+        # A row's spelling is one name, or a tuple of names when one
+        # member crosses as several (a wrapping arm flattened into its
+        # payload's words); each must exist.
         absent = sorted(
             f"{name} -> {spelling}"
             for table in (BOUND_AS, MEMBERS_BOUND_AS)
-            for name, spelling in table.items()
+            for name, spellings in table.items()
+            for spelling in (spellings if isinstance(spellings, tuple) else (spellings,))
             if spelling not in self.top and spelling not in self.members
         )
         self.assertEqual(

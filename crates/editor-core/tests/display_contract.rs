@@ -493,7 +493,8 @@ fn select_refusal_is_exhaustive(e: &SelectRefusal) {
         | SelectRefusal::NotALength { .. }
         | SelectRefusal::PairInBand { .. }
         | SelectRefusal::BadValue(_)
-        | SelectRefusal::Band(_) => (),
+        | SelectRefusal::Band(_)
+        | SelectRefusal::DistinctFinding(_) => (),
         other => panic!("`SelectRefusal` grew a variant with no arm here: {other:?}"),
     }
 }
@@ -520,6 +521,7 @@ const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
             "PairInBand",
             "BadValue",
             "Band",
+            "DistinctFinding",
         ],
     );
 
@@ -637,6 +639,10 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 escalate: 5e-324,
             }),
             vec!["ambiguity band", "ambient tolerance", "not below"],
+        ),
+        (
+            SelectRefusal::DistinctFinding(topo::flush::DistinctFinding),
+            vec!["DISTINCT carriers", "no finding carries"],
         ),
     ];
     assert_f6_every_variant(&cases, &SELECT_REFUSAL, &also_banned);
@@ -1403,10 +1409,13 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                     StableName {
                         kind: EntityKind::Face,
                         node: RecipeNodeId(tagged(5)),
-                        path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece {
-                            step: StepId(tagged(8)),
-                            role: editor_core::PieceRole::Leg,
-                        })],
+                        path: vec![RoleSeg::Lateral(
+                            editor_core::ProfileEdgeRef::Piece {
+                                step: StepId(tagged(8)),
+                                role: editor_core::PieceRole::Leg,
+                            }
+                            .into(),
+                        )],
                     },
                     node(),
                 ),
@@ -1666,10 +1675,13 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
     let wall = |step| StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId(tagged(6)),
-        path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-            step: StepId(tagged(step)),
-            role: editor_core::PieceRole::Leg,
-        })],
+        path: vec![RoleSeg::Lateral(
+            ProfileEdgeRef::Piece {
+                step: StepId(tagged(step)),
+                role: editor_core::PieceRole::Leg,
+            }
+            .into(),
+        )],
     };
     // A union member's wall, as a union's seams spell it.
     let member_wall = StableName {

@@ -273,7 +273,11 @@ impl<T: Real> WallClass<T> {
 #[derive(Clone, Copy, Debug)]
 pub(super) enum WallKind<T: Real> {
     /// Line ⊥ axis: a plane annulus/disc.
-    Plane,
+    Plane {
+        /// The swept chord runs away from the axis (its radial delta
+        /// decided positive), so its start is the wall's inner circle.
+        outward: bool,
+    },
     /// Line ∥ axis: a cylinder.
     Cylinder {
         /// Radius = the start vertex's radial coordinate.
@@ -433,7 +437,9 @@ fn classify_segment<T: Decide>(
             }
             if matches!(sz, Sign::Zero) {
                 return Ok(WallClass::Wall {
-                    kind: WallKind::Plane,
+                    kind: WallKind::Plane {
+                        outward: matches!(sr, Sign::Positive),
+                    },
                     sense: !matches!(canonical(sr), Sign::Positive),
                 });
             }
