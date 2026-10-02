@@ -2243,6 +2243,53 @@ mod tests {
         }
     }
 
+    /// **A path whose last corner is a fillet closes from the form.**
+    /// The rounded square from mid-side anchors, each corner a
+    /// `fillet`, the last one closed by `to Start (close)`: the form
+    /// admits every step at the tip it lands on, and the preview draws
+    /// the loop closed and valid, all four corners rounded.
+    ///
+    /// Red if the table drops `to Start (close)` after a fillet, or if
+    /// the seam fillet stops closing or validating.
+    #[test]
+    fn a_final_fillet_closes_from_the_form() {
+        use core::f64::consts::{FRAC_PI_2, PI};
+        let side = |x: f64, y: f64, theta: f64| {
+            [
+                Step::At(Point2::new(x, y)),
+                Step::Angle(theta),
+                Step::Fillet { radius: 0.004 },
+            ]
+        };
+        let mut steps: Vec<Step<f64>> = [
+            side(0.01, 0.0, 0.0),
+            side(0.02, 0.01, FRAC_PI_2),
+            side(0.01, 0.02, PI),
+            side(0.0, 0.01, -FRAC_PI_2),
+        ]
+        .concat();
+        steps.push(Step::CloseTo);
+        for (at, step) in steps.iter().enumerate() {
+            let state = super::tip_state_at(&steps, at, Tol::witness());
+            assert!(
+                super::admits_at(state, step.verb()).is_ok(),
+                "step {at} ({}) at {state:?}",
+                step.verb()
+            );
+        }
+        let drawn = previewed(vec![steps]).expect("the seam fillet draws");
+        assert!(
+            drawn.hold().is_none(),
+            "closed and valid: {:?}",
+            drawn.hold()
+        );
+        let [only] = drawn.loops.as_slice() else {
+            panic!("one loop: {drawn:?}")
+        };
+        assert!(only.end.closes(), "the fillet's close is the loop's");
+        assert_eq!(only.vertices.len(), 8, "four trimmed sides, four arcs");
+    }
+
     /// **A refused loop blanks no other loop, and outranks an
     /// unfinished one.** Four loops: unfinished, refused, closed,
     /// refused. All four draw, and the sentence is the FIRST refused
