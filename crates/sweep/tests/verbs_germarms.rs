@@ -272,8 +272,8 @@ fn a_cone_wall_is_stopped_at_the_outermost_gate() {
         matches!(
             err,
             BooleanError::CurvedPairUnsupported {
-                kind: geom_brep::SurfaceKind::Cone,
-                other_kind: geom_brep::SurfaceKind::Plane,
+                kind: geom::SurfaceKind::Cone,
+                other_kind: geom::SurfaceKind::Plane,
                 ..
             }
         ),
