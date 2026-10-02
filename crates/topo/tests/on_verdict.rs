@@ -204,3 +204,51 @@ fn a_shell_its_partner_does_not_cover_back_refuses() {
         assert_eq!((shells, kind), (1, BooleanResultKind::Seamed), "{label}");
     }
 }
+
+/// **The uncut component of a seamed boolean**: `X ∪ Z` against
+/// `X ∪ W`, W crossing Z and clear of X. The join cuts Z and W, and
+/// X's shell in each operand is an uncut component the finish reads
+/// `On` the other's.
+#[test]
+fn an_uncut_component_of_a_seamed_boolean_lies_on_its_twin() {
+    let tol = Tol::witness();
+    let x = unit_block(7);
+    let z = stamped(brick((3.0, 4.0), (0.0, 1.0), (0.0, 1.0), tol), 8);
+    let w = stamped(brick((3.5, 5.0), (0.25, 0.75), (0.25, 0.75), tol), 9);
+    let fused = |p: &Body<f64>, q: &Body<f64>| match union(p, q, tol).unwrap() {
+        BooleanResult::Body(b) => b.body,
+        BooleanResult::Empty => panic!("a union of blocks is not empty"),
+    };
+    let (xz, xw) = (fused(&x, &z), fused(&x, &w));
+    let overlap = 0.5 * 0.5 * 0.5;
+    let wv = 1.5 * 0.25;
+    for (label, result, want) in [
+        (
+            "(X ∪ Z) ∪ (X ∪ W)",
+            union(&xz, &xw, tol),
+            (1.0 + 1.0 + wv - overlap, 2),
+        ),
+        (
+            "(X ∪ Z) ∩ (X ∪ W)",
+            intersect(&xz, &xw, tol),
+            (1.0 + overlap, 2),
+        ),
+        (
+            "(X ∪ Z) − (X ∪ W)",
+            subtract(&xz, &xw, tol),
+            (1.0 - overlap, 1),
+        ),
+    ] {
+        let (volume, shells, kind) = read(label, result);
+        assert!(
+            (volume - want.0).abs() < 1e-12,
+            "{label}: volume {volume}, want {}",
+            want.0
+        );
+        assert_eq!(
+            (shells, kind),
+            (want.1, BooleanResultKind::Seamed),
+            "{label}"
+        );
+    }
+}

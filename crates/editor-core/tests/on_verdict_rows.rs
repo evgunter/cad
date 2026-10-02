@@ -84,9 +84,12 @@ fn error_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKind {
     }
 }
 
+/// A labelled boolean node and the answer it owes.
+type Row = (String, RecipeNodeId, Option<(f64, usize)>);
+
 /// Asserts each `(label, node, want)`: `want` is `None` for the typed
 /// empty result, else the volume and shell count.
-fn assert_answers(ev: &Evaluation<f64>, rows: &[(String, RecipeNodeId, Option<(f64, usize)>)]) {
+fn assert_answers(ev: &Evaluation<f64>, rows: &[Row]) {
     for (label, id, want) in rows {
         let got = answer(ev, *id);
         match (want, got) {
@@ -352,7 +355,7 @@ fn a_declared_twin_answers_and_an_undeclared_one_refuses() {
     assert_eq!(findings.len(), 6, "one finding per face pair: {findings:?}");
     let (applied, decl) = declare_all(&r.doc, &findings, Tol::witness()).unwrap();
     r.doc = applied.doc;
-    let rows: Vec<(String, RecipeNodeId, Option<(f64, usize)>)> = OPS
+    let rows: Vec<Row> = OPS
         .iter()
         .map(|&op| {
             let id = r.insert(Node::Boolean {
