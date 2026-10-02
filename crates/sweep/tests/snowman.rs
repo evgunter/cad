@@ -243,9 +243,39 @@ fn the_near_tangent_family_builds_to_1e_6_at_the_finer_bands() {
             ("A ∖ B", BooleanOp::Subtract, &a, &b, va - lens),
             ("B ∖ A", BooleanOp::Subtract, &b, &a, vb - lens),
         ] {
-            assert_body(&format!("δ = {delta:e}, {label}"), &run(op, x, y), expected);
+            let label = format!("δ = {delta:e}, {label}");
+            let body = run(op, x, y);
+            assert_body(&label, &body, expected);
+            assert_pierces_on_the_section(&label, &body, d);
         }
     }
+}
+
+/// Every vertex off the axis lies within ε of the section circle,
+/// read off the radii alone: the radical plane at `y* = r1 − h` with
+/// `h = δ(2r2 − δ)/2d`, the circle's radius `√(h(2r1 − h))`, every
+/// factor free of cancellation, and `δ = (r1 − d) + r2` exact. The
+/// volume cannot see a misplaced pierce on a lens this thin; this can.
+fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
+    let eps = Tol::witness().get().eps;
+    let delta = (R1 - d) + R2;
+    let h = delta * (2.0 * R2 - delta) / (2.0 * d);
+    let (y_star, a) = (R1 - h, (h * (2.0 * R1 - h)).sqrt());
+    let mut pierces = 0;
+    for (key, _) in body.vertices() {
+        let p = topo::readback::vertex_point(body, key).unwrap();
+        let off_axis = p.x.hypot(p.z);
+        if off_axis <= eps {
+            continue;
+        }
+        pierces += 1;
+        let off = (p.y - y_star).hypot(off_axis - a);
+        assert!(
+            off <= eps,
+            "{label}: vertex {p:?} is {off:e} off the section circle (y {y_star}, radius {a})"
+        );
+    }
+    assert!(pierces >= 2, "{label}: the section's pierce vertices exist");
 }
 
 /// **Where the near-tangent family stops at ε = 1e-12.** At `δ = 1e-7`

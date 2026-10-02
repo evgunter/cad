@@ -840,9 +840,9 @@ pub struct CircleSphereHarmonic<T> {
 /// running error bound. Each correctly rounded operation adds
 /// `u·|result|`, `u` the unit roundoff, and carries its operands'
 /// bounds through its partial derivatives; second-order terms (`u²` of
-/// the same magnitudes) are dropped. Its evaluation order is the one
-/// the plain expressions it shadows use, so `value` is bit-identical to
-/// theirs.
+/// the same magnitudes) are dropped. Each operation evaluates its value
+/// as the plain expression does, so a shadowed value is bit-identical
+/// to the plain one.
 #[derive(Clone, Copy)]
 struct Rounded<T> {
     value: T,
@@ -861,7 +861,7 @@ impl<T: Real> Rounded<T> {
         }
     }
 
-    fn rounded(value: T, error: T) -> Self {
+    fn charged(value: T, error: T) -> Self {
         Self {
             value,
             error: error + Self::unit() * value.abs(),
@@ -869,15 +869,15 @@ impl<T: Real> Rounded<T> {
     }
 
     fn add(self, o: Self) -> Self {
-        Self::rounded(self.value + o.value, self.error + o.error)
+        Self::charged(self.value + o.value, self.error + o.error)
     }
 
     fn sub(self, o: Self) -> Self {
-        Self::rounded(self.value - o.value, self.error + o.error)
+        Self::charged(self.value - o.value, self.error + o.error)
     }
 
     fn mul(self, o: Self) -> Self {
-        Self::rounded(
+        Self::charged(
             self.value * o.value,
             self.value.abs() * o.error + o.value.abs() * self.error,
         )
@@ -885,7 +885,7 @@ impl<T: Real> Rounded<T> {
 
     /// Division by an EXACT divisor.
     fn div_exact(self, d: T) -> Self {
-        Self::rounded(self.value / d, self.error / d.abs())
+        Self::charged(self.value / d, self.error / d.abs())
     }
 
     /// `√(a² + b²)`, as `(a.powi(2) + b.powi(2)).sqrt()`. The norm is
@@ -1133,6 +1133,124 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **The factored extremes and their running bounds.** Over tilted
+    /// frames, off-plane centres, crossings, misses and a near tangency,
+    /// each `f64` extreme lies within its bound of the `Interval` lane's
+    /// enclosure of the same chain, the phase components within theirs,
+    /// and the extremes agree with `c₀ ∓ A₁` to within the bound plus the
+    /// harmonics' own rounding. The bound is no coarser than sixteen
+    /// unit roundoffs of the chain's length scale `L = |e| + ρ + r` on
+    /// each factor of `(D − r)(D + r)/2r`. On the dyadic near tangency the near
+    /// extreme meets its closed form `−δ(2r − δ)/2r`.
+    #[test]
+    fn the_factored_extremes_lie_within_their_running_bounds() {
+        use geom_core::{Bounds, Interval};
+        let u = f64::EPSILON * 0.5;
+        let tilted = Vec3::new(1.0, 2.0, 2.0).normalize();
+        let tilted_u = tilted.cross(Vec3::new(1.0, 0.0, 0.0)).normalize();
+        let flat = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let delta = 2f64.powi(-20);
+        let poses = [
+            // (centre, frame, ρ, sphere centre, r)
+            ([0.0, 0.0, 0.0], flat, 1.0, [1.75 - delta, 0.0, 0.0], 0.75),
+            (
+                [0.3, -0.2, 0.1],
+                (tilted, tilted_u),
+                1.3,
+                [1.1, 0.4, -0.7],
+                0.9,
+            ),
+            (
+                [5.0, 5.0, 5.0],
+                (tilted, tilted_u),
+                0.2,
+                [5.1, 4.9, 5.05],
+                0.15,
+            ),
+            (
+                [0.0, 0.0, 0.0],
+                (tilted, tilted_u),
+                100.0,
+                [60.0, -70.0, 10.0],
+                3.0,
+            ),
+            ([1.0, 2.0, 3.0], flat, 2.0, [1.0, 2.0, 3.5], 2.0),
+        ];
+        for (k, (c, (n, ur), rho, sc, r)) in poses.into_iter().enumerate() {
+            let (c, sc) = (Point3::from_array(c), Point3::from_array(sc));
+            let h = circle_sphere_harmonic(c, n, rho, ur, sc, r);
+            let e = circle_sphere_harmonic(
+                c.map(Interval::from_f64),
+                n.map(Interval::from_f64),
+                Interval::from_f64(rho),
+                ur.map(Interval::from_f64),
+                sc.map(Interval::from_f64),
+                Interval::from_f64(r),
+            );
+            let within =
+                |v: f64, err: f64, enc: Interval| v + err >= enc.lo() && v - err <= enc.hi();
+            let l = (c - sc).norm() + rho + r;
+            for (name, v, err, enc, d) in [
+                (
+                    "lo",
+                    h.lo,
+                    h.lo_error,
+                    e.lo,
+                    (h.lo * 2.0 * r + r * r).sqrt(),
+                ),
+                (
+                    "hi",
+                    h.hi,
+                    h.hi_error,
+                    e.hi,
+                    (h.hi * 2.0 * r + r * r).sqrt(),
+                ),
+            ] {
+                assert!(
+                    within(v, err, enc),
+                    "pose {k}: {name} {v} ± {err} misses the enclosure {enc:?}"
+                );
+                let ceiling =
+                    16.0 * u * l * (d + r + (d - r).abs()) / (2.0 * r) + 4.0 * u * v.abs();
+                assert!(
+                    err > 0.0 && err <= ceiling,
+                    "pose {k}: {name}'s bound {err} is not within (0, {ceiling}]"
+                );
+            }
+            for (v, enc) in [(h.e_u, e.e_u), (h.e_v, e.e_v)] {
+                assert!(
+                    within(v, h.phase_error, enc),
+                    "pose {k}: phase component {v} ± {} misses {enc:?}",
+                    h.phase_error
+                );
+            }
+            let noise = 8.0 * f64::EPSILON * h.terms / (2.0 * r);
+            for (v, err, plain) in [
+                (h.lo, h.lo_error, h.c0 - h.a1),
+                (h.hi, h.hi_error, h.c0 + h.a1),
+            ] {
+                assert!(
+                    (v - plain).abs() <= err + noise,
+                    "pose {k}: factored {v} against c₀ ∓ A₁ = {plain}"
+                );
+            }
+        }
+        let h = circle_sphere_harmonic(
+            Point3::origin(),
+            flat.0,
+            1.0,
+            flat.1,
+            Point3::new(1.75 - delta, 0.0, 0.0),
+            0.75,
+        );
+        let want = -delta * (1.5 - delta) / 1.5;
+        assert!(
+            (h.lo - want).abs() <= h.lo_error + 4.0 * u * want.abs(),
+            "the near tangency's lo {} against its closed form {want}",
+            h.lo
+        );
+    }
 
     /// **The torus's smallest radius of curvature bounds every bend, on
     /// a fat ring too.** It is read as a radius a sagitta is charged

@@ -31,11 +31,24 @@
 //!   miss, definitely straddling is two roots, and either extreme in the
 //!   zero band is a tangency, which is not a crossing at any order this
 //!   lane sees and answers [`CircleRoots::Uncertain`].
-//! - **root slack** — each root moves by `noise / |R′(θ)|` radians under
-//!   the harmonics' error, `|R′| = √(A₁² − c₀²)` at both roots; that arc
-//!   length must be definitely inside the band, or the span and trim
-//!   decisions the caller makes on the point are made on the wrong
-//!   point. An unreadable reading refuses here too.
+//! - **root slack** — the roots are read off the extremes `lo`, `hi` and
+//!   the phase `φ`, each with the error bound its door supplies. At
+//!   either root the extremes' errors move the residual by
+//!   `δR = (hi·δlo − lo·δhi)/(hi − lo)` — the NEAR extreme's error, plus
+//!   only a share `|near|/(hi − lo)` of the far one's — so the root moves
+//!   by `δR / |R′|`, `|R′| = √(−lo·hi)` at both roots; the phase's error
+//!   moves it by itself, and the angle arithmetic rounds by
+//!   [`NOISE_ULPS`] half-ulps of a turn. That arc length must be
+//!   definitely inside the band, or the span and trim decisions the
+//!   caller makes on the point are made on the wrong point. An
+//!   unreadable reading refuses here too. A door whose only account is
+//!   `noise` charges it to both extremes and nothing to the phase, and
+//!   the slack is then `noise / |R′|`.
+//!
+//! The half-chord is measured from the extreme nearer zero,
+//! `2·asin(√(|near|/(hi − lo)))` past it, which reads the near extreme
+//! to its own relative precision: `acos(−c₀/A₁)` near a tangency
+//! amplifies the ratio's rounding by `1/√(1 − (c₀/A₁)²)`.
 //!
 //! Two DISTINCT certified roots therefore certify that the carrier does
 //! not lie on the surface — the fact the reduction's `(Zero, Zero)`
@@ -550,9 +563,7 @@ pub(super) fn first_harmonic_roots<T: Decide>(
     let two = T::from_f64(2.0);
     let phi = sin_part.atan2(cos_part);
     // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
-    // zero: `2·asin(√(|near|/(hi − lo)))` past it. That reads the near
-    // extreme to its own relative precision where `acos` near `±1`
-    // would amplify the ratio's rounding by `1/√(1 − x²)`.
+    // zero (module docs).
     let past = |near: T| two * (near.abs() / swing).sqrt().asin();
     let half_chord = (lo_value + hi_value).select_le_zero(past(hi_value), T::pi() - past(lo_value));
     let mid = (t0 + t1) / two;

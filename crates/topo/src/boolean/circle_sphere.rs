@@ -19,7 +19,12 @@
 //! The door decides it with the shared first-harmonic door
 //! ([`super::circle_roots::first_harmonic_roots`]) under its own rows,
 //! `bool_circle_sphere_noise`, `_coaxial`, `_extreme` and `_root_slack`,
-//! escalating as [`BooleanDecision::ArcSphereRoots`]. Its constant-
+//! escalating as [`BooleanDecision::ArcSphereRoots`]. Its extremes are
+//! the harmonic's factored ones, `(D∓ − r)(D∓ + r)/2r` with `D∓` the
+//! distances from the sphere's centre to the circle's nearest and
+//! farthest points, each with a running bound on its rounding, so a
+//! shallow crossing is placed as well as its near extreme is evaluated
+//! rather than as well as the harmonics' m² terms are. Its constant-
 //! residual answer is the coaxial circle's: every circle whose axis
 //! passes through the sphere's centre has one, and lies ON the sphere
 //! when it is zero.
