@@ -2,12 +2,13 @@
 id: three-loops-apply-several-edits-and-net-their-maintenance
 kind: issue
 title: Applying several edits as one action and netting their maintenance is written three times: the viewer's stage_run, refactor's Recording, and regauge_then_mate
-status: review
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 branch: recipe/one-action-recorder
 pr: 3931
+closed: 2026-10-03
 ---
 
 
