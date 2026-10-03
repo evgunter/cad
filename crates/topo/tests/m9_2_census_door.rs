@@ -374,18 +374,22 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
 fn r1_probe_nested_clear_cylinders_are_definitely_apart() {
     // r 1 strictly inside r 3, axes 0.5 apart: clearance 1.5 m.
     match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(0.5, 3.0), metre_patch(), band()) {
-        Err(TangentLocusError::NotTangent { apart, .. }) => {
+        Err(TangentLocusError::NotTangent { apart, predicate }) => {
             assert!(apart, "nested surfaces are definitely APART");
+            assert_eq!(
+                predicate, "tangent_locus_internal_gap",
+                "the internal row refuses"
+            );
         }
         other => panic!("nested clear cylinders are not tangent: {other:?}"),
     }
 }
 
-/// R1 probe (claim 4): the tangent-locus gap row is METRE data — the
-/// mm twin of an in-band metre gap decides definitely, the metre
-/// fixture escalates (scale-covariant, never scale-invariant).
+/// R1 probe (claim 4): the plane×cylinder gap row the witness reads is
+/// METRE data — the mm twin of an in-band metre gap decides definitely,
+/// the metre fixture escalates (scale-covariant, never scale-invariant).
 #[test]
-fn r1_probe_tangent_locus_gap_row_is_scale_covariant() {
+fn r1_probe_plane_cylinder_gap_row_is_scale_covariant() {
     // Metre twin: cylinder r 1 at height 1 + 3e-9 above the plane —
     // gap 3e-9, in Band{1e-9, 1e-8} ⇒ escalate.
     let cyl_m = Surface::Cylinder {
@@ -395,7 +399,13 @@ fn r1_probe_tangent_locus_gap_row_is_scale_covariant() {
         u_ref: Vec3::unit_z(),
     };
     match tangent_locus(&plane_at(0.0), &cyl_m, metre_patch(), band()) {
-        Err(TangentLocusError::Escalated(_)) => {}
+        Err(TangentLocusError::Escalated(d)) => {
+            assert_eq!(
+                d.predicate,
+                Some("pc_parallel_gap"),
+                "the gap row escalates"
+            );
+        }
         other => panic!("metre twin gap 3e-9 must escalate: {other:?}"),
     }
     // mm twin (everything x 1e-3): gap 3e-12, decisively below the

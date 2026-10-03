@@ -298,6 +298,8 @@ fn tangent_door_contradicts_escalates_and_verifies() {
         Tol::witness(),
     );
     let v = bracket.finish().verdicts;
+    // A verdict names its row, not its caller: any `pc_parallel_gap` Zero
+    // in the bracket satisfies this, the witness lane's among them.
     assert!(
         v.iter()
             .any(|x| x.predicate == "pc_parallel_gap" && x.sign == Sign::Zero),

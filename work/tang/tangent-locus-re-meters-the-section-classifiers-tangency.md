@@ -49,9 +49,12 @@ second:
 
 - An axis in band of the plane escalated on the witness's
   `tangent_locus_side`; the section decides the crossing.
-- `cc_parallel_gap` read `2·r1 − d`, so a declared equal pair within
-  band of tangency escalated in one operand order and was tangent in
-  the other; it reads `r1 + r2 − d` now, the witness's margin.
+- `cc_parallel_gap` read `2·r1 − d`, so a declared equal pair on
+  exactly parallel axes, within band of tangency, escalated in one
+  operand order and was tangent in the other; it reads `r1 + r2 − d`
+  now, the witness's margin. That makes the radius term order-free; a
+  tilt in band still reads differently by order, which the filed issue
+  carries.
 
 The coaxial cylinder×sphere `TangentCircle` has no witness arm to
 consume (the lane's own docs keep it out), so nothing re-decides it.

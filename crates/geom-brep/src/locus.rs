@@ -3,14 +3,14 @@
 //! configurations whose locus is closed-form. Every numeric decision is
 //! a named row through `dihedral::decide`.
 
-use geom::{Curve3, Surface};
+use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::dihedral::decide;
 use crate::extent::ExtentBall;
 use crate::intersect::{
-    PlaneCylinderSection, SectionError, cylinder_axes_parallel, parallel_cylinder_gap,
-    plane_cylinder_ruled_section,
+    PlaneCylinder, RuledSection, cylinder_axes_parallel, parallel_cylinder_gap,
+    plane_cylinder_ruled,
 };
 
 /// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
@@ -126,12 +126,16 @@ pub fn tangent_locus<T: Decide>(
     let escalate = TangentLocusError::Escalated;
     match (a, b) {
         (
-            plane @ Surface::Plane { .. },
+            &Surface::Plane {
+                origin: q,
+                normal: n,
+                ..
+            },
             &Surface::Cylinder {
                 origin,
                 axis,
                 radius,
-                u_ref,
+                ..
             },
         )
         | (
@@ -139,40 +143,35 @@ pub fn tangent_locus<T: Decide>(
                 origin,
                 axis,
                 radius,
-                u_ref,
+                ..
             },
-            plane @ Surface::Plane { .. },
+            &Surface::Plane {
+                origin: q,
+                normal: n,
+                ..
+            },
         ) => {
-            // The same cylinder, its origin moved along the axis to the
-            // foot of the extent's centre: the gap is read there, where
-            // the tilt's lever is least.
+            // The cylinder's origin moved along its axis to the foot of
+            // the extent's centre: the gap is read there, where the
+            // tilt's lever is least.
             let foot = reach.foot_on(origin, axis);
-            let cyl = Surface::Cylinder {
-                origin: foot,
-                axis,
-                radius,
-                u_ref,
+            let pc = PlaneCylinder {
+                q,
+                n,
+                o: foot,
+                a: axis,
+                r: radius,
             };
-            let ruled =
-                match plane_cylinder_ruled_section(plane, &cyl, reach.lever_from(foot), band) {
-                    Ok(ruled) => ruled,
-                    Err(SectionError::Escalated(diag)) => return Err(escalate(diag)),
-                    Err(other) => {
-                        unreachable!("the ruled lane of a plane×cylinder pair: {other:?}")
-                    }
-                };
             let gap = "pc_parallel_gap";
-            match ruled {
-                Some(PlaneCylinderSection::TangentLine(Curve3::Line { origin, dir })) => {
+            match plane_cylinder_ruled(&pc, reach.lever_from(foot), band).map_err(escalate)? {
+                Some(RuledSection::TangentLine { origin, dir }) => {
                     Ok(TangentLocus::Line { origin, dir })
                 }
-                Some(PlaneCylinderSection::ParallelLines { .. }) => {
-                    Err(TangentLocusError::NotTangent {
-                        apart: false,
-                        predicate: gap,
-                    })
-                }
-                Some(PlaneCylinderSection::Empty) => Err(TangentLocusError::NotTangent {
+                Some(RuledSection::ParallelLines { .. }) => Err(TangentLocusError::NotTangent {
+                    apart: false,
+                    predicate: gap,
+                }),
+                Some(RuledSection::Empty) => Err(TangentLocusError::NotTangent {
                     apart: true,
                     predicate: gap,
                 }),
@@ -180,7 +179,6 @@ pub fn tangent_locus<T: Decide>(
                     what: "plane×cylinder tangency is closed-form only along a ruling — \
                            the axis must lie in the plane's direction space",
                 }),
-                Some(other) => unreachable!("the ruled lane answers a ruled section: {other:?}"),
             }
         }
         (
@@ -198,7 +196,9 @@ pub fn tangent_locus<T: Decide>(
             },
         ) => {
             let o2 = &reach.foot_on(*o2, *a2);
-            match cylinder_axes_parallel(*a1, *a2, reach.lever_from(*o2), band).map_err(escalate)? {
+            match cylinder_axes_parallel(a1.cross(*a2).norm(), reach.lever_from(*o2), band)
+                .map_err(escalate)?
+            {
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => {
                     return Err(TangentLocusError::Unsupported {
@@ -376,16 +376,16 @@ mod tests {
         }
     }
 
-    /// **Two parallel cylinders declared of one radius are tangent in
-    /// either order where the witness says so.** Radii `1` and
-    /// `1 − 0.9·zero` (equal within the band, so the declaration
-    /// verifies), axes `r1 + r2 − 0.6·zero` apart: the walls overlap by
-    /// `0.6·zero`, inside the zero band. The section's external gap is
-    /// `r1 + r2 − d` in both orders; a gap read off one radius doubled
-    /// puts `1.5·zero` on one order (in band, escalating) and
-    /// `−0.3·zero` on the other (tangent).
+    /// **On exactly parallel axes the external gap reads both radii, in
+    /// either order.** Radii `1` and `1 − 0.9·zero` (equal within the
+    /// band, so the declaration verifies), axes `r1 + r2 − 0.6·zero`
+    /// apart: the walls overlap by `0.6·zero`, inside the zero band. The
+    /// gap is `r1 + r2 − d` whichever cylinder comes first; one radius
+    /// doubled would put `1.5·zero` on one order (in band, escalating)
+    /// and `−0.3·zero` on the other (tangent). The axes are parallel
+    /// exactly, so no tilt pivot enters the reading.
     #[test]
-    fn the_witness_and_the_equal_cylinder_section_agree_in_both_orders() {
+    fn on_exact_parallels_the_external_gap_reads_both_radii_in_either_order() {
         use crate::intersect::{EqualCylinderSection, RadiusEvidence, cylinder_cylinder_section};
         let band = Band::linear(Tol::witness()).unwrap();
         let zero = band.zero();
@@ -402,6 +402,73 @@ mod tests {
                 Ok(EqualCylinderSection::TangentLine(_)) => {}
                 other => panic!("{label}: the section classifies the same tangency: {other:?}"),
             }
+        }
+    }
+
+    /// A unit cylinder whose axis stands at height 1 above `z = 0` at
+    /// `x = 0`, rising `0.3·zero` per metre along `x`, its stored origin
+    /// `back` metres behind that point along the axis.
+    fn tilted_resting_cylinder(back: f64, zero: f64) -> Surface<f64> {
+        let theta = 0.3 * zero;
+        let axis = Vec3::new(theta.cos(), 0.0, theta.sin());
+        Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0) - axis * back,
+            axis,
+            radius: 1.0,
+            u_ref: Vec3::unit_y(),
+        }
+    }
+
+    /// **The gap is read where the extent is, not at the stored
+    /// origin.** The resting, barely tilted cylinder of
+    /// [`tilted_resting_cylinder`] stored 1000 m back along its axis:
+    /// over a metre about the origin the tilt reads zero and the axis
+    /// stands one radius off the plane, so the ruling mints. Read at the
+    /// stored origin the axis would stand `300·zero` lower, a definite
+    /// crossing.
+    #[test]
+    fn a_far_stored_origin_does_not_move_the_gap() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let cyl = tilted_resting_cylinder(1000.0, band.zero());
+        let metre = ExtentBall::new(Point3::origin(), 1.0);
+        match tangent_locus(&plane, &cyl, metre, band) {
+            Ok(TangentLocus::Line { origin, .. }) => assert!(
+                origin.x.abs() < 1.0 && origin.z.abs() < band.zero(),
+                "the ruling is read beside the extent, on the plane: {origin:?}"
+            ),
+            other => panic!("the resting cylinder is tangent across the extent: {other:?}"),
+        }
+    }
+
+    /// **The tilt is levered from the foot to the far side of the
+    /// extent, not over its radius alone.** The same cylinder stored at
+    /// its foot, with a 1 m extent centred 5 m off its axis along `y`:
+    /// the extent reaches `√26 + 1 ≈ 6.1` m from the foot, so the
+    /// `0.3·zero` tilt reads `1.83·zero`, in band. Over the extent's
+    /// radius alone it would read `0.3·zero` and mint a ruling that
+    /// stands nearly twice the zero band off across the faces.
+    #[test]
+    fn the_tilt_is_levered_from_the_foot_across_the_extent() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let cyl = tilted_resting_cylinder(0.0, band.zero());
+        let off_axis = ExtentBall::new(Point3::new(0.0, 5.0, 0.0), 1.0);
+        match tangent_locus(&plane, &cyl, off_axis, band) {
+            Err(TangentLocusError::Escalated(d)) => assert_eq!(
+                d.predicate,
+                Some("pc_axis_plane_parallel"),
+                "the axis row escalates"
+            ),
+            other => panic!("the tilt levered across the extent reads in band: {other:?}"),
         }
     }
 }
