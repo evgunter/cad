@@ -138,7 +138,8 @@ use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
-use crate::validate::{decide, scaffolds_at_rest, validate, validate_closed};
+use crate::props::AtRestPolicy;
+use crate::validate::{AtRestBody, decide};
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
 
@@ -160,33 +161,29 @@ pub enum BooleanResultKind {
 
 /// A real (non-empty) boolean result.
 ///
-/// # Validity-class carriage (M3 PR 6a, D2 — the F1 contract)
+/// # Validity-class carriage (D2 — the F1 contract)
 ///
 /// The validity class rides THIS wrapper, never a mutable field on
-/// [`Body`] (validity stays checked-on-demand; raw-insertion
-/// disclaimers unchanged): a `BooleanBody` with non-empty `contacts`
-/// is **tier-3′-grade currency**, and
-/// `validate_pseudomanifold(&b.body, &b.contacts)` is its at-rest
-/// gate — the declarations are the machine-checkable record of every
-/// intentional touching the pipeline propagated (F2's
-/// explicit-intent condition). An empty-contact result remains
-/// ordinary tier-3 currency (`validate_geometric`), and on such a
-/// body the two gates agree (3′ ≡ tier 3 plus the census actually
-/// run — pinned by the PR 6a acceptance suite).
-///
-/// The door checks tiers 1 and 2 and tier 3's transience fence on
-/// every result; the rest of that currency waits on
-/// `work/reach/boolean-door-tier-3-waits-on-the-description-gap.md`.
+/// [`Body`]: `body` is a finished body ([`AtRestBody`]), whose tier-3
+/// verdict the door took on these bits ([`AtRestPolicy::gate_at_rest_kept`]:
+/// [`AtRestOutcome::Validated`](crate::AtRestOutcome::Validated) at a
+/// certifying scalar, [`AtRestOutcome::NotRunAtThisScalar`](crate::AtRestOutcome::NotRunAtThisScalar)
+/// at a dual). `contacts` are the machine-checkable record of every
+/// intentional touching the pipeline propagated (F2's explicit-intent
+/// condition), and `body.validate_pseudomanifold(&contacts, tol)` is
+/// the tier-3′ pass over them, empty or not. The door does not run
+/// that census: a curved solid within reach of another solid is
+/// beyond its cross-solid lane, which would refuse valid disjoint
+/// unions (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
 #[derive(Debug)]
 pub struct BooleanBody<T: Real> {
-    /// The result body: one solid per piece of material
-    /// ([`crate::pieces`]).
-    pub body: Body<T>,
+    /// The result body, finished: one solid per piece of material
+    /// ([`crate::pieces`]), gated at tier 3 by the door that built it.
+    pub body: AtRestBody<T>,
     /// How it was produced.
     pub kind: BooleanResultKind,
     /// Declared contacts surviving into the result, in result keys
-    /// (module docs) — the tier-3′ declarations (see the type-level
-    /// docs: non-empty ⇒ 3′ currency).
+    /// (module docs) — the tier-3′ declarations (type-level docs).
     pub contacts: ContactRecords,
     /// Naming emission (M4 PR 3, NAMING-DESIGN N4): the mint-time
     /// wiring facts the naming layer consumes — recorded as the
@@ -338,8 +335,8 @@ impl<T: Real> BooleanResult<T> {
 ///
 /// [`BooleanError`] — every stage's typed refusals pass through.
 pub fn union<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     boolean_op_with(
@@ -358,8 +355,8 @@ pub fn union<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// [`BooleanError`].
 pub fn intersect<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     boolean_op_with(
@@ -378,8 +375,8 @@ pub fn intersect<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// [`BooleanError`].
 pub fn subtract<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     boolean_op_with(
@@ -399,8 +396,8 @@ pub fn subtract<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// [`BooleanError`].
 pub fn union_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
     decls: &BooleanDeclarations,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
@@ -413,8 +410,8 @@ pub fn union_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// [`BooleanError`].
 pub fn intersect_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
     decls: &BooleanDeclarations,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
@@ -434,8 +431,8 @@ pub fn intersect_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// [`BooleanError`].
 pub fn subtract_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
     decls: &BooleanDeclarations,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
@@ -461,8 +458,8 @@ pub fn subtract_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// [`BooleanError`] — identical to [`union`] and friends.
 pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
     tol: Tol,
@@ -471,22 +468,7 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let door_from = std::time::Instant::now();
     let result = boolean_door(op, a, b, decls, strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
-    {
-        let door = door_from.elapsed();
-        let gate = match &result {
-            Ok(BooleanResult::Body(r)) => {
-                let from = std::time::Instant::now();
-                let verdict = T::gate_at_rest_kept(r.body.clone(), tol)
-                    .and_then(|kept| T::gate_at_rest_declared(&kept, &r.contacts, tol));
-                Some(super::door_meter::GateReading::of(
-                    from.elapsed(),
-                    verdict.as_ref().map(|_| ()).map_err(Vec::as_slice),
-                ))
-            }
-            _ => None,
-        };
-        super::door_meter::record(op, &result, door, gate.as_ref());
-    }
+    super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     result
 }
 
@@ -548,16 +530,8 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
             });
         }
     }
-    let band = Band::linear(tol)?;
     let (a, b) = (one_solid(a)?, one_solid(b)?);
-    let mut result = boolean_op_recut(op, &a, &b, decls, strategy, true, tol)?;
-    if let BooleanResult::Body(r) = &mut result {
-        let pad = super::boxes::sweep_pad(band);
-        let face_box = |body: &Body<T>, f| super::boxes::face_box(body, f, pad, band).ok();
-        crate::pieces::sort_into_pieces(&mut r.body, band, tol, T::quad_lane(), Some(&face_box))
-            .map_err(BooleanError::Pieces)?;
-    }
-    Ok(result)
+    boolean_op_recut(op, &a, &b, decls, strategy, true, tol)
 }
 
 /// `body` as the pipeline reads an operand: as is when it holds at most
@@ -650,8 +624,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
     body.sweep_and_close();
-    let body = finished;
-    gate(&body)?;
+    let body = gate(finished, band, tol)?;
     T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     interior_loops?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
@@ -2715,21 +2688,36 @@ pub(super) fn remap_carried<T: Real>(
     Ok(())
 }
 
-/// The result gate every [`BooleanBody`] passes before it is returned:
-/// tiers 1 and 2, then tier 3's transience fence
-/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest)):
-/// an edge of the finished result still described as a scaffold is a
-/// construction that stopped half-way, and no currency the wrapper
-/// claims admits it.
-pub(super) fn gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
-    validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
-    validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
-    let errors = scaffolds_at_rest(body);
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(BooleanError::ResultInvalid { errors })
-    }
+/// **The result gate every [`BooleanBody`] passes**, at the site that
+/// built it and before the volume backstop reads it: the body is
+/// sorted one solid per piece of material ([`crate::pieces`]), then
+/// finished ([`AtRestPolicy::gate_at_rest_kept`]: tier 3, whose first
+/// act is tiers 1 and 2), so the verdict rides the result and is taken
+/// on the bits the caller receives.
+///
+/// # Errors
+///
+/// [`BooleanError::Pieces`] where the body's pieces cannot be read;
+/// [`BooleanError::ResultInvalid`] carrying the validator's findings.
+pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
+    body: Body<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<AtRestBody<T>, BooleanError> {
+    let mut body = body;
+    let pad = super::boxes::sweep_pad(band);
+    let face_box = |body: &Body<T>, f| super::boxes::face_box(body, f, pad, band).ok();
+    crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
+        .map_err(BooleanError::Pieces)?;
+    #[cfg(feature = "door-tier3-meter")]
+    let from = std::time::Instant::now();
+    let kept = T::gate_at_rest_kept(body, tol);
+    #[cfg(feature = "door-tier3-meter")]
+    super::door_meter::note_gate(super::door_meter::GateReading::of(
+        from.elapsed(),
+        kept.as_ref().map(|_| ()).map_err(Vec::as_slice),
+    ));
+    kept.map_err(|errors| BooleanError::ResultInvalid { errors })
 }
 
 /// One sphere group the extent scan wants re-cut: rigidly re-charted
@@ -3379,7 +3367,7 @@ fn classify_shells<T: Decide>(
 
 /// The containment fallback (F8): no crossings — classify whole
 /// shells, keep per Eq. 15.1's sides, and assemble the typed result.
-fn fallback<T: Decide + crate::props::AtRestPolicy>(
+fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     red: &BooleanReduction<T>,
     a_pristine: &Body<T>,
@@ -3499,7 +3487,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 &KeyView::Graft(&graft),
                 &desc,
             )?;
-            gate(&body)?;
+            let body = gate(body, band, tol)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
             let naming = BooleanNaming {
                 a_keys: OperandKeys::Direct,
@@ -3527,7 +3515,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
 /// Finishes a single-operand fallback result (the merge output stage
 /// is a documented no-op on a maximal-faced operand but runs anyway —
 /// the contract is uniform), applying ∖'s B-side revert when needed.
-fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
+fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     op: BooleanOp,
     body: Body<T>,
     red: &BooleanReduction<T>,
@@ -3558,7 +3546,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     };
     let mut contacts = remap_contacts(&body, contacts, a_view, b_view, &desc)?;
     remap_carried(&mut contacts, &body, decls, &a_view, &b_view, &desc)?;
-    gate(&body)?;
+    let body = gate(body, band, tol)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {
             a_keys: OperandKeys::Direct,

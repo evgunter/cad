@@ -10,22 +10,34 @@
 //! sink. A build that names none (an `--all-features` build, say) leaves
 //! the meter inert: it times nothing and writes nothing.
 //!
-//! `test op scalar faces door_µs gate_µs outcome gate_verdict`
+//! `test op scalar faces door_µs gate_µs outcome gate_verdict a_verdict b_verdict`
 //!
-//! `door_µs` is the whole call, the gate included; `gate_µs` is the
-//! result's tier-3′ gate (tier 3, then the census over the result's own
-//! contact records), zero where the call built no body. `outcome` is
-//! `empty`, `body`, or the refusal's variant name; `gate_verdict` is
-//! `ok`, `-` where no gate ran, or the gate's findings.
+//! `door_µs` is the whole call, the result gate included; `gate_µs` is
+//! that gate's tier 3 (`ops::gate`, [`AtRestPolicy::gate_at_rest_kept`]),
+//! zero where the call reached no gate. `outcome` is `empty`, `body`, or
+//! the refusal's variant name; `gate_verdict` is `ok`, `-` where no gate
+//! ran, or the gate's findings; `a_verdict` and `b_verdict` are the
+//! operands' kept outcomes.
 //!
 //! It changes no result. A line it cannot write panics, so the table
 //! never undercounts in silence.
 
+use std::cell::RefCell;
 use std::io::Write as _;
 use std::time::Duration;
 
 use super::{BooleanError, BooleanOp, BooleanResult};
-use crate::props::AtRestPolicy;
+use crate::props::{AtRestOutcome, AtRestPolicy};
+
+std::thread_local! {
+    /// The gate reading the call in flight on this thread took.
+    static GATE: RefCell<Option<GateReading>> = const { RefCell::new(None) };
+}
+
+/// Keeps the result gate's reading for the call in flight.
+pub(super) fn note_gate(reading: GateReading) {
+    GATE.with(|gate| *gate.borrow_mut() = Some(reading));
+}
 
 /// The gate's cost and findings over one result, as the door ran it.
 pub(super) struct GateReading {
@@ -61,10 +73,15 @@ pub(super) fn record<T: AtRestPolicy>(
     op: BooleanOp,
     result: &Result<BooleanResult<T>, BooleanError>,
     door: Duration,
-    gate: Option<&GateReading>,
+    operands: [AtRestOutcome; 2],
 ) {
+    let gate = GATE.with(|gate| gate.borrow_mut().take());
     let Some(path) = option_env!("CAD_DOOR_TIER3_METER_OUT") else {
         return;
+    };
+    let operand = |outcome| match outcome {
+        AtRestOutcome::Validated => "ok",
+        AtRestOutcome::NotRunAtThisScalar => "not-run",
     };
     let (faces, outcome) = match result {
         Ok(BooleanResult::Empty) => (0, "empty".to_string()),
@@ -78,12 +95,16 @@ pub(super) fn record<T: AtRestPolicy>(
                 .to_string(),
         ),
     };
-    let (gate_us, verdict) = gate.map_or((0, "-"), |g| (g.time.as_micros(), g.verdict.as_str()));
+    let (gate_us, verdict) = gate
+        .as_ref()
+        .map_or((0, "-"), |g| (g.time.as_micros(), g.verdict.as_str()));
     let line = format!(
-        "{}\t{op:?}\t{}\t{faces}\t{}\t{gate_us}\t{outcome}\t{verdict}\n",
+        "{}\t{op:?}\t{}\t{faces}\t{}\t{gate_us}\t{outcome}\t{verdict}\t{}\t{}\n",
         std::thread::current().name().unwrap_or("?"),
         T::NAME,
         door.as_micros(),
+        operand(operands[0]),
+        operand(operands[1]),
     );
     let written = std::fs::OpenOptions::new()
         .create(true)

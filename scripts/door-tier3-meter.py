@@ -30,6 +30,8 @@ FIELDS = [
     "gate_us",
     "outcome",
     "verdict",
+    "a_verdict",
+    "b_verdict",
 ]
 
 
@@ -78,6 +80,10 @@ def summarize(crate: str, path: str) -> None:
         f"{ratios[-1]:.0%} | {len(refused)} |"
     )
     print(f"    outcomes: {dict(outcomes.most_common())}")
+    below = [r for r in rows if r["a_verdict"] != "ok" or r["b_verdict"] != "ok"]
+    print(f"    calls with an operand below tier 3: {len(below)}, in {len({r['test'] for r in below})} tests")
+    for test, n in Counter(r["test"] for r in below).most_common():
+        print(f"    operand below tier 3: {n} × {test}")
     for (test, op_name, verdict), n in Counter(
         (r["test"], r["op"], r["verdict"][:120]) for r in refused
     ).most_common():
