@@ -1,12 +1,13 @@
 ---
 id: split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence
 kind: issue
-title: Split's ON verdict admits a sub-ε margin its own build then refuses in kernel-defect voice (δ = 5e-10 on the notched block); the δ ≤ ε pinch itself is correct
+title: Split's ON verdicts at margins within ε can mint a pinch from a value coincidence, which D1 tier 3′ (i) forbids
 status: open
 opened: 2026-10-02
-priority: P2
+priority: P1
 cost: M
 refs: [3856]
+design: true
 ---
 
 
@@ -98,3 +99,23 @@ priority drops to P2. What is owed:
    split plane to call").
 
 Brief correction: the fixture is `crates/topo/tests/m3_pr3_split.rs`.
+
+## Overturned by Ev (2026-10-03): the section above is withdrawn
+
+The designers' reading above is wrong. Ev, in chat: "(i) specifically DOES
+refer to coincidence < eps, and says we can't infer intent from that." A value
+coincidence is not intent, however small the margin. So a pinch that split
+mints from a ≤ ε ON verdict, at δ = 0 or at 0 < δ ≤ ε alike, breaks tier
+3′ (i). The P1 stands.
+
+The designers are re-weighing in round 2, with this as a given. Open
+questions:
+- where the line runs between an ON verdict that only adds topology and one
+  that creates touching;
+- what a user who means the pinch does;
+- how far the same inference reaches past split;
+- what ratified text then conflicts.
+
+Items 2 and 3 of the withdrawn section (the δ = 5e-10 voice, and
+`SliverVertex`'s wording) still need measuring. The "pin the sub-ε pinch as
+success" item is withdrawn.
