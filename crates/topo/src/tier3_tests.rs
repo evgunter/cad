@@ -1357,7 +1357,9 @@ fn the_elliptic_lever_is_the_larger_semi_axis_magnitude() {
             .get_curve_geom(body.get_edge(edge).unwrap().curve)
             .and_then(crate::null::CurveGeom::certified)
             .unwrap();
-        let (_, lever) = crate::loop_winding::conic_segment_term(curve, true).unwrap();
+        let (_, lever) =
+            crate::loop_winding::conic_segment_term((curve.carrier(), curve.params()), true)
+                .unwrap();
         assert_eq!(lever, pi * reach, "{name}: the lever is |Δ| times {reach}");
     }
 }
