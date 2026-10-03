@@ -1277,6 +1277,7 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::ClassNotAdmitted { .. }
         | MateFault::TableLacks { .. }
         | MateFault::Indeterminate { .. }
+        | MateFault::PoseOutOfRange { .. }
         | MateFault::Under { .. }
         | MateFault::SelfMate { .. }
         | MateFault::Unleverable { .. }
@@ -1348,10 +1349,12 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         // Name no mate: the fault is the instance's own checked
         // offset, so the instance's row keeps its own `Failed`.
         MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => Vec::new(),
-        // A contradiction is a claim about a PAIR of mates: neither is
-        // the wrong one on the fault's own telling, so both read as
-        // causes and the user picks which to relax.
-        MateFault::Contradictory { held, added, .. } => {
+        // A contradiction is a claim about a PAIR of mates, and so is
+        // a meeting point past the format: neither is the wrong one on
+        // the fault's own telling, so both read as causes and the user
+        // picks which to relax.
+        MateFault::Contradictory { held, added, .. }
+        | MateFault::PoseOutOfRange { held, added } => {
             if held == added {
                 vec![*held]
             } else {

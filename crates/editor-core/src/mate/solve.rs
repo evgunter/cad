@@ -979,7 +979,12 @@ fn mate_coset(
             // The lever is asked HERE and nowhere else in the table:
             // no rider, no ask.
             if let Some(theta) = alignment.clocking {
-                let arm = lever()?;
+                let arm = lever()?.decides_over(band).map_err(|refusal| {
+                    Box::new(MateFault::Unleverable {
+                        mate,
+                        refusal: Box::new(refusal),
+                    })
+                })?;
                 let roll = Measured::Lever(Lever::Roll {
                     radians: theta,
                     arm: arm.get(),
@@ -1592,6 +1597,18 @@ fn fold_pair<P: crate::ProfilePayload>(
                 Ok(next) => next,
                 Err(FoldStop::Indeterminate(diag)) => {
                     return Err(Box::new(MateFault::Indeterminate { mate, diag }));
+                }
+                Err(FoldStop::OutOfRange) => {
+                    return Err(Box::new(MateFault::PoseOutOfRange {
+                        held: held_mate.unwrap_or(mate),
+                        added: mate,
+                    }));
+                }
+                Err(FoldStop::Unleverable(refusal)) => {
+                    return Err(Box::new(MateFault::Unleverable {
+                        mate,
+                        refusal: Box::new(refusal),
+                    }));
                 }
                 Err(FoldStop::Clash { predicate, clash }) => {
                     return Err(Box::new(MateFault::Contradictory {
@@ -2226,6 +2243,10 @@ fn check_offsets<P: crate::ProfilePayload>(
                 FoldStop::Indeterminate(diag) => {
                     unchecked(instance, OffsetCheck::Indeterminate(diag))
                 }
+                FoldStop::Unleverable(refusal) => {
+                    unchecked(instance, OffsetCheck::Unleverable(refusal))
+                }
+                FoldStop::OutOfRange => unchecked(instance, OffsetCheck::OutOfRange),
             })
         };
         // The check decides where the tree's pair placed the member,

@@ -88,3 +88,22 @@ with the offset's parameters as a third set of names the proposed
 refusal must intersect with the run's bound names. Pinned at the
 nominal by `place_mate_frame_offset::a_parameter_drives_an_offset_and_the_solved_pose_moves`
 (f64 only); no box or seed row reads it yet.
+
+## Weighed (2026-10-01)
+
+Plan item 19 gathers this row and its sibling
+(`from-face-frame-under-an-analysis-lane-refuses-unpinned`,
+`a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs`)
+into one design fork, which two designers weighed on
+`msolve/ev-analysis-lane-solve`. That PR adds the sentence to
+`ASSEMBLY.md` A11 rule 5 that the recommendation would make true.
+
+## Ruled (Ev, `[ev]` PR 3679, 2026-10-01)
+
+Approved: the mate solve runs at the evaluation's own scalar, over the
+evaluation's own parameters. A pattern's count and a `Part`'s index
+are read at the nominal, because no box or seed binds them.
+`ASSEMBLY.md` A11 (5) states this in place. The build is an MSOLVE
+unit: the solve goes generic over the scalar, and `Unpinned` loses its
+producer.
+

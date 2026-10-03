@@ -819,7 +819,8 @@ fn a2_a_mate_on_a_pair_the_fold_never_reads_is_refused_on_the_datum_alone() {
 /// The mate a fault names as its SUBJECT, for the arms that are a
 /// fact about one mate's own datum — the arms the door refuses — and
 /// `None` for every other: a verdict about a pair (UNDER, a
-/// contradiction between two mates, an escalation on a fold), a fault
+/// contradiction between two mates, an escalation on a fold, a pose
+/// past the format's range), a fault
 /// about the document, and `PlacerRefused`, which two sites raise —
 /// the per-reference check the door asks, and the pair's derived
 /// offset the fold alone reads — with nothing in the value to say
@@ -848,6 +849,7 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         }
         MateFault::Contradictory { .. }
         | MateFault::Indeterminate { .. }
+        | MateFault::PoseOutOfRange { .. }
         | MateFault::Under { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. }
@@ -880,6 +882,10 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             refusal,
         },
         MateFault::ClassNotAdmitted { mate } => MateFault::ClassNotAdmitted { mate: r(mate) },
+        MateFault::PoseOutOfRange { held, added } => MateFault::PoseOutOfRange {
+            held: r(held),
+            added: r(added),
+        },
         MateFault::TableLacks { mate, what } => MateFault::TableLacks {
             mate: r(mate),
             what,
