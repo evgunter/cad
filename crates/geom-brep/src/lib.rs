@@ -99,8 +99,8 @@ pub use edge_nurbs::{
     PlaneNurbsRefusal, plane_nurbs_limbs,
 };
 pub use enters::{
-    EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, enters_material,
-    enters_material_order2,
+    EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, WallBend,
+    WallBendError, bends_into_material, enters_material, enters_material_order2,
 };
 pub use extent::ExtentBall;
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
