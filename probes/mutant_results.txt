@@ -1,0 +1,66 @@
+none leak=0 eps=1e-12 rigid_map_near_eps_plane_nurbs: green: limb 1 within 1.47 ulps of the field; limb 2 seated at 0.98232 ε, moves by up to 0.306 of its floor
+none leak=0 eps=1e-12 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+none leak=0 eps=1e-9 rigid_map_near_eps_plane_nurbs: green: limb 1 within 1.80 ulps of the field; limb 2 seated at 0.96877 ε, moves by up to 0.385 of its floor
+none leak=0 eps=1e-9 probe_old_rigid: green: moves by up to ×1.000013
+none leak=0 eps=1e-6 rigid_map_near_eps_plane_nurbs: green: limb 1 within 1.80 ulps of the field; limb 2 seated at 0.96875 ε, moves by up to 0.316 of its floor
+none leak=0 eps=1e-6 probe_old_rigid: green: moves by up to ×1.000000
+L1 leak=0 eps=1e-12 rigid_map_near_eps_plane_nurbs: RED: seated: limb 1 reads 1.3669065879184927e-12 against the field's 9.665601652386613e-13, 1040.96 ulps off
+L1 leak=0 eps=1e-12 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+L1 leak=0 eps=1e-9 rigid_map_near_eps_plane_nurbs: RED: seated: limb 1 reads 1.3699217316087697e-9 against the field's 9.686809132603003e-10, 1043288.10 ulps off
+L1 leak=0 eps=1e-9 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+L1 leak=0 eps=1e-6 rigid_map_near_eps_plane_nurbs: RED: seated: limb 1 reads 1.3699092855645745e-6 against the field's 9.686721453849856e-7, 1043278538.43 ulps off
+L1 leak=0 eps=1e-6 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+NOZ leak=0 eps=1e-12 rigid_map_near_eps_plane_nurbs: RED: (1, 1, 1) by 0.945: limb 1 reads 9.648409787196005e-13 against the field's 9.665601652386613e-13, 4.47 ulps off
+NOZ leak=0 eps=1e-12 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+NOZ leak=0 eps=1e-9 rigid_map_near_eps_plane_nurbs: RED: (1, 1, 1) by 0.135: limb 1 reads 9.686719240113921e-10 against the field's 9.686809132603003e-10, 23.37 ulps off
+NOZ leak=0 eps=1e-9 probe_old_rigid: RED: (1, 1, 1) by 0.135: limb 1 and the tube are frame-invariant here
+NOZ leak=0 eps=1e-6 rigid_map_near_eps_plane_nurbs: RED: (1, 1, 1) by 0.135: limb 1 reads 9.686632351487554e-7 against the field's 9.686721453849856e-7, 23167.99 ulps off
+NOZ leak=0 eps=1e-6 probe_old_rigid: RED: (1, 1, 1) by 0.135: limb 1 and the tube are frame-invariant here
+XLEAK leak=1e-3 eps=1e-12 rigid_map_near_eps_plane_nurbs: green: limb 1 within 3.44 ulps of the field; limb 2 seated at 0.98232 ε, moves by up to 0.306 of its floor
+XLEAK leak=1e-3 eps=1e-12 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+XLEAK leak=1e-3 eps=1e-9 rigid_map_near_eps_plane_nurbs: RED: seated: limb 1 reads 9.696498164402107e-10 against the field's 9.686809132603003e-10, 2519.30 ulps off
+XLEAK leak=1e-3 eps=1e-9 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+XLEAK leak=1e-3 eps=1e-6 rigid_map_near_eps_plane_nurbs: RED: seated: limb 1 reads 9.696408175303705e-7 against the field's 9.686721453849856e-7, 2518697.20 ulps off
+XLEAK leak=1e-3 eps=1e-6 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+XLEAK leak=1e-6 eps=1e-12 rigid_map_near_eps_plane_nurbs: green: limb 1 within 1.47 ulps of the field; limb 2 seated at 0.98232 ε, moves by up to 0.306 of its floor
+XLEAK leak=1e-6 eps=1e-12 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+XLEAK leak=1e-6 eps=1e-9 rigid_map_near_eps_plane_nurbs: green: limb 1 within 3.48 ulps of the field; limb 2 seated at 0.96877 ε, moves by up to 0.385 of its floor
+XLEAK leak=1e-6 eps=1e-9 probe_old_rigid: green: moves by up to ×1.000013
+XLEAK leak=1e-6 eps=1e-6 rigid_map_near_eps_plane_nurbs: RED: seated: limb 1 reads 9.68673114057131e-7 against the field's 9.686721453849856e-7, 2518.70 ulps off
+XLEAK leak=1e-6 eps=1e-6 probe_old_rigid: green: moves by up to ×1.000000
+SCALE leak=1e-3 eps=1e-12 rigid_map_near_eps_plane_nurbs: green: limb 1 within 3.98 ulps of the field; limb 2 seated at 0.98232 ε, moves by up to 0.306 of its floor
+SCALE leak=1e-3 eps=1e-12 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+SCALE leak=1e-3 eps=1e-9 rigid_map_near_eps_plane_nurbs: RED: seated: limb 1 reads 9.696498164402105e-10 against the field's 9.686809132603003e-10, 2519.30 ulps off
+SCALE leak=1e-3 eps=1e-9 probe_old_rigid: green: moves by up to ×1.000013
+SCALE leak=1e-3 eps=1e-6 rigid_map_near_eps_plane_nurbs: RED: seated: limb 1 reads 9.696408176939052e-7 against the field's 9.686721453849856e-7, 2518697.62 ulps off
+SCALE leak=1e-3 eps=1e-6 probe_old_rigid: green: moves by up to ×1.000000
+T_FOLD leak=0 eps=1e-12 rigid_map_near_eps_plane_nurbs: green: limb 1 within 1.62 ulps of the field; limb 2 seated at 0.98286 ε, moves by up to 0.305 of its floor
+T_FOLD leak=0 eps=1e-12 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+T_FOLD leak=0 eps=1e-9 rigid_map_near_eps_plane_nurbs: RED: (0, 0, 1) by 0.135: limb 2 moved 9.755414942905225e-13 m under a rigid map, 30.093 of its floor 3.241760782882416e-14 (hull_sup/ε 0.969748 against 0.968773 seated)
+T_FOLD leak=0 eps=1e-9 probe_old_rigid: RED: (0, 0, 1) by 0.405: limb 2 moved ×1.002469 under a rigid map (hull_sup/ε 0.971165 against 0.968773 seated)
+T_FOLD leak=0 eps=1e-6 rigid_map_near_eps_plane_nurbs: RED: (0, 0, 1) by 0.135: limb 2 moved 9.718711064318064e-10 m under a rigid map, 29979.729 of its floor 3.241760782882416e-14 (hull_sup/ε 0.969722 against 0.968750 seated)
+T_FOLD leak=0 eps=1e-6 probe_old_rigid: RED: (0, 0, 1) by 0.405: limb 2 moved ×1.002461 under a rigid map (hull_sup/ε 0.971134 against 0.968750 seated)
+T_L1 leak=0 eps=1e-12 rigid_map_near_eps_plane_nurbs: RED: (1, 0, 0) by 0.135: limb 2 moved 6.024322679461741e-14 m under a rigid map, 1.485 of its floor 4.0561847421802924e-14 (hull_sup/ε 1.037901 against 0.977658 seated)
+T_L1 leak=0 eps=1e-12 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+T_L1 leak=0 eps=1e-9 rigid_map_near_eps_plane_nurbs: RED: (0, 0, 1) by 0.270: limb 2 moved 6.376218251304458e-14 m under a rigid map, 1.572 of its floor 4.0561847421802924e-14 (hull_sup/ε 0.968828 against 0.968764 seated)
+T_L1 leak=0 eps=1e-9 probe_old_rigid: RED: (1, 0, 0) by 0.135: limb 2 moved ×1.062742 under a rigid map (hull_sup/ε 1.029546 against 0.968764 seated)
+T_L1 leak=0 eps=1e-6 rigid_map_near_eps_plane_nurbs: RED: (0, 0, 1) by 0.135: limb 2 moved 9.399622345071876e-12 m under a rigid map, 231.736 of its floor 4.0561847421802924e-14 (hull_sup/ε 0.968759 against 0.968750 seated)
+T_L1 leak=0 eps=1e-6 probe_old_rigid: RED: (1, 0, 0) by 0.135: limb 2 moved ×1.062746 under a rigid map (hull_sup/ε 1.029535 against 0.968750 seated)
+T_LINF3 leak=0 eps=1e-12 rigid_map_near_eps_plane_nurbs: RED: the bound's floor at δ = 0 rose to 5.3631761343473824e-14 (pinned at 4.2e-14)
+T_LINF3 leak=0 eps=1e-12 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+T_LINF3 leak=0 eps=1e-9 rigid_map_near_eps_plane_nurbs: RED: the bound's floor at δ = 0 rose to 5.3631761343473824e-14 (pinned at 4.2e-14)
+T_LINF3 leak=0 eps=1e-9 probe_old_rigid: RED: (1, 1, 1) by 0.135: limb 2 moved ×1.003200 under a rigid map (hull_sup/ε 0.965665 against 0.968755 seated)
+T_LINF3 leak=0 eps=1e-6 rigid_map_near_eps_plane_nurbs: RED: the bound's floor at δ = 0 rose to 5.3631761343473824e-14 (pinned at 4.2e-14)
+T_LINF3 leak=0 eps=1e-6 probe_old_rigid: RED: (1, 1, 1) by 0.135: limb 2 moved ×1.003198 under a rigid map (hull_sup/ε 0.965662 against 0.968750 seated)
+T_ZLEAK leak=1e-3 eps=1e-12 rigid_map_near_eps_plane_nurbs: green: limb 1 within 1.47 ulps of the field; limb 2 seated at 0.98232 ε, moves by up to 0.316 of its floor
+T_ZLEAK leak=1e-3 eps=1e-12 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+T_ZLEAK leak=1e-3 eps=1e-9 rigid_map_near_eps_plane_nurbs: RED: (1, 0, 0) by 0.135: limb 2 moved 7.144770828394075e-14 m under a rigid map, 2.204 of its floor 3.241760782882416e-14 (hull_sup/ε 0.968839 against 0.968767 seated)
+T_ZLEAK leak=1e-3 eps=1e-9 probe_old_rigid: green: moves by up to ×1.000686
+T_ZLEAK leak=1e-3 eps=1e-6 rigid_map_near_eps_plane_nurbs: RED: (1, 0, 0) by 0.135: limb 2 moved 7.038541704603553e-11 m under a rigid map, 2171.209 of its floor 3.241760782882416e-14 (hull_sup/ε 0.968820 against 0.968750 seated)
+T_ZLEAK leak=1e-3 eps=1e-6 probe_old_rigid: green: moves by up to ×1.000695
+T_ZLEAK leak=1e-2 eps=1e-12 rigid_map_near_eps_plane_nurbs: green: limb 1 within 1.47 ulps of the field; limb 2 seated at 0.98232 ε, moves by up to 0.425 of its floor
+T_ZLEAK leak=1e-2 eps=1e-12 probe_old_rigid: RED: (0, 0, 1) by 0.135: limb 1 and the tube are frame-invariant here
+T_ZLEAK leak=1e-2 eps=1e-9 rigid_map_near_eps_plane_nurbs: RED: (1, 0, 0) by 0.135: limb 2 moved 8.807443265531901e-13 m under a rigid map, 27.169 of its floor 3.241760782882416e-14 (hull_sup/ε 0.969648 against 0.968767 seated)
+T_ZLEAK leak=1e-2 eps=1e-9 probe_old_rigid: RED: (1, 0, 0) by 0.405: limb 2 moved ×1.002715 under a rigid map (hull_sup/ε 0.971398 against 0.968767 seated)
+T_ZLEAK leak=1e-2 eps=1e-6 rigid_map_near_eps_plane_nurbs: RED: (1, 0, 0) by 0.135: limb 2 moved 8.852168847238094e-10 m under a rigid map, 27306.669 of its floor 3.241760782882416e-14 (hull_sup/ε 0.969635 against 0.968750 seated)
+T_ZLEAK leak=1e-2 eps=1e-6 probe_old_rigid: RED: (1, 0, 0) by 0.405: limb 2 moved ×1.002720 under a rigid map (hull_sup/ε 0.971385 against 0.968750 seated)
