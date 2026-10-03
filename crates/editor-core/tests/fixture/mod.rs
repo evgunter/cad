@@ -60,6 +60,7 @@ pub mod seat;
 /// feed behind every "bit-identical to the `f64` run" claim in this tree.
 pub mod value_channel;
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
     Entry, EvalOptions, Evaluation, Expr, LoopProgram, MateReach, NameTable, Node, ParamName,
@@ -474,7 +475,7 @@ pub fn renoded(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> Stabl
 pub fn union_over(
     doc: ProfileDoc,
     members: &[RecipeNodeId],
-    declare: Option<RecipeNodeId>,
+    declare: Vec<editor_core::DeclaredPair>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let positions = doc.positions();
     let at = |id: &RecipeNodeId| positions.get(id).copied();
@@ -718,6 +719,7 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram>) -> Swept {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc, &EvalOptions::default());
@@ -1008,26 +1010,24 @@ pub fn die() -> Die {
     let cube = r.insert(Node::Extrude {
         profile: cube_profile,
         distance: len(2.0),
+        side: ExtrudeSide::Along,
     });
 
     // Per-face masters: pip profile centered at the plane origin,
-    // extruded INWARD by pip_depth (normal points out ⇒ negative
-    // distance).
+    // extruded INWARD by pip_depth (the normal points out, so against
+    // it).
     let mut masters = Vec::new(); // (extrude id, u, v, pips)
     for (o, u, v, pips) in faces() {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::neg(Expr::param(
-                ParamName::from_static("pip_depth"),
-                Dimension::Length,
-            ))
-            .expect("a shallow negation"),
+            distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+            side: ExtrudeSide::Against,
         });
         masters.push((ext, u, v, pips));
     }
 
-    // Interleaved Declare + Transform + Subtract triples (M4 PR 5,
+    // Interleaved Transform + declared Subtract pairs (M4 PR 5,
     // F5): every pip's outer cap lies exactly ON its cube face — a
     // coincidence the recipe DECLARES per subtract (name pairs
     // resolved through the operands' tables at evaluation; the
@@ -1067,20 +1067,20 @@ pub fn die() -> Die {
                     angle: ang(0.0),
                 },
             ));
-            // The pip master extrudes INWARD (negative distance), so
+            // The pip master extrudes INWARD (against the normal), so
             // its OUTER cap — the flush one — is Bottom (on the
             // sketch plane, which IS the cube face's plane), and it
             // faces out of the cube as that face does: a continuation.
             let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Start));
-            let decl = r.insert(Node::declare_continuation(vec![(
+            let decl = editor_core::declare_continuation(vec![(
                 SitedRef::new(acc, cube_face_names[face_idx].clone()),
                 SitedRef::new(tr, pip_cap),
-            )]));
+            )]);
             let sub = r.insert(Node::Boolean {
                 op: editor_core::BooleanOp::Subtract,
                 a: acc,
                 b: tr,
-                declare: Some(decl),
+                declare: decl,
             });
             acc = sub;
             pz_transform = tr;
@@ -1174,6 +1174,7 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: block_profile,
             distance: len(4.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, u_profile) = on_frame(
@@ -1197,6 +1198,7 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: u_profile,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     insert(
@@ -1205,7 +1207,7 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
             op: editor_core::BooleanOp::Subtract,
             a: target,
             b: cutter,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -1552,17 +1554,17 @@ pub fn member_face(union: RecipeNodeId, member: RecipeNodeId, of: StableName) ->
     member_entity(union, member, of, EntityKind::Face)
 }
 
-/// A `Declare` node pairing the flush planes of two axis-aligned
+/// The declared pairs joining the flush planes of two axis-aligned
 /// extruded blocks that share their y-range and z-range and differ
 /// along x only (the corpus's standard sliding-overlap shape): walls
 /// y0/y1 (segments 0/2, the `square`/`desc` corner order) plus both
 /// caps (M4 PR 5 — the recipe states the coincidence intent the
 /// retired bit rung used to infer from values).
 pub fn declare_x_offset_flush(
-    doc: ProfileDoc,
+    doc: &ProfileDoc,
     a_ext: RecipeNodeId,
     b_ext: RecipeNodeId,
-) -> (ProfileDoc, RecipeNodeId) {
+) -> Vec<editor_core::DeclaredPair> {
     declare_x_offset_flush_at(doc, (a_ext, a_ext), (b_ext, b_ext))
 }
 
@@ -1573,16 +1575,15 @@ pub fn declare_x_offset_flush(
 /// The site is the operand, always: it is what says which side of the
 /// boolean the name is read on.
 pub fn declare_x_offset_flush_at(
-    doc: ProfileDoc,
+    doc: &ProfileDoc,
     (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
     (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
-) -> (ProfileDoc, RecipeNodeId) {
+) -> Vec<editor_core::DeclaredPair> {
     // Each name is sited at the OPERAND whose table holds it, which
     // is what says which side of the boolean it is read on.
     // The four families face the same way on both blocks: one carrier,
     // aligned senses — continuations.
-    let pairs = flush_pairs(&doc, (a_at, a_ext), (b_at, b_ext));
-    insert(doc, Node::declare_continuation(pairs))
+    editor_core::declare_continuation(flush_pairs(doc, (a_at, a_ext), (b_at, b_ext)))
 }
 
 /// **What every at-rest finding says about a declaration, in one
@@ -1783,6 +1784,7 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
             Node::Extrude {
                 profile: p,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         )
     };
@@ -1795,7 +1797,7 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
             op: editor_core::BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }

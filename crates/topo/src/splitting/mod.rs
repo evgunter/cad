@@ -71,6 +71,7 @@ pub(crate) mod reassembly;
 pub mod rules;
 mod section;
 mod section_loops;
+pub(crate) mod spiric_arc;
 
 use geom_core::{BandError, Indeterminate, Point3, Real, UnitVec3};
 
@@ -83,7 +84,8 @@ use slotmap::SecondaryMap;
 
 pub use crate::chord_join::{ArcSideCase, ArcWindowCase, ConicCrossingsCase, SplitJoinError};
 pub use containment::{
-    LoopContainment, PointInLoopError, Uncrossable, UncrossableCarrier, point_in_loop,
+    LoopContainment, OffPlane, OffPlaneCause, PointInLoopError, Uncrossable, UncrossableCarrier,
+    point_in_loop,
 };
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;

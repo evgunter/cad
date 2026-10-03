@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use editor_core::{
@@ -81,6 +82,7 @@ fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> (ProfileDoc
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -122,7 +124,7 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, a, sub)
@@ -181,7 +183,7 @@ fn boolean_over_a_tied_operand_names_and_keeps_the_tie() {
             op: BooleanOp::Subtract,
             a: sub,
             b: c,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -218,7 +220,7 @@ fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
             op: BooleanOp::Subtract,
             a: sub,
             b: c,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);

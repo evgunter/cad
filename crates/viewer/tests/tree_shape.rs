@@ -21,6 +21,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -49,6 +50,7 @@ fn plate(
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -89,7 +91,7 @@ fn a_chain_of_booleans_stays_at_one_level_however_long_it_gets() {
                 op: BooleanOp::Subtract,
                 a: accumulated,
                 b: tool,
-                declare: None,
+                declare: Vec::new(),
             },
             tol,
         );
@@ -140,7 +142,7 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
             op: BooleanOp::Union,
             a: tool_a,
             b: tool_b,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -151,7 +153,7 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
             op: BooleanOp::Subtract,
             a: base,
             b: compound_tool,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );

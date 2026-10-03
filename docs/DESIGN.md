@@ -374,8 +374,24 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   birthplace. `UnsupportedToroid` is permanent: a D3 ring-torus
   boundary — spindle tori have no representation.
 - **∅, disjoint, and voids are typed results.** ∅ is a typed success
-  value (`BooleanResult::Empty`), not an error; disjoint unions and
-  voids are tier-2-legal multi-shell bodies. The extrude/full-revolve
+  value (`BooleanResult::Empty`), not an error. **A solid is one piece
+  of material**: the `Outer` shell around it and the `Void` shells of
+  the cavities in its material, which together bound that material and
+  nothing else. A cavity belongs to the piece whose material surrounds
+  it, so an island inside a cavity is a solid of its own, and a cavity
+  inside that island is the island's. Pieces that only touch (at a
+  corner, along an edge, or across a face that contact records hold
+  apart) are distinct solids, because touching is between distinct
+  entities (tier 3′). A piece that touches itself stays one solid. A
+  body is any number of solids, so a disjoint union is a body of
+  several solids. Booleans, `shell` and `split` take bodies and return
+  bodies, and each sorts its result into solids, so every output is an
+  operand. A product (gathered, possibly mated parts) is not a boolean
+  operand: the editor refuses it, naming the explicit cross-instance
+  union that makes its members one body
+  (`crates/editor-core/ASSEMBLY.md`, A2). Which solids are one part stays recipe
+  structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
+  The extrude/full-revolve
   hole asymmetry is structural: extruded holes are cap-to-cap tunnels
   (one shell, genus); full-revolve holes are cavities (a second shell,
   through the door); partial revolve is extrude-shaped and carries

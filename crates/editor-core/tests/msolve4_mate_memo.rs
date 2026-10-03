@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::sync::Arc;
 
@@ -49,6 +50,7 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }

@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -96,6 +97,7 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
     let extrude = r.insert(Node::Extrude {
         profile,
         distance: deep_length(0.5, levels),
+        side: ExtrudeSide::Along,
     });
     let measure = r.insert(Node::Measure {
         expr: deep_measure(0.5, levels, levels.div_ceil(2)),
@@ -113,7 +115,11 @@ fn extrude_document(distance: Expr) -> (Recorder, RecipeNodeId) {
         plane,
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
-    let extrude = r.insert(Node::Extrude { profile, distance });
+    let extrude = r.insert(Node::Extrude {
+        profile,
+        distance,
+        side: ExtrudeSide::Along,
+    });
     (r, extrude)
 }
 

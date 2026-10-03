@@ -198,6 +198,37 @@ The merge of main conflicted in `topo/src/lib.rs` re-exports
 (`ShellOrientation` beside PR 3874's `lineage_root` rename); the
 orchestrator resolved it and checked that it compiles.
 
+## 2026-10-02 — next dispatch
+
+`a-flush-partner-folded-onto-an-edge-contact-refuses-corrupt-operand`
+dispatched on `fuse/corrupt-operand-edge-contact` (cloud session). The
+lane reproduces the refusal through the public door first, because the
+original probe carried records by hand. It fixes the refusal at its
+source and raises the row to P0 if the door reproduces it. Review tier
+is decided when the PR shows what the fix is.
+`a-boolean-result-gate-ships-a-scaffold-at-rest`, filed here by JOIN-1's
+dual review, dispatched on `fuse/result-gate-at-rest`. The lane measures
+the cost of running the at-rest check before choosing between the full
+check and its structural half. Review tier: single FULL, since the gate
+is every boolean's exit.
+
+## 2026-10-03 — reviews of 3913 and 3914 adjudicated
+
+PR 3914 (`CorruptOperand`, P0 after the lane reproduced it through
+`Node::Union`): FULL review, mergeable, every revert re-taken red. In
+the fix pass, the two-crossing arm the PR filed at P2 rises to P0 under
+the unit row's own rule (a boolean output that is no legal operand of
+the next boolean). The rest is recourse prose, one shared crossing
+predicate, the remap doc's new grouping rule, and a fixture or a row
+for a chain of three or more grouped rows.
+
+PR 3913 (result gate): FULL review, mergeable. The fix pass makes
+`ResultInvalid`'s doc honest about operand-carried scaffolds and adds
+the one-line `BooleanBody` qualifier. It gives `is_scaffold` one
+crate-wide home, closing a duplication the PR had only half-closed,
+and pins the specific scaffold edge in the `contact9` refusals.
+CONTACT's seam-description row rises to P1. The REACH-item append will
+conflict with #3870 at whichever merges second.
 ## 2026-10-03 — the result gate lands (PR 3913)
 
 `a-boolean-result-gate-ships-a-scaffold-at-rest` closed. The fix pass
@@ -208,6 +239,24 @@ gave `is_scaffold` one crate-wide home and made `ResultInvalid` and
 `a-flush-partner-folded-onto-an-edge-contact-refuses-corrupt-operand`
 closed. Its two-crossing residue is P0 on this slate.
 
+## 2026-10-03 — next dispatch: the pinch's two-crossing arm
+
+`a-vertex-crossing-both-sides-of-a-pinch-refuses-shared-vertex-crossings`
+(P0) dispatched on `fuse/shared-vertex-crossings` (cloud session
+session_01Cue3Dtmhh4foVNGTEFWHBo). `a-subtract-through-a-pinch-line-drops-the-pinch-row-at-its-cut`
+(P1) waits for it, because both edit the reduction's v-v lane and the
+contact remap. Review tier: single FULL.
+
+## 2026-10-03 — Ev rules on the collinear fork (PR 3881)
+
+"sounds great!" for maximal edges with substitution-carried contact
+records, after Ev asked for a provably correct rule. Recorded in fork
+row 49 (A=fable, B=opus; Ev took the R5 position, neither first
+recommendation) and in the row's `## Ruled`. The row stays open as the
+carrier of a four-step build. Step 1 (cell-pair contact records,
+census certification of vertex/edge and edge/edge, substitution
+carriage, edge-split lineage) waits for the shared-vertex-crossings
+lane, because both edit `remap_contacts`.
 - 2026-10-03 — Ev ruled on PR 3883 ("the recommendation sounds good!",
   after asking whether `On` only exists for one body twice and being
   shown the shapes it answers with no shared `Arc`): N, no slip check.
@@ -215,3 +264,46 @@ closed. Its two-crossing residue is P0 on this slate.
   A/B mapping (byte 211, A=fable B=opus). The two-Parts row closes:
   the `On` verdict (PR 3897) already answers it, and the rows live in
   `on_verdict_rows.rs`.
+
+- 2026-10-03 — PR 3927 (shared-vertex crossings) is open: plan every
+  v-v pair, then mint. The row's witness builds in every op and passes
+  3′. Two pinches crossing on one line still refuse (filed P0), and the
+  row's clockwise wedge was an inside-out operand (filed on cleave).
+  A single FULL review is dispatched.
+- 2026-10-03 — PR 3927 (shared-vertex crossings) lands after a single
+  FULL review and one fix pass. Five MINORs were addressed: a new
+  3′-failing build filed with a pin, the `Reversed` doc premise
+  corrected, in-band and tie readings given typed refusals, the
+  refusal's fields pinned, and the P2 row's tie witness pinned. The row
+  closes. Its second witness moves to
+  `two-pinches-crossing-on-one-line-refuse-their-union` (P0), and the
+  inside-out operand is cleave's (P1).
+
+- 2026-10-03 — PR 3935 lands. Two pinches crossing on one line have no
+  representable union: it would be a shared-entity wedge fan, which D1's
+  representability boundary rules out. The case now refuses with its own
+  permanent kind, `NonManifoldResult`. The P0 row closes, and the
+  end-to-end variant and the crossing pair's ∖ and ∩ are pinned as
+  builds.
+- 2026-10-03 — Dispatched `two-pinches-crossing-on-one-line-refuse-their-union`
+  (P0) to a cloud implementer on `fuse/two-pinches-one-line`. The row's
+  "what is the result at rest" question is settled by D-tier 3′:
+  touching is between distinct entities with records. So the result has
+  two vertices with a v-v record at each overlap end, not one vertex
+  with two coincident edges. The lane stops if it finds ratified text
+  that says otherwise.
+
+- 2026-10-03 — Ev ruled on PR 3901: a solid is one piece of material,
+  and booleans take bodies. "Nearest enclosing" was replaced by "the
+  piece whose material surrounds the cavity", and pieces that only
+  touch are distinct solids. A product operand refuses in the editor,
+  because an explicit union is the recourse. Fork-log row 48 records
+  Ev's decision and the mapping (byte 93, A=fable B=opus). PR 3891 is
+  reworked to the piece rule rather than landed.
+
+- 2026-10-03 — Dispatched `shared-vertex-crossings-that-tie-or-interleave-are-unprobed`
+  (P0) to a cloud implementer on `fuse/shared-vertex-tie`. The lane
+  builds the tie arm from the pieces' own faces, with certified
+  readings only, and either proves the three unreached arms are
+  invariants or pins them. The #3891 rework runs in parallel on the
+  piece rule.

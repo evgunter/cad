@@ -16,10 +16,11 @@
 use geom_core::{Decide, Indeterminate, Point3, Real, Vec3};
 
 use super::PlaneSide;
-use super::containment::{LoopContainment, point_in_carrier_loop};
+use super::containment::{LoopContainment, point_in_loop};
 use crate::body::Body;
 use crate::chord_join::ring_representative;
 use crate::entity::{LoopBoundary, LoopKey};
+use crate::validate::definitely_positive as positive;
 use crate::validate::{RingOuterVerdict, ring_outer_contact_about};
 
 /// A traversal of a section loop met a dangling key: the scratch body
@@ -117,7 +118,7 @@ impl<H> From<Torn> for NestFault<H> {
 /// An outline encloses the hole when the two are decided disjoint
 /// ([`outlines_disjoint`]) and the hole's anchor vertex is certified
 /// inside the outline on the loops' own carriers
-/// ([`point_in_carrier_loop`]). Disjoint outlines nest or are apart
+/// ([`point_in_loop`]). Disjoint outlines nest or are apart
 /// (Jordan), so among several enclosing outlines — an island in a hole
 /// in a face — exactly one is enclosed by all the others, and the hole
 /// goes to it; two such would be two outlines each enclosing the other,
@@ -149,7 +150,7 @@ pub(super) fn nest<T: Decide, O, H>(
         }
         let q = ring_representative(body, inner).map_err(|_| Torn)?;
         Ok(matches!(
-            point_in_carrier_loop(body, outer, normal, q, band),
+            point_in_loop(body, outer, normal, q, band),
             Ok(LoopContainment::In)
         ))
     };
@@ -339,14 +340,6 @@ fn line_clears_conic<T: Decide>(
         "split_nest_line_conic",
         m.dot(c.centre - p).abs() - reach,
         band,
-    )
-}
-
-/// `margin` (metres) definitely positive under `band`.
-fn positive<T: Decide>(name: &'static str, margin: T, band: geom_core::Band) -> bool {
-    matches!(
-        crate::validate::decide(name, geom_core::Margin::of(margin), band),
-        Ok(geom_core::Sign::Positive)
     )
 }
 

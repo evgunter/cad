@@ -12,7 +12,7 @@
 //! # Kind tagging (spec D1, reported choice)
 //!
 //! A RUNTIME kind tag ([`EntityKind`] field), not phantom typing:
-//! `Declare` pairs, table keys, and (PR 4) hit-test returns all need
+//! declared pairs, table keys, and (PR 4) hit-test returns all need
 //! kind-heterogeneous collections, and the F3 serialization story
 //! wants one concrete type. Kind agreement is enforced at emission
 //! (the table refuses a name whose kind disagrees with its entity).
@@ -464,7 +464,7 @@ impl FaceName {
     /// **The part-local face a placed name wraps** — the row of the
     /// part's own table under the one `InPart` qualifier `instance`
     /// put round it, read INSIDE the part where no instance exists:
-    /// what a `FromFace` mate frame stores. `None` when `name` is not
+    /// the last step of [`crate::mate::head_face`]. `None` when `name` is not
     /// of that shape (headed elsewhere, qualified otherwise, or not a
     /// face); [`FaceName::in_part`] is its inverse.
     pub fn part_local(name: &StableName, instance: RecipeNodeId) -> Option<FaceName> {
@@ -581,7 +581,7 @@ impl core::fmt::Display for StableName {
 pub type RolePath = Vec<RoleSeg>;
 
 /// Which end of the sweep vector a cap face closes. The sweep vector
-/// is the signed extrusion (or the stacking from first section to
+/// is the extrusion vector (or the stacking from first section to
 /// last), so both variants hold whichever way it points; the derived
 /// `Ord` is the name table's key order and the declaration order is
 /// that key order alone.
@@ -1607,7 +1607,6 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Union { .. }
         | Node::Pattern { .. }
         | Node::PlacedUnion { .. }
-        | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Gauge { .. }
         | Node::Mate { .. }

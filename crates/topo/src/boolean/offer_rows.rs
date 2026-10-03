@@ -1848,6 +1848,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::UnsupportedDeclarationClass
         | BooleanErrorKind::RimSeamNotDeclarable
         | BooleanErrorKind::RimCuspArmUnbuilt
+        | BooleanErrorKind::TangentSlitArmUnbuilt
         | BooleanErrorKind::InvalidDeclaration
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
@@ -1870,6 +1871,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::VolumeCorrupt
         | BooleanErrorKind::VolumeUndecided
         | BooleanErrorKind::UnrepresentableResult
+        | BooleanErrorKind::NonManifoldResult
         // Nest another module's refusal, whose offers are that module's
         // to execute: this census does not reach them.
         | BooleanErrorKind::CrossingInsertion
@@ -2210,6 +2212,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
     ("insert.rs", "strut_order", "Coincide::Sectors", 1),
+    ("insert.rs", "walks_after", "Coincide::Sectors", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
@@ -2228,8 +2231,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("join.rs", "loose_partners", "Coincide::Join", 1),
     ("join.rs", "partners", "Coincide::Join", 1),
-    ("join.rs", "ring_run_ccw", "BooleanDecision::SelfCheck", 1),
-    ("join.rs", "ring_run_ccw", "SelfCheck::RingWinding", 1),
+    (
+        "join.rs",
+        "ring_winding_order",
+        "BooleanDecision::SelfCheck",
+        1,
+    ),
+    ("join.rs", "ring_winding_order", "SelfCheck::RingWinding", 1),
     ("join.rs", "slots", "Coincide::Join", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),

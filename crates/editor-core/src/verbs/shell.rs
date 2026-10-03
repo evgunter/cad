@@ -455,8 +455,15 @@ mod tests {
         let prof = profile::Profile::new(plane, vec![square])
             .validate(Tol::witness())
             .expect("a unit square validates");
-        let cube = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness())
-            .expect("a unit cube extrudes");
+        let cube = sweep::extrude(
+            &prof,
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .expect("a unit cube extrudes");
         let mut faces = cube.body.faces().map(|(k, _)| k);
         let (face, other) = (
             faces.next().expect("a face"),

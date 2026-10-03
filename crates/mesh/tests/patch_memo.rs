@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom_brep::{Pcurve, PcurveCache};
@@ -435,7 +436,10 @@ fn a_moved_vertex_misses_exactly_the_faces_whose_carriers_changed() {
         ]);
         extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()

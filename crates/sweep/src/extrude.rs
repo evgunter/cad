@@ -125,10 +125,52 @@ pub enum Extrusion<T: Real> {
     /// [`ExtrudeError::DegenerateExtrusion`]; either in the band is
     /// [`ExtrudeError::ExtrusionEscalated`].
     Vector(Vec3<T>),
-    /// A signed distance along the sketch plane's normal `n = u × v`
-    /// (meters): the extrusion vector is `n · d`. Positive extrudes
-    /// along `+n`, negative along `−n`.
-    Distance(T),
+    /// A depth along one side of the sketch plane (meters): the
+    /// extrusion vector is `n · depth` along [`ExtrudeSide::Along`] and
+    /// `−n · depth` against it, `n = u × v`. A size is positive and its
+    /// direction has one home, `side`: a depth that is not definitely
+    /// positive refuses — [`ExtrudeError::DegenerateExtrusion`] near
+    /// zero, [`ExtrudeError::NegativeDepth`] below it.
+    Distance {
+        /// How far the profile is swept.
+        depth: T,
+        /// Which side of the sketch plane it is swept toward.
+        side: ExtrudeSide,
+    },
+}
+
+/// **Which side of its sketch plane an extrude goes toward**, against
+/// the plane's normal `n = u × v`. A structural choice: no value of the
+/// depth selects it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ExtrudeSide {
+    /// Along `+n`.
+    Along,
+    /// Along `−n`.
+    Against,
+}
+
+impl ExtrudeSide {
+    /// Both sides.
+    pub const ALL: [Self; 2] = [Self::Along, Self::Against];
+
+    /// The other side.
+    #[must_use]
+    pub fn flipped(self) -> Self {
+        match self {
+            Self::Along => Self::Against,
+            Self::Against => Self::Along,
+        }
+    }
+
+    /// How a refusal names this side.
+    #[must_use]
+    pub fn noun(self) -> &'static str {
+        match self {
+            Self::Along => "along the sketch normal",
+            Self::Against => "against the sketch normal",
+        }
+    }
 }
 
 /// Everything [`extrude`] built, keyed: the body plus the handles tests
@@ -159,8 +201,8 @@ pub struct Extruded<T: Real> {
     /// The cap at the **far end of the sweep**: the swept face, on
     /// the sketch plane translated by the extrusion vector `w`, its
     /// outward normal along `w`. The name is an end of the sweep, not
-    /// a height — `w` is signed against the sketch normal (`n · d` for
-    /// [`Extrusion::Distance`]), so under `w · n < 0` this cap lies on
+    /// a height — `w` is signed against the sketch normal (`−n · depth`
+    /// for [`ExtrudeSide::Against`]), so under `w · n < 0` this cap lies on
     /// the `−n` side of the sketch plane. Which cap carries the
     /// profile's canonical winding is a direction convention, stated
     /// once in the [crate docs](crate).
@@ -306,9 +348,22 @@ pub enum ExtrudeError {
     /// [`BandError`]).
     Band(BandError),
     /// The extrusion is definitely degenerate: the vector's normal
-    /// component (or the signed distance) is coincident with zero at
-    /// tolerance — an in-plane vector or a sliver-thin extrusion.
+    /// component (or the depth) is coincident with zero at tolerance —
+    /// an in-plane vector or a sliver-thin extrusion.
     DegenerateExtrusion,
+    /// The depth of an [`Extrusion::Distance`] is definitely negative.
+    /// A depth is a size; which way it goes is `side`, so the recourse
+    /// is a depth that evaluates positive and the other side. The door
+    /// sees the VALUE, not what drove it — a literal, a parameter, an
+    /// expression — so the sentence names neither a sign to delete nor
+    /// a body the recourse promises.
+    NegativeDepth {
+        /// The side the refused extrude was written with.
+        side: ExtrudeSide,
+        /// The depth as the classifier saw it, in metres (an enclosure
+        /// at the interval lane), for the sentence only.
+        depth: geom_core::MarginDiag,
+    },
     /// The extrusion vector has a definite in-plane component: oblique
     /// extrusion is deferred past M2 (under shear, arc segments sweep
     /// elliptic cylinders, which the D3 surface set does not carry) and
@@ -429,6 +484,14 @@ impl fmt::Display for ExtrudeError {
                 "the extrusion has no definite length across the sketch plane (it is \
                  in-plane or sliver-thin). Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
+            ),
+            Self::NegativeDepth { side, depth } => write!(
+                f,
+                "the extrusion depth evaluated to {depth} m, below zero, and a depth is a size: \
+                 which side of the sketch plane the extrude goes toward is its side, not a sign. \
+                 Recourse: make the depth evaluate positive (its sign comes from whatever drives \
+                 it, a literal, a parameter or an expression) and set the side to {}",
+                side.flipped().noun()
             ),
             Self::ObliqueExtrusion => f.write_str(
                 "the extrusion leans definitely off the sketch plane's normal, and an \
@@ -626,7 +689,7 @@ struct LoopBase {
 /// Extrudes a validated profile into a closed solid.
 ///
 /// The sketch placement is the profile's own
-/// ([`profile::SketchPlane`]); the extrusion vector or signed distance
+/// ([`profile::SketchPlane`]); the extrusion vector or depth
 /// is classified against the plane normal per the crate docs' direction
 /// conventions. On success the returned body is closed and passes
 /// tiers 1–2 (`topo::validate`, `validate_closed`) by construction —
@@ -658,13 +721,20 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
 
     // ---- Direction classification (crate docs; named predicates). ----
     let (w, reverse) = match extrusion {
-        Extrusion::Distance(d) => {
-            let sign = decide("extrusion_normal_component", Margin::of(d), band)
-                .map_err(|source| ExtrudeError::ExtrusionEscalated { source })?;
-            match sign {
-                Sign::Zero => return Err(ExtrudeError::DegenerateExtrusion),
-                Sign::Positive => (normal * d, false),
-                Sign::Negative => (normal * d, true),
+        Extrusion::Distance { depth, side } => {
+            let decided =
+                swept::decide_reported("extrusion_normal_component", Margin::of(depth), band)
+                    .map_err(|source| ExtrudeError::ExtrusionEscalated { source })?;
+            match (decided.sign, side) {
+                (Sign::Zero, _) => return Err(ExtrudeError::DegenerateExtrusion),
+                (Sign::Negative, _) => {
+                    return Err(ExtrudeError::NegativeDepth {
+                        side,
+                        depth: decided.margin,
+                    });
+                }
+                (Sign::Positive, ExtrudeSide::Along) => (normal * depth, false),
+                (Sign::Positive, ExtrudeSide::Against) => (normal * (-depth), true),
             }
         }
         Extrusion::Vector(v) => {

@@ -2335,7 +2335,10 @@ mod tests {
             .unwrap();
         sweep::extrude(
             &profile,
-            sweep::Extrusion::Distance(1.0_f64),
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -3031,6 +3034,7 @@ mod split_carries_candidates {
             Node::Extrude {
                 profile,
                 distance: len(dz),
+                side: crate::ExtrudeSide::Along,
             },
         )
     }
@@ -3069,7 +3073,7 @@ mod split_carries_candidates {
                 op: BooleanOp::Subtract,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
         );
         let (doc, tool) = ins(

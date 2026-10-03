@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -144,6 +145,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, slab)
@@ -506,6 +508,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
         Node::Extrude {
             profile: p1,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, p2) = insert(&doc, circle(off, pin_r));
@@ -514,6 +517,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
         Node::Extrude {
             profile: p2,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let _ = p2;
@@ -633,6 +637,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         Node::Extrude {
             profile: p1,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, p2) = insert(
@@ -651,6 +656,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         Node::Extrude {
             profile: p2,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = eval(&doc);
@@ -880,7 +886,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
             op: editor_core::BooleanOp::Subtract,
             a: slab,
             b: a,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Transform of the MEASURE's id.
@@ -1151,6 +1157,7 @@ fn r1_own_document_web_and_flip() {
         Node::Extrude {
             profile: p1,
             distance: len(0.05),
+            side: ExtrudeSide::Along,
         },
     );
     let (d4, p2) = insert(&d3, circle(0.25));
@@ -1159,6 +1166,7 @@ fn r1_own_document_web_and_flip() {
         Node::Extrude {
             profile: p2,
             distance: len(0.05),
+            side: ExtrudeSide::Along,
         },
     );
     let _ = p2;

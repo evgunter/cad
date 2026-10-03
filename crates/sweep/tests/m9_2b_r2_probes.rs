@@ -13,6 +13,7 @@ use crate::common::operands::three_arc_cylinder;
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -31,9 +32,16 @@ fn holed_plate() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// The through-boss: radius 0.5 at (2, 2), three 120-deg arcs with

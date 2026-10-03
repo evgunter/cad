@@ -10,11 +10,12 @@
 //!   layer used to keep its pierce door. Square to the axes (the lane's
 //!   square arm) and with the prism tilted (its half-angle
 //!   arm), every boolean builds and meters at the closed form.
-//! - **A genuine pierce reaches the pierce ring.** Two parallel
-//!   equal-radius cylinders staggered in height: each rim circle pierces
-//!   the other wall, the lane certifies where, the pierce's sector side
-//!   certifies, and the pierced wall face carries the pierce ring, which
-//!   has no join arm (`work/tang/pierce-ring-has-no-join-arm.md`).
+//! - **A genuine pierce reaches the cylinder pair's join.** Two
+//!   parallel equal-radius cylinders staggered in height: each rim
+//!   circle pierces the other wall, the lane certifies where, the
+//!   pierce's sector side certifies, and the join refuses the wall ×
+//!   wall germ pair it has no chord lane for
+//!   (`work/tang/cylinder-pair-germ-has-no-join-arm.md`).
 //!
 //! #347's own poses — one height, coaxial, Steinmetz — are pinned with
 //! their doors in `verbs_cylcyl_probe.rs` and `verbs_germarms2.rs`.
@@ -22,6 +23,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -35,9 +37,16 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// The D-shaped prism: the half disc of radius `r` about `(d, 0)` on
@@ -47,9 +56,16 @@ fn d_prism(d: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = bulge_loop(vec![(Point2::new(d, -r), 1.0), (Point2::new(d, r), 0.0)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// `b` turned by `deg` about the line through `(0, 0, 1)` along `x`.
@@ -172,15 +188,17 @@ fn a_d_prism_beside_a_cylinder_builds_under_every_boolean() {
     }
 }
 
-/// **Two parallel equal-radius cylinders that pierce stop at the pierce
-/// ring.** Staggered in height, each rim circle crosses the other wall
-/// inside its trim: a pierce, certified by the root lane, whose sector
-/// side certifies. The pierced wall face then carries the pierce ring,
-/// which has no join arm, at every offset from deep overlap to a thin
-/// lens. The refusal names no edge, so the sweep's trace is asked which
-/// events it took: each operand's rim circles on the other's wall.
+/// **Two parallel equal-radius cylinders that pierce reach the
+/// cylinder pair's join.** Staggered in height, each rim circle crosses
+/// the other wall inside its trim: a pierce, certified by the root lane,
+/// whose sector side certifies, at every offset from deep overlap to a
+/// thin lens. The section's germ pair is then two WALLS, which the join
+/// has no chord lane for (`CurvedBooleanUnsupported`, naming a
+/// cylinder; `work/tang/cylinder-pair-germ-has-no-join-arm.md`). The
+/// refusal names no edge, so the sweep's trace is asked which events it
+/// took: each operand's rim circles on the other's wall.
 #[test]
-fn parallel_cylinders_that_pierce_stop_at_the_pierce_ring() {
+fn parallel_cylinders_that_pierce_reach_the_cylinder_pair_join() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     for d in [0.3, 0.8, 1.2, 1.6, 1.9] {
         let b = cyl(d, 0.0, 1.0, 0.5, 2.5);
@@ -190,16 +208,16 @@ fn parallel_cylinders_that_pierce_stop_at_the_pierce_ring() {
             "d {d}: each rim circle meets the other wall: {ab} + {ba}"
         );
         for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-            let err = run(op, &a, &b).expect_err("no join arm for a pierce ring");
+            let err = run(op, &a, &b).expect_err("no join arm for a wall pair");
             assert!(
                 matches!(
                     err,
-                    BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                        case: topo::ArcWindowCase::NoChartedRun,
+                    BooleanError::CurvedBooleanUnsupported {
+                        kind: geom::SurfaceKind::Cylinder,
                         ..
-                    })
+                    }
                 ),
-                "d {d}, {op:?}: expected the pierce ring's door, got {err:?}"
+                "d {d}, {op:?}: expected the cylinder pair's join door, got {err:?}"
             );
         }
     }

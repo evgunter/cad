@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -123,6 +124,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             node: Box::new(Node::Extrude {
                 profile: outer_p,
                 distance: len(0.1),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -149,6 +151,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                 node: Box::new(Node::Extrude {
                     profile: hole_p,
                     distance: len(0.1),
+                    side: ExtrudeSide::Along,
                 }),
             },
         );
@@ -245,6 +248,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 node: Box::new(Node::Extrude {
                     profile,
                     distance: len(1.0),
+                    side: ExtrudeSide::Along,
                 }),
             },
         );
@@ -299,6 +303,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
                 node: Box::new(Node::Extrude {
                     profile,
                     distance: len(0.5),
+                    side: ExtrudeSide::Along,
                 }),
             },
         );
@@ -830,6 +835,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                     Expr::param(ParamName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -886,6 +892,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
             node: Box::new(Node::Extrude {
                 profile: square_p,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -984,7 +991,7 @@ fn a_measure_at_interval_contains_the_f64_value() {
 /// Note which dangling case this is. A measure's references ARE DAG
 /// edges, so deleting a referenced node is refused at the delete door
 /// like any other consumer's input (`DeleteWouldDangle`) — that
-/// departs from the `Declare`/`Mate` carve-out, deliberately, because
+/// departs from the declared-pair/`Mate` carve-out, deliberately, because
 /// a measure consumes the value it names. What remains reachable is
 /// the case the N5 ladder is really for: a well-formed name that the
 /// still-live minting node's table does not carry.
@@ -1025,7 +1032,7 @@ fn a_reference_that_stops_resolving_refuses_typed() {
 
 /// Deleting a node a measure references is refused at the DELETE door,
 /// because the reference is a consuming edge. Pinned because it is the
-/// one place this node kind departs from the `Declare`/`Mate`
+/// one place this node kind departs from the declared-pair/`Mate`
 /// name-reference carve-out, and a silent reversal would take the
 /// ordering guarantee with it.
 #[test]
@@ -1229,6 +1236,7 @@ fn cusp_extrude_doc(id: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -1407,6 +1415,7 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
         Node::Extrude {
             profile: tool_profile,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, cut) = mint(
@@ -1415,7 +1424,7 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
             op: BooleanOp::Subtract,
             a: ex,
             b: tool,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let body = gathers(&doc, cut);

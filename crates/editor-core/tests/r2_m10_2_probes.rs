@@ -14,6 +14,7 @@
 
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -185,6 +186,7 @@ fn boxed(
             node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(h),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -290,6 +292,7 @@ fn cylinder(
             node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(h),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -750,6 +753,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
             node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(0.01),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -824,7 +828,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                     op: BooleanOp::Union,
                     a: victim,
                     b,
-                    declare: None,
+                    declare: Vec::new(),
                 },
             ),
             (
@@ -833,7 +837,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                     op: BooleanOp::Subtract,
                     a: b,
                     b: victim,
-                    declare: None,
+                    declare: Vec::new(),
                 },
             ),
             (
@@ -852,6 +856,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 Node::Extrude {
                     profile: victim,
                     distance: len(1.0),
+                    side: ExtrudeSide::Along,
                 },
             ),
         ];
@@ -1445,6 +1450,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
                     Expr::param(ParamName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
+                side: ExtrudeSide::Along,
             }),
         },
     );

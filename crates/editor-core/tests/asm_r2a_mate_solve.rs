@@ -13,13 +13,14 @@
 
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::ExtrudeSide;
 
 use editor_core::CapEnd;
 use editor_core::{
-    Alignment, AxisSense, BooleanCoincidence, ContactClass, DocEdit, DocumentId, EditError,
-    EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
-    groups, load, product, relative_freedom_components, save,
+    Alignment, AxisSense, BooleanCoincidence, BooleanOp, ContactClass, DocEdit, DocumentId,
+    EditError, EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole,
+    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    apply, groups, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
@@ -54,6 +55,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -633,11 +635,11 @@ fn two_groups() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore)
     (doc, ids, mates, store)
 }
 
-/// Row 4e — a cut of ONE WHOLE placed group hoists its root's offset
-/// onto the remainder instance and lands the root at the empty chain in
-/// the part (A4).
+/// Row 4e — a cut of ONE WHOLE placed group moves as selected (A4): the
+/// part's root keeps its offset, and the remainder instance sits at the
+/// empty chain.
 #[test]
-fn row4e_a_whole_group_cut_hoists_the_group_frame() {
+fn row4e_a_whole_group_cut_moves_as_selected() {
     use std::collections::BTreeSet;
     let (doc, ids, mates, store) = two_groups();
     let o = with_resolver(store);
@@ -652,9 +654,10 @@ fn row4e_a_whole_group_cut_hoists_the_group_frame() {
     .expect("a whole-group cut splits");
     assert_eq!(
         fixture::offset_of(&out.part, out.node_map[&ids[0]]),
-        Some(editor_core::Placement::IDENTITY),
-        "the part's root lands at the empty chain — its world pose \
-         belongs to the assembly"
+        Some(editor_core::Placement::literal(&Frame::translation([
+            3.0, 0.0, 0.0
+        ]))),
+        "the part's root keeps its offset"
     );
     let instance = *out
         .remainder
@@ -664,10 +667,8 @@ fn row4e_a_whole_group_cut_hoists_the_group_frame() {
         .expect("the remainder gained an instance");
     assert_eq!(
         fixture::offset_of(&out.remainder, instance),
-        Some(editor_core::Placement::literal(&Frame::translation([
-            3.0, 0.0, 0.0
-        ]))),
-        "the root's offset HOISTED onto the remainder instance"
+        Some(editor_core::Placement::IDENTITY),
+        "the remainder instance sits at the empty chain"
     );
     assert_eq!(
         fixture::offset_of(&out.remainder, ids[2]),
@@ -682,10 +683,7 @@ fn row4e_a_whole_group_cut_hoists_the_group_frame() {
 /// group and the instance on the far side (review MAJOR-2).
 ///
 /// A11 puts the frame on the group, so a torn group has one frame
-/// and two homes. Before this refusal landed, such a cut passed the
-/// hoist's group count (the torn group was FILTERED OUT of it, so
-/// a torn group looked like an absent one) and the torn frame —
-/// `[7,0,0]` here — silently vanished.
+/// and two homes.
 #[test]
 fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
     use std::collections::BTreeSet;
@@ -1316,8 +1314,8 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
     );
 }
 
-/// The same repair with a `Declare` referencing the stranded name too:
-/// the declaration's rewrite is what makes the edit acceptable, so a
+/// The same repair with a boolean's declared pair referencing the
+/// stranded name too: the declaration's rewrite is what makes the edit acceptable, so a
 /// mate head skipped here is skipped SILENTLY — the loud arm never
 /// fires.
 #[test]
@@ -1338,13 +1336,20 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
             )),
         },
     );
-    let (doc, declare_id) = mint(
+    // The boolean's operands are the instances the delete leaves; its
+    // declared pair names the one it takes, which is not an edge. The
+    // side is read at operand `ids[2]`, the instance the rebind below
+    // moves the name onto.
+    let (doc, boolean_id) = mint(
         doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Declare {
-                pairs: vec![(
+            node: Box::new(Node::Boolean {
+                op: BooleanOp::Union,
+                a: ids[0],
+                b: ids[2],
+                declare: vec![(
                     (
-                        SitedRef::new(ids[1], in_part(ids[1], body, CapEnd::Start)),
+                        SitedRef::new(ids[2], in_part(ids[1], body, CapEnd::Start)),
                         SitedRef::new(ids[0], in_part(ids[0], body, CapEnd::Start)),
                     ),
                     BooleanCoincidence::REST,
@@ -1362,9 +1367,9 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect("the declare pair alone makes this a rebind site");
-    let Some(Node::Declare { pairs }) = applied.doc.node(declare_id) else {
-        panic!("the declare is still there");
+        .expect("the declared pair alone makes this a rebind site");
+    let Some(Node::Boolean { declare: pairs, .. }) = applied.doc.node(boolean_id) else {
+        panic!("the boolean is still there");
     };
     assert_eq!(
         pairs[0].0.0.name,
@@ -1372,7 +1377,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         "the declaration's NAME was rewritten"
     );
     assert_eq!(
-        pairs[0].0.0.at, ids[1],
+        pairs[0].0.0.at, ids[2],
         "and its site was not — a site is an authored fact, not a repair target"
     );
     assert_eq!(
@@ -1383,7 +1388,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
 }
 
 /// The insert door's own claim (`Node::named_nodes`): a mate's two
-/// heads carry the `Declare` carve-out, so a head naming a node that
+/// heads carry the declared-pair carve-out, so a head naming a node that
 /// never existed is a typo and is refused THERE — the only door that
 /// checks.
 #[test]
@@ -1415,7 +1420,7 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
 }
 
 /// A saved file is DATA: a mate head naming an id past the mint counter
-/// is as corrupt as a `Declare` pair naming one, and worse to let in —
+/// is as corrupt as a declared pair naming one, and worse to let in —
 /// `Rebind`'s source door refuses a never-minted id, so the document
 /// would load unrepairable.
 #[test]
@@ -1460,7 +1465,7 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
 
 /// The name-level edit door (`apply_with_names`, PR 3's R6 obligation)
 /// reads a mate's heads under the rule it has always applied to a
-/// `Declare` pair: checkable exactly when the minting node evaluated
+/// declared pair: checkable exactly when the minting node evaluated
 /// `Ok`, deferred otherwise. An instance-qualified head the tables
 /// carry passes; a role the part's product does not have is refused
 /// there rather than at the solve.

@@ -10,6 +10,7 @@ use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::arms::chamfer_strip;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
@@ -319,9 +320,16 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a circle is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a circular prism")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a circular prism")
+    .body
 }
 
 /// An L-bracket: the six-vertex L profile extruded by 1 m. Its one
@@ -343,9 +351,16 @@ fn l_bracket() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the L is a valid profile");
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .expect("the bracket extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the bracket extrudes")
+    .body
 }
 
 /// The bracket's one concave edge: the vertical wall–wall edge over the

@@ -13,6 +13,7 @@ use profile::{
     EscalationSite, Profile, ProfileError, SegmentRef, SketchPlane, ValidatedProfile,
     test_support::bulge_loop,
 };
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -28,9 +29,16 @@ fn try_polygon(pts: &[(f64, f64)]) -> Result<ValidatedProfile<f64>, ProfileError
 /// A right prism on a polygon (the PR's own helper, copied).
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = try_polygon(pts).expect("a polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a polygon extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a polygon extrudes")
+    .body
 }
 
 /// Shoelace area of a CCW polygon.
@@ -486,9 +494,16 @@ fn r1f_one_curved_face_among_planars() {
     let profile = Profile::new(SketchPlane::xy(), vec![bulge_loop(vs)])
         .validate(Tol::witness())
         .expect("the bulged hexagon validates");
-    let body = extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("extrudes")
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("extrudes")
+    .body;
     let curved = body
         .faces()
         .filter(|(_, f)| {

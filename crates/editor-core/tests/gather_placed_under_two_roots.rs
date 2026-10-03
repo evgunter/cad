@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Entry,
@@ -40,6 +41,7 @@ fn block(doc: ProfileDoc, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -304,7 +306,7 @@ fn legal_placements_still_gather() {
         doc,
         Node::Union {
             members: vec![t1, t2],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(doc.roots(), &[union][..], "the union consumes both moves");
@@ -522,6 +524,7 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
         Node::Extrude {
             profile,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     insert(
@@ -530,7 +533,7 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
             op: editor_core::BooleanOp::Subtract,
             a,
             b: c,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }

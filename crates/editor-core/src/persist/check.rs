@@ -684,6 +684,8 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::InsertNode { .. }
         // A list of node ids carries no float.
         | DocEdit::SetMembers { .. }
+        // Sited names and a class tag carry no float.
+        | DocEdit::SetDeclare { .. }
         // A program's continuous arguments are `Expr` literals, finite
         // by the construction door like an inserted profile's; its
         // step ids are integers.
@@ -692,6 +694,8 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::DeleteNode { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
+        // A side is one of two words.
+        | DocEdit::SetExtrudeSide { .. }
         | DocEdit::SetExpression { .. }
         | DocEdit::Rebind { .. }
         | DocEdit::ReWitness { .. }
@@ -701,8 +705,11 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::ClearAppearanceMeta { .. }
         | DocEdit::SetRoots { .. }
         | DocEdit::SetOffset { .. }
-        // A gauge reference is a node id.
+        // A gauge reference is a node id, and so is what a promote or a
+        // fold names.
         | DocEdit::SetGauge { .. }
+        | DocEdit::Promote { .. }
+        | DocEdit::Fold { .. }
         // A label is text.
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => None,
@@ -757,6 +764,33 @@ pub enum SnapshotError {
         /// The step it spells.
         step: crate::node::StepId,
     },
+    /// A Boolean's declared pair is read at a node that is not one of
+    /// its operands — the edit doors' [`crate::EditError::DeclaredSiteNotAnOperand`],
+    /// by the same rule (`node::declared_side_fault`). Asked of a
+    /// Boolean only: its operands never change, so no edit leaves it
+    /// such a pair. A union's member can be dropped by `SetMembers`
+    /// after its pair was written, which is N5's stranded state and
+    /// loads; the evaluation refuses it as a vanished name
+    /// ([`crate::eval::NodeErrorKind::DeclareResolve`]).
+    DeclaredSiteNotAnOperand {
+        /// The Boolean.
+        node: SpokenNode,
+        /// The side's name.
+        name: SpokenName,
+        /// The node the side is read at.
+        site: SpokenNode,
+    },
+    /// A Boolean's or a Union's declared name is minted by the node
+    /// itself or by a live node after it in `order` — the edit doors'
+    /// [`crate::EditError::DeclaredNameNotUpstream`], by the same rule.
+    /// No edit leaves a document so: the doors refuse it when the pair
+    /// is written, and `order` only grows at its end.
+    DeclaredNameNotUpstream {
+        /// The declaring node.
+        node: SpokenNode,
+        /// The name.
+        name: SpokenName,
+    },
     /// A node's input ref does not name a live node.
     DanglingInput {
         /// The referring node.
@@ -771,15 +805,6 @@ pub enum SnapshotError {
         /// The referring node.
         node: SpokenNode,
         /// The forward input.
-        input: SpokenNode,
-    },
-    /// A node's `declare` input names a node that is not a
-    /// `Node::Declare` — the edit door's rule, asked of file data
-    /// (`Node::bad_declare_input`, one predicate, both doors).
-    DeclareInput {
-        /// The consuming node.
-        node: SpokenNode,
-        /// What its `declare` input names.
         input: SpokenNode,
     },
     /// A witness attached to a node that bears no sketch. Its own arm
@@ -1099,16 +1124,24 @@ impl core::fmt::Display for SnapshotError {
                 "the {name} spells the profile step id {step}, which the document's mint log \
                  does not hold — the document never minted it",
             ),
+            Self::DeclaredSiteNotAnOperand { node, name, site } => write!(
+                f,
+                "the declared {name} is read at {site}, which is not an operand of {node} — no \
+                 edit writes such a pair. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::DeclaredNameNotUpstream { node, name } => write!(
+                f,
+                "the declared {name} is not minted before {node} in `order` — no edit writes \
+                 such a pair. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
             Self::DanglingInput { node, input } => {
                 write!(f, "{node} takes input from {input}, which is not live")
             }
             Self::ForwardInput { node, input } => write!(
                 f,
                 "{node} takes input from {input}, which does not precede it in `order`"
-            ),
-            Self::DeclareInput { node, input } => write!(
-                f,
-                "{node}'s declare input names {input}, which is not a declaration"
             ),
             Self::DuplicateInput { node, input } => {
                 write!(f, "{node}: ")?;
@@ -1418,18 +1451,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 fault,
             });
         }
-        // The declaration edge's kind rule
-        // (`Node::bad_declare_input`, the same answer the edit door
-        // asks of), for the reason above it: the edit door refuses a
-        // `declare` input that is not a `Declare`, and a snapshot is
-        // the one way a node reaches a document without passing that
-        // door.
-        if let Some(input) = node.bad_declare_input(doc) {
-            return Err(SnapshotError::DeclareInput {
-                node: doc.spoken(id),
-                input: doc.spoken(input),
-            });
-        }
         // An assertion's bound against the measure it constrains
         // (E10), by the same `Node::assertion_bound_fault` the edit
         // door asks: the predicate needs the DOCUMENT, so it takes one,
@@ -1459,22 +1480,10 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // predicate must be able to decide on. Asked in THIS walk, of
         // the same `Node::has_non_finite_alignment` the edit door asks
         // — a second pass over the nodes would be a second place to
-        // forget the question. A `FromFace` side is checked
-        // STRUCTURALLY and no further — a face by type, its one key
-        // closed at the wire — because its numbers are the part's:
-        // whether the name is a row of the part's table is the
-        // solve's at evaluation (`MateFault::FaceUnresolved`), never
-        // this door's.
-        //
-        // Nor is its PART-LOCAL spelling checked here, and the gap is
-        // real: a face frame spelled as a head is (qualified by an
-        // `InPart` under the instance) loads from a snapshot and
-        // faults `NoSuchName` at evaluation, where the insert door
-        // refuses the same frame at once — the door resolves it, this
-        // one cannot. The spelling is not decidable off the bytes: a
-        // part that is itself an assembly carries `InPart` rows in its
-        // own table, so a qualified name can be exactly the part's own
-        // row, and only the part's product says which.
+        // forget the question. A `FromFace` side authors nothing: its
+        // numbers are the face its head names in the part, and whether
+        // the part has that face is the solve's at evaluation
+        // (`MateFault::FaceUnresolved`), never this door's.
         if node.has_non_finite_alignment() {
             return Err(SnapshotError::MateAlignment {
                 node: doc.spoken(id),
@@ -1486,7 +1495,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // loop above and a store walk down here, hundreds of lines apart
     // and neither reading as half of one list. An id the mint log lacks
     // inside a mate head, a fillet selection or an appearance key is
-    // as corrupt as one inside a `Declare` pair, and as unrepairable
+    // as corrupt as one inside a declared pair, and as unrepairable
     // by `Rebind` (whose source door refuses a never-minted id) if it
     // loads. A carrier added to `Carrier` is checked here without
     // being remembered into this door.
@@ -1506,6 +1515,36 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 name: doc.spoken_name(carrier.name()),
                 step,
             });
+        }
+    }
+    // Every declared pair, by the rule its edit doors ask
+    // (`node::declared_side_fault`): a name minted before its node, and
+    // — for a Boolean, whose operands never change — a site that is one
+    // of its operands. A union's sites are not judged here: a later
+    // `SetMembers` may have stranded one, which loads.
+    for (index, &id) in doc.order.iter().enumerate() {
+        let Some(node) = doc.nodes.get(&id) else {
+            continue;
+        };
+        let operands = node.inputs();
+        let sites = matches!(node, Node::Boolean { .. }).then_some(operands.as_slice());
+        match crate::node::declared_side_fault(node.declared_pairs(), sites, Some(index), |n| {
+            position.get(&n).copied()
+        }) {
+            None => {}
+            Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
+                return Err(SnapshotError::DeclaredSiteNotAnOperand {
+                    node: doc.spoken(id),
+                    name: doc.spoken_name(&side.name),
+                    site: doc.spoken(side.at),
+                });
+            }
+            Some((side, crate::node::DeclaredSideFault::NameNotUpstream)) => {
+                return Err(SnapshotError::DeclaredNameNotUpstream {
+                    node: doc.spoken(id),
+                    name: doc.spoken_name(&side.name),
+                });
+            }
         }
     }
     // The witness store's key rule, by the same
@@ -1719,9 +1758,10 @@ mod tests {
             StepIds,
             MintLogOrder,
             NameStepNotMinted,
+            DeclaredSiteNotAnOperand,
+            DeclaredNameNotUpstream,
             DanglingInput,
             ForwardInput,
-            DeclareInput,
             WitnessSite,
             WitnessOnMissingNode,
             LabelOnMissingNode,
@@ -1766,9 +1806,10 @@ mod tests {
             | SnapshotError::StepIds { .. }
             | SnapshotError::MintLogOrder { .. }
             | SnapshotError::NameStepNotMinted { .. }
+            | SnapshotError::DeclaredSiteNotAnOperand { .. }
+            | SnapshotError::DeclaredNameNotUpstream { .. }
             | SnapshotError::DanglingInput { .. }
             | SnapshotError::ForwardInput { .. }
-            | SnapshotError::DeclareInput { .. }
             | SnapshotError::WitnessSite { .. }
             | SnapshotError::WitnessOnMissingNode { .. }
             | SnapshotError::LabelOnMissingNode { .. }
@@ -1836,15 +1877,20 @@ mod tests {
                 name: crate::SpokenName::absent(face()),
                 step: crate::node::StepId(9),
             },
+            SnapshotError::DeclaredSiteNotAnOperand {
+                node: node(),
+                name: crate::SpokenName::absent(face()),
+                site: at(9),
+            },
+            SnapshotError::DeclaredNameNotUpstream {
+                node: node(),
+                name: crate::SpokenName::absent(face()),
+            },
             SnapshotError::DanglingInput {
                 node: node(),
                 input: at(9),
             },
             SnapshotError::ForwardInput {
-                node: node(),
-                input: at(9),
-            },
-            SnapshotError::DeclareInput {
                 node: node(),
                 input: at(9),
             },
@@ -2334,28 +2380,39 @@ mod tests {
         doc.mint = doc
             .mint
             .clone()
-            .logged([0, 1].map(|id| crate::Minted::Node(RecipeNodeId(id))));
-        for (id, derived) in [(0u64, 50u64), (1, 60)] {
+            .logged([0, 1, 2, 3].map(|id| crate::Minted::Node(RecipeNodeId(id))));
+        for id in [2u64, 3] {
             doc.nodes.insert(
                 RecipeNodeId(id),
-                Node::Declare {
-                    pairs: vec![(
-                        (
-                            crate::node::SitedRef::new(
-                                RecipeNodeId(id),
-                                rv_name(derived, crate::names::EntityKind::Face),
-                            ),
-                            crate::node::SitedRef::new(
-                                RecipeNodeId(id),
-                                rv_name(derived, crate::names::EntityKind::Face),
-                            ),
-                        ),
-                        topo::BooleanCoincidence::REST,
-                    )],
+                Node::Datum(crate::node::Datum::Plane {
+                    origin: [0.0; 3].map(crate::test_support::len),
+                    normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
+                }),
+            );
+        }
+        for (id, derived) in [(0u64, 50u64), (1, 60)] {
+            let sited = || {
+                crate::node::SitedRef::new(
+                    RecipeNodeId(2),
+                    rv_name(derived, crate::names::EntityKind::Face),
+                )
+            };
+            doc.nodes.insert(
+                RecipeNodeId(id),
+                Node::Boolean {
+                    op: topo::BooleanOp::Union,
+                    a: RecipeNodeId(2),
+                    b: RecipeNodeId(3),
+                    declare: vec![((sited(), sited()), topo::BooleanCoincidence::REST)],
                 },
             );
         }
-        doc.order = vec![RecipeNodeId(1), RecipeNodeId(0)];
+        doc.order = vec![
+            RecipeNodeId(2),
+            RecipeNodeId(3),
+            RecipeNodeId(1),
+            RecipeNodeId(0),
+        ];
         match save(&doc, &[], Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
                 assert_eq!(

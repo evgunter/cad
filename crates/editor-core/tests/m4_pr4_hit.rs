@@ -7,6 +7,7 @@
 
 use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use editor_core::NodeStanding;
@@ -53,11 +54,10 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
             .collect(),
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
-        | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
         | ValuePayload::Gauge
         // Neither sink denotes a body, so neither offers an entity to
-        // invert — the same answer a declaration gives.
+        // invert.
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => vec![],
@@ -147,6 +147,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
             Node::Extrude {
                 profile: p,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         )
     };
@@ -163,17 +164,18 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
             Node::Extrude {
                 profile: p,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         )
     };
-    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b);
+    let decl = fixture::declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     // Split the union.
@@ -249,7 +251,8 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         doc,
         Node::Extrude {
             profile: p,
-            distance: len(0.0), // degenerate: the extrude fails
+            distance: len(0.0), // degenerate: the extrude fails,
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, ext2) = insert(
@@ -257,6 +260,7 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, u) = insert(
@@ -265,7 +269,7 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
             op: BooleanOp::Union,
             a: ext,
             b: ext2,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -289,7 +293,13 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     // The Unnamed bug door: a node whose (legitimately empty) table
     // cannot answer for a foreign entity refuses LOUDLY with the
     // entity attached — never a silent None.
-    let (doc2, decl) = insert(doc, Node::declare_rest(vec![]));
+    let (doc2, gauge) = insert(
+        doc,
+        Node::gauge(
+            None,
+            editor_core::Placement::literal(&editor_core::Frame::translation([0.0; 3])),
+        ),
+    );
     let ev2 = run(&doc2);
     let some_face = ev2
         .value(ext2)
@@ -302,9 +312,9 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         })
         .unwrap();
     assert_eq!(
-        entity_name(&ev2, decl, some_face),
+        entity_name(&ev2, gauge, some_face),
         Err(HitTestError::Unnamed(UnnamedEntity {
-            node: decl,
+            node: gauge,
             entity: some_face
         }))
     );

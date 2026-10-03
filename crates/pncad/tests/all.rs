@@ -1127,7 +1127,15 @@ fn the_authoring_ladder_runs_on_one_dependency() {
         Tol::witness(),
     )
     .expect("profile validates");
-    let built = extrude(&profile, Extrusion::Distance(real(0.5)), Tol::witness()).expect("extrude");
+    let built = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: real(0.5),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("extrude");
 
     // A primitive body: no declared contacts, so the tier-3 arm.
     ladder(&built.body, None);
@@ -1454,7 +1462,10 @@ fn a_boolean_result_validates_at_tier_3_prime() {
         let profile = validated(plane, vec![rect.into()], Tol::witness()).expect("slab profile");
         extrude(
             &profile,
-            Extrusion::Distance(real(z.1 - z.0)),
+            Extrusion::Distance {
+                depth: real(z.1 - z.0),
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .expect("slab extrude")
@@ -2104,6 +2115,7 @@ fn box_doc(
         Node::Extrude {
             profile,
             distance: len(1.5),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, body)
@@ -2239,6 +2251,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         Node::Extrude {
             profile,
             distance: len(8.0),
+            side: ExtrudeSide::Along,
         },
     );
     let evaluated = doors_evaluate(&doc);
@@ -2377,6 +2390,7 @@ fn the_document_export_door_ships_the_multi_solid_product() {
         Node::Extrude {
             profile: p0,
             distance: len(1.5),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, plane) = insert(doc, xy_frame());
@@ -2386,6 +2400,7 @@ fn the_document_export_door_ships_the_multi_solid_product() {
         Node::Extrude {
             profile: p1,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     assert_eq!(doc.roots(), &[b0, b1][..], "both tips are product roots");
@@ -2443,6 +2458,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
         Node::Extrude {
             profile: second_profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, cut) = insert(
@@ -2451,7 +2467,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
             op: pncad::document::BooleanOp::Subtract,
             a: first_box,
             b: second_box,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, downstream) = insert(
@@ -2460,7 +2476,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
             op: pncad::document::BooleanOp::Union,
             a: cut,
             b: first_box,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = doors_evaluate(&doc);
@@ -2568,6 +2584,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         Node::Extrude {
             profile,
             distance: len(0.5),
+            side: ExtrudeSide::Along,
         },
     );
     // The tab sits inside the plate's slab: its own plane, so its own
@@ -2596,6 +2613,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         Node::Extrude {
             profile: tab_p,
             distance: len(0.25),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, solid) = insert(
@@ -2604,7 +2622,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             op: BooleanOp::Union,
             a: plate,
             b: tab,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // A MEASURE and its ASSERTION (ERROR-DESIGN E3/E10), so the
@@ -2819,6 +2837,7 @@ fn ws_doc_and_body(
         Node::Extrude {
             profile,
             distance: len(1.5),
+            side: ExtrudeSide::Along,
         },
     );
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
@@ -3529,6 +3548,7 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
             pncad::document::Node::Extrude {
                 profile,
                 distance: len(1.5),
+                side: ExtrudeSide::Along,
             },
         );
         pncad::document::save(&doc, &[], Tol::witness()).expect("saves")
@@ -4307,6 +4327,7 @@ fn asm_upd_resave_part(
         Node::Extrude {
             profile,
             distance: len(1.5),
+            side: ExtrudeSide::Along,
         },
     );
     ws.resave(&doc, Tol::witness()).expect("the part rewrites");
@@ -6397,8 +6418,8 @@ mod unit_vector_witness_through_the_facade {
 /// node alone, with every other node green.
 mod the_hollowed_box_through_the_facade {
     use pncad::document::{
-        CancelToken, EvalOptions, Evaluation, LoopProgram, Node, NodeErrorKind, NodeResult,
-        ProfileDoc, ProfileProgram, RecipeNodeId, evaluate,
+        CancelToken, EvalOptions, Evaluation, ExtrudeSide, LoopProgram, Node, NodeErrorKind,
+        NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, evaluate,
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::StableName;
@@ -6424,6 +6445,7 @@ mod the_hollowed_box_through_the_facade {
             Node::Extrude {
                 profile,
                 distance: super::len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let top = StableName {

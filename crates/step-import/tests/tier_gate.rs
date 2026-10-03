@@ -59,18 +59,13 @@
 //! rational-walled loft, which has no committed fixture and whose row
 //! lives in `nurbs_import.rs`.
 //!
-//! **S58 / #649 (2026-08-19) added four rows; one of them is a
-//! newly-refused body class.**
-//! `iso-rect/cross.step` is the one that moved: a valid, manifold,
-//! closed solid that USED to pass this gate and then measure 19% low
-//! with `pad = 0.0`, and that the one iso-rectangle predicate now
-//! refuses here. `iso-rect/tee.step` never passed this gate — #649
-//! records import already refusing it, on `props_du_consistent`,
-//! because its one-sided arm makes the rim-group span sums disagree.
-//! What S58 moved for the tee is the **reason** in the refusal string,
-//! not its disposition, and the row is pinned on the new reason.
-//! `iso-rect/rect.step` / `iso-rect/xsplit.step` beside them are the
-//! controls that keep the tightening from being a blanket refusal.
+//! **S58 / #649 (2026-08-19) added four rows**, #649's own fixtures:
+//! `iso-rect/cross.step` and `iso-rect/tee.step`, valid solids whose
+//! cylinder walls have a plus- and a T-shaped domain, and
+//! `iso-rect/rect.step` / `iso-rect/xsplit.step`, the controls. All
+//! four pass: a cylinder wall's flux is its chart Green form, which
+//! measures any rim-and-ruling domain exactly (the cross once measured
+//! 19% low under the span-sum rule).
 //!
 //! **Issue 723 (2026-08-29) added the two `halfcap/` rows; one of
 //! them is a newly-passing body class.** Both twins are the same
@@ -422,13 +417,6 @@ const QUAD_CONVERGED_ESCALATED: &str = "props_quad_converged";
 const ARC_RIM_MAP_RESIDUAL: &str = "MapResidual";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
-/// The S58 iso-rectangle predicate, by name: *every rim sits at one of
-/// the face's two extreme `v`-levels*. Naming the PREDICATE rather than
-/// the shared "shared at-rest validation gate" preamble is what lets
-/// these rows see a regression that re-widens the rule, as opposed to
-/// one that merely moves the refusal somewhere else.
-const ISO_RECTANGLE_PREDICATE: &str = "props_rim_level";
-
 /// The seam carrier's residual is DECIDEDLY outside the band, ending as
 /// a definite refusal at adoption does: the file is named beside the
 /// kernel.
@@ -574,30 +562,19 @@ const CORPUS: [(&str, Disposition); 75] = [
         Pass(1, 1, 3, 3, 2),
     ),
     // -- tests/fixtures/iso-rect/ (S58 / #649) ------------------------
-    // #649's own fixtures, committed with the fix. Both plus-domain
-    // solids are geometrically VALID — manifold, closed, χ = 2 — and
-    // both refuse here on the one iso-rectangle predicate, but they
-    // arrive from opposite places. `cross` USED to import and then
-    // MEASURE: 19% low with `pad = 0.0`, a certificate of exactness on
-    // a wrong number, this gate green — it is the disposition S58
-    // moved. `tee` was already refused before S58, by the span-sum
-    // rule (`props_du_consistent`): only the reason in its refusal
-    // string moved, which is why pinning the reason rather than the
-    // disposition is what makes these rows able to see a regression.
+    // #649's own fixtures. Both plus-domain solids are geometrically
+    // VALID — manifold, closed, χ = 2 — and both pass: a cylinder wall's
+    // flux is its chart Green form, which measures the plus and the tee
+    // exactly. `cross` once imported and measured 19% low with
+    // `pad = 0.0`, and was then refused on the iso-rectangle predicate;
+    // `s58_iso_rectangle.rs` holds all four to their EXACT volumes and
+    // runs `merge_coplanar_faces` on `xsplit` — #649's second door.
     // `rect` is the control (a genuine iso-rectangle of the same Δu and
     // v extent) and `xsplit` is the same solid as `cross` authored with
-    // rectangular sub-faces; both keep passing, and
-    // `s58_iso_rectangle.rs` holds them to their EXACT volumes and runs
-    // `merge_coplanar_faces` on `xsplit` — #649's second door.
-    (
-        "tests/fixtures/iso-rect/cross.step",
-        Refused(ISO_RECTANGLE_PREDICATE),
-    ),
+    // rectangular sub-faces.
+    ("tests/fixtures/iso-rect/cross.step", Pass(1, 1, 14, 36, 24)),
     ("tests/fixtures/iso-rect/rect.step", Pass(1, 1, 6, 12, 8)),
-    (
-        "tests/fixtures/iso-rect/tee.step",
-        Refused(ISO_RECTANGLE_PREDICATE),
-    ),
+    ("tests/fixtures/iso-rect/tee.step", Pass(1, 1, 10, 24, 16)),
     (
         "tests/fixtures/iso-rect/xsplit.step",
         Pass(1, 1, 18, 40, 24),

@@ -838,7 +838,7 @@ population, which is exactly why the shared parity walk takes its row
 names from the caller.
 
 **Roster addition (ATREST-9): the arc-aware planar loop walk.** Eleven
-names from `topo/src/splitting/containment.rs`'s `point_in_carrier_loop`,
+names from `topo/src/splitting/containment.rs`'s `point_in_loop`,
 the in-face test `point_in_solid`'s planar arm reads a loop with circle
 or ellipse arcs through. Four are a new `ray_parity::ParityRows` value
 (`ARC_LOOP_ROWS`), the rest bare literals at their `decide` sites:
@@ -928,12 +928,35 @@ Notes on the neighbouring names:
 - `point_in_arc_loop_conic_window` decides only where a ray crosses an
   arc, as `arc_trim`'s trim row (ATREST-12's distance trim, the one home
   check 9's `ring_outer_arc_{end,trim}` also read).
-- `point_in_arc_loop_reach` is a ray's clearance from an uncrossable
-  edge's ball. A clearance in the band abandons the ray rather than
-  escalating.
+- `point_in_arc_loop_reach` is a ray's clearance from a ball: an
+  uncrossable (spline) edge's, where a clearance in the band abandons
+  the ray rather than escalating, and a spiric piece's, where it halves
+  the piece.
 
 Dimensions: `docs/predicate-dimension-audit.md`'s rows of the same
 names.
+
+**Roster addition (CLEAVE): the spiric edge's crossing row.** Eleven new
+names from `topo/src/splitting/spiric_arc.rs`, the row the carrier walk
+crosses a spiric edge by, halving the arc into pieces each held in a
+ball from the oval's speed bound. The boundary reading's are
+`SpiricRows` fields, one set per caller (`containment`'s `WALK_ROWS`,
+`contain`'s `ROWS`); the ray's are the walk's own, bare literals:
+
+| name | carrier |
+|---|---|
+| `point_in_arc_loop_spiric_end` | `SpiricRows` field (`WALK_ROWS`): the distance to an end of the arc |
+| `point_in_arc_loop_spiric_clear` | `SpiricRows` field (`WALK_ROWS`): a piece's ball's clearance from the point |
+| `point_in_arc_loop_spiric_on` | `SpiricRows` field (`WALK_ROWS`): the distance to a point of the arc |
+| `point_in_arc_loop_spiric_leaf` | `SpiricRows` field (`WALK_ROWS`): a piece's ball's radius, `Zero` ending the halving |
+| `bool_contact_spiric_end` | `SpiricRows` field (`contain`'s `ROWS`) |
+| `bool_contact_spiric_clear` | `SpiricRows` field (`ROWS`) |
+| `bool_contact_spiric` | `SpiricRows` field (`ROWS`): the distance to a point of the arc |
+| `bool_contact_spiric_leaf` | `SpiricRows` field (`ROWS`) |
+| `point_in_arc_loop_spiric_side` | a `const` in `spiric_arc`: a piece end's offset from the ray line |
+| `point_in_arc_loop_spiric_turn` | a `const` in `spiric_arc`: `|s(v_b) − s(v_a)| − 2·A·h²`, the piece's monotonicity across the ray line |
+| `point_in_arc_loop_spiric_advance` | a `const` in `spiric_arc`: a piece's ball's advance along the ray, less or plus its reach |
+| `point_in_arc_loop_reach` | (above) also a spiric piece's ball's clearance from the ray |
 
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of
@@ -1081,6 +1104,20 @@ name gains one sample beside each of the three. Each name has a
 linearity twin that reds on the bare norm: `ray_wall_margin_twins`'s
 plane × cylinder bore pins the first two, `rim_dim_scale_twins` the
 third.
+
+**Roster change (CLEAVE, 2026-10-03): three names added.** The public
+`topo::point_in_loop` certifies its plane before it walks
+(`topo/src/splitting/containment.rs`'s `certify_plane`), each a bare
+literal at its `decide` site: `point_in_loop_normal` (`(|n| − 1)`
+levered by the loop's reach), `point_in_loop_plane` (a vertex, a conic
+centre or control point off the plane, or a conic's or spiric's tilt
+levered by its reach), and `point_in_loop_query` (the query off the
+plane). Each is `Zero` on a well-posed call, so on the shipped callers
+they sample zero-centred residues once per call (the plane row once per
+vertex and carrier datum). `boolean::solid_contain`'s in-face test does
+not certify (it reads a face's trim at its own surface plane) and adds
+no samples. Dimensions: `docs/predicate-dimension-audit.md`'s rows of
+the same names.
 
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare

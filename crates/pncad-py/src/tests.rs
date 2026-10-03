@@ -17,6 +17,7 @@ use crate::tags::{
     promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag, workspace_error_tag,
 };
 use pncad::document::Dimension;
+use pncad::document::ExtrudeSide;
 use pncad::tolerance::Tol;
 use pncad::topo::{FaceKey, SolidKey, VertexKey};
 use std::collections::{BTreeMap, BTreeSet};
@@ -116,6 +117,7 @@ fn box_doc(
         Node::Extrude {
             profile,
             distance: len(1.5),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, body)
@@ -1467,6 +1469,7 @@ fn resolution_status_tags_are_stable() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
 
@@ -1671,12 +1674,12 @@ fn the_contact_class_mirror_matches_the_kernel() {
 #[test]
 fn declare_error_tags_are_stable() {
     use crate::tags::declare_error_tag;
-    use pncad::select::{DeclareError, declare_node};
+    use pncad::select::declare_all;
 
-    let empty =
-        declare_node::<pncad::document::ProfileProgram>(&[]).expect_err("an empty declare refuses");
+    let doc = pncad::document::ProfileDoc::empty_derived("declare-error-tags", Tol::witness());
+    let empty = declare_all(&doc, pncad::document::RecipeNodeId(1), &[], Tol::witness())
+        .expect_err("declaring no findings refuses");
     assert_eq!(declare_error_tag(&empty), "no_findings");
-    assert_eq!(declare_error_tag(&DeclareError::NoMintedId), "no_minted_id");
 }
 
 /// The binding matches `Expr::literal`'s OWN refusals rather than
@@ -2706,6 +2709,22 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::WouldCycle { at: sp(1) }, &["node"]);
     carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
+    carries(&E::SetDeclareOnNonDeclaring { node: sp(1) }, &["node"]);
+    carries(
+        &E::DeclaredSiteNotAnOperand {
+            node: sp(1),
+            name: named(),
+            site: sp(2),
+        },
+        &["node", "input", "name"],
+    );
+    carries(
+        &E::DeclaredNameNotUpstream {
+            node: sp(1),
+            name: named(),
+        },
+        &["node", "name"],
+    );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
@@ -2718,6 +2737,32 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::DuplicateWitnessEntry { node: sp(1) }, &["node"]);
     carries(&E::OffsetOnNonInstance { node: sp(1) }, &["node"]);
     carries(&E::GaugeOnNonPlaced { node: sp(1) }, &["node"]);
+    carries(&E::PromoteOnNonInstance { node: sp(1) }, &["node"]);
+    carries(&E::PromoteWithoutOffset { node: sp(1) }, &["node"]);
+    carries(&E::FoldOnNonGauge { node: sp(1) }, &["node"]);
+    // A promote or a fold names its target and the other node the
+    // refusal is about.
+    carries(
+        &E::PromoteNonRoot {
+            node: sp(1),
+            root: sp(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::PromoteMemberOffset {
+            node: sp(1),
+            member: sp(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::FoldWouldStartPlacing {
+            node: sp(1),
+            mate: sp(2),
+        },
+        &["node", "input"],
+    );
     // A gauge reference names the node it is written on and the id it
     // names.
     carries(
@@ -2781,13 +2826,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "input"],
     );
     carries(
-        &E::DeclareInputNotDeclare {
-            node: sp(1),
-            input: sp(2),
-        },
-        &["node", "input"],
-    );
-    carries(
         &E::AssertionTarget {
             node: sp(1),
             measure: sp(2),
@@ -2797,6 +2835,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::DeleteWouldDangle {
             id: sp(1),
+            referenced_by: sp(2),
+        },
+        &["node", "referenced_by"],
+    );
+    carries(
+        &E::FoldWouldDangle {
+            node: sp(1),
             referenced_by: sp(2),
         },
         &["node", "referenced_by"],
@@ -4672,6 +4717,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_desync",
             "merge",
             "non_finite_sector_chord",
+            "non_manifold_result",
             "non_maximal_faces",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
@@ -4688,6 +4734,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "shared_vertex_crossings",
             "shell_witness_exhausted",
             "spheres_meet",
+            "tangent_slit_arm_unbuilt",
             "torn_component",
             "undeclared_coincidence",
             "underflowed_sector_chord",
@@ -4703,7 +4750,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "boundary_edit_inner_tag",
         values: &[],
-        delegates: &["edit_inner_variant_tag", "placement_rule_inner_tag"],
+        delegates: &["placement_rule_inner_tag"],
     },
     TagEntry {
         function: "boundary_edit_tag",
@@ -4712,11 +4759,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_serialize",
             "param_name_not_an_identifier",
         ],
-        delegates: &[
-            "declare_error_tag",
-            "label_fault_tag",
-            "placement_rule_fault_tag",
-        ],
+        delegates: &["label_fault_tag", "placement_rule_fault_tag"],
     },
     TagEntry {
         function: "census_contact_tag",
@@ -4799,7 +4842,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "declare_error_tag",
-        values: &["no_findings", "no_minted_id"],
+        values: &["no_findings"],
         delegates: &["edit_error_tag"],
     },
     TagEntry {
@@ -4830,8 +4873,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "assertion_dimension",
             "assertion_target",
             "continuous_param_cannot_be_count",
-            "declare_input_not_declare",
             "declare_names_missing_node",
+            "declared_name_not_upstream",
+            "declared_site_not_an_operand",
             "delete_would_dangle",
             "dimension",
             "doc_param_count_has_no_distribution",
@@ -4844,6 +4888,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_placement_list",
             "empty_witness_bulk",
             "evaluation_of_another_document",
+            "fold_on_non_gauge",
+            "fold_would_dangle",
+            "fold_would_start_placing",
             "gauge_cycle",
             "gauge_not_live",
             "gauge_on_non_placed",
@@ -4873,6 +4920,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_axis",
             "placement_rule_mismatch",
             "profile_program_refused",
+            "promote_member_offset",
+            "promote_non_root",
+            "promote_on_non_instance",
+            "promote_without_offset",
             "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
@@ -4883,6 +4934,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_unknown_name",
             "repeated_designation",
             "selection_not_canonical",
+            "set_declare_on_non_declaring",
+            "set_extrude_side_on_non_extrude",
             "set_members_on_non_list",
             "set_program_on_non_profile",
             "slot_dimension_mismatch",
@@ -4993,6 +5046,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cosurface_escalated",
             "degenerate_extrusion",
             "extrusion_escalated",
+            "negative_depth",
             "oblique_extrusion",
             "op",
             "pcurve",
@@ -5017,7 +5071,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "face_refusal_tag",
-        values: &["not_an_instance"],
+        values: &["no_part_face", "not_an_instance"],
         delegates: &["face_pose_refusal_tag"],
     },
     TagEntry {
@@ -5063,7 +5117,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "inline_edit",
             "instance_body_name_referenced",
             "instance_consumed",
-            "mate_face_frame_crosses",
             "mate_frame_crosses",
             "mate_pair_splits",
             "mate_placed",
@@ -5126,8 +5179,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "maintenance_tag",
         values: &[
+            "label_dropped",
             "offset_cleared",
-            "orphaned_declare",
             "strand",
             "stranded_appearance",
         ],
@@ -5811,7 +5864,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "assertion_bound",
             "assertion_target",
             "dangling_input",
-            "declare_input",
+            "declared_name_not_upstream",
+            "declared_site_not_an_operand",
             "duplicate_input",
             "epsilon_invalid",
             "forward_input",
@@ -5852,8 +5906,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "body_name_crosses_cut",
             "dead_gauge_reference",
             "empty_cut",
-            "hoisted_member_offset",
-            "mate_face_frame_crosses",
             "mate_frame_crosses",
             "name_on_dropped_step",
             "name_straddles_cut",
@@ -5871,6 +5923,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "two_anchors",
             "uncut_param_reference",
             "unknown_cut_node",
+            "unplaceable_root",
             "unplaced_alone",
             "would_start_placing",
         ],
@@ -6205,6 +6258,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("corrupt", 3),
     ("cosurface_escalated", 2),
     ("dangling_geometry", 2),
+    // One fact at two doors: `node::declared_side_fault`, asked by the
+    // edit doors and by the load door.
+    ("declared_name_not_upstream", 2),
+    ("declared_site_not_an_operand", 2),
     // Overlapping, not one fact: at rest the word is the ring half's
     // decided refusal alone (a nonpositive tube is
     // `unrepresentable_surface_datum` there); at the Boolean's pierce
@@ -6247,7 +6304,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("join", 2),
     // One rule (A4's frame rule) refused in both directions across the
     // seam: a split's kept mate and an inline's host mate.
-    ("mate_face_frame_crosses", 2),
     ("mate_frame_crosses", 2),
     ("measure_malformed", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
@@ -9871,7 +9927,6 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "boolean_union",
     "chamfer",
     "datum",
-    "declare",
     "extrude",
     "fillet",
     "gauge",

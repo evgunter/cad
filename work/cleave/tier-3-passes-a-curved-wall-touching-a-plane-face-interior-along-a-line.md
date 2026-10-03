@@ -2,10 +2,14 @@
 id: tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line
 kind: issue
 title: tier 3 passes a body whose curved wall touches a plane face's interior along a line with no edge for the contact
-status: open
+status: closed
 opened: 2026-10-02
-priority: P2
+priority: P1
 cost: H
+refs: [a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact]
+branch: cleave/tangent-interior-refuse
+pr: 3938
+closed: 2026-10-03
 ---
 
 
@@ -34,12 +38,10 @@ The review that found this read the contacts as knife edges marked
 `SmoothUnderdetermined`. Measured, those marks are the hole's own seam
 edges, cylinder to cylinder, which the operand carries too.
 
-No unplanted input has been measured to reach this. The split refuses
-every concave graze it was tried on, and the guards
+The split refuses every concave graze it was tried on, and the guards
 `a_concave_graze_of_a_round_hole_refuses` and
-`a_concave_graze_of_a_revolved_hole_refuses` hold that. A Boolean or a
-placement that leaves a wall tangent to a face's interior is the
-other route, and has not been tried.
+`a_concave_graze_of_a_revolved_hole_refuses` hold that. Two Booleans
+reach the state without a plant (below).
 
 ## Why it matters
 
@@ -50,3 +52,129 @@ manifold material where there is none.
 ## Found by
 
 CLEAVE DR-51's review of PR 3892, measured in its fix pass.
+
+## Reachability, measured (2026-10-03)
+
+**Unplanted: yes.** Two public Boolean calls reach it, at `f64` and at
+`Interval`:
+
+1. `union_with(plate, rod, decls)`: a 4 × 4 × 1 plate, a rod r = 0.5,
+   z ∈ [0.25, 0.75] resting on the side face y = 2, the wall × face
+   pairs declared `Tangent`. That answers two shells touching along
+   x = 0, y = 2, which is the DEV-1 lane's designed answer.
+2. A union of that with a box bridging the rod's top to the plate's top
+   (x ∈ [−1, 1], y ∈ [1, 2.5], z ∈ [0.6, 1.6]). The answer is one
+   shell, volume 18.2 + 0.85·π/8 = 18.5337942 (true). The rod wall lies
+   on y = 2 (axis at y = 2.5, r = 0.5) along z ∈ [0.25, 0.6], and no
+   edge has both ends on that ruling.
+
+Plain, the second result carries no records and passes tier 3. The
+census refuses it, `UndeclaredContact { VertexOnFace }` at the rod's
+rim vertex (0, 2, 0.25). With the first result's records carried
+(`CarriedVf`, `Tangent` or `Rest`), it passes tier 3 and
+`validate_pseudomanifold` over its own records: every at-rest gate.
+Reproducers (`#[ignore]`, pinning today's answer, a refusal expected):
+`crates/sweep/tests/wall_face_tangent_reach.rs`,
+`a_bridge_over_a_declared_tangent_rest_answers_an_edgeless_contact`
+and its `_at_interval` twin. The door half is filed as
+`work/contact/a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact.md`.
+
+**The plant, reproduced.** With `wall_graze`'s
+`(false, WallBend::OutOfMaterial)` arm returning `side`, the hole at
+y = 0.5 answers 6.0 / 9.2146. Both pieces pass `validate_closed`,
+`validate_geometric` and `validate_pseudomanifold` with no records, so
+the census misses the plant's contact too. No edge lies on the ruling,
+and `contact_marks` reports only `Transverse` and
+`SmoothUnderdetermined` (the hole's seams). Unplanted, the same split
+refuses `Join(DegenerateSection)`.
+
+**Why tier 3 misses it.** Every check in `validate_geometric`'s list
+(`crates/topo/src/validate.rs`) is local. Checks 1, 3, 6, 8 and 9 read
+one face, 2, 4 and 5 one edge or one edge–face pair, 7 one solid's
+volume, and 10 one vertex per shell. Two faces that share no edge
+are compared by none of them. The doc's deferred list names this
+class first: "Global self-intersection / minimum clearance".
+`contact_marks` marks edges, and this contact has none. Check 9 sees
+the contact only where it lands as a ring tangent to its own face's
+outer loop: the bridge reaching y = 3.5 puts the rod's section circle
+on the bridge's bottom face as such a ring, and tier 3 refuses that
+body `RingMeetsOuter`. The census (`crates/topo/src/census.rs`) sees
+vertices and edges against planar faces. It pairs faces only across
+solids (`sweep_cross_solid_backstop`), so it sees this contact only
+through a vertex the door happened to mint on the ruling, and one
+vertex-on-face record silences it.
+
+**What else was tried, and what it did.** "Refuses" is a typed
+refusal. "Definite" means an offset past Kε, which answers a body with
+a real gap or sliver: correct, and not this state.
+
+| Input | Offsets | Outcome |
+|---|---|---|
+| Holed plate − / ∩ a box whose face is tangent to the hole (the split piece as a Boolean), six azimuths placed by `transform_rigid` | 0, ±1ε, ±5ε | refuses (`CurvedBooleanUnsupported`, `Escalated`) |
+| same | ±20ε, ±1e3ε, ±1e6ε | definite: true volumes, no contact |
+| Plate − a through or blind rod tangent to its side from inside | 0, ±1ε | refuses (`CurvedPierceUnsupported`, `Escalated`) |
+| same | +1e3ε, +1e6ε / −1e3ε, −1e6ε | definite / refuses `SectionArcWindow` |
+| Plate ∪ / ∩ / − a through or short rod tangent outside | 0, ±1ε / ±1e3ε, ±1e6ε | refuses / definite, or refuses `SectionArcWindow` |
+| same, plate and rod rotated together (3 angles) | 0 | refuses (`CurvedPierceUnsupported`, `CurvedBooleanUnsupported`, a tangent-germ `SectionInvariant`) |
+| Frame ∪ a rod in its slot touching the slot wall (short and through) | 0, ±1ε / +1e3ε, +1e6ε / −1e3ε, −1e6ε | refuses / refuses (`UndeclaredCoincidence` on the coplanar caps; `JoinDesync` on the through rod) / definite |
+| Conical socket ∩ / − a half-space tangent along a ruling; frustum ∪ / ∩ one (4 azimuths) | 0 | refuses `CurvedPairUnsupported` (cone × plane has no arm) |
+| Declared `Tangent`: plate − rod inside (through, blind, short), holed ∩ / − box | 0 | refuses (`ContactContradicted`, `RingHomingAmbiguous`) |
+| Declared `Tangent`: a plane face that is not the touched one | 0 | refuses (`UnsupportedDeclarationClass`, `ContactContradicted`) |
+| Declared `Tangent`: plate ∪ short rod outside; frame ∪ rod in slot | 0 | answers two touching shells with vertex-on-face records: the designed lane; tier 3′ passes with the records, refuses without |
+| Declared: plate ∪ through rod (caps beyond the plate) | 0 | refuses `CurvedPierceUnsupported` |
+| Declared rest ∪ bridge box, other bridges | 0 | y ≤ 2.5 bridge on top or underneath, and top from z = 0.5: answers the edgeless contact (above). y ≤ 3.5: answers, tier 3 refuses `RingMeetsOuter`. y ≤ 2.8, y ≤ 2.3 and three side bridges: refuse (`SectionArcWindow`, `VolumeUnmeasured`) |
+| Rod ∪ bridge first, then plate ∪ that, declared or plain | 0 | refuses (`RingHomingAmbiguous`, `CurvedBooleanUnsupported`) |
+| `graft_disjoint` of a rod tangent to the plate's side | 0 | tier 3 passes, as `instance.rs`'s module docs state for touching solids; the census refuses `CensusUndecidable` (cross-solid curved pair) |
+| Split grazes of a through hole | ±1ε, ±5ε / ±20ε | refuses (`DegenerateSection`, `BellyGraze`) / definite |
+| Split grazes of a blind hole, 4 poses | 0 | refuses (`DegenerateSection`, `SectionInvariant`) |
+| Profiles: a ring tangent to the outer edge, two rings tangent, a rectangle ring tangent to a round one, an outer loop whose arc touches its own far edge | 0, ±1ε, ±5ε | refuses (`TangentialContact`, `NonSimple { Touch }`, `Escalated`) at profile validation, so extrude never sees them. At ±20ε: definite, or `NonSimple { Crossing }`, or (the self-touching loop) `UndeclaredTangency` at a joint of the fixture's own |
+| `Interval`: the holed-plate, rod-in-side, rod-outside and profile rows, and the hole graze | 0 | refuses as at `f64` |
+
+Revolve was not run. Its planar faces are meridian half-planes and
+annuli about the axis, and a cone's or cylinder's ruling can reach one
+only at the face's own boundary edge, so it is argued rather than
+measured.
+
+**Recommendation: P1.** The state is reachable through public doors
+with no plant. In the carried form every at-rest gate passes it, and
+the plain form's empty records make it tier-3 currency by the door's
+own contract. By the letter of the bands this is "a live wrong
+answer", which is P0. I recommend P1 because both reproducers start
+from a deliberately declared tangent rest, and the volume is right.
+The orchestrator should weigh that.
+
+## Designed (2026-10-03): ratified text decides it — no Ev fork
+
+A designer pair (one Opus, one Fable; labels A/B on `analysis/design-fork/edgeless-contact`) weighed it over four rounds, crossing twice, with an executed measurement settling the fact beneath (`analysis/edgeless-*.md` on that branch). Both converge:
+
+- **The defect is step 1, not tier 3.** The declared `Tangent` union ships a line contact as two vertex-on-face rows; two points certify two points, not the line. Tier 3 is local by contract; nothing should refuse because shells fused.
+- **The final state is #131's doubled cusp** (`docs/DESIGN.md` tier 3, "Ratify #131", `1b2f1848b`, ruled with Ev 2026-08-23): "two material wedges on one tangent line — the kissing union, a slit interior to material — … the coincident-distinct-edges class, each edge classifying separately". The union mints two coincident distinct edges on the locus, one per sheet, each a wedge-2π slit, end vertices shared; one shell; no contact record (PR 3317: "the shared edge is the structural record"). Where the locus ends inside a plane face, that face carries the slit as a two-edge zero-area ring.
+- **The ring is legal today.** Measured on main: a planar face with a two-edge zero-area ring (shared vertex keys, each edge bounding a distinct wall) passes tiers 1, 2, 3, 3′ and the at-rest gate, meshes with exact volume, and merges unchanged. The one owed consumer arm: `sector_shape` admits a ~2π sector only for a strut's single orbit half-edge and refuses it between two distinct coincident edges, so split and the boolean's sectors refuse a cut through or along the slit (`SliverSector`, typed).
+- **The two-row answer deviated from #131.** Issue 941 item 4 (and the C7 sentence the same commit wrote: "the doubled form (material both sides) is F2's coincident-distinct-edges class; the join-lane spec grows that arm before `Tangent` joins ship") said the arm is owed before `Tangent` joins ship; the DEV-1 lane shipped the two-row answer under an orchestrator acceptance. The C7 sentence was dropped when CONTACT-DESIGN moved into `crates/topo/README.md` (`585b3422f`, no replacement) and is restored with the arm.
+
+**Owner of the arm:** TANG, `work/tang/declared-cusps-second-order-wedge-arm.md` items 3–4 (the join's slit zip from `tangent_locus`; the `sector_shape` arm and split's reduce / the boolean's sectors through it; restore C7).
+
+**Interim (this row's remaining work, dispatched as `cleave/tangent-interior-refuse`):** a verified `Tangent` pair whose locus lies interior to a face of either operand refuses typed (the `RimCuspArmUnbuilt` pattern) until the arm lands; `m9_3_wall_door.rs`'s admitted tangent union and both `wall_face_tangent_reach.rs` rows flip to that refusal; `BooleanResultKind::Assembly`'s doc narrows to vertex/edge touches. The "refuse step 2" shape in this row's earlier text and in CONTACT's `a-bridge-union-fuses-...` is superseded: step 2 is ordinary topology once step 1 is right.
+
+## Interim landed (2026-10-03, `cleave/tangent-interior-refuse`)
+
+A verified `Tangent` union whose ruling passes strictly inside a
+declared PLANE face now refuses `BooleanError::TangentSlitArmUnbuilt`
+at the reduction door (`boolean_reduce_declared_strategy` in
+`crates/topo/src/boolean/mod.rs`, reading `locus_through_plane_face`).
+Two scope choices, both measured:
+
+- **Union only.** Declared plate − rod answers the plate (16.0) and
+  plate ∩ rod answers `Empty`. Both are right, since the result has
+  material on at most one side of the ruling.
+- **The plane face decides.** A ruling inside the cylinder face but on
+  the plane face's boundary edge (the box-corner pose,
+  `work/reach/a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported.md`)
+  is an edge resting on a face, not the doubled slit. It is untouched,
+  and it refuses `CurvedBooleanUnsupported` already. Declared
+  parallel-cylinder kisses refuse `CurvedPierceUnsupported` downstream
+  (TANG's item, the gather evidence), so they are untouched too.
+
+The reproducers now pin the refusal at `f64` and `Interval`. The bridge
+step is unreachable from step 1. The row stays open for TANG's arm,
+items 3–4, which retires the refusal.

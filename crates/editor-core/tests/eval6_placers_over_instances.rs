@@ -22,6 +22,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::fixture;
@@ -49,6 +50,7 @@ pub(crate) fn cube_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -406,7 +408,7 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
             op: editor_core::BooleanOp::Union,
             a: pattern,
             b: cube,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &opts());

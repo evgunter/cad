@@ -25,6 +25,7 @@
 // the default half of the units exhibit, against `ring` (millimetres
 // and half-turns) and `diefillet` (millimetres and degrees).
 
+use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use pncad::document::{
@@ -78,6 +79,7 @@ fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64, tol: Tol) -> Re
         Node::Extrude {
             profile,
             distance: Expr::literal(dz, Dimension::Length).unwrap(),
+            side: ExtrudeSide::Along,
         },
         tol,
     )
@@ -101,7 +103,7 @@ fn boolean_doc(
             op,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );

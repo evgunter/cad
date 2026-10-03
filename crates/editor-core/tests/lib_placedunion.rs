@@ -18,6 +18,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CountMismatch, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult,
@@ -47,6 +48,7 @@ fn fin_only() -> (ProfileDoc, RecipeNodeId) {
     let fin = r.insert(Node::Extrude {
         profile: p,
         distance: len(0.8125),
+        side: ExtrudeSide::Along,
     });
     (r.doc, fin)
 }
@@ -142,7 +144,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
                             op: BooleanOp::Union,
                             a,
                             b: placed,
-                            declare: None,
+                            declare: Vec::new(),
                         }),
                     },
                     Tol::witness(),
@@ -325,6 +327,7 @@ fn boxes_at(frames: Vec<Frame>) -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let group = r.insert(Node::placed_union_at(solid, frames));
     (r.doc, group)
@@ -410,6 +413,7 @@ fn a_circular_group_places_around_a_datum_axis() {
     let solid = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let group = r.insert(
         Node::placed_union(
@@ -840,6 +844,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
         let solid = r.insert(Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         });
         (r.doc, solid)
     };
@@ -903,7 +908,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                             op: BooleanOp::Union,
                             a,
                             b: placed,
-                            declare: None,
+                            declare: Vec::new(),
                         }),
                     },
                     Tol::witness(),
@@ -936,4 +941,74 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
     );
     assert_eq!(g.solids().count(), c.solids().count(), "same solid count");
     assert_eq!(g.shells().count(), c.shells().count(), "same shell count");
+}
+
+/// **The typed insert answers to the same backstops as `apply`**: in
+/// the middle of an action, [`editor_core::Recording::insert`] refuses an
+/// empty placement list, a non-finite frame, a mirror and a stretched
+/// frame with exactly the error `apply` gives the same insert against
+/// the same document, records nothing for it, and ends the action on it.
+/// The placement rule is checked by the whole-document backstop every
+/// edit passes through after it is written, not by the insert's own
+/// arm, so an insert that skipped that backstop would land here.
+#[test]
+fn the_typed_insert_answers_to_the_placement_backstops() {
+    let (doc, fin) = fin_only();
+    let with =
+        |frames: Vec<Frame>| Node::<editor_core::ProfileProgram>::placed_union_at(fin, frames);
+    let mut mirror = Frame::IDENTITY;
+    mirror.columns[0] = [-1.0, 0.0, 0.0];
+    let mut stretched = Frame::translation([10.0, 0.0, 0.0]);
+    stretched.columns[0] = [2.0, 0.0, 0.0];
+
+    for (what, node) in [
+        ("an empty placement list", with(Vec::new())),
+        (
+            "a non-finite frame",
+            with(vec![Frame::translation([f64::NAN, 0.0, 0.0])]),
+        ),
+        ("a mirror", with(vec![mirror])),
+        ("a stretched frame", with(vec![Frame::IDENTITY, stretched])),
+    ] {
+        let mut action =
+            editor_core::Recording::start(&doc, Tol::witness(), &editor_core::RefusingReach);
+        let first = action
+            .insert(with(vec![Frame::IDENTITY]))
+            .expect("one placement is legal");
+        let before = action.doc().clone();
+        let want = apply(
+            &before,
+            &DocEdit::InsertNode {
+                node: Box::new(node.clone()),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err(what);
+        assert!(
+            matches!(
+                want,
+                EditError::EmptyPlacementList { .. }
+                    | EditError::NonFinitePlacement { .. }
+                    | EditError::ImproperPlacement { .. }
+                    | EditError::NonRigidPlacement { .. }
+            ),
+            "the premise: `apply` refuses {what} at the placement backstop: {want:?}"
+        );
+        assert_eq!(
+            action.insert(node),
+            Err(want.clone()),
+            "the typed insert refuses {what} as `apply` does"
+        );
+        assert!(
+            action.doc().bit_eq(&before),
+            "a refused insert of {what} leaves the action where it stood"
+        );
+        assert_eq!(action.minted(), &[Some(first)], "{what} recorded nothing");
+        assert_eq!(
+            action.finish().map(|done| done.minted),
+            Err(want),
+            "the refused insert of {what} ends the action"
+        );
+    }
 }

@@ -37,6 +37,7 @@
 #![allow(clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
@@ -66,6 +67,7 @@ fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -112,6 +114,7 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = insert(
@@ -120,7 +123,7 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: body,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, body)
@@ -445,6 +448,7 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
         Node::Extrude {
             profile: far_profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, empty) = insert(
@@ -453,7 +457,7 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
             op: BooleanOp::Intersect,
             a: s.xf,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert!(

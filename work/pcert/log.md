@@ -500,7 +500,7 @@ Signed (PCERT orchestrator).
 - **Designer pair** dispatched on `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`, from main at 82b52c36c, with one problem statement and no candidate answers.
   - They agreed on the core: check 5 and the caller's `ChartWindow` retire, and joints and closure state the integer branch and winding.
   - They differed on three points: the pole joint, `chart_boundary`'s polygon, and spline charts. After one reconciliation round they converged (one designer moved on all three; they did not cross).
-- **[ev] PR 3919** rewords C4's domain-validity sentence and records DESIGN-FORK-LOG row 47's recommendation half.
+- **[ev] PR 3919** rewords C4's domain-validity sentence and records DESIGN-FORK-LOG row 54's recommendation half.
   - Provenance: the trim-window sentence was agent-written on 2026-09-03 (585b3422f, the docs-to-README sweep), and I found no ratification. PR 3781 left it untouched.
   - Deviation: the blinding byte (87) was drawn after the reports came in, not at dispatch. This is recorded on `analysis/design-fork/pcert-chart-angles-2026-10-03`.
   - My first commit on that branch overwrote README.md; the next two commits fixed it forward.

@@ -1057,22 +1057,22 @@ BOUND_AS = {
     "LeverRefusal": "MateFault.inner_variant",
     # THE FACE REFUSAL, curated beside the `MateFault` arm that carries
     # it (`mate_face_unresolved`), and its discriminant is the word that
-    # arm publishes: why a `from_face` frame's face answered no pose
+    # arm publishes: why a `from_face` side's head face answered no pose
     # (`part_unresolved`, `no_such_name`, `ambiguous`, `not_a_face`,
-    # `readback`, `unpinned`, `not_an_instance`). The instance crosses
-    # as `MateFault.instance`, the face as `MateFault.face`.
+    # `readback`, `unpinned`, `not_an_instance`, `no_part_face`). The
+    # instance crosses as `MateFault.instance`, the face as
+    # `MateFault.face`.
     "FaceRefusal": "MateFault.inner_variant",
     # The reach's own refusal of a face pose, named against the part
     # alone; the solve wraps it into `FaceRefusal` with the instance
     # and the face, which is the shape Python reads.
     "FacePoseRefusal": "MateFault.inner_variant",
-    # THE TWO ARMS OF A MATE FRAME: three authored vectors, or a face
-    # of the part resolved at the solve. `MateFrame` is one Python
+    # THE TWO ARMS OF A MATE FRAME: three authored vectors, or the
+    # side's head face resolved at the solve. `MateFrame` is one Python
     # class whose `variant` says which (`authored`, `from_face`); the
-    # authored vectors are its `origin`/`axis`/`reference` and the face
-    # its `face`, so neither inner struct is a class of its own.
+    # authored vectors are its `origin`/`axis`/`reference`, so the
+    # inner struct is not a class of its own.
     "AuthoredFrame": "MateFrame.variant",
-    "FaceFrame": "MateFrame.variant",
     # What a frame fails to be a placement: the edit door spreads it
     # into three arms of its own, so its discriminant crosses as
     # `EditError.variant` (`non_finite_placement`,
@@ -1341,7 +1341,9 @@ BOUND_AS = {
     "ReachRefusal": "MateFault",
     "declare": "Doc.declare",
     "declare_all": "Doc.declare_all",
-    "declare_node": "Node.declare",
+    # A finding's pair and class become a declared pair at the
+    # `declare=` seat; the list is the argument, not a value of its own.
+    "declared_pairs": "Node.boolean",
     "extrude": "Node.extrude",
     "chamfer_edges": "Node.chamfer",
     "tube_along_arc": "Node.tube",
@@ -1566,10 +1568,9 @@ FAMILIES: dict[str, str] = {
     ),
     # THE SIXTH ARRIVED WITH ITS DOOR. `MaintenanceNet` (DM7's
     # net-over-an-action rule) landed in `editor-core` with EMIT's
-    # `the-viewer-drops-every-dm7-rename-report`, and the stub's
-    # `orphaned_declare` paragraph already tells a Python caller that a
-    # cascade's net is read off the document the walk ended at — by
-    # hand, since nothing bound folds the rows. `crates/pncad-py/*` is
+    # `the-viewer-drops-every-dm7-rename-report`; a Python caller reads
+    # a cascade's net off the document the walk ended at — by hand,
+    # since nothing bound folds the rows. `crates/pncad-py/*` is
     # LIB's ground; `work/lib/python-has-no-maintenance-net-door`
     # carries the finding.
     "B-MAINT-NET": (
@@ -1577,10 +1578,8 @@ FAMILIES: dict[str, str] = {
         "`MaintenanceNet`, pushed one applied edit at a time and "
         "finished against the end document. Closing it needs a Python "
         "door that folds each `Doc.apply` result with the document it "
-        "produced, a `pncad.pyi` entry the `orphaned_declare` paragraph "
-        "points at instead of 'read it off the document', and one "
-        "Python row cascading a declared union's `Declare` away and "
-        "asserting an empty net."
+        "produced, a `pncad.pyi` entry on `Maintenance` for it, and one "
+        "Python row asserting the net of a cascade whose rows cancel."
     ),
 }
 
@@ -2251,6 +2250,13 @@ NOT_BOUND = {
     "Unexamined": SHAPE,
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
+    # A declared pair is a pair of SITED names and a class. Python
+    # holds names as opaque text, so it declares from the finding that
+    # carries both (`FlushFinding`, at `declare=`); the two builders
+    # over raw sited pairs have no Python spelling for the same reason.
+    "DeclaredPair": SHAPE,
+    "declare_rest": SHAPE,
+    "declare_continuation": SHAPE,
     "Dimension": SHAPE,
     # How a sentence names a node. Python reads a node's sentence inside
     # the error a door raises, already spoken; its machine spelling is
@@ -2318,11 +2324,18 @@ NOT_BOUND = {
     "DocParamField": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
+    # The compound door's outcome, `Applied`'s shape for a whole
+    # action: `Doc.regauge_then_mate` swaps the document and
+    # `last_maintenance` in and returns the mate's id. Its edit record
+    # has no Python shape for the reason the replay door below has none.
+    "RegaugeThenMateOutcome": SHAPE,
     # Python's document keeps no edit log: `Doc.save` writes an empty
     # log and `load` replays below the wrapper, so the replay door has
     # no Python shape to bind.
     "apply_replayed": SHAPE,
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
+    "Recording": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
+    "Recorded": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.
@@ -2878,6 +2891,14 @@ NOT_BOUND = {
     "face_name": INTERIOR,
     # The predicate; `Member` above carries the argument for both.
     "member_of": INTERIOR,
+    # The same walk with the name it reached at the member's instance:
+    # what the viewer's mate tool reads a picked face's pose by.
+    "member_reading": INTERIOR,
+    # The strip a face frame reads its head's face by: a Python author
+    # never spells the face (`MateFrame.from_face()` takes nothing),
+    # and the face a refusal is about crosses already stripped, as
+    # `MateFault.face`.
+    "head_face": INTERIOR,
     # The coset table's static gaps (a clocking rider on a planar rest,
     # a standalone clocking), the one home the coset table and the
     # viewer's mate tool read. A Python caller meets the same sentence
@@ -3452,17 +3473,11 @@ MEMBERS_BOUND_AS = {
     # can make one appear. Filed as
     # `work/lib/stranded-appearance-is-bound-but-unreachable-from-python.md`.
     # `Maintenance::Strand` has no such gap: `Node.fillet` takes a name
-    # selection and `DocEdit.delete_node` is bound. Nor does
-    # `Maintenance::OrphanedDeclare`, which needs a `Declare` and a
-    # consumer to delete: `Doc.declare_all`, `Node.boolean`'s
-    # `declare=` and `DocEdit.delete_node` are all bound, and
-    # `test_document.py`'s
-    # `test_deleting_the_consumer_reports_the_declaration_it_orphaned`
-    # is the Python program that makes one appear.
+    # selection and `DocEdit.delete_node` is bound.
     "Maintenance::OffsetCleared": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
-    "Maintenance::OrphanedDeclare": "Maintenance.variant",
+    "Maintenance::LabelDropped": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3474,7 +3489,9 @@ MEMBERS_BOUND_AS = {
     "EditError::RepeatedDesignation": "EditError.variant",
     "EditError::SelectionNotCanonical": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::SetDeclareOnNonDeclaring": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
+    "EditError::SetExtrudeSideOnNonExtrude": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
     "EditError::NodeIdCollides": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
@@ -3488,7 +3505,6 @@ MEMBERS_BOUND_AS = {
     "EditError::PayloadDocParamDimension": "EditError.variant",
     "EditError::MeasureMalformed": "EditError.variant",
     "EditError::AssertionTarget": "EditError.variant",
-    "EditError::DeclareInputNotDeclare": "EditError.variant",
     "EditError::AssertionDimension": "EditError.variant",
     "EditError::SlotUnknownDocParam": "EditError.variant",
     "EditError::SlotDocParamDimension": "EditError.variant",
@@ -3501,6 +3517,8 @@ MEMBERS_BOUND_AS = {
     "EditError::PathOffTree": "EditError.variant",
     "EditError::Dimension": "EditError.variant",
     "EditError::DeclareNamesMissingNode": "EditError.variant",
+    "EditError::DeclaredSiteNotAnOperand": "EditError.variant",
+    "EditError::DeclaredNameNotUpstream": "EditError.variant",
     "EditError::ReadSiteMissingNode": "EditError.variant",
     "EditError::NonFiniteDocParam": "EditError.variant",
     "EditError::InvalidDistribution": "EditError.variant",
@@ -3530,6 +3548,13 @@ MEMBERS_BOUND_AS = {
     "EditError::NotAGauge": "EditError.variant",
     "EditError::GaugeCycle": "EditError.variant",
     "EditError::WouldStartPlacing": "EditError.variant",
+    "EditError::PromoteOnNonInstance": "EditError.variant",
+    "EditError::PromoteWithoutOffset": "EditError.variant",
+    "EditError::PromoteNonRoot": "EditError.variant",
+    "EditError::PromoteMemberOffset": "EditError.variant",
+    "EditError::FoldOnNonGauge": "EditError.variant",
+    "EditError::FoldWouldStartPlacing": "EditError.variant",
+    "EditError::FoldWouldDangle": "EditError.variant",
     "EditError::PlacementRuleMismatch": "EditError.variant",
     "EditError::EmptyPlacementList": "EditError.variant",
     "EditError::ImproperPlacement": "EditError.variant",
@@ -3567,7 +3592,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::MovedMemberOffset": "InlineError.variant",
     "InlineError::PartDeadGauge": "InlineError.variant",
     "InlineError::MateFrameCrosses": "InlineError.variant",
-    "InlineError::MateFaceFrameCrosses": "InlineError.variant",
     "InlineError::MatePairSplits": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
@@ -3589,7 +3613,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::FaceUnresolved": "MateFault.variant",
     # A mate frame's two arms cross as `MateFrame.variant`
     # (`authored`, `from_face`); the constructor `MateFrame(...)` is
-    # the authored arm and `MateFrame.from_face(...)` the other.
+    # the authored arm and `MateFrame.from_face()` the other.
     "MateFrame::Authored": "MateFrame.variant",
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::OffsetDisagrees": "MateFault.variant",
@@ -3704,12 +3728,11 @@ MEMBERS_BOUND_AS = {
     "SplitError::TwoAnchors": "SplitError.variant",
     "SplitError::DeadGaugeReference": "SplitError.variant",
     "SplitError::NoMaterial": "SplitError.variant",
+    "SplitError::UnplaceableRoot": "SplitError.variant",
     "SplitError::UnplacedAlone": "SplitError.variant",
     "SplitError::WouldStartPlacing": "SplitError.variant",
     "SplitError::PlacingMateLeft": "SplitError.variant",
     "SplitError::MateFrameCrosses": "SplitError.variant",
-    "SplitError::MateFaceFrameCrosses": "SplitError.variant",
-    "SplitError::HoistedMemberOffset": "SplitError.variant",
     "SplitError::UncutParamReference": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",

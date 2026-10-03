@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
@@ -550,7 +551,6 @@ test_utils::f6_variants! {
         Pattern,
         Part,
         PlacedUnion,
-        Declare,
         InstantiatePart,
         Gauge,
         Mate,
@@ -621,6 +621,7 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Extrude {
             profile: nid(1),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
         Node::Revolve {
             profile: nid(1),
@@ -682,11 +683,11 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             op: BooleanOp::Union,
             a: nid(1),
             b: nid(2),
-            declare: None,
+            declare: Vec::new(),
         },
         Node::Union {
             members: vec![nid(1), nid(2)],
-            declare: None,
+            declare: Vec::new(),
         },
         Node::transform(
             nid(1),
@@ -758,7 +759,6 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             of: nid(1),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
-        Node::Declare { pairs: Vec::new() },
         Node::InstantiatePart {
             doc_ref: DocRef {
                 id: DocumentId::derive("switch-slots-census"),

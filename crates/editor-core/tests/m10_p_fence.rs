@@ -156,6 +156,14 @@
 //! equality, the curved and cert corpora, and the persistence round
 //! trip all hold.
 //!
+//! RE-BLESSED FOR DECLARED PAIRS AS A BOOLEAN'S OWN PAYLOAD, a
+//! structural move: a boolean's or union's declared pairs stopped
+//! being a separate node, so every declaring document lost its
+//! declaration nodes' outcomes from the stream and every node minted
+//! after one was renumbered. The geometric evidence the paragraph below
+//! names (`exact_mass_pins_hold`, the corpus transform digests, which
+//! held bit for bit on every transform that kept its id) is unchanged.
+//!
 //! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
 //! measured by the removal procedure below — which is why it is written
 //! out here rather than folded in with the roster moves.
@@ -713,7 +721,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x5445_1df3_5b4b_aac4, 0x47af_0d73_5deb_24f0),
+        (0x458d_97fb_11a1_d19a, 0xc786_dfaf_c59b_ca6e),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -739,7 +747,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x9442_789e_7349_ddc6, 0xb8fa_fa3f_0c9a_4dca),
+        (0x9502_c488_ae26_81a8, 0x09a9_49e7_a4a7_2704),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -763,7 +771,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x5445_1df3_5b4b_aac4, 0x47af_0d73_5deb_24f0),
+        (0x458d_97fb_11a1_d19a, 0xc786_dfaf_c59b_ca6e),
         "the corpus's Probe evaluation moved"
     );
 }

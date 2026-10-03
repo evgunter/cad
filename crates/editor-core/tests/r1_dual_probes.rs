@@ -66,6 +66,7 @@ test_utils::gated_to![
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use test_utils::fuzz;
 
@@ -266,10 +267,6 @@ where
                         for b in bodies {
                             body_deep(&mut d, b);
                         }
-                    }
-                    ValuePayload::Declarations(pairs) => {
-                        d.u64(19);
-                        d.u64(pairs.len() as u64);
                     }
                     ValuePayload::Mate(_) => d.u64(20),
                     ValuePayload::Gauge => d.u64(25),
@@ -513,6 +510,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let slab = r.insert(Node::Extrude {
         profile: plate,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     let xy_frame_1 = r.insert(xy_frame());
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
@@ -523,12 +521,13 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let boss = r.insert(Node::Extrude {
         profile: boss_profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let fused = r.insert(Node::Boolean {
         op: editor_core::BooleanOp::Union,
         a: slab,
         b: boss,
-        declare: None,
+        declare: Vec::new(),
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(0.75)],

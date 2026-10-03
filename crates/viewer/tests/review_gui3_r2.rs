@@ -30,6 +30,7 @@ test_utils::gated_to![
     "crates/editor-core/src/test_support.rs",
 ];
 
+use pncad::document::ExtrudeSide;
 use std::sync::Arc;
 
 use pncad::document::{
@@ -75,6 +76,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(0.006),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -657,6 +659,7 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
             // A zero extrude distance: well-dimensioned at the edit
             // door, refused by the operation at evaluation.
             distance: len(0.0),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

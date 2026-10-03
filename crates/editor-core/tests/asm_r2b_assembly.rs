@@ -27,6 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use editor_core::{
@@ -65,6 +66,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -94,7 +96,7 @@ fn kiss_part(label: &str) -> ProfileDoc {
             op: editor_core::BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     doc

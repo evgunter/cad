@@ -26,24 +26,21 @@
 //! A real extruded heat sink's fins are flush with its base, and the
 //! flush document builds: fins sketched ON the base top, the five
 //! base-face pairs found by `find_flush_candidates` (each a `Rest`,
-//! `SameOpposite`), declared through `declare_node`, and the union
+//! `SameOpposite`), declared through `declared_pairs` on the union, and the union
 //! against the five-shell `PlacedUnion` operand comes out at the
 //! closed-form volume of the rounded base + 5 fins.
 //!
 //! The count EDIT is what the flush document cannot take in one step.
-//! The `Declare` names the five instances it was detected against, the
-//! edit to 7 makes `Instance(5)` and `Instance(6)` flush with nothing
-//! declaring them, and the union refuses `UndeclaredCoincidence` on
-//! `Instance(5)` — correctly. No edit extends the declaration on the
-//! live union (DM6: none rewires its `declare` input; the ruled
-//! recourse is `work/recipe/declared-pairs-are-a-booleans-own-payload.md`).
-//! The door that does exist is delete-and-re-add: delete the union and
-//! its `Declare`, detect again (seven pairs), declare, insert a new
-//! union — which builds at the closed-form volume of 7 fins. That is
-//! four edits per count step and a NEW union node, where this scene's
-//! subject is one edit recomputing only what is downstream of it, so
-//! the scene keeps the sunk fins and measures the door instead
-//! (`work/doors/a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added.md`).
+//! The union's declaration names the five instances it was detected
+//! against, the edit to 7 makes `Instance(5)` and `Instance(6)` flush
+//! with nothing declaring them, and the union refuses
+//! `UndeclaredCoincidence` on `Instance(5)` — correctly. The recourse is
+//! a second edit: detect again (seven pairs) and set them as the LIVE
+//! union's declaration (`declare_all`, a `SetDeclare`), which builds at
+//! the closed-form volume of 7 fins with the union keeping its id. That
+//! is two edits per count step, where this scene's subject is one edit
+//! recomputing only what is downstream of it, so the scene keeps the
+//! sunk fins and measures the two-edit door instead.
 //!
 //! # One wall, run live ([`wall_probes`])
 //!
@@ -62,6 +59,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use pncad::document::{
@@ -76,7 +74,7 @@ use pncad::geom_core::Probe;
 use pncad::prelude::PlaneRelation;
 use pncad::select::{
     BooleanCoincidence, ContactClass, EntityKind, NamePat, RoleSeg, SegPat, SegTag, Selector,
-    all_edges, declare_node, find_flush_candidates, select,
+    all_edges, declare_all, declared_pairs, find_flush_candidates, select,
 };
 use pncad::sweep::blend::BlendError;
 
@@ -131,8 +129,6 @@ struct Recipe {
     solid: RecipeNodeId,
     /// The node the union takes as its base operand.
     base: RecipeNodeId,
-    /// The `Declare` feeding the union, when the fins sit flush.
-    declare: Option<RecipeNodeId>,
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
@@ -227,6 +223,7 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         Node::Extrude {
             profile: base_p,
             distance: pe("250 mm"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -253,6 +250,7 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         Node::Extrude {
             profile: fin_p,
             distance: pe(fin_height),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -272,7 +270,7 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         tol,
     );
     let declare = match seat {
-        Seat::Sunk => None,
+        Seat::Sunk => Vec::new(),
         Seat::Flush => {
             let found = find_flush_candidates(&eval(&doc, None, tol), base, group, tol)
                 .expect("the fin feet are definite flush pairs");
@@ -286,11 +284,7 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
                 ),
                 "every foot rests on the top: {found:#?}"
             );
-            Some(insert(
-                &mut doc,
-                declare_node(&found).expect("nonempty findings"),
-                tol,
-            ))
+            declared_pairs(&found)
         }
     };
     let solid = insert(
@@ -308,7 +302,6 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         group,
         solid,
         base,
-        declare,
     }
 }
 
@@ -401,13 +394,10 @@ fn outcome(ev: &Evaluation<f64>, node: RecipeNodeId) -> Result<(), &NodeErrorKin
 /// Flush fins, measured live — the module docs' first section.
 ///
 /// Not a wall: an undeclared contact after the count edit refusing is
-/// the boolean failing loud, and stays right whatever declaration door
-/// lands. What is missing is an edit that extends the declaration on
-/// the live union, and there is none to attempt; the delete-and-re-add
-/// that does exist is measured here instead.
+/// the boolean failing loud. The recourse is a second edit, measured
+/// here: the re-detected pairs set as the live union's declaration.
 fn flush_fins(tol: Tol) {
     let flush = build_doc(tol, Seat::Flush, true);
-    let declare = flush.declare.expect("flush fins are declared");
     let ev5 = eval(&flush.doc, None, tol);
     solidify(&flush, &ev5, 5, tol);
     println!(
@@ -427,44 +417,20 @@ fn flush_fins(tol: Tol) {
         "   flush fins, count edited 5 -> 7: the union refuses UndeclaredCoincidence on Instance(5)"
     );
 
-    // The recourse that exists: delete the union and its Declare,
-    // detect again at 7, declare, insert a NEW union.
-    let mut doc = doc7;
-    for id in [flush.solid, declare] {
-        doc = apply(&doc, &DocEdit::DeleteNode { id }, tol, &RefusingReach)
-            .expect("the union is a sink, and then its Declare is")
-            .doc;
-    }
-    let ev_cut = eval(&doc, Some(&ev7), tol);
-    let found = find_flush_candidates(&ev_cut, flush.base, flush.group, tol)
+    // The recourse: detect again at 7 and set the pairs as the live
+    // union's whole declaration.
+    let found = find_flush_candidates(&ev7, flush.base, flush.group, tol)
         .expect("the fin feet are definite flush pairs");
     assert_eq!(found.len(), 7, "one contact per fin: {found:#?}");
-    let redeclared = insert(
-        &mut doc,
-        declare_node(&found).expect("nonempty findings"),
-        tol,
-    );
-    let solid = insert(
-        &mut doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: flush.base,
-            b: flush.group,
-            declare: Some(redeclared),
-        },
-        tol,
-    );
-    let ev = eval(&doc, Some(&ev_cut), tol);
-    let readded = Recipe {
-        doc,
-        solid,
-        declare: Some(redeclared),
-        ..flush
-    };
-    solidify(&readded, &ev, 7, tol);
+    let doc = declare_all(&doc7, flush.solid, &found, tol)
+        .expect("the union is live and the findings are its operands'")
+        .doc;
+    let ev = eval(&doc, Some(&ev7), tol);
+    let redeclared = Recipe { doc, ..flush };
+    solidify(&redeclared, &ev, 7, tol);
     println!(
-        "   flush fins, delete + re-detect + re-add at 7: the union builds, volume {} \
-         (four edits; recomputed {}, reused {}; the union is a new node)",
+        "   flush fins, re-detect + declare on the live union at 7: the union builds, volume {} \
+         (two edits; recomputed {}, reused {}; the union keeps its id)",
         volume(7),
         ev.recomputed,
         ev.reused

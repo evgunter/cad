@@ -1,5 +1,5 @@
 //! M5 S1, recipe layer: the declared-REST union zip driven by recipe
-//! intent (`Declare` → `Boolean{declare}`) — persistence round-trip of
+//! intent (the declared pairs on `Boolean{declare}`) — persistence round-trip of
 //! a glued body and the naming-key stability row.
 //!
 //! The document: two stacked plates (full-face REST contact at z = 1)
@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, EvalOptions, Node, ProfileDoc, RecipeNodeId,
@@ -39,11 +40,12 @@ fn block(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
 
-/// The stacked-plates REST document: plates + Declare + union.
+/// The stacked-plates REST document: plates + declared union.
 /// Returns (doc, union node).
 fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m5_s1_rest_declare", Tol::witness());
@@ -80,14 +82,13 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
             .into_iter()
             .map(|w| (w, editor_core::BooleanCoincidence::Continuation)),
     );
-    let (doc, decl) = insert(doc, Node::Declare { pairs });
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: pairs,
         },
     );
     (doc, u)

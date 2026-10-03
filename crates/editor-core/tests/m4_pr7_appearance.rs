@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::NodeStanding;
 use editor_core::{
@@ -64,6 +65,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -249,6 +251,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
@@ -491,7 +494,7 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Attribute a UNION-minted face name (node = the boolean).
@@ -626,6 +629,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
@@ -634,7 +638,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, sub)
@@ -679,7 +683,7 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     // row, `at` = the first carrying node in evaluation order, the rest
     // derivable by table lookup.
     let (doc, sub) = tie_fixture();
-    let (doc, moved) = insert(
+    let (doc, _moved) = insert(
         doc,
         Node::transform(
             sub,
@@ -703,10 +707,7 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     assert_eq!(ev.appearance.losses[0].name, tied);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::Ambiguous {
-            at: sub.min(moved),
-            width: 2
-        }
+        AppearanceLossCause::Ambiguous { at: sub, width: 2 }
     );
     assert!(ev.appearance.resolved.is_empty(), "ties are never painted");
 }
@@ -735,7 +736,7 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));

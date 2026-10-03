@@ -84,15 +84,14 @@ fn direction(v: pncad::geom_core::Vec3<f64>) -> (f64, f64, f64) {
 /// are plain numbers — a direction has no dimension — while `origin`
 /// is three lengths.
 ///
-/// **From a face** (`MateFrame.from_face`): the PART-LOCAL name of a
-/// face of the mated part — a row of the part's own product table,
-/// the spelling `evaluate(part).select(...)` answers on the part's
-/// own document, never the instance-qualified spelling a mate head
-/// carries — whose canonical pose the solve reads off the part's own
-/// evaluation at every evaluation (`ASSEMBLY.md` A11 rule 5): the
-/// carrier's origin, its CHART axis, and its own in-frame reference
-/// direction as the roll — so a face frame's roll is the carrier's,
-/// and a side that needs a roll of its own takes authored vectors.
+/// **From a face** (`MateFrame.from_face()`): no name and no number.
+/// The side's frame is its own HEAD's face — the face the mate's
+/// reference on that side names, read in the mated part — whose
+/// canonical pose the solve reads off the part's own evaluation at
+/// every evaluation (`ASSEMBLY.md` A11 rule 5): the carrier's origin,
+/// its CHART axis, and its own in-frame reference direction as the
+/// roll — so a face frame's roll is the carrier's, and a side that
+/// needs a roll of its own takes authored vectors.
 /// The face's orientation sense is not folded into the axis; the
 /// mate's `AxisSense` says which way the sides point. Nothing is
 /// stored twice: edit the part so the face moves, and the mate
@@ -123,16 +122,12 @@ impl MateFrame {
         ))
     }
 
-    /// A frame resolved from `face`, a face of the part by its
-    /// PART-LOCAL name text (the class docs say which spelling). The
-    /// name is the whole frame: its roll is the carrier's own. Raises
-    /// `ValueError` for text that is not a stable name, and
-    /// `EditError` (`mate_head_not_a_face`) for a name of another
-    /// kind — the same door a mate head goes through.
+    /// A frame resolved from the side's own head face (the class docs
+    /// say how). It takes nothing: the head is the face, and its roll
+    /// is the carrier's own.
     #[staticmethod]
-    fn from_face(py: Python<'_>, face: &str) -> PyResult<Self> {
-        let face = super::doc::face_name_from_text(py, face)?;
-        Ok(Self(d::MateFrame::from_face(face)))
+    fn from_face() -> Self {
+        Self(d::MateFrame::FromFace)
     }
 
     /// Which arm: `"authored"` or `"from_face"`.
@@ -140,7 +135,7 @@ impl MateFrame {
     fn variant(&self) -> &'static str {
         match &self.0 {
             d::MateFrame::Authored(_) => "authored",
-            d::MateFrame::FromFace(_) => "from_face",
+            d::MateFrame::FromFace => "from_face",
         }
     }
 
@@ -168,16 +163,6 @@ impl MateFrame {
         self.0
             .authored_vectors()
             .map(|f| (f.reference[0], f.reference[1], f.reference[2]))
-    }
-
-    /// The face a `from_face` frame names, as its name text in the
-    /// part's own spelling; `None` on an authored frame.
-    #[getter]
-    fn face(&self, py: Python<'_>) -> PyResult<Option<String>> {
-        self.0
-            .face()
-            .map(|face| super::doc::name_text(py, &face.face))
-            .transpose()
     }
 
     /// The rigid placement an AUTHORED frame denotes: local +Z is
@@ -211,17 +196,14 @@ impl MateFrame {
         self.0 == other.0
     }
 
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        Ok(match &self.0 {
+    fn __repr__(&self) -> String {
+        match &self.0 {
             d::MateFrame::Authored(f) => format!(
                 "MateFrame(origin={:?}, axis={:?}, reference={:?})",
                 f.origin, f.axis, f.reference
             ),
-            d::MateFrame::FromFace(f) => format!(
-                "MateFrame.from_face({:?})",
-                super::doc::name_text(py, &f.face)?
-            ),
-        })
+            d::MateFrame::FromFace => "MateFrame.from_face()".to_owned(),
+        }
     }
 }
 
@@ -762,11 +744,12 @@ impl MateFault {
         self.payload().root.map(NodeId)
     }
 
-    /// The face a `from_face` frame named, as its name text in the
-    /// PART's own spelling, where the refusal is about one
+    /// The face a `from_face` side read — its head's face, as its name
+    /// text in the PART's own spelling, or the head itself where it
+    /// names no face of the part — where the refusal is about one
     /// (`mate_face_unresolved`, whose `inner_variant` names why: the
-    /// part not in hand, the face's own row, tie or carrier, or a
-    /// product on an analysis lane).
+    /// part not in hand, the face's own row, tie or carrier, a product
+    /// on an analysis lane, or `no_part_face`).
     #[getter]
     fn face(&self, py: Python<'_>) -> PyResult<Option<String>> {
         self.payload()
@@ -1239,19 +1222,17 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 /// inapplicable: `node` and `offset` for an `offset_cleared` — a
 /// member of the mate's first operand's group, now placed on the
 /// second's, and the offset it gave up; `node` and `name` for a
-/// strand, `name` alone for a `stranded_appearance`, whose carrier is
-/// the appearance store and not a node, and `node` alone for an
-/// `orphaned_declare`, whose subject is the surviving declaration
-/// rather than anything the edit broke.
+/// strand, and `name` alone for a `stranded_appearance`, whose carrier is
+/// the appearance store and not a node.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Maintenance(pub(crate) d::Maintenance);
 
 #[pymethods]
 impl Maintenance {
-    /// The stable tag: `offset_cleared`, `strand`,
-    /// `stranded_appearance` or `orphaned_declare`, the four the stub
-    /// lists for this attribute. The word decides which of the payload
+    /// The stable tag: `offset_cleared`, `strand` or
+    /// `stranded_appearance`, the three the stub lists for this
+    /// attribute. The word decides which of the payload
     /// attributes below carry.
     // The map is `crate::tags::maintenance_tag`, whose words
     // `TAG_INVENTORY` pins.
@@ -1261,9 +1242,8 @@ impl Maintenance {
     }
 
     /// The node this row is about: the instance whose offset the mate
-    /// door cleared, the surviving node whose payload carries a
-    /// stranded name, or the declaration an `orphaned_declare` left
-    /// with no consumer. `None` for a `stranded_appearance`, which has
+    /// door cleared, or the surviving node whose payload carries a
+    /// stranded name. `None` for a `stranded_appearance`, which has
     /// no carrying node to name.
     ///
     /// The arms answer different questions with one attribute on
@@ -1275,7 +1255,7 @@ impl Maintenance {
         match &self.0 {
             d::Maintenance::OffsetCleared { instance, .. } => Some(NodeId(instance.id())),
             d::Maintenance::Strand { node, .. } => Some(NodeId(node.id())),
-            d::Maintenance::OrphanedDeclare { declare } => Some(NodeId(declare.id())),
+            d::Maintenance::LabelDropped { gauge, .. } => Some(NodeId(gauge.id())),
             d::Maintenance::StrandedAppearance { .. } => None,
         }
     }
@@ -1293,9 +1273,7 @@ impl Maintenance {
             d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
                 super::doc::name_text(py, name.name()).map(Some)
             }
-            d::Maintenance::OffsetCleared { .. } | d::Maintenance::OrphanedDeclare { .. } => {
-                Ok(None)
-            }
+            d::Maintenance::OffsetCleared { .. } | d::Maintenance::LabelDropped { .. } => Ok(None),
         }
     }
 
@@ -1308,7 +1286,7 @@ impl Maintenance {
             }
             d::Maintenance::Strand { .. }
             | d::Maintenance::StrandedAppearance { .. }
-            | d::Maintenance::OrphanedDeclare { .. } => None,
+            | d::Maintenance::LabelDropped { .. } => None,
         }
     }
 

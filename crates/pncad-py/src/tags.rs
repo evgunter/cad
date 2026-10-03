@@ -374,7 +374,7 @@ pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
 /// [`BoundaryEdit`] its raise takes.
 ///
 /// Exhaustive over that enum, so the boundary's set of refusals is
-/// closed: a fourth needs a variant there and an arm here before it can
+/// closed: another needs a variant there and an arm here before it can
 /// be raised. Two arms FORWARD the kernel value whole rather than
 /// restating its word, so the delegation is the real one the inventory
 /// reads — the whole of each delegate's vocabulary is reachable
@@ -383,7 +383,6 @@ pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
 pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
     match refusal {
         BoundaryEdit::NameSerialize => "name_serialize",
-        BoundaryEdit::Declare(err) => declare_error_tag(err),
         BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
         BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
         BoundaryEdit::ParamName(_) => "param_name_not_an_identifier",
@@ -397,13 +396,7 @@ pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
 pub fn boundary_edit_inner_tag(refusal: BoundaryEdit<'_>) -> Option<&'static str> {
     match refusal {
         BoundaryEdit::PlacementRule(fault) => placement_rule_inner_tag(fault),
-        BoundaryEdit::Declare(pncad::select::DeclareError::Edit(inner)) => {
-            edit_inner_variant_tag(inner)
-        }
-        BoundaryEdit::Declare(
-            pncad::select::DeclareError::NoFindings | pncad::select::DeclareError::NoMintedId,
-        )
-        | BoundaryEdit::NameSerialize
+        BoundaryEdit::NameSerialize
         | BoundaryEdit::MateHead(_)
         | BoundaryEdit::ParamName(_)
         | BoundaryEdit::Label(_) => None,
@@ -568,7 +561,11 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::RepeatedDesignation { .. } => "repeated_designation",
         EditError::SelectionNotCanonical { .. } => "selection_not_canonical",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::SetDeclareOnNonDeclaring { .. } => "set_declare_on_non_declaring",
+        EditError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
+        EditError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
+        EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
         EditError::NodeIdCollides { .. } => "node_id_collides",
         EditError::TooFewMembers { .. } => "too_few_members",
@@ -585,7 +582,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PayloadDocParamDimension { .. } => "payload_doc_param_dimension",
         EditError::MeasureMalformed { .. } => "measure_malformed",
         EditError::AssertionTarget { .. } => "assertion_target",
-        EditError::DeclareInputNotDeclare { .. } => "declare_input_not_declare",
         EditError::AssertionDimension { .. } => "assertion_dimension",
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
         EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
@@ -629,6 +625,13 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::NotAGauge { .. } => "not_a_gauge",
         EditError::GaugeCycle { .. } => "gauge_cycle",
         EditError::WouldStartPlacing { .. } => "would_start_placing",
+        EditError::PromoteOnNonInstance { .. } => "promote_on_non_instance",
+        EditError::PromoteWithoutOffset { .. } => "promote_without_offset",
+        EditError::PromoteNonRoot { .. } => "promote_non_root",
+        EditError::PromoteMemberOffset { .. } => "promote_member_offset",
+        EditError::FoldOnNonGauge { .. } => "fold_on_non_gauge",
+        EditError::FoldWouldStartPlacing { .. } => "fold_would_start_placing",
+        EditError::FoldWouldDangle { .. } => "fold_would_dangle",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
@@ -1237,7 +1240,11 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::RepeatedDesignation { .. } => None,
         EditError::SelectionNotCanonical { .. } => None,
         EditError::SetMembersOnNonList { .. } => None,
+        EditError::SetDeclareOnNonDeclaring { .. } => None,
+        EditError::DeclaredSiteNotAnOperand { .. } => None,
+        EditError::DeclaredNameNotUpstream { .. } => None,
         EditError::SetProgramOnNonProfile { .. } => None,
+        EditError::SetExtrudeSideOnNonExtrude { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
         EditError::NodeIdCollides { .. } => None,
@@ -1251,7 +1258,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::PayloadUnknownDocParam { .. } => None,
         EditError::PayloadDocParamDimension { .. } => None,
         EditError::AssertionTarget { .. } => None,
-        EditError::DeclareInputNotDeclare { .. } => None,
         EditError::AssertionDimension { .. } => None,
         EditError::SlotDocParamDimension { .. } => None,
         EditError::ContinuousParamCannotBeCount { .. } => None,
@@ -1289,6 +1295,13 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::NotAGauge { .. } => None,
         EditError::GaugeCycle { .. } => None,
         EditError::WouldStartPlacing { .. } => None,
+        EditError::PromoteOnNonInstance { .. } => None,
+        EditError::PromoteWithoutOffset { .. } => None,
+        EditError::PromoteNonRoot { .. } => None,
+        EditError::PromoteMemberOffset { .. } => None,
+        EditError::FoldOnNonGauge { .. } => None,
+        EditError::FoldWouldStartPlacing { .. } => None,
+        EditError::FoldWouldDangle { .. } => None,
         // Which answer the rule gives twice is the arm.
         EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
@@ -1396,6 +1409,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
     match err {
         ExtrudeError::Band(_) => "band",
         ExtrudeError::DegenerateExtrusion => "degenerate_extrusion",
+        ExtrudeError::NegativeDepth { .. } => "negative_depth",
         ExtrudeError::ObliqueExtrusion => "oblique_extrusion",
         ExtrudeError::ExtrusionEscalated { .. } => "extrusion_escalated",
         ExtrudeError::CosurfaceEscalated { .. } => "cosurface_escalated",
@@ -1557,9 +1571,11 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
         BooleanErrorKind::RimSeamNotDeclarable => "rim_seam_not_declarable",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
+        BooleanErrorKind::TangentSlitArmUnbuilt => "tangent_slit_arm_unbuilt",
         BooleanErrorKind::InvalidDeclaration => "invalid_declaration",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
+        BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CorruptOperand => "corrupt_operand",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
@@ -1790,6 +1806,7 @@ pub fn face_refusal_tag(refusal: &FaceRefusal) -> &'static str {
     match refusal {
         FaceRefusal::Reach { refusal, .. } => face_pose_refusal_tag(refusal),
         FaceRefusal::NotAnInstance { .. } => "not_an_instance",
+        FaceRefusal::NoPartFace { .. } => "no_part_face",
     }
 }
 
@@ -1863,18 +1880,11 @@ pub fn offset_check_tag(cause: &OffsetCheck) -> &'static str {
 /// `Doc.declare`/`Doc.declare_all` doors over
 /// `editor_core::declare_all`). The `Edit` arm carries the document
 /// layer's own tag through rather than flattening it.
-///
-/// `no_minted_id` is published by a SECOND door too: `Doc.insert`
-/// refuses the same contract violation — an insert that applied and
-/// minted nothing — and takes its word from this map rather than
-/// restating it, so the two doors cannot drift into two spellings of
-/// one refusal. A rename here moves both.
 pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
     use pncad::select::DeclareError as E;
     match err {
         E::NoFindings => "no_findings",
         E::Edit(inner) => edit_error_tag(inner),
-        E::NoMintedId => "no_minted_id",
     }
 }
 
@@ -1925,9 +1935,10 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
+        SnapshotError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
+        SnapshotError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         SnapshotError::DanglingInput { .. } => "dangling_input",
         SnapshotError::ForwardInput { .. } => "forward_input",
-        SnapshotError::DeclareInput { .. } => "declare_input",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
         SnapshotError::LabelOnMissingNode { .. } => "label_on_missing_node",
@@ -2450,12 +2461,11 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::TwoAnchors { .. } => "two_anchors",
         SplitError::DeadGaugeReference { .. } => "dead_gauge_reference",
         SplitError::NoMaterial { .. } => "no_material",
+        SplitError::UnplaceableRoot { .. } => "unplaceable_root",
         SplitError::UnplacedAlone { .. } => "unplaced_alone",
         SplitError::WouldStartPlacing { .. } => "would_start_placing",
         SplitError::PlacingMateLeft { .. } => "placing_mate_left",
         SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
-        SplitError::MateFaceFrameCrosses { .. } => "mate_face_frame_crosses",
-        SplitError::HoistedMemberOffset { .. } => "hoisted_member_offset",
         SplitError::UncutParamReference { .. } => "uncut_param_reference",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
@@ -2489,7 +2499,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::MovedMemberOffset { .. } => "moved_member_offset",
         InlineError::PartDeadGauge { .. } => "part_dead_gauge",
         InlineError::MateFrameCrosses { .. } => "mate_frame_crosses",
-        InlineError::MateFaceFrameCrosses { .. } => "mate_face_frame_crosses",
         InlineError::MatePairSplits { .. } => "mate_pair_splits",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
@@ -3203,16 +3212,13 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 /// on the second's — and carries that offset, a `strand` the
 /// surviving node and the name whose minting node the edit deleted,
 /// and a `stranded_appearance` that same name with no carrying node,
-/// because the appearance store is what carries it. An
-/// `orphaned_declare` names the declaration the delete left with no
-/// consumer, on `node`, and carries no name at all: nothing is
-/// dangling there, the node is simply no longer read.
+/// because the appearance store is what carries it.
 pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
         Maintenance::OffsetCleared { .. } => "offset_cleared",
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
-        Maintenance::OrphanedDeclare { .. } => "orphaned_declare",
+        Maintenance::LabelDropped { .. } => "label_dropped",
     }
 }
 

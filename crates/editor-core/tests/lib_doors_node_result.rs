@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use crate::fixture::len;
@@ -60,6 +61,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Box::new(Node::Extrude {
             profile: outer_profile,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         }),
     );
     let inner_profile = insert(&mut doc, Box::new(square(plane, 1.0)));
@@ -68,6 +70,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Box::new(Node::Extrude {
             profile: inner_profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         }),
     );
     let cut = insert(
@@ -76,7 +79,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: outer,
             b: inner,
-            declare: None,
+            declare: Vec::new(),
         }),
     );
     let downstream = insert(
@@ -85,7 +88,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             op: BooleanOp::Union,
             a: cut,
             b: outer,
-            declare: None,
+            declare: Vec::new(),
         }),
     );
     (doc, cut, downstream)
@@ -206,7 +209,7 @@ fn refusals_render_as_prose_not_debug_guts() {
         message.contains("Boolean refused an undeclared coincidence"),
         "{message}"
     );
-    assert!(message.contains("declare the candidate pair"), "{message}");
+    assert!(message.contains("add the candidate pair"), "{message}");
     for guts in [
         "UndeclaredCoincidence",
         "UndeclaredContact",

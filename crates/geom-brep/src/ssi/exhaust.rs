@@ -1038,7 +1038,7 @@ fn sweep_chart_plane(
         if !phi.is_certified() {
             // The one measured route here is weight underflow: the
             // chart-speed mint refuses every net whose quotient-rule
-            // arithmetic (`NurbsBoxes::deriv_box`) leaves the finite
+            // arithmetic (`NurbsBoxes::speed_sup`) leaves the finite
             // range before this sweep runs, so that cause is named
             // nowhere below.
             return Err(SsiError::UnsupportedCertificate {

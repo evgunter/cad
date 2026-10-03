@@ -535,14 +535,13 @@ pub enum SessionOp {
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
-    /// A NEGATIVE distance is admitted deliberately and builds: it is
-    /// an extrusion along the negative sketch normal, the same value
-    /// the property panel can author into the slot afterwards, and
-    /// the door does not narrow what the vocabulary means.
+    /// The extrude goes along the sketch normal. The distance is a
+    /// depth: the door inserts what it is given, and a negative one
+    /// refuses at evaluation, naming the side as its recourse.
     AddExtrude {
         /// The profile node extruded.
         profile: RecipeNodeId,
-        /// The extrusion distance (`Length`).
+        /// The extrusion depth (`Length`).
         distance: Expr,
     },
     /// Insert one revolve of an existing profile node about an
@@ -571,11 +570,10 @@ pub enum SessionOp {
     /// fact about any node's inputs, not about booleans, so it is
     /// stated once where every node kind reaches it.
     ///
-    /// **A contact is declared in the same action or not at all.** No
-    /// edit attaches a declaration to a live node, so an empty
-    /// `declare` authors the node's `declare` as `None` and a non-empty
-    /// one commits a `Node::Declare` of exactly those findings and then
-    /// the boolean naming it — one action, one undo. The door evaluates
+    /// **The findings become the boolean's own declared pairs**: an
+    /// empty `declare` authors an undeclared boolean, and a non-empty
+    /// one a boolean carrying exactly those findings' pairs — one
+    /// insert, one undo. The door evaluates
     /// the boolean before recording it, and one that refuses an
     /// undeclared contact of its own is not committed:
     /// [`Refusal::Contact`] carries the kernel's finding back, and its
@@ -1566,16 +1564,15 @@ pub struct OpOutcome {
     /// The log keeps the edits alone (replay re-applies them, and each
     /// re-derives its rows), so this is the one place the rows —
     /// a name stranded or rewritten in place, an appearance key
-    /// stranded, a declaration left with no consumer — leave the
-    /// session. The chrome words them through
+    /// stranded — leave the session. The chrome words them through
     /// [`crate::frame::outcome_notices`].
     ///
     /// **Net over the action, not per edit.** One action can apply
     /// several edits (a cascade delete, a profile on a new frame), and
     /// a row an earlier edit reported can be made moot by a later one — a strand the action went on to repair or whose
-    /// carrier it deleted, an orphan it consumed again, a name it moved
-    /// twice. The rows are folded through
-    /// `pncad::document::MaintenanceNet`, which states which survive,
+    /// carrier it deleted, a name it moved
+    /// twice. The rows are netted by the action's
+    /// `pncad::document::Recording`, which states which survive,
     /// so this holds what is true of the document the action ended at.
     ///
     /// Empty on every operation that committed nothing, and on a

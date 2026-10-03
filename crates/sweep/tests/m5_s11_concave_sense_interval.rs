@@ -14,6 +14,7 @@
 use crate::common::operands::pellet;
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
+use sweep::ExtrudeSide;
 
 use crate::common::interval::{iv, p2, p3, v2};
 use geom_core::Tol;
@@ -42,7 +43,10 @@ fn notched() -> Body<Interval> {
     ]);
     extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(iv(1.0)),
+        Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

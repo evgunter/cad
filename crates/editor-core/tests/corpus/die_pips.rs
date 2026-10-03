@@ -74,6 +74,7 @@
 //! document pins is validity (tier 1 + closed) at every ε row, under
 //! Interval, and through BOTH sweep strategies.
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     Axis3, BooleanOp, DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, SlotId,
@@ -113,6 +114,7 @@ pub fn document() -> CorpusDoc {
     let cube = r.insert(Node::Extrude {
         profile: cube_p,
         distance: len(DIE_L),
+        side: ExtrudeSide::Along,
     });
 
     // ---- the master ball, poled along the +Z face normal ----
@@ -155,7 +157,7 @@ pub fn document() -> CorpusDoc {
         op: BooleanOp::Subtract,
         a: cube,
         b: pip,
-        declare: None,
+        declare: Vec::new(),
     });
 
     CorpusDoc {

@@ -49,6 +49,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -89,7 +90,6 @@ test_utils::f6_variants! {
         Pattern,
         Part,
         PlacedUnion,
-        Declare,
         InstantiatePart,
         Gauge,
         Mate,
@@ -99,20 +99,11 @@ test_utils::f6_variants! {
 }
 
 /// **The node kinds whose value carries no names**: a datum, a profile,
-/// a declaration list, a solved mate, a measurement and an assertion
-/// verdict are not bodies, so their tables are empty and the
-/// equivalence holds of them vacuously. Listed so that vacuity is
-/// asserted — every sample publishes zero rows — rather than counted as
+/// a solved mate, a measurement and an assertion verdict are not
+/// bodies, so their tables are empty and the equivalence holds of them
+/// vacuously. Listed so that vacuity is asserted — every sample publishes zero rows — rather than counted as
 /// coverage.
-const ROW_FREE: [&str; 7] = [
-    "Datum",
-    "Profile",
-    "Declare",
-    "Mate",
-    "Gauge",
-    "Measure",
-    "Assertion",
-];
+const ROW_FREE: [&str; 6] = ["Datum", "Profile", "Mate", "Gauge", "Measure", "Assertion"];
 
 /// The unit cube `[0,1]³` as a whole part document, and its body.
 fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
@@ -129,6 +120,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }

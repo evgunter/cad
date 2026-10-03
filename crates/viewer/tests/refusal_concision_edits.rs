@@ -177,6 +177,12 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
+            "SetDeclareOnNonDeclaring",
+            EditError::SetDeclareOnNonDeclaring {
+                node: s(5, "Extrude"),
+            },
+        ),
+        (
             "SetProgramOnNonProfile",
             EditError::SetProgramOnNonProfile {
                 node: s(5, "Extrude"),
@@ -273,13 +279,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::AssertionTarget {
                 node: s(6, "Assertion"),
                 measure: s(5, "Extrude"),
-            },
-        ),
-        (
-            "DeclareInputNotDeclare",
-            EditError::DeclareInputNotDeclare {
-                node: s(6, "Union"),
-                input: s(5, "Extrude"),
             },
         ),
         (
@@ -529,6 +528,50 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "WouldStartPlacing",
             EditError::WouldStartPlacing { mate: s(9, "Mate") },
+        ),
+        (
+            "PromoteOnNonInstance",
+            EditError::PromoteOnNonInstance { node: s(9, "Mate") },
+        ),
+        (
+            "PromoteWithoutOffset",
+            EditError::PromoteWithoutOffset {
+                node: s(4, "InstantiatePart"),
+            },
+        ),
+        (
+            "PromoteNonRoot",
+            EditError::PromoteNonRoot {
+                node: s(5, "InstantiatePart"),
+                root: s(4, "InstantiatePart"),
+            },
+        ),
+        (
+            "PromoteMemberOffset",
+            EditError::PromoteMemberOffset {
+                node: s(4, "InstantiatePart"),
+                member: s(5, "InstantiatePart"),
+            },
+        ),
+        (
+            "FoldOnNonGauge",
+            EditError::FoldOnNonGauge {
+                node: s(4, "InstantiatePart"),
+            },
+        ),
+        (
+            "FoldWouldStartPlacing",
+            EditError::FoldWouldStartPlacing {
+                node: s(3, "Gauge"),
+                mate: s(9, "Mate"),
+            },
+        ),
+        (
+            "FoldWouldDangle",
+            EditError::FoldWouldDangle {
+                node: s(3, "Gauge"),
+                referenced_by: s(5, "Datum"),
+            },
         ),
         // `PlacementRuleMismatch`: every shape, each spoken with the
         // node kind that raises it, in `forwarded_edit_refusals`.

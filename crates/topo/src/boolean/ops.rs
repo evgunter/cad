@@ -18,10 +18,12 @@
 //!   is the whole answer (disjoint ∖, nested ∩, …).
 //! - [`Assembly`](BooleanResultKind::Assembly): a multi-shell body
 //!   combining components of both operands without a seam — the
-//!   disjoint union (∪ of separated bodies), including
-//!   touching-at-declared-contacts assemblies (the carried
+//!   disjoint union (∪ of separated bodies), including assemblies
+//!   touching at declared vertex and edge contacts (the carried
 //!   [`ContactRecords`] say where; genuinely 3′, certified by PR 6's
-//!   validator).
+//!   validator). A declared line contact through a face's interior is
+//!   not one: its records would name points of the line, so the union
+//!   refuses it ([`BooleanError::TangentSlitArmUnbuilt`]).
 //! - [`Voided`](BooleanResultKind::Voided): **legitimate voids** —
 //!   A∖B with B strictly inside A yields the outer shell plus the
 //!   reverted inner shell, a tier-2-legal multi-shell body. The
@@ -63,7 +65,7 @@
 //! site seams (R2) and crossing-polygon disconnections (R3),
 //! including mixed collinear+transversal channel cuts (the PR 5.5
 //! review's E-2, closed by the degenerate-segment fix in
-//! `point_in_loop`); interior-rest flush contacts (pillar standing on
+//! `point_in_vertex_polygon`); interior-rest flush contacts (pillar standing on
 //! a face); and the Fig 15.1 coplanar-overlap ∩ (seam partly on
 //! shared cap planes) — the `join` module's derived sense/role
 //! discipline is the consistency theorem behind all of them.
@@ -141,7 +143,7 @@ pub enum BooleanResultKind {
     /// The result is operand B's material.
     OperandB,
     /// A multi-shell combination of components from both operands
-    /// without a seam (disjoint or touching-only).
+    /// without a seam (disjoint, or touching at vertices and edges).
     Assembly,
     /// A∖B with B inside A: outer shell + reverted inner void shell.
     Voided,
@@ -535,6 +537,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let covered = red.covered.clone();
+    let copies = Descendants::null_copies(&red.null_edges);
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
@@ -546,7 +549,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
     let mut vertex_merges = fin.weld_merges_a.clone();
-    let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b);
+    let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b).with_copies(copies);
     // A pinch is one vertex on two seams: the first zip fuses it, so
     // each later zip reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
@@ -2279,6 +2282,9 @@ pub(super) struct Descendants {
     /// Every vertex that participated in a zip fusion (dead OR kept):
     /// its point rests were consumed into seam structure.
     fused: std::collections::BTreeSet<VertexKey>,
+    /// Each operand's null-edge copies, in its clone keys: the vertices
+    /// one null edge joins, on one point by construction.
+    copies: [Vec<(VertexKey, VertexKey)>; 2],
 }
 
 impl Descendants {
@@ -2289,6 +2295,47 @@ impl Descendants {
             b_welds: b.to_vec(),
             ..Self::default()
         }
+    }
+
+    /// The two ends of each of the reduction's null edges, per operand.
+    pub(super) fn null_copies<T: Real>(
+        null_edges: &[super::BoolNullEdgeRecord<T>],
+    ) -> [Vec<(VertexKey, VertexKey)>; 2] {
+        let mut copies = [Vec::new(), Vec::new()];
+        for r in null_edges {
+            copies[usize::from(r.operand == Operand::B)].push((r.attr.below_end, r.attr.above_end));
+        }
+        copies
+    }
+
+    /// The map that also reaches each v-v group's null-edge copies
+    /// ([`remap_contacts`]).
+    pub(super) fn with_copies(self, copies: [Vec<(VertexKey, VertexKey)>; 2]) -> Self {
+        Self { copies, ..self }
+    }
+
+    /// `v` and every vertex null edges join it to, transitively, in
+    /// `side`'s clone keys.
+    fn copies_of(&self, side: Operand, v: VertexKey) -> Vec<VertexKey> {
+        let rows = &self.copies[usize::from(side == Operand::B)];
+        let mut out = vec![v];
+        let mut i = 0;
+        while let Some(&at) = out.get(i) {
+            for &(x, y) in rows {
+                let other = if x == at {
+                    y
+                } else if y == at {
+                    x
+                } else {
+                    continue;
+                };
+                if !out.contains(&other) {
+                    out.push(other);
+                }
+            }
+            i += 1;
+        }
+        out
     }
 
     pub(super) fn absorb_zip(&mut self, rep: &super::zip::ZipReport) {
@@ -2368,8 +2415,11 @@ impl Descendants {
 /// **v-v rows are remapped as groups.** Rows that name a common key
 /// on the same side (an A vertex or a B vertex in two rows) are one
 /// group, closed transitively, and every two distinct live vertices
-/// the group's ends map to are recorded, though no single row named
-/// that pair, two A vertices included. Whatever the pair, both its
+/// the group's ends and their null-edge copies map to are recorded,
+/// though no single row named that pair, two A vertices included. A
+/// copy is minted on its vertex's point, and where two crossing pairs
+/// cut one vertex the pieces the result keeps there are copies no row
+/// names. Whatever the pair, both its
 /// vertices sit at the point the reduction coincided the shared key
 /// with each of them. The inference reads keys and never positions:
 /// it records what the reduction's own coincidences imply, and no
@@ -2426,15 +2476,13 @@ pub(super) fn remap_contacts<T: Real>(
     }
     let mut live: Vec<(usize, VertexKey)> = Vec::new();
     for (c, &g) in contacts.vv.iter().zip(&group) {
-        for v in [
-            vert((Operand::A, &a_view), c.a)?,
-            vert((Operand::B, &b_view), c.b)?,
-        ]
-        .into_iter()
-        .flatten()
-        {
-            if !live.contains(&(g, v)) {
-                live.push((g, v));
+        for (side, view, end) in [(Operand::A, &a_view, c.a), (Operand::B, &b_view, c.b)] {
+            for k in desc.copies_of(side, end) {
+                if let Some(v) = vert((side, view), k)?
+                    && !live.contains(&(g, v))
+                {
+                    live.push((g, v));
+                }
             }
         }
     }

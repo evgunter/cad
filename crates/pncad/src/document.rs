@@ -73,7 +73,10 @@
 // hold what it carries. `MaintenanceNet` rides with it: a consumer
 // that applies several edits as one action (a cascade delete) folds
 // their rows into what is true of the document the action ends at, and
-// that rule has one spelling.
+// that rule has one spelling. `Recording` and `Recorded` are that
+// action whole — the edits applied in order, their rows netted, the
+// ids they minted — so a consumer composing one does not re-write the
+// loop.
 // `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
@@ -86,8 +89,8 @@
 // `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId, StepIdFault, apply,
-    apply_replayed, regauge_then_mate,
+    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, Recorded, Recording,
+    RegaugeThenMateOutcome, StepId, StepIdFault, apply, apply_replayed, regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -103,9 +106,9 @@ pub use editor_core::cascade_delete_order;
 // rides with `PlacementRuleFault`: it is what that fault and
 // `EditError::PlacementRuleMismatch` carry.
 pub use editor_core::{
-    Axis3, BooleanOp, CountMismatch, Datum, InputFault, ListFault, MeasureNodeFault, Node,
-    PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow,
-    VectorSlot,
+    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
+    MeasureNodeFault, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg,
+    SlotId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -361,15 +364,17 @@ pub use editor_core::{
 
 // Mates: the declaration node's
 // authored payload (`Alignment` over two `MateFrame`s — each an
-// `AuthoredFrame` or a `FaceFrame` — a `MatePrimitive`, an
+// `AuthoredFrame` or the head's own face — a `MatePrimitive`, an
 // `AxisSense`), the solve's per-node outcome
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), and `MateFault`
 // — the typed refusal every door carries, the way `RootFault` is
 // carried above. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
-// solve places (`Member` is its answer). `UNDER_RECOURSE` and
-// `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
-// own refusals end on.
+// solve places (`Member` is its answer); `member_reading` is the same
+// walk with the name it reached at the member's instance, and
+// `head_face` the face of the member's part a head names, which a face
+// frame reads. `UNDER_RECOURSE` and `CONTRADICTORY_RECOURSE` are the
+// two recourse sentences the solve's own refusals end on.
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
@@ -390,23 +395,25 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, FaceFrame, Lever,
-    MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE,
-    OffsetCheck, PartReach, PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses,
-    Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, mate_reach,
-    member_of, places, reading_edges, relative_freedom_components, root_of, solve_document,
+    Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, Lever, MateFault,
+    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck,
+    PartReach, PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup,
+    UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, head_face, mate_reach,
+    member_of, member_reading, places, reading_edges, relative_freedom_components, root_of,
+    solve_document,
 };
 /// Why a mate's `FromFace` frame did not resolve to a pose, which
 /// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
 ///
-/// A `FromFace` frame ([`MateFrame::FromFace`], a [`FaceFrame`])
-/// names a face of the mated part and takes that face's canonical
-/// pose as the side's frame, read through the mated part's own
-/// evaluation (`MateReach::face_pose`, whose refusal is
-/// [`FacePoseRefusal`], carried beside the instance, its part and the
-/// face): the part does not resolve, the part's table has no row for
-/// the name or ties it, the readback refuses the carrier (no canonical
-/// frame), or the product's scalar pins no `f64`. A
+/// A `FromFace` frame ([`MateFrame::FromFace`]) names no face: it
+/// takes the canonical pose of the face its side's head names in the
+/// mated part ([`head_face`]) as the side's frame, read through the
+/// mated part's own evaluation (`MateReach::face_pose`, whose refusal
+/// is [`FacePoseRefusal`], carried beside the instance, its part and
+/// the face): the part does not resolve, the part's table has no row
+/// for the name or ties it, the readback refuses the carrier (no
+/// canonical frame), or the product's scalar pins no `f64` — or the
+/// head names no face of the part at all. A
 /// consumer that could match `FaceUnresolved` and not name this type
 /// would read all of that out of the message prose.
 pub use editor_core::{FacePoseRefusal, FaceRefusal};

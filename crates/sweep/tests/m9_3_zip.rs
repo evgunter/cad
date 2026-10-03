@@ -16,6 +16,7 @@
 use crate::common::operands::{plate6 as plate, plate6_cyl};
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::readback::euler_counts;
 use topo::{
@@ -180,9 +181,16 @@ fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) 
     )
     .validate(Tol::witness())
     .unwrap();
-    extrude(&profile, Extrusion::Distance(4.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Body A: slab x ∈ [0,3], z ∈ [0,1], its top-right profile edge
@@ -404,9 +412,16 @@ fn wide_slab_below() -> Body<f64> {
     )
     .validate(Tol::witness())
     .unwrap();
-    extrude(&profile, Extrusion::Distance(6.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 6.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// **A declared-`Tangent` CURVED sector at a vertex on a face is lumped

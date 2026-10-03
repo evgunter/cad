@@ -21,7 +21,7 @@ walk is `docs/guide/assembly.md`.
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
 | A3, A11, A12 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
-| A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
+| A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs`; `DocEdit::Promote`/`Fold` in `src/edit.rs` |
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
@@ -158,9 +158,11 @@ its gauge and may carry an offset in it (A11 (2)). `Node::Mate { a, b, class, al
 (`names::FaceName`, whose one constructor is the only way a face name
 is made) plus the operand node it is read at, so a mate naming an edge
 is a program that does not compile; `class` is the kernel
-`topo::ContactClass`; `Alignment` is two `MateFrame`s, each either authored vectors in its
-side's part coordinates or `FromFace`, which names no face: its frame
-is its side's own head face, a `MatePrimitive` (`FrameCoincidence`, `Coaxial`,
+`topo::ContactClass`; `Alignment` is two `MateFrame`s, each a base
+composed with an offset, a `Placement` written in the base's frame (the
+empty chain by default): the base is the side's part frame, or
+`FromFace`, which names no face and is its side's own head face; a
+`MatePrimitive` (`FrameCoincidence`, `Coaxial`,
 `PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
 primitive), an authored `AxisSense` (so no π-flip is inferred) and an
 optional clocking rider. `Node::Pattern` replicates an instance by
@@ -247,8 +249,12 @@ placement's steps in front of each dependent's own; cutting the content
 and leaving the gauge behind mounts the part on it. Split and
 inline are pure, returning values plus edit lists. Acceptance:
 split-then-evaluate equals unsplit evaluation at structural and
-name-resolution identity, not bit identity, and inline-of-split returns
-the document split was given, up to node ids. A mate whose two
+name-resolution identity, not bit identity, except that the cut's roots
+come together where the first of them was (A10's replacement rule: one
+instance sits at one place in the list), so split keeps the root order
+exactly when the cut's roots are adjacent in it; and inline-of-split
+returns the document split was given, up to node ids and that one
+regrouping. A mate whose two
 `InstantiatePart` heads fall on opposite sides of a cut is an
 `InterfaceCrossing::Mate` in the instance's `InterfaceRecord`, which
 feeds the content key; evaluation refuses
@@ -364,19 +370,29 @@ never persisted (`crates/viewer/src/display.rs`).
 **A10 — Explicit product roots.** `Doc::roots` is an ordered list of
 node ids, document data. Invariants (`roots::check`): coverage (every
 live node is ancestor-of-or-equal-to some root) and ancestor-freedom
-(no root is a strict ancestor of another), both over CONSUMING edges;
-together the root set is exactly the sink set of the consuming relation
-and the list adds only the solid order. An edge is consuming when the
-consumer's output supersedes its input in what the document denotes (a
-Boolean's operands, a fillet's target, an extrude's profile, an
-assertion's measure), and reading when the consumer only reads the
-input's value and the input keeps denoting what it denoted (a measure's
-references, a face frame's `at`, a mate's operands, A12). Every stored
-edge orders evaluation, keys the memo, carries poison and refuses a
-dangling delete; only consuming edges decide the roots, so a body a
-requirement measures stays a product root.
-Maintenance: a new sink appends, a node consuming roots replaces them,
-deleting a root re-roots its orphaned inputs; `DocEdit::SetRoots` states
+(no root is a strict ancestor of another), both over the node graph,
+whose edges are operands; together the root set is exactly the sink set
+and the list adds only the solid order. A reference's type says what it
+is. A bare node id in a node's payload is an OPERAND: the node consumes
+that whole node, and its output supersedes the input in what the
+document denotes (a Boolean's operands, a fillet's target, an extrude's
+profile, an assertion's measure). A sited reference (`{ at, name }`, an
+entity read inside the value at `at`: a measure's references, a face
+frame's face, a mate's heads, a gauge reference) is a READ: the input
+keeps denoting what it denoted, and a read is not an edge of this
+graph, so a body a requirement measures or a sketch is drawn on stays a
+product root. Reads order evaluation, key the memo and carry poison,
+except where the reader's value is the solve's answer (a mate, a gauge,
+an instance), whose reads the solve orders; A9's partition does not run
+through a reader whose value lives in no space (a measure, an
+assertion). Deleting an operand is refused; deleting a read's site
+strands the read and the edit reports it (DM7), and `Rebind` moves a
+site read at its name's own mint along with the name.
+Maintenance: a new sink appends; a node that replaces roots (an
+insert consuming them, or split's instance) goes where the first of
+them was; removing it puts what it replaced back at its position (a
+delete's orphaned inputs in document order, an inline's spliced roots in
+the part's root order); `DocEdit::SetRoots` states
 the list outright. `product::product` gathers, in list order, every
 body-denoting root (`Body`/`Boolean` solids, `Instances` as placed
 solids with no boolean implied, `Split` as both pieces); non-body roots
@@ -468,7 +484,11 @@ over: `(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored
 lengths|`, no floor and no constant. A side framed
 `FromFace` takes its head face's canonical pose, read off its surface
 parameters exactly (`topo::readback::face_pose`, no tolerance) in the
-part's own coordinates, as the side's frame; a face with no canonical
+part's own coordinates, composed with the side's offset, as the side's
+frame, so a side set on a face follows that face through any edit of
+the part. The offset is any rigid motion; which offsets a mate admits
+is its contact class's to say (a `Rest` side set back from its face
+declares a contact the gate refutes). A face with no canonical
 frame refuses typed and keeps taking authored vectors. Neither read
 changes the solve's algorithm — coset intersection over decided
 predicates, no numeric fitting, no geometry inspected inside the

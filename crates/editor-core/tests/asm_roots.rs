@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Node, PatternKind, PersistError,
@@ -47,6 +48,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, extrude)
@@ -79,6 +81,7 @@ fn row1a_no_consumer_insert_appends() {
         Node::Extrude {
             profile: p0,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     assert_eq!(
@@ -112,7 +115,7 @@ fn row1b_consuming_insert_replaces_at_earliest_position() {
             a: b,
             b: c,
             op: editor_core::BooleanOp::Union,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(
@@ -139,7 +142,7 @@ fn row1c_root_delete_rereoots_orphans_in_document_order() {
             a,
             b,
             op: editor_core::BooleanOp::Union,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(doc.roots(), &[keep, u][..]);
@@ -187,7 +190,7 @@ fn row1e_undo_restores_the_prior_root_list() {
                 a,
                 b,
                 op: editor_core::BooleanOp::Union,
-                declare: None,
+                declare: Vec::new(),
             }),
         },
         DocEdit::DeleteNode { id: b },
@@ -605,6 +608,7 @@ fn row6c_replay_rebuilds_the_root_list() {
             Box::new(Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             }),
         );
     }

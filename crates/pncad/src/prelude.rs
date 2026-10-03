@@ -383,9 +383,9 @@ pub use sweep::blend::{BlendDecision, BlendSite, CornerConfig, RunOutPolicy};
 // — the one wall per run of pieces each verb builds — so a caller
 // reading those handles can name their element type.
 pub use sweep::{
-    BandWall, ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis,
-    RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude, loft_body,
-    revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
+    BandWall, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError, Lofted, Revolution,
+    RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude,
+    loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------
@@ -759,7 +759,7 @@ pub use crate::select::{
     PieceRole, PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
     RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector,
     Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, declare, declare_all, declare_node, denotation, edge_carrier_kind,
+    all_vertices, attribute, declare, declare_all, declared_pairs, denotation, edge_carrier_kind,
     edge_frame, edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates, select,
     select_where, vertex_position,
 };

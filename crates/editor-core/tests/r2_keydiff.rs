@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -60,6 +61,7 @@ fn boxed(
             node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(h),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -114,6 +116,7 @@ fn r2_measure_free_content_keys() {
             node: Box::new(Node::Extrude {
                 profile: bp,
                 distance: Expr::param(ParamName::from_static("t"), Dimension::Length),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -125,7 +128,7 @@ fn r2_measure_free_content_keys() {
                 op: BooleanOp::Subtract,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             }),
         },
     );
