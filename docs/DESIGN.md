@@ -943,9 +943,8 @@ patches data into self-consistency): it must *explain* the data.
 
 ### D8 (agreed): The recipe is data
 
-A model document is an operation DAG — typed feature nodes referencing
-parameters and each other — plus a small expression sublanguage for
-derived quantities. The kernel interprets the recipe at any scalar `T`;
+A model document is a graph of operations over typed variables (D10)
+plus a small expression sublanguage for derived quantities. The kernel interprets the recipe at any scalar `T`;
 user-facing Rust is a *generator* of recipes. Consequences: the recipe
 is the save format; recipe node IDs are the substrate for D5 naming;
 every value-dependent branch stays inside kernel code where predicates
@@ -1159,6 +1158,80 @@ grounds (rounding control, f64, portability) are re-checkable facts.
    UNVERIFIED; an audit is banked, not assumed. Do not cite the kernel
    as equivariant without checking the claim at the site in question.**
 
+### D10: One way to say dependency, placement and intent
+
+A document says "this depends on that" in one way (reading a
+variable), says "this is there" in one way (a placement), and says
+"these are meant to coincide" in two ways (constructing the
+coincidence, or asserting a bound). Nothing else carries dependency or
+intent.
+
+**Variables.** Every slot holds a variable whose type suits the slot.
+The types are the scalars (`Length`, `Angle`, `Scalar`, `Count`), the
+discrete kinds (a side, a half, a sense), the geometric values
+(`Point`, `Direction`, `Axis`, `Plane`, `Frame`) and the references
+(`Face`, `Edge`, `Body`). A variable is **free** — a value, its written
+unit (D6) and optionally a distribution — or **defined**, by an `Expr`
+over other variables or as an output of an operation. A dimensioned
+literal stands nowhere, neither in a slot nor inside a formula: the
+only constants are dimensionless rationals and rational fractions of a
+turn, which are the shape of a formula rather than a dimension. A slot
+with one sensible value takes no variable. Typing a value in the GUI
+mints a free variable and offers an existing variable of equal value;
+declining the offer is what makes the two distinct.
+
+**Operations.** A node is an operation: it reads variables and defines
+one or more. Reading is the only dependency; nothing consumes anything,
+so an operand stays a first-class value after a boolean reads it. The
+product is an explicit list of `Body` variables. A `Face` or `Edge`
+variable is a selection of a `Body` variable by `StableName`, and the
+N5 resolution ladder lives there; deleting a variable leaves its
+readers unresolved, typed, never silently re-pointed.
+
+**Spaces and placement.** A part has no location. A **space** is a set
+of copies related to one another; a part is born in its own space. A
+**placement** is the bundle of mates that pins one copy of a part
+relative to others: two placements of a part are two copies, and a mate
+added to a pinned copy refuses as an overconstraint, decided by
+subgroup algebra (A11 (1)) without measuring. A mate places and never
+checks. The **world** is one undeletable frame that copies may be
+related to like a part; export reads its coordinates and nothing else
+does. The kernel computes each space in the frame of its earliest
+member, chosen from the recipe and never from values or from the world,
+so an unrelated edit moves no bit (D9).
+
+**Structural coincidence.** Two cells coincide structurally when they
+are the same object: the same variable, or the same construction of the
+same variables. Each construction states which of its inputs each
+output carrier is a function of (an extrude's end cap is
+`plane(frame, direction, depth)`, independent of the profile), so the
+plate and the through-hole extruded by one `t` from one frame share
+their caps. Coaxiality is one `Axis` variable read twice; tangency is
+constructed (a sketch may read another surface's trace in its plane and
+continue tangent to it). Agreement as functions of the variables that
+is not object identity is found by the symbolic tier (E12) and offered
+as the edit that makes it one object; it never glues on its own.
+
+**Booleans.** A boolean's operands are already in one space. A
+structural coincidence glues; a definite verdict acts; an in-band
+coincidence that is not structural refuses, naming the two cells and
+the construction or variable that would make them one.
+
+**Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`,
+the bound a variable) checks and never places. At rest, contact and
+interference between copies are findings of the checks registry, not
+refusals; a finding is quiet exactly when an assertion on the same
+measure at the same site has a bound the observation meets and that
+does not straddle zero.
+
+D10 governs where a companion clause disagrees: the declared-contact
+seats (CONTACT-DESIGN C4's `BooleanCoincidence` on booleans, a mate's
+`ContactClass`, C6's `Fit` as a class), the axis declaration channel,
+`ParamSource`'s literal tokens, PARAM-LINT's declared-distinct record,
+ASSEMBLY A3, A10's sink rule, A11 (2)'s gauges and offsets, A11 (4)'s
+declaring mates and A12's reading edges retire as the program that
+builds D10 reaches them.
+
 ## Layering
 
 Each layer depends only on the layers below it.
@@ -1368,18 +1441,18 @@ Cross-milestone commitments; each binds at the layer named.
   correctness proof; no dirty-flag invalidation. The key shape is
   shipped (mesh back-references, the content/naming keys); a
   finer-grained per-artifact transfer service remains future.
-- **Coincidence is structural or declared, never inferred from
+- **Coincidence is structural, never declared and never inferred from
   values.** Treating bit-equal descriptions as semantic coincidence
   would make topology hinge on an UNMARGINED predicate — a razor-thin
   equal-vs-one-ulp cliff with no escalation band, exactly what Q1
   forbids — and value equality is not evidence of intent anyway. The
-  ladder: (a) **shared surface key** — coincidence explicit by
-  construction; (b) equal-but-independent descriptions do **not** glue
-  — if the user means flush, the recipe must say so (share the surface,
-  or declare the relation); description-equality *detection* is a
-  diagnostic affordance only; (c) near-coincidence between unrelated
-  definitions is a typed sliver error whose resolution is an explicit
-  repair/adoption operation — D7's machinery applied natively.
+  ladder: (a) **one object** — the same variable, or the same
+  construction of the same variables (D10); (b) cells that agree but
+  are not one object do **not** glue — agreement detection, including
+  the symbolic tier's identities over the variables, is an offer of the
+  edit that makes them one object; (c) near-coincidence between
+  unrelated definitions is a typed sliver error whose resolution is an
+  explicit repair/adoption operation — D7's machinery applied natively.
   Consequence: topology depends only on recipe structure and margined
   verdicts, so predicate flips remain the *only* topology-change sites.
 - **The editor-core evaluation service is generic over `Real`.** M10's
