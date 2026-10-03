@@ -2278,11 +2278,10 @@ pub enum BooleanError {
     },
     /// The F7 output stage (`merge_coplanar_faces`) refused.
     Merge(MergeCoplanarError),
-    /// The finished result failed a tier gate, loudly — no invalid
-    /// body is ever returned. A kernel bug, unless an operand carried
-    /// the finding in: an operand edge still described as a scaffold
-    /// reaches every result that keeps it, and the gate refuses it
-    /// there ([`ValidationError::ScaffoldAtRest`]).
+    /// The result did not pass the door's at-rest gate (tier 3,
+    /// [`crate::AtRestPolicy::gate_at_rest_kept`]), loudly — no body
+    /// below it is ever returned. The operands are finished bodies, so
+    /// the findings are the door's own.
     ResultInvalid {
         /// The validator's findings.
         errors: Vec<ValidationError>,
@@ -3187,14 +3186,19 @@ impl core::fmt::Display for BooleanError {
                 write!(f, "seam zip correspondence failed: {what} (kernel bug)")
             }
             Self::Merge(e) => write!(f, "coplanar-merge output stage refused: {e}"),
-            Self::ResultInvalid { errors } => write!(
-                f,
-                "finished result failed a tier gate ({} finding(s), first: {:?}), so no \
-                 body is returned — a kernel bug, unless an operand carried the finding in \
-                 (an edge still described as a scaffold)",
-                errors.len(),
-                errors.first()
-            ),
+            Self::ResultInvalid { errors } => match errors.as_slice() {
+                [first, ..] => write!(
+                    f,
+                    "the Boolean's result did not pass the at-rest gate ({} finding(s); the \
+                     first: {first}), so no body is returned. {KERNEL_DEFECT_ENDING}",
+                    errors.len(),
+                ),
+                [] => write!(
+                    f,
+                    "the Boolean's result did not pass the at-rest gate, so no body is \
+                     returned. {KERNEL_DEFECT_ENDING}"
+                ),
+            },
             Self::ResultVolumeImplausible { which, got, bound } => write!(
                 f,
                 "the Boolean's result broke a bound a correct result's volume always meets \

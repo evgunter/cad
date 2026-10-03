@@ -53,3 +53,17 @@ solid. Measured on PR 3891's branch with a box declared `Tangent` to a
 plate's fillet (two solids, tier 3 green, 3′ `CensusUndecidable` alone);
 main has since refused that union (`TangentSlitArmUnbuilt`), so no row
 pins it today.
+
+## 2026-10-03 — 38 boolean results on main (REACH, `boolean-door-adopts-the-finished-body-type`)
+
+A census run over every result `boolean_op_with` returns (`python3
+scripts/door-tier3-meter.py`, `origin/main` 82b9ceb2, ε 1e-9) finds 38
+`sweep` union results that pass tier 3 and fail the empty-contact 3′
+with `CensusUndecidable` alone ("a curved face of one is within reach
+of the other"): `snowman` ×9, `run_walls_built` ×4, `shell8_r2_probes`
+×4, `m5_s13_pips` ×3, `germ_sphere_no_crossings` ×2 (a ball in a
+torus's hole), and single rows of `germ_torus_doors`,
+`germ_interior_oval`, `m5_s10_face_sense`, `m5_s11_concave_sense_interval`,
+`offer_rows`, `verbs_cylcyl_*` and `verbs_pierce*`. So the boolean door
+cannot run the census over its result until this lane lands
+(`work/reach/boolean-door-runs-the-census-over-its-result.md`).
