@@ -2,11 +2,12 @@
 id: a-from-face-mate-side-cannot-cross-the-split-or-inline-seam
 kind: issue
 title: a FromFace mate side refuses at the split and inline seam even where its frame provably does not move; how it crosses is a design question on A4
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P1
 cost: H
 parent: placement-split-and-inline-at-a-gauge-are-refused-until-p2-split
+branch: place/p2-face
 ---
 
 

@@ -2,10 +2,12 @@
 id: a-from-face-frames-face-is-never-rewritten-by-rebind
 kind: issue
 title: a FromFace mate frame's face is never rewritten by Rebind, so repairing or rebinding a head strands its frame
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P1
 cost: M
+branch: place/p2-face
+parent: a-from-face-mate-side-cannot-cross-the-split-or-inline-seam
 ---
 
 
