@@ -75,7 +75,10 @@ fn signed_dist(poly: &[(f64, f64)], p: (f64, f64)) -> f64 {
 struct Lcg(u64);
 impl Lcg {
     fn next(&mut self) -> f64 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (self.0 >> 11) as f64 / (1u64 << 53) as f64
     }
 }
@@ -98,16 +101,37 @@ fn run<T: geom_core::Decide + topo::AtRestPolicy>(env: &str) {
     let mut out = String::new();
     let (mut wrong, mut answered, mut refused, mut total) = (0, 0, 0, 0);
     let profiles: [(&str, Vec<(f64, f64)>, f64); 4] = [
-        ("square", vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0),
-        ("sliver", vec![(0.0, 0.0), (1e-4, 0.0), (1e-4, 1e-4), (0.0, 1e-4)], 1e-4),
-        ("thin", vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1e-4), (0.0, 1e-4)], 1.0),
+        (
+            "square",
+            vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            1.0,
+        ),
+        (
+            "sliver",
+            vec![(0.0, 0.0), (1e-4, 0.0), (1e-4, 1e-4), (0.0, 1e-4)],
+            1e-4,
+        ),
+        (
+            "thin",
+            vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1e-4), (0.0, 1e-4)],
+            1.0,
+        ),
         (
             "ell",
-            vec![(0.0, 0.0), (2e-3, 0.0), (2e-3, 1e-4), (1e-4, 1e-4), (1e-4, 2e-3), (0.0, 2e-3)],
+            vec![
+                (0.0, 0.0),
+                (2e-3, 0.0),
+                (2e-3, 1e-4),
+                (1e-4, 1e-4),
+                (1e-4, 2e-3),
+                (0.0, 2e-3),
+            ],
             1e-4,
         ),
     ];
-    let phis: [f64; 10] = [0.0, 1e-12, 1e-10, 2e-9, 5e-9, 2e-8, 1e-7, 1e-6, 5.2e-5, 1e-3];
+    let phis: [f64; 10] = [
+        0.0, 1e-12, 1e-10, 2e-9, 5e-9, 2e-8, 1e-7, 1e-6, 5.2e-5, 1e-3,
+    ];
     let deltas = [0.0, 1e-11, 5e-10, 2e-9, 5e-9, 1.2e-8, 3e-8, 1e-7, 1e-5];
     let mut rng = Lcg(3967);
     for (pname, profile, h) in &profiles {
@@ -117,14 +141,26 @@ fn run<T: geom_core::Decide + topo::AtRestPolicy>(env: &str) {
                 for which in 0..2 {
                     // A hair off r: tilt r by phi about a random axis ⟂ r.
                     let rr = unit(*r);
-                    let a = unit(cross(rr, unit([rng.next() - 0.5, rng.next() - 0.5, rng.next() - 0.5])));
+                    let a = unit(cross(
+                        rr,
+                        unit([rng.next() - 0.5, rng.next() - 0.5, rng.next() - 0.5]),
+                    ));
                     let target = unit(add(sc(rr, phi.cos()), sc(a, phi.sin())));
-                    let other = unit(cross(target, unit([rng.next() - 0.5, rng.next() - 0.5, rng.next() - 0.5])));
+                    let other = unit(cross(
+                        target,
+                        unit([rng.next() - 0.5, rng.next() - 0.5, rng.next() - 0.5]),
+                    ));
                     let third = cross(target, other);
                     // local (x, y, z) → world: cap normal = ez, wall normal = ex.
-                    let (ex, ey, ez) = if which == 0 { (other, third, target) } else { (target, other, third) };
+                    let (ex, ey, ez) = if which == 0 {
+                        (other, third, target)
+                    } else {
+                        (target, other, third)
+                    };
                     let off = [rng.next(), rng.next(), rng.next()];
-                    let map = move |x: f64, y: f64, z: f64| -> V { add(off, add(add(sc(ex, x), sc(ey, y)), sc(ez, z))) };
+                    let map = move |x: f64, y: f64, z: f64| -> V {
+                        add(off, add(add(sc(ex, x), sc(ey, y)), sc(ez, z)))
+                    };
                     let mut body = topo::Body::<T>::new();
                     let ops = common::prism_ops(
                         &mut body,
@@ -139,10 +175,28 @@ fn run<T: geom_core::Decide + topo::AtRestPolicy>(env: &str) {
                     );
                     common::describe_as_intersections(&mut body, tol);
                     // Faces in their own 2-D frame: (polygon, frame → local 3-D, normal).
-                    let mut faces: Vec<(String, topo::FaceKey, Vec<(f64, f64)>, Box<dyn Fn(f64, f64) -> V>, V)> = Vec::new();
-                    faces.push(("bot".into(), ops.bottom.face, profile.clone(), Box::new(move |x, y| map(x, y, 0.0)), ez));
+                    let mut faces: Vec<(
+                        String,
+                        topo::FaceKey,
+                        Vec<(f64, f64)>,
+                        Box<dyn Fn(f64, f64) -> V>,
+                        V,
+                    )> = Vec::new();
+                    faces.push((
+                        "bot".into(),
+                        ops.bottom.face,
+                        profile.clone(),
+                        Box::new(move |x, y| map(x, y, 0.0)),
+                        ez,
+                    ));
                     let hh = *h;
-                    faces.push(("top".into(), ops.seed.face, profile.clone(), Box::new(move |x, y| map(x, y, hh)), ez));
+                    faces.push((
+                        "top".into(),
+                        ops.seed.face,
+                        profile.clone(),
+                        Box::new(move |x, y| map(x, y, hh)),
+                        ez,
+                    ));
                     let n = profile.len();
                     for (i, side) in ops.sides.iter().enumerate() {
                         let (p0, p1) = (profile[i], profile[(i + 1) % n]);
@@ -174,14 +228,23 @@ fn run<T: geom_core::Decide + topo::AtRestPolicy>(env: &str) {
                                     pts.push((a.0 + sgn * d, a.1 + sgn * d));
                                     pts.push((a.0 + sgn * d, a.1 - sgn * d));
                                     // a few bands along the edge, off it by d
-                                    pts.push((a.0 + 3e-8 * tx / l + sgn * d * nx, a.1 + 3e-8 * ty / l + sgn * d * ny));
+                                    pts.push((
+                                        a.0 + 3e-8 * tx / l + sgn * d * nx,
+                                        a.1 + 3e-8 * ty / l + sgn * d * ny,
+                                    ));
                                 }
                             }
                         }
                         for &p in &pts {
                             let sd = signed_dist(poly, p);
                             let w = to3(p.0, p.1);
-                            let got = point_in_loop(&body, lp, normal, Point3::new(w[0], w[1], w[2]).map(T::from_f64), band);
+                            let got = point_in_loop(
+                                &body,
+                                lp,
+                                normal,
+                                Point3::new(w[0], w[1], w[2]).map(T::from_f64),
+                                band,
+                            );
                             total += 1;
                             let tag = match &got {
                                 Ok(v) => {
@@ -193,7 +256,9 @@ fn run<T: geom_core::Decide + topo::AtRestPolicy>(env: &str) {
                                     };
                                     if bad {
                                         wrong += 1;
-                                        println!("WRONG {pname} k{k} phi{phi:e} w{which} {fname} sd={sd:e}: {v:?}");
+                                        println!(
+                                            "WRONG {pname} k{k} phi{phi:e} w{which} {fname} sd={sd:e}: {v:?}"
+                                        );
                                     }
                                     format!("{v:?}")
                                 }

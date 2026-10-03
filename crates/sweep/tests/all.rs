@@ -614,6 +614,8 @@ mod join1_mechanisms;
 mod join1_r1_probes;
 #[path = "join1_r1_rows.rs"]
 mod join1_r1_rows;
+#[path = "review3967_battery.rs"]
+mod review3967_battery;
 #[path = "join_rc_probes.rs"]
 mod join_rc_probes;
 #[path = "m9_3_zip.rs"]
