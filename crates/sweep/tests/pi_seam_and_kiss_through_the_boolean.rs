@@ -54,7 +54,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use sweep::ExtrudeSide;
 
 use crate::common::seam_pairs::meeting;
 use geom::SurfaceKind;
