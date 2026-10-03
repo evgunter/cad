@@ -93,7 +93,7 @@ fn a_slab_cut_through_a_drum_answers_its_volume() {
             op: BooleanOp::Subtract,
             a: drum,
             b: cutter,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let truth = PI * r * r * h - strip(half_t, r) * (z0 + h - cut_z);
@@ -131,7 +131,7 @@ fn a_slab_across_a_round_boss_builds_in_four_orders_and_stops_typed_in_two() {
             doc.clone(),
             Node::Union {
                 members: order.iter().map(|&i| ids[i]).collect(),
-                declare: None,
+                declare: Vec::new(),
             },
         );
         let what = format!("order {order:?}");

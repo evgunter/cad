@@ -225,6 +225,7 @@ REGISTER=(
   "crates/topo/src/shell.rs|ring_rows||1|unaudited"
   "crates/topo/src/shell.rs|split_cycle||1|unaudited"
   "crates/topo/src/splitting/containment.rs|carrier_loop||1|audited: the discard is answered as CorruptLoop, and point_in_face, the one caller, answers an Empty outer loop (no region) and steps over an Empty ring (no area) before asking"
+  "crates/topo/src/splitting/containment.rs|certify_plane||1|audited: the discard is answered as CorruptLoop, the answer carrier_loop gives the same loop on the line after it in point_in_loop"
   "crates/topo/src/splitting/containment.rs|loop_points||1|unaudited"
   "crates/topo/src/splitting/finish.rs|classify_shell||1|unaudited"
   "crates/topo/src/splitting/finish.rs|describe_section_boundary||1|unaudited"

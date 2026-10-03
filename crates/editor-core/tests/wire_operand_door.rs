@@ -27,13 +27,12 @@
 //!   negation of its own `expected:` (*"not a datum frame"*), fails
 //!   while the phrase beside it stays right.
 //!
-//! **Three rows never reach evaluation**, and that is the finding they
-//! carry: the edit door refuses an assertion over a non-measure and a
-//! declare reference that is not a `Declare`, so `wire_assertion`'s and
-//! `declared_pairs`' kind refusals are defences behind a door rather
-//! than sentences a document author can read. They are asserted as
-//! edit-door refusals, so a door that stopped refusing them — and
-//! started shipping those refusals to users — reds here.
+//! **One row never reaches evaluation**, and that is the finding it
+//! carries: the edit door refuses an assertion over a non-measure, so
+//! `wire_assertion`'s kind refusal is a defence behind a door rather
+//! than a sentence a document author can read. It is asserted as an
+//! edit-door refusal, so a door that stopped refusing it — and started
+//! shipping that refusal to users — reds here.
 //!
 //! These refusals are DOCUMENT-REACHABLE: the strings here are what an
 //! author reads. The SOURCE rules behind them (one construction site,
@@ -103,13 +102,6 @@ fn wired() -> (
         Node::Extrude {
             profile,
             distance: len(1.0),
-        },
-    );
-    let (doc, body2) = insert(
-        doc,
-        Node::Extrude {
-            profile,
-            distance: len(2.0),
         },
     );
     let (doc, plane) = insert(
@@ -337,30 +329,6 @@ fn wired() -> (
             select: PartSelect::Instance(Expr::count(0)),
         },
         body,
-    );
-    doc = add(
-        doc,
-        &mut rows,
-        "declared_pairs on the union road — behind the edit door",
-        Owes::EditDoor,
-        Node::Union {
-            members: vec![body, body2],
-            declare: Some(plane),
-        },
-        plane,
-    );
-    doc = add(
-        doc,
-        &mut rows,
-        "declared_pairs on the boolean road — behind the edit door",
-        Owes::EditDoor,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: body,
-            b: body2,
-            declare: Some(plane),
-        },
-        plane,
     );
     doc = add(
         doc,

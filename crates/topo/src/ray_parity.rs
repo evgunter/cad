@@ -1,6 +1,6 @@
 //! **Ray-parity point-in-region** — the one home for the trilean
 //! containment walk, shared by the crate's three consumers:
-//! [`crate::splitting::containment::point_in_loop`] (a planar loop in
+//! [`crate::splitting::containment::point_in_vertex_polygon`] (a planar loop in
 //! 3-space), `chart_region::point_in_polygon` (a chart-space polygon
 //! in 2-D) and [`crate::chart_bound`]'s outside test (a chart-space
 //! polygon again, under its own K rows and sharing `chart_region`'s

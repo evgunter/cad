@@ -12,7 +12,7 @@
 //! # Kind tagging (spec D1, reported choice)
 //!
 //! A RUNTIME kind tag ([`EntityKind`] field), not phantom typing:
-//! `Declare` pairs, table keys, and (PR 4) hit-test returns all need
+//! declared pairs, table keys, and (PR 4) hit-test returns all need
 //! kind-heterogeneous collections, and the F3 serialization story
 //! wants one concrete type. Kind agreement is enforced at emission
 //! (the table refuses a name whose kind disagrees with its entity).
@@ -1607,7 +1607,6 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Union { .. }
         | Node::Pattern { .. }
         | Node::PlacedUnion { .. }
-        | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Gauge { .. }
         | Node::Mate { .. }
