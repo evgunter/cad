@@ -250,7 +250,7 @@ fn row1_split_one_group_preserves_structure_and_names() {
     let _ = part_ref;
 }
 
-/// Row 1, the non-hoisted shape — cutting a PLAIN subtree (no group)
+/// Row 1, a PLAIN subtree — cutting one (no group)
 /// moves the recipe verbatim; the remainder instance sits at identity
 /// and the identity still holds.
 #[test]
@@ -583,7 +583,9 @@ fn row3_uncut_param_reference_refuses() {
             param,
             cut_node,
             kept_node,
+            promote,
         }) => {
+            assert!(!promote, "an extrude's distance is no offset to promote");
             assert_eq!(param, ParamName::from_static("h"));
             assert_eq!(cut_node, doc.spoken(e1));
             assert_eq!(kept_node, doc.spoken(e2));
@@ -728,7 +730,7 @@ fn row3_further_typed_refusals() {
 /// sides, each its own assertion.
 #[test]
 fn row4_roots_and_offsets_land_as_the_rules_say() {
-    // The hoisted single-group cut.
+    // A single-group cut moves as selected.
     let (_, doc, ids) = two_group_assembly("asm4-r4");
     let out = split(
         &doc,
@@ -749,14 +751,14 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
         &[mapped],
         "the part's root is the cut root"
     );
-    assert!(
-        fixture::same_offset(&out.remainder, out.instance, &doc, ids[1]),
-        "the hoisted offset is the root's old offset"
-    );
     assert_eq!(
-        fixture::offset_of(&out.part, mapped),
+        fixture::offset_of(&out.remainder, out.instance),
         Some(editor_core::Placement::IDENTITY),
-        "the hoisted root lands at the empty chain in the part"
+        "the instance sits at the empty chain"
+    );
+    assert!(
+        fixture::same_offset(&out.part, mapped, &doc, ids[1]),
+        "the root keeps its offset in the part"
     );
 
     // The multi-group cut: both offsets MOVE, the remainder instance

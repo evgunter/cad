@@ -381,7 +381,9 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
         .iter()
         .filter_map(|row| match row {
             Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
-            Maintenance::OffsetCleared { .. } | Maintenance::StrandedAppearance { .. } => None,
+            Maintenance::OffsetCleared { .. }
+            | Maintenance::StrandedAppearance { .. }
+            | Maintenance::LabelDropped { .. } => None,
         })
         .collect();
     assert_eq!(

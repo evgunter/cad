@@ -409,9 +409,10 @@ pub const NODE_KINDS: [&str; 20] = [
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`, `SetRoots`,
-/// `SetOffset`, `SetGauge`, `UpdateReference` and `SetDeclare` are arms
-/// of `DocEdit` that no corpus document authors, and listing them here
-/// would report six permanent misses rather than covering anything. `SetProgram` is
+/// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference` and
+/// `SetDeclare` are arms of `DocEdit` that no corpus document authors,
+/// and listing them here would report eight permanent misses rather
+/// than covering anything. `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
 /// vocabulary itself is not this list but [`edit_kind`]'s match, which
@@ -634,6 +635,8 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetRoots { .. } => "SetRoots",
         DocEdit::SetOffset { .. } => "SetOffset",
         DocEdit::SetGauge { .. } => "SetGauge",
+        DocEdit::Promote { .. } => "Promote",
+        DocEdit::Fold { .. } => "Fold",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
         DocEdit::SetDeclare { .. } => "SetDeclare",

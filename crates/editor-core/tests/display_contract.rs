@@ -2843,7 +2843,7 @@ fn a_program_fault_states_its_lattice_coordinate() {
 
 test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [OffsetCleared, Strand, StrandedAppearance];
+    const MAINTENANCE: Maintenance = [OffsetCleared, Strand, StrandedAppearance, LabelDropped];
 }
 
 /// **What an accepted edit DID reads as prose too** — the strand count
@@ -2897,6 +2897,16 @@ fn maintenance_display_says_what_the_edit_did() {
                  000000000007",
                 "this edit removed what it denoted",
                 "rebound or cleared",
+            ],
+        ),
+        (
+            Maintenance::LabelDropped {
+                gauge: held(4, "Gauge"),
+                label: editor_core::Label::new("bench").expect("a label"),
+            },
+            vec![
+                "the fold took Gauge 000000000004 out of the document",
+                "its label \"bench\" went with it",
             ],
         ),
     ];
@@ -3254,6 +3264,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
                 param: name.clone(),
                 cut_node: held(1, "Extrude"),
                 kept_node: held(2, "Extrude"),
+                promote: false,
             }
             .to_string(),
         ),
@@ -3445,6 +3456,52 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
                 mate: held(6, "Mate"),
             },
             vec![held(6, "Mate")],
+        ),
+        (
+            EditError::PromoteOnNonInstance {
+                node: held(6, "Mate"),
+            },
+            vec![held(6, "Mate")],
+        ),
+        (
+            EditError::PromoteWithoutOffset {
+                node: held(4, "InstantiatePart"),
+            },
+            vec![held(4, "InstantiatePart")],
+        ),
+        (
+            EditError::PromoteNonRoot {
+                node: held(5, "InstantiatePart"),
+                root: held(4, "InstantiatePart"),
+            },
+            vec![held(5, "InstantiatePart"), held(4, "InstantiatePart")],
+        ),
+        (
+            EditError::PromoteMemberOffset {
+                node: held(4, "InstantiatePart"),
+                member: held(5, "InstantiatePart"),
+            },
+            vec![held(4, "InstantiatePart"), held(5, "InstantiatePart")],
+        ),
+        (
+            EditError::FoldOnNonGauge {
+                node: held(4, "InstantiatePart"),
+            },
+            vec![held(4, "InstantiatePart")],
+        ),
+        (
+            EditError::FoldWouldStartPlacing {
+                node: held(3, "Gauge"),
+                mate: held(6, "Mate"),
+            },
+            vec![held(3, "Gauge"), held(6, "Mate")],
+        ),
+        (
+            EditError::FoldWouldDangle {
+                node: held(3, "Gauge"),
+                referenced_by: held(5, "Datum"),
+            },
+            vec![held(3, "Gauge"), held(5, "Datum")],
         ),
         (
             EditError::SetDeclareOnNonDeclaring {

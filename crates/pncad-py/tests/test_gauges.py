@@ -91,6 +91,34 @@ class Gauges(unittest.TestCase):
             doc.apply(DocEdit.set_offset(outer, Placement.identity()))
         self.assertEqual(caught.exception.variant, "offset_on_non_instance")
 
+    def test_promote_moves_an_offset_onto_a_gauge_and_fold_undoes_it(self):
+        doc = Doc("py-gauge-promote")
+        g = doc.insert(Node.gauge(lifted(1.0)))
+        post = doc.insert(Node.instantiate_part(self.post_ref))
+        doc.apply(DocEdit.set_gauge(post, g))
+        doc.apply(DocEdit.set_offset(post, lifted(2.0)))
+        before = solve_document(doc, resolver=self.ws).placement(doc, post).origin
+        k = doc.apply(DocEdit.promote(post))
+        self.assertEqual(doc.node_kind(k), "gauge")
+        self.assertEqual(doc.gauge(k), g, "the gauge sits on the instance's gauge")
+        self.assertEqual(doc.gauge(post), k)
+        self.assertEqual(doc.offset(post), Placement.identity())
+        after = solve_document(doc, resolver=self.ws).placement(doc, post).origin
+        self.assertEqual(after, before, "nothing moves")
+        self.assertIsNone(doc.apply(DocEdit.fold(k)))
+        self.assertEqual(doc.gauge(post), g)
+        self.assertEqual(doc.offset(post), lifted(2.0), "the gauge's steps in front")
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.fold(post))
+        self.assertEqual(
+            (caught.exception.variant, caught.exception.node),
+            ("fold_on_non_gauge", post),
+        )
+        doc.apply(DocEdit.set_offset(post, None))
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.promote(post))
+        self.assertEqual(caught.exception.variant, "promote_without_offset")
+
     def test_the_mate_door_clears_the_first_operands_root_offset(self):
         doc = Doc("py-gauge-door")
         post = doc.insert(Node.instantiate_part(self.post_ref))
