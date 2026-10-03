@@ -32,3 +32,18 @@ march at `|AB|/5`, which is the re-march this lane retired), read from
 the crossings on the same branch's side pair only, or grow as the march
 leaves `A`'s neighbourhood (the step rule's own curvature rungs already
 bind far from the ends). A stepper choice, priced M.
+
+## Met by a fixture (ssi/step-max-certify, 2026-10-03)
+
+`SSI_STEP_MAX` is retired, so the cap is `d/5` alone, and a fixture now
+reaches it. `m5_pr7_ssi.rs`'s `close_crossings_wall(gap)` is cut by the
+plane `y = 0` in two straight metre-long branches that meet the bottom
+side `gap` apart. At `gap = 1e-4` m each branch takes 50 000 steps and
+the call refuses `StepBudget` with `StepBound::Cap`; at `gap = 0.2` m it
+certifies both (`a_spent_step_budget_ends_by_the_rung_that_held_its_steps`).
+The `Cap` ending now names this lever: move the geometry so no other
+branch meets the boundary near this one.
+
+With refinement by certification in place, the open question above has
+a fourth option: the cap need only give the fit its samples, since the
+certificate asks for more where it needs them.

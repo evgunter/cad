@@ -69,3 +69,10 @@ It no longer reproduces at ε 1e-6, 1e-9 or 1e-12: every spread whose
 plane lies more than ε off the wall traces its one branch, and the
 rest report the long sides' regions. What remains is the ℝ³ lane,
 whose slab is itself in question (`ssi-r3-slab-is-not-geometry`).
+
+## The extent clause is gone (ssi/step-max-certify, 2026-10-03)
+
+`SSI_STEP_MAX` is retired and the extent sizes no realized step, so
+`STEP_SCALE`'s lever no longer names it: "bring the operands within the
+model's size range, and name a domain near the size of the feature
+traced". The question under *Open* stands.
