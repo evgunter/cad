@@ -567,7 +567,7 @@ mod tests {
         let mut src = cube();
         let first = src.solids().next().unwrap().0;
         graft_disjoint_all_keyed(&mut src, &cube()).expect("a second cube");
-        src.into_one_solid();
+        src.merge_all_solids();
         let moved = src.shells_of_solid(first).unwrap()[1];
         src.move_shells_to_new_solid(&[moved])
             .expect("a second solid");

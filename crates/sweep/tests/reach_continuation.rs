@@ -589,11 +589,33 @@ fn a_declared_tangent_beside_a_fillet_builds_in_either_operand_order() {
             "{order}, undeclared: {err:?}"
         );
         let (ab, ba) = (tangent(fa, fb), tangent(fb, fa));
-        builds(
-            &format!("{order}: A ∪ B"),
-            topo::union_with(a, b, &ab, tol()),
-            va + vb,
-            na + nb,
+        // The union's pieces touch along a line only, so they are two
+        // solids, and the census's cross-solid backstop cannot yet
+        // decide a curved face within reach of another solid
+        // (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`):
+        // tier 3 holds and 3′ refuses with that finding alone.
+        let label = format!("{order}: A ∪ B");
+        let Ok(BooleanResult::Body(u)) = topo::union_with(a, b, &ab, tol()) else {
+            panic!("{label}: the declared tangent union builds");
+        };
+        assert!(
+            (volume(&u.body) - (va + vb)).abs() <= 1e-12,
+            "{label}: volume"
+        );
+        assert_eq!(u.body.faces().count(), na + nb, "{label}: faces");
+        assert_eq!(u.body.solids().count(), 2, "{label}: one solid per piece");
+        assert_eq!(
+            topo::validate_geometric(&u.body, tol()),
+            Ok(()),
+            "{label}: tier 3"
+        );
+        let census = topo::validate_pseudomanifold(&u.body, &u.contacts, tol())
+            .expect_err("the census gap refuses the touching pieces");
+        assert!(
+            census
+                .iter()
+                .all(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+            "{label}: tier 3′ refuses with the census gap only: {census:?}"
         );
         builds(
             &format!("{order}: A ∖ B"),

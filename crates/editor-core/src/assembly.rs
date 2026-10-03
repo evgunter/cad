@@ -397,8 +397,9 @@ pub enum Attribution {
     /// its result's records through the kernel's own remap and carries
     /// no rows, so a declaration reaching this product through a
     /// boolean would be unattributed here. Today none can — an
-    /// instance carrying a declaration is a multi-solid product, which
-    /// the pair boolean refuses outright (the acceptance suite's
+    /// instance carrying a declaration is a product of several parts,
+    /// which a boolean refuses (`NodeErrorKind::ProductOperand`; the
+    /// acceptance suite's
     /// `no_carried_declaration_can_reach_a_boolean_operand`) — so the
     /// two readings coincide, and this is the one that will still be
     /// true if that ever changes.

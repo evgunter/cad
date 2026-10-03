@@ -909,10 +909,11 @@ fn the_gate_has_no_success_arm_over_a_carried_mint_refusal() {
 /// declaration rows, so a finding against one of them is
 /// `Unattributed` — which is correct there, because no mate authored
 /// them. What could make it wrong is a declaration row reaching a
-/// boolean operand, and today nothing can: an instance that CARRIES a
-/// declaration is a product of at least two solids (a mate is between
-/// two members of the document that authored it), and the pair boolean
-/// refuses a multi-solid operand outright.
+/// boolean operand, and nothing can: an instance that CARRIES a
+/// declaration is a product of at least two parts (a mate is between
+/// two members of the document that authored it), and a boolean
+/// refuses a product operand (`NodeErrorKind::ProductOperand`), naming
+/// the explicit union as the recourse.
 ///
 /// Every seat, so what refuses is the boolean's rule and not this
 /// geometry: penetrating, resting, gapped.
@@ -950,10 +951,13 @@ fn no_carried_declaration_can_reach_a_boolean_operand() {
         let ev = run(&doc, &with_resolver(store));
         let failure = ev
             .node_error(union)
-            .expect("the boolean does not evaluate over a two-solid instance");
+            .expect("the boolean does not evaluate over a product");
         assert!(
-            format!("{:?}", failure.kind).contains("not one solid"),
-            "the boolean refuses the multi-solid instance: {:?}",
+            matches!(
+                failure.kind,
+                editor_core::NodeErrorKind::ProductOperand { input, parts: 2 } if input == instance
+            ),
+            "the boolean refuses the product instance: {:?}",
             failure.kind
         );
     }

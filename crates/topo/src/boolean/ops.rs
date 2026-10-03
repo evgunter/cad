@@ -34,7 +34,7 @@
 //! **Bodies in, bodies out** (`docs/DESIGN.md`, "A solid is one piece
 //! of material"). An operand may hold any number of solids: the
 //! pipeline reads each operand as one multi-shell solid
-//! ([`Body::into_one_solid`] on a clone), since it classifies, keeps and
+//! ([`Body::merge_all_solids`] on a clone), since it classifies, keeps and
 //! grafts shells, and every result leaves [`boolean_op_with`] sorted
 //! into pieces ([`crate::pieces`]) — one `Outer` per solid, each `Void`
 //! under the piece whose material surrounds it.
@@ -532,7 +532,7 @@ fn one_solid<T: Decide>(body: &Body<T>) -> std::borrow::Cow<'_, Body<T>> {
         std::borrow::Cow::Borrowed(body)
     } else {
         let mut flat = body.clone();
-        flat.into_one_solid();
+        flat.merge_all_solids();
         std::borrow::Cow::Owned(flat)
     }
 }

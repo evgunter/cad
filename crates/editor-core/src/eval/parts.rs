@@ -117,6 +117,10 @@ pub(crate) struct PartValue<T: Decide> {
     pub unplaced: Arc<Vec<(RecipeNodeId, crate::mate::Unplaced)>>,
     /// The same for the unplaced groups it carried up from its parts.
     pub carried_unplaced: Arc<Vec<crate::assembly::CarriedUnplaced>>,
+    /// How many parts the referenced document's product gathered — its
+    /// distinct root outputs ([`crate::product::Product::solid_roots`]).
+    /// More than one makes the value a product, which no boolean takes.
+    pub members: usize,
 }
 
 impl<T: Decide> Clone for PartValue<T> {
@@ -131,6 +135,7 @@ impl<T: Decide> Clone for PartValue<T> {
             carried_unminted: Arc::clone(&self.carried_unminted),
             unplaced: Arc::clone(&self.unplaced),
             carried_unplaced: Arc::clone(&self.carried_unplaced),
+            members: self.members,
         }
     }
 }
@@ -674,7 +679,14 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // mint health are as much part of that as its records are. The
         // `Arc`s are the cache's, so every instance of one part shares
         // one row set.
+        let members = product
+            .solid_roots
+            .iter()
+            .map(|o| (o.node, o.output))
+            .collect::<std::collections::BTreeSet<_>>()
+            .len();
         Ok(PartValue {
+            members,
             body: Arc::new(product.body.into_body()),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),

@@ -1165,6 +1165,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // sits on.
         NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
+        | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
         | NodeErrorKind::InstanceOutOfRange { .. }
         | NodeErrorKind::AxisInDifferentPlane { .. } => None,

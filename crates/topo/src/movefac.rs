@@ -411,7 +411,7 @@ impl<T: Decide> Body<T> {
     /// exit. Ownership moves and nothing else: the keeper's shell list
     /// gains the others' in arena order, every shell keeps its key and
     /// faces, and each removed solid's provenance record goes with it.
-    pub(crate) fn into_one_solid(&mut self) -> Option<SolidKey> {
+    pub(crate) fn merge_all_solids(&mut self) -> Option<SolidKey> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let solids: Vec<SolidKey> = self.solids().map(|(k, _)| k).collect();
@@ -444,7 +444,7 @@ impl<T: Decide> Body<T> {
                     solids,
                     ..ArenaDelta::ZERO
                 },
-                "into_one_solid",
+                "merge_all_solids",
             );
         }
         Some(keeper)
@@ -452,7 +452,7 @@ impl<T: Decide> Body<T> {
 
     /// **Failure-injection door** (`sweep-testing` only): a clone of
     /// this body with every shell filed under its first solid
-    /// ([`Body::into_one_solid`]) — several pieces of material under one
+    /// ([`Body::merge_all_solids`]) — several pieces of material under one
     /// solid, the state the verbs sort out of their results and tier 3's
     /// check 10 refuses (`ValidationError::SolidOuterShells`). No verb
     /// produces it; it exists to be refused, and to stand for a body
@@ -462,7 +462,7 @@ impl<T: Decide> Body<T> {
     #[must_use]
     pub fn with_solids_merged_for_tests(&self) -> Self {
         let mut out = self.clone();
-        out.into_one_solid();
+        out.merge_all_solids();
         out
     }
 }

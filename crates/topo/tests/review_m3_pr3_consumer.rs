@@ -11,8 +11,8 @@ use common::{brick, prism};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{
-    Body, SplitError, SplitJoinError, SplitPart, SplitPlane, mass_properties,
-    plane_section, split, validate_closed, validate_geometric,
+    Body, SplitError, SplitJoinError, SplitPart, SplitPlane, mass_properties, plane_section, split,
+    validate_closed, validate_geometric,
 };
 
 fn plane_y(c: f64) -> SplitPlane<f64> {

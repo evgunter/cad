@@ -82,3 +82,16 @@ this line and is kept as the record of why the file was where it was.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## 2026-10-03 — the fence moved to the editor (FUSE, PR 3891)
+
+Ev ruled (PR 3901) that a solid is one piece and that booleans take
+bodies, so the pair boolean no longer refuses a multi-solid operand —
+step 2's reason above no longer holds at the kernel. The fence holds in
+the editor instead: a boolean (and the n-ary union) refuses a PRODUCT
+operand, a value its document gathered from several parts
+(`NodeErrorKind::ProductOperand`, in `wire_boolean`'s and
+`wire_union`'s `boolean_operand`), and an instance carrying a
+declaration is such a product. The acceptance row
+`no_carried_declaration_can_reach_a_boolean_operand` now pins that
+refusal. This row stays unreachable for as long as products refuse.

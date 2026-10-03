@@ -2329,6 +2329,7 @@ fn node_error_tags_are_the_published_words() {
         SeedPinnedSection => "seed_pinned_section",
         WrongOperand => "wrong_operand",
         EmptyOperand => "empty_operand",
+        ProductOperand => "product_operand",
         EmptyHalf => "empty_half",
         InstanceOutOfRange => "instance_out_of_range",
         DegenerateDirection => "degenerate_direction",
@@ -5286,6 +5287,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_refused",
             "placement_rule_mismatch",
             "placements_uncertified",
+            "product_operand",
             "profile",
             "profile_anchor",
             "profile_lane_replay",
@@ -5739,6 +5741,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "operand_outer_shells",
             "partition",
             "pcurve",
+            "pieces",
             "rim",
             "roles",
             "thickness",
@@ -5883,7 +5886,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "split_op_error_tag",
-        values: &["finish", "join", "pcurves", "reduce"],
+        values: &["finish", "join", "pcurves", "pieces", "reduce"],
         delegates: &[],
     },
     TagEntry {
@@ -6287,6 +6290,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_unknown_doc_param", 2),
     ("pcurve", 6),
     ("pcurves", 3),
+    // One fact for the boolean, the shell and the split: the result sort
+    // (`topo::PieceSortError`) could not read a shell's piece, carried
+    // whole by each verb. The profile program's word is a coincidence.
+    ("pieces", 4),
     // One fact: a placement on an instance's frame did not evaluate —
     // the instance's own row, and why its checked offset went unchecked.
     ("placement_refused", 2),

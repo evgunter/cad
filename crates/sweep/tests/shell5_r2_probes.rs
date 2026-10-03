@@ -261,38 +261,37 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
 }
 
 // ---------------------------------------------------------------------
-// Claim 5: is `OperandOuterShells { outer != 1 }` reachable?
+// Claim 5: two `Outer` shells under one solid are sorted, not refused.
 // ---------------------------------------------------------------------
 
 /// **Two `Outer` shells under one solid, handed to the verb.** A cube
-/// grafted into the cavity of a hollow box, onto its solid, yields ONE
-/// solid with THREE shells that classify to two `Outer` and one `Void`.
-/// The verb refuses it typed, so the variant is reachable from the
-/// public doors and is not dead code. The boolean no longer makes that
-/// shape: `subtract(box 6³, shell(box 2³, 0.25))` files the island
-/// inside B's cavity as a solid of its own, which the verb then shells
-/// solid by solid.
+/// filed into the cavity of a hollow box's solid (the `sweep-testing`
+/// merge door) is ONE solid with THREE shells that classify to two
+/// `Outer` and one `Void`. The verb takes bodies and sorts its operand
+/// into pieces first, so the island is thickened as a solid of its
+/// own: four solids come back, one per operand shell's wall. The
+/// boolean's own product, `subtract(box 6³, shell(box 2³, 0.25))`,
+/// arrives already sorted and shells the same way.
 #[test]
-fn r2_an_island_under_its_walls_solid_reaches_operand_outer_shells() {
+fn r2_an_island_under_its_walls_solid_is_sorted_then_shelled() {
     let tol = Tol::witness();
     let mut body = hollow_box();
-    let solid = body.solids().next().expect("one solid").0;
-    topo::graft_disjoint_all_onto_keyed(
+    topo::graft_disjoint_all_keyed(
         &mut body,
-        &[solid],
         &brick((-0.25, 0.25), (-0.25, 0.25), (-0.25, 0.25), Tol::witness()),
     )
-    .expect("the island grafts onto the wall's solid");
+    .expect("the island grafts");
+    let body = body.with_solids_merged_for_tests();
     assert_eq!(body.solids().count(), 1, "one solid");
     assert_eq!(body.shells().count(), 3, "three shells in it");
     let roles = topo::classify_shells(&body, tol).expect("classifies");
     let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
     assert_eq!(outer, 2, "two Outer shells under one solid");
-
-    let e = topo::shell(&body, 0.05, tol).expect_err("the verb refuses");
-    assert!(
-        matches!(e, topo::ShellError::OperandOuterShells { outer: 2, .. }),
-        "expected OperandOuterShells {{ outer: 2 }}, got {e}"
+    let shelled = topo::shell(&body, 0.05, tol).expect("the verb sorts, then shells");
+    assert_eq!(
+        shelled.body.solids().count(),
+        3,
+        "the wall's two thin solids and the island's one"
     );
 
     let inner = topo::shell(

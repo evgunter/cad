@@ -136,7 +136,11 @@ fn hollow_b_result() -> BooleanBody<f64> {
 /// two pieces, so a body of two solids.
 fn hollow_with_island(lo: f64, hi: f64, cavity: (f64, f64), island: (f64, f64)) -> Body<f64> {
     let r = union(&hollow(lo, hi, &[cavity]), &cube(island.0, island.1));
-    assert_eq!(r.body.solids().count(), 2, "the island is a piece of its own");
+    assert_eq!(
+        r.body.solids().count(),
+        2,
+        "the island is a piece of its own"
+    );
     r.body
 }
 
@@ -325,7 +329,11 @@ fn a_disjoint_union_is_two_solids_and_an_operand() {
         "side by side",
     );
 
-    let pair = union(&cube(0.0, 1.0), &brick((3.0, 4.0), (0.0, 1.0), (0.0, 1.0), tol())).body;
+    let pair = union(
+        &cube(0.0, 1.0),
+        &brick((3.0, 4.0), (0.0, 1.0), (0.0, 1.0), tol()),
+    )
+    .body;
     assert_grouping(&pair, &[(&[Outer], 1.0), (&[Outer], 1.0)], "two cubes");
     let notched = subtract(&pair, &brick((0.5, 3.5), (0.25, 0.75), (0.5, 1.5), tol()));
     assert_grouping(

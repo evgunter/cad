@@ -303,7 +303,7 @@ fn tangent_door_contradicts_escalates_and_admits() {
     // Admitted past the door AND carried through: a `Tangent` pair's
     // carriers are distinct by its own verification, so the pair never
     // reaches the planar coplanar-merge door, and the join lane unions
-    // the line-contact pair into ONE solid. The contact is a tangent
+    // the line-contact pair into one body of two solids. The contact is a tangent
     // ruling — measure zero — so the volume is the operands' sum, to
     // the rounding of the mass integral: it accumulates over the
     // union's faces in minting order, which the operands' authored
@@ -317,7 +317,11 @@ fn tangent_door_contradicts_escalates_and_admits() {
         Ok(()),
         "the tangent union is tier-3 valid"
     );
-    assert_eq!(b.body.solids().count(), 1, "one solid, not a graft");
+    assert_eq!(
+        b.body.solids().count(),
+        2,
+        "pieces that only touch, along the tangent ruling, are two solids"
+    );
     let vol = topo::mass_properties(&b.body, Tol::witness())
         .unwrap()
         .volume;

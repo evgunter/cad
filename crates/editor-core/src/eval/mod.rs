@@ -540,6 +540,12 @@ pub struct NodeValue<T: Decide> {
     /// descendant map. Rides the value, so memo reuse transfers mate
     /// identity with the geometry it is keyed into.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    /// How many parts a document's product gathered into this value
+    /// (`crates/editor-core/ASSEMBLY.md`, A2): one for every op but an
+    /// instantiation, where it is the referenced document's distinct
+    /// root outputs. More than one makes the value a PRODUCT, which a
+    /// boolean refuses ([`NodeErrorKind::ProductOperand`]).
+    pub gathered: usize,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -1442,6 +1448,17 @@ pub enum NodeErrorKind {
         /// The empty input node.
         input: RecipeNodeId,
     },
+    /// A boolean's operand is a PRODUCT — several parts its document
+    /// gathered (`crates/editor-core/ASSEMBLY.md`, A2) — which no
+    /// boolean takes (`docs/DESIGN.md`, "A solid is one piece of
+    /// material"): which solids are one part is recipe structure, and
+    /// an explicit union is what makes the parts one body.
+    ProductOperand {
+        /// The operand node.
+        input: RecipeNodeId,
+        /// How many parts its document gathered.
+        parts: usize,
+    },
     /// A [`crate::Node::Part`] selected a split half that holds no
     /// material — the tool plane missed the target on that side. Its
     /// own arm rather than [`NodeErrorKind::EmptyOperand`]: that
@@ -2319,6 +2336,12 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::EmptyOperand { input } => write!(
                 f,
                 "{} is the empty value — the body ops take real bodies",
+                by.node_as(*input, "input")
+            ),
+            Self::ProductOperand { input, parts } => write!(
+                f,
+                "{} gathers {parts} parts, and a boolean takes one body. Recourse: union the \
+                 parts explicitly in their document and use that union",
                 by.node_as(*input, "input")
             ),
             Self::EmptyHalf { input, half } => write!(
@@ -4253,6 +4276,7 @@ where
                 fragment_groups: out.groups,
                 contacts: out.contacts,
                 carried: out.carried,
+                gathered: out.gathered,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},

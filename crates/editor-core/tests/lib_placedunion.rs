@@ -88,11 +88,10 @@ fn the_fin_group_is_one_node_and_one_body() {
         payload.kind_name()
     );
     let body = body_of(&ev, root);
-    // Five disjoint fins fuse into the PROTOTYPE's solid structure —
-    // one solid, five shells — which is what the pairwise-union chain
-    // this replaces also produces, and the only shape the seamed
-    // boolean path accepts as an operand.
-    assert_eq!(body.solids().count(), 1, "one solid");
+    // Five disjoint fins are five pieces, so five solids — what the
+    // pairwise-union chain this replaces also produces, and a boolean
+    // operand like any other body.
+    assert_eq!(body.solids().count(), 5, "one solid per fin");
     assert_eq!(body.shells().count(), 5, "five shells, one per placement");
     assert!(
         topo::validate_geometric(body, Tol::witness()).is_ok(),

@@ -40,3 +40,16 @@ refusing these 26 results until the cross-solid backstop can decide
 curved × curved and curved × planar pairs: either certify them apart, or
 find the coincidence. The lane has to land before or with shell's
 adoption of the bar.
+
+## 2026-10-03 — booleans reach it too (FUSE, PR 3891)
+
+Under Ev's ruling that a solid is one piece of material (PR 3901),
+every boolean result is sorted one solid per piece, and pieces that
+only touch are distinct solids. So a union whose pieces touch along a
+line now lands in this class as well:
+`sweep/tests/reach_continuation.rs::a_declared_tangent_beside_a_fillet_builds_in_either_operand_order`
+(a box tangent to a plate's fillet, declared `Tangent`) is two solids,
+passes tier 3, and its tier 3′ refuses with `CensusUndecidable` alone.
+That row now pins the refusal and cites this item. The "same geometry
+passes as shells of one solid" asymmetry above is gone from the
+verbs' outputs: they no longer produce two pieces under one solid.

@@ -592,7 +592,10 @@ impl core::fmt::Display for SplitError {
             Self::Join(e) => write!(f, "{e}"),
             Self::Finish(e) => write!(f, "{e}"),
             Self::Pcurves(e) => write!(f, "{e}"),
-            Self::Pieces(e) => write!(f, "a side of the split could not be sorted into solids: {e}"),
+            Self::Pieces(e) => write!(
+                f,
+                "a side of the split could not be sorted into solids: {e}"
+            ),
         }
     }
 }
@@ -740,7 +743,7 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let flat;
     let operand = if operand.solids().nth(1).is_some() {
         let mut body = operand.clone();
-        body.into_one_solid();
+        body.merge_all_solids();
         flat = body;
         &flat
     } else {

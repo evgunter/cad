@@ -850,7 +850,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
 
 /// The operand's single solid. The pipelines read every operand as one
 /// solid (`split` and the boolean hand them over through
-/// [`Body::into_one_solid`]), so any other count is a desync.
+/// [`Body::merge_all_solids`]), so any other count is a desync.
 pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitFinishError> {
     let mut it = body.solids();
     match (it.next(), it.next()) {

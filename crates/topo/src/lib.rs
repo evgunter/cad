@@ -179,7 +179,6 @@ pub(crate) mod live;
 pub(crate) mod loop_winding;
 pub mod merge_faces;
 pub mod movefac;
-pub mod pieces;
 #[cfg(test)]
 mod n2r1_probes;
 pub mod null;
@@ -188,6 +187,7 @@ pub mod offset_nappe;
 pub mod offset_together;
 pub mod param_source;
 pub mod pcurves;
+pub mod pieces;
 pub(crate) mod policy_lane;
 pub mod props;
 pub mod provenance;
@@ -691,6 +691,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
+pub use pieces::PieceSortError;
 pub use query::{
     CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
     SurfaceKind, SurfaceKindSet,
@@ -701,7 +702,6 @@ pub use readback::{
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
-pub use pieces::PieceSortError;
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
