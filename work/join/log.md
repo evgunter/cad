@@ -332,3 +332,11 @@ a signed-distance oracle: 0 wrong on head (f64 and Interval), 3 692
 byte-identical main vs head.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-03 — the intent-refactor hold applied (Ev, PR #3990)
+
+Five rows parked on `[3990]` per the hold notice above; the list and
+what stays startable are in `plan.md`. JOIN-2 and PR 3962 finish as
+started units. The held four-germ P0 is parked, not dispatched.
+
+Signed (JOIN orchestrator).

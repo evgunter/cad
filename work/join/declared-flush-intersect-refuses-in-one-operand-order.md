@@ -2,10 +2,11 @@
 id: declared-flush-intersect-refuses-in-one-operand-order
 kind: issue
 title: A declared flush intersect refuses JoinDesync (every chord arc separates a loose scaffolding pair) in one operand order and builds in the other
-status: open
+status: parked
 opened: 2026-10-02
 priority: P2
 cost: M
+blocked_on: [3990]
 ---
 
 ## What
