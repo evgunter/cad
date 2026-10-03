@@ -546,9 +546,8 @@ pub enum SsiError {
         /// traced through an interior seed.
         from: Option<BoundaryPoint>,
     },
-    /// A branch the march could not progress along, its step in the
-    /// band, took the Hermite candidate through its two ends, and the
-    /// certificate refused it.
+    /// A branch too short for the march, its step in the band, whose
+    /// Hermite candidate through its two ends the certificate refused.
     ShortBranchUncertified {
         /// The distance between the branch's ends, in metres.
         length: f64,
@@ -1367,7 +1366,9 @@ pub struct SsiBranch {
     pub pcurve_a: Option<NurbsCurve2<f64>>,
     /// The second operand's pcurve, same contract.
     pub pcurve_b: Option<NurbsCurve2<f64>>,
-    /// The smallest transversality margin the march saw, in meters.
+    /// The smallest transversality margin the candidate generator
+    /// read, in meters: over the march's states, or at a Hermite
+    /// candidate's two ends.
     pub min_transversality: f64,
     /// The generator's step tolerance this carrier was marched at, in
     /// meters — the receipt that makes the tie observable rather than

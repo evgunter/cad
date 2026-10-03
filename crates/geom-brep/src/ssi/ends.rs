@@ -182,12 +182,12 @@ impl<'a> Ends<'a> {
                     branch
                 }
                 Err(hermite) => {
-                    let (b, branch) = self.marched(a, near, crossings, &used).map_err(|march| {
-                        match hermite {
-                            SsiError::ShortBranchUncertified { .. } => hermite,
-                            _ => march,
-                        }
-                    })?;
+                    let (b, branch) =
+                        self.marched(a, near, crossings, &used)
+                            .map_err(|march| match hermite {
+                                SsiError::ShortBranchUncertified { .. } => hermite,
+                                _ => march,
+                            })?;
                     used[b] = true;
                     branch
                 }
