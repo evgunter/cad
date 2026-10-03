@@ -2,12 +2,13 @@
 id: plane-offset-rung-decided-zero-shares-invalid-with-a-poisoned-margin
 kind: issue
 title: topo: plane_eq's offset rung carries its decided zero as MarginDiag::INVALID, the poisoned-margin encoding, and flush::pair_finding reads a poisoned offset as DecidedCoincident
-status: review
+status: closed
 branch: topo/plane-offset-rung-carries-its-decided-margin
 pr: 3974
 opened: 2026-09-30
 priority: P2
 cost: M
+closed: 2026-10-03
 ---
 
 
