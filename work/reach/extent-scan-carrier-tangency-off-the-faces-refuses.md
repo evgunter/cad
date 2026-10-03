@@ -8,6 +8,7 @@ priority: P1
 cost: M
 refs: [ball-inside-a-two-sphere-body-refuses-at-the-extent-scan]
 branch: reach/extent-scan-off-face-tangency
+pr: 3978
 ---
 
 
