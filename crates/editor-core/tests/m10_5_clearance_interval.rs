@@ -363,6 +363,7 @@ fn query(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
+        resolver: None,
     }
 }
 
@@ -758,6 +759,7 @@ fn gap_run(
             ..ClearanceConfig::default()
         },
         oracle,
+        resolver: None,
     };
     clearance_with(doc, &box_of("gap"), sa, sb, &q)
 }
@@ -806,6 +808,7 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
             ..ClearanceConfig::default()
         },
         oracle,
+        resolver: None,
     };
     let on = clearance_with(
         &doc,

@@ -1263,11 +1263,75 @@ fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
         .join("|")
 }
 
+/// **An interval lane's structure is the `f64` one's, or an escalation
+/// on a mate's log**: where an interval decision could not settle, the
+/// mate faults `Indeterminate` — or the member whose checked offset it
+/// was faults `OffsetUnchecked` with the same cause — the escalation is
+/// on a mate's own log, and what the fault reaches fails with it;
+/// everything else reads as at `f64`. An identically-zero membership
+/// margin (the constructed candidate's own residual, a true checked
+/// offset's) encloses zero only as tightly as the lane's rounding, so at
+/// a fine enough ε it escalates on an unboxed run (the spec's §5 (b)):
+/// the corpus's clocked coaxial pair and its true checked offset do at
+/// ε = 1e-12.
+fn assert_interval_structure(
+    doc: &ProfileDoc,
+    f: &Evaluation<f64>,
+    i: &Evaluation<Interval>,
+    label: &str,
+) {
+    use editor_core::{MateFault, NodeErrorKind, OffsetCheck};
+    let escalating = |id: RecipeNodeId| {
+        i.node_error(id).is_some_and(|e| match &e.kind {
+            NodeErrorKind::Mate(fault) => match &**fault {
+                MateFault::Indeterminate { .. } => true,
+                MateFault::OffsetUnchecked { cause, .. } => {
+                    matches!(**cause, OffsetCheck::Indeterminate(_))
+                }
+                _ => false,
+            },
+            _ => false,
+        })
+    };
+    let mate_log_escalated = doc.order().iter().any(|&id| {
+        matches!(doc.node(id), Some(Node::Mate { .. }))
+            && match i.result(id) {
+                Some(NodeResult::Ok(v)) => !v.escalations.is_empty(),
+                _ => i.node_error(id).is_some_and(|e| !e.escalations.is_empty()),
+            }
+    });
+    let want = structure(doc, f);
+    let got = structure(doc, i);
+    let mut moved = Vec::new();
+    for ((id, w), (_, g)) in want.iter().zip(&got) {
+        if w == g {
+            continue;
+        }
+        assert!(
+            escalating(*id),
+            "{label}: Interval reads {g} at {id:?} where f64 reads {w}, and its fault is no \
+             escalation"
+        );
+        moved.push(*id);
+    }
+    if !moved.is_empty() {
+        assert!(
+            mate_log_escalated,
+            "{label}: Interval escalated at {moved:?} with no escalation on a mate's log"
+        );
+        println!(
+            "{label}: Interval escalated at {moved:?} (ε = {:e})",
+            Tol::witness().eps()
+        );
+    }
+}
+
 /// **C5 and A3's dual half**: over the whole corpus, the solve's
 /// structure — every mate's role, and which mates and instances fail —
-/// is the `f64` build's at `Dual64` and at `Interval` (each unboxed and
-/// unseeded); and at `Dual64` every instance's every vertex reads the
-/// `f64` build's bits on its value channel, seeded or not.
+/// is the `f64` build's at `Dual64` (unseeded and under every seed) and
+/// at `Interval` (unboxed), save where an interval decision ESCALATES
+/// ([`assert_interval_structure`]); and at `Dual64` every instance's
+/// every vertex reads the `f64` build's bits on its value channel.
 #[test]
 fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f64s() {
     for (label, doc, opts) in corpus() {
@@ -1276,7 +1340,7 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
         let i = run_at::<Interval>(&doc, &opts, None);
         let want = structure(&doc, &f);
         assert_eq!(structure(&doc, &d), want, "{label}: Dual64's structure");
-        assert_eq!(structure(&doc, &i), want, "{label}: Interval's structure");
+        assert_interval_structure(&doc, &f, &i, label);
         let params: Vec<ParamName> = doc.params().keys().cloned().collect();
         let seeds = std::iter::once(None).chain(params.into_iter().map(Some));
         for seed in seeds {
@@ -1307,4 +1371,91 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
             }
         }
     }
+}
+
+// ---- A5: the two analysis doors over a face-framed assembly ----
+
+/// **`stackup::sensitivities` over the face-framed bolt**: the distance
+/// from a vertex of the bolt to a vertex of the slab, differentiated in
+/// the spacing, is the `f64` builds' central difference — ∂m/∂s crosses
+/// the face-framed mate.
+#[test]
+fn a5_sensitivities_cross_a_face_framed_mate() {
+    use editor_core::stackup::{SensitivityOutcome, sensitivities_resolved};
+    use editor_core::{MeasureExpr, MeasurePrimitive, SitedRef};
+    let b = bolted("msolve14-a5-stackup", MateFrame::FromFace);
+    let ev = run_at::<f64>(&b.doc, &b.opts, None);
+    let foot = all_vertices(&ev, b.bolt)[0].clone();
+    let corner = all_vertices(&ev, b.slab)[0].clone();
+    let (doc, m) = insert(
+        b.doc.clone(),
+        Node::measure(
+            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+            vec![
+                SitedRef::new(b.bolt, foot.clone()),
+                SitedRef::new(b.slab, corner.clone()),
+            ],
+        )
+        .expect("both indices address a reference"),
+    );
+    // The closed form: the bolt moves by `−2` per unit of spacing along
+    // `x` and the slab holds still, so `∂|d|/∂s = d · (−2, 0, 0) / |d|`
+    // over the vertices' own `f64` positions.
+    let p = vertex_position(&ev, b.bolt, &foot).expect("the bolt's vertex");
+    let q = vertex_position(&ev, b.slab, &corner).expect("the slab's vertex");
+    let d = [p.x - q.x, p.y - q.y, p.z - q.z];
+    let fd = -2.0 * d[0] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+    assert!(fd.abs() > 0.1, "the measure moves with the spacing: {fd}");
+    let resolver = b.opts.resolver.clone().expect("the store resolves");
+    let entries = sensitivities_resolved(&doc, m, None, None, false, &resolver, Tol::witness())
+        .expect("the driver runs");
+    assert_eq!(entries.len(), 1, "one continuous parameter");
+    match &entries[0].outcome {
+        SensitivityOutcome::Derivative { value, .. } => assert!(
+            (value - fd).abs() <= 1e-12,
+            "∂m/∂s is {value} where the closed form gives {fd}"
+        ),
+        other => panic!("a derivative across the face frame, not {other:?}"),
+    }
+}
+
+/// **Certified `clearance` over the face-framed bolt**: the separation
+/// between the bolt and copy #2 is `2s − 1`, three at the nominal, so a
+/// leaf around it holds a clearance of 2.5 and violates one of 3.5 —
+/// each answered over the leaf, the mate solved at its scalar.
+#[test]
+fn a5_certified_clearance_runs_over_a_face_framed_mate() {
+    use editor_core::clearance::{
+        ClearanceQuery, ClearanceVerdict, FaceScope, Selection, clearance_with,
+    };
+    let b = bolted("msolve14-a5-clearance", MateFrame::FromFace);
+    let resolver = b.opts.resolver.clone().expect("the store resolves");
+    let (lo, hi) = narrow(0.05);
+    let leaf = ParamBox::from_axes(BTreeMap::from([(spacing(), BoxAxis::Varying { lo, hi })]));
+    let copy2 = Selection {
+        at: b.pattern,
+        body: 2,
+        faces: FaceScope::All,
+    };
+    let ask = |c: f64| {
+        clearance_with(
+            &b.doc,
+            &leaf,
+            &Selection::body_of(b.bolt),
+            &copy2,
+            &ClearanceQuery::at_least(c, Tol::witness()).resolved_by(&resolver),
+        )
+        .verdict()
+        .clone()
+    };
+    assert!(
+        matches!(ask(2.5), ClearanceVerdict::Holds),
+        "2s − 1 = 3 clears 2.5 over the leaf: {:?}",
+        ask(2.5)
+    );
+    assert!(
+        matches!(ask(3.5), ClearanceVerdict::Violated(_)),
+        "2s − 1 = 3 violates 3.5 over the leaf: {:?}",
+        ask(3.5)
+    );
 }
