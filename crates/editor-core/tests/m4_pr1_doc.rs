@@ -10,7 +10,7 @@
 
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
-use editor_core::{Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, RecipeNodeId, SlotId};
+use editor_core::{Dimension, Doc, DocEdit, Expr, FreeVar, Node, RecipeNodeId, SlotId, VarName};
 use geom_core::Tol;
 
 /// Opaque profile payload (spec D1/D3): tests never look inside.
@@ -103,8 +103,8 @@ fn author_die() -> Die {
         doc,
         &mut log,
         TEdit::SetDocParam {
-            name: ParamName::from_static("pip_depth"),
-            value: DocParam::continuous(Dimension::Length, 0.002),
+            name: VarName::from_static("pip_depth"),
+            value: FreeVar::continuous(Dimension::Length, 0.002),
         },
     );
     // Cube: profile wrap + extrude.
@@ -140,7 +140,7 @@ fn author_die() -> Die {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_profile.unwrap(),
-                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+                distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -241,8 +241,8 @@ fn die_authors_replays_and_diffs() {
         .doc
         .apply(
             &TEdit::SetDocParam {
-                name: ParamName::from_static("pip_depth"),
-                value: DocParam::continuous(Dimension::Length, 0.003),
+                name: VarName::from_static("pip_depth"),
+                value: FreeVar::continuous(Dimension::Length, 0.003),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -250,7 +250,7 @@ fn die_authors_replays_and_diffs() {
         .unwrap();
     let d2 = die.doc.diff(&variant2.doc);
     assert!(d2.nodes.is_empty());
-    assert_eq!(d2.params, vec![ParamName::from_static("pip_depth")]);
+    assert_eq!(d2.params, vec![VarName::from_static("pip_depth")]);
 
     // The original document is untouched by all of the above (D2:
     // apply is pure).

@@ -236,7 +236,7 @@ pub enum PersistError {
     /// never a best-effort load.
     Distribution {
         /// The parameter carrying the fault.
-        name: crate::doc::ParamName,
+        name: crate::doc::VarName,
         /// The invariant that failed.
         fault: crate::distribution::DistributionFault,
     },
@@ -246,10 +246,10 @@ pub enum PersistError {
     /// document-parameter carrier rather than at a literal).
     ///
     /// Reachable two ways, which is why it is a validator walk and not
-    /// a door check: the `DocParam` payload is `pub`, and a file can
+    /// a door check: the `FreeVar` payload is `pub`, and a file can
     /// pair any dimension with any table symbol. The AUTHORING doors
-    /// ([`crate::DocParam::written_length`] /
-    /// [`crate::DocParam::written_angle`]) cannot produce one — they
+    /// ([`crate::FreeVar::written_length`] /
+    /// [`crate::FreeVar::written_angle`]) cannot produce one — they
     /// take a typed carrier whose unit already agrees. Shared-validator
     /// check, so save refuses before a byte is written and load refuses
     /// with the same diagnostics.
@@ -259,7 +259,7 @@ pub enum PersistError {
     /// units that are rows of the table.
     DisplayUnit {
         /// The parameter carrying the fault.
-        name: crate::doc::ParamName,
+        name: crate::doc::VarName,
         /// The dimension the unit measures.
         unit: crate::expr::Dimension,
         /// The dimension the parameter was declared with.

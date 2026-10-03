@@ -30,8 +30,8 @@ use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, DocParam, EditError, Expr, MeasureExpr, Node, ParamName, PatternKind,
-    PersistError, ProfileDoc, RecipeNodeId, SnapshotError, apply, load, save,
+    Dimension, DocEdit, EditError, Expr, FreeVar, MeasureExpr, Node, PatternKind, PersistError,
+    ProfileDoc, RecipeNodeId, SnapshotError, VarName, apply, load, save,
 };
 use fixture::{ang, insert, len, on_frame, scl, square};
 use geom_core::Tol;
@@ -39,8 +39,8 @@ use geom_core::Tol;
 /// A frame, a profile, an extrude and a COUNT document parameter
 /// `howmany`,
 /// plus a linear pattern whose count READS that parameter.
-fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
-    let name = ParamName::from_static("howmany");
+fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
+    let name = VarName::from_static("howmany");
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("rv-payloadrefs"),
@@ -63,7 +63,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
         &doc,
         &DocEdit::SetDocParam {
             name: name.clone(),
-            value: DocParam::Count { value: 3 },
+            value: FreeVar::Count { value: 3 },
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -151,7 +151,7 @@ fn rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref() {
 /// arms.
 #[test]
 fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading() {
-    let name = ParamName::from_static("depth");
+    let name = VarName::from_static("depth");
     // The F1 checker, at construction, with no document in sight.
     let fault = MeasureExpr::add(
         MeasureExpr::value(Expr::param(name.clone(), Dimension::Length)),
@@ -187,7 +187,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
         &doc,
         &DocEdit::SetDocParam {
             name: name.clone(),
-            value: DocParam::continuous(Dimension::Length, 1.0),
+            value: FreeVar::continuous(Dimension::Length, 1.0),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -241,7 +241,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
         "{}",
         SnapshotError::PayloadUnknownDocParam {
             node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
-            name: ParamName::from_static("depth"),
+            name: VarName::from_static("depth"),
         }
     );
     assert!(
@@ -258,7 +258,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let edit = format!(
         "{}",
         EditError::PayloadUnknownDocParam {
-            name: ParamName::from_static("depth"),
+            name: VarName::from_static("depth"),
             node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
         }
     );
