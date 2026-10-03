@@ -2522,9 +2522,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    `flush_declarations` finds and declares it.
     //
     //    It still refuses, and the refusal is the interesting part: it
-    //    names a CURVED EDGE, not the contact. Both operands are
-    //    skinned bodies whose wall-wall seams are NURBS iso-curves,
-    //    and the boolean lane is planar-complete with curved work
+    //    names a NURBS FACE, not the contact. Both operands are skinned
+    //    bodies whose walls are NURBS and whose wall-wall seams are
+    //    NURBS iso-curves; an edge of the blade meets a NURBS wall of
+    //    the sheath, and the crossing layer has no side test on a NURBS
+    //    surface. The boolean lane is planar-complete with curved work
     //    wired per germ class. The declared conformal join is C7
     //    (CONTACT-DESIGN, ratified #178) and is M8's one row in the
     //    modeling-verb register, with this rebuild named as its
@@ -2558,15 +2560,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared, DECLARED rectangle",
         crate::booleans::try_union_declared(by("lily_leaf_a"), &sheath, tol),
-        // The KIND is the claim, as in wall 1: a curved EDGE stops
-        // this, not a curved face and not the planar contact. If this
-        // ever starts refusing on the contact instead, the sentence
-        // above is wrong and must be re-derived before it is believed.
+        // The KIND is the claim, as in wall 1: a NURBS face stops this,
+        // not the planar contact. If this ever starts refusing on the
+        // contact instead, the sentence above is wrong and must be
+        // re-derived before it is believed.
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedEdgeUnsupported {
+                BooleanError::CurvedBooleanUnsupported {
                     operand: Operand::A,
+                    kind: SurfaceKind::Nurbs,
                     ..
                 }
             )

@@ -480,8 +480,8 @@ pub use geom::SurfaceKind;
 // re-deriving.
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId, FaceKey,
-    GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, ShellOrientation, Surface,
+    BooleanResultKind, ContactRecords, Curve3, EdgeCarrierSite, EdgeDescription, EdgeKey, EntityId,
+    FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, ShellOrientation, Surface,
     TransformError, VertexKey, intersect, intersect_with, subtract, subtract_with, transform_rigid,
     union, union_with,
 };

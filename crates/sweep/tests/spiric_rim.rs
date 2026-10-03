@@ -308,7 +308,9 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 }
 
 /// **Row 11 — the census refusals reachable through public doors**,
-/// on the vessel's cavity: the boolean operand gate, the mesh's trimmed
+/// on the vessel's cavity: the boolean's curved pierce frontier (a line
+/// edge of the elbow against the cavity's torus face; the spiric rims
+/// stand clear of the elbow), the mesh's trimmed
 /// lane (its torus/plane roster is the MESH frontier,
 /// `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`),
 /// and the STEP writer, which now WRITES an export-only spline and
@@ -323,10 +325,16 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
     let other = klein_elbow_of_disc(0.1);
-    let e = topo::union(&cavity, &other, tol()).expect_err("the boolean fence refuses the kind");
+    let e = topo::union(&cavity, &other, tol()).expect_err("the boolean has no lane for the pair");
     assert!(
-        matches!(e, topo::BooleanError::CurvedEdgeUnsupported { .. }),
-        "the operand gate names the spiric edge, got {e:?}"
+        matches!(
+            e,
+            topo::BooleanError::CurvedPierceUnsupported {
+                operand: topo::Operand::B,
+                ..
+            }
+        ),
+        "an elbow edge meets the cavity's torus face, got {e:?}"
     );
     let e =
         mesh::tessellate(&cavity, 1e-3, tol()).expect_err("no trimmed lane for the torus chart");

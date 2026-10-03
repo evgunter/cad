@@ -140,17 +140,17 @@
 //!
 //!    spout ∪ pot used to be the same shape of refusal — cone × plane
 //!    — and it is not any more. A loft's walls are `Nurbs`, and the
-//!    pair gate has an arm for `Nurbs`, so the request now gets PAST
-//!    the pair rung and dies one door in: `CurvedEdgeUnsupported`, on
-//!    an EDGE of operand B. That variant's own words are the finding —
-//!    *"rung-3 edges are what the curved zip MINTS, not what it
-//!    consumes"* — so what stops this join is no longer a missing
-//!    face-kind arm but the canal's own seams: a NURBS-carried edge
-//!    cannot be an INPUT to a boolean at all. Making the spout the
-//!    shape a potter draws did not make it joinable; it moved the
-//!    refusal from a pair the model does not care about onto the
-//!    body's own edges, which is a narrower and more useful frontier.
-//!    Wall 3 pins the new variant and the note carries the payload.
+//!    pair gate has an arm for `Nurbs`, so the request gets PAST the
+//!    pair rung and dies in the crossing layer: an edge of the vessel
+//!    (operand A) meets the canal's NURBS wall, and the crossing layer
+//!    has no side test on a NURBS surface (`CurvedBooleanUnsupported {
+//!    operand: A, kind: Nurbs }`). The canal's own NURBS seams would
+//!    refuse next, at the crossing lane that reads them. Making the
+//!    spout the shape a potter draws did not make it joinable; it moved
+//!    the refusal from a pair the model does not care about onto the
+//!    canal's own spline geometry, which is a narrower and more useful
+//!    frontier. Wall 3 pins the variant and the note carries the
+//!    payload.
 //!
 //!    Wall 2 is past the operand gate and past the maximal-faces
 //!    precondition, and stops where the vessel's sphere face meets the
@@ -1419,17 +1419,14 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // The frustum's walls were cones, so this used to die where wall 2
     // dies: `CurvedPairUnsupported`, on a face-kind pair with no arm.
     // A loft's walls are `Nurbs` and the pair gate HAS an arm for
-    // `Nurbs`, so the request gets past that rung and dies one door in,
-    // on an EDGE of operand B — the canal's own seams, whose carriers
-    // are rung 3. The variant's own doc is the finding: *"rung-3 edges
-    // are what the curved zip MINTS, not what it consumes."*
+    // `Nurbs`, so the request gets past that rung and dies in the
+    // crossing layer, where an edge of the vessel meets a NURBS wall of
+    // the canal and no side test reads a NURBS surface.
     //
-    // The predicate matches on the OPERAND alone, deliberately. This
-    // variant carries an `EdgeKey`, and an arena key moves whenever the
-    // model is re-authored (wall 3's face key already did once); a
-    // probe that pinned one would red on a rename. What is pinned is
-    // the class and the side: operand B, the spout, is where the
-    // unconsumable carrier is.
+    // The predicate matches the operand and the kind alone,
+    // deliberately: an arena key moves whenever the model is
+    // re-authored (this wall's face key already did once), and a probe
+    // that pinned one would red on a rename.
     crate::walls::wall(
         "teapot",
         3,
@@ -1438,8 +1435,9 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedEdgeUnsupported {
-                    operand: Operand::B,
+                BooleanError::CurvedBooleanUnsupported {
+                    operand: Operand::A,
+                    kind: SurfaceKind::Nurbs,
                     ..
                 }
             )
@@ -2475,11 +2473,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              at the maximal-faces precondition on the VESSEL, whose full revolve mints \
              its planar walls split in two. spout ∪ vessel: {spout_refusal} — and THIS one moved when the spout became \
              a canal. A loft's walls are Nurbs and the pair rung HAS a Nurbs arm, so the \
-             request now gets past it and dies one door in, on an EDGE of the spout: \
-             rung-3 carriers are what the curved zip MINTS, not what it consumes, so the \
-             canal's own seams are what stop the join. The shape a potter draws did not \
-             become joinable; the refusal moved off a pair nobody modelled and onto the \
-             body's own edges. The schedule is the banked germ-chord \
+             request now gets past it and dies in the crossing layer, where an edge of \
+             the vessel meets a NURBS wall of the canal and no side test reads a NURBS \
+             surface. The shape a potter draws did not become joinable; the refusal \
+             moved off a pair nobody modelled and onto the canal's own spline \
+             geometry. The schedule is the banked germ-chord \
              lanes (DESIGN frontier (d)) and #1057's two C5 arms. BOTH REFUSALS NOW \
              ARRIVE THROUGH THE DOCUMENT: each union is a `Node::Boolean` that lowers \
              to the same kernel `union` and fails at `evaluate`, so what is quoted here \

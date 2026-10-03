@@ -23,7 +23,7 @@ use topo::{Body, BooleanResult, BooleanResultKind};
 /// **Its cavity answers in CLOSED FORM, not on the quadrature lane**,
 /// and no cavity this corpus can carve does: this wall is iso-trimmed,
 /// an extruded bulge's is too, and the boolean engine refuses a lofted
-/// operand outright (`CurvedEdgeUnsupported`).
+/// operand at its spline edges (`EdgeCarrierUnsupported`).
 fn voided_rod() -> Body<f64> {
     let a = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 3.0, 3.0));
     let b = rod(Point2::new(1.5, 1.5), 0.5, 1.0, 2.0);

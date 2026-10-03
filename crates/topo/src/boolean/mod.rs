@@ -1469,6 +1469,51 @@ pub enum PairRefusalSite {
     InteriorLoopGuard,
 }
 
+/// Which lane raised [`BooleanError::EdgeCarrierUnsupported`]: each one
+/// reads an edge's carrier and has a row for a line, a circle and an
+/// ellipse only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum EdgeCarrierSite {
+    /// The sweep's crossing lane against a plane face.
+    PlanarCrossing,
+    /// The sweep's crossing lane against a curved face.
+    CurvedCrossing,
+    /// The join's section frame for a germ that runs along an edge of
+    /// both solids.
+    GermFrame,
+    /// The join's ring lane, winding the run of a face's loop that a new
+    /// face is walled off along.
+    RingRun,
+    /// The sector walk at an ON vertex, which reads each incident edge's
+    /// departure direction.
+    VertexSector,
+    /// The continuation scan, which compares two faces' carriers over
+    /// the box of each face: a face bounded by a spline edge has none.
+    FaceExtent,
+}
+
+impl EdgeCarrierSite {
+    /// What the lane could not do with the edge, as a clause completing
+    /// "the Boolean cannot yet".
+    #[must_use]
+    pub const fn clause(self) -> &'static str {
+        match self {
+            Self::PlanarCrossing => {
+                "find whether or where such an edge crosses a plane face of the other operand"
+            }
+            Self::CurvedCrossing => {
+                "find whether or where such an edge crosses a curved face of the other operand"
+            }
+            Self::GermFrame => "join the two solids along such an edge",
+            Self::RingRun => "orient a new face whose boundary runs along such an edge",
+            Self::VertexSector => {
+                "tell which side of the other operand such an edge leaves a shared point on"
+            }
+            Self::FaceExtent => "bound a face whose boundary runs along such an edge",
+        }
+    }
+}
+
 /// Where a [`BooleanError::CorruptOperand`] found its operand broken.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Corruption {
@@ -1596,21 +1641,31 @@ pub enum BooleanError {
         /// The band the clearance margins were classified against.
         band: Band,
     },
-    /// The operand gate (F5) refused a rung-3 (`Nurbs`) carrier in an
-    /// INPUT operand: rung-3 edges are what the curved zip MINTS, not
-    /// what it consumes.
-    CurvedEdgeUnsupported {
-        /// The offending operand and edge.
+    /// A lane met an edge whose carrier is a spiric or a spline, and
+    /// has no row for either kind. At a crossing lane, the edge's
+    /// endpoints' sides neither find its crossings (it can cross a face
+    /// and come back between same-side ends) nor place them (a parameter
+    /// interpolated between them is not a point on the face); a spline
+    /// edge has no sound box of its own, so the face named is the first
+    /// one the sweep read it against. `site` names the lane.
+    EdgeCarrierUnsupported {
+        /// The operand whose edge it is.
         operand: Operand,
         /// The edge.
         edge: EdgeKey,
+        /// The face the lane read it against: the other operand's at a
+        /// crossing lane, the germ's or the ring's face of `operand` at
+        /// the join.
+        face: FaceKey,
+        /// The lane.
+        site: EdgeCarrierSite,
     },
     /// The both-edges-split point lane needs a carrier with an exact
     /// point parameter and got one without. `Line` and `Circle` have
-    /// one; `Ellipse` reaches here, because the operand gate admits it,
-    /// so this is a **narrower** condition than the gate's, at a later
+    /// one; `Ellipse` reaches here, because the crossing lanes take it,
+    /// so this is a **narrower** condition than theirs, at a later
     /// stage — which is exactly why it is its own variant rather than a
-    /// second reach of [`Self::CurvedEdgeUnsupported`]. One doc and one
+    /// second reach of [`Self::EdgeCarrierUnsupported`]. One doc and one
     /// message covering both could name neither.
     PointSplitCarrierUnsupported {
         /// The offending operand and edge.
@@ -2409,8 +2464,8 @@ pub enum BooleanErrorKind {
     CurvedSectorSideUnsupported,
     /// [`BooleanError::CurvedPierceUnsupported`].
     CurvedPierceUnsupported,
-    /// [`BooleanError::CurvedEdgeUnsupported`].
-    CurvedEdgeUnsupported,
+    /// [`BooleanError::EdgeCarrierUnsupported`].
+    EdgeCarrierUnsupported,
     /// [`BooleanError::PointSplitCarrierUnsupported`].
     PointSplitCarrierUnsupported,
     /// [`BooleanError::ArcLoopContainmentUnsupported`].
@@ -2622,7 +2677,7 @@ impl BooleanError {
                 BooleanErrorKind::CurvedSectorSideUnsupported
             }
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
-            Self::CurvedEdgeUnsupported { .. } => BooleanErrorKind::CurvedEdgeUnsupported,
+            Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
             Self::PointSplitCarrierUnsupported { .. } => {
                 BooleanErrorKind::PointSplitCarrierUnsupported
             }
@@ -2812,12 +2867,13 @@ impl core::fmt::Display for BooleanError {
                 refusal_routes::PIERCE_CURVATURE
                     .recourse(verdict.arm(), geom_brep::recourse::Reading::Build)
             ),
-            Self::CurvedEdgeUnsupported { operand, .. } => write!(
+            Self::EdgeCarrierUnsupported { operand, site, .. } => write!(
                 f,
-                "an edge of the {} operand is a spline (NURBS) curve, and the Boolean \
-                 cannot yet take a solid with spline edges as an input. Recourse: \
-                 rebuild that solid so its edges are lines, circles or ellipses",
+                "an edge of the {} operand is a spiric or spline (NURBS) curve, and the \
+                 Boolean cannot yet {}. Recourse: rebuild that solid so its edges are \
+                 lines, circles or ellipses",
                 operand_word(*operand),
+                site.clause(),
             ),
             Self::PointSplitCarrierUnsupported { operand, .. } => write!(
                 f,
@@ -5226,9 +5282,11 @@ mod tests {
                 edge,
                 band,
             },
-            BooleanError::CurvedEdgeUnsupported {
+            BooleanError::EdgeCarrierUnsupported {
                 operand: Operand::B,
                 edge,
+                face,
+                site: EdgeCarrierSite::RingRun,
             },
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,
@@ -5466,7 +5524,7 @@ mod tests {
                 BooleanErrorKind::DegenerateTorus => "DegenerateTorus",
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
-                BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
+                BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
