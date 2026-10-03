@@ -153,7 +153,7 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b: u,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, bar) = block(doc, (2.9, 3.1), (0.5, 3.5), 0.5, 3.0);
@@ -174,7 +174,7 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: sub,
             b: tr,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, sub, tr, cut)
@@ -372,7 +372,7 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
             doc,
             Node::Union {
                 members: order.iter().map(|&i| m[i]).collect(),
-                declare: None,
+                declare: Vec::new(),
             },
         );
         // Member `member`'s wall `segment` (of the block `of`), as the
@@ -507,7 +507,7 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
             doc,
             Node::Union {
                 members: vec![plate, tr, cblock],
-                declare: None,
+                declare: Vec::new(),
             },
         );
         let ev1 = run(&doc, None);
@@ -560,7 +560,7 @@ fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
             doc,
             Node::Union {
                 members: order.iter().map(|&i| m[i]).collect(),
-                declare: None,
+                declare: Vec::new(),
             },
         );
         let ev1 = run(&doc, None);
@@ -634,7 +634,7 @@ fn plate_and_bar() -> (
             op: BooleanOp::Union,
             a: plate,
             b: tr,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, plate, bar, tr, u)
@@ -792,7 +792,7 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
             doc,
             Node::Union {
                 members: vec![m[order[0]], m[order[1]], plate],
-                declare: None,
+                declare: Vec::new(),
             },
         );
         let ev1 = run(&doc, None);

@@ -105,8 +105,8 @@ impl ContactClass {
 /// The two declaration seats take different types, so each states only
 /// what its consumer can use. A mate, a contact record and the census
 /// speak [`ContactClass`] — the valid inputs to a mate. A boolean node
-/// (`BooleanDeclarations::coincident_faces`, and a `Declare` node at
-/// the recipe layer) speaks this type — the valid inputs to a union,
+/// (`BooleanDeclarations::coincident_faces`, and a boolean's declared
+/// pairs at the recipe layer) speaks this type — the valid inputs to a union,
 /// which are every contact plus the one relation that is not a contact.
 ///
 /// - [`Contact`](Self::Contact) — the pair touches, of that class.

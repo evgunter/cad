@@ -101,7 +101,7 @@ fn boolean_doc(
             op,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );

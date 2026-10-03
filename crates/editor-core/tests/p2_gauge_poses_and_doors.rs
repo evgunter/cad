@@ -613,7 +613,12 @@ fn the_compound_door_refuses_when_a_declaring_mate_would_start_placing() {
         solve(&doc, &o, Tol::witness()).role(d),
         Some(MateRole::Declaring)
     );
-    match regauge_then_mate(&doc, seat(head(p.top_cap(top)), head(p.base_cap(base)))) {
+    match regauge_then_mate(
+        &doc,
+        seat(head(p.top_cap(top)), head(p.base_cap(base))),
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
         Err(editor_core::EditError::WouldStartPlacing { mate }) => assert_eq!(mate.id(), d),
         other => panic!("the compound door refuses typed: {other:?}"),
     }

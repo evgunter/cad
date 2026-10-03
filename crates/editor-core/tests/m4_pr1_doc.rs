@@ -181,7 +181,7 @@ fn author_die() -> Die {
                         op: editor_core::BooleanOp::Subtract,
                         a: body,
                         b: placed.unwrap(),
-                        declare: None,
+                        declare: Vec::new(),
                     }),
                 },
             );

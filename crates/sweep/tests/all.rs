@@ -113,6 +113,8 @@ mod pis_arc_capped_poses;
 mod pis_cut_cavity;
 #[path = "placeholder_chart_boundary.rs"]
 mod placeholder_chart_boundary;
+#[path = "point_in_loop_arc_cap.rs"]
+mod point_in_loop_arc_cap;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
 #[path = "r1_lane0_e2e.rs"]
@@ -541,6 +543,8 @@ mod verbs_tubewall_r1_probes;
 mod verbs_tubewall_r2_probes;
 #[path = "verbs_tubewall_r2_solidbits.rs"]
 mod verbs_tubewall_r2_solidbits;
+#[path = "wall_face_tangent_reach.rs"]
+mod wall_face_tangent_reach;
 
 test_utils::every_suite_file_is_aggregated!();
 

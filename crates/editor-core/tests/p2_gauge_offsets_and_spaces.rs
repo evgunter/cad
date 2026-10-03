@@ -1347,25 +1347,34 @@ fn the_compound_door_refuses_a_regauge_that_would_start_a_declaring_mate_placing
     let doc = set_gauge(doc, b, Some(g));
     let (doc, a1) = insert(doc, Node::instantiate_part(p.top));
     let (doc, m1) = insert(doc, seat(head(p.top_cap(a1)), head(p.base_cap(c))));
-    match editor_core::regauge_then_mate(&doc, seat(head(p.top_cap(a1)), head(p.base_cap(b)))) {
+    let regauge_then_mate = |doc: &ProfileDoc| {
+        editor_core::regauge_then_mate(
+            doc,
+            seat(head(p.top_cap(a1)), head(p.base_cap(b))),
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+    };
+    match regauge_then_mate(&doc) {
         Err(e @ editor_core::EditError::WouldStartPlacing { .. }) => {
             assert!(
                 matches!(&e, editor_core::EditError::WouldStartPlacing { mate } if mate.id() == m1)
             );
             let said = e.to_string();
-            assert!(
-                said.contains("Recourse: delete mate 000000000005") || said.contains("Recourse:"),
-                "{said}"
-            );
+            let problems = test_utils::refusal::problems("WouldStartPlacing", &said, &[], false);
+            assert!(problems.is_empty(), "{said}: {problems:#?}");
         }
         other => panic!("the compound door refuses typed: {other:?}"),
     }
-    // With m1 gone, the same action is the bare re-gauge and insert.
+    // With m1 gone, the same action re-gauges a1 and places it on b.
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: m1 });
-    let edits =
-        editor_core::regauge_then_mate(&doc, seat(head(p.top_cap(a1)), head(p.base_cap(b))))
-            .expect("no other mate starts placing");
-    assert_eq!(edits.len(), 2, "one re-gauge, then the insert: {edits:?}");
+    let done = regauge_then_mate(&doc).expect("no other mate starts placing");
+    assert_eq!(
+        done.doc.node(a1).and_then(Node::gauge_ref),
+        Some(g),
+        "a1 is re-gauged onto b's gauge"
+    );
+    assert_eq!(root_of(&done.doc, a1), b, "b's group places a1");
 }
 
 /// **The gauge inline mints is the one a user would insert** (A4, the

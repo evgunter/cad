@@ -4,7 +4,7 @@
 //! second tool's floor is coplanar with the first cavity's floor — a
 //! contact the recipe DECLARES by name.
 //!
-//! Vocabulary: Profile, Extrude, Declare, Boolean (Subtract),
+//! Vocabulary: Profile, Extrude, Boolean (Subtract, declared),
 //! `InsertNode`, `SetParam`.
 //!
 //! Geometry (dyadic): plate `[0,3]² × [0,1]`; slot 1
@@ -72,7 +72,7 @@ pub fn document() -> CorpusDoc {
         op: BooleanOp::Subtract,
         a: plate,
         b: slot1,
-        declare: None,
+        declare: Vec::new(),
     });
 
     // Slot 2: runs in x, SAME floor plane z = 0.5 — the declared
@@ -94,15 +94,15 @@ pub fn document() -> CorpusDoc {
         node: sub1,
         path: vec![RoleSeg::FromB(cap(slot1, CapEnd::Start).into())],
     };
-    let decl = r.insert(Node::declare_rest(vec![(
+    let decl = editor_core::declare_rest(vec![(
         SitedRef::new(sub1, cavity_floor),
         SitedRef::new(slot2, cap(slot2, CapEnd::Start)),
-    )]));
+    )]);
     let sub2 = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
         a: sub1,
         b: slot2,
-        declare: Some(decl),
+        declare: decl,
     });
 
     CorpusDoc {
