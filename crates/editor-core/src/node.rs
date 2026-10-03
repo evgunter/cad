@@ -2959,8 +2959,8 @@ macro_rules! node_rows {
 /// grows at its end, so a name minted before the node stays so. A
 /// union's site alone can stop being an operand afterwards, when a
 /// [`crate::DocEdit::SetMembers`] drops the member it is read at: that
-/// is N5's stranded case, refused by the evaluation
-/// ([`crate::eval::NodeErrorKind::DeclareSiteNotAnOperand`]).
+/// is N5's stranded case, refused by the evaluation as a vanished name
+/// ([`crate::eval::NodeErrorKind::DeclareResolve`]).
 ///
 /// **A union's own fold rows are therefore UNREPRESENTABLE here, not
 /// refused** — a `Seam`, a `Merged`, a `Fragment` or the output body of

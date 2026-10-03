@@ -1612,12 +1612,15 @@ pub enum NodeErrorKind {
     ///
     /// The site IS the side (DM4), so a site the consumer does not
     /// have is a declaration the consumer cannot read: there is no
-    /// table to resolve the name in. Every door that writes a pair
-    /// refuses such a site ([`crate::EditError::DeclaredSiteNotAnOperand`]),
-    /// and a Boolean's operands never change, so this arm is a union's:
-    /// a later `SetMembers` that drops the member a pair is read at
-    /// strands the pair (N5), and the load door cannot tell that state
-    /// from a typo, so the evaluation is where it refuses.
+    /// table to resolve the name in. A pair boolean's arm: a union's
+    /// site that is not a member is the N5 strand a later `SetMembers`
+    /// leaves, and refuses as a vanished name ([`Self::DeclareResolve`]).
+    /// Every door that writes a pair refuses such a site — the edit
+    /// doors ([`crate::EditError::DeclaredSiteNotAnOperand`]) and, for a
+    /// Boolean, the load door — and a Boolean's operands never change,
+    /// so no document those doors admit reaches this arm; it stays the
+    /// evaluation's own answer to a site it cannot read rather than an
+    /// assumption the doors held.
     DeclareSiteNotAnOperand {
         /// The site the pair named.
         at: crate::node::RecipeNodeId,

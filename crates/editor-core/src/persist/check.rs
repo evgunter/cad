@@ -765,8 +765,8 @@ pub enum SnapshotError {
     /// Boolean only: its operands never change, so no edit leaves it
     /// such a pair. A union's member can be dropped by `SetMembers`
     /// after its pair was written, which is N5's stranded state and
-    /// loads; the evaluation refuses it
-    /// ([`crate::eval::NodeErrorKind::DeclareSiteNotAnOperand`]).
+    /// loads; the evaluation refuses it as a vanished name
+    /// ([`crate::eval::NodeErrorKind::DeclareResolve`]).
     DeclaredSiteNotAnOperand {
         /// The Boolean.
         node: SpokenNode,

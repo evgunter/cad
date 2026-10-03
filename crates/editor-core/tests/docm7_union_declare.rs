@@ -279,8 +279,9 @@ fn a_site_that_is_neither_operand_refuses() {
 /// **A union's site a later `SetMembers` drops is stranded state, not
 /// a door fault**: the edit is accepted with the pair as written, the
 /// stranded document saves and loads (the load door does not judge a
-/// union's sites), and it is the evaluation that refuses the pair —
-/// alike before and after the round trip.
+/// union's sites), and it is the evaluation that refuses the pair, as
+/// a vanished name (N5's strand, DM4) — alike before and after the
+/// round trip.
 #[test]
 fn a_union_site_dropped_by_set_members_strands_and_loads() {
     let tol = Tol::witness();
@@ -304,6 +305,10 @@ fn a_union_site_dropped_by_set_members_strands_and_loads() {
     );
     let stranded = run(&doc);
     let refused = failure(&stranded, union).expect("the stranded site refuses at evaluation");
+    assert!(
+        matches!(refused, NodeErrorKind::DeclareResolve { error } if matches!(**error, ResolveError::Vanished { .. })),
+        "a stranded site refuses as a vanished name: {refused:?}"
+    );
     let text = editor_core::persist::save(&doc, &[], tol).expect("the stranded document saves");
     let loaded = editor_core::persist::load(&text, tol)
         .expect("the load door does not refuse a union's stranded site")
