@@ -446,25 +446,32 @@ pub(crate) fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::{MarginDiag, Tol};
+    use geom_core::{ErrorTextReading, Tol};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    /// The fault a rung's gate gives a definite verdict it does not
-    /// admit, carrying the margin it decided, spelled literally so a row
-    /// compares against the payload rather than against the code under
-    /// test.
-    fn gate_refusal(predicate: &'static str, rung: SectorRung, margin: f64) -> SectorFault {
-        SectorFault::Rung {
-            rung,
-            diag: Indeterminate {
-                margin: MarginDiag::value(margin),
-                band: band(),
-                predicate: Some(predicate),
-                terminal_sliver: false,
-            },
+    /// A rung refusal as `(rung, predicate, the margin's reading, the
+    /// sign its gate rejected)`, so a row compares against the payload
+    /// rather than against the code under test; `None` for any other
+    /// fault.
+    fn gate_refusal(
+        fault: Option<SectorFault>,
+    ) -> Option<(
+        SectorRung,
+        Option<&'static str>,
+        ErrorTextReading,
+        Option<Sign>,
+    )> {
+        match fault? {
+            SectorFault::Rung { rung, diag } => Some((
+                rung,
+                diag.predicate,
+                diag.margin.diagnostic_f64_for_error_text(),
+                diag.margin.rejected_sign(),
+            )),
+            _ => None,
         }
     }
 
@@ -542,7 +549,14 @@ mod tests {
             panic!("a spike is a rung refusal, not a chord-length one: {e:?}");
         };
         assert_eq!(e.predicate, Some("sector_straight"));
-        assert_eq!(e.margin, MarginDiag::value(1.0), "the decided cos θ · arm");
+        assert_eq!(
+            (
+                e.margin.diagnostic_f64_for_error_text(),
+                e.margin.rejected_sign()
+            ),
+            (ErrorTextReading::Value(1.0), Some(Sign::Positive)),
+            "the decided cos θ · arm"
+        );
         assert_eq!(e.band, band());
     }
 
@@ -600,15 +614,25 @@ mod tests {
         // still the arm rung's, not this one's: 1e-12 squares to 1e-24,
         // which the format holds.
         assert_eq!(
-            shape(Vec3::new(0.0, 1e-12, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err(),
-            Some(gate_refusal(SECTOR_ARM, SectorRung::Arm, 1e-12))
+            gate_refusal(shape(Vec3::new(0.0, 1e-12, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err()),
+            Some((
+                SectorRung::Arm,
+                Some(SECTOR_ARM),
+                ErrorTextReading::Value(1e-12),
+                Some(Sign::Zero)
+            ))
         );
         // And the zero chord is not an underflowed one: it has no
         // direction to recover, so its witness is zero too and the
         // predicate's two ratios are both poison.
         assert_eq!(
-            shape(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err(),
-            Some(gate_refusal(SECTOR_ARM, SectorRung::Arm, 0.0))
+            gate_refusal(shape(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err()),
+            Some((
+                SectorRung::Arm,
+                Some(SECTOR_ARM),
+                ErrorTextReading::Value(0.0),
+                Some(Sign::Zero)
+            ))
         );
     }
 
@@ -710,7 +734,14 @@ mod tests {
             panic!("a collapsed chord has a finite length: {e:?}");
         };
         assert_eq!(e.predicate, Some("sector_arm"));
-        assert_eq!(e.margin, MarginDiag::value(0.0), "the decided arm");
+        assert_eq!(
+            (
+                e.margin.diagnostic_f64_for_error_text(),
+                e.margin.rejected_sign()
+            ),
+            (ErrorTextReading::Value(0.0), Some(Sign::Zero)),
+            "the decided arm"
+        );
         assert_eq!(e.band, band());
     }
 

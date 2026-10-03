@@ -1240,10 +1240,9 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// All three `Zero` bound `E` everywhere on the trims — vertices AND
 /// interiors, because each term is a description-level bound, not a
 /// sample. A definite nonzero refuses
-/// [`ChartRegionError::CarrierTilt`]; a definite Negative on an
-/// unsigned (norm) margin is poisoned input and escalates `Invalid`
-/// (the `chart_region_carrier_tilt` precedent); in-band escalates
-/// named.
+/// [`ChartRegionError::CarrierTilt`]; the unsigned (norm) margins are
+/// magnitudes ([`geom_core::k_stats::decide_magnitude`]), with no
+/// negative sign; in-band escalates named.
 ///
 /// # The measured discharge (`chart_region_cyl_transfer`)
 ///

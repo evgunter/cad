@@ -537,8 +537,9 @@ pub(super) fn side_code<T: Decide>(
 /// tolerance it offers decides both, logged under its own name
 /// (`"enters_material_rise"`). An exactly zero departure (a bound in the
 /// face's plane) reads `On` at every tolerance that decides the arm, so
-/// there the arm binds and keeps its own margin, the edge's length, as a
-/// poisoned arm does.
+/// there the arm binds and keeps its own margin, the edge's length, as an
+/// arm with no tolerance to offer does (poisoned, or no smaller tolerance
+/// decides it positive).
 fn at_departure<T: Decide>(
     escalation: geom_brep::LeverEscalation,
     arm: T,
@@ -548,7 +549,7 @@ fn at_departure<T: Decide>(
     // `arm / departure` is finite unless the departure is exactly zero
     // (or poison).
     if escalation.rung != geom_brep::LeverRung::Arm
-        || escalation.diag.margin.is_invalid()
+        || !escalation.diag.offers_tolerance()
         || !geom_core::is_finite_length(arm / departure)
     {
         return escalation;

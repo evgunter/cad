@@ -1022,13 +1022,28 @@ pub struct MarginDiag(Reading);
 /// The private reading of a [`MarginDiag`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Reading {
-    /// The classified `f64` margin, signed, exactly as submitted.
-    Value(f64),
+    /// The classified `f64` margin, signed, exactly as submitted, and
+    /// the gate's tag where a gate rejected it. The tag rides inside
+    /// the variant so the reading stays the size of its numbers.
+    Value(f64, Option<Rejection>),
     /// The classified enclosure's bounds, exactly as the interval
-    /// scalar held them.
-    Enclosure { lo: f64, hi: f64 },
+    /// scalar held them, and the gate's tag where a gate rejected it.
+    Enclosure {
+        lo: f64,
+        hi: f64,
+        tag: Option<Rejection>,
+    },
     /// The margin was poisoned.
     Invalid,
+}
+
+/// What a gate door adds to the decided reading it rejects: the sign
+/// the classifier decided and the signs the gate passes. Minted only by
+/// [`MarginDiag::rejected_by`], which only `k_stats`' gate doors call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Rejection {
+    sign: Sign,
+    passes: SizedPass,
 }
 
 /// Where a [`MarginDiag`] stands against a band, as classification
@@ -1196,20 +1211,20 @@ impl MarginDiag {
     /// The reading of a point margin, as `f64` classification mints it.
     #[must_use]
     pub const fn value(m: f64) -> Self {
-        Self(Reading::Value(m))
+        Self(Reading::Value(m, None))
     }
 
     /// The reading of an enclosure, as interval classification mints it.
     #[must_use]
     pub const fn enclosure(lo: f64, hi: f64) -> Self {
-        Self(Reading::Enclosure { lo, hi })
+        Self(Reading::Enclosure { lo, hi, tag: None })
     }
 
     /// Which shape this reading has.
     #[must_use]
     pub fn kind(self) -> MarginKind {
         match self.0 {
-            Reading::Value(_) => MarginKind::Value,
+            Reading::Value(..) => MarginKind::Value,
             Reading::Enclosure { .. } => MarginKind::Enclosure,
             Reading::Invalid => MarginKind::Invalid,
         }
@@ -1221,16 +1236,62 @@ impl MarginDiag {
         self.kind() == MarginKind::Invalid
     }
 
+    /// This decided reading, as a gate that passes only `passes`
+    /// rejected its decided `sign` — the one mint of the tag
+    /// [`MarginDiag::rejected_sign`] reads.
+    pub(crate) const fn rejected_by(self, sign: Sign, passes: SizedPass) -> Self {
+        let tag = Some(Rejection { sign, passes });
+        Self(match self.0 {
+            Reading::Value(m, _) => Reading::Value(m, tag),
+            Reading::Enclosure { lo, hi, .. } => Reading::Enclosure { lo, hi, tag },
+            Reading::Invalid => Reading::Invalid,
+        })
+    }
+
+    /// The sign the classifier decided, where this reading is a gate's
+    /// rejection of it; `None` for every other reading (in band,
+    /// straddling, poisoned). A verdict, read as a sign — never the
+    /// number.
+    #[must_use]
+    pub fn rejected_sign(self) -> Option<Sign> {
+        self.tag().map(|r| r.sign)
+    }
+
+    /// The gate's tag, where a gate rejected this reading.
+    const fn tag(self) -> Option<Rejection> {
+        match self.0 {
+            Reading::Value(_, tag) | Reading::Enclosure { tag, .. } => tag,
+            Reading::Invalid => None,
+        }
+    }
+
+    /// The tolerance below which a smaller one decides this reading
+    /// passing `passes`, or `None` where none does: a poisoned reading,
+    /// one past the band (decided at this tolerance already), or one
+    /// whose sign no tolerance moves onto a side `passes` accepts.
+    fn tightens_below(self, band: Band, passes: SizedPass) -> Option<f64> {
+        if self.placement(band) == Placement::Past {
+            return None;
+        }
+        match self.0 {
+            Reading::Value(m, _) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
+            Reading::Enclosure { lo, hi, .. } => passes.below(lo, hi, band),
+            Reading::Invalid => None,
+        }
+    }
+
     /// Where this reading stands against `band`, as the classifier
     /// would place it — for composing error text only.
     fn placement(self, band: Band) -> Placement {
         let (zero, escalate) = (band.zero, band.escalate);
         match self.0 {
-            Reading::Value(m) if m.abs() <= zero => Placement::ZeroBand,
-            Reading::Enclosure { lo, hi } if -zero <= lo && hi <= zero => Placement::ZeroBand,
-            Reading::Value(m) if m.abs() >= escalate => Placement::Past,
-            Reading::Enclosure { lo, hi } if lo >= escalate || hi <= -escalate => Placement::Past,
-            Reading::Value(_) | Reading::Enclosure { .. } => Placement::Undecided,
+            Reading::Value(m, _) if m.abs() <= zero => Placement::ZeroBand,
+            Reading::Enclosure { lo, hi, .. } if -zero <= lo && hi <= zero => Placement::ZeroBand,
+            Reading::Value(m, _) if m.abs() >= escalate => Placement::Past,
+            Reading::Enclosure { lo, hi, .. } if lo >= escalate || hi <= -escalate => {
+                Placement::Past
+            }
+            Reading::Value(..) | Reading::Enclosure { .. } => Placement::Undecided,
             Reading::Invalid => Placement::Invalid,
         }
     }
@@ -1242,8 +1303,8 @@ impl MarginDiag {
     #[must_use]
     pub fn diagnostic_f64_for_error_text(self) -> ErrorTextReading {
         match self.0 {
-            Reading::Value(m) => ErrorTextReading::Value(m),
-            Reading::Enclosure { lo, hi } => ErrorTextReading::Enclosure { lo, hi },
+            Reading::Value(m, _) => ErrorTextReading::Value(m),
+            Reading::Enclosure { lo, hi, .. } => ErrorTextReading::Enclosure { lo, hi },
             Reading::Invalid => ErrorTextReading::Invalid,
         }
     }
@@ -1273,14 +1334,10 @@ impl MarginDiag {
             may_tighten,
             otherwise,
         } = words;
-        let below = match self.0 {
-            // Decided nonzero at this band already: a smaller tolerance
-            // decides it the same, so no size is tightened below.
-            _ if self.placement(band) == Placement::Past => None,
-            Reading::Value(m) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
-            Reading::Enclosure { lo, hi } => passes.below(lo, hi, band),
-            Reading::Invalid => return format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}"),
-        };
+        if self.is_invalid() {
+            return format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}");
+        }
+        let below = self.tightens_below(band, passes);
         match (below, otherwise) {
             (Some(v), _) if may_tighten => format!(
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
@@ -1299,8 +1356,8 @@ impl MarginDiag {
         num: fn(&f64, &mut fmt::Formatter<'_>) -> fmt::Result,
     ) -> fmt::Result {
         match self.0 {
-            Reading::Value(m) => num(&m, f),
-            Reading::Enclosure { lo, hi } => {
+            Reading::Value(m, _) => num(&m, f),
+            Reading::Enclosure { lo, hi, .. } => {
                 f.write_str("[")?;
                 num(&lo, f)?;
                 f.write_str(", ")?;
@@ -1681,13 +1738,17 @@ impl Indeterminate {
     /// margin gives a value, the conditional tolerance arm below which
     /// a smaller tolerance decides the margin passing.
     ///
-    /// An escalation is a band-decided arm by construction (the margin
-    /// lies inside the ambiguity band, or is unreadable) and the
-    /// decision it refused passes on a nonzero sign — a coincidence it
-    /// could not rule out — so the arm belongs here and its value is
-    /// the margin's. The words are [`MarginDiag::sized_recourse`]'s,
-    /// which is also where a straddling enclosure and an unreadable
-    /// margin lose the offer: neither names a tolerance that decides.
+    /// The classifier's escalation is a band-decided arm (the margin
+    /// lies inside the ambiguity band, or is unreadable) of a decision
+    /// that passes on a nonzero sign — a coincidence it could not rule
+    /// out — so the arm belongs here and its value is the margin's. A
+    /// gate's rejection carries the signs its gate passes, and the arm
+    /// is offered only where a smaller tolerance decides the margin onto
+    /// one of them: never for a decided sign the gate rejects, nor for a
+    /// zero on the side it rejects. The words are
+    /// [`MarginDiag::sized_recourse`]'s, which is also where a
+    /// straddling enclosure and an unreadable margin lose the offer:
+    /// neither names a tolerance that decides.
     #[must_use]
     pub fn ending(&self, levers: &str) -> String {
         self.margin.sized_recourse(
@@ -1695,7 +1756,7 @@ impl Indeterminate {
             SizedWords {
                 lever: levers,
                 size: "size",
-                passes: SizedPass::NonZero,
+                passes: self.passes(),
                 may_tighten: true,
                 otherwise: None,
             },
@@ -1703,9 +1764,38 @@ impl Indeterminate {
     }
 }
 
+impl Indeterminate {
+    /// The signs the refused decision passes: its gate's, on a gate's
+    /// rejection; a nonzero sign otherwise (a coincidence the classifier
+    /// could not rule out).
+    fn passes(&self) -> SizedPass {
+        self.margin.tag().map_or(SizedPass::NonZero, |r| r.passes)
+    }
+
+    /// Whether [`Indeterminate::ending`] offers a tolerance: a smaller
+    /// one decides the margin onto a sign the refused decision passes.
+    /// For a door that re-quotes an escalation at a reading it meters,
+    /// which only an escalation with a tolerance to offer can be.
+    #[must_use]
+    pub fn offers_tolerance(&self) -> bool {
+        self.margin
+            .tightens_below(self.band, self.passes())
+            .is_some()
+    }
+}
+
+/// The escalation's sentence under [`COINCIDENCE_RECOURSE`], except
+/// where the margin was decided past the band: that sign is certain,
+/// no declaration changes it (D4 ¶1 (i)), and the geometry is the one
+/// lever ([`NO_DECLARATION_RECOURSE`]).
 impl fmt::Display for Indeterminate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.under(COINCIDENCE_RECOURSE))
+        let levers = if self.margin.placement(self.band) == Placement::Past {
+            NO_DECLARATION_RECOURSE
+        } else {
+            COINCIDENCE_RECOURSE
+        };
+        write!(f, "{}", self.under(levers))
     }
 }
 
@@ -1742,15 +1832,28 @@ impl fmt::Display for IndeterminateUnder<'_> {
         // the ending carries: an undecided enclosure can be subdivided,
         // and a margin nobody could read is a question about the
         // inputs. A decided reading is neither: subdivision keeps its
-        // sign, and a decided nonzero sign is sign-certain, so no
-        // tolerance arm rides with it (D4 ¶1 (i)).
+        // sign, a decided nonzero sign is sign-certain, and a zero on
+        // the side a gate rejects stays there at every smaller
+        // tolerance, so no tolerance arm rides with either (D4 ¶1 (i)).
         let margin = self.diag.margin;
-        match (margin.placement(self.diag.band), margin.kind()) {
+        let band = self.diag.band;
+        match (margin.placement(band), margin.kind()) {
             (Placement::Past, _) => write!(
                 f,
                 " — a decided sign this decision cannot use; {}",
                 self.diag.ending(levers)
             ),
+            (Placement::ZeroBand, _)
+                if margin.tag().is_some()
+                    && margin.tightens_below(band, self.diag.passes()).is_none() =>
+            {
+                write!(
+                    f,
+                    " — a decided zero no smaller tolerance moves onto a side this decision \
+                     passes; {}",
+                    self.diag.ending(levers)
+                )
+            }
             (Placement::ZeroBand | Placement::Undecided, MarginKind::Value)
             | (Placement::ZeroBand, _) => {
                 write!(f, " — a near-coincidence; {}", self.diag.ending(levers))
@@ -1914,6 +2017,51 @@ mod tests {
     /// tolerance's linear band, but constructed purely.
     fn band_1e9() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **The text places a reading where the classifier does.**
+    /// `placement` restates the classifier's thresholds for the error
+    /// text, so it is pinned against the classifier itself — `f64`'s and
+    /// `Interval`'s `sign_within` — at every edge of the band and one
+    /// ulp either side of it, both signs.
+    #[test]
+    fn placement_agrees_with_the_classifier_at_every_edge() {
+        let band = band_1e9();
+        let (z, e) = (band.zero(), band.escalate());
+        let place = |r: Result<Decided, Indeterminate>| match r {
+            Ok(Decided {
+                sign: Sign::Zero, ..
+            }) => Placement::ZeroBand,
+            Ok(_) => Placement::Past,
+            Err(d) if d.margin.is_invalid() => Placement::Invalid,
+            Err(_) => Placement::Undecided,
+        };
+        let mut points = vec![0.0, -0.0];
+        for edge in [z, e] {
+            for m in [edge.next_down(), edge, edge.next_up()] {
+                points.extend([m, -m]);
+            }
+        }
+        for &m in &points {
+            assert_eq!(
+                MarginDiag::value(m).placement(band),
+                place(m.sign_within(band)),
+                "point {m:e}"
+            );
+        }
+        for &lo in &points {
+            for &hi in &points {
+                if lo > hi {
+                    continue;
+                }
+                let iv = crate::Interval::from_bounds(lo, hi);
+                assert_eq!(
+                    MarginDiag::enclosure(lo, hi).placement(band),
+                    place(iv.sign_within(band)),
+                    "enclosure [{lo:e}, {hi:e}]"
+                );
+            }
+        }
     }
 
     /// **Every outcome carries the margin it was classified on**: a

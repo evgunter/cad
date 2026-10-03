@@ -44,7 +44,7 @@ use geom_core::k_stats::{
     decide_magnitude, decide_negative, decide_nonzero, decide_positive, decide_reported,
     gate_measured,
 };
-use geom_core::{Band, Decided, Interval, Margin, MarginDiag, Sign};
+use geom_core::{Band, Decided, ErrorTextReading, Interval, Margin, MarginDiag, Sign};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -174,12 +174,33 @@ fn a_rejected_gate_records_both_channels_under_its_own_name() {
     assert_eq!(decide_negative("gate_e", Margin::of(-1.0f64), b), Ok(()));
     let unsigned = decide_negative("gate_f", Margin::of(1.0f64), b).unwrap_err();
     let recorded = bracket.finish();
-    assert_eq!(unsigned.margin, MarginDiag::value(1.0), "decided positive");
+    assert_eq!(
+        (
+            unsigned.margin.diagnostic_f64_for_error_text(),
+            unsigned.margin.rejected_sign()
+        ),
+        (ErrorTextReading::Value(1.0), Some(Sign::Positive)),
+        "decided positive"
+    );
     assert_eq!(unsigned.predicate, Some("gate_f"));
 
-    assert_eq!(rejected.margin, MarginDiag::value(-1.0), "decided negative");
+    assert_eq!(
+        (
+            rejected.margin.diagnostic_f64_for_error_text(),
+            rejected.margin.rejected_sign()
+        ),
+        (ErrorTextReading::Value(-1.0), Some(Sign::Negative)),
+        "decided negative"
+    );
     assert_eq!(rejected.predicate, Some("gate_b"));
-    assert_eq!(zeroed.margin, MarginDiag::value(0.0), "decided zero");
+    assert_eq!(
+        (
+            zeroed.margin.diagnostic_f64_for_error_text(),
+            zeroed.margin.rejected_sign()
+        ),
+        (ErrorTextReading::Value(0.0), Some(Sign::Zero)),
+        "decided zero"
+    );
     assert_eq!(zeroed.predicate, Some("gate_d"));
     assert_eq!(
         recorded.verdicts,
@@ -434,4 +455,87 @@ fn every_discharge_kind_retags_its_sample_with_a_token_of_its_own() {
             }
         );
     }
+}
+
+/// **A decided zero enclosure offers no subdivision.** A gate's
+/// rejection of an enclosure decided zero is a decided reading: a
+/// sub-box keeps its sign, so the refusal reads within the zero band
+/// and names no subdivision.
+#[test]
+fn a_decided_zero_enclosure_rejection_offers_no_subdivision() {
+    let b = band();
+    let half = 0.5 * b.zero();
+    let text = decide_positive(
+        "gate_zero_enclosure",
+        Margin::of(Interval::from_bounds(-half, half)),
+        b,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(text.contains("lies within the zero band"), "{text}");
+    assert!(!text.contains("subdivide"), "decided: {text}");
+    assert!(!text.contains("cannot be classified"), "decided: {text}");
+}
+
+/// **The text places a margin where the classifier does, at the band's
+/// edge**: a margin of exactly `escalate` on the rejected side is
+/// decided, so it reads past the band and offers no tolerance.
+#[test]
+fn a_rejection_at_the_escalation_edge_reads_past_the_band() {
+    let b = band();
+    for text in [
+        decide_positive("gate_edge", Margin::of(-b.escalate()), b)
+            .unwrap_err()
+            .to_string(),
+        decide_negative("gate_edge", Margin::of(b.escalate()), b)
+            .unwrap_err()
+            .to_string(),
+    ] {
+        assert!(text.contains("lies past the ambiguity band"), "{text}");
+        assert!(!text.contains("tighten"), "sign-certain: {text}");
+    }
+}
+
+/// **A zero on the side a gate rejects offers no tolerance.** A smaller
+/// tolerance decides such a margin onto the rejected sign, so no
+/// tolerance is offered (D4 ¶1 (i)) and the text says the zero stays
+/// rejected — at both scalars, for both one-sided gates. The same zero
+/// on the passing side keeps its offer.
+#[test]
+fn a_zero_on_the_rejected_side_offers_no_tolerance() {
+    let b = band();
+    let small = 0.5 * b.zero();
+    let rejected = [
+        decide_positive("gate_neg_zero", Margin::of(-small), b),
+        decide_positive(
+            "gate_neg_zero_enclosure",
+            Margin::of(Interval::from_bounds(-small, -0.5 * small)),
+            b,
+        ),
+        decide_negative("gate_pos_zero", Margin::of(small), b),
+    ];
+    for refusal in rejected {
+        let text = refusal.unwrap_err().to_string();
+        assert!(!text.contains("tighten"), "{text}");
+        assert!(
+            text.contains("a decided zero no smaller tolerance moves onto a side"),
+            "{text}"
+        );
+    }
+    let passing = decide_positive("gate_pos_zero", Margin::of(small), b).unwrap_err();
+    assert_eq!(passing.margin.rejected_sign(), Some(Sign::Zero));
+    let text = passing.to_string();
+    assert!(text.contains("tighten the tolerance below"), "{text}");
+}
+
+/// **A sign-certain rejection offers no declaration.** A margin decided
+/// past the band is no coincidence, and no declaration changes it, so
+/// its refusal names the geometry alone (D4 ¶1 (i)).
+#[test]
+fn a_past_band_rejection_offers_no_declaration() {
+    let rejected = decide_positive("gate_certain", Margin::of(-1.0f64), band()).unwrap_err();
+    assert_eq!(rejected.margin.rejected_sign(), Some(Sign::Negative));
+    let text = rejected.to_string();
+    assert!(!text.contains("declare the coincidence"), "{text}");
+    assert!(text.contains("move the geometry"), "{text}");
 }

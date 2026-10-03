@@ -309,12 +309,14 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// from there down to its own, so the arm binds and keeps its own margin:
 /// an exactly zero wedge, and one that is only rounding on a tangent
 /// seam, whose own value would offer a tolerance many decades below the
-/// one that already decides the seam. A poisoned arm keeps its own too.
+/// one that already decides the seam. An arm no smaller tolerance
+/// decides positive — poisoned, decided negative, or a zero on the
+/// negative side — keeps its own too: there is no tolerance to quote.
 fn at_wedge<T: Decide>(gate: Indeterminate, arm: T, sin_theta: T, band: Band) -> Indeterminate {
     let wedge = sin_theta * arm;
     // `arm / wedge` is finite unless the wedge is exactly zero, or poison
     // (a gradient the arm's decided zero leaves unread, at a cone's apex).
-    if gate.margin.is_invalid()
+    if !gate.offers_tolerance()
         || !geom_core::is_finite_length(arm / wedge)
         || wedge_reads_zero_at_the_arm(sin_theta, band)
     {
@@ -818,11 +820,12 @@ pub enum MaterialPairing {
 /// # Errors
 ///
 /// [`Indeterminate`]: predicate `"material_wedge_side"` — the margin
-/// landed in the band or was poisoned, or (carrying the decided
-/// margin) classified `Zero`, which on a definitely-smooth sample means
-/// the two encodings contradict each other: unit normals whose tangent planes coincide cannot be
-/// perpendicular, so the pairing question is not validly posed at this
-/// site — the collapsed-arm gate's posture, one order over.
+/// landed in the band or was poisoned, or classified `Zero`: normals
+/// that name no side. That rejection carries the decided margin, as
+/// every gate's does. On a definitely-smooth sample a zero contradicts
+/// the smooth verdict — unit normals whose tangent planes coincide
+/// cannot be perpendicular — so a caller that established smoothness
+/// reads it as a defect, not as a tolerance question.
 pub fn classify_material_pairing<T: Decide>(
     s_plus: &Surface<T>,
     sense_plus: bool,
@@ -1206,11 +1209,17 @@ mod tests {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
         assert_eq!(
-            (err.rung, err.diag.predicate, err.diag.margin),
+            (
+                err.rung,
+                err.diag.predicate,
+                err.diag.margin.diagnostic_f64_for_error_text(),
+                err.diag.margin.rejected_sign()
+            ),
             (
                 crate::LeverRung::Arm,
                 Some("dihedral_arm"),
-                geom_core::MarginDiag::value(0.0)
+                geom_core::ErrorTextReading::Value(0.0),
+                Some(Sign::Zero)
             )
         );
     }
