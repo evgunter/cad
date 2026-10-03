@@ -6462,3 +6462,12 @@ passed on `6ee9164cd6`.
 merge-orientation-rung merged as `8a7b2d1f36`, after CI run 37158737738
 passed. Both units started before the hold (PR 3974 and PR 3992) are now
 landed.
+
+## Stale-key fork dispatched (2026-10-03)
+
+The stale-key split (`stale-key-and-not-same-edge-answer-for-a-callers-key-and-a-torn-body`,
+absorbing `cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link`) is a
+design fork, not held by D10. Two designers were dispatched concurrently on one
+problem statement (`/home/user/topo-orch/design-stalekey-problem.md`), which
+names no candidate. The blinding record is on
+`analysis/design-fork/topo-stale-key-provenance`.
