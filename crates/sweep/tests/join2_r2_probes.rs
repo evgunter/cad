@@ -462,6 +462,41 @@ fn a_like_far_ends_tie_is_decided_by_the_partner_faces_trim() {
     }
 }
 
+/// **Segments between pierce-ring vertices only refuse typed.** The
+/// zip's pose of [`join2_r2_island_through_the_zip`]: the channel's west
+/// arm top is an island inside the plate's bottom face, so every one of
+/// its segments runs between two ring vertices, and no realized segment
+/// ever reaches one. The zip refuses the island in both orders at its
+/// own frontier.
+#[test]
+fn an_island_of_ring_vertex_segments_refuses_at_the_zip_frontier() {
+    let (ch, _) = channel(4.0);
+    let (r, xe, step) = (1.0, 4.5, 2.0);
+    let p = vec![
+        ((-1.0, -1.0), 0.0),
+        ((xe, -1.0), 0.0),
+        ((xe, 4.0 - r), q()),
+        ((xe - r, 4.0), 0.0),
+        ((step, 4.0), 0.0),
+        ((step, 5.0), 0.0),
+        ((-1.0, 5.0), 0.0),
+    ];
+    let up = plate(&p, 1.0);
+    for (order, x, y) in [("ab", &ch, &up), ("ba", &up, &ch)] {
+        let d = declared(x, y).unwrap_or_else(|e| panic!("{order}: declarations: {e}"));
+        let got = topo::union_with(x, y, &d, tol());
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::RestZipUnsupported {
+                    what: topo::RestZipFrontier::SegmentsBetweenIsolatedPierces
+                })
+            ),
+            "{order}: {got:?}"
+        );
+    }
+}
+
 /// **A span between two pierce-ring vertices waits for one of them to
 /// join the face's boundary.** Both channel arms cross the plate's
 /// north edge, the plate's fillet tangent to one arm's end; each arm's

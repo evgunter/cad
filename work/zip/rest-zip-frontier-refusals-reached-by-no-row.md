@@ -97,7 +97,14 @@ are reached by no row.
 The zip reads the join's segments and realizes them outward from the
 contact faces' boundary (`realize_seam`). Segments left whose ends are
 all pierce-ring vertices joined to nothing refuse there as
-`SegmentsBetweenIsolatedPierces`; `ChordBetweenIsolatedPierces` stays
-`mint_chord`'s, reachable from `mirror_edges`. Neither is reached by the
-topo or sweep suites, JOIN-2's reviewers' batteries
-(`join2_r1_probes`, `join2_r2_probes`, `join2_d_probes`) or R1's grid.
+`SegmentsBetweenIsolatedPierces`, which has a reaching row:
+`join2_r2_probes`'s
+`an_island_of_ring_vertex_segments_refuses_at_the_zip_frontier` (a
+channel arm's top an island inside a plate's face, through the zip).
+The same pose's battery, `join2_r2_island_through_the_zip`, refuses
+there on all 16 union lines, as main refused them at
+`ChordBetweenIsolatedPierces`. `ChordBetweenIsolatedPierces` stays
+`mint_chord`'s, reachable from `mirror_edges`; no line of JOIN-2's
+reviewers' batteries (`join2_r1_probes` with its grid,
+`join2_r2_probes`, `join2_d_probes`; 35 208 lines) reaches it at the
+head, and no row pins it. The other fifteen are reached by no row.
