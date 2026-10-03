@@ -9,6 +9,7 @@ cost: M
 branch: place/p2-face
 parent: a-from-face-mate-side-cannot-cross-the-split-or-inline-seam
 closed: 2026-10-03
+pr: 3934
 ---
 
 

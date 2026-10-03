@@ -9,6 +9,7 @@ cost: H
 parent: placement-split-and-inline-at-a-gauge-are-refused-until-p2-split
 branch: place/p2-face
 closed: 2026-10-03
+pr: 3934
 ---
 
 
