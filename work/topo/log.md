@@ -6035,3 +6035,25 @@ The review is on the walk target (`mergedesc-r-brief.md`). It asks
 whether `KeptBoundaryStranded` is a kernel-defect check (D2 row 4 or 5)
 rather than a typed refusal, and whether a standalone merge's refusal
 text names the merge door's own decision.
+
+## PR 3970: Ev's questions; round 2 on C′ (2026-10-03)
+
+- **Ev asked for the choices' implications.** I answered on the PR
+  (`5970789113`) under five headings: where the invariant lives, what
+  each loses, callers and API, cost and reversibility, and fit with the
+  rulings. I also described a middle path.
+- **Ev:** "c seems promising", but "C loses the exact-key evidence"
+  sounds like a real defect. Can C be modified?
+- **I proposed C′** (`5970907403`). Naming is by side. The certificate
+  carries a content-identity stamp of the surfaces it was certified on.
+  Stale is a typed state that tier 3 refuses at rest. Only a door that
+  changes geometry can make a description stale: same content asks
+  nothing, and different content refuses keys-only or is re-certified by
+  the twin.
+- **Round 2:** both designers stress-test C′
+  (`design-kef-r2-brief.md`), with the same model mapping as before,
+  A = Fable and B = Opus (byte 119). They check:
+  - content identity at `Dual`/interval;
+  - mid-surgery reads that trust a certificate;
+  - whether the stamp is a second copy of adjacency;
+  - `revert`'s side flip.
