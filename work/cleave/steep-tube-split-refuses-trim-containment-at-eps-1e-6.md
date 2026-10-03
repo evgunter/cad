@@ -2,12 +2,13 @@
 id: steep-tube-split-refuses-trim-containment-at-eps-1e-6
 kind: issue
 title: review_cleave_wrongarc's steep tube cut refuses its split Pcurves TrimContainment at CAD_TOLERANCE_EPS=1e-6, so the row is red on main there
-status: review
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 pr: 3981
 branch: cleave/steep-tube-eps
+closed: 2026-10-03
 ---
 
 
