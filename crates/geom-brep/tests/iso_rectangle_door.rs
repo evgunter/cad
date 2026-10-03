@@ -501,7 +501,7 @@ fn the_doors_zero_extent_charter_is_exactly_at_zero() {
             assert!(
                 matches!(
                     &door,
-                    Err(PropsError::Escalated { cause })
+                    Err(PropsError::Escalated { cause, .. })
                         if cause.predicate == Some("props_rim_side")
                 ),
                 "extent {dv:.3e}: an in-band extent has no extreme to place a rim at: {door:?}"

@@ -237,7 +237,7 @@ fn a_bored_brick_splits_at_every_tilt_and_offset() {
                     matches!(
                         r,
                         Err(topo::MassPropsError::Face {
-                            source: geom_brep::PropsError::Escalated { cause },
+                            source: geom_brep::PropsError::Escalated { cause, .. },
                             ..
                         }) if cause.predicate == Some("props_quad_converged")
                     )
