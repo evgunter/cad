@@ -1,4 +1,5 @@
-//! **A rigid map moves a plane × NURBS edge certified near ε.**
+//! **A rotation about the origin moves a plane × NURBS edge certified
+//! near ε.**
 //!
 //! The lane's limb 2 (`ssi_hull_sup_chart`) bounds the residual
 //! composite `S(P(t)) − C(t)` from the norms of its vector Bernstein
@@ -16,6 +17,11 @@
 //! `√(1 + ½)·δ`; a rotation that turns the arc's chord off the axes
 //! reads up to `√2·δ`. `δ` is calibrated from the lane's own bound so
 //! the edge certifies at `(1 − 1/32)·ε`.
+//!
+//! The maps are rotations about the origin, which keep every
+//! coordinate's magnitude and so the rounding each limb carries.
+//! A translation grows the coordinates and the rounding with them,
+//! which neither width below is stated against.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -33,16 +39,17 @@ const W: f64 = core::f64::consts::FRAC_1_SQRT_2;
 const MARGIN: f64 = 1.0 / 32.0;
 
 /// The limb-2 bound at `δ = 0`, in metres: the floor every placement
-/// sits on. Measured 3.242e-14 at every battery ε; pinned with 30%
-/// headroom.
+/// sits on, and the most limb 2 may move under a rotation. Measured
+/// 3.242e-14 at every battery ε; pinned with 30% headroom.
 const FLOOR: f64 = 4.2e-14;
 
 /// How far limb 1 may read from the field, in ulps of the fixture's
 /// coordinate scale. Limb 1 is the length of `S(u*, v*) − C(t)`, a
-/// difference of two points evaluated at that scale from nets a rigid
-/// map has re-rounded, so its error is a few ulps of the coordinates
-/// whatever `δ` is. Measured within 1.8 in every frame at every
-/// battery ε.
+/// difference of two points evaluated from control nets a rotation has
+/// re-rounded, so its error is a few ulps of the coordinates whatever
+/// `δ` is. Measured within 1.8 in every frame at every battery ε. At
+/// ε 1e-12 the field is about 2500 ulps, so a frame dependence under
+/// about 0.15% of it reads inside this width and is not resolved there.
 const ROUNDING_ULPS: f64 = 4.0;
 
 fn kv2() -> KnotVector {
@@ -107,12 +114,12 @@ fn hull_at(delta: f64, band: Band) -> geom_brep::PlaneNurbsLimbs<f64> {
         .unwrap_or_else(|e| panic!("δ = {delta:e}: the seated edge certifies: {e}"))
 }
 
-/// The `δ` that lands the seated edge's bound `MARGIN·ε` under ε, with
-/// the bound's floor at `δ = 0` it was placed from, or `None` where the run's ε is too close to the bound's floor at δ = 0
+/// The `δ` that lands the seated edge's bound `MARGIN·ε` under ε, or
+/// `None` where the run's ε is too close to the bound's floor at δ = 0
 /// to place one. The bound is affine in `δ` to well inside the margin
 /// (its floor plus a fixed multiple of `δ`), so two readings
 /// place it.
-fn calibrated_delta(row: &str) -> Option<(f64, f64)> {
+fn calibrated_delta(row: &str) -> Option<f64> {
     let tol = Tol::witness();
     let eps = tol.eps();
     let band = Band::linear(tol).unwrap();
@@ -146,7 +153,7 @@ fn calibrated_delta(row: &str) -> Option<(f64, f64)> {
         "the seated edge must certify just under ε: hull_sup/ε = {}",
         placed / eps
     );
-    Some((delta, floor))
+    Some(delta)
 }
 
 /// A two-face lamina: the plane face and the wall face, bounded by two
@@ -207,7 +214,7 @@ fn lamina(delta: f64) -> Body<f64> {
     body
 }
 
-/// Rigid maps about four axes at eight angles each.
+/// Rotations about the origin, about four axes at eight angles each.
 fn rotations() -> Vec<(String, Affine3<f64>)> {
     let axes = [
         Vec3::new(0.0, 0.0, 1.0),
@@ -228,11 +235,11 @@ fn rotations() -> Vec<(String, Affine3<f64>)> {
     out
 }
 
-/// **Every rigid map moves the body**: the edge's limb 2 re-derives
+/// **Every rotation moves the body**: the edge's limb 2 re-derives
 /// under ε in every frame, the oblique ones included.
 #[test]
-fn every_rigid_map_moves_an_edge_certified_near_eps() {
-    let Some((delta, _)) = calibrated_delta("rigid map, plane × NURBS edge near ε") else {
+fn every_rotation_moves_an_edge_certified_near_eps() {
+    let Some(delta) = calibrated_delta("rigid map, plane × NURBS edge near ε") else {
         return;
     };
     let body = lamina(delta);
@@ -247,11 +254,11 @@ fn every_rigid_map_moves_an_edge_certified_near_eps() {
 /// reports its limbs, each limb re-derives within a width that does
 /// not scale with the field: limb 1 reads the field itself to within
 /// the rounding of the coordinates, the tube re-derives, and limb 2
-/// moves by no more than its own floor, the part of the bound the
+/// moves by no more than the pinned floor, the part of the bound the
 /// field does not set.
 #[test]
-fn the_certificate_re_derives_within_rounding_under_the_map() {
-    let Some((delta, floor)) = calibrated_delta("rigid map, plane × NURBS limbs") else {
+fn the_certificate_re_derives_within_rounding_under_a_rotation() {
+    let Some(delta) = calibrated_delta("rigid map, plane × NURBS limbs") else {
         return;
     };
     let eps = Tol::witness().eps();
@@ -260,6 +267,9 @@ fn the_certificate_re_derives_within_rounding_under_the_map() {
     // The residual field, closed form: the arc's radius less the
     // wall's, exact (Sterbenz).
     let field = (1.0 + delta) - 1.0;
+    // The coordinate scale is the wall net's: every evaluated point is
+    // a positive-weight combination of the net, and the net's
+    // coordinates are what a rotation re-rounds.
     let ulp = f64::EPSILON
         * wall()
             .control()
@@ -316,11 +326,11 @@ fn the_certificate_re_derives_within_rounding_under_the_map() {
                 && image.tube_boxes == seated.tube_boxes,
             "{name}: the tube is frame-invariant here"
         );
-        let limb2 = (image.hull_sup - seated.hull_sup).abs() / floor;
+        let limb2 = (image.hull_sup - seated.hull_sup).abs() / FLOOR;
         assert!(
             limb2 <= 1.0,
-            "{name}: limb 2 moved {:e} m under a rigid map, {limb2:.3} of its floor \
-             {floor:e} (hull_sup/ε {:.6} against {:.6} seated)",
+            "{name}: limb 2 moved {:e} m under a rotation, {limb2:.3} of the pinned floor \
+             {FLOOR:e} (hull_sup/ε {:.6} against {:.6} seated)",
             (image.hull_sup - seated.hull_sup).abs(),
             image.hull_sup / eps,
             seated.hull_sup / eps
@@ -330,7 +340,7 @@ fn the_certificate_re_derives_within_rounding_under_the_map() {
     }
     println!(
         "rigid map, plane × NURBS: limb 1 within {worst_limb1:.2} ulps of the field; \
-         limb 2 seated at {:.5} ε, moves by up to {worst_limb2:.3} of its floor",
+         limb 2 seated at {:.5} ε, moves by up to {worst_limb2:.3} of the pinned floor",
         seated.hull_sup / eps
     );
 }
