@@ -42,10 +42,18 @@ The full two-direction sweep returned `Ok(())` on the second.
 planar arm and the curved arm (`curved_face_arm`) refuse an unlaned
 carrier as `BooleanError::CrossingCarrierUnsupported` naming the edge
 and the face; the split lane keeps its `edge_clears` pass or
-`CurvedEdgeUnsupported`. The gate stays; it is no longer what keeps the
-arm sound. Rows: `boolean/planar_lane_carrier_rows.rs`,
+`CurvedEdgeUnsupported`. Rows: `boolean/planar_lane_carrier_rows.rs`
+(a NURBS arc and a spiric cap, each through both arms),
 `splitting::classify::tests::each_carrier_kind_lands_on_its_own_lane`.
+
+The gate stays in this unit (the orchestrator's ruling on the last fix
+pass: the dual review was frozen on a head that keeps it). It no longer
+keeps the sweep's arms sound; what it still guards, and its deletion,
+are `delete-the-boolean-operand-edge-gate` and
+`join-and-continuation-sites-blame-the-edge-gate-for-a-spline-edge`.
 
 Class residue filed: `a-nurbs-edges-sector-departure-is-its-chord`,
 `section-area-skips-a-spiric-or-nurbs-section-edge`,
-`shell/replace-face-transports-a-nurbs-edge-as-a-ruling`.
+`shell/replace-face-transports-a-nurbs-edge-as-a-ruling`; from the dual
+review, `split-insert-crossings-second-edge-clears-arm-is-unpinned` and
+`rod-minus-brick-minus-slab-refuses-solids-do-not-cross`.

@@ -254,50 +254,6 @@ pub(super) fn classify_vertices<T: Decide>(
     Ok((sides, on_vertices))
 }
 
-/// The lane that finds where a carrier's span crosses the split plane
-/// ([`PlaneCrossingLane`]). On a **conic** it finds the crossing roots
-/// over the span: the signed distance along the carrier is
-/// the sinusoid `d(θ) = D + R·cos(θ − φ)` with `D = (center − q)·n̂`,
-/// `R·cos φ = s_u·(û·n̂)`, `R·sin φ = s_v·(v̂·n̂)` (`s_u/s_v` the
-/// semi-axes — `r/r` for a circle). Unlike a line, a conic edge can
-/// cross the plane an EVEN number of times between same-side
-/// endpoints (the belly case) or once beyond an ON endpoint — so
-/// crossing detection is **root-based, endpoint-verdict-free**:
-///
-/// 1. `split_conic_belly_graze` — margin `R − |D|` (meters): Negative
-///    ⇒ the carrier never meets the split plane — no crossing;
-///    Positive ⇒ two distinct roots `φ ± acos(−D/R)`; Zero ⇒ the
-///    plane grazes the carrier's extremum — ONE (double) root, whose
-///    insertion (if in-span) leaves a same-side ON contact for the
-///    sector classification (the established graze net); in-band ⇒
-///    typed escalation (F6).
-/// 2. Each root, translated into `[t₀, t₀ + τ)`, is classified
-///    against the span by `split_conic_crossing_root` — the two
-///    margins `(t − t₀)·meter` and `(t₁ − t)·meter` (meters at the
-///    conservative minor-semi-axis meter): both Positive ⇒ a genuine
-///    interior crossing (returned for insertion); any Zero ⇒ the root
-///    sits at an existing endpoint vertex (the ON-endpoint belly case
-///    — the vertex sweep already recorded it, nothing to insert); any
-///    Negative ⇒ outside the span; in-band ⇒ typed escalation (the
-///    crossing grazes an edge end — an ill-conditioned operand/plane
-///    pair).
-/// 3. Two interior roots are ordered ascending through
-///    `split_conic_root_order` (never a raw comparison); ε-close
-///    roots collapse to one insertion (Zero) or escalate (in-band).
-///
-/// Downstream, `split_edge`'s own interiority trilean and child
-/// certification re-verify every insertion — this lane proposes,
-/// never silently commits.
-fn crossing_lane<T: Decide>(
-    carrier: &geom::Curve3<T>,
-    t0: T,
-    t1: T,
-    plane: &SplitPlane<T>,
-    band: Band,
-) -> PlaneCrossingLane<T> {
-    plane_crossing_lane(carrier, t0, t1, plane.origin, plane.normal.get(), band)
-}
-
 /// Which lane finds where a carrier's span crosses a plane
 /// ([`plane_crossing_lane`]), keyed on the carrier's kind.
 #[derive(Debug)]
@@ -440,10 +396,41 @@ impl ConicRootFault {
     }
 }
 
-/// The plane-form core of [`crossing_lane`], shared with the boolean
-/// reduction sweep: the same named trileans against ANY plane rather
-/// than the split lane's one. The conic arm's semantics are documented
-/// above.
+/// The lane that finds where a carrier's span crosses a plane
+/// ([`PlaneCrossingLane`]), the split lane's and the boolean sweep's
+/// alike. On a **conic** it finds the crossing roots over the span: the
+/// signed distance along the carrier is
+/// the sinusoid `d(θ) = D + R·cos(θ − φ)` with `D = (center − q)·n̂`,
+/// `R·cos φ = s_u·(û·n̂)`, `R·sin φ = s_v·(v̂·n̂)` (`s_u/s_v` the
+/// semi-axes — `r/r` for a circle). Unlike a line, a conic edge can
+/// cross the plane an EVEN number of times between same-side
+/// endpoints (the belly case) or once beyond an ON endpoint — so
+/// crossing detection is **root-based, endpoint-verdict-free**:
+///
+/// 1. `split_conic_belly_graze` — margin `R − |D|` (meters): Negative
+///    ⇒ the carrier never meets the split plane — no crossing;
+///    Positive ⇒ two distinct roots `φ ± acos(−D/R)`; Zero ⇒ the
+///    plane grazes the carrier's extremum — ONE (double) root, whose
+///    insertion (if in-span) leaves a same-side ON contact for the
+///    sector classification (the established graze net); in-band ⇒
+///    typed escalation (F6).
+/// 2. Each root, translated into `[t₀, t₀ + τ)`, is classified
+///    against the span by `split_conic_crossing_root` — the two
+///    margins `(t − t₀)·meter` and `(t₁ − t)·meter` (meters at the
+///    conservative minor-semi-axis meter): both Positive ⇒ a genuine
+///    interior crossing (returned for insertion); any Zero ⇒ the root
+///    sits at an existing endpoint vertex (the ON-endpoint belly case
+///    — the vertex sweep already recorded it, nothing to insert); any
+///    Negative ⇒ outside the span; in-band ⇒ typed escalation (the
+///    crossing grazes an edge end — an ill-conditioned operand/plane
+///    pair).
+/// 3. Two interior roots are ordered ascending through
+///    `split_conic_root_order` (never a raw comparison); ε-close
+///    roots collapse to one insertion (Zero) or escalate (in-band).
+///
+/// Downstream, `split_edge`'s own interiority trilean and child
+/// certification re-verify every insertion — this lane proposes,
+/// never silently commits.
 pub(crate) fn plane_crossing_lane<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -452,39 +439,18 @@ pub(crate) fn plane_crossing_lane<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> PlaneCrossingLane<T> {
-    let (center, axis, u_ref, s_u, s_v) = match *carrier {
-        geom::Curve3::Line { .. } => return PlaneCrossingLane::Line,
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => (center, axis, u_ref, radius, radius),
-        geom::Curve3::Ellipse {
-            center,
-            axis,
-            major,
-            minor,
-            u_ref,
-        } => (center, axis, u_ref, major, minor),
-        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-            return PlaneCrossingLane::Unlaned;
-        }
-    };
-    PlaneCrossingLane::Conic(conic_plane_meet(
-        geom_brep::Conic {
-            center,
-            axis,
-            u_ref,
-            major: s_u,
-            minor: s_v,
-        },
-        t0,
-        t1,
-        plane_origin,
-        plane_normal,
-        band,
-    ))
+    match (geom_brep::Conic::of(carrier), carrier) {
+        (Some(conic), _) => PlaneCrossingLane::Conic(conic_plane_meet(
+            conic,
+            t0,
+            t1,
+            plane_origin,
+            plane_normal,
+            band,
+        )),
+        (None, geom::Curve3::Line { .. }) => PlaneCrossingLane::Line,
+        (None, _) => PlaneCrossingLane::Unlaned,
+    }
 }
 
 /// The conic arm of [`plane_crossing_lane`].
@@ -666,7 +632,7 @@ fn conic_plane_meet<T: Decide>(
 ///   strict-opposite-signs decision bounds the denominator away from
 ///   zero).
 /// - **Conic carriers** use the root-based lane
-///   ([`crossing_lane`]), INDEPENDENT of endpoint verdicts:
+///   ([`plane_crossing_lane`]), INDEPENDENT of endpoint verdicts:
 ///   same-side endpoints with a belly crossing the plane twice get
 ///   BOTH crossing vertices; an ON endpoint with one interior
 ///   crossing gets it; grazes land as single ON contacts for the
@@ -716,7 +682,14 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             _ => return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key }),
         };
         let (t0, t1) = curve.params();
-        let roots: Vec<T> = match crossing_lane(curve.carrier(), t0, t1, plane, band) {
+        let roots: Vec<T> = match plane_crossing_lane(
+            curve.carrier(),
+            t0,
+            t1,
+            plane.origin,
+            plane.normal.get(),
+            band,
+        ) {
             // Parallel either way: no root to insert, and a conic in
             // the plane has its endpoints ON through the vertex sides.
             PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { .. } | ConicPlaneMeet::Miss) => {
@@ -792,7 +765,7 @@ mod tests {
     use geom::Curve3;
     use geom_core::{Band, Point3, Vec3};
 
-    use super::{ConicPlaneMeet, PlaneCrossingLane, crossing_lane, plane_crossing_lane};
+    use super::{ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane};
     use crate::splitting::SplitPlane;
 
     /// **A crossing's gap from an end is metered at the smaller semi-axis
@@ -842,6 +815,17 @@ mod tests {
         }
     }
 
+    /// The lane against a split plane.
+    fn on_split_plane<T: geom_core::Decide>(
+        carrier: &Curve3<T>,
+        t0: T,
+        t1: T,
+        plane: &SplitPlane<T>,
+        band: Band,
+    ) -> PlaneCrossingLane<T> {
+        plane_crossing_lane(carrier, t0, t1, plane.origin, plane.normal.get(), band)
+    }
+
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
     }
@@ -873,21 +857,22 @@ mod tests {
         let c = circle();
         // Secant (margin R − |D| = 1, definite): the two roots of
         // sin θ = 0.5 land in the span, ascending.
-        let roots = roots_of(crossing_lane(&c, 0.1, 6.0, &plane_y(0.5), band())).unwrap();
+        let roots = roots_of(on_split_plane(&c, 0.1, 6.0, &plane_y(0.5), band())).unwrap();
         assert_eq!(roots.len(), 2);
         assert!((roots[0] - core::f64::consts::FRAC_PI_6).abs() < 1e-12);
         assert!((roots[1] - (core::f64::consts::PI - core::f64::consts::FRAC_PI_6)).abs() < 1e-12);
         // Missing (margin −1, definite): no crossing at all.
         assert!(matches!(
-            crossing_lane(&c, 0.1, 6.0, &plane_y(2.0), band()),
+            on_split_plane(&c, 0.1, 6.0, &plane_y(2.0), band()),
             PlaneCrossingLane::Conic(ConicPlaneMeet::Miss)
         ));
         // Exactly tangent (margin 0): ONE graze root at π/2.
-        let roots = roots_of(crossing_lane(&c, 0.1, 6.0, &plane_y(1.0), band())).unwrap();
+        let roots = roots_of(on_split_plane(&c, 0.1, 6.0, &plane_y(1.0), band())).unwrap();
         assert_eq!(roots.len(), 1);
         assert!((roots[0] - core::f64::consts::FRAC_PI_2).abs() < 1e-4);
         // In-band (margin −3ε): typed escalation, named.
-        let diag = roots_of(crossing_lane(&c, 0.1, 6.0, &plane_y(1.0 + 3e-9), band())).unwrap_err();
+        let diag =
+            roots_of(on_split_plane(&c, 0.1, 6.0, &plane_y(1.0 + 3e-9), band())).unwrap_err();
         assert_eq!(diag.predicate, Some("split_conic_belly_graze"));
     }
 
@@ -901,16 +886,16 @@ mod tests {
         // Roots of sin θ = 0 are θ ∈ {0, π}: with span [0, 2] the θ = 0
         // root sits EXACTLY at the endpoint (skipped, Zero arm) and the
         // θ = π root is definitely interior (returned).
-        let roots = roots_of(crossing_lane(&c, 0.0, 2.0 + 2.0, &plane_y(0.0), band())).unwrap();
+        let roots = roots_of(on_split_plane(&c, 0.0, 2.0 + 2.0, &plane_y(0.0), band())).unwrap();
         assert_eq!(roots.len(), 1);
         assert!((roots[0] - core::f64::consts::PI).abs() < 1e-12);
         // Both roots definitely interior: span (−1, 4).
-        let roots = roots_of(crossing_lane(&c, -1.0, 4.0, &plane_y(0.0), band())).unwrap();
+        let roots = roots_of(on_split_plane(&c, -1.0, 4.0, &plane_y(0.0), band())).unwrap();
         assert_eq!(roots.len(), 2);
         assert!(roots[0].abs() < 1e-12 || (roots[0] - core::f64::consts::PI).abs() < 1e-12);
         // In-band: a root 5e-9 (meters, meter = r = 1) inside the
         // span end — typed escalation, named.
-        let diag = roots_of(crossing_lane(&c, -5e-9, 2.0, &plane_y(0.0), band())).unwrap_err();
+        let diag = roots_of(on_split_plane(&c, -5e-9, 2.0, &plane_y(0.0), band())).unwrap_err();
         assert_eq!(diag.predicate, Some("split_conic_crossing_root"));
     }
 
@@ -928,7 +913,7 @@ mod tests {
             )
         };
         for (z, want) in [(0.0, 0.0), (2.0, -2.0)] {
-            match crossing_lane(&c, 0.1, 6.0, &plane_z(z), band()) {
+            match on_split_plane(&c, 0.1, 6.0, &plane_z(z), band()) {
                 PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => {
                     assert!((offset - want).abs() < 1e-12, "offset at z = {z}: {offset}");
                 }
@@ -939,9 +924,11 @@ mod tests {
 
     /// **Each carrier kind lands on its own lane**: a line on the
     /// endpoint lane, a circle and an ellipse on the root lane, and a
-    /// spiric and a spline on none. Every arm is read against a plane
-    /// the curve crosses, so a curved carrier answered `Line` would have
-    /// its crossing placed by its endpoints.
+    /// spiric and a spline on none. The answer is keyed on the kind
+    /// alone, whatever the plane: the spiric here never meets `y = ½`
+    /// (its `y ≥ √(ρ² − ¼) > 2`), and it is still `Unlaned`, because a
+    /// curved carrier answered `Line` anywhere would have its crossings
+    /// read off its endpoints.
     #[test]
     fn each_carrier_kind_lands_on_its_own_lane() {
         let plane = plane_y(0.5);
@@ -988,7 +975,7 @@ mod tests {
                 "unlaned",
             ),
         ] {
-            let got = match crossing_lane(&carrier, 0.0, 1.0, &plane, band()) {
+            let got = match on_split_plane(&carrier, 0.0, 1.0, &plane, band()) {
                 PlaneCrossingLane::Line => "line",
                 PlaneCrossingLane::Conic(_) => "conic",
                 PlaneCrossingLane::Unlaned => "unlaned",
@@ -1033,7 +1020,7 @@ mod tests {
         // The span is the upper semicircle; the plane's two crossings
         // are its own endpoints.
         let (t0, t1) = (ex(0.0), ex(core::f64::consts::PI));
-        let roots = roots_of(crossing_lane(&c, t0, t1, &plane, band()))
+        let roots = roots_of(on_split_plane(&c, t0, t1, &plane, band()))
             .expect("the endpoint roots classify — no anchor straddles them");
         assert!(
             roots.is_empty(),
@@ -1047,7 +1034,7 @@ mod tests {
         // DISPOSITION: like its chord_join twin, this half re-derives
         // both anchorings inline and so pins the two WINDOWS rather
         // than the site. The site's own pin is the
-        // `crossing_lane` call above, which reds if the anchor
+        // `on_split_plane` call above, which reds if the anchor
         // order changes; this half says why that order is the right
         // one.
         let tau = Interval::tau();

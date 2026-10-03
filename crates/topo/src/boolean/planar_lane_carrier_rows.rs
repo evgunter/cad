@@ -1,17 +1,26 @@
-//! **A curved carrier with no crossing lane, at the sweep's planar arm.**
+//! **A curved carrier with no crossing lane, at the sweep's two arms.**
 //!
-//! The operand is a planar sheet in `z = 0` bounded by a quadratic
-//! Bézier arc from `(0, 0, 0)` through the control point `(mx, 2h, 0)`
-//! to `(2, 0, 0)` (a NURBS carrier) and the chord back along `y = 0`.
-//! The partner is a brick with a side face across the arc, or a
+//! Two operands, each a planar sheet bounded by one curved edge and the
+//! chord back:
+//!
+//! - in `z = 0`, a quadratic Bézier arc (a NURBS carrier) from
+//!   `(0, 0, 0)` through the control point `(mx, 2h, 0)` to `(2, 0, 0)`;
+//! - in `x = ½`, the spiric of the torus `R = 2`, `r = 1` about `ẑ` over
+//!   `v ∈ [−π/2, π/2]`.
+//!
+//! The partner is a brick with a side face across the curve, or a
 //! cylinder wall. `A`'s direction of the sweep runs directly, past the
 //! operand gate that refuses the carrier first in the pipeline, so the
-//! rows read what the sweep's arms themselves do with it.
+//! rows read what the sweep's arms themselves do with it. **No public
+//! door reaches these arms with such an edge while that gate stands**
+//! (`reduce::gate_operand_edges`); the rows are what pins them until it
+//! goes (`work/reach/delete-the-boolean-operand-edge-gate.md`).
 //!
-//! The oracle is the Bézier in closed form,
-//! `x(t) = 2t(1−t)·mx + 2t²`, `y(t) = 4t(1−t)·h`, never the kernel's
-//! evaluator: each row first shows from it that the arc crosses the face
-//! where an endpoint reading of the edge says something else.
+//! The oracles are closed forms, never the kernel's evaluator: the
+//! Bézier's `x(t) = 2t(1−t)·mx + 2t²`, `y(t) = 4t(1−t)·h`, and the
+//! spiric's `P(v) = (½, √(ρ² − ¼), sin v)` with `ρ = 2 + cos v`. Each row
+//! first shows from one that the curve crosses the face where an
+//! endpoint reading of the edge says something else.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -19,7 +28,7 @@ use crate::boolean::BooleanError;
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::brick;
 use crate::{Body, FaceKey};
-use geom::Curve3;
+use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Point3, Tol, Vec3};
 
@@ -122,6 +131,87 @@ fn arc_sheet(mx: f64, h: f64) -> (Body<f64>, crate::EdgeKey) {
     (body, e.edge)
 }
 
+/// The spiric cap in `x = ½`: the arc of the torus `R = 2`, `r = 1`
+/// about `ẑ` over `v ∈ [−π/2, π/2]`, described as the torus's
+/// intersection with the cap's plane, and the chord back. The sheet, and
+/// its arc edge.
+fn spiric_cap() -> (Body<f64>, crate::EdgeKey) {
+    use core::f64::consts::FRAC_PI_2;
+    let tol = Tol::witness();
+    let spiric = Curve3::Spiric {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        major_radius: 2.0,
+        minor_radius: 1.0,
+        offset: 0.5,
+    };
+    let (p0, p1) = (spiric.eval(-FRAC_PI_2), spiric.eval(FRAC_PI_2));
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.5, 0.0, 0.0),
+                    normal: Vec3::new(1.0, 0.0, 0.0),
+                    u_ref: Vec3::new(0.0, 1.0, 0.0),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+    let torus = body.add_surface(Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        major_radius: 2.0,
+        minor_radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    });
+    let e = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: torus,
+                    s2: plane,
+                    witness: spiric.eval(0.0),
+                },
+                carrier: spiric,
+                param_start: -FRAC_PI_2,
+                param_end: FRAC_PI_2,
+            },
+            tol,
+        )
+        .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: e.he_minus,
+            he2: e.he_plus,
+        },
+        EdgeCurveSpec::line_between(p1, p0),
+        FaceSurface::Shared {
+            key: plane,
+            sense: true,
+        },
+        tol,
+    )
+    .unwrap();
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+    (body, e.edge)
+}
+
+/// The spiric cap's closed form at `v`: `(½, √(ρ² − ¼), sin v)`,
+/// `ρ = 2 + cos v`.
+fn spiric_at(v: f64) -> (f64, f64, f64) {
+    let rho = 2.0 + v.cos();
+    (0.5, (rho * rho - 0.25).sqrt(), v.sin())
+}
+
 /// A brick over `x ∈ [x0, x1]`, `y ∈ [y0, y1]`, `z ∈ [−1, 1]`, and its
 /// face whose outward normal is `n`.
 fn brick_face(x: (f64, f64), y: (f64, f64), n: Vec3<f64>) -> (Body<f64>, FaceKey) {
@@ -166,10 +256,10 @@ fn bezier(mx: f64, h: f64, t: f64) -> (f64, f64) {
     )
 }
 
-/// The refusal every row expects: the arc, at a face of `b`. The arc's
-/// box is the whole space (a spline edge has no sound box of its own),
-/// so the first face the sweep reads it against is the one named, and
-/// a carrier with no lane cannot be cleared of any face.
+/// The refusal every row expects: the curved edge, at a face of `b`.
+/// The face named is the first one whose box the edge's box meets (a
+/// spline's box is the whole space, a spiric's its whole-period box),
+/// and a carrier with no lane cannot be cleared of any face.
 fn assert_refused(
     got: Result<(Body<f64>, crate::boolean::ContactRecords), BooleanError>,
     edge: crate::EdgeKey,
@@ -181,13 +271,13 @@ fn assert_refused(
             edge: e,
             face,
         }) => {
-            assert_eq!(e, edge, "the refusal names the arc");
+            assert_eq!(e, edge, "the refusal names the curved edge");
             assert!(
                 b.get_face(face).is_some(),
                 "the refusal names a face of B: {face:?}"
             );
         }
-        other => panic!("the arc has no crossing lane and must refuse at the sweep: {other:?}"),
+        other => panic!("the curve has no crossing lane and must refuse at the sweep: {other:?}"),
     }
 }
 
@@ -268,5 +358,54 @@ fn an_arc_crossing_a_cylinder_wall_refuses() {
         Tol::witness(),
     );
     let (a, e) = arc_sheet(mx, h);
+    assert_refused(sweep_a(&a, &b), e, &b);
+}
+
+/// **A spiric that dips through a plane face and back refuses.** Its ends
+/// (`v = ±π/2`) lie at `y = √3.75 ≈ 1.94`, below the brick's face
+/// `y = 2.5`, and its middle (`v = 0`) at `y = √8.75 ≈ 2.96`, above it;
+/// the closed form crosses `y = 2.5` where `ρ = √6.5`, at
+/// `z = ±√(1 − (√6.5 − 2)²) ≈ ±0.82`, inside the face.
+#[test]
+fn a_spiric_dipping_through_a_plane_face_refuses() {
+    let (_, y_end, _) = spiric_at(core::f64::consts::FRAC_PI_2);
+    let (_, y_mid, _) = spiric_at(0.0);
+    assert!(
+        y_end < 2.5 && y_mid > 2.5,
+        "the oracle dips through y = 2.5: ends {y_end}, middle {y_mid}"
+    );
+    let z = (1.0 - (6.5f64.sqrt() - 2.0).powi(2)).sqrt();
+    assert!(
+        z < 1.2,
+        "the oracle's crossings land inside the face: z = ±{z}"
+    );
+    let (b, _) = brick_face((0.0, 1.0), (2.5, 4.0), Vec3::new(0.0, -1.0, 0.0));
+    let (a, e) = spiric_cap();
+    assert_refused(sweep_a(&a, &b), e, &b);
+}
+
+/// **A spiric crossing a cylinder wall refuses with the same variant**,
+/// the curved arm's spiric half. The spiric's distance from the axis,
+/// `|(x, y)| = ρ`, runs `2 → 3 → 2`, so it crosses the wall `ρ = 2.5`
+/// twice, at `v = ±π/3`: `(½, √6, ±√3/2)`, inside the half-wall
+/// `y > 0`, `|z| ≤ 2`.
+#[test]
+fn a_spiric_crossing_a_cylinder_wall_refuses() {
+    use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+    let (x, y, z) = spiric_at(core::f64::consts::FRAC_PI_3);
+    assert!(
+        ((x * x + y * y).sqrt() - 2.5).abs() < 1e-12 && y > 0.0 && z.abs() < 2.0,
+        "the oracle crosses the wall inside the sheet: ({x}, {y}, {z})"
+    );
+    let mut b = Body::<f64>::new();
+    cyl_wall_sheet(
+        &mut b,
+        CylFrame::canonical(2.5),
+        None,
+        (0.0, core::f64::consts::PI),
+        (-2.0, 2.0),
+        Tol::witness(),
+    );
+    let (a, e) = spiric_cap();
     assert_refused(sweep_a(&a, &b), e, &b);
 }

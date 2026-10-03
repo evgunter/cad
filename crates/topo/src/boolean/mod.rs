@@ -1597,9 +1597,9 @@ pub enum BooleanError {
         band: Band,
     },
     /// The operand gate (F5) refused a spiric or spline (`Nurbs`)
-    /// carrier in an INPUT operand: no crossing lane reads either kind
-    /// ([`Self::CrossingCarrierUnsupported`] is the same fact at the
-    /// sweep).
+    /// carrier in an INPUT operand: no crossing lane reads either kind,
+    /// and the join and section lanes behind the sweep have no row for
+    /// them either (`reduce::gate_operand_edges` names which).
     CurvedEdgeUnsupported {
         /// The offending operand and edge.
         operand: Operand,
@@ -1612,7 +1612,14 @@ pub enum BooleanError {
     /// find its crossings (it can cross and come back between same-side
     /// ends) nor place them (a parameter interpolated between them is not
     /// a point on the face). Raised by the sweep's planar and curved arms
-    /// alike, at the first face the edge's box overlaps.
+    /// alike, at the first face whose box the edge's box meets (a
+    /// spline's box is the whole space).
+    ///
+    /// **No public door raises it while the operand gate stands**: the
+    /// gate refuses every such edge first, as
+    /// [`Self::CurvedEdgeUnsupported`]. It is the sweep's own refusal,
+    /// pinned by `reduce::planar_lane_carrier_rows`, and the one a
+    /// narrowed gate exposes (`work/reach/delete-the-boolean-operand-edge-gate.md`).
     CrossingCarrierUnsupported {
         /// The operand whose edge it is.
         operand: Operand,
@@ -2715,6 +2722,10 @@ impl From<EulerOpError> for BooleanError {
     }
 }
 
+/// The recourse of every refusal of a spiric or spline edge: the kinds
+/// every lane reads are the line and the two conics.
+const CONIC_EDGES_RECOURSE: &str = "rebuild that solid so its edges are lines, circles or ellipses";
+
 /// How a refusal names an operand to the person who built it: by its
 /// place in the operation, never by the enum spelling.
 fn operand_word(operand: Operand) -> &'static str {
@@ -2835,15 +2846,15 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "an edge of the {} operand is a spiric or spline (NURBS) curve, and the \
                  Boolean cannot yet take a solid with such edges as an input. Recourse: \
-                 rebuild that solid so its edges are lines, circles or ellipses",
+                 {CONIC_EDGES_RECOURSE}",
                 operand_word(*operand),
             ),
             Self::CrossingCarrierUnsupported { operand, .. } => write!(
                 f,
-                "an edge of the {} operand is a spiric or spline (NURBS) curve near a \
-                 face of the other operand, and the Boolean cannot yet find whether or \
-                 where such an edge crosses a face. Recourse: rebuild that solid so its \
-                 edges are lines, circles or ellipses",
+                "an edge of the {} operand is a spiric or spline (NURBS) curve whose box \
+                 meets a face of the other operand, and the Boolean cannot yet find \
+                 whether or where such an edge crosses a face. Recourse: \
+                 {CONIC_EDGES_RECOURSE}",
                 operand_word(*operand),
             ),
             Self::PointSplitCarrierUnsupported { operand, .. } => write!(

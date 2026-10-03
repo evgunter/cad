@@ -410,13 +410,11 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds + crate::props::AtRestPolicy
 ///    [`BooleanError::CorruptOperand`], and tier-2 scaffolding — a
 ///    strut, an empty loop, a null edge, a split shell — as
 ///    [`BooleanError::ScaffoldingOperand`], each carrying the findings;
-/// 2. the edge carriers: `Line`/`Circle`/`Ellipse` pass (the crossing
-///    lanes handle all three; the both-split point lane still needs a
-///    `Line`, and says so where it refuses); a `Nurbs` or spiric edge
-///    refuses [`BooleanError::CurvedEdgeUnsupported`] wherever it sits
-///    — a rung-3 INPUT operand is outside the supported envelope,
-///    rung-3 edges being what the zip MINTS rather than what it
-///    consumes;
+/// 2. the edge carriers ([`gate_operand_edges`]): `Line`/`Circle`/
+///    `Ellipse` pass (every lane reads all three; the both-split point
+///    lane still needs a `Line`, and says so where it refuses); a `Nurbs`
+///    or spiric edge refuses [`BooleanError::CurvedEdgeUnsupported`]
+///    wherever it sits;
 /// 3. orientation: tier 3's check 7, per solid, at the scalar's lane
 ///    ([`crate::AtRestPolicy::quad_lane`]). A solid it decides
 ///    definitely negative refuses [`BooleanError::InsideOutOperand`];
@@ -470,15 +468,34 @@ fn surface_of<'a, T: Decide>(
 }
 
 /// [`gate_operand`]'s edge carriers.
+///
+/// **What it still guards.** The sweep's two crossing arms refuse a
+/// spiric or spline edge typed on their own
+/// ([`BooleanError::CrossingCarrierUnsupported`]), so the gate is not
+/// what keeps them sound. Behind the sweep, these sites have no row for
+/// either kind and would answer one as a kernel invariant or read it
+/// wrong:
+///
+/// - the join's germ frame along an edge of both solids
+///   (`join::germ_section_frame`: `JoinDesync`);
+/// - the join's ring run and the chord joiner's run edges
+///   (`join::ring_run_ccw`, `chord_join`'s run-edge reading:
+///   `SectionInvariant`);
+/// - the sector walk at an ON vertex (`sectors::build_sectors`), which
+///   takes a spline's chord as its departure direction;
+/// - the continuation scan ([`refuse_undeclared_continuations`]), which
+///   cannot bound a face a spline edge bounds (`ClassificationInvariant`).
+///
+/// Retiring it is `work/reach/delete-the-boolean-operand-edge-gate.md`.
 fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match certified(body.get_curve_geom(edge.curve))?.carrier() {
             geom::Curve3::Line { .. }
             | geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. } => {}
-            // The boolean fence: no join, section or pierce arm
-            // reads a spiric, so an operand carrying one refuses
-            // here, at the gate, as a spline does.
+            // The sweep's arms read a spiric or a spline only to refuse
+            // it; the sites behind the sweep (docs above) cannot, so the
+            // operand refuses here.
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                 return Err(BooleanError::CurvedEdgeUnsupported {
                     operand,
@@ -1973,9 +1990,9 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         ))
     .then(|| (side(pu), side(pv)));
     let end_on_carrier = matches!(early_ends, Some((Ok(Sign::Zero), _) | (_, Ok(Sign::Zero))));
-    match (curve.carrier(), geom_brep::Conic::of(curve.carrier())) {
-        (geom::Curve3::Line { .. }, _) => {}
-        (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, Some(conic)) => 'clearance: {
+    match (geom_brep::Conic::of(curve.carrier()), curve.carrier()) {
+        (None, geom::Curve3::Line { .. }) => {}
+        (Some(conic), _) => 'clearance: {
             if end_on_carrier {
                 break 'clearance;
             }
@@ -2174,20 +2191,15 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         }
-        // A `Spiric` or `Nurbs` carrier: no enclosure of its residual
-        // along an arc exists here (the sampled one needs bounds on the
-        // carrier's speed and acceleration over the span), so nothing
-        // finds its crossings, as at the planar arm.
-        (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), _) => {
+        // Neither a line nor a conic: a `Spiric` or `Nurbs` carrier. No
+        // enclosure of its residual along an arc exists here (the sampled
+        // one needs bounds on the carrier's speed and acceleration over
+        // the span), so nothing finds its crossings, as at the planar arm.
+        (None, _) => {
             return Err(BooleanError::CrossingCarrierUnsupported {
                 operand: x_is,
                 edge: edge_key,
                 face,
-            });
-        }
-        (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, None) => {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "a circle or an ellipse carrier has no conic frame",
             });
         }
     }

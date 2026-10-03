@@ -1772,11 +1772,11 @@ fn boundary_hull<T: Decide + Bounds>(
 ///
 ///   **Tightening is a separate obligation from soundness.** A
 ///   tighter box prunes pairs a wider one examined, and pruning is
-///   only sound for kinds the operand gate admits and the crossing
-///   lanes handle — `Line`, `Circle` and `Ellipse` all are
-///   (`reduce::gate_operand_edges`), which is what licensed the exact
-///   form here; the NURBS arm below is where that obligation is
-///   still owed. A correctness fix and a structural one are two
+///   only sound for kinds the crossing lanes handle — `Line`, `Circle`
+///   and `Ellipse` all are, which is what licensed the exact form here
+///   — or refuse at every face the box does meet, as they do a spiric
+///   (`BooleanError::CrossingCarrierUnsupported`); the NURBS arm below
+///   is where that obligation is still owed. A correctness fix and a structural one are two
 ///   halves that separate (the rule S235 stated against #862): a
 ///   deletion of over-width retires with its defect — #862's half —
 ///   while a duplicated construction outlives every fix to either
@@ -1793,7 +1793,7 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   [`FaceBoxRule::ControlNet`] does one dimension up. Taking it
 ///   would TIGHTEN this box — it would start pruning pairs that are
 ///   examined today — and tightening is a different obligation from
-///   soundness: a rung-3 operand gate has to admit the kind first.
+///   soundness: a crossing rung has to read the kind first.
 ///   Claiming nothing is already the conservative answer, so nothing
 ///   is unsound while it waits. (It also carries the same trim ⊆ knot
 ///   domain premise the surface arm states.)
@@ -1822,7 +1822,10 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     /// `spiric_arc_aabb` door (a C10 superset), hulled with the chord.
     /// No axial projection is written for it (the census lane reads
     /// it as unclaimable); reachable only from its own rows today,
-    /// because the operand gate refuses the kind.
+    /// because the operand gate refuses the kind. Past the gate, the
+    /// sweep's soundness on a spiric edge rests on this box: a face it
+    /// prunes is one the arc cannot reach, and a face it meets sends the
+    /// edge to a crossing arm that refuses it typed.
     Spiric,
 }
 
