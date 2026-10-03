@@ -5999,3 +5999,17 @@ that.
   are left for Ev.
 - **New lanes:** Ev suggested running them as cloud sessions, which have
   their own disk and CPU.
+
+## Two lanes dispatched as cloud sessions (2026-10-03)
+
+At Ev's suggestion, these lanes run in their own cloud sessions, each
+with its own disk. They cannot message back, so each PR body carries a
+`## Lane report`, which I read on the PR.
+- **`vertex-orbit-reads-no-start-vertex`** (P3): session
+  `session_01XuSSciBoqb8AXQd3EBveGR`, branch
+  `topo/vertex-orbit-proves-its-start`. `orbit_walk` answers `Broken`
+  for a member with a foreign start, and pass 6 keeps naming foreign
+  members.
+- **`require-kill-anchors-empty-arm-refuses-loop-cycle-broken-for-a-collision`**
+  (P4): session `session_018DFjyKqfH5g9SnhMvPhMKK`, branch
+  `topo/kill-anchors-collision-refuses-its-own-variant`.
