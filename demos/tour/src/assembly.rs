@@ -742,7 +742,8 @@ struct Bench {
 /// The crate rests on the shelf's top face, by a placing `Rest` mate:
 /// the crate side is its bottom face, and the shelf side is the
 /// shelf's top face with an offset, written in that face's frame, to
-/// where the crate sits on it. The crate is a fresh instance on the
+/// where the crate sits on it, [`CRATE_SLIDE`] along the shelf from its
+/// centre. The crate is a fresh instance on the
 /// world, so the mate goes through the compound door, which puts it on
 /// the shelf's turntable first; the mate then places it in the shelf's
 /// group, so it swings with the stand and follows any edit of the
