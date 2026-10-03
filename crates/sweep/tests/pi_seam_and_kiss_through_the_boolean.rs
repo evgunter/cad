@@ -1158,7 +1158,7 @@ fn a_rod_in_a_bore_declared_tangent_refuses_at_the_crossing_layer() {
 /// conformal. The fact names the finding (`OneCarrier`), and the margin
 /// keeps the predicate the carrier ladder measured it with. A rod hovering a clear gap above a slab
 /// has no tangency: the closed-form locus finds the gap
-/// (`tangent_locus_gap`).
+/// (`pc_parallel_gap`).
 #[test]
 fn a_seam_on_one_carrier_or_across_a_gap_is_contradicted() {
     let tol = Tol::witness();
@@ -1209,7 +1209,7 @@ fn a_seam_on_one_carrier_or_across_a_gap_is_contradicted() {
         let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
             panic!("a rod above the slab: contradicted: {r:?}");
         };
-        assert_eq!(margin.predicate, Some("tangent_locus_gap"), "{r:?}");
+        assert_eq!(margin.predicate, Some("pc_parallel_gap"), "{r:?}");
     }
 }
 

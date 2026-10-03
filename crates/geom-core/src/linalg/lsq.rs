@@ -83,20 +83,35 @@ impl core::fmt::Display for LsqError {
         match self {
             LsqError::LsqDegenerate { pivot_index, pivot } => write!(
                 f,
-                "lsq: degenerate system (pivot {pivot_index} = {} under the fixed elimination order)",
+                "lsq: degenerate system (pivot {pivot_index} = {} under the fixed elimination \
+                 order). Recourse: supply rows that determine the unknowns — a zero pivot \
+                 means two of them do not, and a non-finite one means a value upstream is not \
+                 a number",
                 Readable(*pivot)
             ),
-            LsqError::RowLengthMismatch { row, len, expected } => {
-                write!(f, "lsq: row {row} has length {len}, expected {expected}")
-            }
+            LsqError::RowLengthMismatch { row, len, expected } => write!(
+                f,
+                "lsq: row {row} has length {len}, expected {expected}. Recourse: supply rows \
+                 of one length"
+            ),
             LsqError::RhsShapeMismatch {
                 rhs_rows,
                 matrix_rows,
-            } => write!(f, "lsq: rhs has {rhs_rows} rows, matrix has {matrix_rows}"),
-            LsqError::Underdetermined { rows, cols } => {
-                write!(f, "lsq: underdetermined ({rows} rows < {cols} cols)")
-            }
-            LsqError::Empty => f.write_str("lsq: empty system"),
+            } => write!(
+                f,
+                "lsq: rhs has {rhs_rows} rows, matrix has {matrix_rows}. Recourse: supply one \
+                 right-hand-side row per matrix row, all of one width"
+            ),
+            LsqError::Underdetermined { rows, cols } => write!(
+                f,
+                "lsq: underdetermined ({rows} rows < {cols} cols). Recourse: supply at least \
+                 as many rows as columns — this solve has no unique minimizer below that, and \
+                 reordering for a pivot is not offered (D9)"
+            ),
+            LsqError::Empty => f.write_str(
+                "lsq: empty system. Recourse: supply a matrix with at least one row of \
+                 nonzero length",
+            ),
         }
     }
 }
@@ -431,6 +446,57 @@ mod tests {
             for (v1, v2) in r1.iter().zip(r2.iter()) {
                 assert_eq!(v1.to_bits(), v2.to_bits());
             }
+        }
+    }
+
+    /// **`LsqError`'s recourse claim, made enforceable**: every arm
+    /// names the lever the caller turns, exactly once and labelled.
+    ///
+    /// The solver is reached from the public fit door
+    /// (`geom::NurbsCurve3::interpolate` / `::approximate`, through
+    /// `FitError::Lsq`), which renders this carrier whole and adds five
+    /// characters, so whatever an arm here does not say is simply absent
+    /// from what a caller reads. This row is what lets
+    /// `every_fit_error_arm_names_a_recourse` read that delegation
+    /// TRANSITIVELY rather than as a claim about one chosen payload.
+    ///
+    /// **A floor, not a proof**: a vocabulary check cannot tell a
+    /// recourse from a sentence containing a verb, so a new arm whose
+    /// repair uses a word not on this list fails it honestly — extend
+    /// the list in the same change.
+    #[test]
+    fn every_lsq_error_arm_names_a_recourse() {
+        const RECOURSE_WORDS: &[&str] = &["supply", "ask", "drop"];
+        let arms = [
+            LsqError::LsqDegenerate {
+                pivot_index: 2,
+                pivot: 0.0,
+            },
+            LsqError::RowLengthMismatch {
+                row: 1,
+                len: 3,
+                expected: 4,
+            },
+            LsqError::RhsShapeMismatch {
+                rhs_rows: 2,
+                matrix_rows: 3,
+            },
+            LsqError::Underdetermined { rows: 2, cols: 3 },
+            LsqError::Empty,
+        ];
+        assert_eq!(arms.len(), 5, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&msg),
+                1,
+                "not exactly one labelled repair: {msg}"
+            );
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
+                "no recourse in: {msg}"
+            );
         }
     }
 }

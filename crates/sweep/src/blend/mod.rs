@@ -463,7 +463,7 @@ impl fmt::Display for ClassifiedMargin {
             // escalates poison instead of deciding it — and rendered
             // rather than asserted, because a payload that cannot be
             // printed is worse than one that prints an impossibility.
-            MarginKind::Invalid => write!(f, "margin invalid (NaN or a poisoned enclosure)")?,
+            MarginKind::Invalid => write!(f, "margin invalid (NaN or a refused enclosure)")?,
         }
         write!(
             f,
@@ -504,7 +504,7 @@ impl fmt::Display for Measured {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0.kind() {
             MarginKind::Value | MarginKind::Enclosure => write!(f, "{}", self.0),
-            MarginKind::Invalid => f.write_str("an invalid (NaN or poisoned)"),
+            MarginKind::Invalid => f.write_str("an invalid (NaN or refused)"),
         }
     }
 }

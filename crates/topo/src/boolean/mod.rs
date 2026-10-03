@@ -2731,7 +2731,7 @@ impl core::fmt::Display for BooleanError {
                  settle where or whether it passes through. Recourse: \
                  {}",
                 operand_word(*operand),
-                geom_core::DEFINITE_COINCIDENCE_RECOURSE,
+                geom_core::COINCIDENCE_RECOURSE,
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
@@ -4023,7 +4023,7 @@ pub(crate) fn verify_tangent_declaration<T: Decide>(
 /// 2. **The witness locus.** The DEV-1 closed-form line where it
 ///    derives ([`geom_brep::tangent_locus`]: plane×cylinder along a
 ///    ruling, parallel cylinders); a definitely-apart or crossing pair
-///    is contradicted (`tangent_locus_gap`). Elsewhere, the rim circle
+///    is contradicted, labelled with the row that refused it. Elsewhere, the rim circle
 ///    the two faces share; with neither the class is refused typed
 ///    ([`BooleanError::UnsupportedDeclarationClass`]).
 /// 3. **The C4 `Tangent` table** ([`contact_verify`]) along the locus,
@@ -4153,8 +4153,8 @@ fn verify_tangency_declaration<T: Decide>(
                 diag,
             ));
         }
-        Err(geom_brep::TangentLocusError::NotTangent { .. }) => {
-            return Err(claim.contradicted(fa, fb, label("tangent_locus_gap"), None));
+        Err(geom_brep::TangentLocusError::NotTangent { predicate, .. }) => {
+            return Err(claim.contradicted(fa, fb, label(predicate), None));
         }
         Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
             // An UNDECIDABLE rim identity escalates typed rather than

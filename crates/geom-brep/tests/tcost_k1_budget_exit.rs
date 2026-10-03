@@ -429,7 +429,7 @@ fn an_in_band_bound_leaves_the_schedule_to_the_rounds() {
     let band = Band::new(5e-4 * bound, 2e-3 * bound).unwrap();
     let (out, secs) = face.run(target / TARGET_LEN_FACTOR, band);
     match out {
-        Err(PropsError::Escalated { cause }) => {
+        Err(PropsError::Escalated { cause, .. }) => {
             println!(
                 "K1 {}: escalated at the last round in {secs:.3}s: {cause:?}",
                 face.name
