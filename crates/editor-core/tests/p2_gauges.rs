@@ -27,12 +27,12 @@ use crate::fixture;
 use crate::wire::doctored;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocParam, DocParamValue,
-    DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Frame, Maintenance, MateFault,
-    MateFrame, MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind,
-    ParamName, PartResolver, PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach,
-    SitedFace, SitedRef, StableName, Step, Unplaced, ValuePayload, apply, apply_replayed, evaluate,
-    groups, load, product, regauge_then_mate, root_of, save,
+    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
+    EvalOptions, Evaluation, Expr, Frame, FreeValue, FreeVar, Maintenance, MateFault, MateFrame,
+    MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, PartResolver,
+    PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach, SitedFace, SitedRef,
+    StableName, Step, Unplaced, ValuePayload, VarName, apply, apply_replayed, evaluate, groups,
+    load, product, regauge_then_mate, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, seat_map};
@@ -146,8 +146,8 @@ pub(crate) fn seat_on(
     }
 }
 
-pub(crate) fn lift() -> ParamName {
-    ParamName::from_static("lift")
+pub(crate) fn lift() -> VarName {
+    VarName::from_static("lift")
 }
 
 /// A gauge on `parent` at `[0, 0, lift]`, turned `angle` about z — a
@@ -175,7 +175,7 @@ pub(crate) fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         DocEdit::SetDocParamValue {
             name: lift(),
-            value: DocParamValue::Continuous(value),
+            value: FreeValue::Continuous(value),
         },
     )
     .0
@@ -186,7 +186,7 @@ pub(crate) fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         DocEdit::SetDocParam {
             name: lift(),
-            value: DocParam::continuous(Dimension::Length, value),
+            value: FreeVar::continuous(Dimension::Length, value),
         },
     )
     .0

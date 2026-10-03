@@ -3245,7 +3245,7 @@ class DocParam:
     def __hash__(self) -> int: ...
 
     # Equality mirrors Rust's `PartialEq` — the IEEE comparison of the
-    # stored value, NOT `DocParam::bit_eq`'s. So the two spellings of
+    # stored value, NOT `FreeVar::bit_eq`'s. So the two spellings of
     # zero are the same parameter, and the hash folds `-0.0` to match.
 
 class DocParamValue:

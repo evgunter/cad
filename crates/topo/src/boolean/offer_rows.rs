@@ -1837,6 +1837,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CurvedEdgeUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
+        | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
@@ -1870,6 +1871,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ResultInvalid
         | BooleanErrorKind::ResultVolumeImplausible
         | BooleanErrorKind::VolumeCorrupt
+        | BooleanErrorKind::PoisonedCarrierDatum
         | BooleanErrorKind::VolumeUndecided
         | BooleanErrorKind::UnrepresentableResult
         | BooleanErrorKind::NonManifoldResult
@@ -2430,7 +2432,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
-    ("rest.rs", "enumerate_segments", "Coincide::Join", 1),
     (
         "sectors.rs",
         "bisector_zero_refusal",
@@ -2446,6 +2447,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
+    ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     (
         "sectors.rs",
         "side_code",

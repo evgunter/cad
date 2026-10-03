@@ -7,8 +7,8 @@
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, DocEdit, DocParam, EditError, Expr, ParamEnv, ParamName, RecipeNodeId, SitedRef,
-    SlotId, eval, eval_count,
+    Dimension, DocEdit, EditError, Expr, FreeVar, ParamEnv, RecipeNodeId, SitedRef, SlotId,
+    VarName, eval, eval_count,
 };
 use geom_core::Tol;
 
@@ -73,8 +73,8 @@ fn r1_replay_bit_identity_adversarial() {
         -f64::MAX,
     ];
     let mut log: Vec<Edit> = vec![Edit::SetDocParam {
-        name: ParamName::from_static("neg_zero"),
-        value: DocParam::continuous(Dimension::Length, -0.0),
+        name: VarName::from_static("neg_zero"),
+        value: FreeVar::continuous(Dimension::Length, -0.0),
     }];
     let mut doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(&log[0], Tol::witness(), &editor_core::RefusingReach)
@@ -253,14 +253,14 @@ fn r2_dimension_smuggling_probes() {
 /// caller); both `apply` and `eval` must catch it downstream.
 #[test]
 fn r2_contradictory_param_dims_caught_downstream() {
-    let p_scl = Expr::param(ParamName::from_static("q"), Dimension::Scalar);
-    let p_len = Expr::param(ParamName::from_static("q"), Dimension::Length);
+    let p_scl = Expr::param(VarName::from_static("q"), Dimension::Scalar);
+    let p_len = Expr::param(VarName::from_static("q"), Dimension::Length);
     // mul(Scalar, Length) → Length: constructible with BOTH refs.
     let expr = Expr::mul(p_scl, p_len).unwrap();
     // eval: whichever binding "q" has, one ref mismatches — typed.
     let mut env: ParamEnv<f64> = ParamEnv::default();
     env.bindings.insert(
-        ParamName::from_static("q"),
+        VarName::from_static("q"),
         editor_core::ParamValue::Continuous {
             dim: Dimension::Length,
             value: 2.0,
@@ -275,8 +275,8 @@ fn r2_contradictory_param_dims_caught_downstream() {
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
             &Edit::SetDocParam {
-                name: ParamName::from_static("q"),
-                value: DocParam::continuous(Dimension::Length, 2.0),
+                name: VarName::from_static("q"),
+                value: FreeVar::continuous(Dimension::Length, 2.0),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -633,12 +633,12 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
 /// v1 (the hole is the absent arm, not a validation gap).
 #[test]
 fn r4_setdocparam_sweep_and_no_delete_arm() {
-    let name = ParamName::from_static("d");
+    let name = VarName::from_static("d");
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
             &Edit::SetDocParam {
                 name: name.clone(),
-                value: DocParam::continuous(Dimension::Length, 0.5),
+                value: FreeVar::continuous(Dimension::Length, 0.5),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -653,7 +653,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
     let flip = doc.apply(
         &Edit::SetDocParam {
             name: name.clone(),
-            value: DocParam::continuous(Dimension::Angle, 0.5),
+            value: FreeVar::continuous(Dimension::Angle, 0.5),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -666,7 +666,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
     let kind_flip = doc.apply(
         &Edit::SetDocParam {
             name: name.clone(),
-            value: DocParam::Count { value: 2 },
+            value: FreeVar::Count { value: 2 },
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -680,7 +680,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .apply(
             &Edit::SetDocParam {
                 name,
-                value: DocParam::continuous(Dimension::Length, 0.75),
+                value: FreeVar::continuous(Dimension::Length, 0.75),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -692,8 +692,8 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .doc
         .apply(
             &Edit::SetDocParam {
-                name: ParamName::from_static("unused"),
-                value: DocParam::Count { value: 1 },
+                name: VarName::from_static("unused"),
+                value: FreeVar::Count { value: 1 },
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -802,8 +802,8 @@ fn r6_nonfinite_doors_closed() {
     for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let res = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
             &Edit::SetDocParam {
-                name: ParamName::from_static("poison"),
-                value: DocParam::continuous(Dimension::Length, poison),
+                name: VarName::from_static("poison"),
+                value: FreeVar::continuous(Dimension::Length, poison),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -811,7 +811,7 @@ fn r6_nonfinite_doors_closed() {
         assert_eq!(
             res.unwrap_err(),
             EditError::NonFiniteDocParam {
-                name: ParamName::from_static("poison"),
+                name: VarName::from_static("poison"),
                 field: editor_core::DocParamField::Nominal,
             },
             "SetDocParam({poison})"
@@ -878,12 +878,12 @@ fn r8_interval_lane_representative_and_zero_divisor() {
 #[test]
 fn r4_structural_flag_false_positive_but_no_false_negative() {
     use editor_core::{Node, PatternKind};
-    let cnt_param = ParamName::from_static("n");
+    let cnt_param = VarName::from_static("n");
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
             &Edit::SetDocParam {
                 name: cnt_param.clone(),
-                value: DocParam::Count { value: 4 },
+                value: FreeVar::Count { value: 4 },
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -916,7 +916,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // CONTINUOUS param. The only promotion is Count→Scalar (wrong
     // direction), and a Length-dim ref in a Count slot is refused at
     // the slot-dimension check — unrepresentable, not just unvalidated.
-    let smuggle = Expr::param(ParamName::from_static("d_len"), Dimension::Length);
+    let smuggle = Expr::param(VarName::from_static("d_len"), Dimension::Length);
     let res = doc.apply(
         &Edit::SetStructuralParam {
             node: pat_id,
@@ -940,8 +940,8 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     let a2 = doc
         .apply(
             &Edit::SetDocParam {
-                name: ParamName::from_static("other"),
-                value: DocParam::continuous(Dimension::Length, 9.0),
+                name: VarName::from_static("other"),
+                value: FreeVar::continuous(Dimension::Length, 9.0),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -997,15 +997,15 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
     for (name, p) in pa {
         match (p, pb.get(name).expect("param present")) {
             (
-                DocParam::Continuous { dim, value, .. },
-                DocParam::Continuous {
+                FreeVar::Continuous { dim, value, .. },
+                FreeVar::Continuous {
                     dim: d2, value: v2, ..
                 },
             ) => {
                 assert_eq!(dim, d2, "param dim {name:?}");
                 assert_eq!(value.to_bits(), v2.to_bits(), "param bits {name:?}");
             }
-            (DocParam::Count { value }, DocParam::Count { value: v2 }) => {
+            (FreeVar::Count { value }, FreeVar::Count { value: v2 }) => {
                 assert_eq!(value, v2, "count param {name:?}");
             }
             (x, y) => panic!("param kind mismatch {name:?}: {x:?} vs {y:?}"),

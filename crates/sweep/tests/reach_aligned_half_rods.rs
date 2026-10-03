@@ -4,14 +4,12 @@
 //! wall-half pairs that meet across the mating circle are
 //! continuations (`crates/topo/README.md`, C4's continuation clause).
 //!
-//! The declared union builds at every θ through the declared-REST zip
-//! (`topo::boolean::rest`). With the seams aligned (θ = 0, and θ = π
-//! with the halves swapped) the mating circle carries two sites a half
-//! turn apart: each seam segment is a semicircle, so its two end germs
-//! are perpendicular to their chord, and the two arcs between the
-//! sites are parallel edges. The zip matches each segment along the
-//! circle arc both operands carry between its sites (`arcs_along`), and
-//! that arc names the seam edge.
+//! The declared union builds at every θ. With the seams aligned (θ = 0,
+//! and θ = π with the halves swapped) the mating circle carries two
+//! sites a half turn apart: each seam segment is a semicircle, so its
+//! two end germs are perpendicular to their chord, and the two arcs
+//! between the sites are parallel edges, which the sites alone do not
+//! tell apart.
 //! The oracle is closed form: πr²h per rod.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

@@ -30,9 +30,9 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId,
-    EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
+    AssertionDir, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocumentId,
+    EvalOptions, Evaluation, Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::PlaneRelation;
@@ -75,7 +75,7 @@ fn scl(v: f64) -> Expr {
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(n), Dimension::Length)
+    Expr::param(VarName::from_static(n), Dimension::Length)
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
@@ -102,8 +102,8 @@ fn declare(
     let applied = apply(
         doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static(n),
-            value: DocParam::continuous_with(Dimension::Length, value, distribution),
+            name: VarName::from_static(n),
+            value: FreeVar::continuous_with(Dimension::Length, value, distribution),
         },
         tol,
         &RefusingReach,

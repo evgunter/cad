@@ -57,7 +57,7 @@
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::doc::ParamName;
+use crate::doc::VarName;
 use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
 use crate::node::RecipeNodeId;
@@ -89,7 +89,7 @@ pub(crate) enum WireExpr {
     /// A parameter reference with its declared dimension.
     Param {
         /// The referenced document parameter.
-        name: ParamName,
+        name: VarName,
         /// The dimension declared at construction.
         dim: Dimension,
     },

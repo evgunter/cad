@@ -23,9 +23,9 @@ use std::collections::BTreeSet;
 use crate::docm7_union_declare::block;
 
 use editor_core::{
-    DocEdit, DocParam, DocumentId, EvalOptions, Expr, InlineError, Node, ParamName, ProfileDoc,
-    RecipeNodeId, ResolveFault, RoleSeg, SitedRef, SplitError, StableName, content_pin, inline,
-    load, product_named, save, split,
+    DocEdit, DocumentId, EvalOptions, Expr, FreeVar, InlineError, Node, ProfileDoc, RecipeNodeId,
+    ResolveFault, RoleSeg, SitedRef, SplitError, StableName, VarName, content_pin, inline, load,
+    product_named, save, split,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{desc, insert, len, on_frame, run, square, step, xy_frame};
@@ -543,11 +543,11 @@ fn row3_uncut_param_reference_refuses() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("h"),
-            value: DocParam::continuous(editor_core::Dimension::Length, 1.5),
+            name: VarName::from_static("h"),
+            value: FreeVar::continuous(editor_core::Dimension::Length, 1.5),
         },
     );
-    let h = || Expr::param(ParamName::from_static("h"), editor_core::Dimension::Length);
+    let h = || Expr::param(VarName::from_static("h"), editor_core::Dimension::Length);
     // Each block draws on its OWN frame. A shared one would sever an
     // edge at the cut below — the frame is a document input now — and
     // that refusal would fire before the parameter question this row
@@ -586,7 +586,7 @@ fn row3_uncut_param_reference_refuses() {
             promote,
         }) => {
             assert!(!promote, "an extrude's distance is no offset to promote");
-            assert_eq!(param, ParamName::from_static("h"));
+            assert_eq!(param, VarName::from_static("h"));
             assert_eq!(cut_node, doc.spoken(e1));
             assert_eq!(kept_node, doc.spoken(e2));
         }
@@ -602,7 +602,7 @@ fn row3_uncut_param_reference_refuses() {
         None,
     )
     .expect("a cut containing every referencing node carries the parameter");
-    assert!(out.part.params().contains_key(&ParamName::from_static("h")));
+    assert!(out.part.params().contains_key(&VarName::from_static("h")));
 }
 
 /// Row 3c — inline of a stale pin is the resolver's PinMismatch,
@@ -1377,8 +1377,8 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let (part_doc, _) = step(
         part_doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("L"),
-            value: DocParam::continuous(editor_core::Dimension::Length, 2.0),
+            name: VarName::from_static("L"),
+            value: FreeVar::continuous(editor_core::Dimension::Length, 2.0),
         },
     );
     let doc_ref = store.insert(part_doc, Tol::witness());
@@ -1386,8 +1386,8 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let (host, _) = step(
         host,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("L"),
-            value: DocParam::continuous(editor_core::Dimension::Length, 1.0),
+            name: VarName::from_static("L"),
+            value: FreeVar::continuous(editor_core::Dimension::Length, 1.0),
         },
     );
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
@@ -1398,7 +1398,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         Tol::witness(),
     ) {
         Err(InlineError::ParamConflict { param }) => {
-            assert_eq!(param, ParamName::from_static("L"));
+            assert_eq!(param, VarName::from_static("L"));
             let msg = format!("{}", InlineError::ParamConflict { param });
             assert!(
                 msg.contains("parameter L is declared by both"),

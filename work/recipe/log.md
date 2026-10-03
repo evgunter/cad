@@ -71,3 +71,7 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-03 — three rows move to INTENT
+
+`d10-one-way-to-say-intent-is-unbuilt`, `equal-literals-lower-to-one-identity-token` and `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion` move to the new INTENT program (`work/intent/`), which builds D10. Ids are unchanged, so rows parked on the first still resolve. INTENT shares this program's ground (doc.rs, edit.rs, node.rs, persist) and announces each crossing here.

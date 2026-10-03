@@ -48,7 +48,7 @@
 //! `lib_placedunion.rs` pins.
 
 use editor_core::ExtrudeSide;
-use editor_core::{Dimension, DocEdit, DocParam, Expr, Node, ParamName, PatternKind, SlotId};
+use editor_core::{Dimension, DocEdit, Expr, FreeVar, Node, PatternKind, SlotId, VarName};
 
 use crate::fixture::{len, scl};
 
@@ -63,8 +63,8 @@ const PITCH: f64 = 0.3125;
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("fins"),
-        value: DocParam::Count { value: FINS },
+        name: VarName::from_static("fins"),
+        value: FreeVar::Count { value: FINS },
     });
     let fin_p = r.profile(
         [0.0, 0.0, 0.1875],
@@ -99,7 +99,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: fins,
         slot: SlotId::Count,
-        expr: Expr::param(ParamName::from_static("fins"), Dimension::Count),
+        expr: Expr::param(VarName::from_static("fins"), Dimension::Count),
     });
     CorpusDoc {
         name: "heat_sink_fins",

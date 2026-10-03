@@ -118,8 +118,8 @@ use std::collections::BTreeSet;
 
 use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
-    Expr, LoopProgram, Node, ParamEnv, ParamName, ProfilePayload, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, SlotId, StepArg,
+    Expr, LoopProgram, Node, ParamEnv, ProfilePayload, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, SlotId, StepArg, VarName,
 };
 use profile::{ArcMode, TargetKind, Verb};
 
@@ -1162,7 +1162,7 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
     let node = Node::Profile(corpus());
     let slots = node.slots();
     assert!(!slots.is_empty(), "the corpus enumerates no slot");
-    let unbound = ParamName::from_static("nothing_binds_this");
+    let unbound = VarName::from_static("nothing_binds_this");
     let mut misplaced = Vec::new();
     for slot in &slots {
         let mut broken = node.clone();
