@@ -6430,3 +6430,29 @@ any future unit on this ground.
 
 The plane offset rung merged as `ccb3751050`, after CI run 37155436401
 passed on `6ee9164cd6`.
+
+## PR 3992 row closed; two new cloud lanes (2026-10-03)
+
+- **PR 3992's fix pass** is verified:
+  - `merge_group`'s doc is back on `merge_group`;
+  - the closed-edge path has the pruning's guard;
+  - (a) names the killed vertex;
+  - the corner lever text is corrected, and the remaining dihedral-arm
+    wording is filed separately.
+
+  CI run 37156237867 on `c363770fac` passed. I closed the row on the
+  branch (`f37b7b84ea`), and the merge waits on CI.
+- **New lanes, neither covered by the hold:**
+  - `face-surface-test-door-is-named-for-one-of-the-two-refusals-it-lifts`
+    (E): session `session_01D39JeJjawWBHbeTtBYafkm`. It reads the
+    current shape first, since PR 3673 made the door a scope, and then
+    renames or retires it.
+  - `a-fan-split-at-a-vertex-another-vertexs-torn-walk-merges-into`
+    (P3): session `session_01XPokQaPSW3ji8RWqQTFni7`. The proof is a
+    predecessor check (`mate(prev(m))` lands in the walk), and the
+    sweep's 965 must go to 0. The lane stops if rho shapes escape, since
+    the whole-arena alternative needs a cost ruling.
+- **`cycle-walks-refuse-loop-cycle-broken-for-a-stale-next-link` waits.**
+  Its question is the same as the stale-key split's
+  (`stale-key-and-not-same-edge-answer-for-a-callers-key-and-a-torn-body`),
+  which is a design fork not yet run.
