@@ -45,7 +45,10 @@ fn bulge_area(v: &[((f64, f64), f64)]) -> f64 {
 
 fn slab(v: &[((f64, f64), f64)], z0: f64) -> Body<f64> {
     let n = v.len();
-    let verts = v.iter().map(|&((x, y), b)| (Point2::new(x, y), b)).collect();
+    let verts = v
+        .iter()
+        .map(|&((x, y), b)| (Point2::new(x, y), b))
+        .collect();
     let mut joints: Vec<usize> = Vec::new();
     for (k, &(_, b)) in v.iter().enumerate() {
         // A notch centred on the corner meets its edges square: no joint.
@@ -141,7 +144,11 @@ fn join2_d_rings() {
                 (vec![2.0], 1.0, h),
                 (vec![2.0, 4.0], 0.5, h),
             ] {
-                let base_y = if x0 < r { r - (r * r - (r - x0).powi(2)).sqrt() } else { 0.0 };
+                let base_y = if x0 < r {
+                    r - (r * r - (r - x0).powi(2)).sqrt()
+                } else {
+                    0.0
+                };
                 for x1 in [5.0, w - r, w] {
                     let up = comb(x0, x1, base_y.max(0.0), 0.6, &prongs, pw, top);
                     battery(
