@@ -1090,3 +1090,32 @@ rulings, R1–R9:
 - doc and display truths.
 
 The fix pass went back to the implementer lane.
+
+## 2026-10-03 — resumed after the weekly limit; Ev's three answers
+
+The weekly limit stopped the session on 2026-10-01 at about 15:30Z,
+with MSOLVE-12's fix pass waiting on CI at `c9022ce85`. The limit
+reset on 2026-10-03 at 15:00Z. Main had moved a long way in between:
+- EDIT left the tracker, and PLACE opened.
+- #3676 deleted the cluster maintenance, which made MSOLVE-12's §3
+  moot and left the PR dirty.
+- PLACE's row 52 gave every mate frame a general offset.
+
+The MSOLVE-12 lane was resumed to merge main, with main's deletion
+winning.
+
+Ev's three answers, all from 2026-10-01:
+- **#3679 (item 19):** approved, with a request to update A11 (5) in
+  place. Done in `b79b9b84e`. The appended sentence had also been
+  wrong to say "what the walk reads" is read at the nominal, so the
+  scalar rule now lives in the sentences it qualifies. The decision is
+  in fork-log row 58.
+- **#3695 (item 21):** approved, so the row is closed. Ev ruled the
+  union recourse's `ReadBelowARoot` a defect; it is filed as item 26.
+  The decision is in fork-log row 59.
+- **#3681 (item 22):** approved, and Ev's ±0 point is already met by
+  #2468. The merge is held, though, because PLACE's later row 52
+  collides with it. The same two designers have a round 3 with row 52
+  in hand.
+
+Rows were renumbered at merge: main's fork log runs to 57.

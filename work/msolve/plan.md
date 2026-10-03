@@ -229,7 +229,10 @@ and CHROME; triaged 2026-10-01:**
     builds it (`memories/orchestration-model.md`).
     Weighed 2026-10-01: both designers chose one solve, generic over the
     run's scalar, with the structure read at the nominal. Asked on
-    `[ev]` PR 3679 (fork-log row 34).
+    `[ev]` PR 3679 (fork-log row 58). Ruled by Ev on 2026-10-01:
+    approved, with A11 (5) stated in place. The build is an MSOLVE unit
+    after MSOLVE-12: the solve goes generic over the scalar, and
+    `Unpinned` loses its producer.
 20. **`MSOLVE-11` gains three riders**, all refusal and reporting
     words the solve owns: AUTH's `materole-has-no-display` (P1, E — a
     kernel word for whether a mate placed its child; AUTH's viewer row
@@ -248,7 +251,10 @@ and CHROME; triaged 2026-10-01:**
     Two verdicts on two questions: the gather owns whether a product
     exists, and the unmated twin fails it identically. Asked on `[ev]`
     PR 3695 (fork-log row 36) as one sentence in A11 (4). The gather
-    refusal's recourse gets reworded in the unit that lands it.
+    refusal's recourse gets reworded in the unit that lands it. Ruled
+    by Ev on 2026-10-01: no solve refusal, and the row is closed. Ev
+    also ruled the second refusal the union recourse leads into a
+    defect ("it should be possible to do that"): item 26.
 
 **Filed by MSOLVE-9's fix pass, triaged 2026-10-01:**
 
@@ -263,7 +269,13 @@ and CHROME; triaged 2026-10-01:**
     Weighed 2026-10-01; the designers converged in two rounds: the turn
     is the mate's, as `FrameCoincidence { turn }` and
     `Coaxial { turn: Option }`, with the rider deleted. Asked on `[ev]`
-    PR 3681 (fork-log row 35). If approved, the unit also owes an edit
+    PR 3681 (fork-log row 35 at the time). Ev approved on 2026-10-01
+    and noted that ±0 must never matter; #2468, merged the same day,
+    already meets that. On 2026-10-03 PLACE's row 52 gave every mate
+    frame a general offset (`MateFrame { base, offset: Placement }`),
+    which can already turn a side about its axis. So the turn and two
+    offsets now spell one roll three ways. #3681 is held while the
+    same designers weigh the roll with row 52 in hand (round 3). If approved, the unit also owes an edit
     that rewrites a committed mate's turn (only `InsertNode` writes a
     mate's datum today), and the mate panel's turn control (it
     hard-codes `clocking: None`). The planar zero went to a note under
@@ -287,7 +299,24 @@ and CHROME; triaged 2026-10-01:**
     E): blocked on item 22. Under `[ev]` PR 3681's answer no unit
     variant remains; under its fallback the row is owed.
 
-The exit walk waits on 10–12, 14–16 and 17–24: the program closes when the
+**Routed or filed 2026-10-01 … 10-03:**
+
+25. **`a-declaring-mates-alignment-is-never-read`** (PLACE, P3, design):
+    a declaring mate's `Alignment` is stored and persisted, but nothing
+    reads it. The open question is whether the gate should check it,
+    or whether a declaring mate should hold no alignment at all.
+    Weighed after items 22 and 26, since row 52's offset touches the
+    same field.
+26. **`a-mate-read-at-a-transform-under-a-union-refuses-read-below-a-root`**
+    (P1, design): Ev's ruling on #3695. Two designers weigh how a mate
+    reads a face whose operand sits under a root that re-mints names.
+    A red row comes first.
+
+EDIT's PR #3676 deleted the cluster maintenance, so item 23's third
+row (the `mate/maintain.rs` move) was overtaken. Main closed that row,
+and MSOLVE-12 merges main without it.
+
+The exit walk waits on 10–12, 14–16 and 17–26: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm
 (with the witness and the `MateFault` note), the face-resolved frame
 and the static clocking refusal are in.
