@@ -1,7 +1,7 @@
-//! The tour's ONLY boolean call sites — a deliberately thin,
-//! centralized wrapper over `pncad::topo::{union, subtract, intersect}` so
-//! any API shift is a one-file adaptation here — plus the shared
-//! exact-volume oracle every boolean scene runs its results through.
+//! A deliberately thin wrapper over `pncad::topo::{union, subtract,
+//! intersect}` for the scenes that run through it (lily, klein and
+//! snowman call the doors directly), plus the shared exact-volume oracle
+//! every boolean scene runs its results through.
 //!
 //! Generic over [`Scalar`] (M4 PR 8b): the same wrappers serve the
 //! f64 tour and the Probe K-telemetry sweep; oracles compare through
