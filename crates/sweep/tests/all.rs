@@ -616,6 +616,8 @@ mod join1_r1_probes;
 mod join1_r1_rows;
 #[path = "join_rc_probes.rs"]
 mod join_rc_probes;
+#[path = "join_reflex_wedge_probes.rs"]
+mod join_reflex_wedge_probes;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]

@@ -47,3 +47,24 @@ either way.
 - The membership test read by the wedge's actual extent (the
   representative's side of each plane, and which side the wedge
   spans), or a typed refusal where the wedge is reflex.
+
+## Built
+
+Branch `join/edge-edge-reflex-wedge`. `recl::resolve_edge_edge`'s
+membership reads one half-space verdict per flanking plane; two alike
+settle it, and split verdicts are inside iff the wedge is reflex
+(`recl::wedge_is_reflex`, predicate `bool_wedge_reflex`, asked only
+then; a decided zero refuses as `Coincide::Sectors`).
+
+Measured with `sweep/tests/join_reflex_wedge_probes.rs`: two fan
+prisms sharing their corner edge, `a` at 90°–315°, `b` at 60°–300°
+turned about the edge, all six runs (∪ ∩ ∖ in both orders). Main:
+798 of 2 250 generic runs and 597 of 1 194 coplanar-flank runs refuse
+`ClassificationInvariant` (membership disagreement, or an odd survivor
+count), every one with a reflex wedge on one side, and none is BAD.
+Head: all 3 444 runs build sound against the closed form (tiers 2 and
+3′, certificate, legal operand). JOIN-1's batteries and
+`rc_wide_battery`: byte-identical lines main vs head (132 258 lines).
+`m3_pr6_saddle::prism_reflex_kiss_takes_edge_edge_lane`, which pinned
+this lane's refusal at the L-prism's reflex corner, now builds sound
+at the closed form and is re-pinned so.

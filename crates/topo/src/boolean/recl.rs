@@ -821,6 +821,37 @@ fn place_germ(
 /// A flanker's representative direction and the reach behind it.
 type Rep<T> = (Vec3<T>, super::sectors::Reach<T>);
 
+/// **Whether a solid's dihedral wedge about the common line is
+/// reflex**: whether its second flanker's representative lies on the
+/// outer side of its first flanker's plane (`bool_wedge_reflex`), the
+/// sine of the dihedral angle levered at `arm` — its second face's
+/// distance at that arm from the first face's plane. A convex wedge's
+/// material is the intersection of its flanking half-spaces, a reflex
+/// one's their union. A decided zero (a wedge of a half-turn, or of
+/// none) refuses: a representative that splits the two planes' verdicts
+/// there has nothing to read it by.
+fn wedge_is_reflex<T: Decide>(
+    secs: &[BoolSector<T>],
+    fl: &[(usize, Rep<T>)],
+    arm: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let ((first, _), (_, (second, _))) = (fl[0], fl[1]);
+    match crate::validate::decide_nonzero_reported(
+        "bool_wedge_reflex",
+        Margin::levered(second.dot(secs[first].normal.vec()), arm),
+        band,
+    ) {
+        Ok(NonzeroSign::Positive) => Ok(true),
+        Ok(NonzeroSign::Negative) => Ok(false),
+        Err(diag) => Err(BooleanError::coincidence(
+            Coincide::Sectors,
+            DeclarationRead::Moot,
+            diag,
+        )),
+    }
+}
+
 /// Edge-edge coincidence — the DERIVED membership rule (subsumes TOG's
 /// angular sort and its Table I ties): around the common line, each
 /// solid's material occupies the dihedral wedge between its two
@@ -835,10 +866,14 @@ type Rep<T> = (Vec3<T>, super::sectors::Reach<T>);
 /// failure). For all-pairwise-coplanar configurations every membership
 /// resolves by lump and the rule reproduces Table I's verdicts; for
 /// generic (tie-free) configurations "exactly one inside" IS the mixed
-/// angular order. Limitation (flagged in the PR report): membership
-/// uses the convex-wedge test (In against both flanking planes);
-/// reflex dihedral wedges along a coincident edge are not yet
-/// discriminated — the A/B symmetry check refuses loudly if it bites.
+/// angular order.
+///
+/// "Inside" is read by the wedge's actual extent. A representative
+/// reads one half-space verdict per flanking plane (In, or an On
+/// resolved as above); two alike settle it at any wedge angle. Split
+/// verdicts put it in the material iff the wedge is reflex, the union
+/// of its two half-spaces rather than their intersection — which is
+/// [`wedge_is_reflex`]'s question, asked only then.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve_edge_edge<T: Decide>(
     records: &[PairRecord],
@@ -895,8 +930,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         } else {
             (b_body, a_body)
         };
-        let mut inside = true;
-        for &(oi, (ow, _)) in other {
+        let mut halves = [true; 2];
+        for (inside, &(oi, (ow, _))) in halves.iter_mut().zip(other) {
             match side_code(
                 w,
                 reach,
@@ -905,7 +940,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 band,
             )? {
                 SideCode::In => {}
-                SideCode::Out => inside = false,
+                SideCode::Out => *inside = false,
                 SideCode::On => {
                     // On the flanking plane: overlap-tie or touch. No
                     // declaration the door verifies settles it: two
@@ -951,7 +986,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                         }
                     };
                     if !same {
-                        inside = false; // touching, not overlapping
+                        *inside = false; // touching, not overlapping
                     } else {
                         let comparison = if own_is_a { Operand::A } else { Operand::B };
                         // Declared-`Tangent` flanking pairs (distinct
@@ -1012,13 +1047,16 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                             eq15_3_lump(op, comparison, rel)
                         };
                         if lump != SideCode::In {
-                            inside = false;
+                            *inside = false;
                         }
                     }
                 }
             }
         }
-        Ok(inside)
+        match halves {
+            [h0, h1] if h0 == h1 => Ok(h0),
+            _ => wedge_is_reflex(other_secs, other, arm, band),
+        }
     };
     // A declared-`Tangent` flanking pair short-circuits the wedge
     // membership: the verified declaration says the two carriers
@@ -1318,6 +1356,56 @@ mod tests {
     use super::*;
     use crate::contact::BooleanCoincidence;
     use SideCode::{In, On, Out};
+
+    /// The wedge's extent is its second face's side of its first face's
+    /// plane: a quarter-turn is convex, three quarters reflex, and a
+    /// half-turn (the second face in the first face's plane) refuses.
+    #[test]
+    fn a_wedge_reads_reflex_by_its_second_faces_side_and_refuses_flat() {
+        use super::super::sectors::Reach;
+        use geom_brep::OutwardNormal;
+        use geom_core::Tol;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let first = BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start: Vec3::new(0.0, 0.0, 1.0),
+            end: Vec3::new(1.0, 0.0, 0.0),
+            start_reach: Reach::Bisector(1.0),
+            end_reach: Reach::Bisector(1.0),
+            face: crate::entity::FaceKey::default(),
+            normal: OutwardNormal::from_chart(Vec3::new(0.0, -1.0, 0.0), true),
+            arm: 1.0,
+        };
+        let secs = [first];
+        let wedge = |second: [f64; 3]| {
+            let fl = [
+                (0, (Vec3::new(1.0, 0.0, 0.0), Reach::Bisector(1.0))),
+                (
+                    0,
+                    (
+                        Vec3::new(second[0], second[1], second[2]),
+                        Reach::Bisector(1.0),
+                    ),
+                ),
+            ];
+            wedge_is_reflex(&secs, &fl, 1.0, band)
+        };
+        assert!(!wedge([0.0, 1.0, 0.0]).unwrap(), "a quarter-turn is convex");
+        assert!(
+            wedge([0.0, -1.0, 0.0]).unwrap(),
+            "three quarters are reflex"
+        );
+        assert!(
+            matches!(
+                wedge([-1.0, 0.0, 0.0]),
+                Err(BooleanError::Escalated {
+                    decision: crate::boolean::BooleanDecision::Coincidence(Coincide::Sectors, _),
+                    diag,
+                }) if diag.predicate == Some("bool_wedge_reflex")
+            ),
+            "a half-turn refuses"
+        );
+    }
 
     /// A grazing bisector between keys read Out is the band's Zero
     /// (reachable only at K ≤ 2), and it refuses rather than read "not
