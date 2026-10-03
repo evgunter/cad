@@ -112,6 +112,13 @@ What holds:
 - Tier 3's predicates at the door have their reasons in editor-core's
   decision-log census (`WORDLESS`).
 
+The editor's seat finishes each boolean operand (`finished_operand`),
+so an editor chain pays tier 3 twice per intermediate body: 14,417 seat
+gates, 42.2 s summed over the editor-core suite (median 0.82 ms, p90
+5.4 ms; PR 3987's review lane r1), against 27.2 s for the door's own
+result gate on the same suite. Filed:
+`work/reach/the-evaluator-carries-kept-bodies.md`.
+
 What stopped, measured: the census half (`T::gate_at_rest_declared`).
 A census at the door refuses 175 results on main, 38 of them curved
 unions the cross-solid lane cannot decide, which the ratified sequencing
