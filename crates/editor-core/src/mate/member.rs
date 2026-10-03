@@ -13,7 +13,7 @@
 //! Structural throughout: no expression is evaluated in the walk, so
 //! the group partition never depends on a slot value. The offset —
 //! which is arithmetic, not admission — does evaluate, in the solve's
-//! one nominal environment ([`super::solve::solve_document`]).
+//! one environment at its scalar ([`super::solve::solve_document`]).
 
 use geom_core::Decide;
 use geom_core::linalg::{Affine3, Point3};

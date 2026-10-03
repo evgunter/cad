@@ -2,12 +2,14 @@
 id: from-face-frame-under-an-analysis-lane-refuses-unpinned
 kind: issue
 title: A FromFace mate frame under an analysis-lane evaluation refuses Unpinned rather than resolving
-status: open
+status: closed
 opened: 2026-09-20
 priority: P1
 cost: H
 design: true
 parent: MSOLVE-14
+pr: 3986
+closed: 2026-10-03
 ---
 
 Found by the MSOLVE-9 lane while wiring `MateReach::face_pose`
@@ -105,3 +107,28 @@ are read at the nominal, because no box or seed binds them.
 unit: the solve goes generic over the scalar, and `Unpinned` loses its
 producer.
 
+## Closed
+
+Fixed by MSOLVE-14 (PR 3986). The solve runs at the evaluation's own
+scalar, so a `FromFace` side's pose crosses as the part's product
+holds it — with its tangent on a seed run, as an enclosure on a box
+run — and `FacePoseRefusal::Unpinned` lost its producer and is deleted,
+with its Python tag (`unpinned`) and census entry.
+
+- `msolve9_from_face::a_face_frame_under_an_analysis_evaluation_resolves`
+  re-baselines the row that pinned the refusal: the seat resolves at
+  `Dual64` (value channel on the `f64` bits) and at `Interval`.
+- `msolve14_run_scalar`'s A1 rows: a face-seated bolt carries
+  `∂B/∂s = −2` on a seed run, and its pose encloses the `f64` pose at
+  both corners of a box.
+- The two doors this row named are open:
+  `stackup::sensitivities_resolved` and `ClearanceQuery::resolver`
+  (both doors evaluated with no resolver before, so no assembly with
+  parts reached them at all), pinned by
+  `msolve14_run_scalar::a5_sensitivities_cross_a_face_framed_mate` and
+  `a5_certified_clearance_runs_over_a_face_framed_mate`.
+
+What a box run still cannot do with a widened pose is the placement
+door's, not the solve's: `work/topo/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`
+(its "Measured" section: a box-wide translation refuses at
+certification too).

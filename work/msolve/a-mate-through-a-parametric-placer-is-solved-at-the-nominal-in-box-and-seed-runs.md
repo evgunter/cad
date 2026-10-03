@@ -2,12 +2,14 @@
 id: a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs
 kind: issue
 title: A mate read through a parametric Transform or Pattern is solved at the nominal in a box or seed run, while the placer's own map widens
-status: open
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: M
 design: true
 parent: MSOLVE-14
+pr: 3986
+closed: 2026-10-03
 ---
 
 Filed by the EDIT orchestrator from the design-fork review of the
@@ -91,3 +93,29 @@ are read at the nominal, because no box or seed binds them.
 unit: the solve goes generic over the scalar, and `Unpinned` loses its
 producer.
 
+## Closed
+
+Fixed by MSOLVE-14 (PR 3986), by the design Ev approved on `[ev]` PR
+3679 rather than the typed refusal: the solve runs over the evaluation's
+own environment at its scalar, so a placer's map, a gauge's placement
+and a checked offset's frame are read in the run that binds them.
+
+- The red probe this row asked for is
+  `msolve14_run_scalar::a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner`
+  and its transform-placer sibling — red on main, where the mated
+  part's enclosure was the nominal's point.
+- The designers' worked example is
+  `a2_a_seed_on_the_bolts_spacing_moves_the_bolt_by_minus_two_and_holds_copy_two`:
+  `∂B/∂s = −2`, `∂copy2/∂s = 0`, each vertex held to the `f64` builds'
+  central difference.
+- The "Widened" half: `check_offsets` reads its group frame and both
+  statements in the solve's environment, so a box or seed that binds a
+  gauge or a root offset checks the statement over that run. The
+  corpus's gauge chain carries a true and a false checked offset at
+  every lane (`c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f64s`).
+
+Over a box wide enough to matter, the mated instance's body meets
+`topo`'s rigid-transform certification refusal, as a `Transform` node
+over the same box does (pinned by
+`a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors`; evidence
+added to `work/topo/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`).

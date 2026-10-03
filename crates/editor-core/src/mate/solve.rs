@@ -1520,9 +1520,10 @@ fn admit_class(mate: RecipeNodeId, class: super::ContactClass) -> Result<(), Box
 /// or a shrunk pattern strands, a `Part` re-pointed, a snapshot loaded
 /// from a doctored or older file — is the solve's at evaluation.
 ///
-/// `env` is the document's own nominal environment, built by the
-/// door that asks (the evaluation's arrangement at [`solve_with_env`]:
-/// one build per entry, every reader handed it).
+/// `env` is the document's own nominal environment, built by the door
+/// that asks, and the admission is at `f64`: the doors decide edits at
+/// the document's own values, and the solve decides states in every
+/// lane.
 ///
 /// `reach` absent is replay's, and what needs the parts is then
 /// DECLINED — the rider on a coincidence, decided over a lever, and a
