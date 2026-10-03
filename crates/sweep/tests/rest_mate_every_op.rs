@@ -1,8 +1,9 @@
-//! **A shaft set in a bore, every bore × shaft wall pair declared
+//! **A part seated in another, every pair of mating faces declared
 //! `Rest`, answers every op in closed form.**
 //!
 //! The interiors are disjoint, so `∪` is the two volumes summed, `∩` is
-//! empty and each difference is its minuend whole. Two seam layouts:
+//! empty and each difference is its minuend whole. A shaft set in a
+//! bore comes in two seam layouts:
 //!
 //! - **arc-split**: an extruded annulus whose bore is three 120° faces,
 //!   against a three-arc shaft (three wall thirds) at an azimuth `a`
@@ -18,6 +19,9 @@
 //! the declarations in their own operand order. The oracle is the closed
 //! form, never the kernel: `π(R² − r²)L` for the collar, `πr²h` for the
 //! shaft.
+//!
+//! A ball filling a spherical cavity exactly has no rim at all: the
+//! contact is the cavity's whole wall. Its oracle is `4πr³/3` per ball.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -158,8 +162,14 @@ fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> Body<f64> {
 }
 
 /// A body answer: its volume against the closed form `want`, relative
-/// to `scale`; one shell; tier 3; the census against its own contacts.
-fn holds(out: Result<BooleanResult<f64>, topo::BooleanError>, want: f64, scale: f64, tag: &str) {
+/// to `scale`; `shells` shells; tier 3; the census against its own
+/// contacts.
+fn holds(
+    out: Result<BooleanResult<f64>, topo::BooleanError>,
+    (want, shells): (f64, usize),
+    scale: f64,
+    tag: &str,
+) {
     let tol = Tol::witness();
     let bb = match out {
         Ok(BooleanResult::Body(bb)) => bb,
@@ -171,7 +181,7 @@ fn holds(out: Result<BooleanResult<f64>, topo::BooleanError>, want: f64, scale: 
         (got - want).abs() <= 1e-12 * scale,
         "{tag}: volume {got} vs the closed form {want}"
     );
-    assert_eq!(bb.body.shells().count(), 1, "{tag}: one shell");
+    assert_eq!(bb.body.shells().count(), shells, "{tag}: shells");
     assert_eq!(
         topo::validate_geometric(&bb.body, tol),
         Ok(()),
@@ -203,13 +213,13 @@ fn intersect_and_differences(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
     }
     holds(
         op(BooleanOp::Subtract, c, s, &cs),
-        m.collar_volume(),
+        (m.collar_volume(), 1),
         scale,
         &format!("{tag}: collar ∖ shaft"),
     );
     holds(
         op(BooleanOp::Subtract, s, c, &sc),
-        m.shaft_volume(),
+        (m.shaft_volume(), 1),
         scale,
         &format!("{tag}: shaft ∖ collar"),
     );
@@ -222,7 +232,7 @@ fn unions(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
     for (order, a, b) in [("collar ∪ shaft", c, s), ("shaft ∪ collar", s, c)] {
         holds(
             topo::union_with(a, b, &decls(a, b, m.r), tol),
-            want,
+            (want, 1),
             want,
             &format!("{tag}: {order}"),
         );
@@ -323,5 +333,86 @@ fn arc_split_bore_unions_are_the_closed_form() {
 fn full_turn_bore_unions_are_the_closed_form() {
     for (r, len) in [(0.5, 1.0), (0.2, 2.5), (1.3, 0.75)] {
         each_mate(Layout::FullTurn, r, len, &UNION_SPANS, unions);
+    }
+}
+
+/// A ball of radius `r` about the origin, poles on `y`.
+fn ball(r: f64) -> Body<f64> {
+    sweep::test_support::revolved_about_y(
+        vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
+        Revolution::Full,
+        Tol::witness(),
+    )
+}
+
+/// The ball of radius `outer` with a ball of radius `r` taken out of
+/// its middle: one outer shell and one cavity.
+fn hollow(r: f64, outer: f64) -> Body<f64> {
+    match topo::subtract(&ball(outer), &ball(r), Tol::witness()) {
+        Ok(BooleanResult::Body(bb)) => bb.body,
+        other => panic!("the hollow ball builds: {other:?}"),
+    }
+}
+
+/// Every pair of sphere faces of radius `r` across `a` and `b`
+/// declared `Rest`.
+fn sphere_decls(a: &Body<f64>, b: &Body<f64>, r: f64) -> BooleanDeclarations {
+    let at = |body: &Body<f64>| -> Vec<topo::FaceKey> {
+        body.faces()
+            .filter(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Sphere { radius, .. }) if (radius - r).abs() < 1e-9
+                )
+            })
+            .map(|(k, _)| k)
+            .collect()
+    };
+    let mut d = BooleanDeclarations::none();
+    for &fa in &at(a) {
+        for &fb in &at(b) {
+            d.coincident_faces
+                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
+        }
+    }
+    assert!(!d.coincident_faces.is_empty(), "a declared sphere pair");
+    d
+}
+
+#[test]
+fn a_ball_filling_a_spherical_cavity_answers_every_op_in_closed_form() {
+    let tol = Tol::witness();
+    let ball_volume = |r: f64| 4.0 / 3.0 * PI * r * r * r;
+    for (r, outer) in [(0.5, 1.0), (0.2, 1.5), (1.3, 2.0)] {
+        for (pose_name, pose) in poses() {
+            let tag = format!("ball {r} in a cavity of a ball {outer}, pose {pose_name}");
+            let (h, b) = (placed(&hollow(r, outer), &pose), placed(&ball(r), &pose));
+            let (hb, bh) = (sphere_decls(&h, &b, r), sphere_decls(&b, &h, r));
+            let scale = ball_volume(outer);
+            for (order, x, y, d) in [("hollow", &h, &b, &hb), ("ball", &b, &h, &bh)] {
+                holds(
+                    topo::union_with(x, y, d, tol),
+                    (ball_volume(outer), 1),
+                    scale,
+                    &format!("{tag}: {order} first, ∪"),
+                );
+                assert!(
+                    matches!(topo::intersect_with(x, y, d, tol), Ok(BooleanResult::Empty)),
+                    "{tag}: {order} first, ∩ is empty"
+                );
+            }
+            holds(
+                topo::subtract_with(&h, &b, &hb, tol),
+                (ball_volume(outer) - ball_volume(r), 2),
+                scale,
+                &format!("{tag}: hollow ∖ ball"),
+            );
+            holds(
+                topo::subtract_with(&b, &h, &bh, tol),
+                (ball_volume(r), 1),
+                scale,
+                &format!("{tag}: ball ∖ hollow"),
+            );
+        }
     }
 }

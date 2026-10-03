@@ -742,7 +742,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   sphere faces meeting, tangency, boundary-grazing circles,
         //   one group escaping through NON-PARALLEL faces): typed
         //   refusal — the S12 silence never re-opens.
-        let recuts = sphere_extent_scan(a, b, band)?;
+        let recuts = sphere_extent_scan(a, b, &red.coincident, band)?;
         if !recuts.is_empty() {
             if !recut {
                 return Err(BooleanError::ClassificationInvariant {
@@ -1255,39 +1255,41 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )
 }
 
+/// **Does the pair `(A face, B face)` only touch?** It does when the
+/// coincidence ladder settled it one carrier with opposed senses
+/// (`settled`, [`CarrierRelation::SameOpposite`]: a verified `Rest`, or
+/// a shared recipe source). Its section then lies on the one carrier,
+/// where each operand's material stands on its own side, so every point
+/// the two faces share is a touch of the two boundaries and none is a
+/// point of both interiors: the pair hides no overlap from the
+/// no-crossings path's vertex probe, whatever its section's component
+/// count. A continuation (senses aligned) puts both materials on one
+/// side and is not such a pair.
+fn touches_only(settled: &[super::SettledPair], fa: FaceKey, fb: FaceKey) -> bool {
+    settled
+        .iter()
+        .any(|p| p.a == fa && p.b == fb && p.relation == CarrierRelation::SameOpposite)
+}
+
 /// **The no-crossings path's section pass.** With no event anywhere,
 /// W4 never fires and the no-event decision decides every lone
 /// component, so each pair the vertex probe could not see into is
 /// either certified or refused here, typed as the fallback's extent
 /// refusal ([`BooleanError::FallbackExtentUnsupported`]) naming the
-/// pair's curved face.
-///
-/// A pair the coincidence ladder settled one carrier with opposed
-/// senses (`settled`, [`CarrierRelation::SameOpposite`]: a verified
-/// `Rest`, or a shared recipe source) is answered without its section.
-/// Its section lies on the one carrier, where each operand's material
-/// stands on its own side, so every point the two faces share is a
-/// touch of the two boundaries and none is a point of both interiors:
-/// the pair hides no overlap from the vertex probe, whatever its
-/// component count. A continuation (senses aligned) puts both materials
-/// on one side and is classified as any other pair.
+/// pair's curved face. A pair that only touches ([`touches_only`]) is
+/// answered without its section.
 fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     settled: &[super::SettledPair],
     band: Band,
 ) -> Result<(), BooleanError> {
-    let touch_only = |fa: FaceKey, fb: FaceKey| {
-        settled
-            .iter()
-            .any(|p| p.a == fa && p.b == fb && p.relation == CarrierRelation::SameOpposite)
-    };
     let pairs = section_pairs(
         a,
         b,
         band,
         SectionPath::Fallback,
-        touch_only,
+        |fa, fb| touches_only(settled, fa, fb),
         |_, _| false,
         true,
     )?;
@@ -1352,7 +1354,7 @@ pub(crate) fn no_crossings_certificates(
     tol: Tol,
 ) -> Result<usize, BooleanError> {
     let band = Band::linear(tol)?;
-    let recuts = sphere_extent_scan(a, b, band)?;
+    let recuts = sphere_extent_scan(a, b, &[], band)?;
     if recuts.is_empty() {
         section_extent_pass(a, b, &[], band)?;
     }
@@ -2766,6 +2768,7 @@ struct SphereRecut<T: Real> {
 fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
+    settled: &[super::SettledPair],
     band: Band,
 ) -> Result<Vec<SphereRecut<T>>, BooleanError> {
     let esc = |question| {
@@ -2997,6 +3000,21 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         radius: r2,
                         ..
                     } => {
+                        // Every face this sphere carries that can reach
+                        // `yf` only touches it: the carriers are one,
+                        // and nothing of the pair is the scan's.
+                        let mut reaching = x_rows
+                            .iter()
+                            .filter(|r| r.key == fd.surface && r.bbox.overlaps(&y_row.bbox))
+                            .peekable();
+                        if reaching.peek().is_some()
+                            && reaching.all(|r| match x_is {
+                                Operand::A => touches_only(settled, r.face, yf),
+                                Operand::B => touches_only(settled, yf, r.face),
+                            })
+                        {
+                            continue;
+                        }
                         let d = (c2 - center).norm();
                         // A decided zero is band-decided: the spheres
                         // touch within the tolerance, and a positive gap
@@ -4040,7 +4058,7 @@ mod tests {
         // poison box is never pruned) — `sweep`'s `s16_box_soundness`
         // pins both blockers, so the day one lifts is loud.
         let band = Band::linear(Tol::witness()).unwrap();
-        let Err(err) = super::sphere_extent_scan(&a, &b, band) else {
+        let Err(err) = super::sphere_extent_scan(&a, &b, &[], band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");
         };
         let BooleanError::NurbsExtentUnsupported { .. } = err else {
