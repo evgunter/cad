@@ -16,6 +16,8 @@
 //!   analytic faces, spiric rims. Its volume is an elliptic integral,
 //!   so an `Ok` on it has no oracle here and fails the row.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_core::Tol;
 use topo::{Body, BooleanError, BooleanResult};
 
@@ -114,6 +116,13 @@ fn bbox(body: &Body<f64>) -> (geom_core::Point3<f64>, geom_core::Point3<f64>) {
     (lo, hi)
 }
 
+/// One op's label, outcome and oracle volume.
+type Run = (
+    &'static str,
+    Result<BooleanResult<f64>, BooleanError>,
+    Option<f64>,
+);
+
 /// A refusal that names an input or a frontier, not a broken kernel.
 fn typed(e: &BooleanError) -> bool {
     !matches!(
@@ -130,7 +139,7 @@ fn census(name: &str, operand: &Body<f64>, placements: &[Placement]) -> Vec<Stri
     for p in placements {
         let (x, y, z) = p.brick;
         let brick: Body<f64> = sweep::test_support::brick(x, y, z, tol);
-        let runs: [(&str, Result<BooleanResult<f64>, BooleanError>, Option<f64>); 6] = [
+        let runs: [Run; 6] = [
             (
                 "O ∪ B",
                 topo::union(operand, &brick, tol),
