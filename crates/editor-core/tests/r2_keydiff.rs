@@ -128,7 +128,7 @@ fn r2_measure_free_content_keys() {
                 op: BooleanOp::Subtract,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             }),
         },
     );

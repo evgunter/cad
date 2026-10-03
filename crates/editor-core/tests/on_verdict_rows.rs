@@ -7,12 +7,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{Recorder, ang, len, scl};
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Expr,
-    ExtrudeSide, Node, NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, SplitHalf, StableName, ValuePayload, declare_all, evaluate,
-    find_flush_candidates,
+    BooleanOp, BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Expr, Node,
+    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, SplitHalf, StableName, ValuePayload, declared_pairs, evaluate, find_flush_candidates,
 };
 use geom_core::Tol;
 use topo::{BooleanResultKind, mass_properties};
@@ -55,7 +55,7 @@ fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) ->
         op,
         a,
         b,
-        declare: None,
+        declare: Vec::new(),
     })
 }
 
@@ -139,7 +139,7 @@ fn two_parts_of_one_half_answer_under_every_op() {
     let nodes: Vec<RecipeNodeId> = OPS.iter().map(|&op| boolean(&mut r, op, p, q)).collect();
     let union = r.insert(Node::Union {
         members: vec![p, q],
-        declare: None,
+        declare: Vec::new(),
     });
     let ev = eval(&r.doc);
     for (op, &id) in OPS.iter().zip(&nodes) {
@@ -355,8 +355,7 @@ fn a_declared_twin_answers_and_an_undeclared_one_refuses() {
 
     let findings = find_flush_candidates(&ev, s, t, Tol::witness()).unwrap();
     assert_eq!(findings.len(), 6, "one finding per face pair: {findings:?}");
-    let (applied, decl) = declare_all(&r.doc, &findings, Tol::witness()).unwrap();
-    r.doc = applied.doc;
+    let pairs = declared_pairs(&findings);
     let rows: Vec<Row> = OPS
         .iter()
         .map(|&op| {
@@ -364,7 +363,7 @@ fn a_declared_twin_answers_and_an_undeclared_one_refuses() {
                 op,
                 a: s,
                 b: t,
-                declare: Some(decl),
+                declare: pairs.clone(),
             });
             (
                 format!("S {op:?} T, declared"),

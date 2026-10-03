@@ -252,7 +252,7 @@ fn unusable_nodes_surface_typed_errors() {
             op: editor_core::BooleanOp::Union,
             a: bad,
             b: good,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);

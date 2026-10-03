@@ -89,7 +89,7 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Union,
             a: block,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, block)

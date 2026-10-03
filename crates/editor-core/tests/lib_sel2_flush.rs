@@ -16,9 +16,10 @@
 //!    neither reported nor dropped: `SelectRefusal::PairInBand` names
 //!    the pair (§3a / §2's honesty obligation).
 //! 4. **The sugar is thin and never detects.** `declare`/`declare_all`
-//!    insert a `Node::Declare` from findings the CALLER passes;
-//!    an empty set refuses (`NoFindings`) rather than inserting a
-//!    pretend-declaration.
+//!    set a live Boolean's or Union's declared pairs (`SetDeclare`)
+//!    from findings the CALLER passes; an empty set refuses
+//!    (`NoFindings`) rather than recording a pretend-declaration, and
+//!    a node that declares nothing refuses typed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -26,9 +27,9 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanCoincidence, BooleanOp, BooleanValue, CancelToken, DeclareError, EvalOptions, FlushRung,
-    Node, NodeErrorKind, NodeResult, NodeStanding, ProfileDoc, RecipeNodeId, SelectRefusal,
-    ValuePayload, declare, declare_all, evaluate, find_flush_candidates,
+    BooleanCoincidence, BooleanOp, BooleanValue, CancelToken, DeclareError, EditError, EvalOptions,
+    FlushRung, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileDoc, RecipeNodeId,
+    SelectRefusal, ValuePayload, declare, declare_all, evaluate, find_flush_candidates,
 };
 use topo::{PlaneRelation, mass_properties};
 
@@ -178,9 +179,8 @@ fn separated_answers_empty_and_a_node_with_no_value_refuses() {
 /// The protocol end to end, against the SAME geometry: the undeclared
 /// union refuses with the typed MENU (`UndeclaredContact`, R3 — the
 /// declare arm is this module; the move-the-geometry arm is the
-/// recipe's); the
-/// declared union — declarations authored FROM the findings through
-/// the sugar — succeeds with the exact volume. Detect-then-declare
+/// recipe's); the same union, declared FROM the findings through the
+/// sugar, succeeds with the exact volume. Detect-then-declare
 /// cannot disagree with verify-at-use because both are the same doors.
 #[test]
 fn detect_declare_boolean_round_trip() {
@@ -188,12 +188,12 @@ fn detect_declare_boolean_round_trip() {
 
     // Arm zero: no declaration — the boolean refuses, loudly.
     let (undeclared, refused) = insert(
-        doc.clone(),
+        doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: base,
             b: top,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = eval(&undeclared);
@@ -216,8 +216,7 @@ fn detect_declare_boolean_round_trip() {
     };
 
     // The declare arm: findings (values, inspected above) → sugar →
-    // Declare node → the boolean's declare input.
-    let ev = eval(&doc);
+    // the refused union's own declared pairs.
     let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
     // Menu/detector parity: the refusal named a pair the detector
     // also reports, name for name, relation for relation — same
@@ -226,19 +225,10 @@ fn detect_declare_boolean_round_trip() {
         findings.contains(&menu),
         "menu payload {menu:?} not among the detector's findings {findings:?}"
     );
-    let (applied, decl) = declare_all(&doc, &findings, Tol::witness()).unwrap();
-    let doc = applied.doc;
-    let (doc, union) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: base,
-            b: top,
-            declare: Some(decl),
-        },
-    );
-    let ev = eval(&doc);
-    match &ev.value(union).expect("declared union evaluates").payload {
+    let applied = declare_all(&undeclared, refused, &findings, Tol::witness()).unwrap();
+    assert_eq!(applied.record.minted, None, "declaring mints no node");
+    let ev = eval(&applied.doc);
+    match &ev.value(refused).expect("declared union evaluates").payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
             let m = mass_properties(body, Tol::witness()).expect("mass properties");
             // 1³ + 0.5² · 0.5 (dyadic, exact).
@@ -286,34 +276,72 @@ fn in_band_gap_refuses_pair_in_band() {
 // 4. The sugar is thin, and refuses emptiness.
 // ------------------------------------------------------------------
 
-/// `declare_all` on nothing is a refusal, not an empty Declare node:
-/// inserting one would record the LOOK of declared intent with no
-/// content.
+/// `declare_all` on nothing is a refusal, not an empty declaration:
+/// setting one would record the LOOK of declared intent with no
+/// content (clearing is `SetDeclare` with an empty list, said
+/// outright).
 #[test]
 fn empty_findings_refuse() {
-    let doc = ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness());
+    let (doc, base, top) = stacked();
+    let (doc, union) = undeclared_union(doc, base, top);
     assert!(matches!(
-        declare_all(&doc, &[], Tol::witness()),
+        declare_all(&doc, union, &[], Tol::witness()),
         Err(DeclareError::NoFindings)
     ));
 }
 
-/// `declare(finding)` inserts exactly the finding's pair as a
-/// `Node::Declare` — the single-finding arm of the ruled
+/// `declare(finding)` sets exactly the finding's pair as the union's
+/// declared list — the single-finding arm of the ruled
 /// both-arities-ship boundary.
 #[test]
-fn declare_inserts_the_pair() {
+fn declare_sets_the_pair() {
     let (doc, base, top) = stacked();
     let ev = eval(&doc);
     let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
-    let (applied, decl) = declare(&doc, &findings[0], Tol::witness()).unwrap();
-    let doc = applied.doc;
-    match doc.node(decl) {
-        Some(Node::Declare { pairs }) => {
-            assert_eq!(pairs, &[(findings[0].pair.clone(), findings[0].class)])
+    let (doc, union) = undeclared_union(doc, base, top);
+    let doc = declare(&doc, union, &findings[0], Tol::witness())
+        .unwrap()
+        .doc;
+    match doc.node(union) {
+        Some(Node::Boolean { declare, .. }) => {
+            assert_eq!(declare, &[(findings[0].pair.clone(), findings[0].class)])
         }
-        other => panic!("expected a Declare node, got {other:?}"),
+        other => panic!("expected the Boolean, got {other:?}"),
     }
+}
+
+/// The sugar aimed at a node that declares no contacts refuses with
+/// the edit's own typed error — an extrude has no declared-pair list
+/// to set.
+#[test]
+fn declare_on_a_non_declaring_node_refuses_typed() {
+    let (doc, base, top) = stacked();
+    let ev = eval(&doc);
+    let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
+    match declare_all(&doc, base, &findings, Tol::witness()) {
+        Err(DeclareError::Edit(EditError::SetDeclareOnNonDeclaring { node })) => {
+            assert_eq!(node.id(), base);
+            assert_eq!(node.kind(), Some("Extrude"), "the refusal names the kind");
+        }
+        other => panic!("expected SetDeclareOnNonDeclaring, got {other:?}"),
+    }
+}
+
+/// The union of `a` and `b`, declaring nothing.
+fn undeclared_union(
+    doc: ProfileDoc,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+) -> (ProfileDoc, RecipeNodeId) {
+    insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Vec::new(),
+        },
+    )
 }
 
 /// **The verification-arm falsifier** (adopted from the #304 review's

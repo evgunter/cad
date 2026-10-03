@@ -382,13 +382,13 @@ pub(crate) fn runs(
     if case.nested {
         for inner in permutations(&[0, 1]) {
             let io: Vec<_> = inner.iter().map(|&i| ids[i]).collect();
-            let (d1, u1, _) = declared_union(doc.clone(), &io, flush(&ids));
+            let (d1, u1) = declared_union(doc.clone(), &io, flush(&ids));
             let outer: Vec<_> = std::iter::once(u1)
                 .chain(ids[2..].iter().copied())
                 .collect();
             for olab in permutations(&(0..outer.len()).collect::<Vec<_>>()) {
                 let members: Vec<RecipeNodeId> = olab.iter().map(|&i| outer[i]).collect();
-                let (docx, top) = crate::fixture::union_over(d1.clone(), &members, None);
+                let (docx, top) = crate::fixture::union_over(d1.clone(), &members, Vec::new());
                 let ev = run(&docx);
                 each(
                     &format!("{inner:?}{olab:?}"),
@@ -403,10 +403,9 @@ pub(crate) fn runs(
     for order in permutations(&(0..case.blocks.len()).collect::<Vec<_>>()) {
         let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
         let (docx, union) = if case.flush.is_empty() {
-            crate::fixture::union_over(doc.clone(), &members, None)
+            crate::fixture::union_over(doc.clone(), &members, Vec::new())
         } else {
-            let (d, u, _) = declared_union(doc.clone(), &members, flush(&ids));
-            (d, u)
+            declared_union(doc.clone(), &members, flush(&ids))
         };
         let ev = run(&docx);
         each(&format!("{order:?}"), &ev, &ids, &[("U", union)]);
@@ -454,8 +453,8 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// `work/emit/an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order.md`
 /// owns it.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r5poke", "U", 4, 4887195795164089861),
-    ("r5pokehi", "U", 4, 1531953391093785927),
+    ("r5poke", "U", 4, 15101828559543090631),
+    ("r5pokehi", "U", 4, 13843135683705318993),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.
@@ -959,8 +958,7 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
     };
     // x-span → the name of the piece of `a`'s rim there.
     let pieces = |order: [editor_core::RecipeNodeId; 3]| {
-        let (docx, union, _) =
-            declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+        let (docx, union) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -1024,7 +1022,7 @@ fn outcomes(blocks: &[Bx], creation: &[usize], ah: Option<usize>) -> Vec<(Vec<us
         .into_iter()
         .map(|order| {
             let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let (docx, union, _) = declared_union_classed(doc.clone(), &members, pairs.clone());
+            let (docx, union) = declared_union_classed(doc.clone(), &members, pairs.clone());
             let ev = run(&docx);
             let variant = |shown: String| {
                 shown
@@ -1082,7 +1080,7 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
         let (doc, ids) = document(&[A, B, g, H], &creation);
         for order in permutations(&[0, 1, 2, 3]) {
             let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let (docx, union, _) = declared_union(
+            let (docx, union) = declared_union(
                 doc.clone(),
                 &members,
                 flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1])),

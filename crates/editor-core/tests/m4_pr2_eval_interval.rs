@@ -65,26 +65,23 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     // The pip's outer cap lies ON the cube's top — declared (M4 PR 5).
     // The B side is read at the TRANSFORM, the subtract's operand,
     // which carries the pip's names verbatim (N1).
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_continuation(vec![(
-            editor_core::SitedRef::new(
-                cube,
-                fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)),
-            ),
-            editor_core::SitedRef::new(
-                placed,
-                fixture::fname(pip, editor_core::RoleSeg::Cap(editor_core::CapEnd::Start)),
-            ),
-        )]),
-    );
+    let decl = editor_core::declare_continuation(vec![(
+        editor_core::SitedRef::new(
+            cube,
+            fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)),
+        ),
+        editor_core::SitedRef::new(
+            placed,
+            fixture::fname(pip, editor_core::RoleSeg::Cap(editor_core::CapEnd::Start)),
+        ),
+    )]);
     let (doc, sub) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: cube,
             b: placed,
-            declare: Some(decl),
+            declare: decl,
         },
     );
 

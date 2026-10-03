@@ -152,7 +152,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
             op: editor_core::BooleanOp::Union,
             a: plate,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     doc

@@ -10,8 +10,8 @@
 use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
-    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, SlotId, StableName,
-    evaluate, resolve, resolve_with_prior,
+    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
+    resolve, resolve_with_prior,
 };
 
 use super::{ang, insert, len, minted, on_frame, scl, step};
@@ -92,18 +92,18 @@ where
             },
         ),
     );
-    // M4 PR 5: the sliding overlap's flush planes are DECLARED (the
-    // recipe intent; the retired bit rung no longer infers them). The
-    // B side is read at the TRANSFORM, which is the boolean's operand
-    // and carries `b0`'s names verbatim (N1).
-    let (doc, decl) = super::declare_x_offset_flush_at(doc, (a, a), (tr, b0));
+    // The sliding overlap's flush planes are declared on the union (the
+    // kernel does not infer them). The B side is read at the TRANSFORM,
+    // which is the boolean's operand and carries `b0`'s names verbatim
+    // (N1).
+    let decl = super::declare_x_offset_flush_at(&doc, (a, a), (tr, b0));
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b: tr,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let (doc, pat) = insert(
@@ -182,18 +182,11 @@ where
         ),
     ));
 
-    // ---- Scenario C: Declare stranded by DeleteNode (NodeGone). ----
+    // ---- Scenario C: a name minted by a deleted node (NodeGone). ----
     let docd = ProfileDoc::empty_derived("pr4", Tol::witness());
-    let (docd, da) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (docd, _) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (docd, db) = block(docd, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let cap_b = minted(EntityKind::Face, db, RoleSeg::Cap(CapEnd::End));
-    let (docd, _) = insert(
-        docd,
-        Node::declare_rest(vec![(
-            SitedRef::new(da, minted(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(db, cap_b.clone()),
-        )]),
-    );
     let (docd, _) = step(docd, DocEdit::DeleteNode { id: db });
     let evd = run::<T>(&docd, None);
     out.push((
@@ -240,7 +233,7 @@ where
             op: BooleanOp::Subtract,
             a: ua,
             b: ub,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let evu = run::<T>(&docu, None);

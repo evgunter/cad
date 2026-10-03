@@ -123,7 +123,7 @@ fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile> {
         op: editor_core::BooleanOp::Subtract,
         a,
         b,
-        declare: None,
+        declare: Vec::new(),
     }
 }
 

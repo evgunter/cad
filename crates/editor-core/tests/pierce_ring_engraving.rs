@@ -121,7 +121,7 @@ fn engrave(tool: LoopProgram, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
             op: BooleanOp::Subtract,
             a: cylinder,
             b: lifted,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (eval::<f64>(&doc), [cylinder, prism, lifted, cut])

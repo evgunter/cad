@@ -324,7 +324,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         doc,
         Node::Union {
             members,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -334,7 +334,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
             op: BooleanOp::Subtract,
             a: cube,
             b: tool,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     )

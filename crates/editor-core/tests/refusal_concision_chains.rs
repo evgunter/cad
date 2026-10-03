@@ -1423,6 +1423,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     carrier: topo::UncrossableCarrier::Spiric,
                 })),
             ),
+            (
+                "RingHoming(OffPlane)",
+                J::RingHoming(topo::PointInLoopError::OffPlane(topo::OffPlane {
+                    r#loop: LoopKey::default(),
+                    cause: topo::OffPlaneCause::Query,
+                })),
+            ),
             ("UnpairedLooseEnds", J::UnpairedLooseEnds { count: 3 }),
             (
                 "SingleSiteSectionLoop",

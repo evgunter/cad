@@ -256,7 +256,7 @@ fn build_doc(tol: Tol) -> Recipe {
             op: BooleanOp::Union,
             a: hub_e,
             b: group,
-            declare: None,
+            declare: Vec::new(),
         }),
     );
     Recipe { doc, group, solid }

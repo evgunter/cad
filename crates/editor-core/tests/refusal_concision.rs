@@ -51,7 +51,7 @@ fn cone_block_union_refusal() -> String {
         op: BooleanOp::Union,
         a: cone,
         b: block,
-        declare: None,
+        declare: Vec::new(),
     });
     let ev = eval::<f64>(&r.doc);
     match ev.nodes.get(&union) {

@@ -20,13 +20,13 @@ use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
-use crate::docm7_union_declare::{block, declared_union};
+use crate::docm7_union_declare::block;
+
 use editor_core::{
     DocEdit, DocParam, DocumentId, EvalOptions, Expr, InlineError, Node, ParamName, ProfileDoc,
     RecipeNodeId, ResolveFault, RoleSeg, SitedRef, SplitError, StableName, content_pin, inline,
     load, product_named, save, split,
 };
-use fixture::flush_pairs;
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{desc, insert, len, on_frame, run, square, step, xy_frame};
 use geom_core::Tol;
@@ -533,84 +533,6 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         }
         other => panic!("expected SeveredEdge, got {other:?}"),
     }
-    // …and the `declare` edge, which is an input like any other, in
-    // BOTH directions: a cut that carried a declared union into the
-    // part and left its `Declare` in the remainder is refused here,
-    // and so is the mirror that moved the declaration and kept its
-    // union. Together they are why no refactoring can produce a
-    // consumerless declaration the remainder keeps (the delete
-    // door's `Maintenance::OrphanedDeclare` is where that would be
-    // reported, and `split` deletes through `apply`).
-    let doc = block(
-        ProfileDoc::empty_derived("asm4-r3s-declared", Tol::witness()),
-        (0.0, 1.0),
-        (0.0, 1.0),
-        0.0,
-        1.0,
-    );
-    let (doc, a) = doc;
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, declared, decl) = declared_union(doc, &[a, b], pairs);
-    let everything_but_the_declaration: BTreeSet<RecipeNodeId> =
-        doc.order().iter().copied().filter(|n| *n != decl).collect();
-    match split(
-        &doc,
-        &everything_but_the_declaration,
-        DocumentId::derive("n3"),
-        Tol::witness(),
-        None,
-    ) {
-        Err(SplitError::SeveredEdge {
-            consumer,
-            input,
-            consumer_is_cut,
-        }) => {
-            assert_eq!((consumer, input), (doc.spoken(declared), doc.spoken(decl)));
-            assert!(consumer_is_cut);
-        }
-        other => panic!("expected SeveredEdge, got {other:?}"),
-    }
-    // The mirror: the declaration alone moves, and the union it
-    // feeds stays behind. The severed edge named is the same one,
-    // and the consumer is the node LEFT behind this time.
-    let just_the_declaration: BTreeSet<RecipeNodeId> = BTreeSet::from([decl]);
-    match split(
-        &doc,
-        &just_the_declaration,
-        DocumentId::derive("n3-mirror"),
-        Tol::witness(),
-        None,
-    ) {
-        Err(SplitError::SeveredEdge {
-            consumer,
-            input,
-            consumer_is_cut,
-        }) => {
-            assert_eq!((consumer, input), (doc.spoken(declared), doc.spoken(decl)));
-            assert!(!consumer_is_cut, "the consumer is the one left behind here");
-        }
-        other => panic!("expected SeveredEdge, got {other:?}"),
-    }
-    // And the cut that closes over the edge is accepted: the whole
-    // document moves, so nothing is severed. Deleting the union
-    // before its declaration orphans the declaration for one edit;
-    // the declaration's own delete takes that back, so the split
-    // reports nothing.
-    let everything: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
-    let out = split(
-        &doc,
-        &everything,
-        DocumentId::derive("n3-all"),
-        Tol::witness(),
-        None,
-    )
-    .expect("a cut closed under the DAG is accepted");
-    assert_eq!(
-        out.remainder_maintenance,
-        Vec::new(),
-        "no transient orphan survives the split's own deletes"
-    );
 }
 
 /// Row 3b — a cut node referencing a parameter a kept node also
@@ -1169,8 +1091,8 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         other => panic!("expected BodyNameCrossesCut, got {other:?}"),
     }
 
-    // NameStraddlesCut: a KEPT Declare's name derives from a kept node
-    // AND (through an embedded operand name) from a cut node.
+    // NameStraddlesCut: a name declared on a KEPT union derives from a
+    // kept node AND (through an embedded operand name) from a cut node.
     let doc = part("asm4-min2-straddle-kept", 0.0, 1.0);
     let kept_e = doc.order()[BODY_POSITION];
     let (doc, cut_f) = insert(doc, xy_frame());
@@ -1203,12 +1125,24 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         node: kept_e,
         path: vec![RoleSeg::OutputBody],
     };
+    let kept_p = doc.order()[BODY_POSITION - 1];
+    let (doc, kept_twin) = insert(
+        doc,
+        Node::Extrude {
+            profile: kept_p,
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
     let (doc, _) = insert(
         doc,
-        Node::declare_rest(vec![(
-            SitedRef::at_mint(straddler.clone()),
-            SitedRef::at_mint(partner),
-        )]),
+        Node::Union {
+            members: vec![kept_e, kept_twin],
+            declare: editor_core::declare_rest(vec![(
+                SitedRef::at_mint(straddler.clone()),
+                SitedRef::at_mint(partner),
+            )]),
+        },
     );
     match split(
         &doc,
@@ -1233,53 +1167,25 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         other => panic!("expected NameStraddlesCut, got {other:?}"),
     }
 
-    // PartNameReachesRemainder: a CUT Declare names a KEPT node's
-    // entity — the part document could not express the reference.
+    // PartNameReachesRemainder: a name a CUT fillet selects is a KEPT
+    // node's entity — the part document could not express the
+    // reference.
     let doc = part("asm4-min2-reach-kept", 0.0, 1.0);
     let kept_e = doc.order()[BODY_POSITION];
-    let (doc, cut_f) = insert(doc, xy_frame());
-    let (doc, cut_p) = insert(
-        doc,
-        Node::Profile(desc(cut_f, vec![square(10.0, 0.0, 0.5)])),
-    );
-    let (doc, cut_e) = insert(
-        doc,
-        Node::Extrude {
-            profile: cut_p,
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
     let reaching = StableName {
         kind: EntityKind::Edge,
         node: kept_e,
         path: vec![RoleSeg::OutputBody],
     };
-    let cut_local = StableName {
-        kind: EntityKind::Edge,
-        node: cut_e,
-        path: vec![RoleSeg::OutputBody],
-    };
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::at_mint(cut_local),
-            SitedRef::at_mint(reaching.clone()),
-        )]),
-    );
-    match split(
-        &doc,
-        &BTreeSet::from([cut_f, cut_p, cut_e, decl]),
-        DocumentId::derive("n"),
-        Tol::witness(),
-        None,
-    ) {
+    let (doc, cut) = selecting_fillet(doc, reaching.clone());
+    let fillet = fillet_of(&doc, &cut);
+    match split(&doc, &cut, DocumentId::derive("n"), Tol::witness(), None) {
         Err(SplitError::PartNameReachesRemainder {
             node,
             name,
             missing,
         }) => {
-            assert_eq!(node, doc.spoken(decl));
+            assert_eq!(node, doc.spoken(fillet));
             assert_eq!(name.name(), &reaching);
             assert_eq!(
                 missing,
@@ -1296,7 +1202,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
                 }
             );
             assert!(
-                msg.contains(&doc.spoken(decl).to_string()) && msg.contains("outside the cut"),
+                msg.contains(&doc.spoken(fillet).to_string()) && msg.contains("outside the cut"),
                 "the message names the site and the fault: {msg}"
             );
         }
@@ -1322,7 +1228,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
                 op: BooleanOp::Union,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
         );
         let ev = run(&doc, &EvalOptions::default());
@@ -1335,7 +1241,6 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
                 .expect("the union keeps a face of each operand")
         };
         let from_a = face_from(|s| matches!(s, RoleSeg::FromA(_)));
-        let from_b = face_from(|s| matches!(s, RoleSeg::FromB(_)));
         let reached = derivation_nodes(&from_a);
         let earliest = *doc
             .order()
@@ -1345,16 +1250,10 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
         if reached.first() == Some(&earliest) {
             continue;
         }
-        let (doc, decl) = insert(
-            doc,
-            Node::declare_rest(vec![(
-                SitedRef::at_mint(from_a.clone()),
-                SitedRef::at_mint(from_b),
-            )]),
-        );
+        let (doc, decl) = selecting_fillet(doc, from_a.clone());
         match split(
             &doc,
-            &BTreeSet::from([decl]),
+            &decl,
             DocumentId::derive("asm4-reach-earliest-part"),
             Tol::witness(),
             None,
@@ -1364,7 +1263,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
                 name,
                 missing,
             }) => {
-                assert_eq!(node, doc.spoken(decl));
+                assert_eq!(node, doc.spoken(fillet_of(&doc, &decl)));
                 assert_eq!(name.name(), &from_a);
                 assert_eq!(
                     missing,
@@ -1377,6 +1276,37 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
         return;
     }
     panic!("no length in 0..64 put the reached ids out of document order");
+}
+
+/// A cut-local block and a fillet on it whose selection is `name`,
+/// a frozen name with no edge to the node that minted it: the cut a
+/// split takes to carry `name` into a part without carrying its
+/// minter.
+fn selecting_fillet(doc: ProfileDoc, name: StableName) -> (ProfileDoc, BTreeSet<RecipeNodeId>) {
+    let before: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    let (doc, body) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _fillet) = insert(
+        doc,
+        Node::Fillet {
+            target: body,
+            radius: len(0.1),
+            selection: vec![name],
+        },
+    );
+    let cut = doc
+        .order()
+        .iter()
+        .copied()
+        .filter(|id| !before.contains(id))
+        .collect();
+    (doc, cut)
+}
+
+/// The fillet in a cut [`selecting_fillet`] took.
+fn fillet_of(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> RecipeNodeId {
+    *cut.iter()
+        .find(|id| matches!(doc.node(**id), Some(Node::Fillet { .. })))
+        .expect("the cut holds its fillet")
 }
 
 /// **A deleted node the name reaches is named after every live one**:
@@ -1398,7 +1328,7 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
                 op: BooleanOp::Union,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
         );
         if a < u {
@@ -1414,20 +1344,13 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
                 .expect("the union keeps a face of each operand")
         };
         let from_a = face_from(|s| matches!(s, RoleSeg::FromA(_)));
-        let from_b = face_from(|s| matches!(s, RoleSeg::FromB(_)));
         assert!(derivation_nodes(&from_a).contains(&a));
-        let (doc, decl) = insert(
-            doc,
-            Node::declare_rest(vec![(
-                SitedRef::at_mint(from_a.clone()),
-                SitedRef::at_mint(from_b),
-            )]),
-        );
+        let (doc, decl) = selecting_fillet(doc, from_a.clone());
         let (doc, _) = step(doc, DocEdit::DeleteNode { id: u });
         assert!(doc.node(u).is_none(), "the union is gone, its name stays");
         match split(
             &doc,
-            &BTreeSet::from([decl]),
+            &decl,
             DocumentId::derive("asm4-reach-deleted-part"),
             Tol::witness(),
             None,
@@ -1634,7 +1557,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     }
 
     // StrandedPartName: the referenced document carries an N5-stranded
-    // Declare reference (its node deleted after authoring) — there is
+    // declared-pair reference (its node deleted after authoring) — there is
     // no node to remap it onto. BOTH shapes run. The FLAT name is
     // minted AT the deleted node, so the node the refusal carries is
     // the name's own mint; the NESTED name is minted at the SURVIVING
@@ -1673,15 +1596,27 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             node: body,
             path: vec![RoleSeg::OutputBody],
         };
+        let profile = part_doc.order()[BODY_POSITION - 1];
+        let (part_doc, twin) = insert(
+            part_doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+                side: ExtrudeSide::Along,
+            },
+        );
         let (part_doc, _) = insert(
             part_doc,
-            // Both sides are READ at the surviving body; the stranded
-            // side's NAME derives from the extra node, which is what
-            // the delete below strands.
-            Node::declare_rest(vec![(
-                SitedRef::new(anchor.node, stranded.clone()),
-                SitedRef::at_mint(anchor),
-            )]),
+            Node::Union {
+                members: vec![body, twin],
+                // Both sides are READ at the surviving body; the
+                // stranded side's NAME derives from the extra node,
+                // which is what the delete below strands.
+                declare: editor_core::declare_rest(vec![(
+                    SitedRef::new(anchor.node, stranded.clone()),
+                    SitedRef::at_mint(anchor),
+                )]),
+            },
         );
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
         let part_doc = labelled(part_doc, body, "part body");

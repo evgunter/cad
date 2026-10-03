@@ -51,14 +51,14 @@ fn corpus() -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_interval", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl_u) = declare_x_offset_flush(doc, a, b);
+    let decl_u = declare_x_offset_flush(&doc, a, b);
     let (doc, _union) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl_u),
+            declare: decl_u,
         },
     );
     let (doc, c) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
@@ -84,7 +84,7 @@ fn corpus() -> ProfileDoc {
             op: BooleanOp::Subtract,
             a: c,
             b: slot,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, d) = block(doc, (4.0, 6.0), (0.0, 2.0), 0.0, 2.0);
@@ -133,7 +133,7 @@ fn corpus() -> ProfileDoc {
             op: BooleanOp::Subtract,
             a: e,
             b: u,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, between) = insert(

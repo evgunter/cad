@@ -111,7 +111,7 @@ fn assert_volume(session: &mut DocSession, node: RecipeNodeId, want: f64, tol: T
 /// **The acceptance row**: a two-body boolean authored from nothing,
 /// evaluated, saved, reloaded and re-evaluated. The two boxes share no
 /// plane, so the union has no contact to declare and lands as one
-/// insert with no `Declare` beside it.
+/// undeclared insert.
 #[test]
 fn a_two_body_union_authors_evaluates_saves_and_reloads() {
     let tol = Tol::witness();
@@ -125,22 +125,15 @@ fn a_two_body_union_authors_evaluates_saves_and_reloads() {
             declare: Vec::new(),
         },
     );
-    // An op declaring nothing authors `declare: None`.
+    // An op declaring nothing authors an empty declaration.
     assert!(matches!(
         session.committed_doc().node(union),
         Some(Node::Boolean {
             op: BooleanOp::Union,
-            declare: None,
+            declare,
             ..
-        })
+        }) if declare.is_empty()
     ));
-    let doc = session.committed_doc();
-    assert!(
-        !doc.order()
-            .iter()
-            .any(|id| matches!(doc.node(*id), Some(Node::Declare { .. }))),
-        "and no `Declare` is authored beside it"
-    );
     let va = A[0] * A[1] * A[2];
     let vb = B[0] * B[1] * B[2];
     let volume = body_volume(&mut session, union, tol);
@@ -2083,7 +2076,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 op: BooleanOp::Union,
                 a: body,
                 b: other,
-                declare: None,
+                declare: Vec::new(),
             },
         ),
         // The n-ary union at its minimal size. Its two members are
@@ -2098,7 +2091,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "union",
             Node::Union {
                 members: vec![body, body_b],
-                declare: None,
+                declare: Vec::new(),
             },
         ),
         (
@@ -2172,7 +2165,6 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 },
             },
         ),
-        ("declare", Node::Declare { pairs: Vec::new() }),
         (
             "sweep",
             Node::Sweep {
@@ -3402,7 +3394,7 @@ fn a_boolean_poisoned_by_an_upstream_contact_commits_and_offers_nothing() {
             op: BooleanOp::Union,
             a: block,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -3434,8 +3426,8 @@ fn a_boolean_poisoned_by_an_upstream_contact_commits_and_offers_nothing() {
 /// first refusal offers one pair; accepting it is refused again with
 /// that pair kept and the second added, and nothing is committed until
 /// both are declared. Red if the second offer drops the first pair, or
-/// if accepting both lands anything but one `Declare` of both and one
-/// union that is the channelled block plus the boss.
+/// if accepting both lands anything but one union declaring both that
+/// is the channelled block plus the boss.
 #[test]
 fn a_second_contact_is_offered_with_the_first_and_both_land_as_one_action() {
     const CHANNEL: [f64; 3] = [0.01, 0.04, 0.01];
@@ -3525,13 +3517,13 @@ fn a_second_contact_is_offered_with_the_first_and_both_land_as_one_action() {
 
     let outcome = session.perform(second.accept());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [declare, union] = outcome.minted[..] else {
-        panic!("a Declare and a union: {:?}", outcome.minted);
+    let [union] = outcome.minted[..] else {
+        panic!("one union: {:?}", outcome.minted);
     };
     assert_eq!(session.history().len(), steps + 1, "one action, one step");
     assert!(matches!(
-        session.committed_doc().node(declare),
-        Some(Node::Declare { pairs }) if pairs.len() == 2
+        session.committed_doc().node(union),
+        Some(Node::Boolean { declare, .. }) if declare.len() == 2
     ));
     let [width, depth, height] = common::BOSS_BLOCK;
     let cut = CHANNEL[0] * depth * (height - CHANNEL_DROP);

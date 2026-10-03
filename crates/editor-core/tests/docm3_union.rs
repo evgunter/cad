@@ -60,7 +60,7 @@ fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeI
     let (doc, b) = cube(doc, 2.0);
     let (doc, c) = cube(doc, 4.0);
     let boxes = [a, b, c];
-    let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]), None);
+    let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]), Vec::new());
     (doc, boxes, u)
 }
 
@@ -154,7 +154,7 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
             op: BooleanOp::Union,
             a: boxes[0],
             b: boxes[1],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, abc) = insert(
@@ -163,7 +163,7 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
             op: BooleanOp::Union,
             a: ab,
             b: boxes[2],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -231,11 +231,11 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
             op: BooleanOp::Union,
             a: x,
             b: x,
-            declare: None,
+            declare: Vec::new(),
         },
         Node::Union {
             members: vec![x, x],
-            declare: None,
+            declare: Vec::new(),
         },
         Node::Split { target: x, tool: x },
     ];
@@ -340,7 +340,7 @@ fn set_members_refuses_a_node_with_no_list_input() {
             op: BooleanOp::Union,
             a: boxes[0],
             b: boxes[1],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let err = doc
@@ -391,7 +391,7 @@ fn set_members_refuses_a_cycle() {
             op: BooleanOp::Union,
             a: u,
             b: boxes[0],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let err = doc
@@ -552,7 +552,7 @@ fn two_placements_of_one_prototype_are_two_members() {
         doc,
         Node::Union {
             members: vec![left, right],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -788,7 +788,7 @@ fn the_dies_union_is_the_chain_it_replaced() {
                     op: BooleanOp::Union,
                     a: acc,
                     b: *pip,
-                    declare: None,
+                    declare: Vec::new(),
                 },
             )
         },
@@ -956,7 +956,7 @@ fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<String> {
 /// what says the fold added no refusal, only a name space.
 ///
 /// The recourse a caller whose members touch has is this node's own
-/// `declare` input, whose pairs are exactly what this refusal hands
+/// `declare` list, whose pairs are exactly what this refusal hands
 /// back: each side a `SitedRef` naming the MEMBER it was read at and
 /// the entity's name in that member's own table, which is a
 /// declaration the caller can write verbatim (`docm7_union_declare`).
@@ -970,7 +970,7 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
         doc,
         Node::Union {
             members: vec![a, b, d],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, pair) = insert(
@@ -979,7 +979,7 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
             op: BooleanOp::Union,
             a,
             b: d,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -1228,14 +1228,14 @@ fn set_members_keeps_root_order_and_appends_orphans_last() {
         doc,
         Node::Union {
             members: vec![a, b],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, second) = insert(
         doc,
         Node::Union {
             members: vec![c, d],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(

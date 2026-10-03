@@ -82,7 +82,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 ///
 /// Two more rows are worth a reader's second look, and neither is a bug.
 ///
-/// `die` is `0x46ff_fbb3_d481_e812` — the same number
+/// `die` is the same number
 /// `m4_pr3_names_ci::DIE_TABLE_DIGEST` carries, because it is the same
 /// digest of the same tables. The two pins agreeing is a cross-check,
 /// not a duplication: that one covers the die FIXTURE through its own
@@ -129,34 +129,34 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// the persisted text did not move (`perf2_name_keying_differential`'s
 /// second column).
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0xdc9b_8f31_6844_831f),
-    ("corner_table", 0x99b9_9cea_1d55_7d6b),
-    ("heat_sink", 0x8848_860f_23cd_1004),
-    ("crossing_slots", 0x2bdf_1400_8395_80d3),
-    ("nested_islands_105", 0xd795_149a_3de1_9e1d),
-    ("nested_islands_106_depth1", 0x6131_14eb_ec01_f277),
-    ("nested_islands_106_depth2", 0x0b57_8049_4352_573f),
+    ("die", 0x06e4_606e_3b5a_4deb),
+    ("corner_table", 0xe29a_7605_d42b_6b99),
+    ("heat_sink", 0x3aaa_91e3_47ef_c27a),
+    ("crossing_slots", 0xa504_5ebd_fc02_2177),
+    ("nested_islands_105", 0xacc7_1b27_90de_1ff6),
+    ("nested_islands_106_depth1", 0xa5ef_f96f_7c11_f8a8),
+    ("nested_islands_106_depth2", 0xd1fb_7c2e_0b16_cbe9),
     ("declared_tangency", 0x9669_c317_71c9_2a49),
-    ("kitchen_sink", 0xbc5c_5f93_1336_b5f3),
+    ("kitchen_sink", 0xd732_ebb4_45f9_d932),
     ("cut_cylinder", 0x41db_1192_9026_3bed),
     ("measured_web", 0x1721_fe2f_f026_bf22),
-    ("boss_union", 0xc45a_900d_55ce_dfe2),
+    ("boss_union", 0x2c43_ee7d_87cb_6d6d),
     ("die_fillet", 0xf37b_a47b_ed71_31d2),
     ("die_chamfer", 0x33f7_333d_4be4_662e),
-    ("die_pips", 0xb9f9_07c4_9bf4_9e03),
+    ("die_pips", 0xa8a6_77b2_ab17_e12e),
     ("heat_sink_fins", 0xd244_b58c_02dc_3b3f),
-    ("die_tool", 0xfde1_2e50_663f_f886),
+    ("die_tool", 0x2376_5b8f_0b08_085c),
     ("face_sketch", 0xe17f_467e_cf2c_0119),
     // DOCM-2. Two `Part`s of one split and one of a pattern: the
     // projection mints nothing, so every name in the document is the
     // split's, the pattern's, or the union's over them, and the row's
     // arrival moved no other row.
-    ("part_select", 0x9490_f132_993d_bc58),
+    ("part_select", 0xe1c4_b5f0_17f3_eb7f),
     ("loft_prism", 0x74db_6889_4c07_172b),
-    ("die_composed", 0xce99_5734_cf12_d283),
-    ("die_composed_tour", 0x527b_0baa_7db2_e7f0),
-    ("plate_param", 0x1624_908e_2748_08d7),
-    ("kiss_carry", 0xdf57_2c7e_ce54_997d),
+    ("die_composed", 0x9708_fe3b_47e9_4d63),
+    ("die_composed_tour", 0x1e94_e904_622c_8027),
+    ("plate_param", 0x826c_231e_04ba_1ab7),
+    ("kiss_carry", 0xd74f_677f_841f_f8b1),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the
     // tube doors return `Revolved<T>` and the emitter reads only
     // its maps — so these two rows are the revolve role vocabulary

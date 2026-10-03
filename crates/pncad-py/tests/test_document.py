@@ -381,7 +381,7 @@ class TestEvaluation(unittest.TestCase):
         # problem and the two-armed recourse, not Debug guts.
         message = str(caught.exception)
         self.assertIn("Boolean refused an undeclared coincidence", message)
-        self.assertIn("declare the candidate pair", message)
+        self.assertIn("add the candidate pair", message)
         for guts in ("UndeclaredCoincidence", "UndeclaredContact", "{", "NodeError"):
             self.assertNotIn(guts, message)
 
@@ -429,10 +429,12 @@ class TestDetectDeclareDoors(unittest.TestCase):
         return doc, lower, upper
 
     def test_every_declare_spelling_feeds_the_boolean(self):
-        # One resting contact; three spellings of the declare arm,
-        # each wired into the SAME union, each at the exact volume
-        # 1 + 0.5^2 * 0.5 = 1.125 (dyadic).
-        for spelling in ("doc_declare", "doc_declare_all", "node_declare"):
+        # One resting contact; four spellings of the declare arm, each
+        # landing on the SAME union, each at the exact volume
+        # 1 + 0.5^2 * 0.5 = 1.125 (dyadic). The first states the pairs
+        # at construction; the other three set them on the live node.
+        spellings = ("node_boolean", "doc_declare", "doc_declare_all", "set_declare")
+        for spelling in spellings:
             with self.subTest(spelling=spelling):
                 doc, lower, upper = self.stacked()
                 ev = evaluate(doc)
@@ -441,63 +443,102 @@ class TestDetectDeclareDoors(unittest.TestCase):
                 self.assertEqual(
                     findings[0].relation, pncad.PlaneRelation.SameOpposite
                 )
-                if spelling == "doc_declare":
-                    decl = doc.declare(findings[0])
-                elif spelling == "doc_declare_all":
-                    decl = doc.declare_all(findings)
+                if spelling == "node_boolean":
+                    glued = doc.insert(
+                        Node.boolean(BooleanOp.Union, lower, upper, declare=findings)
+                    )
                 else:
-                    decl = doc.insert(Node.declare(findings))
-                glued = doc.insert(
-                    Node.boolean(BooleanOp.Union, lower, upper, declare=decl)
-                )
+                    glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+                    if spelling == "doc_declare":
+                        self.assertIsNone(doc.declare(glued, findings[0]))
+                    elif spelling == "doc_declare_all":
+                        self.assertIsNone(doc.declare_all(glued, findings))
+                    else:
+                        self.assertIsNone(
+                            doc.apply(DocEdit.set_declare(glued, findings))
+                        )
+                    self.assertEqual(
+                        doc.last_maintenance, [], "a declaration performs no maintenance"
+                    )
                 ev = evaluate(doc)
                 body = ev.value(glued).body()
                 body.validate()
                 self.assertEqual(body.mass_properties().volume, 1.125)
 
-    def test_deleting_the_consumer_reports_the_declaration_it_orphaned(self):
-        """The delete door's third row, beside DM7's strands, over
-        the doors this surface has: a `Declare` whose last consumer a
-        delete removed rides the accepted edit as `orphaned_declare`,
-        whose `node` is the declaration that survived and whose
-        `name` is None — nothing dangles, and no node consumes the
-        declaration any more.
-
-        The rule is a transition, so the same document reports
-        nothing when an unrelated node goes, and nothing at the
-        declare door itself, where the declaration is consumerless
-        and waiting for the union that is about to consume it."""
+    def test_a_refused_union_builds_once_its_live_node_declares_the_menu(self):
+        """The recourse loop on the n-ary union: the refusal's own
+        `finding` declared on the LIVE union makes it build, and
+        clearing the list brings the refusal back."""
         doc, lower, upper = self.stacked()
-        spare = slab(doc, (4 * m, 5 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        findings = evaluate(doc).find_flush_candidates(lower, upper)
-        decl = doc.declare_all(findings)
-        # The authoring window: the declaration has no consumer yet
-        # and the door that inserted it says nothing about that.
-        self.assertEqual(doc.last_maintenance, [])
-        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper, declare=decl))
-        self.assertEqual(doc.last_maintenance, [])
-        # Nor does a delete elsewhere in the document.
-        doc.apply(DocEdit.delete_node(spare))
-        self.assertEqual(doc.last_maintenance, [])
-        # The delete that TAKES the consumer is the one that says it.
-        doc.apply(DocEdit.delete_node(glued))
-        (row,) = doc.last_maintenance
-        self.assertEqual(row.variant, "orphaned_declare")
-        self.assertEqual(row.node, decl)
-        self.assertIsNone(row.name)
-        # The report never repairs: the declaration is still there.
-        self.assertIn(decl, doc.order())
+        fused = doc.insert(Node.union([lower, upper]))
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(fused)
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
+        finding = caught.exception.finding
+        self.assertIsNotNone(finding, "the refusal carries its menu")
+        doc.declare_all(fused, [finding])
+        body = evaluate(doc).value(fused).body()
+        body.validate()
+        self.assertEqual(body.mass_properties().volume, 1.125)
+        # An empty list through the edit clears the declaration.
+        doc.apply(DocEdit.set_declare(fused, []))
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(fused)
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
 
-    def test_declaring_nothing_refuses_typed_at_every_door(self):
-        # An empty Declare records no intent — refused, never inserted
-        # (`no_findings`), at the sugar AND at the node constructor.
+    def test_following_each_refusal_with_declare_converges(self):
+        """`Doc.declare` ADDS the refusal's finding to the union's
+        declared pairs: three slabs stacked as a stepped pyramid meet in
+        two resting contacts, the union refuses one at a time, and
+        declaring each refusal's own `finding` builds after exactly two
+        rounds. (A whole-list replace would trade one contact for the
+        other forever.)"""
         doc = Doc()
+        low = slab(doc, (0 * m, 3 * m), (0 * m, 3 * m), (0 * m, 1 * m))
+        mid = slab(doc, (0.5 * m, 2.5 * m), (0.5 * m, 2.5 * m), (1 * m, 2 * m))
+        top = slab(doc, (1 * m, 2 * m), (1 * m, 2 * m), (2 * m, 3 * m))
+        fused = doc.insert(Node.union([low, mid, top]))
+        rounds = 0
+        while True:
+            try:
+                body = evaluate(doc).value(fused).body()
+                break
+            except EvaluationError as refused:
+                self.assertEqual(refused.kind, "undeclared_coincidence")
+                rounds += 1
+                self.assertLessEqual(rounds, 2, "the refusals do not converge")
+                doc.declare(fused, refused.finding)
+        self.assertEqual(rounds, 2, "one refusal per contact")
+        body.validate()
+        self.assertEqual(body.mass_properties().volume, 9 + 4 + 1)
+
+    def test_declaring_on_a_node_that_joins_nothing_refuses_typed(self):
+        doc, lower, upper = self.stacked()
+        findings = evaluate(doc).find_flush_candidates(lower, upper)
+        for door in ("doc_declare_all", "set_declare"):
+            with self.subTest(door=door):
+                with self.assertRaises(EditError) as caught:
+                    if door == "doc_declare_all":
+                        doc.declare_all(lower, findings)
+                    else:
+                        doc.apply(DocEdit.set_declare(lower, findings))
+                self.assertEqual(
+                    caught.exception.variant, "set_declare_on_non_declaring"
+                )
+                self.assertEqual(caught.exception.node, lower)
+                self.assertIn("is not a boolean or a union", str(caught.exception))
+
+    def test_declaring_nothing_refuses_typed_at_the_sugar(self):
+        # An empty declaration records no intent — refused, never set
+        # (`no_findings`). Clearing is `DocEdit.set_declare(node, [])`.
+        doc, lower, upper = self.stacked()
+        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+        before = len(doc)
         with self.assertRaises(EditError) as caught:
-            doc.declare_all([])
+            doc.declare_all(glued, [])
         self.assertEqual(caught.exception.variant, "no_findings")
         # The human message is the declare door's own prose, not a
-        # mangled literal (review MINOR-1: a doubled-space run shipped
-        # once because nothing pinned the text) and not a struct dump.
+        # mangled literal and not a struct dump.
         message = str(caught.exception)
         self.assertIn("declare", message)
         self.assertIn("records no intent", message)
@@ -505,11 +546,7 @@ class TestDetectDeclareDoors(unittest.TestCase):
         self.assertNotIn("  ", message)
         self.assertNotIn("{", message)
         self.assertNotIn("NoFindings", message)
-        self.assertEqual(len(doc), 0, "a refused declare inserts nothing")
-        with self.assertRaises(EditError) as caught:
-            Node.declare([])
-        self.assertEqual(caught.exception.variant, "no_findings")
-        self.assertNotIn("  ", str(caught.exception))
+        self.assertEqual(len(doc), before, "a refused declare changes nothing")
 
     def test_detection_answers_empty_for_separated_and_refuses_unevaluated(self):
         # Separated in EVERY plane family: a pair sharing any plane —
@@ -1385,12 +1422,8 @@ class TestDatumPointAndFrame(unittest.TestCase):
 
 
 class TestBooleanDeclareArgument(unittest.TestCase):
-    """LIB-PYBUNDLE rider (c): `Node.boolean` grew `declare=`, the
-    DATA door for a declared contact. The protocol that BUILDS a
-    declaration is still unbound, so the only thing the argument can
-    be handed today is another node — and the EDIT door refuses one
-    that is not a `Declare`, typed, rather than ignoring it or letting
-    a document carry the mis-wire to its evaluation."""
+    """`Node.boolean`'s `declare=` is the boolean's own declared-pair
+    list; left out, it is empty and the boolean is undeclared."""
 
     def test_the_default_is_the_undeclared_lane(self):
         doc = Doc()
@@ -1398,21 +1431,8 @@ class TestBooleanDeclareArgument(unittest.TestCase):
         b = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m))
         fused = doc.insert(Node.boolean(BooleanOp.Union, a, b))
         self.assertTrue(evaluate(doc).succeeded(fused))
-
-    def test_a_non_declaration_input_is_refused_not_ignored(self):
-        doc = Doc()
-        a = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        b = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m))
-        # The declare edge names a THIRD node, not one of the operands:
-        # a node's inputs are pairwise distinct (DM5), so pointing it at
-        # `a` is refused at the edit door and never reaches the
-        # evaluation this row is about. Any live non-`Declare` node
-        # makes the same point.
-        c = slab(doc, (5 * m, 6 * m), (5 * m, 6 * m), (5 * m, 6 * m))
-        with self.assertRaises(EditError) as caught:
-            doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=c))
-        self.assertEqual(caught.exception.variant, "declare_input_not_declare")
-        self.assertIn("is not a declaration", str(caught.exception))
+        explicit = doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=[]))
+        self.assertTrue(evaluate(doc).succeeded(explicit))
 
 
 class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
@@ -2020,14 +2040,15 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         self.assertEqual(refusal.inner_variant, "degenerate_direction")
         self.assertEqual(self.set_of(refusal), {"variant", "inner_variant"})
 
-    def test_the_declare_sugars_own_arms_carry_the_shape_and_no_payload(self):
+    def test_the_declare_sugars_own_arm_carries_the_shape_and_no_payload(self):
         # `DeclareError` is a second raise site of this class, and its
-        # own two arms hold no document-layer payload — so they answer
+        # own arm holds no document-layer payload — so it answers
         # `None` for all of it rather than dropping the attributes a
         # caller reads without branching.
         doc = Doc()
+        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         with self.assertRaises(EditError) as caught:
-            doc.declare_all([])
+            doc.declare_all(box, [])
         self.assertEqual(caught.exception.variant, "no_findings")
         self.assertEqual(self.set_of(caught.exception), {"variant"})
 

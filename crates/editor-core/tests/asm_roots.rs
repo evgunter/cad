@@ -115,7 +115,7 @@ fn row1b_consuming_insert_replaces_at_earliest_position() {
             a: b,
             b: c,
             op: editor_core::BooleanOp::Union,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(
@@ -142,7 +142,7 @@ fn row1c_root_delete_rereoots_orphans_in_document_order() {
             a,
             b,
             op: editor_core::BooleanOp::Union,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(doc.roots(), &[keep, u][..]);
@@ -190,7 +190,7 @@ fn row1e_undo_restores_the_prior_root_list() {
                 a,
                 b,
                 op: editor_core::BooleanOp::Union,
-                declare: None,
+                declare: Vec::new(),
             }),
         },
         DocEdit::DeleteNode { id: b },

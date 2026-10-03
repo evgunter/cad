@@ -239,9 +239,9 @@ fn the_blend_documents_evaluate_to_their_committed_digests() {
 
 /// **A registered boolean document's bytes survive the migration**:
 /// save → load → save reproduces the file exactly. The document is
-/// `crossing_slots` — two subtracts, one carrying a `Declare` operand —
+/// `crossing_slots` — two subtracts, one carrying declared pairs —
 /// so the wire spelling under pin includes the boolean node's whole
-/// payload: the op, both operand edges and the declare edge. The
+/// payload: the op, both operand edges and the declared pairs. The
 /// corpus-wide round-trip covers the same bytes; this is the
 /// per-document form beside the digest row, so a red here names the
 /// boolean rather than the registry.
@@ -322,9 +322,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x761d_534e_3cd5_222eu64),
-        ("heat_sink", 0x0c3f_3f3f_955d_e6b2),
-        ("kiss_carry", 0x2568_b56c_3caf_50a3),
+        ("crossing_slots", 0x788e_61b1_157c_b669u64),
+        ("heat_sink", 0xee9f_3000_1a12_d645),
+        ("kiss_carry", 0x0bad_41ce_ff6a_c1e6),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -407,7 +407,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         op: editor_core::BooleanOp::Intersect,
         a,
         b,
-        declare: None,
+        declare: Vec::new(),
     });
     let ev = corpus::eval::<f64>(&r.doc);
     let failures = corpus::failures(&ev);
@@ -422,7 +422,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xbc2e_0967_e135_6aec,
+        got, 0xbfd9_320e_299c_1f44,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

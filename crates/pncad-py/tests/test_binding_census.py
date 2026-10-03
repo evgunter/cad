@@ -1341,7 +1341,9 @@ BOUND_AS = {
     "ReachRefusal": "MateFault",
     "declare": "Doc.declare",
     "declare_all": "Doc.declare_all",
-    "declare_node": "Node.declare",
+    # A finding's pair and class become a declared pair at the
+    # `declare=` seat; the list is the argument, not a value of its own.
+    "declared_pairs": "Node.boolean",
     "extrude": "Node.extrude",
     "chamfer_edges": "Node.chamfer",
     "tube_along_arc": "Node.tube",
@@ -1566,10 +1568,9 @@ FAMILIES: dict[str, str] = {
     ),
     # THE SIXTH ARRIVED WITH ITS DOOR. `MaintenanceNet` (DM7's
     # net-over-an-action rule) landed in `editor-core` with EMIT's
-    # `the-viewer-drops-every-dm7-rename-report`, and the stub's
-    # `orphaned_declare` paragraph already tells a Python caller that a
-    # cascade's net is read off the document the walk ended at — by
-    # hand, since nothing bound folds the rows. `crates/pncad-py/*` is
+    # `the-viewer-drops-every-dm7-rename-report`; a Python caller reads
+    # a cascade's net off the document the walk ended at — by hand,
+    # since nothing bound folds the rows. `crates/pncad-py/*` is
     # LIB's ground; `work/lib/python-has-no-maintenance-net-door`
     # carries the finding.
     "B-MAINT-NET": (
@@ -1577,10 +1578,8 @@ FAMILIES: dict[str, str] = {
         "`MaintenanceNet`, pushed one applied edit at a time and "
         "finished against the end document. Closing it needs a Python "
         "door that folds each `Doc.apply` result with the document it "
-        "produced, a `pncad.pyi` entry the `orphaned_declare` paragraph "
-        "points at instead of 'read it off the document', and one "
-        "Python row cascading a declared union's `Declare` away and "
-        "asserting an empty net."
+        "produced, a `pncad.pyi` entry on `Maintenance` for it, and one "
+        "Python row asserting the net of a cascade whose rows cancel."
     ),
 }
 
@@ -2251,6 +2250,13 @@ NOT_BOUND = {
     "Unexamined": SHAPE,
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
+    # A declared pair is a pair of SITED names and a class. Python
+    # holds names as opaque text, so it declares from the finding that
+    # carries both (`FlushFinding`, at `declare=`); the two builders
+    # over raw sited pairs have no Python spelling for the same reason.
+    "DeclaredPair": SHAPE,
+    "declare_rest": SHAPE,
+    "declare_continuation": SHAPE,
     "Dimension": SHAPE,
     # How a sentence names a node. Python reads a node's sentence inside
     # the error a door raises, already spoken; its machine spelling is
@@ -3457,17 +3463,10 @@ MEMBERS_BOUND_AS = {
     # can make one appear. Filed as
     # `work/lib/stranded-appearance-is-bound-but-unreachable-from-python.md`.
     # `Maintenance::Strand` has no such gap: `Node.fillet` takes a name
-    # selection and `DocEdit.delete_node` is bound. Nor does
-    # `Maintenance::OrphanedDeclare`, which needs a `Declare` and a
-    # consumer to delete: `Doc.declare_all`, `Node.boolean`'s
-    # `declare=` and `DocEdit.delete_node` are all bound, and
-    # `test_document.py`'s
-    # `test_deleting_the_consumer_reports_the_declaration_it_orphaned`
-    # is the Python program that makes one appear.
+    # selection and `DocEdit.delete_node` is bound.
     "Maintenance::OffsetCleared": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
-    "Maintenance::OrphanedDeclare": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3479,6 +3478,7 @@ MEMBERS_BOUND_AS = {
     "EditError::RepeatedDesignation": "EditError.variant",
     "EditError::SelectionNotCanonical": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::SetDeclareOnNonDeclaring": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::SetExtrudeSideOnNonExtrude": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
@@ -3494,7 +3494,6 @@ MEMBERS_BOUND_AS = {
     "EditError::PayloadDocParamDimension": "EditError.variant",
     "EditError::MeasureMalformed": "EditError.variant",
     "EditError::AssertionTarget": "EditError.variant",
-    "EditError::DeclareInputNotDeclare": "EditError.variant",
     "EditError::AssertionDimension": "EditError.variant",
     "EditError::SlotUnknownDocParam": "EditError.variant",
     "EditError::SlotDocParamDimension": "EditError.variant",
@@ -3507,6 +3506,8 @@ MEMBERS_BOUND_AS = {
     "EditError::PathOffTree": "EditError.variant",
     "EditError::Dimension": "EditError.variant",
     "EditError::DeclareNamesMissingNode": "EditError.variant",
+    "EditError::DeclaredSiteNotAnOperand": "EditError.variant",
+    "EditError::DeclaredNameNotUpstream": "EditError.variant",
     "EditError::ReadSiteMissingNode": "EditError.variant",
     "EditError::NonFiniteDocParam": "EditError.variant",
     "EditError::InvalidDistribution": "EditError.variant",

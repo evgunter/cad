@@ -600,7 +600,7 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }

@@ -141,7 +141,7 @@ pub fn document() -> CorpusDoc {
         op: BooleanOp::Subtract,
         a: cube,
         b: tool,
-        declare: None,
+        declare: Vec::new(),
     });
 
     CorpusDoc {

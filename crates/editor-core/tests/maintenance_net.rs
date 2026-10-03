@@ -10,8 +10,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::{block, declared_union, flush_pairs};
-use crate::fixture::{ang, fname, insert, wall};
+use crate::docm7_union_declare::block;
+use crate::fixture::{ang, flush_pairs, fname, insert, union_over, wall};
 use editor_core::{
     Applied, Attr, AttrKind, DocEdit, Maintenance, MaintenanceNet, Node, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusingReach, Rgba8, StableName, apply,
@@ -149,49 +149,47 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
     assert_eq!(cleared, Vec::new());
 }
 
-/// **An orphan survives only while nothing consumes the declaration.**
-/// Deleting the union orphans its declaration; a new union over it in
-/// the same action consumes it again, so nothing is orphaned. And the
-/// cascade — the union, then the declaration itself — leaves no
-/// declaration to be orphaned.
+/// **A strand on a declared pair survives only while the declaring
+/// node still holds the pair.** With `b` dropped from the union's
+/// members, deleting it strands the names the union's declared pairs
+/// carry; a `SetDeclare` clearing the list in the same action leaves
+/// nothing stranded.
 #[test]
-fn an_orphan_a_later_edit_consumes_or_deletes_is_not_reported() {
-    let doc = ProfileDoc::empty_derived("net-orphan", Tol::witness());
+fn a_declared_strand_a_later_set_declare_clears_is_not_reported() {
+    let doc = ProfileDoc::empty_derived("net-declare-cleared", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
+    let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let pairs = editor_core::declare_continuation(flush_pairs(&doc, (a, a), (b, b)));
+    let (doc, union) = union_over(doc, &[a, b, c], pairs);
+    let doc = applied(
+        &doc,
+        DocEdit::SetMembers {
+            node: union,
+            members: vec![a, c],
+        },
+    )
+    .doc;
 
-    let (alone, _, _) = net_of(&doc, vec![DocEdit::DeleteNode { id: union }]);
+    let (alone, _, _) = net_of(&doc, vec![DocEdit::DeleteNode { id: b }]);
     assert_eq!(
-        alone,
-        vec![Maintenance::OrphanedDeclare {
-            declare: doc.spoken(decl)
-        }]
+        alone.len(),
+        4,
+        "the premise: one strand per declared name minted in `b`: {alone:?}"
     );
-    let (reconsumed, _, _) = net_of(
+    let (cleared, _, _) = net_of(
         &doc,
         vec![
-            DocEdit::DeleteNode { id: union },
-            DocEdit::InsertNode {
-                node: Box::new(Node::Union {
-                    members: vec![a, b],
-                    declare: Some(decl),
-                }),
+            DocEdit::DeleteNode { id: b },
+            DocEdit::SetDeclare {
+                node: union,
+                pairs: Vec::new(),
             },
         ],
     );
     assert_eq!(
-        reconsumed,
+        cleared,
         Vec::new(),
-        "the declaration has a consumer again"
+        "the union holds no stranded pair at the end"
     );
-    let (cascaded, _, _) = net_of(
-        &doc,
-        vec![
-            DocEdit::DeleteNode { id: union },
-            DocEdit::DeleteNode { id: decl },
-        ],
-    );
-    assert_eq!(cascaded, Vec::new(), "the declaration went with the action");
 }

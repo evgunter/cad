@@ -57,7 +57,7 @@ fn the_union_node_folds_a_flush_partner_onto_the_edge_contact() {
             let (doc, ids) = blocks(span);
             let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
             let pairs = flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1]));
-            let (doc, union, _) = declared_union(doc, &members, pairs);
+            let (doc, union) = declared_union(doc, &members, pairs);
             let ev = run(&doc);
             let label = order.map(|i| NAMES[i]);
             assert!(
@@ -103,20 +103,15 @@ fn chained_pair_unions_fold_a_flush_partner_onto_the_edge_contact() {
                     .collect::<Vec<_>>()
             };
             let pair = |doc: ProfileDoc, x, y, pairs: Option<Vec<(SitedRef, SitedRef)>>| {
-                let (doc, declare) = match pairs {
-                    Some(pairs) => {
-                        let (doc, d) = insert(doc, Node::declare_continuation(pairs));
-                        (doc, Some(d))
-                    }
-                    None => (doc, None),
-                };
                 insert(
                     doc,
                     Node::Boolean {
                         op: BooleanOp::Union,
                         a: x,
                         b: y,
-                        declare,
+                        declare: pairs
+                            .map(editor_core::declare_continuation)
+                            .unwrap_or_default(),
                     },
                 )
             };

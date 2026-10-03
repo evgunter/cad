@@ -886,7 +886,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
             op: editor_core::BooleanOp::Subtract,
             a: slab,
             b: a,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Transform of the MEASURE's id.

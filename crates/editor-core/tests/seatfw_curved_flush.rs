@@ -31,7 +31,7 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanCoincidence, BooleanOp, CancelToken, EvalOptions, Evaluation, FlushRung, LoopProgram,
     Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SelectRefusal, ValuePayload,
-    declare_all, evaluate, find_flush_candidates,
+    declared_pairs, evaluate, find_flush_candidates,
 };
 use geom::SurfaceKind;
 use geom_core::Tol;
@@ -226,15 +226,13 @@ fn a_declared_curved_finding_verifies_and_the_mate_builds() {
         })
         .iter()
         .sum::<f64>();
-    let (applied, decl) = declare_all(&doc, &findings, Tol::witness()).expect("findings declare");
-    let doc = applied.doc;
     let (doc, union) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: peg,
             b: block,
-            declare: Some(decl),
+            declare: declared_pairs(&findings),
         },
     );
     let ev = eval(&doc);

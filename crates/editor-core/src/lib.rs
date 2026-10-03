@@ -179,15 +179,15 @@ pub use names::{
     PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg,
     SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf,
     StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
-    band, band_pi, band_rim, carried, declare, declare_all, declare_node, denotation,
+    band, band_pi, band_rim, carried, declare, declare_all, declared_pairs, denotation,
     edge_carrier_kind, edge_frame, face_carrier_kind, face_frame, find_flush_candidates,
     meridian_vertex, select, select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, CountMismatch, Datum, ExtrudeSide, InputFault, InterfaceCrossing,
-    InterfaceRecord, ListFault, MeasureNodeFault, Node, PartSelect, PatternKind,
+    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
+    InterfaceCrossing, InterfaceRecord, ListFault, MeasureNodeFault, Node, PartSelect, PatternKind,
     PlacementRuleFault, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId,
-    TubeWindow, VectorSlot,
+    TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
 pub use parse::{ParamNameFault, ParamNameReason, ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};

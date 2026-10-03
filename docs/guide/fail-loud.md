@@ -182,7 +182,7 @@ Working examples of the declared path, in increasing order of realism:
 undeclared version still refuses, with a "retire this if it ever
 stops refusing" panic), and the `table` corpus document, which
 declares every leg contact by name through the detect/declare
-protocol (`find_flush_candidates` → `declare_node`).
+protocol (`find_flush_candidates` → `declared_pairs`).
 
 Notice the shape of that protocol: detection *proposes*, a human or a
 recipe *declares*. Value equality never classifies on its own — there
@@ -345,11 +345,10 @@ except EvaluationError as err:
 #    finding is drawn from the same inventory.
 findings = ev.find_flush_candidates(lower, upper)
 assert menu in findings
-decl = doc.declare_all(findings)            # or doc.declare(menu)
+doc.declare_all(naive, findings)            # or doc.declare(naive, menu)
 
 # 3. The SAME union, with the contact declared: verified and glued.
-glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper, declare=decl))
-body = evaluate(doc).value(glued).body()
+body = evaluate(doc).value(naive).body()
 body.validate()
 # 10 × 10 × 20 mm³ — one block, watertight.
 assert abs(body.mass_properties().volume - 2e-6) < 1e-15

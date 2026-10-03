@@ -123,7 +123,7 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: body,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, body)
@@ -457,7 +457,7 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
             op: BooleanOp::Intersect,
             a: s.xf,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert!(

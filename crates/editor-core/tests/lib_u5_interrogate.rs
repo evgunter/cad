@@ -364,7 +364,7 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
             op: editor_core::BooleanOp::Union,
             a: failed,
             b: good,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, good, failed, poisoned)

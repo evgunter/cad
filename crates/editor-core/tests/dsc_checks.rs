@@ -74,7 +74,7 @@ fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -91,7 +91,7 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -227,7 +227,7 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Intersect,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -359,7 +359,7 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, c) = slab(doc, 0.0, 0.8, 0.5, 1.5 - t);
@@ -369,7 +369,7 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             op: BooleanOp::Union,
             a: hollow,
             b: c,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let report = checks(&doc, &ChecksConfig::default());
@@ -432,7 +432,7 @@ fn a_findings_attribution_resolves_to_its_subject() {
     assert_eq!(body.shells().count(), 2);
     // The subject's DECLARATIONS travel with it, so the tier-3′ gate
     // reached through an attribution asks about the same body the
-    // producer minted. This union declares nothing (`declare: None`,
+    // producer minted. This union declares nothing (`declare: Vec::new()`,
     // and its operands are three metres apart), so the honest claim
     // here is that the empty set is what arrived — not that the pair
     // is populated. The case where a non-empty set is the difference

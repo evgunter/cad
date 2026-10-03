@@ -58,7 +58,8 @@ use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
 use crate::names::{self, NameTable, SplitHalf};
 use crate::node::{
-    Axis3, BooleanOp, Datum, Node, PartSelect, PatternKind, RecipeNodeId, SitedRef, SlotId,
+    Axis3, BooleanOp, Datum, DeclaredPair, Node, PartSelect, PatternKind, RecipeNodeId, SitedRef,
+    SlotId,
 };
 use crate::program::ProfileProgram;
 use crate::resolve::FoldConsumption;
@@ -276,7 +277,7 @@ where
             *op,
             *a,
             *b,
-            *declare,
+            declare,
             doc,
             results,
             env.boolean_sweep,
@@ -286,7 +287,7 @@ where
             &crate::verbs::boolean::boolean(),
             id,
             members,
-            *declare,
+            declare,
             doc,
             results,
             env.boolean_sweep,
@@ -308,10 +309,6 @@ where
             vals,
             tol,
         ),
-        Node::Declare { pairs } => Ok(OpOut::plain(
-            ValuePayload::Declarations(pairs.clone()),
-            names::empty(),
-        )),
         Node::Measure { expr, refs } => {
             wire_measure(node, expr, refs, payload_values, doc, results, tol)
         }
@@ -2754,7 +2751,7 @@ fn wire_part<T: Decide>(
 // allowance).
 //
 // The TWO-OPERAND lowering, kept apart from `wire_blend`'s: two operand
-// tables, the `declare` input's N5 resolution, the declared-contact
+// tables, the declared pairs' N5 resolution, the declared-contact
 // carry and the typed empty success would otherwise become runtime
 // arity.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
@@ -2764,13 +2761,13 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     op: BooleanOp,
     a: RecipeNodeId,
     b: RecipeNodeId,
-    declare: Option<RecipeNodeId>,
+    declare: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
-    // F5 threading: the Declare input's name pairs resolve through the
+    // F5 threading: the declared pairs' names resolve through the
     // OPERANDS' name tables; failures are the N5 typed errors, never a
     // silent drop. The kernel verb receives only the arena-key form.
     let a_table = Arc::clone(&value_of(results, a)?.name_table);
@@ -2778,12 +2775,11 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // **The site is the side**: each name resolves in the ONE table its
     // site designates, so a name carried by both operands is not
     // ambiguous.
-    let kernel_decls = match declare {
-        None => BooleanDeclarations::none(),
-        Some(d) => {
-            let sided = side_by_operand(declared_pairs(results, d)?, a, b, doc)?;
-            resolve_declarations(&sided, doc, &a_table, &b_table)?
-        }
+    let kernel_decls = if declare.is_empty() {
+        BooleanDeclarations::none()
+    } else {
+        let sided = side_by_operand(declare, a, b, doc)?;
+        resolve_declarations(&sided, doc, &a_table, &b_table)?
     };
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
@@ -2847,7 +2843,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// one into member-keyed names.
 ///
 /// **Declarations are routed, not positioned** (DM4 as re-ruled). The
-/// `Declare` input names SITED entities, and [`route_declarations`]
+/// declared pairs name SITED entities, and [`route_declarations`]
 /// sends each pair to the one step that joins its two sites; each
 /// step's bucket is resolved by the pair boolean's own
 /// [`resolve_declarations`] against that step's two tables.
@@ -2872,7 +2868,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     members: &[RecipeNodeId],
-    declare: Option<RecipeNodeId>,
+    declared: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     boolean_sweep: topo::SweepStrategy,
@@ -2906,10 +2902,6 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let mut acc_body = Arc::clone(&operands[0].0);
     let mut acc_table = Arc::clone(&operands[0].1);
     // Declarations are routed BEFORE the fold, one bucket per step.
-    let declared: &[DeclaredPair] = match declare {
-        None => &[],
-        Some(d) => declared_pairs(results, d)?,
-    };
     let buckets = route_declarations(id, members, declared, doc)?;
     // Contact is judged here, pairwise, and nowhere else (DM4). Each
     // member's box is the separation certificate's hull, read through
@@ -3195,10 +3187,6 @@ fn drop_consumed<'n>(bucket: Vec<SidedPair<'n>>, acc_table: &NameTable) -> Vec<S
         .collect()
 }
 
-/// One declared pair as the recipe carries it: the two SITED
-/// entities and the contact class the author claimed for them.
-type DeclaredPair = ((SitedRef, SitedRef), topo::BooleanCoincidence);
-
 /// One declared pair as the shared resolver takes it: each side's
 /// name in the table of the operand its SITE picked, and the class.
 ///
@@ -3289,27 +3277,6 @@ fn side_by_operand<'n>(
         .iter()
         .map(|((r1, r2), class)| Ok((side(r1)?, side(r2)?, *class)))
         .collect()
-}
-
-/// The pairs a `Declare` input carries, or the typed refusal for a
-/// node wired at a declare seat that is not a `Declare`.
-///
-/// Shared by [`wire_boolean`] and [`wire_union`]. Both edit doors
-/// refuse this shape first (`Node::declare_input`); this is the
-/// evaluation's defensive answer.
-fn declared_pairs<T: Decide>(
-    results: &Results<T>,
-    declare: RecipeNodeId,
-) -> Result<&[DeclaredPair], NodeErrorKind> {
-    operand(
-        results,
-        declare,
-        super::family::DECLARATIONS,
-        |v| match &v.payload {
-            ValuePayload::Declarations(pairs) => Some(&pairs[..]),
-            _ => None,
-        },
-    )
 }
 
 /// **Routing a union's declared pairs to their fold steps** (DM4, the
@@ -3589,8 +3556,8 @@ const UNION_FOLD_CONTACT_VERDICT: &str =
 /// finished body, so one refuses as an emission bug
 /// ([`UNION_REFUSAL_FOLD_QUALIFIED_EDGE`]); a flush finding names faces.
 ///
-/// The recourse offered is the pair boolean's: a `Declare` on the
-/// union's own input, each side SITED at the member that carries it
+/// The recourse offered is the pair boolean's: declared pairs on the
+/// union itself, each side SITED at the member that carries it
 /// ([`sited_member`]). A face the fold MERGED is handed back as a
 /// constituent of that merge, which [`look_through_fold`] resolves back
 /// to it; a row no member stands for refuses
@@ -3866,7 +3833,7 @@ fn face_name(
     found.cloned()
 }
 
-/// Resolves one Declare payload's name pairs against the two operand
+/// Resolves one node's declared pairs against the two operand
 /// tables into the kernel's [`BooleanDeclarations`] (F5).
 ///
 /// [`wire_boolean`] calls it with the two operands' tables;
@@ -4714,12 +4681,15 @@ mod route_tests {
             let applied = doc
                 .apply(
                     &DocEdit::InsertNode {
-                        node: Box::new(Node::declare_rest(Vec::new())),
+                        node: Box::new(Node::Datum(crate::node::Datum::Plane {
+                            origin: [0.0; 3].map(crate::test_support::len),
+                            normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
+                        })),
                     },
                     Tol::witness(),
                     &crate::mate::RefusingReach,
                 )
-                .expect("an empty Declare inserts");
+                .expect("a datum plane inserts");
             ids.push(applied.record.minted.expect("the insert minted an id"));
             doc = applied.doc;
         }
@@ -4953,7 +4923,7 @@ mod route_tests {
                 Tol::witness(),
                 &crate::mate::RefusingReach,
             )
-            .expect("the empty Declare deletes")
+            .expect("the datum plane deletes")
             .doc;
         let p = pair(at(ms[0], CapEnd::Start), at(gone, CapEnd::End));
         let refused = route_declarations(union, &ms[..3], std::slice::from_ref(&p), &doc);

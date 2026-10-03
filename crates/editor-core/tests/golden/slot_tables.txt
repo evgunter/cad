@@ -81,8 +81,8 @@ Chamfer { target: RecipeNodeId(1), distance: #0, selection: [] }
 Shell { target: RecipeNodeId(1), thickness: #0, open: [] }
   #0 ShellThickness
 Split { target: RecipeNodeId(1), tool: RecipeNodeId(2) }
-Boolean { op: Union, a: RecipeNodeId(1), b: RecipeNodeId(2), declare: None }
-Union { members: [RecipeNodeId(1), RecipeNodeId(2)], declare: None }
+Boolean { op: Union, a: RecipeNodeId(1), b: RecipeNodeId(2), declare: [] }
+Union { members: [RecipeNodeId(1), RecipeNodeId(2)], declare: [] }
 Transform { input: RecipeNodeId(1), placement: Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] } }
   #0 Translation(X)
   #1 Translation(Y)
@@ -138,7 +138,6 @@ PlacedUnion { input: RecipeNodeId(1), count: None, kind: Explicit([]) }
 Part { of: RecipeNodeId(1), select: Instance(#0) }
   #0 Instance
 Part { of: RecipeNodeId(1), select: SplitHalf(Above) }
-Declare { pairs: [] }
 InstantiatePart { doc_ref: DocRef { id: DocumentId(272522191089886152265255929154993748228), pin: ContentPin([205, 5, 221, 101, 178, 25, 73, 194, 233, 249, 132, 107, 246, 149, 121, 4, 119, 31, 132, 192, 233, 43, 185, 169, 63, 156, 228, 98, 7, 179, 48, 228]) }, interface: InterfaceRecord { crossings: [] }, gauge: None, offset: Some(Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] }) }
   #0 Translation(X)
   #1 Translation(Y)
