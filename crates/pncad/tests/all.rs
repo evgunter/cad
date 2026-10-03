@@ -1470,8 +1470,7 @@ fn a_boolean_result_validates_at_tier_3_prime() {
         )
         .expect("slab extrude")
         .body;
-        AtRestBody::validate(body, Tol::witness())
-            .expect("the slab is a finished body")
+        AtRestBody::validate(body, Tol::witness()).expect("the slab is a finished body")
     };
 
     // The post is strictly interior in x and y and pokes out of the

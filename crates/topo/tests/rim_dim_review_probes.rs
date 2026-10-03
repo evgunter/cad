@@ -58,17 +58,18 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
             Tol::witness(),
         )
     };
+    let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
+    let a = fin("a", bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)));
+    let b = fin("b", bx((1.0, 3.0), (1.0, 3.0), (1.0, 3.0)));
+    let a2 = fin("a2", bx((0.0, 4.0), (0.0, 4.0), (0.0, 1.0)));
+    let b2 = fin("b2", bx((1.0, 2.0), (1.0, 2.0), (-1.0, 2.0)));
     k_stats::start_recording();
-    let a = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = bx((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
     let r = subtract(&a, &b, Tol::witness()).expect("corner subtract");
     let BooleanResult::Body(rb) = r else {
         panic!("corner: body out");
     };
     topo::validate_pseudomanifold(&rb.body, &topo::ContactRecords::default(), Tol::witness())
         .expect("census");
-    let a2 = bx((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
-    let b2 = bx((1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
     // The F4 fix (see rim_dim_boolean_twins module docs) retired this
     // configuration's in-band refusal on coarse ε rows: the winding is
     // metered to its mean width, so the mm pocket subtract computes at
@@ -156,13 +157,14 @@ fn silent_fixed_predicates_scale_linearly() {
                 Tol::witness(),
             )
         };
+        let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
+        let a = fin("a", bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)));
+        let b = fin("b", bx((1.0, 2.0), (0.5, 1.5), (0.5, 1.5)));
         k_stats::start_recording();
         // Flush: b's x-max face lies IN a's x=2 face plane. Undeclared,
         // so the op REFUSES typed at bool_plane_offset — but the
         // bool_plane_orient sample fires (and records) first, which is
         // all this probe harvests.
-        let a = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-        let b = bx((1.0, 2.0), (0.5, 1.5), (0.5, 1.5));
         assert!(
             subtract(&a, &b, Tol::witness()).is_err(),
             "undeclared flush must refuse"

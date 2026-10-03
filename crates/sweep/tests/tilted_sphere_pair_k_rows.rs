@@ -63,7 +63,8 @@ fn a_carved_balls_meridian_fragments_record_no_clearance_charge() {
         (1.0, Vec3::new(1.2, 0.6, 0.0)),
         (0.6, Vec3::new(0.9, 0.0, 0.0)),
     ] {
-        let (a, b) = (ball(1.0, base), ball(r, base + offset));
+        let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
+        let (a, b) = (fin("a", ball(1.0, base)), fin("b", ball(r, base + offset)));
         for (name, op) in [
             ("union", topo::boolean::union::<Probe> as fn(_, _, _) -> _),
             ("intersect", topo::boolean::intersect::<Probe>),

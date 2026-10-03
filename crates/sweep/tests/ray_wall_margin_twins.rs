@@ -190,6 +190,8 @@ fn bore_margins(scale: f64, name: &str) -> Vec<f64> {
     )
     .unwrap()
     .body;
+    let plate = topo::test_support::finished("the plate", plate, tol);
+    let pipe = topo::test_support::finished("the pipe", pipe, tol);
     k_stats::start_recording();
     topo::subtract(&plate, &pipe, tol).expect("the pipe bores the plate");
     k_stats::take_samples()
