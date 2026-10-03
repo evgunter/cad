@@ -30,13 +30,19 @@
 //!    derivation from unit speed).
 //! 4. `A·d₃ = b₃` minimum-norm, then `d₃ ← d₃ − κ²·d₁` with
 //!    `κ = ‖d₂‖` — Frenet's γ₃ = −κ².
-//! 5. **Step size by the small-contribution heuristic** (p. 215): the
-//!    quadratic and cubic terms of the approximant may each deviate by
-//!    at most [`SSI_STEP_DEVIATION`]·ε in meters, giving
-//!    `h ≤ √(2δ/κ)` and `h ≤ ∛(6δ/‖d₃‖)`; clamped into
-//!    `[h_min, h_max]`. **`ssi_step_progress`** refuses if the step
-//!    collapses into the band — a stepper that cannot move at this
-//!    tolerance says so.
+//! 5. **Step size**, every rung read on the carrier `C = P(x)` in
+//!    metres ([`LocalSystem::carrier_jet`]), never on the state curve,
+//!    whose bending on the ℝ⁴ lane holds the wall pcurve's: with
+//!    `κ = ‖C″⊥‖/‖C′‖²` the carrier's curvature, a step of `H` metres
+//!    keeps the approximant's quadratic and cubic terms within
+//!    [`SSI_STEP_RELATIVE`] of its linear one (Hoffmann's
+//!    small-contribution heuristic, p. 215: `H ≤ 2ρ/κ`, and the cubic
+//!    rung on `‖C‴‖`), and the eventual cubic fit's between-sample
+//!    error within [`SSI_STEP_DEVIATION`]·ε (`H ≤ (24δε/κ³)^¼`). The
+//!    smallest binds, capped by the caller's `step_cap` and the domain's
+//!    diagonal. **`ssi_step_progress`** refuses if the step collapses
+//!    into the band — a stepper that cannot move at this tolerance says
+//!    so.
 //! 6. Advance by the cubic approximant, then **Newton refinement** to
 //!    the surface pair: a fixed [`SSI_NEWTON_ITERS`] cap of
 //!    minimum-norm corrections, early-exiting on
@@ -924,33 +930,38 @@ where
                 for (i, v) in d3.iter_mut().enumerate() {
                     *v -= kappa_sq * d1[i];
                 }
-                let n3 = norm(&d3);
-                // (a) Hoffmann's relative heuristic: |h²κ/2| ≤ ρ·h and
-                //     |h³‖d₃‖/6| ≤ ρ·h.
-                // κ and ‖d₃‖ are the system's own answers, so each
-                // bound is unbounded only at an exact zero and a
-                // poisoned one carries through `h` to the step guard.
-                // An overflowed κ² is not poison but makes ‖d₃‖ NaN
-                // through ∞·0 in the correction above; `h_quad` already
-                // binds there, so the cubic rung stands aside.
-                let h_quad = if kappa != 0.0 {
-                    2.0 * SSI_STEP_RELATIVE / kappa
+                // Every rung bounds the carrier in metres, not the state
+                // curve: on the ℝ⁴ lane the state curve's bending holds
+                // the wall pcurve's, which moves no 3-D point.
+                let [c1, c2, c3] = sys.carrier_jet(&x, &d1, &d2, &d3);
+                let bend = across(c1, c2, speed);
+                let n3 = c3.norm();
+                // (a) Hoffmann's relative heuristic on the carrier: the
+                //     quadratic and cubic terms within ρ of the linear
+                //     one, `h²·‖C″⊥‖/2 ≤ ρ·h·speed` and
+                //     `h³·‖C‴‖/6 ≤ ρ·h·speed`. Each is unbounded only at
+                //     an exact zero, and a poisoned one carries through
+                //     `h` to the step guard. An overflowed κ² is not
+                //     poison but makes ‖C‴‖ NaN through ∞·0 in the
+                //     correction above; `h_quad` already binds there, so
+                //     the cubic rung stands aside.
+                let h_quad = if bend != 0.0 {
+                    2.0 * SSI_STEP_RELATIVE * speed / bend
                 } else {
                     f64::INFINITY
                 };
                 let h_cub = if n3 != 0.0 && kappa_sq != f64::INFINITY {
-                    (6.0 * SSI_STEP_RELATIVE / n3).sqrt()
+                    (6.0 * SSI_STEP_RELATIVE * speed / n3).sqrt()
                 } else {
                     f64::INFINITY
                 };
-                // (b) the fit's between-sample budget (module docs).
-                // κ and ‖d₃‖ are in state units; the curvature that
-                // governs the 3-D fit is κ/speed², so convert once.
-                // `> 0.0`, not `!= 0.0`: the quotient is NaN at an
-                // underflowing speed (0/0) or an overflowing one (∞/∞),
-                // which is the speed's fault, not a poisoned κ — and a
-                // poisoned κ already reaches `h` through `h_quad`.
-                let kappa3d = kappa / (speed * speed);
+                // (b) the fit's between-sample budget (module docs), at
+                // the carrier's curvature `‖C″⊥‖/speed²`. `> 0.0`, not
+                // `!= 0.0`: the quotient is NaN at an underflowing speed
+                // (0/0) or an overflowing one (∞/∞), which is the speed's
+                // fault, not a poisoned bend — and a poisoned bend
+                // already reaches `h` through `h_quad`.
+                let kappa3d = bend / (speed * speed);
                 let h_fit = if kappa3d > 0.0 {
                     // ¼ power as TWO square roots, not `powf(0.25)`:
                     // `f64::sqrt` is IEEE-correctly-rounded and so is
@@ -1173,6 +1184,18 @@ fn dot<const N: usize>(a: &[f64; N], b: &[f64; N]) -> f64 {
 
 fn norm<const N: usize>(a: &[f64; N]) -> f64 {
     dot(a, a).sqrt()
+}
+
+/// `‖C″⊥‖`: the part of the acceleration `c2` across the velocity `c1`,
+/// whose length is `speed`. Read as `‖C″‖·√(1 − cos²)`, so an
+/// acceleration already square to the tangent keeps its own norm's bits.
+fn across(c1: Vec3<f64>, c2: Vec3<f64>, speed: f64) -> f64 {
+    let accel = c2.norm();
+    if !(accel.is_finite() && accel > 0.0) {
+        return accel;
+    }
+    let cos = (c1 / speed).dot(c2) / accel;
+    accel * Real::max(1.0 - cos * cos, 0.0).sqrt()
 }
 
 fn neg<const N: usize>(a: &[f64; N]) -> [f64; N] {
@@ -1519,6 +1542,16 @@ mod tests {
 
         fn tangent_speed(&self, _x: &[f64; 3], _d: &[f64; 3]) -> f64 {
             self.speed
+        }
+
+        fn carrier_jet(
+            &self,
+            _x: &[f64; 3],
+            d1: &[f64; 3],
+            d2: &[f64; 3],
+            d3: &[f64; 3],
+        ) -> [Vec3<f64>; 3] {
+            [*d1, *d2, *d3].map(|d| Vec3::from_array(d) * self.speed)
         }
     }
 
@@ -1979,5 +2012,91 @@ mod tests {
         ] {
             assert_eq!(StepBound::of(curvature, 20), want, "{curvature} of 20");
         }
+    }
+
+    /// **The step rungs read the carrier's curvature, not the state
+    /// curve's.** The plane `y = −1/8` cuts the dome
+    /// `y = −4·s(1−s)·t(1−t)` (a quadratic 3×3 net, `x = s`, `z = t`) in
+    /// a loop of 3-D curvature 1.4–4.7/m. The wall's pcurve bends in its
+    /// chart as much as the plane's, so the ℝ⁴ state curve's curvature
+    /// over speed² is √2 times the carrier's. At ε = 1e-9 the fit rung
+    /// holds every step, so each chord is `(24·δ·ε/κ³)^¼` at the
+    /// carrier's own curvature κ, read here off the circle through three
+    /// consecutive marched points rather than off the stepper. Every
+    /// chord lies within 5% of it, and the loop takes 1029 steps, where
+    /// the state curve's curvature took 2^(3/8) ≈ 1.30 times as many,
+    /// each chord 2^(−3/8) ≈ 0.77 of this one.
+    #[test]
+    fn the_fit_rung_reads_the_carriers_curvature_on_a_curved_wall() {
+        use super::{RectEnd, RectExit, SSI_STEP_DEVIATION};
+        use crate::ssi::system::{Chart, ParametricPairR4};
+        use geom::{NurbsSurface, Surface};
+        use geom_core::spline::KnotVector;
+
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = (0..9)
+            .map(|n| {
+                let (i, j) = (f64::from(n / 3), f64::from(n % 3));
+                let y = if n == 4 { -1.0 } else { 0.0 };
+                Point3::new(i / 2.0, y, j / 2.0)
+            })
+            .collect();
+        let wall = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap();
+        let level = Surface::Plane {
+            origin: Point3::new(0.5, -0.125, 0.5),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let sys = ParametricPairR4 {
+            a: Chart::plane_of(&level, (-2.0, 2.0), (-2.0, 2.0)).unwrap(),
+            b: Chart::Nurbs(&wall),
+        };
+        let eps = 1.0e-9;
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        let ctx = MarchContext::<4> {
+            domain: [[-2.0, 2.0], [-2.0, 2.0], [0.0, 1.0], [0.0, 1.0]],
+            extent: 1.0,
+            tol: MarchTol::from_band(band, reaching(2.0)).unwrap(),
+            max_steps: 4096,
+        };
+        // On the loop at t = ½: s(1 − s) = ⅛.
+        let s = 0.5 * (1.0 - std::f64::consts::FRAC_1_SQRT_2);
+        let seed = [s - 0.5, 0.0, s, 0.5];
+        let trace = march(
+            &sys,
+            &RectExit,
+            seed,
+            ctx,
+            StepperMode::Realized,
+            1.0,
+            band,
+            SSI_STEP_MAX * ctx.extent,
+        )
+        .unwrap();
+        assert!(
+            matches!(trace.end, RectEnd::Closed),
+            "the level cut is a loop"
+        );
+        let p: Vec<Vec3<f64>> = trace
+            .states
+            .iter()
+            .map(|x| sys.point(x) - Point3::origin())
+            .collect();
+        let target = 24.0 * SSI_STEP_DEVIATION * eps;
+        for i in 1..p.len() - 1 {
+            let (a, b) = (p[i] - p[i - 1], p[i + 1] - p[i - 1]);
+            let kappa = 2.0 * a.cross(b).norm() / (a.norm() * b.norm() * (b - a).norm());
+            let chord = (p[i + 1] - p[i]).norm();
+            let rung = (target / (kappa * kappa * kappa)).sqrt().sqrt();
+            assert!(
+                (chord / rung - 1.0).abs() < 0.05,
+                "step {i}: chord {chord:e} m against the fit rung {rung:e} m at κ = {kappa:.3}/m"
+            );
+        }
+        assert!(
+            (1000..1060).contains(&trace.steps),
+            "the loop takes {} steps",
+            trace.steps
+        );
     }
 }

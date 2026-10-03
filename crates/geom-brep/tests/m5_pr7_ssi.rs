@@ -1343,19 +1343,17 @@ fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
     // PR 7's original wall inflects (κ crosses zero along the section),
     // where the step rule's fit rung unbinds: the relative rungs price
     // the step there, so the realized fit pair carries a deviation at
-    // the crossing, measured at ~3.8e-9 m at march-ε = 1e-9. That
-    // deviation is PHASE-DEPENDENT AND NON-MONOTONE in march-ε, not a
-    // constant cap (review measurement: 4× tighter march-ε → 4.36×
-    // better, 16× → 16.92× better reaching 2.25e-10 m, 64× → only
-    // 6.83× — where samples land relative to the crossing decides;
-    // regression witness: review_m5_pr7b_ssi.rs `deviation2b`). The
+    // the crossing, measured at ~4.5e-9 m at march-ε = 1e-9
+    // (review_m5_pr7b_ssi.rs `deviation2a`). That deviation is
+    // PHASE-DEPENDENT AND NON-MONOTONE in march-ε, not a constant cap:
+    // where samples land relative to the crossing decides. The
     // shipped configuration's number stands, so the verdict honestly
     // FORKS on the resolved band: a band whose zero sits well above
     // the measured deviation certifies (ε = 1e-6), the default band
     // catches it in-band at the very predicate whose old bound (~1e-2
     // m, span-width-scaled at every ε) could never say anything this
     // precise, and the finest ε is preempted by the fit budget.
-    const MEASURED_DEVIATION: f64 = 3.9e-9;
+    const MEASURED_DEVIATION: f64 = 4.5e-9;
     let (p, w) = (cutting_plane(), nurbs_wall());
     match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()) {
         Ok(out) => {
@@ -4318,12 +4316,14 @@ fn half_cylinder(r: f64) -> NurbsSurface<f64> {
 /// **A semicircle too short to march whose cubic misses it refuses by
 /// its length.** The plane `z = ½` cuts the half cylinder of radius
 /// `r` in a semicircle whose ends, on its two `u` sides, are `2r`
-/// apart. At `r = 2Kε` the march's step of `2r/5` falls in the band, so
-/// the march cannot progress; the Hermite cubic through the ends and
-/// their antiparallel tangents runs half a radius inside the arc at its
-/// middle, limb 1 refuses it or cannot call it, and the answer is the
-/// sized refusal in the branch's length. At `r = 5Kε` the march's step
-/// clears the band, and the march traces the semicircle. Every ε.
+/// apart. The march's step is `r/5`, the relative rung
+/// `2·SSI_STEP_RELATIVE/κ` on the carrier. At `r = 2Kε` it falls in
+/// the band, so the march cannot progress; the Hermite cubic through the
+/// ends and their antiparallel tangents runs half a radius inside the
+/// arc at its middle, limb 1 refuses it or cannot call it, and the
+/// answer is the sized refusal in the branch's length. At `r = 10Kε`
+/// the step clears the band, and the march traces the semicircle in
+/// sixteen steps or more. Every ε.
 #[test]
 fn a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length() {
     let k_eps = band().escalate();
@@ -4359,16 +4359,24 @@ fn a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length() {
         ),
         "r = 2Kε: limb 1 refuses the cubic: {limb:?}"
     );
-    let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(5.0 * k_eps), dom, band());
-    let (out, span) = one_branch("r = 5Kε", r);
+    let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(10.0 * k_eps), dom, band());
+    let (out, span) = one_branch("r = 10Kε", r);
     assert!(
-        (span - 10.0 * k_eps).abs() <= 1.0e-3 * k_eps,
-        "r = 5Kε: spans {span:e}"
+        (span - 20.0 * k_eps).abs() <= 1.0e-3 * k_eps,
+        "r = 10Kε: spans {span:e}"
     );
     let mid = out.branches[0].witness;
     assert!(
-        (mid.x - 5.0 * k_eps).abs() <= band().zero(),
-        "r = 5Kε: the branch runs round the arc: {mid:?}"
+        (mid.x - 10.0 * k_eps).abs() <= band().zero(),
+        "r = 10Kε: the branch runs round the arc: {mid:?}"
+    );
+    let samples = out.branches[0]
+        .pcurve_b
+        .as_ref()
+        .map_or(0, |c| c.control().len());
+    assert!(
+        samples >= 16,
+        "r = 10Kε: π radians at a fifth of a radian a step: {samples} samples"
     );
 }
 
@@ -4573,7 +4581,8 @@ fn dome_tilt(d: f64) -> (Surface<f64>, SsiDomain) {
 /// branch, and a seed further in marches the branch to the edge.
 ///
 /// What the cut does is pinned by ε:
-/// - at 1e-6 it certifies, one branch;
+/// - at 1e-6 it certifies at d = 1, one branch, and refuses limb 2 at
+///   d = 2;
 /// - at 1e-9 it refuses limb 2, inferred but not traced to be cause 4
 ///   of `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`;
 /// - at 1e-12 it refuses the fit budget, that row's cause 2.
@@ -4582,7 +4591,10 @@ fn dome_tilt(d: f64) -> (Surface<f64>, SsiDomain) {
 #[test]
 fn a_seed_settled_off_the_walls_chart_is_no_branch() {
     let b = band();
-    for (d, seed) in [(1.0, (0.369, 0.00195)), (2.0, (0.243, 0.00098))] {
+    for (d, seed, certifies_coarse) in [
+        (1.0, (0.369, 0.00195), true),
+        (2.0, (0.243, 0.00098), false),
+    ] {
         let (plane, dom) = dome_tilt(d);
         let wall = dome_wall(d);
         match ssi::trace_plane_nurbs_uncertified(&plane, &wall, seed, dom, b.zero(), b) {
@@ -4604,18 +4616,19 @@ fn a_seed_settled_off_the_walls_chart_is_no_branch() {
         {
             panic!("{at}: a carrier off the wall's chart: {r:?}");
         }
+        let hull = matches!(
+            r,
+            Err(SsiError::CertificateLimb {
+                limb: SsiLimb::HullSup,
+                ..
+            } | SsiError::CertificateEscalated {
+                limb: SsiLimb::HullSup,
+                ..
+            })
+        );
         let pinned = match eps() {
-            1.0e-6 => matches!(r, Ok(ref o) if o.branches.len() == 1),
-            1.0e-9 => matches!(
-                r,
-                Err(SsiError::CertificateLimb {
-                    limb: SsiLimb::HullSup,
-                    ..
-                } | SsiError::CertificateEscalated {
-                    limb: SsiLimb::HullSup,
-                    ..
-                })
-            ),
+            1.0e-6 if certifies_coarse => matches!(r, Ok(ref o) if o.branches.len() == 1),
+            1.0e-6 | 1.0e-9 => hull,
             1.0e-12 => matches!(r, Err(SsiError::FitSampleBudget { .. })),
             _ => {
                 vacuity::stood_down(
@@ -4640,8 +4653,8 @@ fn a_seed_settled_off_the_walls_chart_is_no_branch() {
 /// instead, `S_u.y` and `S_v.y` span `[−2d, 2d]`, and every rung down to
 /// the floor straddles.
 ///
-/// The band is the row's own 1e-6: limbs 1 and 2 refuse these cuts at
-/// 1e-9 and the fit budget at 1e-12 before limb 3 runs.
+/// The band is the row's own 1e-6: limbs 1 and 2 refuse the tilt cut at
+/// 1e-9, and the fit budget both cuts at 1e-12, before limb 3 runs.
 #[test]
 fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
     let b = band_at(1e-6);
@@ -4670,6 +4683,38 @@ fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
                 SsiTube::Spatial { .. } => panic!("{at}: the chart arm proved a spatial tube"),
             }
         }
+    }
+}
+
+/// **A curved dome's level loop fits the sample budget at ε 1e-9.** The
+/// level cut of `W(d)` is the same loop at every `d`, of 3-D curvature
+/// 1.4–4.7/m, and the wall's pcurve bends in its chart as much as the
+/// plane's. Its fit rung reads the carrier's curvature, so the loop
+/// takes about 1030 samples, inside `SSI_MAX_FIT_SAMPLES`, and
+/// certifies as one closed branch. Read off the ℝ⁴ state curve, whose
+/// curvature over speed² is √2 the carrier's here, it took 1335 and
+/// refused the budget.
+#[test]
+fn a_curved_domes_level_loop_fits_the_sample_budget() {
+    let b = band_at(1e-9);
+    for d in [1.0, 3.0] {
+        let (_, dom) = dome_tilt(d);
+        let level = Surface::Plane {
+            origin: dom.center,
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let out = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, b)
+            .unwrap_or_else(|e| panic!("d = {d}: expected the loop certified, got {e:?}"));
+        let [branch] = out.branches.as_slice() else {
+            panic!("d = {d}: expected one branch, got {}", out.branches.len());
+        };
+        assert_eq!(branch.end, BranchEnd::Closed, "d = {d}: a loop");
+        let samples = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+        assert!(
+            (1000..1100).contains(&samples),
+            "d = {d}: {samples} samples, against about 1030 at the carrier's curvature"
+        );
     }
 }
 
