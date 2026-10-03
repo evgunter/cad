@@ -13,9 +13,9 @@
 //!    therefore always hold COLLINEAR vertical edges there, so the
 //!    site enters the reduction's edge-edge (Table II/III) lane —
 //!    never a pure v-v contact with four transversal germ survivors.
-//!    The nearest reachable behavior is a typed refusal from that
-//!    lane (`ClassificationInvariant`, pinned below); no silent
-//!    mispair exists in the right-prism corpus.
+//!    That lane reads the L-prism's reflex wedge by its extent and
+//!    builds the union (pinned below); no silent mispair exists in the
+//!    right-prism corpus.
 //! 2. **Tilted planar operands: guard unwitnessed (swept).** With a
 //!    linearly-mapped (tilted — no vertical edges) cube corner placed
 //!    on an L-prism's reflex wedge edge interior and reflex cap
@@ -60,33 +60,41 @@ fn l_prism() -> Body<f64> {
 }
 
 /// Part 1's pin: prism × prism at the reflex corner — the collinear
-/// vertical edges force the edge-edge lane, which refuses typed
-/// (never reaching a 4-survivor v-v pairing site, never mispairing
-/// silently).
+/// vertical edges force the edge-edge lane, which reads the L-prism's
+/// 270° wedge by its extent (never reaching a 4-survivor v-v pairing
+/// site). The union passes tiers 2 and 3′ and the at-rest certificate
+/// at the closed form: the L's 12 plus the kite's 5/2 less their
+/// common 7/6.
 #[test]
 fn prism_reflex_kiss_takes_edge_edge_lane() {
+    let tol = Tol::witness();
     let a = l_prism();
     let b = prism_z::<f64>(
         &[(2.0, 2.0), (3.0, 1.0), (4.5, 2.0), (3.0, 3.0)],
         0.0,
         1.0,
-        Tol::witness(),
+        tol,
     )
     .body;
-    // M4 PR 5: the coplanar top/bottom contacts are declared so the
-    // classification reaches the edge-edge lane (undeclared, it now
+    // The coplanar top/bottom contacts are declared so the
+    // classification reaches the edge-edge lane (undeclared, it
     // refuses earlier at the coincidence door — rung (b)).
-    let err = topo::union_with(
-        &a,
-        &b,
-        &common::flush_declarations(&a, &b, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap_err();
-    assert!(
-        matches!(err, BooleanError::ClassificationInvariant { .. }),
-        "expected the edge-edge lane's typed refusal, got {err:?}"
+    let bb = match topo::union_with(&a, &b, &common::flush_declarations(&a, &b, tol), tol) {
+        Ok(topo::BooleanResult::Body(bb)) => bb,
+        other => panic!("the reflex kiss's union: {other:?}"),
+    };
+    assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+        Ok(()),
+        "tier 3′"
     );
+    assert!(
+        topo::validate_geometric_certificate(&bb.body, tol).is_ok(),
+        "the at-rest certificate"
+    );
+    let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+    assert!((v - 40.0 / 3.0).abs() < 1e-9, "volume {v}");
 }
 
 /// Part 3's pin: the tilted saddle-class corner that the join does
