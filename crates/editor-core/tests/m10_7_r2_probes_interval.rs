@@ -28,9 +28,9 @@ use std::sync::Arc;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
+    Dimension, Distribution, DocEdit, EntityKind, Expr, FreeVar, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
     select_where,
 };
 use geom_core::Tol;
@@ -38,7 +38,7 @@ use geom_core::Tol;
 use crate::fixture::{Recorder, len, scl, xy_frame};
 
 fn plen(n: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(n), Dimension::Length)
+    Expr::param(VarName::from_static(n), Dimension::Length)
 }
 
 /// The nominal arm of the bracket, in metres.
@@ -61,8 +61,8 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::from_static(n),
-            value: DocParam::Continuous {
+            name: VarName::from_static(n),
+            value: FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -460,8 +460,8 @@ fn r2_what_a_real_study_gets_today() {
 fn collinear_walls() -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("w"),
-        value: DocParam::Continuous {
+        name: VarName::from_static("w"),
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: 4.0e-3,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -476,7 +476,7 @@ fn collinear_walls() -> ProfileDoc {
     // two: segments 0 and 1 are collinear by construction, whatever `w`
     // does, so `side_planes_cosurface` is a genuine IDENTITY here and
     // not a coincidence at the nominal.
-    let w = || Expr::param(ParamName::from_static("w"), Dimension::Length);
+    let w = || Expr::param(VarName::from_static("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![

@@ -134,7 +134,7 @@ use geom_core::{Dual64, Readable, Tol};
 use topo::Body;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, DocParam, ParamName};
+use crate::doc::{Doc, FreeVar, VarName};
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
@@ -182,7 +182,7 @@ pub enum LiftRefusal {
         /// The section profile node the seed reaches and stops at.
         section: RecipeNodeId,
         /// The seeded parameter.
-        param: ParamName,
+        param: VarName,
     },
     /// The guided elaboration at the pass's scalar could not
     /// re-confirm a structure decision the build path made (a lift
@@ -249,7 +249,7 @@ pub struct Sensitivity {
     /// form speaks from. Outside the goldening form and its content key.
     pub document: crate::DocumentId,
     /// The parameter.
-    pub param: ParamName,
+    pub param: VarName,
     /// The pass's reading, marked.
     pub outcome: SensitivityOutcome,
 }
@@ -522,7 +522,7 @@ fn driver(
     }
 
     // The names, in name order (deterministic in both schedules).
-    let names: Vec<ParamName> = continuous_params(doc).cloned().collect();
+    let names: Vec<VarName> = continuous_params(doc).cloned().collect();
 
     // One UNSEEDED dual base, threaded into every pass as the memo
     // prior: a node outside a pass's seeded cone carries identical
@@ -539,7 +539,7 @@ fn driver(
         tol,
     );
 
-    let one = |name: &ParamName| -> Result<Sensitivity, PairingViolation> {
+    let one = |name: &VarName| -> Result<Sensitivity, PairingViolation> {
         let pass: Evaluation<Dual64> = evaluate(
             doc,
             Some(&base),
@@ -583,7 +583,7 @@ fn driver(
 /// parallelism is per pass), the seed and the parts' resolver as
 /// given.
 fn pass_opts(
-    seed: Option<ParamName>,
+    seed: Option<VarName>,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
 ) -> EvalOptions {
     EvalOptions {
@@ -1067,17 +1067,17 @@ const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
 
 /// The document's continuous parameters, in name order — the entry
 /// set of every driver call.
-fn continuous_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = &ParamName> {
+fn continuous_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = &VarName> {
     doc.params()
         .iter()
-        .filter(|(_, p)| matches!(p, DocParam::Continuous { .. }))
+        .filter(|(_, p)| matches!(p, FreeVar::Continuous { .. }))
         .map(|(n, _)| n)
 }
 
 /// Whether a verdict's root box spans exactly this document's
 /// continuous parameters — the cheap pre-check before the content tie.
 fn box_spans_doc_params(root: &ParamBox, doc: &Doc<ProfileProgram>) -> bool {
-    let doc_names: Vec<&ParamName> = continuous_params(doc).collect();
+    let doc_names: Vec<&VarName> = continuous_params(doc).collect();
     root.axes().len() == doc_names.len() && doc_names.into_iter().all(|n| root.get(n).is_some())
 }
 
@@ -1176,32 +1176,32 @@ pub enum Unavailable {
     /// E9 forfeiture: the parameter's tangent degraded at the nominal.
     TangentDegraded {
         /// The parameter.
-        param: ParamName,
+        param: VarName,
     },
     /// The parameter's pass could not read the measure (its doors
     /// refused).
     MeasureRefused {
         /// The parameter.
-        param: ParamName,
+        param: VarName,
     },
     /// The parameter's seed could not reach the measure — the lift's
     /// typed limit ([`SensitivityOutcome::Unliftable`]).
     Unliftable {
         /// The parameter.
-        param: ParamName,
+        param: VarName,
     },
     /// The parameter carries a [`crate::Distribution::Band`]: limits
     /// without a shape have no σ, and a partial RSS is still a lie
     /// (E5) — so the RSS names it and refuses whole.
     BandHasNoMeasure {
         /// The parameter.
-        param: ParamName,
+        param: VarName,
     },
 }
 
 impl Unavailable {
     /// The blocked parameter.
-    pub fn param(&self) -> &ParamName {
+    pub fn param(&self) -> &VarName {
         match self {
             Self::TangentDegraded { param }
             | Self::MeasureRefused { param }
@@ -1251,7 +1251,7 @@ pub struct ChamberSpan {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PerParam {
     /// The parameter.
-    pub param: ParamName,
+    pub param: VarName,
     /// Its E4-marked sensitivity reading.
     pub sensitivity: SensitivityOutcome,
     /// `|∂m/∂pᵢ| · Δpᵢ`, `Δpᵢ` the ANALYZED box's half-width on this
@@ -2033,7 +2033,7 @@ fn worst_case(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{RETIRED_VALUE_DIGEST_TAGS, RSS_BLOCKER_LEAD, Rss, Unavailable, render_rss};
-    use crate::ParamName;
+    use crate::VarName;
 
     /// **No arm of [`super::payload_digest`] re-uses a retired tag.**
     /// A source census, for the reason `node_kind_vocabulary_is_injective`
@@ -2103,7 +2103,7 @@ mod tests {
     /// weld, so an arm with no example here fails every row that reads
     /// this.
     fn every_arm(param: &'static str) -> Vec<Unavailable> {
-        let param = ParamName::from_static(param);
+        let param = VarName::from_static(param);
         let all = vec![
             Unavailable::TangentDegraded {
                 param: param.clone(),
@@ -2141,7 +2141,7 @@ mod tests {
     /// A refused rss row splits back into exactly the blockers it was
     /// made from, in order — including blockers whose sentences carry
     /// the punctuation a flat join would have split on, which a
-    /// sentence is free to write. A NAME cannot carry it: a `ParamName`
+    /// sentence is free to write. A NAME cannot carry it: a `VarName`
     /// is one identifier by construction, so the second batch is a
     /// second identifier and the sentences alone carry the separators.
     #[test]
@@ -2171,7 +2171,7 @@ mod tests {
     fn a_single_blocker_is_counted_in_the_singular() {
         let rendered = render_rss(&Rss::UnavailableBecause {
             blockers: vec![Unavailable::Unliftable {
-                param: ParamName::from_static("w"),
+                param: VarName::from_static("w"),
             }],
         });
         assert_eq!(

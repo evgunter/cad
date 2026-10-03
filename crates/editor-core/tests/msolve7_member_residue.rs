@@ -25,9 +25,9 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, ContentPin, Datum, Dimension, Distribution,
-    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EntityKind, EvalOptions, Expr, MateFault,
-    MateFrame, MatePrimitive, Node, ParamName, PatternKind, PersistError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedFace, StableName, apply, load, save,
+    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Expr, FreeValue, FreeVar, MateFault,
+    MateFrame, MatePrimitive, Node, PatternKind, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
+    SitedFace, StableName, VarName, apply, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{head, head_at, in_copy, insert, len, on_frame, scl, solve, step};
@@ -217,7 +217,7 @@ type Rule = (fn(RecipeNodeId) -> PatternKind, Expr);
 /// The document parameters declared first, then base, top, the
 /// pattern `rule` places the top by (a linear rule, or a circular one
 /// over an axis datum inserted before it), and the mate.
-fn scene(label: &str, params: &[(&'static str, DocParam)], rule: Option<Rule>, copy: u32) -> Scene {
+fn scene(label: &str, params: &[(&'static str, FreeVar)], rule: Option<Rule>, copy: u32) -> Scene {
     let mut store = PartStore::default();
     let (base_ref, base_body) = store.insert_part(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
@@ -233,7 +233,7 @@ fn scene(label: &str, params: &[(&'static str, DocParam)], rule: Option<Rule>, c
         doc = step(
             doc,
             DocEdit::SetDocParam {
-                name: ParamName::from_static(name),
+                name: VarName::from_static(name),
                 value: value.clone(),
             },
         )
@@ -277,11 +277,11 @@ fn scene(label: &str, params: &[(&'static str, DocParam)], rule: Option<Rule>, c
     }
 }
 
-fn set_value(doc: ProfileDoc, name: &'static str, value: DocParamValue) -> ProfileDoc {
+fn set_value(doc: ProfileDoc, name: &'static str, value: FreeValue) -> ProfileDoc {
     step(
         doc,
         DocEdit::SetDocParamValue {
-            name: ParamName::from_static(name),
+            name: VarName::from_static(name),
             value,
         },
     )
@@ -291,14 +291,14 @@ fn set_value(doc: ProfileDoc, name: &'static str, value: DocParamValue) -> Profi
 fn linear_x_by_s(_axis: RecipeNodeId) -> PatternKind {
     PatternKind::Linear {
         direction: [1.0, 0.0, 0.0].map(scl),
-        spacing: Expr::param(ParamName::from_static("s"), Dimension::Length),
+        spacing: Expr::param(VarName::from_static("s"), Dimension::Length),
     }
 }
 
 fn circular_by_th(axis: RecipeNodeId) -> PatternKind {
     PatternKind::Circular {
         axis,
-        step: Expr::param(ParamName::from_static("th"), Dimension::Angle),
+        step: Expr::param(VarName::from_static("th"), Dimension::Angle),
     }
 }
 
@@ -325,11 +325,11 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
     let params = [
         (
             "s",
-            DocParam::continuous_with(Dimension::Length, 5.0, Distribution::Normal { sigma: 1.0 }),
+            FreeVar::continuous_with(Dimension::Length, 5.0, Distribution::Normal { sigma: 1.0 }),
         ),
-        ("n", DocParam::Count { value: 3 }),
+        ("n", FreeVar::Count { value: 3 }),
     ];
-    let count = || Expr::param(ParamName::from_static("n"), Dimension::Count);
+    let count = || Expr::param(VarName::from_static("n"), Dimension::Count);
     let control = scene("msolve7-a1-linear-control", &params, None, 0);
     let c = top_pose(&control, "control");
     let test = scene(
@@ -348,7 +348,7 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
     // The same number through the public expression door against the
     // document's own nominal environment.
     let via_env = editor_core::eval::<f64>(
-        &Expr::param(ParamName::from_static("s"), Dimension::Length),
+        &Expr::param(VarName::from_static("s"), Dimension::Length),
         &test.doc.param_env::<f64>(),
     )
     .unwrap();
@@ -358,7 +358,7 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
     assert_eq!(c.translation[2].to_bits(), t.translation[2].to_bits());
     // The environment is the DOCUMENT's: a new nominal, a new offset.
     let edited = Scene {
-        doc: set_value(test.doc.clone(), "s", DocParamValue::Continuous(7.5)),
+        doc: set_value(test.doc.clone(), "s", FreeValue::Continuous(7.5)),
         ..test.clone()
     };
     let t2 = top_pose(&edited, "s=7.5 copy 1");
@@ -374,7 +374,7 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
         2,
     );
     let two = Scene {
-        doc: set_value(two.doc.clone(), "s", DocParamValue::Continuous(7.5)),
+        doc: set_value(two.doc.clone(), "s", FreeValue::Continuous(7.5)),
         ..two
     };
     let t3 = top_pose(&two, "s=7.5 copy 2");
@@ -395,13 +395,13 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
 #[test]
 fn a1_the_count_is_read_at_the_documents_own_bindings() {
     let params = [
-        ("s", DocParam::continuous(Dimension::Length, 4.0)),
-        ("n", DocParam::Count { value: 3 }),
+        ("s", FreeVar::continuous(Dimension::Length, 4.0)),
+        ("n", FreeVar::Count { value: 3 }),
     ];
-    let count = Expr::param(ParamName::from_static("n"), Dimension::Count);
+    let count = Expr::param(VarName::from_static("n"), Dimension::Count);
     let s = scene("msolve7-a1-count", &params, Some((linear_x_by_s, count)), 2);
     top_pose(&s, "n=3 copy 2");
-    let shrunk = set_value(s.doc.clone(), "n", DocParamValue::Count(2));
+    let shrunk = set_value(s.doc.clone(), "n", FreeValue::Count(2));
     let poses = solve(&shrunk, &s.opts, Tol::witness());
     match poses.fault(s.mate).cloned() {
         Some(MateFault::DanglingHead { head, .. }) => assert_eq!(head, s.pattern.unwrap()),
@@ -414,7 +414,7 @@ fn a1_the_count_is_read_at_the_documents_own_bindings() {
 /// edit of θ.
 #[test]
 fn a1_a_circular_offset_follows_the_documents_angle_parameter() {
-    let params = [("th", DocParam::continuous(Dimension::Angle, 0.7))];
+    let params = [("th", FreeVar::continuous(Dimension::Angle, 0.7))];
     let control = scene("msolve7-a1-circular-control", &params, None, 0);
     let c = top_pose(&control, "control").affine::<f64>();
     let s = scene(
@@ -441,7 +441,7 @@ fn a1_a_circular_offset_follows_the_documents_angle_parameter() {
     };
     let t1 = check(s.doc.clone(), 0.7, "θ=0.7");
     let t2 = check(
-        set_value(s.doc.clone(), "th", DocParamValue::Continuous(1.3)),
+        set_value(s.doc.clone(), "th", FreeValue::Continuous(1.3)),
         1.3,
         "θ=1.3",
     );

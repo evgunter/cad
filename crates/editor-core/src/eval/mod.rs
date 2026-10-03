@@ -1450,7 +1450,7 @@ pub enum NodeErrorKind {
         /// The section profile node the seed reaches and stops at.
         section: RecipeNodeId,
         /// The seeded parameter the section reads.
-        param: crate::doc::ParamName,
+        param: crate::doc::VarName,
     },
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
@@ -3322,7 +3322,7 @@ pub struct EvalOptions {
     /// construction, before any node runs. Seeding composes with
     /// `param_box` exactly where both capabilities meet
     /// (`Dual<Interval>`: value channel the box, tangent the seed).
-    pub seed: Option<crate::doc::ParamName>,
+    pub seed: Option<crate::doc::VarName>,
 }
 
 /// Where profile geometry comes from at a non-`f64` scalar.

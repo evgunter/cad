@@ -33,8 +33,8 @@ use core::f64::consts::PI;
 
 use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{
-    Axis3, BooleanOp, Dimension, Doc, DocEdit, DocParam, EditError, ParamName, ProfileProgram,
-    RecipeNodeId, SlotId, StepArg,
+    Axis3, BooleanOp, Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId,
+    SlotId, StepArg, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
@@ -109,7 +109,7 @@ fn radius_slot(doc: &Doc<ProfileProgram>, profile: RecipeNodeId) -> SlotId {
 }
 
 /// A declared parameter's stored value.
-fn param_of(doc: &Doc<ProfileProgram>, name: &ParamName) -> SlotValue {
+fn param_of(doc: &Doc<ProfileProgram>, name: &VarName) -> SlotValue {
     props::param_rows(doc)
         .into_iter()
         .find(|row| row.name == *name)
@@ -169,15 +169,15 @@ fn the_parametric_living_walk() {
 
     // ── 2. The user declares the proportions FIRST — four parameters,
     // each one committed `SetDocParam` edit and one undo step.
-    let base_r = ParamName::from_static("base_r");
-    let taper = ParamName::from_static("taper");
-    let height = ParamName::from_static("height");
-    let embed = ParamName::from_static("embed");
+    let base_r = VarName::from_static("base_r");
+    let taper = VarName::from_static("taper");
+    let height = VarName::from_static("height");
+    let embed = VarName::from_static("embed");
     for (name, param) in [
-        (&base_r, DocParam::continuous(Dimension::Length, BASE_R)),
-        (&taper, DocParam::continuous(Dimension::Scalar, TAPER)),
-        (&height, DocParam::continuous(Dimension::Length, HEIGHT)),
-        (&embed, DocParam::continuous(Dimension::Length, EMBED)),
+        (&base_r, FreeVar::continuous(Dimension::Length, BASE_R)),
+        (&taper, FreeVar::continuous(Dimension::Scalar, TAPER)),
+        (&height, FreeVar::continuous(Dimension::Length, HEIGHT)),
+        (&embed, FreeVar::continuous(Dimension::Length, EMBED)),
     ] {
         let before = session.history().len();
         let outcome = session.perform(SessionOp::CreateParam {
@@ -211,7 +211,7 @@ fn the_parametric_living_walk() {
     let before = session.history().len();
     let outcome = session.perform(SessionOp::CreateParam {
         name: taper.clone(),
-        value: DocParam::continuous(Dimension::Length, 1.0),
+        value: FreeVar::continuous(Dimension::Length, 1.0),
     });
     match outcome.refusal {
         Some(Refusal::ParamExists {
@@ -229,7 +229,7 @@ fn the_parametric_living_walk() {
     }
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
     let outcome = session.perform(SessionOp::SetParam {
-        name: ParamName::from_static("tapper"),
+        name: VarName::from_static("tapper"),
         value: SlotValue::Continuous(0.5),
     });
     match outcome.refusal {
@@ -456,7 +456,7 @@ fn the_parametric_living_walk() {
     );
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: ParamName::from_static("tapper"),
+            name: VarName::from_static("tapper"),
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));

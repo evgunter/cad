@@ -4,7 +4,7 @@
 //! The switch's whole point, in one document: a profile whose geometry
 //! is an EXPRESSION, so a document parameter drives it. Every other
 //! corpus profile is literal-authored; this one is the first where
-//! editing a `DocParam` changes a profile's shape.
+//! editing a `FreeVar` changes a profile's shape.
 //!
 //! Shape: a rectangular plate with two round holes, unioned with a
 //! small tab (the tab is there so the incremental probe has a sibling
@@ -29,8 +29,8 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, SlotId,
+    BooleanOp, Dimension, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, SlotId, VarName,
 };
 
 use crate::fixture::{frame, len, xy_frame};
@@ -55,7 +55,7 @@ pub const HOLE_CENTRES: [(f64, f64); 2] = [(1.0, 1.0), (2.2, 1.0)];
 
 /// The hole radius, as the shared parameter reference.
 pub fn hole_radius() -> Expr {
-    Expr::param(ParamName::from_static(HOLE_R), Dimension::Length)
+    Expr::param(VarName::from_static(HOLE_R), Dimension::Length)
 }
 
 /// One hole loop: a circle whose radius is the shared parameter.
@@ -97,8 +97,8 @@ pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram {
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static(HOLE_R),
-        value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
+        name: VarName::from_static(HOLE_R),
+        value: FreeVar::continuous(Dimension::Length, HOLE_R_VALUE),
     });
 
     let plate_plane = r.insert(xy_frame());
@@ -138,7 +138,7 @@ pub fn document() -> CorpusDoc {
 
     CorpusDoc {
         name: "plate_param",
-        about: "the parametric scene: a plate whose two hole radii are one DocParam",
+        about: "the parametric scene: a plate whose two hole radii are one FreeVar",
         edits: r.edits,
         doc: r.doc,
         result: Some(union),

@@ -84,8 +84,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use editor_core::{
-    CancelToken, ChecksConfig, DocEdit, DocParam, EvalOptions, ParamName, ProfileDoc, Subject,
-    apply, evaluate, product_recorded, run_checks, run_checks_on,
+    CancelToken, ChecksConfig, DocEdit, EvalOptions, FreeVar, ProfileDoc, Subject, VarName, apply,
+    evaluate, product_recorded, run_checks, run_checks_on,
 };
 
 use corpus::{cone, documents, eval, failures};
@@ -445,8 +445,8 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
     apply(
         &entry.doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("fins"),
-            value: DocParam::Count { value: fins },
+            name: VarName::from_static("fins"),
+            value: FreeVar::Count { value: fins },
         },
         tol,
         &editor_core::RefusingReach,

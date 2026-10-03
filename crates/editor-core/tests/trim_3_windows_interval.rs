@@ -42,8 +42,8 @@ use editor_core::clearance::{
     ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection, clearance,
 };
 use editor_core::{
-    CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
+    CapEnd, Datum, Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, VarName,
 };
 use geom_core::Tol;
 
@@ -67,8 +67,8 @@ fn k_eps() -> f64 {
     Tol::witness().k() * eps()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn box_of(axis: &'static str) -> ParamBox {
@@ -86,7 +86,7 @@ fn box_of(axis: &'static str) -> ParamBox {
 fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(axis),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),

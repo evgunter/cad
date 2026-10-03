@@ -60,9 +60,9 @@ use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_k
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    DocParam, EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
-    ParamName, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef,
-    UnevaluatedReason, UnitSym, ValuePayload, evaluate,
+    EvalOptions, Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
+    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnevaluatedReason,
+    UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -82,8 +82,8 @@ fn numeric_lane() -> DriveConfig {
     }
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn half() -> f64 {
@@ -131,7 +131,7 @@ fn measure_value<T: geom_core::Decide>(
 fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distribution>) {
     r.push(DocEdit::SetDocParam {
         name: name(n),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value,
             display_unit: UnitSym::canonical_for(Dimension::Length),

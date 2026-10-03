@@ -162,7 +162,7 @@ use topo::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
 use topo::{Body, MetredBound, MetredRect, chart_boundary};
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, ParamName};
+use crate::doc::{Doc, VarName};
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, lane_opts, sliver};
 use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeStanding, evaluate};
 use crate::names::{EntityKey, Entry, StableName};
@@ -330,7 +330,7 @@ impl Default for ClearanceConfig {
 /// promise the implementor keeps, not one this module enforces.
 pub trait MonotoneOracle {
     /// The sign of `∂d/∂p` over the whole leaf, or `None`.
-    fn monotone_in(&self, param: &ParamName) -> Option<Sign>;
+    fn monotone_in(&self, param: &VarName) -> Option<Sign>;
 }
 
 /// The oracle that certifies nothing: E9's state, and the shipped
@@ -339,7 +339,7 @@ pub trait MonotoneOracle {
 pub struct NoTangents;
 
 impl MonotoneOracle for NoTangents {
-    fn monotone_in(&self, _param: &ParamName) -> Option<Sign> {
+    fn monotone_in(&self, _param: &VarName) -> Option<Sign> {
         None
     }
 }
@@ -512,7 +512,7 @@ pub struct Violation {
 pub struct ParamWitness {
     /// Per parameter, the OFFSET from the document's nominal (the
     /// analysis lane's own currency — [`crate::analysis::AnalyzedParam`]).
-    pub offsets: BTreeMap<ParamName, f64>,
+    pub offsets: BTreeMap<VarName, f64>,
 }
 
 /// A concrete pair of surface points, at `f64`, with the distance the
@@ -3251,7 +3251,7 @@ fn verify_witness(
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
     let (x, ca, y, cb) = at;
-    let mid: BTreeMap<ParamName, BoxAxis> = leaf
+    let mid: BTreeMap<VarName, BoxAxis> = leaf
         .axes()
         .iter()
         .map(|(n, a)| {

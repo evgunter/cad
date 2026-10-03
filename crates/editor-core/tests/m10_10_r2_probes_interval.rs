@@ -23,10 +23,10 @@ use editor_core::analysis::{
 use editor_core::drive::{DriveConfig, RefusalReason, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet,
-    UnitSym, select_where,
+    Dimension, Distribution, DocEdit, EntityKind, Expr, FreeVar, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
+    select_where,
 };
 use geom_core::{SymRules, Tol};
 
@@ -91,7 +91,7 @@ fn children(box_: &ParamBox) -> Vec<ParamBox> {
         };
         out = out
             .into_iter()
-            .flat_map(|acc: BTreeMap<ParamName, BoxAxis>| {
+            .flat_map(|acc: BTreeMap<VarName, BoxAxis>| {
                 halves.iter().map(move |h| {
                     let mut a = acc.clone();
                     a.insert(name.clone(), *h);
@@ -266,8 +266,8 @@ pub(crate) fn d_tab_at(
     let declare =
         |r: &mut Recorder, n: &'static str, dim: Dimension, value: f64, d: Distribution| {
             r.push(DocEdit::SetDocParam {
-                name: ParamName::from_static(n),
-                value: DocParam::Continuous {
+                name: VarName::from_static(n),
+                value: FreeVar::Continuous {
                     dim,
                     value,
                     display_unit: UnitSym::canonical_for(dim),
@@ -305,7 +305,7 @@ pub(crate) fn d_tab_at(
                 hi: 0.05 * scale,
             },
         );
-        Expr::param(ParamName::from_static("bulge"), Dimension::Scalar)
+        Expr::param(VarName::from_static("bulge"), Dimension::Scalar)
     } else {
         scl(bulge_nominal)
     };
@@ -335,10 +335,10 @@ pub(crate) fn d_tab_at(
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [
-                Expr::param(ParamName::from_static("hole_x"), Dimension::Length),
+                Expr::param(VarName::from_static("hole_x"), Dimension::Length),
                 len(0.0),
             ],
-            radius: Expr::param(ParamName::from_static("hole_r"), Dimension::Length),
+            radius: Expr::param(VarName::from_static("hole_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));

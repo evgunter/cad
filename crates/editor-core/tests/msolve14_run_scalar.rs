@@ -38,11 +38,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, AxisSense, BoxAxis, CancelToken, CapEnd, ContactClass, Dimension, DocEdit, DocParam,
-    DocRef, DocumentId, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, Node, NodeResult,
-    ParamBox, ParamName, PatternKind, Placement, ProfileDoc, ProfileLift, ProfileProgram,
-    RecipeNodeId, SitedFace, StableName, Step, ValuePayload, all_vertices, evaluate,
-    vertex_position,
+    Alignment, AxisSense, BoxAxis, CancelToken, CapEnd, ContactClass, Dimension, DocEdit, DocRef,
+    DocumentId, EvalOptions, Evaluation, Expr, FreeVar, MateFrame, MatePrimitive, Node, NodeResult,
+    ParamBox, PatternKind, Placement, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId,
+    SitedFace, StableName, Step, ValuePayload, VarName, all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, head_at, in_copy, insert, len, on_frame, scl, solve, step};
@@ -62,20 +61,20 @@ const SPACING: f64 = 2.0;
 /// The transform placer's lift parameter and its nominal.
 const GAP: f64 = 0.5;
 
-fn spacing() -> ParamName {
-    ParamName::from_static("s")
+fn spacing() -> VarName {
+    VarName::from_static("s")
 }
 
-fn gap() -> ParamName {
-    ParamName::from_static("gap")
+fn gap() -> VarName {
+    VarName::from_static("gap")
 }
 
-fn lift() -> ParamName {
-    ParamName::from_static("lift")
+fn lift() -> VarName {
+    VarName::from_static("lift")
 }
 
-fn turn() -> ParamName {
-    ParamName::from_static("turn")
+fn turn() -> VarName {
+    VarName::from_static("turn")
 }
 
 /// A `w x w x h` block from the origin, as a whole part document, and
@@ -173,23 +172,23 @@ fn slab_at(x: f64, y: f64) -> MateFrame {
     authored([x, y, SLAB_HEIGHT], [0.0, 0.0, 1.0])
 }
 
-fn declare(doc: ProfileDoc, name: ParamName, v: f64, dim: Dimension) -> ProfileDoc {
+fn declare(doc: ProfileDoc, name: VarName, v: f64, dim: Dimension) -> ProfileDoc {
     step(
         doc,
         DocEdit::SetDocParam {
             name,
-            value: DocParam::continuous(dim, v),
+            value: FreeVar::continuous(dim, v),
         },
     )
     .0
 }
 
-fn set_value(doc: ProfileDoc, name: ParamName, v: f64) -> ProfileDoc {
+fn set_value(doc: ProfileDoc, name: VarName, v: f64) -> ProfileDoc {
     step(
         doc,
         DocEdit::SetDocParamValue {
             name,
-            value: editor_core::DocParamValue::Continuous(v),
+            value: editor_core::FreeValue::Continuous(v),
         },
     )
     .0
@@ -362,12 +361,12 @@ enum ShaftShape {
 const RISE: f64 = 1.0;
 const IDLE: f64 = 0.5;
 
-fn rise() -> ParamName {
-    ParamName::from_static("rise")
+fn rise() -> VarName {
+    VarName::from_static("rise")
 }
 
-fn idle() -> ParamName {
-    ParamName::from_static("idle")
+fn idle() -> VarName {
+    VarName::from_static("idle")
 }
 
 /// The two bores' bolt-side and slab-side axis points, on the bolt's
@@ -924,7 +923,7 @@ fn f64_vertices_at(
     doc: &ProfileDoc,
     opts: &EvalOptions,
     node: RecipeNodeId,
-    param: ParamName,
+    param: VarName,
     value: f64,
 ) -> BTreeMap<StableName, [f64; 3]> {
     let doc = set_value(doc.clone(), param, value);
@@ -948,7 +947,7 @@ fn copy_of(name: &StableName) -> u32 {
     }
 }
 
-fn seeded(opts: &EvalOptions, param: ParamName) -> EvalOptions {
+fn seeded(opts: &EvalOptions, param: VarName) -> EvalOptions {
     EvalOptions {
         seed: Some(param),
         profile_lift: ProfileLift::Guided,
@@ -956,7 +955,7 @@ fn seeded(opts: &EvalOptions, param: ParamName) -> EvalOptions {
     }
 }
 
-fn boxed(opts: &EvalOptions, param: ParamName, lo: f64, hi: f64) -> EvalOptions {
+fn boxed(opts: &EvalOptions, param: VarName, lo: f64, hi: f64) -> EvalOptions {
     EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes(BTreeMap::from([(
             param,
@@ -978,7 +977,7 @@ fn assert_tangents_match(
     opts: &EvalOptions,
     ev: &Evaluation<Dual64>,
     node: RecipeNodeId,
-    param: ParamName,
+    param: VarName,
     nominal: f64,
     what: &str,
 ) -> Vec<(StableName, [f64; 3])> {
@@ -993,7 +992,7 @@ fn assert_turn_tangents_match(
     opts: &EvalOptions,
     ev: &Evaluation<Dual64>,
     node: RecipeNodeId,
-    param: ParamName,
+    param: VarName,
     nominal: f64,
     what: &str,
 ) -> Vec<(StableName, [f64; 3])> {
@@ -1005,7 +1004,7 @@ fn tangents_match(
     opts: &EvalOptions,
     ev: &Evaluation<Dual64>,
     node: RecipeNodeId,
-    (param, nominal): (ParamName, f64),
+    (param, nominal): (VarName, f64),
     (h, slack): (f64, f64),
     what: &str,
 ) -> Vec<(StableName, [f64; 3])> {
@@ -1047,7 +1046,7 @@ fn assert_encloses_corners(
     opts: &EvalOptions,
     ev: &Evaluation<Interval>,
     node: RecipeNodeId,
-    (param, nominal): (ParamName, f64),
+    (param, nominal): (VarName, f64),
     (lo, hi): (f64, f64),
     what: &str,
 ) {
@@ -1095,7 +1094,7 @@ fn assert_pose_encloses_corners(
     doc: &ProfileDoc,
     opts: &EvalOptions,
     instance: RecipeNodeId,
-    param: ParamName,
+    param: VarName,
     nominal: f64,
     (lo, hi): (f64, f64),
     what: &str,
@@ -1362,12 +1361,12 @@ struct Slid {
 const SLIDE: f64 = 2.0;
 const SPIN: f64 = 0.3;
 
-fn slide() -> ParamName {
-    ParamName::from_static("slide")
+fn slide() -> VarName {
+    VarName::from_static("slide")
 }
 
-fn spin() -> ParamName {
-    ParamName::from_static("spin")
+fn spin() -> VarName {
+    VarName::from_static("spin")
 }
 
 fn slid(label: &str) -> Slid {
@@ -1985,7 +1984,7 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
         let want = structure(&doc, &f);
         assert_eq!(structure(&doc, &d), want, "{label}: Dual64's structure");
         assert_interval_structure(&doc, &f, &i, label);
-        let params: Vec<ParamName> = doc.params().keys().cloned().collect();
+        let params: Vec<VarName> = doc.params().keys().cloned().collect();
         let seeds = std::iter::once(None).chain(params.into_iter().map(Some));
         for seed in seeds {
             let o = EvalOptions {

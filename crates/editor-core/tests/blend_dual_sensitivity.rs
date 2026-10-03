@@ -20,9 +20,9 @@ use editor_core::ExtrudeSide;
 
 use editor_core::stackup::{Chamber, SensitivityOutcome, sensitivities};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Evaluation, Expr, LoopProgram,
-    MeasureExpr, MeasurePrimitive, Node, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId,
-    SitedRef, UnitSym, ValuePayload, evaluate,
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, FreeVar, LoopProgram,
+    MeasureExpr, MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
+    UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -46,12 +46,12 @@ const FD_TOL: f64 = 1e-7;
 /// closed form's arithmetic up to rounding.
 const CF_TOL: f64 = 1e-12;
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
-fn length(value: f64) -> DocParam {
-    DocParam::Continuous {
+fn length(value: f64) -> FreeVar {
+    FreeVar::Continuous {
         dim: Dimension::Length,
         value,
         display_unit: UnitSym::canonical_for(Dimension::Length),

@@ -23,17 +23,17 @@ use editor_core::stackup::{
     sensitivities, stackup,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
-    LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ParamValue, ProfileDoc,
-    ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    SitedRef, UnitSym, ValuePayload, evaluate, seed_env,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr, FreeVar,
+    LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileLift,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, UnitSym,
+    ValuePayload, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
 use fixture::{Recorder, ang, len, scl};
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
@@ -51,8 +51,8 @@ fn uniform(half: f64) -> Distribution {
     }
 }
 
-fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> DocParam {
-    DocParam::Continuous {
+fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> FreeVar {
+    FreeVar::Continuous {
         dim,
         value,
         display_unit: UnitSym::canonical_for(dim),
@@ -991,7 +991,7 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
             };
             for name in ["h1", "h2"] {
                 let (lo, hi) = leaf
-                    .get(&ParamName::from_static(name))
+                    .get(&VarName::from_static(name))
                     .expect("the axis")
                     .span();
                 assert!(

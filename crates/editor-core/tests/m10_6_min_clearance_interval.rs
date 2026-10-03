@@ -46,10 +46,10 @@ use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separatio
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
-    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
-    NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
-    UnevaluatedReason, UnitSym, ValuePayload, evaluate,
+    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
+    Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
+    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
+    UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -76,8 +76,8 @@ const NECK_GAP: f64 = 0.4;
 /// answer a correct engine gives.
 const BOUND: f64 = 0.3;
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// The analysis half-width, in metres — M10-5's, for M10-5's reason.
@@ -95,7 +95,7 @@ fn dumbbell() -> Dumbbell {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("place"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),

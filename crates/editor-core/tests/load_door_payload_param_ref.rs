@@ -30,8 +30,8 @@ use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, DocParam, EditError, Expr, MeasureExpr, Node, ParamName, PersistError,
-    ProfileDoc, RecipeNodeId, SlotId, SnapshotError, apply, load, save,
+    Dimension, DocEdit, EditError, Expr, FreeVar, MeasureExpr, Node, PersistError, ProfileDoc,
+    RecipeNodeId, SlotId, SnapshotError, VarName, apply, load, save,
 };
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
@@ -40,8 +40,8 @@ use geom_core::Tol;
 /// `depth` — the ground every row below builds its payload node on,
 /// with the EXTRUDE's id, which only the rows that need a SLOT to
 /// break read.
-fn with_depth_and_extrude() -> (ProfileDoc, ParamName, RecipeNodeId) {
-    let name = ParamName::from_static("depth");
+fn with_depth_and_extrude() -> (ProfileDoc, VarName, RecipeNodeId) {
+    let name = VarName::from_static("depth");
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("payload-param-ref"),
@@ -64,7 +64,7 @@ fn with_depth_and_extrude() -> (ProfileDoc, ParamName, RecipeNodeId) {
         &doc,
         &DocEdit::SetDocParam {
             name: name.clone(),
-            value: DocParam::continuous(Dimension::Length, 1.0),
+            value: FreeVar::continuous(Dimension::Length, 1.0),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -77,7 +77,7 @@ fn with_depth_and_extrude() -> (ProfileDoc, ParamName, RecipeNodeId) {
 /// The same ground for the rows whose fault is in a PAYLOAD and needs
 /// no slot address — the one place the extrude's id is dropped, so no
 /// row below writes `_` for a value it was handed.
-fn with_depth() -> (ProfileDoc, ParamName) {
+fn with_depth() -> (ProfileDoc, VarName) {
     let (doc, name, _) = with_depth_and_extrude();
     (doc, name)
 }
@@ -92,7 +92,7 @@ fn with_depth() -> (ProfileDoc, ParamName) {
 /// zero on the way out, passes on every other value and fails on this
 /// one. `MeasureExpr::add` keeps both leaves at `Length`, so the F1
 /// checker admits it and the value the measure reports is unchanged.
-fn measuring_depth() -> (ProfileDoc, ParamName, RecipeNodeId) {
+fn measuring_depth() -> (ProfileDoc, VarName, RecipeNodeId) {
     let (doc, name) = with_depth();
     let expr = MeasureExpr::add(
         MeasureExpr::value(Expr::param(name.clone(), Dimension::Length)),
@@ -111,7 +111,7 @@ fn measuring_depth() -> (ProfileDoc, ParamName, RecipeNodeId) {
 
 /// The declaration removed from the wire, out from under whatever reads
 /// it.
-fn undeclare(text: &str, name: &ParamName) -> String {
+fn undeclare(text: &str, name: &VarName) -> String {
     doctored(text, |wire| {
         let params = wire["snapshot"]["params"]
             .as_object_mut()
@@ -126,7 +126,7 @@ fn undeclare(text: &str, name: &ParamName) -> String {
 /// The declaration RETYPED on the wire, its display unit moved with it
 /// so the document is broken in exactly one way: the pairing between a
 /// declaration and the dimension an expression reads it at.
-fn retype_to_angle(text: &str, name: &ParamName) -> String {
+fn retype_to_angle(text: &str, name: &VarName) -> String {
     doctored(text, |wire| {
         let decl = &mut wire["snapshot"]["params"][name.as_str()]["Continuous"];
         assert_eq!(
@@ -153,7 +153,7 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
     let (doc, name, measure) = measuring_depth();
 
     // The edit door, over the node as written.
-    let missing = ParamName::from_static("nowhere");
+    let missing = VarName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -193,7 +193,7 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
         &doc,
         &DocEdit::SetDocParam {
             name: name.clone(),
-            value: DocParam::continuous(Dimension::Angle, 1.0),
+            value: FreeVar::continuous(Dimension::Angle, 1.0),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -244,14 +244,14 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
             refs: Vec::new(),
         },
     );
-    let bound = |n: &ParamName| Node::Assertion {
+    let bound = |n: &VarName| Node::Assertion {
         measure,
         bound: Expr::param(n.clone(), Dimension::Length),
         dir: editor_core::AssertionDir::AtLeast,
     };
     let (doc, assertion) = insert(doc, bound(&name));
 
-    let missing = ParamName::from_static("nowhere");
+    let missing = VarName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::InsertNode {

@@ -15,10 +15,10 @@ use editor_core::drive::{DriveConfig, RefusalReason, SymbolicDials, assertion_at
 use editor_core::report::MassBudget;
 use editor_core::stackup::stackup;
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr, GeomPred,
-    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ParamName, ProfileDoc,
-    ProfileLift, ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
-    evaluate, select_where,
+    Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Expr, FreeVar, GeomPred,
+    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileLift,
+    ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, evaluate,
+    select_where,
 };
 use fixture::{Recorder, len, scl, xy_frame};
 use geom_core::Tol;
@@ -27,7 +27,7 @@ use crate::m10_3_driver_interval::{slab, sliver_axis};
 use crate::m10_7_plate::plate;
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(n), Dimension::Length)
+    Expr::param(VarName::from_static(n), Dimension::Length)
 }
 
 /// Every `Failed` node of a leaf replay, with its kind — the first is
@@ -349,8 +349,8 @@ fn bracket_with(
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("w"),
-        value: DocParam::Continuous {
+        name: VarName::from_static("w"),
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: 20.0e-3,
             display_unit: UnitSym::canonical_for(Dimension::Length),

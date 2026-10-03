@@ -8,9 +8,7 @@
 
 use crate::fixture;
 
-use editor_core::{
-    CancelToken, DocParam, EvalOptions, Evaluation, ParamName, ProfileDoc, evaluate,
-};
+use editor_core::{CancelToken, EvalOptions, Evaluation, FreeVar, ProfileDoc, VarName, evaluate};
 use fixture::{DEPTH, die, step};
 use geom_core::Tol;
 
@@ -129,9 +127,9 @@ fn pip_depth_motion_without_flips_leaves_every_table_identical() {
     let (doc2, _) = step(
         d.doc,
         editor_core::DocEdit::SetDocParam {
-            name: ParamName::from_static("pip_depth"),
+            name: VarName::from_static("pip_depth"),
             // 0.1875, dyadic.
-            value: DocParam::continuous(editor_core::Dimension::Length, DEPTH * 1.5),
+            value: FreeVar::continuous(editor_core::Dimension::Length, DEPTH * 1.5),
         },
     );
     let ev2 = evaluate::<f64>(

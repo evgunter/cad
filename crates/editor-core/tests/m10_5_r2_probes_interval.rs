@@ -46,8 +46,8 @@ use editor_core::clearance::{
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    CapEnd, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
+    CapEnd, Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RoleSeg, VarName,
 };
 use geom_core::k_stats::decide;
 use geom_core::{Band, Margin, Sign, Tol};
@@ -62,8 +62,8 @@ fn half() -> f64 {
     Tol::witness().eps() / 64.0
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn box_of(axis: &'static str) -> ParamBox {
@@ -81,7 +81,7 @@ fn box_of(axis: &'static str) -> ParamBox {
 fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(axis),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -849,7 +849,7 @@ fn a_bound_that_is_not_a_number_still_lands_in_the_trichotomy() {
 struct AlwaysDecreasing;
 
 impl MonotoneOracle for AlwaysDecreasing {
-    fn monotone_in(&self, _param: &ParamName) -> Option<Sign> {
+    fn monotone_in(&self, _param: &VarName) -> Option<Sign> {
         Some(Sign::Negative)
     }
 }
@@ -865,7 +865,7 @@ impl MonotoneOracle for AlwaysDecreasing {
 fn the_accelerator_changes_no_verdict_on_the_comb() {
     struct Constant;
     impl MonotoneOracle for Constant {
-        fn monotone_in(&self, _param: &ParamName) -> Option<Sign> {
+        fn monotone_in(&self, _param: &VarName) -> Option<Sign> {
             Some(Sign::Zero)
         }
     }
