@@ -71,3 +71,22 @@ a lane that moved what it was decided over — and the refusal this row
 proposes covers it when it also intersects the bound names with the
 names a parametric gauge or root offset reads. With no placer on either
 path the frame cancels and is not read, so the check is lane-exact.
+
+## Weighed (2026-10-01)
+
+Plan item 19 gathers this row and its sibling
+(`from-face-frame-under-an-analysis-lane-refuses-unpinned`,
+`a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs`)
+into one design fork, which two designers weighed on
+`msolve/ev-analysis-lane-solve`. That PR adds the sentence to
+`ASSEMBLY.md` A11 rule 5 that the recommendation would make true.
+
+## Ruled (Ev, `[ev]` PR 3679, 2026-10-01)
+
+Approved: the mate solve runs at the evaluation's own scalar, over the
+evaluation's own parameters. A pattern's count and a `Part`'s index
+are read at the nominal, because no box or seed binds them.
+`ASSEMBLY.md` A11 (5) states this in place. The build is an MSOLVE
+unit: the solve goes generic over the scalar, and `Unpinned` loses its
+producer.
+
