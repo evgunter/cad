@@ -903,7 +903,7 @@ struct Span {
 /// taken only once one of its ends is joined to it, those that join a
 /// ring vertex first, and realizing one joins its other end. A segment
 /// both of whose ends stay unjoined once no other can be taken refuses
-/// typed ([`RestZipFrontier::ChordBetweenIsolatedPierces`]).
+/// typed ([`RestZipFrontier::SegmentsBetweenIsolatedPierces`]).
 /// `Ok(None)`: a segment does not resolve structurally — not this lane's
 /// frontier (pre-identification phase).
 fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
@@ -916,18 +916,18 @@ fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Option<SeamSet>, BooleanError> {
     let mut per_segment: Vec<Option<EdgeKey>> = vec![None; spans.len()];
     loop {
-        let joined = |w: VertexKey| body.get_vertex(w).is_some_and(|d| d.emanating.is_some());
+        let has_edge = |w: VertexKey| body.get_vertex(w).is_some_and(|d| d.emanating.is_some());
         let open = || (0..spans.len()).filter(|&i| per_segment[i].is_none());
         let unjoined = |i: usize| {
             let (u, v) = spans[i].ends;
-            usize::from(!joined(u)) + usize::from(!joined(v))
+            usize::from(!has_edge(u)) + usize::from(!has_edge(v))
         };
         let next = open()
             .find(|&i| unjoined(i) == 1)
             .or_else(|| open().find(|&i| unjoined(i) == 0));
         let Some(i) = next else {
             if open().next().is_some() {
-                return Err(unsupported(RestZipFrontier::ChordBetweenIsolatedPierces));
+                return Err(unsupported(RestZipFrontier::SegmentsBetweenIsolatedPierces));
             }
             break;
         };

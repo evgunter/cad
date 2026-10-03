@@ -918,8 +918,8 @@ pub(super) fn germ_locus<T: Decide>(
 /// **Both operands' cells of a germ at a vertex pair** ([`germ_locus`]
 /// on each). Where both sectors hold a bound read On, the two edges
 /// leave the site together: they are one segment when the reduction
-/// paired their far ends and each runs on the other's carrier
-/// ([`coincide`]), and otherwise they part, and the segment runs along
+/// paired their far ends ([`one_segment`]), and otherwise they part,
+/// and the segment runs along
 /// at most one of them: the one whose far end lies deeper in the
 /// partner by what the reduction recorded there ([`Touch`]), or, where
 /// both are recorded alike, the one whose curve runs inside the
@@ -945,8 +945,8 @@ pub(super) fn germ_loci<T: Decide>(
         .vv
         .iter()
         .any(|c| far_a.contains(&c.a) && far_b.contains(&c.b));
-    if paired && coincide(a, ea, b, eb, band)? {
-        return Ok((OnEdge(ea.edge), OnEdge(eb.edge)));
+    if paired {
+        return one_segment(a, ea, b, eb);
     }
     let tangent = |side: GermSide<'_, T>, partner: GermSide<'_, T>, e: Along| {
         tangent_face(side, partner, e.edge, contacts).map(|f| InFace(f.unwrap_or(side.sector.face)))
@@ -968,49 +968,47 @@ pub(super) fn germ_loci<T: Decide>(
     })
 }
 
-/// A point inside an edge, away from its ends.
-fn edge_mid<T: Decide>(body: &Body<T>, edge: crate::entity::EdgeKey) -> Option<Point3<T>> {
-    let e = body.get_edge(edge)?;
-    Some(body.get_curve_geom(e.curve)?.certified()?.mid_point())
+/// The certified curve of a germ edge.
+fn germ_curve<T: Decide>(
+    body: &Body<T>,
+    edge: crate::entity::EdgeKey,
+) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
+    body.get_edge(edge)
+        .and_then(|e| body.get_curve_geom(e.curve))
+        .and_then(crate::null::CurveGeom::certified)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "a germ edge has no certified curve",
+        })
 }
 
-/// Whether two edges leaving a site with paired far ends are one curve:
-/// the midpoint of `ea` lies on `eb`'s carrier. Same ends and a shared
-/// carrier make them one edge, since both leave the site along the
-/// germ. A carrier other than a line or a circle answers `false`.
-fn coincide<T: Decide>(
+/// **Two edges leaving a site along the germ, with paired far ends,
+/// are one segment** when both are lines or circles. Each is tangent to
+/// the germ at the site, and a line or circle meets a line or circle
+/// tangent to it there at no other point unless the two are one curve,
+/// so the paired far ends make them one; the sweep splits an edge at
+/// every crossing of the partner, so neither passes the other's far
+/// end. This is structure, not a test: no reading of the two curves
+/// could answer otherwise. A conic or spline can meet such a partner
+/// again, and its pair is refused
+/// ([`BooleanError::GermEdgeCarrierUnsupported`]).
+fn one_segment<T: Decide>(
     a: GermSide<'_, T>,
     ea: Along,
     b: GermSide<'_, T>,
     eb: Along,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let lost = || BooleanError::ClassificationInvariant {
-        what: "a germ edge has no certified curve",
-    };
-    let p = edge_mid(a.body, ea.edge).ok_or_else(lost)?;
-    let carrier = b
-        .body
-        .get_edge(eb.edge)
-        .and_then(|e| b.body.get_curve_geom(e.curve))
-        .and_then(crate::null::CurveGeom::certified)
-        .ok_or_else(lost)?
-        .carrier();
-    let miss = match *carrier {
-        geom::Curve3::Line { origin, dir } => (p - origin).cross(dir).norm(),
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            ..
-        } => crate::splitting::containment::circle_miss(p, center, axis, radius),
-        _ => return Ok(false),
-    };
-    Ok(
-        decide("bool_germ_edges_coincide", Margin::of(miss), band).map_err(|diag| {
-            BooleanError::coincidence(Coincide::EdgeOnEdge, DeclarationRead::Moot, diag)
-        })? == Sign::Zero,
-    )
+) -> Result<(super::Locus, super::Locus), BooleanError> {
+    for (side, e) in [(a, ea), (b, eb)] {
+        match germ_curve(side.body, e.edge)?.carrier() {
+            geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => {}
+            _ => {
+                return Err(BooleanError::GermEdgeCarrierUnsupported {
+                    operand: side.operand,
+                    edge: e.edge,
+                });
+            }
+        }
+    }
+    Ok((super::Locus::OnEdge(ea.edge), super::Locus::OnEdge(eb.edge)))
 }
 
 /// Whether the edge `e` of `side`, past the site, runs inside the face
@@ -1020,7 +1018,9 @@ fn coincide<T: Decide>(
 /// ([`super::solid_contain::point_in_face`]); the sweep splits an edge
 /// at every crossing of the partner, so the midpoint speaks for the
 /// whole edge. `None`: undecided — a midpoint on the face's boundary, a
-/// face that is not a plane, or a trim the walk cannot read.
+/// face that is not a plane, or no single face across `pe`. A face or
+/// loop that does not resolve, and a trim the walk cannot read, are
+/// refused.
 fn runs_in<T: Decide>(
     side: GermSide<'_, T>,
     e: Along,
@@ -1033,19 +1033,24 @@ fn runs_in<T: Decide>(
     let edge = pb
         .get_edge(pe.edge)
         .ok_or(invariant("a germ edge no longer resolves"))?;
-    let faces = [edge.he_plus, edge.he_minus].map(|h| pb.face_of_half_edge(h));
-    let [face] = faces
-        .into_iter()
-        .flatten()
-        .filter(|&f| f != partner.sector.face)
-        .collect::<Vec<_>>()[..]
-    else {
+    let mut faces = Vec::new();
+    for h in [edge.he_plus, edge.he_minus] {
+        let f = pb
+            .face_of_half_edge(h)
+            .ok_or(invariant("a germ edge's half has no face"))?;
+        if f != partner.sector.face {
+            faces.push(f);
+        }
+    }
+    let [face] = faces[..] else {
         return Ok(None);
     };
-    let Ok((origin, normal)) = super::solid_contain::face_plane(pb, face) else {
-        return Ok(None);
+    let (origin, normal) = match super::solid_contain::face_plane(pb, face) {
+        Ok(plane) => plane,
+        Err(super::solid_contain::PointInSolidError::KindUnsupported { .. }) => return Ok(None),
+        Err(e) => return Err(BooleanError::Containment(e)),
     };
-    let p = edge_mid(side.body, e.edge).ok_or(invariant("a germ edge has no certified curve"))?;
+    let p = germ_curve(side.body, e.edge)?.mid_point();
     let height = Margin::of((p - origin).dot(normal));
     match decide("bool_germ_tie_plane", height, band).map_err(|diag| {
         BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
@@ -1053,7 +1058,8 @@ fn runs_in<T: Decide>(
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => return Ok(Some(false)),
     }
-    Ok(super::solid_contain::point_in_face(pb, face, normal, p, band).unwrap_or(None))
+    super::solid_contain::point_in_face(pb, face, normal, p, band)
+        .map_err(BooleanError::Containment)
 }
 
 /// The bound of the germ's sector read On against the partner face, when
@@ -1177,33 +1183,41 @@ pub(super) fn sole_common_face(xs: &[FaceKey], ys: &[FaceKey]) -> Option<FaceKey
 
 /// The faces around a site of `body` (every copy null edges tie
 /// `vertex` to), deduplicated, null faces skipped. With no null edges
-/// at the site, the faces around `vertex` itself.
+/// at the site, the faces around `vertex` itself. An isolated vertex
+/// (a pierce-ring vertex joined to nothing) contributes none; a vertex,
+/// half-edge, edge or loop of the site that does not resolve is refused.
 pub(super) fn faces_at<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
 ) -> Result<Vec<FaceKey>, BooleanError> {
+    let invariant = |what| BooleanError::ClassificationInvariant { what };
     let mut out = Vec::new();
     for v in crate::chord_join::null_site(body, &[vertex]) {
-        let Some(anchor) = body.get_vertex(v).and_then(|d| d.emanating) else {
+        let Some(anchor) = body
+            .get_vertex(v)
+            .ok_or(invariant("a site's vertex no longer resolves"))?
+            .emanating
+        else {
             continue;
         };
         let orbit = body
             .vertex_orbit(anchor)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "a site's vertex orbit does not walk",
-            })?;
+            .ok_or(invariant("a site's vertex orbit does not walk"))?;
         for he in orbit {
-            let edge = body.get_half_edge(he).map(|h| h.edge);
-            let null = edge
-                .and_then(|k| body.get_edge(k))
+            let half = body
+                .get_half_edge(he)
+                .ok_or(invariant("a site's half-edge no longer resolves"))?;
+            let geom = body
+                .get_edge(half.edge)
                 .and_then(|e| body.get_curve_geom(e.curve))
-                .is_some_and(|g| g.null_scaffold().is_some());
-            if null {
+                .ok_or(invariant("a site's edge has no curve"))?;
+            if geom.null_scaffold().is_some() {
                 continue;
             }
-            if let Some(f) = body.face_of_half_edge(he)
-                && !out.contains(&f)
-            {
+            let f = body
+                .face_of_half_edge(he)
+                .ok_or(invariant("a site's half-edge has no face"))?;
+            if !out.contains(&f) {
                 out.push(f);
             }
         }

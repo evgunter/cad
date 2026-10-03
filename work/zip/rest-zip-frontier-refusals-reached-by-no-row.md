@@ -91,3 +91,13 @@ all; on main 0abf909cb the reflex battery reached it on 8 poses
 (`ChordBetweenIsolatedPierces` among them, `sqQ2` unions), which the
 join now builds or refuses before the zip runs. All sixteen sub-frontiers
 are reached by no row.
+
+## Now seventeen (JOIN-2, PR 3880)
+
+The zip reads the join's segments and realizes them outward from the
+contact faces' boundary (`realize_seam`). Segments left whose ends are
+all pierce-ring vertices joined to nothing refuse there as
+`SegmentsBetweenIsolatedPierces`; `ChordBetweenIsolatedPierces` stays
+`mint_chord`'s, reachable from `mirror_edges`. Neither is reached by the
+topo or sweep suites, JOIN-2's reviewers' batteries
+(`join2_r1_probes`, `join2_r2_probes`, `join2_d_probes`) or R1's grid.

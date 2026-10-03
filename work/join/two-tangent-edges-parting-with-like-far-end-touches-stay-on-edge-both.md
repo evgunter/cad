@@ -71,7 +71,9 @@ the face's plane, then `solid_contain::point_in_face` its trim). The
 sweep splits an edge at every crossing of the partner, so the midpoint
 speaks for the whole edge. Exactly one inside: the segment runs along
 it, and the other germ lies in `tangent_face`. Anything else (both, or
-neither, or undecided: a non-plane face, a graze) stays `OnEdge` both.
+neither, or undecided: a non-plane face, a graze, no single face across
+the partner's edge) stays `OnEdge` both. A face, loop or trim the read
+cannot resolve refuses rather than reading as undecided.
 
 Every pose above builds SOUND in both orders: R1's 6 `ell` union lines,
 R2's 36. Pinned by `join2_r2_probes`'s

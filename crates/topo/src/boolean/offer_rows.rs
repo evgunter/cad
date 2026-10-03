@@ -1837,6 +1837,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CurvedEdgeUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
+        | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
@@ -2437,7 +2438,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
-    ("sectors.rs", "coincide", "Coincide::EdgeOnEdge", 1),
     (
         "sectors.rs",
         "direction_sense",

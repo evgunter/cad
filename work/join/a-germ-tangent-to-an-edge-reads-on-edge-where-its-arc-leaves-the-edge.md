@@ -57,7 +57,10 @@ an edge at every crossing of the partner, so an edge lying on the
 partner ends at a recorded touch: an edge whose far end has no `vv` or
 `vf` contact leaves the partner, and the germ is only tangent to it.
 Where both sectors hold such a bound, the two edges are one segment
-when their far ends are a recorded vertex pair. Otherwise they part,
+when their far ends are a recorded vertex pair: a line or circle
+tangent to another at the site meets it nowhere else unless the two are
+one curve (`one_segment`; any other carrier refuses typed,
+`GermEdgeCarrierUnsupported`). Otherwise they part,
 and the segment runs along the edge whose far end lies deeper in the
 partner (`Touch`: apart < boundary < face). The other germ takes the
 face holding both ends of that edge (`tangent_face`). `insert.rs` reads

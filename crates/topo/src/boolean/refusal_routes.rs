@@ -1169,6 +1169,9 @@ pub enum RestZipFrontier {
     ChordEndpointAbsent,
     /// A seam chord joins two isolated pierce points.
     ChordBetweenIsolatedPierces,
+    /// Seam segments are left whose ends are all isolated pierce points,
+    /// with no boundary for the seam to grow from.
+    SegmentsBetweenIsolatedPierces,
     /// A seam chord's endpoint recurs on its host face's boundary.
     ChordEndpointRevisited,
     /// The other part's edge a chord stands for has no certified line
@@ -1206,6 +1209,9 @@ impl RestZipFrontier {
             Self::PierceRingMekrRefused => "seam chord mekr (pierce ring) refused",
             Self::ChordEndpointAbsent => "seam chord endpoint has no boundary presence",
             Self::ChordBetweenIsolatedPierces => "seam chord between two isolated pierce points",
+            Self::SegmentsBetweenIsolatedPierces => {
+                "seam segments left between isolated pierce points only"
+            }
             Self::ChordEndpointRevisited => {
                 "seam chord endpoint revisited by its host face boundary"
             }
@@ -1244,6 +1250,7 @@ impl RestZipFrontier {
             | Self::PierceRingMekrRefused
             | Self::ChordEndpointAbsent
             | Self::ChordBetweenIsolatedPierces
+            | Self::SegmentsBetweenIsolatedPierces
             | Self::ChordEndpointRevisited
             | Self::TwinCarrierUnsupported
             | Self::PatchVertexUnmatched
