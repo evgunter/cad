@@ -451,7 +451,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         // quantity now, and generic evaluation code does not compare.
         worst = worst.max(r);
         let decided = decide("ssi_on_locus", Margin::of(r), band);
-        if !matches!(decided, Ok(Sign::Zero)) {
+        if locatable(&decided) {
             at.push(RefusedSpan { lo: t, hi: t });
             if let Ok(hull) = hull() {
                 hull.uncleared(band, at);
@@ -483,7 +483,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // caller's scalar like every other residual (field docs).
     let sup = T::from_f64(hull.sup);
     let decided = decide("ssi_hull_sup", Margin::of(sup), band);
-    if !matches!(decided, Ok(Sign::Zero)) {
+    if locatable(&decided) {
         hull.uncleared(band, at);
     }
     match decided {
@@ -585,7 +585,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             })?;
         worst = worst.max(proj.distance);
         let decided = decide("ssi_on_locus_foot", Margin::of(proj.distance), band);
-        if !matches!(decided, Ok(Sign::Zero)) {
+        if locatable(&decided) {
             at.push(RefusedSpan { lo: t, hi: t });
             if let Ok(hull) = hull() {
                 hull.uncleared(band, at);
@@ -642,7 +642,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // composite and the bound stays honest.
     let sup = T::from_f64(sup);
     let decided = decide("ssi_hull_sup_chart", Margin::of(sup), band);
-    if !matches!(decided, Ok(Sign::Zero)) {
+    if locatable(&decided) {
         hull.uncleared(band, at);
     }
     match decided {
@@ -655,6 +655,18 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             limb: SsiLimb::HullSup,
             cause,
         }),
+    }
+}
+
+/// Whether a limb's verdict is a refusal refinement can locate: a
+/// definite one, or one undecided on a margin that is a number. A
+/// margin that is no number is no residual a denser carrier answers, so
+/// that refusal stands at once.
+fn locatable(decided: &Result<Sign, geom_core::Indeterminate>) -> bool {
+    match decided {
+        Ok(Sign::Zero) => false,
+        Ok(Sign::Positive | Sign::Negative) => true,
+        Err(cause) => !cause.margin.is_invalid(),
     }
 }
 

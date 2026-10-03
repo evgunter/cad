@@ -122,6 +122,7 @@ mod ends;
 pub mod exhaust;
 pub mod jet;
 pub mod march;
+mod refine;
 pub mod section;
 pub mod system;
 
@@ -146,8 +147,9 @@ pub use exhaust::{
 pub use march::{
     BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
-    STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepFault, StepperMode,
+    STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
 };
+pub use refine::RefineStop;
 pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
 
 use enclose::{Box3, NurbsBoxes};
@@ -438,7 +440,10 @@ pub enum SsiError {
     ///
     /// The marched doors reach it where the feature extent is below 64ε
     /// and a branch's steps still clear the band, since the extent sizes
-    /// no step; so does [`certify_rung3`] with a declared carrier. The
+    /// no realized step, on a branch only a few extents long, since the
+    /// seeding floor is an extent's sixty-fourth (`m5_pr7_ssi.rs`'s
+    /// `a_marched_door_reaches_an_empty_tube_ladder`); so does
+    /// [`certify_rung3`] with a declared carrier. The
     /// pcurve cache reports it in a sentence of its own; the plane ×
     /// NURBS edge lane folds it into `Unsupported` through its wildcard
     /// (`work/iso/plane-nurbs-refusal-arms-with-no-ending.md`).
@@ -576,6 +581,19 @@ pub enum SsiError {
         samples: usize,
         /// The budget.
         budget: usize,
+    },
+    /// The certificate refused a fitted carrier where it could say
+    /// where, and refinement by certification could not answer it: no
+    /// refused gap could be halved, or the next round would overrun the
+    /// fit's budget. The certificate's refusal stands, with where
+    /// refinement stopped and how many samples the refused carrier had.
+    RefinementExhausted {
+        /// Where refinement stopped.
+        stop: RefineStop,
+        /// The refused carrier's samples.
+        samples: usize,
+        /// The certificate's refusal of it.
+        refusal: Box<SsiError>,
     },
     /// This configuration routes to a certificate mechanism this build
     /// does not have — a documented per-arm boundary (C12.1), never a
@@ -745,12 +763,12 @@ impl core::fmt::Display for SsiError {
                 bound,
             } => {
                 let held = match bound {
-                    StepBound::Curvature => "the curvature against the tolerance",
-                    StepBound::Cap => "the nearest crossing's distance or the domain",
-                    StepBound::Both => {
-                        "the curvature against the tolerance and by the nearest crossing's \
-                         distance or the domain"
-                    }
+                    StepBound::Curvature => "the curvature against the tolerance".to_owned(),
+                    StepBound::Cap(cap) => step_cap_words(*cap).to_owned(),
+                    StepBound::Both(cap) => format!(
+                        "the curvature against the tolerance and by {}",
+                        step_cap_words(*cap)
+                    ),
                 };
                 write!(
                     f,
@@ -922,6 +940,26 @@ impl core::fmt::Display for SsiError {
                  budget; this tolerance and curvature need more control points than the \
                  fit affords"
             ),
+            Self::RefinementExhausted {
+                stop,
+                samples,
+                refusal,
+            } => {
+                let refusal = refusal.to_string();
+                let refusal = refusal.strip_prefix("ssi: ").unwrap_or(&refusal);
+                match stop {
+                    RefineStop::NothingToHalve { in_band, unsettled } => write!(
+                        f,
+                        "ssi: refined to {samples} samples, no refused gap halves further \
+                         ({in_band} within the tolerance, {unsettled} not settling): {refusal}"
+                    ),
+                    RefineStop::FitBudget { asked, budget } => write!(
+                        f,
+                        "ssi: refined to {samples} samples, the next round asks {asked} of a \
+                         {budget}-sample fit budget: {refusal}"
+                    ),
+                }
+            }
             Self::UnsupportedCertificate { what } => {
                 write!(f, "ssi: {what}")
             }
@@ -1047,10 +1085,21 @@ impl SsiError {
             } => defect_ending(reading).to_owned(),
             // A kernel approximation limit: the user holds no lever but
             // the tolerance (D4 ¶1 (i)'s last resort).
-            Self::FitSampleBudget { budget, .. } => format!(
+            Self::FitSampleBudget { budget, .. }
+            | Self::RefinementExhausted {
+                stop: RefineStop::FitBudget { budget, .. },
+                ..
+            } => format!(
                 "Recourse: loosen the tolerance until a branch needs at most {budget} samples, \
                  {KERNEL_LIMIT_LAST_RESORT}"
             ),
+            // Refinement reached the band where the refusal sits: the
+            // certificate's own ending is the one that applies.
+            Self::RefinementExhausted {
+                stop: RefineStop::NothingToHalve { .. },
+                refusal,
+                ..
+            } => refusal.ending(reading),
             // `march_both` hands the fit more samples than the cubic
             // needs, or two or more whose length is not a number, which
             // `chord_parameters` refuses as `NonFinitePoint` before the
@@ -1108,15 +1157,24 @@ impl SsiError {
             ),
             Self::ExhaustivenessInconclusive(_) => EXHAUSTIVENESS_RECOURSE.to_owned(),
             Self::CellBudget { .. } => CELL_BUDGET_RECOURSE.to_owned(),
-            // The extent sets the length of a capped step; the domain
-            // bounds how far an open branch runs, so it cuts the step
-            // count whichever rung sets each step. A closed loop's count
-            // is the curvature's against ε alone: `FitSampleBudget`'s
-            // physics, so the tolerance is the last resort there.
+            // Each cap's lever is its own lane's: the crossing march's
+            // step is cut by the nearest crossing, the idealized step is
+            // the extent's. The short-branch re-march takes a handful of
+            // steps and the diagonal ends an open branch in one, so either
+            // spending the budget is the kernel's. A curvature-held count
+            // is `FitSampleBudget`'s physics: the domain shortens an open
+            // branch, and the tolerance is the last resort.
             Self::StepBudget { bound, .. } => match bound {
-                StepBound::Cap => STEP_BUDGET_RECOURSE,
-                StepBound::Curvature => STEP_BUDGET_CURVATURE_RECOURSE,
-                StepBound::Both => STEP_BUDGET_BOTH_RECOURSE,
+                StepBound::Cap(StepCap::Crossing) => STEP_BUDGET_CROSSING_RECOURSE,
+                StepBound::Cap(StepCap::Idealized) | StepBound::Both(StepCap::Idealized) => {
+                    STEP_BUDGET_IDEALIZED_RECOURSE
+                }
+                StepBound::Cap(StepCap::ShortBranch | StepCap::Diagonal) => defect_ending(reading),
+                StepBound::Curvature
+                | StepBound::Both(StepCap::ShortBranch | StepCap::Diagonal) => {
+                    STEP_BUDGET_CURVATURE_RECOURSE
+                }
+                StepBound::Both(StepCap::Crossing) => STEP_BUDGET_BOTH_RECOURSE,
             }
             .to_owned(),
             // The certifying doors read a seed that will not settle as no
@@ -1577,12 +1635,22 @@ const EXHAUSTIVENESS_RECOURSE: &str = "Recourse: lower the floor scale, name a f
 const CELL_BUDGET_RECOURSE: &str = "Recourse: name a domain around just the feature traced and a \
      feature extent near its size, or move the surfaces to cross clearly or stay clearly apart";
 
-/// [`SsiError::StepBudget`]'s ending where the cap held the steps
-/// short: on the plane × NURBS lane a branch's step is a fifth of the
-/// distance to the nearest crossing not yet used, which another
-/// branch's crossing close by cuts short
+/// What a step cap is, in [`SsiError::StepBudget`]'s sentence.
+fn step_cap_words(cap: StepCap) -> &'static str {
+    match cap {
+        StepCap::Crossing => "the nearest crossing's distance",
+        StepCap::ShortBranch => "a fifth of the short branch's own length",
+        StepCap::Diagonal => "the domain's diagonal",
+        StepCap::Idealized => "the idealized step, a thousandth of the feature extent",
+    }
+}
+
+/// [`SsiError::StepBudget`]'s ending where the crossing march's cap
+/// held the steps short: a branch's step is a fifth of the distance to
+/// the nearest crossing not yet used, which another branch's crossing
+/// close by cuts short
 /// (`work/ssi/ssi-a-step-capped-by-a-neighbouring-crossing-can-spend-the-step-budget.md`).
-const STEP_BUDGET_RECOURSE: &str = concat!(
+const STEP_BUDGET_CROSSING_RECOURSE: &str = concat!(
     "Recourse: move the plane or the wall so no other branch meets its boundary near this one, ",
     geom_core::kernel_limit_last_resort!()
 );
@@ -1594,8 +1662,13 @@ const STEP_BUDGET_CURVATURE_RECOURSE: &str = concat!(
     geom_core::kernel_limit_last_resort!()
 );
 
-/// [`SsiError::StepBudget`]'s ending where each rung held a share of
-/// the steps: both levers.
+/// [`SsiError::StepBudget`]'s ending where the idealized step held the
+/// steps short: it is a thousandth of the caller's feature extent.
+const STEP_BUDGET_IDEALIZED_RECOURSE: &str = "Recourse: name a feature extent near the size of the feature traced; the idealized step is a \
+     thousandth of it";
+
+/// [`SsiError::StepBudget`]'s ending where the curvature and the
+/// crossing march's cap each held a share of the steps: both levers.
 const STEP_BUDGET_BOTH_RECOURSE: &str = concat!(
     "Recourse: move the plane or the wall so no other branch meets its boundary near this one, \
      name a domain around just the feature traced, or loosen the tolerance, ",
@@ -1662,12 +1735,12 @@ fn fit_branch(
         });
     }
     let params = NurbsCurve3::<f64>::chord_parameters(points)?;
-    // **Interpolation, not approximation, and the reason is the
-    // marcher's step rule.** The stepper already chose its spacing so
-    // that a cubic through the samples is within ε of the locus
-    // between them (`SSI_STEP_DEVIATION`), and refinement adds samples
-    // only where the certificate found it did not, so the samples are
-    // at the density a cubic needs — running the A9.10 removal loop on top of
+    // **Interpolation, not approximation, and the reason is
+    // refinement.** The march aims its spacing at a cubic within ε of
+    // the locus between samples (`SSI_STEP_DEVIATION`), a target it can
+    // miss by far, and the certificate's refinement adds samples exactly
+    // where it missed, so the samples end at the density the cubic
+    // needs — running the A9.10 removal loop on top of
     // that spends O(n²) work per removal attempt to rediscover a
     // structure the step rule already picked, and on a tight loop at
     // ε = 1e-9 that is the operation's whole runtime. Cache *shape* is
@@ -1873,11 +1946,16 @@ const SELF_CROSSING: SizedDecision = SizedDecision {
 /// The stepper's step against the operands and the domain the caller
 /// named ([`SsiError::StepCollapsed`], [`SsiError::StepUnusable`]): a
 /// step that collapses into the band, overflows, or does not move the
-/// state comes from operands outside the model's size range or a domain
-/// far larger than the feature traced.
+/// state comes from operands outside the model's size range, or from a
+/// branch too little of which lies in the domain. A re-marched short
+/// branch's step is a fifth of the length inside the domain, so a domain
+/// holding more of the curve lengthens it, and the domain's diagonal
+/// only ever shortens a step: a cylinder × sphere arc cut to a 30 µm
+/// cube escalates at ε 1e-6, and the same arc in a 0.3 mm cube
+/// certifies.
 const STEP_SCALE: SizedDecision = SizedDecision {
-    lever: "bring the operands within the model's size range, and name a domain near the size of \
-            the feature traced",
+    lever: "bring the operands within the model's size range, or name a domain that holds more \
+            of the intersection",
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
@@ -2109,7 +2187,7 @@ fn seam_tol(tol: MarchTol, band: Band) -> Result<f64, SsiError> {
 }
 
 /// Fit, certify and wrap an ℝ³ trace, refined where the certificate
-/// refuses it ([`march::refine_by_certificate`]).
+/// refuses it ([`refine::refine_by_certificate`]).
 fn finish_r3(
     sys: &ImplicitPairR3<'_>,
     trace: &Trace<3, march::SlabEnd>,
@@ -2124,7 +2202,7 @@ fn finish_r3(
     let points = trace_points::<2, 3, _, _>(sys, trace);
     let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
     let (carrier, cert) =
-        march::refine_by_certificate(sys, trace.states.clone(), ctx, band, |states| {
+        refine::refine_by_certificate(sys, trace.states.clone(), ctx, band, |states| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
             let (carrier, _, _) = fit_branch(&points, None)?;
             let cert = certify::certify_located(
@@ -2340,7 +2418,7 @@ pub fn plane_nurbs_ssi(
             StepperMode::Realized,
             1.0,
             band,
-            f64::INFINITY,
+            march::Cap::NONE,
         ) {
             Ok(t) => t,
             // As in `cylinder_sphere_ssi`: only a seed that will not
@@ -2446,11 +2524,12 @@ fn boundary_pass(
 /// the tensor composite bound that retired limb 2 (the fixture role
 /// the PR 7 refusal reserved for it).
 ///
-/// The trace is sampled as the certifying door samples it: refined
-/// where the certificate refuses (`march::refine_by_certificate`).
-/// The certificate is asked only where to sample; its verdict is not
-/// returned, and the triple is the last one fitted whatever that
-/// verdict was.
+/// **What it returns**: the march through the seed, densified where
+/// the certificate at `band` refuses it, as the certifying door
+/// densifies a branch (`refine::refine_by_certificate`), and fitted. The
+/// certificate is asked only where to sample: its verdict is not
+/// returned, and the triple is the last one fitted, whether the
+/// certificate passed it or refinement stopped short.
 ///
 /// **The only door that names the generator's tolerance separately.**
 /// `march_tol` is the marcher's step tolerance in meters; every
@@ -2460,12 +2539,11 @@ fn boundary_pass(
 /// unmintable anywhere else — including inside a certifying door, whose
 /// maintainer is the caller who would otherwise reach for it.
 ///
-/// Naming it here is what lets the marcher be measured against itself
-/// at a tolerance the run is not banded at, which is the one legitimate
-/// reason the two numbers ever differ. A carrier so generated may still
-/// be handed to [`certify_rung3`]; it certifies at the `Band` like any
-/// other, so a decoupled march can only cost carrier quality, never
-/// buy a weaker certificate.
+/// `march_tol` sets the march's step rule; `band` is the certificate's,
+/// which decides where the trace is densified. A carrier so generated
+/// may still be handed to [`certify_rung3`]; it certifies at the `Band`
+/// like any other, so a decoupled march can only cost carrier quality,
+/// never buy a weaker certificate.
 ///
 /// # Errors
 ///
@@ -2525,23 +2603,31 @@ pub fn trace_plane_nurbs_uncertified(
     let q = wall.eval(seed_uv.0, seed_uv.1) - p0;
     let state = [q.dot(u_ref), q.dot(v_ref), seed_uv.0, seed_uv.1];
     let (states, _, _) = ends.through_seed(state, &pass.crossings)?;
-    let mut last = ends::fit_states(&sys, &states)?;
-    // The verdict is the certifying door's to report, not this one's.
-    let _verdict: Result<(), SsiError> =
-        march::refine_by_certificate(&sys, states, &ctx, band, |states| {
-            let fitted = ends::fit_states(&sys, states)?;
-            let verdict = certify::certify_located(
-                &fitted.0,
-                fitted.2.as_ref(),
-                &SsiOperand::Analytic(plane),
-                &wall_op,
-                TubeScale::uniform(domain.extent),
-                band,
-            );
-            last = fitted;
-            verdict.map(drop)
-        });
-    let (carrier, pa, pb) = last;
+    // The last triple the certificate refused; the verdict is the
+    // certifying door's to report, not this one's.
+    let mut refused = None;
+    let densified = refine::refine_by_certificate(&sys, states, &ctx, band, |states| {
+        let fitted = ends::fit_states(&sys, states)?;
+        match certify::certify_located(
+            &fitted.0,
+            fitted.2.as_ref(),
+            &SsiOperand::Analytic(plane),
+            &wall_op,
+            TubeScale::uniform(domain.extent),
+            band,
+        ) {
+            Ok(_) => Ok(fitted),
+            Err(verdict) => {
+                refused = Some(fitted);
+                Err(verdict)
+            }
+        }
+    });
+    let (carrier, pa, pb) = match densified {
+        Ok(fitted) => fitted,
+        // A refusal before any triple was fitted is the fit's own.
+        Err(e) => refused.ok_or(e)?,
+    };
     match (pa, pb) {
         (Some(a), Some(b)) => Ok((carrier, a, b)),
         _ => Err(SsiError::UnsupportedCertificate {
@@ -2837,8 +2923,12 @@ mod ending_tests {
     /// decision has no margin end by name: the search's budget and the
     /// exhaustiveness proof by the domain, the extent, the floor scale
     /// and the geometry; the march's budget by the rungs that held its
-    /// steps (the extent and the domain for the cap, the domain and the
-    /// last resort for the curvature, all of them for both); a caller's
+    /// steps (the geometry for the crossing cap, the extent for the
+    /// idealized step, the kernel for a re-march or the diagonal, the
+    /// domain and the last resort for the curvature, the crossing's and
+    /// the curvature's together for both); a refinement the certificate
+    /// exhausted by its stop (the tolerance at the fit budget, the
+    /// limb's own ending at the band); a caller's
     /// seed by the seed, and one settled off the domain by the seed and
     /// the domain; the tube ladder by the extent alone, since it is
     /// decided exactly; a collapsed wall by the face; a step that will
@@ -2940,9 +3030,14 @@ mod ending_tests {
                 super::CELL_BUDGET_RECOURSE,
             ),
             (
-                "step budget, cap",
-                super::STEP_BUDGET_RECOURSE,
-                super::STEP_BUDGET_RECOURSE,
+                "step budget, crossing",
+                super::STEP_BUDGET_CROSSING_RECOURSE,
+                super::STEP_BUDGET_CROSSING_RECOURSE,
+            ),
+            (
+                "step budget, idealized",
+                super::STEP_BUDGET_IDEALIZED_RECOURSE,
+                super::STEP_BUDGET_IDEALIZED_RECOURSE,
             ),
             (
                 "step budget, curvature",
@@ -3085,7 +3180,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 37;
+    const ARMS: usize = 38;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3129,6 +3224,7 @@ mod ending_tests {
             SsiError::CrossingUnmatched { .. } => 34,
             SsiError::ShortBranchUncertified { .. } => 35,
             SsiError::WindowShortOfWall { .. } => 36,
+            SsiError::RefinementExhausted { .. } => 37,
         }
     }
 
@@ -3138,8 +3234,9 @@ mod ending_tests {
     fn roster() -> Vec<(&'static str, SsiError)> {
         use super::{
             ChartAxis, ChartSpeedRefusal, DomainField, ExhaustLane, ExhaustivenessRefusal,
-            FloorFault, FloorKind, FloorRefusal, OperandDatum, ReachBound, SSI_MAX_CELLS,
-            SSI_MAX_STEPS, SettlingRefusal, StepBound, StepFault, TubeDegeneracy,
+            FloorFault, FloorKind, FloorRefusal, OperandDatum, ReachBound, RefineStop,
+            SSI_MAX_CELLS, SSI_MAX_STEPS, SettlingRefusal, StepBound, StepCap, StepFault,
+            TubeDegeneracy,
         };
         use crate::ssi::BandVerdict;
         let zero = Refused::Zero(Classified {
@@ -3213,11 +3310,55 @@ mod ending_tests {
                 },
             ),
             (
-                "step budget, cap",
+                "step budget, crossing",
                 SsiError::StepBudget {
                     mode: super::StepperMode::Realized.name(),
                     budget: SSI_MAX_STEPS,
-                    bound: StepBound::Cap,
+                    bound: StepBound::Cap(StepCap::Crossing),
+                },
+            ),
+            (
+                "step budget, idealized",
+                SsiError::StepBudget {
+                    mode: super::StepperMode::Idealized.name(),
+                    budget: SSI_MAX_STEPS,
+                    bound: StepBound::Cap(StepCap::Idealized),
+                },
+            ),
+            (
+                "step budget, re-march",
+                SsiError::StepBudget {
+                    mode: super::StepperMode::Realized.name(),
+                    budget: SSI_MAX_STEPS,
+                    bound: StepBound::Cap(StepCap::ShortBranch),
+                },
+            ),
+            (
+                "refinement exhausted, band",
+                SsiError::RefinementExhausted {
+                    stop: RefineStop::NothingToHalve {
+                        in_band: 2,
+                        unsettled: 0,
+                    },
+                    samples: 348,
+                    refusal: Box::new(SsiError::CertificateLimb {
+                        limb: SsiLimb::HullSup,
+                        value: 2.4e-9,
+                    }),
+                },
+            ),
+            (
+                "refinement exhausted, budget",
+                SsiError::RefinementExhausted {
+                    stop: RefineStop::FitBudget {
+                        asked: 1314,
+                        budget: SSI_MAX_FIT_SAMPLES,
+                    },
+                    samples: 1057,
+                    refusal: Box::new(SsiError::CertificateLimb {
+                        limb: SsiLimb::HullSup,
+                        value: 1.17e-10,
+                    }),
                 },
             ),
             (
@@ -3233,7 +3374,7 @@ mod ending_tests {
                 SsiError::StepBudget {
                     mode: super::StepperMode::Realized.name(),
                     budget: SSI_MAX_STEPS,
-                    bound: StepBound::Both,
+                    bound: StepBound::Both(StepCap::Crossing),
                 },
             ),
             (
@@ -3469,5 +3610,35 @@ mod ending_tests {
                 },
             ),
         ]
+    }
+
+    /// **A march both rungs held names both levers.** No geometry
+    /// reaches [`StepBound::Both`] on a certifying door before the
+    /// seeding sweep's cell budget: the crossing cap binds only beside a
+    /// close crossing, and a wall curved enough for the curvature to
+    /// hold a quarter of the steps there (the zigzag wall with two
+    /// crossings 5e-4 m apart) spends the sweep's cells first. So this
+    /// row renders the ending from its payload: the curvature's levers
+    /// and the crossing's, together.
+    #[test]
+    fn a_step_budget_both_rungs_held_names_both_levers() {
+        use super::{SSI_MAX_STEPS, StepBound, StepCap, StepperMode};
+        let e = SsiError::StepBudget {
+            mode: StepperMode::Realized.name(),
+            budget: SSI_MAX_STEPS,
+            bound: StepBound::Both(StepCap::Crossing),
+        };
+        let shown = e.render(Reading::Build);
+        assert!(
+            shown.contains(
+                "held short by the curvature against the tolerance and by the nearest \
+                 crossing's distance"
+            ) && shown.contains(
+                "Recourse: move the plane or the wall so no other branch meets its boundary \
+                 near this one, name a domain around just the feature traced, or loosen the \
+                 tolerance"
+            ),
+            "{shown}"
+        );
     }
 }

@@ -31,9 +31,10 @@ use geom_core::{Band, Margin, Point2, Point3, Real};
 
 use super::boundary::Crossing;
 use super::march::{
-    BranchEnd, MarchContext, RectEnd, RectExit, SHORT_BRANCH_STEPS, StepperMode,
-    TransversalityData, march, refine_by_certificate,
+    BranchEnd, Cap, MarchContext, RectEnd, RectExit, SHORT_BRANCH_STEPS, StepCap, StepperMode,
+    TransversalityData, march,
 };
+use super::refine::refine_by_certificate;
 use super::section::BandVerdict;
 use super::system::{LocalSystem, ParametricPairR4};
 use super::{
@@ -223,7 +224,10 @@ impl<'a> Ends<'a> {
         crossings: &[Crossing],
         used: &[bool],
     ) -> Result<(usize, Vec<[f64; 4]>, f64), SsiError> {
-        let cap = near / SHORT_BRANCH_STEPS as f64;
+        let cap = Cap {
+            metres: near / SHORT_BRANCH_STEPS as f64,
+            kind: StepCap::Crossing,
+        };
         let d = Svd::<3, 4>::new(self.sys.jacobian(&a.state)).null_direction();
         let direction = if inwardness(&a.state, &d, &self.ctx) >= 0.0 {
             1.0
@@ -328,7 +332,7 @@ impl<'a> Ends<'a> {
                 StepperMode::Realized,
                 direction,
                 self.band,
-                f64::INFINITY,
+                Cap::NONE,
             )
         };
         let fwd = run(1.0)?;
