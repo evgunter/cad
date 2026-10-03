@@ -2,11 +2,12 @@
 id: a-mate-frame-axis-is-decided-against-a-length-band
 kind: issue
 title: A mate side's composed axis is re-minted against the run's length band, so at a coarse epsilon every non-identity frame offset refuses whatever the part's scale
-status: open
+status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
 design: true
+blocked_on: [3990]
 ---
 
 

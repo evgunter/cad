@@ -2,11 +2,14 @@
 id: rigid-map-row-asks-a-sampled-residual-for-sub-ulp-agreement-at-eps-1e-12
 kind: issue
 title: rigid_map_near_eps_plane_nurbs asks the sampled on-locus residual to re-derive to 1e-6 relative, which at eps 1e-12 is 1e-18 m, under one ulp of a unit-scale point; red since #3524
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: E
 refs: [3524, 3737]
+branch: reach/rigid-map-1e12
+pr: 3964
+closed: 2026-10-03
 ---
 
 
@@ -47,3 +50,20 @@ State the on-locus claim against the sampler's rounding, absolute in
 metres at the fixture's coordinate scale (a few ulps of the box), the
 way the limb-2 drift is already stated against `DRIFT`. The default
 and 1e-6 rows pass with large margin either way; only 1e-12 sees this.
+
+## Closed (2026-10-03, PR 3964, by REACH)
+
+The row was red at ε 1e-12 because it asked a sampled residual for
+sub-ulp agreement. The kernel is right. The row now checks:
+- limb 1 against the closed-form field `fl(1+δ) − 1`, within 4 ulps of the
+  coordinate scale;
+- limb 2's drift against the pinned `FLOOR`.
+
+It is green at ε 1e-12, 1e-9 and 1e-6, and stays red under planted defects
+in both limbs (the single review's mutants). The orchestrator re-ran two of
+them, limb 1 without z and limb 2 in the L1 norm, and both are red at
+1e-12 and 1e-9. The row covers rotations about the origin. Three items are
+filed under SSI:
+- limb 1's resolution at 1e-12;
+- the translation drift;
+- the floor's absolute part.
