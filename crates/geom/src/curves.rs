@@ -152,11 +152,15 @@ pub enum Curve3<T: Real> {
         /// The unit normal of the ellipse's plane (right-hand winding
         /// rule; conventional, unchecked).
         axis: Vec3<T>,
-        /// The semi-major axis length in meters (`major > minor` by
-        /// the constructor's refusal).
+        /// The semi-major axis length in meters: `major > minor` where
+        /// [`Curve3::ellipse`] minted it, which refuses otherwise. Tier 3
+        /// certifies it positive but not the ordering, and a struct
+        /// literal checks neither; readers past the constructor take
+        /// the semi-axes as magnitudes in either order
+        /// (`geom_brep::Conic`).
         major: T,
-        /// The semi-minor axis length in meters (positive by the
-        /// constructor's refusal).
+        /// The semi-minor axis length in meters: positive where
+        /// [`Curve3::ellipse`] or tier 3 decided it.
         minor: T,
         /// The unit semi-major direction ⊥ `axis` where θ = 0 lives —
         /// the seam, carried as conventional data per D2.

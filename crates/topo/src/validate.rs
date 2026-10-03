@@ -1314,18 +1314,15 @@ pub enum ValidationError {
     ///
     /// * `Face` — **row 2**, and the reachable one. The body carries a
     ///   face whose measurement lane the kernel has not built: today
-    ///   the closed forms need an iso-parameter rectangle
-    ///   (`geom_brep::props`' `props_rim_level`, S58) and the
-    ///   certified-quadrature lane consumes only conic/NURBS trims.
-    ///   #649's `cross.step` — a real manifold closed keyed shaft
-    ///   whose cylindrical walls have a cross-shaped iso domain — and
-    ///   the same solid produced from rectangular sub-faces by the
-    ///   public `Body::merge_coplanar_faces` are both perfectly valid
-    ///   and both land here.
-    /// * `Corrupt`, `NullScaffoldEdge`, `RingOnCurvedFace` — **row 1**
-    ///   by their own docs: unresolvable structure, a mid-surgery
-    ///   body carrying M3 null-edge scaffolding, and a curved face
-    ///   with interior rings no M2 construction produces.
+    ///   the cone, sphere and torus closed forms need an iso-parameter
+    ///   rectangle (`geom_brep::props`' `props_rim_level`, S58) and
+    ///   the certified-quadrature lane consumes only conic/NURBS trims.
+    /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
+    ///   other than a rim-and-ruling cylinder wall, which a boolean
+    ///   pierce leaves in the face it pierces.
+    /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
+    ///   unresolvable structure and a mid-surgery body carrying M3
+    ///   null-edge scaffolding.
     /// * `Band` — neither: a misconfigured ambient tolerance, a
     ///   configuration failure of the run rather than a statement
     ///   about the body. It is also the arm this file's own
@@ -3939,7 +3936,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   A planar face's NESTING half — a ring lying inside the outer
 ///   loop of its own face — is check 9's nesting arm, on every planar
 ///   face, through the parity walk that reads each outer edge on its
-///   own carrier ([`crate::splitting::containment::point_in_carrier_loop`]).
+///   own carrier ([`crate::splitting::containment::point_in_loop`]).
 ///   The **curved analytic** kinds' orientation half is covered by
 ///   check 6's curved arm (M6-6: boundary material side vs the sense
 ///   bit).
@@ -4638,6 +4635,24 @@ pub(crate) fn shell_role<T: Decide>(
     )
     .ok()
     .and_then(|(role, _)| role)
+}
+
+/// Tier 3's transience fence on its own: a
+/// [`ValidationError::ScaffoldAtRest`] for every edge whose description
+/// is still a scaffold, in edge-arena order. On a body that passes
+/// tier 2 every edge has two faces, so these are exactly the fence
+/// findings check 2 makes, with no re-certification around them.
+pub(crate) fn scaffolds_at_rest<T: Real>(body: &Body<T>) -> Vec<ValidationError> {
+    body.edges
+        .iter()
+        .filter(|(_, edge)| {
+            body.curves
+                .get(edge.curve)
+                .and_then(CurveGeom::certified)
+                .is_some_and(|curve| curve.description().is_scaffold())
+        })
+        .map(|(edge, _)| ValidationError::ScaffoldAtRest { edge })
+        .collect()
 }
 
 /// Tier 3's local check battery (checks 1–6 + the +V invariant, check
@@ -5600,7 +5615,7 @@ pub(crate) fn tier3_local_checks_marked<
         // yet. This edge has two faces — the lookup above answered —
         // so it has a chart, and a scaffold here is a construction
         // that stopped half-way.
-        if matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) {
+        if curve.description().is_scaffold() {
             errors.push(ValidationError::ScaffoldAtRest { edge: edge_key });
         }
         let adjacent = match curve.description() {
@@ -6181,15 +6196,18 @@ pub(crate) fn tier3_local_checks_marked<
     // statement as the planar arm — the face's two orientation
     // encodings must agree — but the boundary's encoding is read the
     // way the flux lanes read it:
-    // `geom_brep::props::boundary_material_sign` re-runs the rim-side
-    // / meridian-orientation sub-derivations (`props_rim_side`,
-    // `props_rim_level`, `props_circle_axis_class`,
+    // `geom_brep::props::boundary_material_sign_loops` re-runs the
+    // sub-derivations the flux lanes consume: the chart Green form's
+    // sign on a cylinder (`props_chart_area_side`, over every loop, so
+    // a notched or ringed wall is checked, not exempt), and the
+    // rim-side / meridian-orientation reading on the iso kinds
+    // (`props_rim_side`, `props_rim_level`, `props_circle_axis_class`,
     // `props_meridian_orient` — already length-metered named decides).
     // No new comparand exists: the final comparison is two exact ±1s,
     // genuinely combinatorial.
     //
-    // `props_rim_level` — the iso-rectangle premise — is on that list
-    // because the rim-side derivation rests on it: `lo + hi − 2v` is a
+    // `props_rim_level` — the iso-rectangle premise — is on the iso
+    // kinds' list because their rim-side derivation rests on it: `lo + hi − 2v` is a
     // material side only on a domain whose rims all sit at an extreme,
     // and without it a plus-shaped face answered a definite ±1 that
     // depended on where `loop_edges` started the cycle. Such a face now
@@ -6235,10 +6253,18 @@ pub(crate) fn tier3_local_checks_marked<
             // scope.
             continue;
         }
-        let Ok((outer, _hes)) = crate::props::loop_edges(body, face.outer) else {
+        // Every loop: a cylinder face reads its side off its whole
+        // boundary's chart Green form, rings included, as its flux does.
+        let Ok(loops) = core::iter::once(face.outer)
+            .chain(face.rings.iter().copied())
+            .map(|l| crate::props::loop_edges(body, l).map(|(edges, _)| edges))
+            .collect::<Result<Vec<_>, _>>()
+        else {
             continue; // derivation exempt (posture above)
         };
-        match geom_brep::props::boundary_material_sign(surface, &outer, band) {
+        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> =
+            loops.iter().map(Vec::as_slice).collect();
+        match geom_brep::props::boundary_material_sign_loops(surface, &loops, band) {
             Ok(geom_brep::props::MaterialSign::Encoded(side)) => {
                 // Two exact ±1s: the derived side is definite by
                 // construction, the sense bit is stored — a discrete
@@ -6406,18 +6432,17 @@ pub(crate) fn tier3_local_checks_marked<
     // that point inside the region the outer loop bounds? A
     // definitely-outside vertex is the witness the report names. One
     // instrument answers it, and it is not minted here:
-    // [`crate::splitting::containment::point_in_carrier_loop`], the
+    // [`crate::splitting::containment::point_in_loop`], the
     // crate's in-plane parity walk that reads each edge on its own
     // carrier — a line as its segment, a circle or ellipse arc on its
     // conic inside its window — so its region IS the loop's region on
     // every outer loop of lines, arcs, or both, at any vertex count:
     // the polygon, the one circle's disc, the slot, the D-shaped cap
     // whose arc bows past the chord its vertices span, the half-disc
-    // whose vertices are two. On a loop of lines it is
-    // [`crate::splitting::point_in_loop`], whose K rows are
-    // `point_in_loop_*` and which this arm pools as a fourth consumer
-    // the way `boolean::contfp` and the solid-containment sweep
-    // already pool; an arc-bearing loop's rows are
+    // whose vertices are two. On a loop of lines it walks the vertex
+    // polygon, whose K rows are `point_in_loop_*` and which this arm
+    // pools as a fourth consumer the way `boolean::contfp` and the
+    // solid-containment sweep already pool; an arc-bearing loop's rows are
     // `point_in_arc_loop_*`, pooled with `boolean::contfp` and
     // `solid_contain`'s in-face walk.
     //
@@ -7317,7 +7342,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
 ///
 /// One condition: the surface is a `Plane`, because there is
 /// otherwise no plane for the arms to run in. The outer loop's CLASS
-/// is not gated on: [`crate::splitting::containment::point_in_carrier_loop`] reads
+/// is not gated on: [`crate::splitting::containment::point_in_loop`] reads
 /// every edge on its own carrier and answers every class it has a
 /// crossing row for, and refuses itself where it has none
 /// ([`crate::splitting::PointInLoopError::Uncrossable`]), so the gate
@@ -7377,12 +7402,12 @@ enum RingNestingVerdict {
 /// nothing here and the walk moves to the next vertex.
 ///
 /// **One instrument, every class**:
-/// [`crate::splitting::containment::point_in_carrier_loop`], which reads each outer
+/// [`crate::splitting::containment::point_in_loop`], which reads each outer
 /// edge on its own carrier — a line as its segment, a circle or
 /// ellipse arc on its conic inside its window — so the region it
 /// decides IS the loop's region, whatever mix of lines and arcs the
 /// loop carries and however many vertices it has. On a loop of lines
-/// it is [`crate::splitting::point_in_loop`] unchanged.
+/// it walks the vertex polygon.
 ///
 /// It is the walk `boolean::contfp` places a point on a face with, so
 /// check 9 and the census read one loop through one instrument. The
@@ -7475,7 +7500,7 @@ fn ring_nesting<T: Decide>(
         // A ring vertex lies in the face's plane (check 5), the walk's
         // in-plane precondition; the off-boundary one is the contact
         // arms' where they can see the edge (the doc above).
-        match crate::splitting::containment::point_in_carrier_loop(body, outer, normal, rp, band) {
+        match crate::splitting::containment::point_in_loop(body, outer, normal, rp, band) {
             Ok(crate::splitting::LoopContainment::In) => return RingNestingVerdict::Inside,
             Ok(crate::splitting::LoopContainment::Out) => {
                 return RingNestingVerdict::Outside { ring_vertex: rv };
@@ -11048,7 +11073,7 @@ mod tests {
         (body, face)
     }
 
-    /// **The carrier walk's verdict is blind to the normal's sign on an
+    /// **`point_in_loop`'s verdict is blind to the normal's sign on an
     /// arc-bearing loop**, the property `chord_join::face_plane_normal`
     /// relies on when it hands `rehome_rings` the chart normal with the
     /// face's sense left out. The polygon rows' half of it is pinned in
@@ -11056,7 +11081,7 @@ mod tests {
     /// bowed square: the lune, past the arc, the polygon's interior,
     /// outside the chord side, and the arc's apex.
     #[test]
-    fn the_carrier_walk_is_blind_to_the_normals_sign_on_an_arc_bearing_loop() {
+    fn point_in_loop_is_blind_to_the_normals_sign_on_an_arc_bearing_loop() {
         use crate::splitting::LoopContainment as C;
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
@@ -11073,7 +11098,7 @@ mod tests {
         ] {
             let q = Point3::new(q.0, q.1, 0.0);
             let read = |n| {
-                crate::splitting::containment::point_in_carrier_loop(&body, outer, n, q, band)
+                crate::splitting::containment::point_in_loop(&body, outer, n, q, band)
                     .unwrap_or_else(|e| panic!("{name}: the walk refused: {e:?}"))
             };
             assert_eq!(read(up), want, "{name}: under +z");
@@ -11105,7 +11130,10 @@ mod tests {
             let first = loop_cycle_of(&body, ring_loop).unwrap()[0];
             let rp = vertex_point(&body, body.get_half_edge(first).unwrap().start).unwrap();
             assert_eq!(
-                crate::splitting::point_in_loop(&body, outer_loop, normal, rp, band).unwrap(),
+                crate::splitting::containment::point_in_vertex_polygon(
+                    &body, outer_loop, normal, rp, band
+                )
+                .unwrap(),
                 crate::splitting::LoopContainment::Out,
                 "{name}: the polygon through the vertices places the ring outside"
             );
@@ -11355,9 +11383,8 @@ mod tests {
         let (body, outer_loop, normal, r) = split_circle(band);
         for delta in [2e-9, 5e-9, 9e-9] {
             let q = Point3::new(0.0, r * 0.01_f64.sin() - delta, 0.0);
-            let got = crate::splitting::containment::point_in_carrier_loop(
-                &body, outer_loop, normal, q, band,
-            );
+            let got =
+                crate::splitting::containment::point_in_loop(&body, outer_loop, normal, q, band);
             assert!(
                 matches!(got, Ok(crate::splitting::LoopContainment::In)),
                 "δ = {delta:e}: a point ten metres inside the circle is In; got {got:?}"
@@ -11380,9 +11407,8 @@ mod tests {
         let (body, outer_loop, normal, r) = split_circle(band);
         for delta in [2e-7, 5e-7, 8e-7] {
             let q = Point3::new(0.0, r * 0.01_f64.sin() - delta, 0.0);
-            let got = crate::splitting::containment::point_in_carrier_loop(
-                &body, outer_loop, normal, q, band,
-            );
+            let got =
+                crate::splitting::containment::point_in_loop(&body, outer_loop, normal, q, band);
             assert!(
                 matches!(got, Ok(crate::splitting::LoopContainment::In)),
                 "δ = {delta:e}: a point ten metres inside the circle is In; got {got:?}"

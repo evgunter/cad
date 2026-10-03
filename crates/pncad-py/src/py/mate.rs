@@ -1239,19 +1239,17 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 /// inapplicable: `node` and `offset` for an `offset_cleared` — a
 /// member of the mate's first operand's group, now placed on the
 /// second's, and the offset it gave up; `node` and `name` for a
-/// strand, `name` alone for a `stranded_appearance`, whose carrier is
-/// the appearance store and not a node, and `node` alone for an
-/// `orphaned_declare`, whose subject is the surviving declaration
-/// rather than anything the edit broke.
+/// strand, and `name` alone for a `stranded_appearance`, whose carrier is
+/// the appearance store and not a node.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Maintenance(pub(crate) d::Maintenance);
 
 #[pymethods]
 impl Maintenance {
-    /// The stable tag: `offset_cleared`, `strand`,
-    /// `stranded_appearance` or `orphaned_declare`, the four the stub
-    /// lists for this attribute. The word decides which of the payload
+    /// The stable tag: `offset_cleared`, `strand` or
+    /// `stranded_appearance`, the three the stub lists for this
+    /// attribute. The word decides which of the payload
     /// attributes below carry.
     // The map is `crate::tags::maintenance_tag`, whose words
     // `TAG_INVENTORY` pins.
@@ -1261,9 +1259,8 @@ impl Maintenance {
     }
 
     /// The node this row is about: the instance whose offset the mate
-    /// door cleared, the surviving node whose payload carries a
-    /// stranded name, or the declaration an `orphaned_declare` left
-    /// with no consumer. `None` for a `stranded_appearance`, which has
+    /// door cleared, or the surviving node whose payload carries a
+    /// stranded name. `None` for a `stranded_appearance`, which has
     /// no carrying node to name.
     ///
     /// The arms answer different questions with one attribute on
@@ -1275,7 +1272,7 @@ impl Maintenance {
         match &self.0 {
             d::Maintenance::OffsetCleared { instance, .. } => Some(NodeId(instance.id())),
             d::Maintenance::Strand { node, .. } => Some(NodeId(node.id())),
-            d::Maintenance::OrphanedDeclare { declare } => Some(NodeId(declare.id())),
+            d::Maintenance::LabelDropped { gauge, .. } => Some(NodeId(gauge.id())),
             d::Maintenance::StrandedAppearance { .. } => None,
         }
     }
@@ -1293,9 +1290,7 @@ impl Maintenance {
             d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
                 super::doc::name_text(py, name.name()).map(Some)
             }
-            d::Maintenance::OffsetCleared { .. } | d::Maintenance::OrphanedDeclare { .. } => {
-                Ok(None)
-            }
+            d::Maintenance::OffsetCleared { .. } | d::Maintenance::LabelDropped { .. } => Ok(None),
         }
     }
 
@@ -1308,7 +1303,7 @@ impl Maintenance {
             }
             d::Maintenance::Strand { .. }
             | d::Maintenance::StrandedAppearance { .. }
-            | d::Maintenance::OrphanedDeclare { .. } => None,
+            | d::Maintenance::LabelDropped { .. } => None,
         }
     }
 

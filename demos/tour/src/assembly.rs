@@ -75,10 +75,6 @@
 //!   (`work/wire/a-placement-cannot-turn-about-a-point-or-an-axis.md`):
 //!   the turntable's turn about the bench's centre is a three-step
 //!   chain, and no step reads a `Datum::Axis` (`turntable`).
-//! - **A partly-applied compound mate declares in silence**
-//!   (`work/recipe/a-partly-applied-regauge-then-mate-list-declares-silently.md`):
-//!   `regauge_then_mate` returns an edit list the caller must apply
-//!   whole and in order, or the mate lands declaring (`mate_onto`).
 //! - **A part resting on a gauge cannot follow a part edit**
 //!   (`work/place/a-part-resting-on-a-gauge-cannot-follow-a-part-edit.md`):
 //!   the crate's shelf-top gauge restates the shelf's top in numbers
@@ -630,31 +626,16 @@ fn turn_about_z(angle: Expr, scope: &BTreeMap<ParamName, Dimension>) -> Step {
 /// Mates `a` to `b` through the compound door — "copy `b`'s gauge to
 /// `a`'s group, then mate" — so the mate PLACES rather than declares
 /// across two gauges, and returns the mate's id.
-///
-/// GAP (`work/recipe/a-partly-applied-regauge-then-mate-list-declares-silently.md`):
-/// the door hands back an edit LIST computed against the document
-/// before the re-gauge, and nothing holds the caller to applying it
-/// whole and in order. Applied alone, or first, the mate's insert is
-/// accepted as a DECLARING mate across two gauges, without a word at
-/// the edit door; only the solve's roles (asserted in `stand_scene`)
-/// or a later gate say so. Python's `Doc.regauge_then_mate` applies
-/// the list itself; Rust callers apply it by hand, as here.
 fn mate_onto(
     doc: &mut ProfileDoc,
     mate: Node<ProfileProgram>,
     tol: Tol,
     reach: &dyn MateReach,
 ) -> RecipeNodeId {
-    let edits = regauge_then_mate(doc, mate)
+    let out = regauge_then_mate(doc, mate, tol, reach)
         .unwrap_or_else(|err| panic!("the compound mate door admits the mate: {err:?}"));
-    let mut minted = None;
-    for e in &edits {
-        let applied =
-            apply(doc, e, tol, reach).unwrap_or_else(|err| panic!("the edit applies: {err:?}"));
-        *doc = applied.doc;
-        minted = applied.record.minted.or(minted);
-    }
-    minted.expect("the compound door ends on the mate's insert")
+    *doc = out.doc;
+    out.mate
 }
 
 fn stand_doc(
@@ -1750,8 +1731,8 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         back_names.iter().count(),
         "and the inline neither loses nor invents a name either"
     );
-    // The offset the split hoisted onto the instance is put back on
-    // the restored node, bit for bit — where an instance sits is
+    // The shelf's offset crosses into the part with it and comes back
+    // on the restored node, bit for bit — where an instance sits is
     // document data, and a round trip that dropped it would still pass
     // every name check above while moving the part.
     let offset = |doc: &ProfileDoc, id| match doc.node(id) {
@@ -1767,7 +1748,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     println!(
         "   inline: {} node(s) spliced back, {} recorded edit(s); all {} product names \
          resolve through the two recorded node maps, the table is the same size, and the \
-         hoisted group frame comes back bit-exact",
+         group frame comes back bit-exact",
         back.node_map.len(),
         back.edits.len(),
         before_names.iter().count()
@@ -1777,12 +1758,11 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     //
     // The invariant under test is that split and inline are INVERSES
     // for every legal cut, and the shape most likely to break it is
-    // this one — the cut hoists the post group's authored frame onto
-    // the remainder's instance, and `inline` refuses a non-identity
-    // frame whose part's roots are not themselves instances
-    // (`UnplaceableFrame`), which a Pattern root is not. It does NOT
-    // refuse here, because the hoist leaves the pattern's own recipe
-    // able to express the placement; the arms below say which answer
+    // this one: `inline` refuses an instance off the world's origin
+    // whose part's roots are not themselves instances
+    // (`UnplaceableFrame`), which a Pattern root is not. The cut moves
+    // as selected and leaves the instance at the empty chain, so the
+    // pattern lands back verbatim; the arms below say which answer
     // this tree gave rather than asserting one, so a change in either
     // direction is reported at the scene instead of passing silently.
     let posts_id = DocumentId::derive("pncad-demo-posts-cell");
@@ -1811,7 +1791,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
             match inline(&posts.remainder, posts.instance, &store, tol) {
                 Ok(_) => println!(
                     "   second cut: the patterned-post cell splits out AND inlines back \
-                     (the hoisted group frame is expressible in the part's own recipe)"
+                     (the cut moved as selected, so the pattern lands back verbatim)"
                 ),
                 Err(e @ InlineError::UnplaceableFrame { .. }) => println!(
                     "   second cut (gap): the patterned-post cell splits out but does NOT \

@@ -948,12 +948,12 @@ fn a_cut_of_a_gauged_instance_and_its_transform_lands_on_two_anchors() {
         other => panic!("a gauged instance under its transform is two anchors: {other:?}"),
     }
 }
-
-/// **A group nothing places for lack of a root casts no vote** (A4): a
-/// cut holding an instance whose offset was cleared beside plain world
-/// geometry lands on the world, and splits.
+/// **A group nothing places for lack of an offset votes its gauge**
+/// (A4; the P2-split spec's D2): a cut holding an instance on g whose
+/// offset was cleared, beside plain world geometry, names two anchors,
+/// rather than land the instance on the world and lose its gauge.
 #[test]
-fn a_cut_group_unplaced_for_lack_of_a_root_casts_no_vote() {
+fn a_cut_group_unplaced_for_lack_of_an_offset_votes_its_gauge() {
     let p = parts("r1-split-novote");
     let doc = ProfileDoc::empty(DocumentId::derive("r1-split-novote"), Tol::witness());
     let (doc, g) = insert(
@@ -982,7 +982,6 @@ fn a_cut_group_unplaced_for_lack_of_a_root_casts_no_vote() {
         },
     );
     let o = p.opts();
-    let _ = (prof, ext);
     let mut cut: std::collections::BTreeSet<RecipeNodeId> = doc
         .order()
         .iter()
@@ -990,19 +989,23 @@ fn a_cut_group_unplaced_for_lack_of_a_root_casts_no_vote() {
         .filter(|id| !before.contains(id))
         .collect();
     cut.insert(x);
-    let out = editor_core::split(
+    match editor_core::split(
         &doc,
         &cut,
         DocumentId::derive("r1-split-novote-part"),
         Tol::witness(),
         o.resolver.as_ref(),
-    )
-    .expect("the unplaced instance casts no vote, so the world is the one anchor");
-    assert_eq!(
-        out.remainder.node(out.instance).and_then(Node::gauge_ref),
-        None,
-        "the instance left behind sits on the world"
-    );
+    ) {
+        Err(editor_core::SplitError::TwoAnchors {
+            node,
+            first,
+            second,
+        }) => assert_eq!(
+            (node.id(), first.map(|f| f.id()), second.map(|s| s.id())),
+            (ext, Some(g), None)
+        ),
+        other => panic!("the unplaced instance votes its gauge: {other:?}"),
+    }
 }
 
 /// **A document of unplaced material alone**: the world gather refuses
@@ -1075,15 +1078,17 @@ fn a_document_of_unplaced_material_alone_names_its_groups_and_still_checks_them(
     own_space_refuses(&doc, &ev);
 }
 
-/// **The group hoist leaves a parametric root offset in the host**
-/// (A4): the offset becomes the instance's, so a parameter driving it
-/// never trips `UncutParamReference` — here a kept gauge reads it too —
-/// and the part gets no copy of a parameter nothing in it reads.
+/// **A parametric root offset moves with the cut, and `Promote` keeps
+/// it in the host** (A4): the root's offset is a cut node's, so a
+/// parameter a kept gauge reads too refuses `UncutParamReference`;
+/// promoted, the offset is a kept gauge's placement, the group is cut
+/// leaving that gauge behind, and the part gets no copy of a parameter
+/// nothing in it reads.
 #[test]
-fn the_group_hoist_keeps_a_parametric_root_offset_in_the_host() {
-    let p = parts("r1-hoist-param");
+fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host() {
+    let p = parts("r1-promote-param");
     let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("r1-hoist-param"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-promote-param"), Tol::witness());
     let doc = declare_lift(doc, 2.0);
     let (doc, _) = insert(
         doc,
@@ -1106,17 +1111,43 @@ fn the_group_hoist_keeps_a_parametric_root_offset_in_the_host() {
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     let cut: std::collections::BTreeSet<RecipeNodeId> = [base, top, mate].into_iter().collect();
-    let out = editor_core::split(
-        &doc,
-        &cut,
-        DocumentId::derive("r1-hoist-param-part"),
-        Tol::witness(),
-        o.resolver.as_ref(),
-    )
-    .expect("the hoist reads the parameter in the host only");
+    let split = |doc: &ProfileDoc| {
+        editor_core::split(
+            doc,
+            &cut,
+            DocumentId::derive("r1-promote-param-part"),
+            Tol::witness(),
+            o.resolver.as_ref(),
+        )
+    };
+    let err = split(&doc).expect_err("the cut root's offset reads a kept node's parameter");
     assert!(
-        offset_of(&out.remainder, out.instance).is_some_and(|o| o.bit_eq(&offset)),
-        "the instance takes the parametric offset"
+        matches!(&err, editor_core::SplitError::UncutParamReference { param, cut_node, promote: true, .. }
+            if *param == lift() && cut_node.id() == base),
+        "{err:?}"
+    );
+    assert!(
+        err.to_string().contains(&format!(
+            "Recourse: promote {} (Promote), so its offset stays in this document",
+            doc.spoken(base)
+        )),
+        "{err}"
+    );
+    let (doc, k) = step(doc, DocEdit::Promote { instance: base });
+    let k = k.expect("the promote mints its gauge");
+    let out = split(&doc).expect("the promoted offset stays in the host");
+    assert!(
+        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. }) if placement.bit_eq(&offset)),
+        "the promoted gauge holds the parametric offset"
+    );
+    assert_eq!(
+        out.remainder.node(out.instance).and_then(Node::gauge_ref),
+        Some(k),
+        "the instance sits on the promoted gauge"
+    );
+    assert_eq!(
+        offset_of(&out.remainder, out.instance),
+        Some(Placement::IDENTITY)
     );
     assert!(
         out.part.params().is_empty(),
@@ -1250,8 +1281,9 @@ fn the_mate_placed_recourse_followed_inlines_in_place() {
             let said = e.to_string();
             let editor_core::InlineError::MatePlaced {
                 instance,
-                root,
+                host_root: root,
                 mates,
+                ..
             } = e
             else {
                 unreachable!()
@@ -1343,42 +1375,51 @@ fn the_compound_door_refuses_a_regauge_that_would_start_a_declaring_mate_placing
     let doc = set_gauge(doc, b, Some(g));
     let (doc, a1) = insert(doc, Node::instantiate_part(p.top));
     let (doc, m1) = insert(doc, seat(head(p.top_cap(a1)), head(p.base_cap(c))));
-    match editor_core::regauge_then_mate(&doc, seat(head(p.top_cap(a1)), head(p.base_cap(b)))) {
+    let regauge_then_mate = |doc: &ProfileDoc| {
+        editor_core::regauge_then_mate(
+            doc,
+            seat(head(p.top_cap(a1)), head(p.base_cap(b))),
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+    };
+    match regauge_then_mate(&doc) {
         Err(e @ editor_core::EditError::WouldStartPlacing { .. }) => {
             assert!(
                 matches!(&e, editor_core::EditError::WouldStartPlacing { mate } if mate.id() == m1)
             );
             let said = e.to_string();
-            assert!(
-                said.contains("Recourse: delete mate 000000000005") || said.contains("Recourse:"),
-                "{said}"
-            );
+            let problems = test_utils::refusal::problems("WouldStartPlacing", &said, &[], false);
+            assert!(problems.is_empty(), "{said}: {problems:#?}");
         }
         other => panic!("the compound door refuses typed: {other:?}"),
     }
-    // With m1 gone, the same action is the bare re-gauge and insert.
+    // With m1 gone, the same action re-gauges a1 and places it on b.
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: m1 });
-    let edits =
-        editor_core::regauge_then_mate(&doc, seat(head(p.top_cap(a1)), head(p.base_cap(b))))
-            .expect("no other mate starts placing");
-    assert_eq!(edits.len(), 2, "one re-gauge, then the insert: {edits:?}");
+    let done = regauge_then_mate(&doc).expect("no other mate starts placing");
+    assert_eq!(
+        done.doc.node(a1).and_then(Node::gauge_ref),
+        Some(g),
+        "a1 is re-gauged onto b's gauge"
+    );
+    assert_eq!(root_of(&done.doc, a1), b, "b's group places a1");
 }
 
-/// **`InlineError::NeedsAGauge`'s recourse moves nothing, and inlines**:
-/// a host instance at an offset over a part of two lone instances needs
-/// a gauge to hold the offset, which inline does not mint yet. Inserting
-/// that gauge by hand — on the instance's gauge, holding its offset —
-/// and putting the instance on it at the empty offset leaves every
-/// world pose where it was, and the inline then lands the part's
-/// content on that gauge verbatim.
+/// **The gauge inline mints is the one a user would insert** (A4, the
+/// spec's I1): a host instance at an offset over a part of two lone
+/// instances inlines onto a gauge minted under its gauge holding its
+/// offset. Inserting that gauge by hand, listing it just ahead of the
+/// instance in the roots, putting the instance on it at the empty
+/// offset (which moves nothing) and inlining there gives the same
+/// document up to node ids, root order included, and no world pose
+/// moves.
 #[test]
-fn the_needs_a_gauge_recourse_followed_moves_nothing_and_inlines() {
-    let p = parts("r1-needs-gauge");
+fn the_minted_gauge_is_the_one_a_user_would_insert_and_moves_nothing() {
+    let p = parts("minted-vs-hand");
     let o = p.opts();
-    let sub = ProfileDoc::empty(DocumentId::derive("r1-needs-gauge-sub"), Tol::witness());
-    let (sub, s1) = insert(sub, Node::instantiate_part(p.base));
+    let sub = ProfileDoc::empty(DocumentId::derive("minted-vs-hand-sub"), Tol::witness());
+    let (sub, _) = insert(sub, Node::instantiate_part(p.base));
     let (sub, s2) = insert(sub, Node::instantiate_part(p.base));
-    let _ = s1;
     let sub = set_offset(
         sub,
         s2,
@@ -1390,34 +1431,58 @@ fn the_needs_a_gauge_recourse_followed_moves_nothing_and_inlines() {
         resolver: with_resolver(store.clone()).resolver,
         ..o
     };
-    let doc = ProfileDoc::empty(DocumentId::derive("r1-needs-gauge"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("minted-vs-hand"), Tol::witness());
     let (doc, h) = insert(doc, Node::instantiate_part(sub_ref));
     let offset = Placement::literal(
         &Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [2.0, 5.0, 0.0], band()).unwrap(),
     );
     let doc = set_offset(doc, h, Some(offset.clone()));
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
-    match editor_core::inline(&doc, h, &resolver, Tol::witness()) {
-        Err(e @ editor_core::InlineError::NeedsAGauge { .. }) => {
-            assert!(e.to_string().contains("which moves nothing"), "{e}");
-        }
-        other => panic!("an offset over a two-group part needs a gauge: {other:?}"),
-    }
     let before = world_bounds(&doc, &run(&doc, &o));
-    let (doc, g) = insert(doc, Node::gauge(None, offset));
-    let doc = set_gauge(doc, h, Some(g));
-    let doc = set_offset(doc, h, Some(Placement::IDENTITY));
-    let moved = world_bounds(&doc, &run(&doc, &o));
-    assert_eq!(before, moved, "the recourse moves nothing");
-    let out = editor_core::inline(&doc, h, &resolver, Tol::witness())
-        .expect("at the empty offset the part's content lands on the gauge");
-    let after = world_bounds(&out.doc, &run(&out.doc, &o));
+    let minted = editor_core::inline(&doc, h, &resolver, Tol::witness())
+        .expect("an offset over a two-group part inlines onto a minted gauge");
+    let after = world_bounds(&minted.doc, &run(&minted.doc, &o));
     for k in 0..3 {
         assert!(
             (before.0[k] - after.0[k]).abs() < 1e-9 && (before.1[k] - after.1[k]).abs() < 1e-9,
             "nothing moved: {before:?} -> {after:?}"
         );
     }
+
+    let (hand, g) = insert(doc, Node::gauge(None, offset));
+    let mut roots: Vec<RecipeNodeId> = hand.roots().iter().copied().filter(|&r| r != g).collect();
+    let at = roots.iter().position(|&r| r == h).expect("h is a root");
+    roots.insert(at, g);
+    let (hand, _) = step(hand, DocEdit::SetRoots { roots });
+    let hand = set_gauge(hand, h, Some(g));
+    let hand = set_offset(hand, h, Some(Placement::IDENTITY));
+    assert_eq!(
+        before,
+        world_bounds(&hand, &run(&hand, &o)),
+        "the hand-made gauge moves nothing"
+    );
+    let by_hand = editor_core::inline(&hand, h, &resolver, Tol::witness())
+        .expect("at the empty offset the part's content lands on the gauge");
+    let gauge_of = |d: &ProfileDoc| {
+        d.order()
+            .iter()
+            .copied()
+            .find(|&id| matches!(d.node(id), Some(Node::Gauge { .. })))
+            .expect("one gauge")
+    };
+    let mut map: editor_core::NodeMap = minted
+        .node_map
+        .iter()
+        .map(|(part, &at)| (at, by_hand.node_map[part]))
+        .collect();
+    map.insert(gauge_of(&minted.doc), gauge_of(&by_hand.doc));
+    fixture::round_trip::same_up_to_ids(
+        &minted.doc,
+        &by_hand.doc,
+        &map,
+        &editor_core::StepMap::new(),
+    )
+    .unwrap_or_else(|e| panic!("the minted gauge is the hand-made one:\n{e}"));
 }
 
 /// **The kernel's pick orders faces within one space only**: a ray

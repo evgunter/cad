@@ -272,12 +272,16 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::SetMembersOnNonList { node }
+        | EditError::SetDeclareOnNonDeclaring { node }
         | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
         | EditError::OffsetOnNonInstance { node }
         | EditError::GaugeOnNonPlaced { node }
-        | EditError::PlacementRuleMismatch { node }
+        | EditError::PromoteOnNonInstance { node }
+        | EditError::PromoteWithoutOffset { node }
+        | EditError::FoldOnNonGauge { node }
+        | EditError::PlacementRuleMismatch { node, shape: _ }
         | EditError::EmptyPlacementList { node }
 
         | EditError::NonFiniteAlignment { node }
@@ -303,10 +307,22 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             input: Some(input.id()),
             ..none
         },
-        EditError::DuplicateInput { node, input }
-        | EditError::DeclareInputNotDeclare { node, input } => EditPayload {
+        EditError::DuplicateInput { node, input } => EditPayload {
             node: Some(node.id()),
             input: Some(input.id()),
+            ..none
+        },
+        // A promote or a fold names its target and the one other node
+        // the refusal is about: the group's root, the member carrying
+        // an offset, or the mate that would start placing.
+        EditError::PromoteNonRoot { node, root: other }
+        | EditError::PromoteMemberOffset {
+            node,
+            member: other,
+        }
+        | EditError::FoldWouldStartPlacing { node, mate: other } => EditPayload {
+            node: Some(node.id()),
+            input: Some(other.id()),
             ..none
         },
         // An assertion's `measure` IS the node it reads, so it takes
@@ -352,8 +368,15 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             count: Some(*found),
             ..none
         },
-        EditError::DeleteWouldDangle { id, referenced_by } => EditPayload {
-            node: Some(id.id()),
+        EditError::DeleteWouldDangle {
+            id: node,
+            referenced_by,
+        }
+        | EditError::FoldWouldDangle {
+            node,
+            referenced_by,
+        } => EditPayload {
+            node: Some(node.id()),
             referenced_by: Some(referenced_by.id()),
             ..none
         },
@@ -468,6 +491,19 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // (the `ProductError` arm's precedent, same refusal one door
         // over).
         EditError::EvaluationOfAnotherDocument { .. } => none,
+        // The declaring node, the side's name, and the node the side
+        // is read at, which is not one of the node's operands.
+        EditError::DeclaredSiteNotAnOperand { node, name, site } => EditPayload {
+            node: Some(node.id()),
+            input: Some(site.id()),
+            name: Some(name.name()),
+            ..none
+        },
+        EditError::DeclaredNameNotUpstream { node, name } => EditPayload {
+            node: Some(node.id()),
+            name: Some(name.name()),
+            ..none
+        },
         EditError::DeclareNamesMissingNode { name }
         | EditError::RebindTargetMissingNode { name }
         | EditError::RebindUnknownName { name }

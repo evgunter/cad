@@ -39,3 +39,18 @@ Re-baselining every golden that embeds "name minted by node": editor-core displa
 EDIT: `names/`, `resolve/mod.rs`. Also EMIT, on `role.rs`. The viewer half is AUTHOR's `face-pick-cannot-name-which-face`, blocked on this row.
 
 Filed by the AUTHOR orchestrator on Ev's ruling.
+
+## A name's words tell it apart, within a readable sentence
+
+Measured on PR 3886's build over the corpus (every name in every node's table): 316 groups of distinct faces read alike, and a refusal naming two real names runs to 134 words against the 75-word budget. 314 of the 316 are copies of one master: a `Transform` passes names through, so which copy a face is shows only in the carry that brought it into the body, and the renderer reads every carry as silent.
+
+The words of a name:
+
+- **Shape.** `<role> of <feature>[, <join>…][, on <node>]`. The feature is the node that made the leaf. "on <node>" names the node whose output holds the name, said only where the sentence is not already about it. A name a role cites is said the same way, so it keeps its feature. The "name minted by" frame goes.
+- **Joins.** A carry through a primary operand (a Boolean's A, a fillet's target) is the body's own continuation and is silent. A carry through a secondary operand (a Boolean's B, a union member) is a join, said with its node, outermost first: "the end cap of Extrude e548, cut in at Subtract 1669". Over carry chains this is injective: two names in one table first differ at a node where one went through B.
+- **Detail.** Below that core, how deep cited names and how wide neighbour lists are said is chosen per speaker: a speaker holding the body's name table (the viewer's pick readout, refusals raised at evaluation) says the least detail unique in that table. A speaker holding no table says {the full form | a fixed default detail} (the open choice).
+- **Gates.** Over the corpus: the full form is injective; table-scoped words are unique per body except ties; every refusal that forwards a name meets the budget with the corpus's longest scoped names; `PairInBand`'s own prose meets the refusal standard.
+
+## Ruled (Ev, PR 3906, 2026-10-03)
+
+The shared core as recommended (joins said, one sentence shape, table-scoped detail, corpus gates), and on the one split the full form for a speaker holding no table. PR 3886 builds it in its fix pass.

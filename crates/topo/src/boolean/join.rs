@@ -58,7 +58,7 @@
 //!    An edge-edge germ's record may pair two COPLANAR flankers (each
 //!    solid's own fold flanker, `recl::place_germ`), where `nA×nB` is
 //!    zero and names no line: there the germ line is the common edge
-//!    itself (`insert::insert_null_pairs`' `record_dir` takes the A
+//!    itself (`insert::plan_null_pairs`' `record_dir` takes the A
 //!    flanker's bound read On there, and `fn germ_dir`'s normal cross
 //!    everywhere else), and the loops' direction along it is the region
 //!    boundaries' as above, read on that edge.
@@ -77,12 +77,11 @@
 //!    anti-correlation. Insertion mints attributes to this rule
 //!    (struts included — their facing swap swaps the labels with it),
 //!    so the attributes ARE the discipline; nothing rebinds later.
-//!    The angular strut spike order (`bool_strut_order`, insert.rs)
-//!    is FORCED by nesting for sector widths W ≤ π — the whole
-//!    crossing-minted class (edge-interior sites are exact
-//!    half-planes); reflex corners W > 3π/2 with germ angle
-//!    θ ∈ (π/2, W−π) sit in an unforced window (ops module "Known
-//!    limitations").
+//!    The angular strut spike order (`insert::strut_order`) ranks a
+//!    strut's two germs by their angle from the splice corner's
+//!    arrival edge, measured inside the sector at any width and read
+//!    as distances at the sector's arm; where nothing orders them it
+//!    refuses.
 //! 3. **What the join controls.** Surgery never reverses existing
 //!    halves, and chords close cycles forced by arc endpoints, so the
 //!    directed cycles after every join are fixed by the senses alone:
@@ -140,7 +139,9 @@ use geom_core::Tol;
 /// boolean reads a plane carrier's normal into the section lanes, and
 /// decides its length there because the carrier's unit length is an
 /// at-rest convention no tier certifies. Its comparand is the vector's
-/// norm, a genuine length, through the plain [`Margin::norm3`] door.
+/// norm, a pure number, levered by a lower bound on the reach the
+/// section consumes it over: the joined germ sites' reach from the
+/// plane's origin ([`UnitVec3::levered`]).
 pub(super) const BOOL_GERM_PLANE_NORMAL: &str = "bool_germ_plane_normal";
 
 /// One completed section-polygon **pair**: the 2-loop null face in
@@ -160,6 +161,50 @@ pub struct CompletedPolygonPair {
     pub b_in_loop: LoopKey,
     /// B's OUT-copy loop.
     pub b_out_loop: LoopKey,
+}
+
+/// The chord lane a germ face pair joins by, with the section datum
+/// each side's chords lie in.
+#[derive(Clone, Copy)]
+enum GermLane<T: geom_core::Real> {
+    /// Plane × plane: the chord runs along the two planes' common line.
+    Planar,
+    /// A planar, B a wall: B's chords lie in A's plane.
+    PlaneWall((Point3<T>, UnitVec3<T>)),
+    /// A a wall, B planar: A's chords lie in B's plane.
+    WallPlane((Point3<T>, UnitVec3<T>)),
+    /// A sphere pair: both sides' chords lie in the radical plane.
+    Radical((Point3<T>, UnitVec3<T>)),
+}
+
+impl<T: geom_core::Real> GermLane<T> {
+    /// How each side's ring-lane island closes, A's then B's: a planar
+    /// germ face on its own plane, a wall along the section its chords
+    /// lie in.
+    fn ring_closures(self) -> (RingClosure<T>, RingClosure<T>) {
+        match self {
+            Self::Planar => (RingClosure::Planar, RingClosure::Planar),
+            Self::PlaneWall(plane) => (RingClosure::Planar, RingClosure::Wall(plane)),
+            Self::WallPlane(plane) => (RingClosure::Wall(plane), RingClosure::Planar),
+            Self::Radical(plane) => (RingClosure::Wall(plane), RingClosure::Wall(plane)),
+        }
+    }
+}
+
+/// How one solid's ring-lane island is closed for its winding
+/// ([`ring_run_ccw`]), typed by the germ face's kind.
+#[derive(Clone, Copy)]
+enum RingClosure<T: geom_core::Real> {
+    /// A planar face: the island closes on the face's own plane.
+    Planar,
+    /// A curved face: the island closes along this section plane, on
+    /// the face's chart.
+    Wall((Point3<T>, UnitVec3<T>)),
+    /// A segment along an edge of both solids (this solid the named
+    /// operand) reads no section: a planar face's island closes on its
+    /// own plane, and a curved face has nothing to close along, which
+    /// is a join arm not yet built.
+    AlongEdge(Operand),
 }
 
 /// Per-solid joining state: the shared chord core plus the F9 side
@@ -416,13 +461,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         a_loose.remove(ra);
         b_loose.remove(eb);
         b_loose.remove(rb);
-        // Role order per solid, derived independently (module docs —
-        // the PR 5.5 discipline): cross-solid seam orientation is
-        // carried by the sense attributes alone; role order only
-        // decides the face partition of a same-loop split, which each
-        // solid resolves against its OWN geometry.
-        let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, band)?;
-        let (b1, b2) = choose_roles(&red.b, eb, rb, &b_loose, band)?;
         // Curved germ pairs (M5 PR 9): each solid's chord lane comes
         // from the germ FACE PAIR — plane×plane takes the straight-chord
         // lane with the partner's plane as its section; plane×cylinder mints
@@ -458,11 +496,27 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // cosines, so its length is decided here, at the read: a plane
         // carrier's normal is unit only by the surfaces' at-rest
         // convention, which no tier certifies. A normal with no decided
-        // length is an operand whose plane breaks that convention.
-        let germ_normal = |n: Vec3<T>| {
-            UnitVec3::new(n, BOOL_GERM_PLANE_NORMAL, band).map_err(|_| {
-                desync("a germ plane's normal has no decided length (a broken plane carrier)")
-            })
+        // length is an operand whose plane breaks that convention. The
+        // length is a pure number, levered by a LOWER bound on the reach
+        // it is consumed over: the ball through the two germ sites this
+        // join connects, read from the plane's origin. The lanes consume
+        // the normal along the section between those sites, which can
+        // reach past the ball, and a shorter arm never decides a length
+        // positive that the full reach would not. Read only by the arms
+        // that mint a germ normal, before they mutate the body.
+        let germ_reach = |body: &Body<T>| -> Result<geom_brep::ExtentBall<T>, BooleanError> {
+            let site = |he| {
+                body.half_edge_start_point(he)
+                    .map(geom_brep::ExtentBall::point)
+                    .ok_or(desync("germ site has no point"))
+            };
+            geom_brep::ExtentBall::enclosing(&[site(ea)?, site(ra)?])
+                .ok_or(desync("a join has no germ sites"))
+        };
+        let germ_normal = |reach: geom_brep::ExtentBall<T>, origin: Point3<T>, n: Vec3<T>| {
+            UnitVec3::levered(n, BOOL_GERM_PLANE_NORMAL, band, reach.lever_from(origin)).map_err(
+                |_| desync("a germ plane's normal has no decided length (a broken plane carrier)"),
+            )
         };
         let (ka, ga) = surf_of(&red.a, germ.a_face)?;
         let (kb, gb) = surf_of(&red.b, germ.b_face)?;
@@ -479,78 +533,27 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         use geom::Surface as Sf;
         // A segment along an edge of both solids is that edge in both:
         // each solid's chord copies its own edge and no section is read
-        // (the germ's two faces may share one carrier).
+        // (the germ's two faces may share one carrier), so it takes no
+        // kind lane.
         let along_both = matches!(
             (germ.a_locus, germ.b_locus),
             (super::Locus::OnEdge(_), super::Locus::OnEdge(_))
         );
-        if along_both {
-            sa.joiner
-                .join(&mut red.a, a1, a2, JoinLane::AlongEdge, seg_a, tol)
-                .map_err(BooleanError::Join)?;
-            sb.joiner
-                .join(&mut red.b, b1, b2, JoinLane::AlongEdge, seg_b, tol)
-                .map_err(BooleanError::Join)?;
+        let lane = if along_both {
+            None
         } else {
-            match (&ga, &gb) {
-                (Sf::Plane { .. }, Sf::Plane { .. }) => {
-                    // The chord runs along the two planes' common line:
-                    // straight on both sides.
-                    sa.joiner
-                        .join(&mut red.a, a1, a2, JoinLane::Planar, seg_a, tol)
-                        .map_err(BooleanError::Join)?;
-                    sb.joiner
-                        .join(&mut red.b, b1, b2, JoinLane::Planar, seg_b, tol)
-                        .map_err(BooleanError::Join)?;
-                }
+            Some(match (&ga, &gb) {
+                (Sf::Plane { .. }, Sf::Plane { .. }) => GermLane::Planar,
                 (Sf::Plane { origin, normal, .. }, Sf::Sphere { .. })
-                | (Sf::Plane { origin, normal, .. }, Sf::Cylinder { .. }) => {
-                    let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
-                        .map_err(BooleanError::Join)?
-                        .ok_or(desync("wall germ face has no charted azimuth window"))?;
-                    sa.join_bool_planar(
-                        &mut red.a,
-                        (a1, a2),
-                        gb.clone(),
-                        window,
-                        germ.b_face,
-                        seg_a,
-                        tol,
-                    )?;
-                    let plane = (*origin, germ_normal(*normal)?);
-                    sb.join_split(
-                        &mut red.b,
-                        (b1, b2),
-                        plane,
-                        AuxDatum::Partner(germ.a_face),
-                        seg_b,
-                        tol,
-                    )?;
-                }
+                | (Sf::Plane { origin, normal, .. }, Sf::Cylinder { .. }) => GermLane::PlaneWall((
+                    *origin,
+                    germ_normal(germ_reach(&red.a)?, *origin, *normal)?,
+                )),
                 (Sf::Sphere { .. }, Sf::Plane { origin, normal, .. })
-                | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => {
-                    let plane = (*origin, germ_normal(*normal)?);
-                    sa.join_split(
-                        &mut red.a,
-                        (a1, a2),
-                        plane,
-                        AuxDatum::Partner(germ.b_face),
-                        seg_a,
-                        tol,
-                    )?;
-                    let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
-                        .map_err(BooleanError::Join)?
-                        .ok_or(desync("wall germ face has no charted azimuth window"))?;
-                    sb.join_bool_planar(
-                        &mut red.b,
-                        (b1, b2),
-                        ga.clone(),
-                        window,
-                        germ.a_face,
-                        seg_b,
-                        tol,
-                    )?;
-                }
+                | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => GermLane::WallPlane((
+                    *origin,
+                    germ_normal(germ_reach(&red.a)?, *origin, *normal)?,
+                )),
                 // **The sphere pair rides its RADICAL PLANE.** Two spheres
                 // meet in a circle lying in the one plane both residuals
                 // agree on, so on each side the section is that sphere cut
@@ -568,7 +571,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                             center,
                             axis,
                             ..
-                        })) => (center, germ_normal(axis)?),
+                        })) => (center, germ_normal(germ_reach(&red.a)?, center, axis)?),
                         Ok(_) => {
                             return Err(desync(
                                 "germ pair's sphere×sphere section is not a circle",
@@ -583,9 +586,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                         }
                         Err(_) => return Err(desync("germ pair's section refused at join time")),
                     };
-                    let datum = |own, partner| AuxDatum::Radical { own, partner };
-                    sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), seg_a, tol)?;
-                    sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), seg_b, tol)?;
+                    GermLane::Radical(radical)
                 }
                 (a_s, b_s) => {
                     // No wired join arm for this germ pair (cyl×cyl's
@@ -603,6 +604,91 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                         kind: s.kind(),
                     });
                 }
+            })
+        };
+        // Role order per solid, derived independently (module docs —
+        // the PR 5.5 discipline): cross-solid seam orientation is
+        // carried by the sense attributes alone; role order only
+        // decides the face partition of a same-loop split, which each
+        // solid resolves against its OWN geometry. A wall face's ring
+        // lane winds its island on the face's chart, closed along this
+        // solid's section plane; an along-edge segment reads no section.
+        let (a_closure, b_closure) = lane.map_or(
+            (
+                RingClosure::AlongEdge(Operand::A),
+                RingClosure::AlongEdge(Operand::B),
+            ),
+            GermLane::ring_closures,
+        );
+        let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, a_closure, band)?;
+        let (b1, b2) = choose_roles(&red.b, eb, rb, &b_loose, b_closure, band)?;
+        match lane {
+            None => {
+                sa.joiner
+                    .join(&mut red.a, a1, a2, JoinLane::AlongEdge, seg_a, tol)
+                    .map_err(BooleanError::Join)?;
+                sb.joiner
+                    .join(&mut red.b, b1, b2, JoinLane::AlongEdge, seg_b, tol)
+                    .map_err(BooleanError::Join)?;
+            }
+            Some(GermLane::Planar) => {
+                // The chord runs along the two planes' common line:
+                // straight on both sides.
+                sa.joiner
+                    .join(&mut red.a, a1, a2, JoinLane::Planar, seg_a, tol)
+                    .map_err(BooleanError::Join)?;
+                sb.joiner
+                    .join(&mut red.b, b1, b2, JoinLane::Planar, seg_b, tol)
+                    .map_err(BooleanError::Join)?;
+            }
+            Some(GermLane::PlaneWall(plane)) => {
+                let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
+                    .map_err(BooleanError::Join)?
+                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
+                sa.join_bool_planar(
+                    &mut red.a,
+                    (a1, a2),
+                    gb.clone(),
+                    window,
+                    germ.b_face,
+                    seg_a,
+                    tol,
+                )?;
+                sb.join_split(
+                    &mut red.b,
+                    (b1, b2),
+                    plane,
+                    AuxDatum::Partner(germ.a_face),
+                    seg_b,
+                    tol,
+                )?;
+            }
+            Some(GermLane::WallPlane(plane)) => {
+                sa.join_split(
+                    &mut red.a,
+                    (a1, a2),
+                    plane,
+                    AuxDatum::Partner(germ.b_face),
+                    seg_a,
+                    tol,
+                )?;
+                let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
+                    .map_err(BooleanError::Join)?
+                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
+                sb.join_bool_planar(
+                    &mut red.b,
+                    (b1, b2),
+                    ga.clone(),
+                    window,
+                    germ.a_face,
+                    seg_b,
+                    tol,
+                )?;
+            }
+            Some(GermLane::Radical(radical)) => {
+                let datum = |own, partner| AuxDatum::Radical { own, partner };
+                sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), seg_a, tol)?;
+                sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), seg_b, tol)?;
             }
         }
         open[m.entry].a[m.entry_slot].1 = true;
@@ -785,15 +871,9 @@ fn partners<T: Decide>(
         return Ok(None);
     }
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
-        let v = red
-            .a
-            .get_half_edge(he)
-            .ok_or(desync("germ half no longer resolves"))?
-            .start;
         red.a
-            .get_vertex(v)
-            .and_then(|vd| red.a.get_point(vd.point).copied())
-            .ok_or(desync("germ vertex has no point"))
+            .half_edge_start_point(he)
+            .ok_or(desync("germ site has no point"))
     };
     let (rec, e) = (&open[cand], &open[entry]);
     let (rga, ega) = (rec.a[cs].0, e.a[es].0);
@@ -1541,6 +1621,7 @@ fn choose_roles<T: Decide>(
     ea: HalfEdgeKey,
     ra: HalfEdgeKey,
     loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
+    closure: RingClosure<T>,
     band: Band,
 ) -> Result<(HalfEdgeKey, HalfEdgeKey), BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -1582,7 +1663,7 @@ fn choose_roles<T: Decide>(
     // antiparallelism witness caught it). The two rules agree wherever
     // the residual anchor was sound (both parities checked in the
     // issue #93 diagnosis), so corpus surgery is unchanged.
-    let (h1, h2) = if ring_run_ccw(body, face, ea, ra, band)? {
+    let (h1, h2) = if ring_run_ccw(body, face, ea, ra, closure, band)? {
         (ea, ra)
     } else {
         (ra, ea)
@@ -1612,21 +1693,49 @@ fn choose_roles<T: Decide>(
 /// traversal carries the other sign. `Indeterminate` escalates. Zero is
 /// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
-/// merges). The ring lane is planar-scoped like
-/// [`super::solid_contain::point_in_solid`]'s F5 gate: a non-planar
-/// face refuses loudly, and so does a spiric or spline run edge, which
-/// the operand gate keeps out.
+/// merges). A spiric or spline run edge refuses loudly; the operand
+/// gate keeps them out.
+///
+/// A wall face ([`RingClosure::Wall`]) asks the same question on its
+/// own chart, [`crate::chord_join::chart_island_winding`], with the run
+/// closed along the plane this solid's chords lie in.
 fn ring_run_ccw<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     h1: HalfEdgeKey,
     h2: HalfEdgeKey,
+    closure: RingClosure<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let normal = face_outward_normal(body, face)
-        .ok_or(desync("ring-lane face has no planar carrier"))?
-        .vec();
+    let section = match closure {
+        RingClosure::Wall(section) => {
+            let wound =
+                crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)
+                    .map_err(BooleanError::Join)?;
+            return ring_winding_order(wound);
+        }
+        RingClosure::Planar => face_outward_normal(body, face).ok_or(desync(
+            "a planar germ face's ring lane found no planar carrier",
+        ))?,
+        RingClosure::AlongEdge(operand) => match face_outward_normal(body, face) {
+            Some(normal) => normal,
+            None => {
+                let kind = body
+                    .get_face(face)
+                    .and_then(|f| body.get_surface(f.surface))
+                    .map(geom::Surface::kind)
+                    .ok_or(desync("ring-lane face no longer resolves"))?;
+                return Err(BooleanError::CurvedBooleanUnsupported {
+                    operand,
+                    face,
+                    kind,
+                });
+            }
+        },
+    };
+    let normal = section;
+    let normal = normal.vec();
     let wound = body
         .planar_run_winding_decided(h1, h2, normal, band)
         .map_err(|torn| match torn {
@@ -1650,13 +1759,19 @@ fn ring_run_ccw<T: Decide>(
             what: "the ring lane reached a spiric or spline run edge (the operand gates refuse \
                    the kinds)",
         }))?;
-    // A zero area is a degenerate run (below), so its in-band twin is
-    // the kernel's too.
-    let decided = wound.map_err(|diag| BooleanError::Escalated {
+    ring_winding_order(wound.map(|decided| decided.sign))
+}
+
+/// The ring lane's role order from the decided winding: CCW keeps the
+/// order. A zero area is a degenerate run, so its in-band twin is the
+/// kernel's too.
+fn ring_winding_order(wound: Result<Sign, geom_core::Indeterminate>) -> Result<bool, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let sign = wound.map_err(|diag| BooleanError::Escalated {
         decision: BooleanDecision::SelfCheck(SelfCheck::RingWinding),
         diag,
     })?;
-    match decided.sign {
+    match sign {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
         Sign::Zero => Err(desync(
@@ -2060,7 +2175,7 @@ mod self_check_rows {
             })
             .expect("the top loop runs (0,0) → (1,h)");
         let h2 = body.get_half_edge(h1).unwrap().next;
-        let err = super::ring_run_ccw(body, prism.top_face, h1, h2, b)
+        let err = super::ring_run_ccw(body, prism.top_face, h1, h2, super::RingClosure::Planar, b)
             .expect_err("an in-band winding escalates");
         assert_defect(&err, SelfCheck::RingWinding, "bool_ring_run_winding");
     }

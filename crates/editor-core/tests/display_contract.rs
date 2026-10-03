@@ -372,7 +372,7 @@ fn resolve_indeterminate_display_names_its_content_not_its_struct() {
 
 test_utils::f6_variants! {
     /// `DeclareError`'s census — see [`NODE_PICK_ERROR`].
-    const DECLARE_ERROR: DeclareError = [NoFindings, Edit, NoMintedId];
+    const DECLARE_ERROR: DeclareError = [NoFindings, Edit];
 }
 
 #[test]
@@ -394,10 +394,6 @@ fn declare_error_display_names_its_content_not_its_struct() {
                 "refers to a node that is not live",
                 "Recourse: declare findings inspected from this document as it now stands",
             ],
-        ),
-        (
-            DeclareError::NoMintedId,
-            vec!["minted no node id", geom_core::KERNEL_DEFECT_ENDING],
         ),
     ];
     assert_f6_every_variant(&cases, &DECLARE_ERROR, &[]);
@@ -1038,7 +1034,6 @@ test_utils::f6_variants! {
         NodeNotMinted,
         DanglingInput,
         ForwardInput,
-        DeclareInput,
         WitnessSite,
         WitnessOnMissingNode,
         LabelOnMissingNode,
@@ -1065,6 +1060,8 @@ test_utils::f6_variants! {
         StepIds,
         MintLogOrder,
         NameStepNotMinted,
+        DeclaredSiteNotAnOperand,
+        DeclaredNameNotUpstream,
     ];
 }
 
@@ -1145,16 +1142,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec![
                 "Extrude \"base plate\" (000000000005) takes input from node 000000000009",
                 "does not precede it",
-            ],
-        ),
-        (
-            SnapshotError::DeclareInput {
-                node: node(),
-                input: absent(9),
-            },
-            vec![
-                "Extrude \"base plate\" (000000000005)'s declare input names node 000000000009",
-                "not a declaration",
             ],
         ),
         (
@@ -1425,6 +1412,43 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "minted by Extrude \"base plate\" (000000000005)",
                 "profile step id 000000000008",
                 "mint log does not hold",
+            ],
+        ),
+        (
+            SnapshotError::DeclaredSiteNotAnOperand {
+                node: held(6, "Boolean"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(5)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    node(),
+                ),
+                site: held(5, "Extrude"),
+            },
+            vec![
+                "read at Extrude 000000000005, which is not an operand of Boolean 000000000006",
+                "no edit writes such a pair",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ],
+        ),
+        (
+            SnapshotError::DeclaredNameNotUpstream {
+                node: held(6, "Boolean"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(5)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    node(),
+                ),
+            },
+            vec![
+                "minted by Extrude \"base plate\" (000000000005)",
+                "is not minted before Boolean 000000000006",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ],
         ),
     ];
@@ -2819,7 +2843,7 @@ fn a_program_fault_states_its_lattice_coordinate() {
 
 test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [OffsetCleared, Strand, StrandedAppearance, OrphanedDeclare];
+    const MAINTENANCE: Maintenance = [OffsetCleared, Strand, StrandedAppearance, LabelDropped];
 }
 
 /// **What an accepted edit DID reads as prose too** — the strand count
@@ -2835,10 +2859,6 @@ test_utils::f6_variants! {
 /// carriers, and it offers both repairs: `Rebind` moves the key,
 /// `ClearAppearance` retires it, and only the second works without a
 /// live node to move to.
-/// The orphan arm's subject is the SURVIVOR — the node named is the
-/// declaration that is still there — where both strand sentences name
-/// a carrier and close on the casualty, so it says what the
-/// declaration lost (its reader) rather than what was deleted.
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
     let cases = [
@@ -2880,17 +2900,13 @@ fn maintenance_display_says_what_the_edit_did() {
             ],
         ),
         (
-            Maintenance::OrphanedDeclare {
-                declare: held(5, "Declare"),
+            Maintenance::LabelDropped {
+                gauge: held(4, "Gauge"),
+                label: editor_core::Label::new("bench").expect("a label"),
             },
             vec![
-                "Declare 000000000005 declares contacts",
-                "deleted the last node that consumed it",
-                // What it lost is a CONSUMER. "nothing reads it"
-                // would be false — the same delete re-roots the
-                // declaration into the document's product roots.
-                "so no node consumes the declaration",
-                "until a boolean or union names it again",
+                "the fold took Gauge 000000000004 out of the document",
+                "its label \"bench\" went with it",
             ],
         ),
     ];
@@ -3248,6 +3264,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
                 param: name.clone(),
                 cut_node: held(1, "Extrude"),
                 kept_node: held(2, "Extrude"),
+                promote: false,
             }
             .to_string(),
         ),
@@ -3441,11 +3458,85 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             vec![held(6, "Mate")],
         ),
         (
-            EditError::DeclareInputNotDeclare {
-                node: held(5, "Union"),
-                input: held(4, "Extrude"),
+            EditError::PromoteOnNonInstance {
+                node: held(6, "Mate"),
             },
-            vec![held(5, "Union"), held(4, "Extrude")],
+            vec![held(6, "Mate")],
+        ),
+        (
+            EditError::PromoteWithoutOffset {
+                node: held(4, "InstantiatePart"),
+            },
+            vec![held(4, "InstantiatePart")],
+        ),
+        (
+            EditError::PromoteNonRoot {
+                node: held(5, "InstantiatePart"),
+                root: held(4, "InstantiatePart"),
+            },
+            vec![held(5, "InstantiatePart"), held(4, "InstantiatePart")],
+        ),
+        (
+            EditError::PromoteMemberOffset {
+                node: held(4, "InstantiatePart"),
+                member: held(5, "InstantiatePart"),
+            },
+            vec![held(4, "InstantiatePart"), held(5, "InstantiatePart")],
+        ),
+        (
+            EditError::FoldOnNonGauge {
+                node: held(4, "InstantiatePart"),
+            },
+            vec![held(4, "InstantiatePart")],
+        ),
+        (
+            EditError::FoldWouldStartPlacing {
+                node: held(3, "Gauge"),
+                mate: held(6, "Mate"),
+            },
+            vec![held(3, "Gauge"), held(6, "Mate")],
+        ),
+        (
+            EditError::FoldWouldDangle {
+                node: held(3, "Gauge"),
+                referenced_by: held(5, "Datum"),
+            },
+            vec![held(3, "Gauge"), held(5, "Datum")],
+        ),
+        (
+            EditError::SetDeclareOnNonDeclaring {
+                node: held(4, "Extrude"),
+            },
+            vec![held(4, "Extrude")],
+        ),
+        (
+            EditError::DeclaredSiteNotAnOperand {
+                node: held(6, "Union"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(4)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    held(4, "Extrude"),
+                ),
+                site: held(4, "Extrude"),
+            },
+            vec![held(6, "Union"), held(4, "Extrude")],
+        ),
+        (
+            EditError::DeclaredNameNotUpstream {
+                node: held(6, "Union"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(7)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    held(7, "Extrude"),
+                ),
+            },
+            vec![held(6, "Union"), held(7, "Extrude")],
         ),
         (
             EditError::UnresolvedInput {

@@ -71,6 +71,9 @@ impl From<PointInLoopError> for ContainError {
             PointInLoopError::RayExhausted { .. } => Self::RayExhausted,
             PointInLoopError::CorruptLoop { .. } => Self::Corrupt,
             PointInLoopError::Uncrossable(u) => Self::Uncrossable(u),
+            PointInLoopError::OffPlane(_) => {
+                unreachable!("contfp reads loops through carrier_loop, which certifies no plane")
+            }
         }
     }
 }
@@ -426,10 +429,14 @@ const ROWS: BoundaryRows = BoundaryRows {
 /// through the window crosses the boundary once on each level, so the
 /// face is exactly the rectangle `[az] × [h]` its boundary pins
 /// ([`super::solid_contain::cylinder_chart_trim`]). A third level is a
-/// stepped outline the rectangle over-covers. A wall closed by a
-/// tilted section takes its height extreme inside an edge, the
-/// rectangle then misstates the face in BOTH directions, and this door
-/// answers `None` rather than a verdict it cannot stand behind.
+/// stepped outline the rectangle over-covers.
+///
+/// A wall closed by a tilted section takes its height extreme inside an
+/// edge, so the rectangle would misstate it in BOTH directions; it is
+/// the ray lane's CHART outline instead (every boundary edge a meridian,
+/// a rim or a planar section, no ring, a window narrower than a period),
+/// and this door reads it the way the ray lane does: by parity along the
+/// point's ruling ([`super::solid_contain::point_on_wall_in_face`]).
 ///
 /// A face that ALONE wraps the azimuth has no window to trim by, and is
 /// served as the full-turn BAND
@@ -438,7 +445,8 @@ const ROWS: BoundaryRows = BoundaryRows {
 ///
 /// `None` is therefore the honest remainder throughout — a chart with no
 /// arm (NURBS), a chart form the trim cannot express (a ringed face, a
-/// non-iso boundary, a wrapped face outside the band class, or a window
+/// boundary outside the rectangle and chart outlines, a wrapped face
+/// outside the band class, or a window
 /// that reads a whole period on a face that does not wrap alone, whose
 /// cosine comparison is an equivalence only under a period), or a
 /// margin on a trim boundary — and the caller keeps its typed frontier
@@ -586,7 +594,10 @@ pub(crate) fn curved_face_placement<T: Decide>(
     };
     // The ray lane's class predicates, asked of the same face, the
     // full-turn route first (`full_turn_outline`, the one home both
-    // doors call): this door serves the band and the rectangle only.
+    // doors call): this door serves the band, the rectangle, and the
+    // chart outline a planar section bounds (read by parity along the
+    // point's ruling, `point_on_wall_in_face`), never a wall it would
+    // have to read as its vertex rectangle.
     let outline =
         match super::solid_contain::full_turn_outline(body, face, origin, axis, radius, h, band)
             .map_err(solid_err)?
@@ -613,7 +624,11 @@ pub(crate) fn curved_face_placement<T: Decide>(
                     body, face, origin, axis, radius, az, h, band,
                 )
                 .map_err(solid_err)?;
-                if !matches!(outline, super::solid_contain::WallOutline::Rectangle { .. }) {
+                if !matches!(
+                    outline,
+                    super::solid_contain::WallOutline::Rectangle { .. }
+                        | super::solid_contain::WallOutline::Chart { .. }
+                ) {
                     return Ok(CurvedPlacement::Trim(None));
                 }
                 outline
@@ -976,13 +991,10 @@ mod tests {
                 let LoopBoundary::Cycle { first } = body.loops.get(f.outer)?.boundary else {
                     return None;
                 };
-                let top = body.loop_cycle(first)?.into_iter().all(|he| {
-                    body.half_edges
-                        .get(he)
-                        .and_then(|h| body.vertices.get(h.start))
-                        .and_then(|v| body.points.get(v.point))
-                        .is_some_and(|p| p.z == 1.0)
-                });
+                let top = body
+                    .loop_cycle(first)?
+                    .into_iter()
+                    .all(|he| body.half_edge_start_point(he).is_some_and(|p| p.z == 1.0));
                 (top).then_some((k, ring))
             })
             .expect("the holed box has a ringed top face");

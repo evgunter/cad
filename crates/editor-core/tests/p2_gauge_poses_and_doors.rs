@@ -613,7 +613,12 @@ fn the_compound_door_refuses_when_a_declaring_mate_would_start_placing() {
         solve(&doc, &o, Tol::witness()).role(d),
         Some(MateRole::Declaring)
     );
-    match regauge_then_mate(&doc, seat(head(p.top_cap(top)), head(p.base_cap(base)))) {
+    match regauge_then_mate(
+        &doc,
+        seat(head(p.top_cap(top)), head(p.base_cap(base))),
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
         Err(editor_core::EditError::WouldStartPlacing { mate }) => assert_eq!(mate.id(), d),
         other => panic!("the compound door refuses typed: {other:?}"),
     }
@@ -858,7 +863,7 @@ fn split_of(
 /// **A placing mate never crosses a cut** (A4): a cut holding a placed
 /// group's two instances but not the mate placing them refuses
 /// `PlacingMateLeft` naming the mate, rather than leave a self-mate in
-/// the remainder; with the mate in the cut the group hoists.
+/// the remainder; with the mate in the cut the group moves.
 #[test]
 fn a_cut_that_leaves_its_groups_placing_mate_behind_refuses() {
     let p = parts("r2-split-mate");
@@ -881,7 +886,7 @@ fn a_cut_that_leaves_its_groups_placing_mate_behind_refuses() {
         other => panic!("a placing mate left behind refuses typed: {other:?}"),
     }
     split_of(&p, &doc, &[base, top, mate], "r2-split-mate-whole")
-        .expect("the whole group with its mate hoists");
+        .expect("the whole group with its mate moves");
 }
 
 /// **Inline of split on the verbatim shape** (a cut of two placed
@@ -954,7 +959,11 @@ fn the_mate_placed_recourse_holds_when_an_earlier_member_roots_the_group() {
         "the top's stated offset is true"
     );
     match editor_core::inline(&stated, top, &resolver, Tol::witness()) {
-        Err(editor_core::InlineError::MatePlaced { root, mates, .. }) => {
+        Err(editor_core::InlineError::MatePlaced {
+            host_root: root,
+            mates,
+            ..
+        }) => {
             assert_eq!(
                 (root.id(), mates.iter().map(|m| m.id()).collect::<Vec<_>>()),
                 (base, vec![mate])

@@ -78,10 +78,14 @@ mod circle_sphere;
 mod circle_torus;
 pub(crate) mod combine;
 pub mod contact_verify;
+// The conic rows' shared test oracles (test builds only).
+#[cfg(test)]
+mod conic_oracle;
 mod contain;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
 mod door_meter;
+mod ellipse_roots;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
@@ -126,7 +130,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::contact::{BooleanCoincidence, ContactClass};
-use crate::entity::{EdgeKey, FaceKey, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
@@ -188,6 +192,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        "bool_point_in_solid_beside" => "whether a face lies to one side of a ray along its plane",
+        "bool_point_in_solid_clearance" => {
+            "how far a point lies off the carrier of a face a ray runs along"
+        }
         // The coincidences these names decide.
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
@@ -506,7 +514,7 @@ impl CarriedContacts {
 /// Declared coincidence intents threaded into ONE boolean call (F5 —
 /// declarations are recipe data on the consuming node; M4 PR 5). The
 /// kernel-level form is arena keys; the recipe layer resolves its
-/// `Declare` name pairs into these through the operands' name tables.
+/// declared name pairs into these through the operands' name tables.
 ///
 /// Every key is validated at the op door (live, and planar for
 /// faces) — a dangling declaration is a typed refusal
@@ -1308,12 +1316,14 @@ pub enum BooleanError {
     /// edge cannot be cleared against a curved face, and the curved
     /// PIERCE door cannot take it. That door takes a LINE or a CIRCLE
     /// carrier definitely crossing a cylinder wall, a sphere or a torus,
-    /// whose crossing parameters come from the certified root lanes
-    /// (the line quadratics and quartic, `boolean::circle_roots`' doors)
-    /// and whose landing point the chart trim places. What this variant
-    /// reports is the rest: a tangency (not a crossing at any order the
-    /// lanes see), a cone face or a circle against one, an undeclared
-    /// on-carrier edge or circle, a root the band cannot place, or a
+    /// and an ELLIPSE crossing a cylinder wall or a sphere, whose
+    /// crossing parameters come from the certified root lanes (the line
+    /// quadratics and quartic, `boolean::circle_roots`' doors and
+    /// `boolean::ellipse_roots`) and whose landing point the chart trim
+    /// places. What this variant reports is the rest: a tangency (not a
+    /// crossing at any order the lanes see), a cone face or a conic
+    /// against one, an ellipse near a torus, an undeclared on-carrier
+    /// edge or conic, a root the band cannot place, or a
     /// trim the chart door declines to express (the M5 envelope's
     /// frontier; the C5 table routes the SECTIONS, this is the crossing
     /// layer). The
@@ -1576,6 +1586,25 @@ pub enum BooleanError {
         a_vertex: VertexKey,
         /// The B-side vertex.
         b_vertex: VertexKey,
+    },
+    /// Two vertex-vertex coincidences that share a vertex both cross
+    /// there, in a way the insertion cannot place: an operand holds
+    /// several vertices at one point (its own contact's) and the other
+    /// operand's vertex there crosses into more than one of their
+    /// neighborhoods, and either both operands hold several (two
+    /// crossing pairs share both their vertices), or the pairs' cuts
+    /// in the shared vertex's orbit interleave, cannot be ordered
+    /// within one corner, or fall between a dangling null edge's two
+    /// germs (`insert::reconcile_shared`).
+    SharedVertexCrossings {
+        /// The operand whose vertex both pairs share.
+        operand: Operand,
+        /// That vertex.
+        vertex: VertexKey,
+        /// Two of the other operand's vertices at its point that it
+        /// crosses into, in classification order: the first two, when
+        /// it crosses into more.
+        partners: [VertexKey; 2],
     },
     /// A classification invariant failed (e.g. a surviving record
     /// without one IN and one OUT code per side) — a kernel bug
@@ -1945,8 +1974,11 @@ pub enum BooleanError {
     },
     /// The F7 output stage (`merge_coplanar_faces`) refused.
     Merge(MergeCoplanarError),
-    /// The finished result failed a tier gate (kernel bug, loudly —
-    /// no invalid body is ever returned).
+    /// The finished result failed a tier gate, loudly — no invalid
+    /// body is ever returned. A kernel bug, unless an operand carried
+    /// the finding in: an operand edge still described as a scaffold
+    /// reaches every result that keeps it, and the gate refuses it
+    /// there ([`ValidationError::ScaffoldAtRest`]).
     ResultInvalid {
         /// The validator's findings.
         errors: Vec<ValidationError>,
@@ -2093,6 +2125,8 @@ pub enum BooleanErrorKind {
     InvalidDeclaration,
     /// [`BooleanError::PairingMismatch`].
     PairingMismatch,
+    /// [`BooleanError::SharedVertexCrossings`].
+    SharedVertexCrossings,
     /// [`BooleanError::ClassificationInvariant`].
     ClassificationInvariant,
     /// [`BooleanError::CorruptOperand`].
@@ -2284,6 +2318,7 @@ impl BooleanError {
             Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
             Self::InvalidDeclaration { .. } => BooleanErrorKind::InvalidDeclaration,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
+            Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CorruptOperand { .. } => BooleanErrorKind::CorruptOperand,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -2704,6 +2739,14 @@ impl core::fmt::Display for BooleanError {
                  cyclically adjacent in both neighborhoods (the 15.11 invariant's guarded \
                  refusal)"
             ),
+            Self::SharedVertexCrossings { operand, .. } => write!(
+                f,
+                "a corner of the {} solid meets a point where the other solid holds \
+                 several corners that only touch each other (or both solids do), and \
+                 cuts into more than one of them in a way the Boolean cannot yet join. \
+                 There is no way through this in the kernel yet",
+                operand_word(*operand)
+            ),
             Self::ClassificationInvariant { what } => {
                 write!(f, "classification invariant violated: {what}")
             }
@@ -2808,8 +2851,9 @@ impl core::fmt::Display for BooleanError {
             Self::Merge(e) => write!(f, "coplanar-merge output stage refused: {e}"),
             Self::ResultInvalid { errors } => write!(
                 f,
-                "finished result failed a tier gate ({} finding(s), first: {:?}) — \
-                 kernel bug, no invalid body is returned",
+                "finished result failed a tier gate ({} finding(s), first: {:?}), so no \
+                 body is returned — a kernel bug, unless an operand carried the finding in \
+                 (an edge still described as a scaffold)",
                 errors.len(),
                 errors.first()
             ),
@@ -3199,7 +3243,15 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         covered.extend(out.covered);
     }
 
-    // Vertex-vertex classification.
+    // Vertex-vertex classification, every pair read before the first
+    // insertion: a vertex may sit in more than one pair (an operand
+    // whose own contact left two vertices at one point pairs both with
+    // the other operand's vertex there), and an insertion moves its
+    // vertices' orbits. A pair that crosses nowhere inserts nothing;
+    // pairs that cross at one vertex are planned together
+    // (`insert::reconcile_shared`), so no mint moves a half-edge another
+    // pair's plan read.
+    let mut classified = Vec::with_capacity(contacts.vv.len());
     for &c in &contacts.vv {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
@@ -3219,6 +3271,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &mut covered,
             &mut held,
         )?;
+        let sector_read = (records.clone(), raw.clone());
         recl::recl_edges(
             &mut records,
             &mut raw,
@@ -3229,9 +3282,67 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             op,
             &declared,
             band,
+            &recl::Reversed::default(),
         )?;
-        let out = insert::insert_null_pairs(
-            &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &raw, &declared, band,
+        classified.push((c, a_sectors, b_sectors, records, raw, sector_read));
+    }
+    // An edge of a shared vertex that two crossing pairs' edge-edge
+    // germs run along folds Out in each of them (`recl::Reversed`).
+    let edge_germs: Vec<[Vec<HalfEdgeKey>; 2]> = classified
+        .iter()
+        .map(|(_, a_s, b_s, records, raw, _)| {
+            [true, false].map(|a_side| {
+                records
+                    .iter()
+                    .zip(raw)
+                    .filter(|(r, _)| r.survives())
+                    .filter_map(|(_, w)| recl::edge_edge_bound(w, a_s, b_s, a_side))
+                    .collect()
+            })
+        })
+        .collect();
+    let vv = &contacts.vv;
+    for i in 0..classified.len() {
+        let mut reversed = recl::Reversed::default();
+        for (slot, list) in [&mut reversed.a, &mut reversed.b].into_iter().enumerate() {
+            let key = |c: &VvContact| if slot == 0 { c.a } else { c.b };
+            list.extend(edge_germs[i][slot].iter().copied().filter(|he| {
+                (0..vv.len()).any(|j| {
+                    j != i && key(&vv[j]) == key(&vv[i]) && edge_germs[j][slot].contains(he)
+                })
+            }));
+        }
+        if reversed.a.is_empty() && reversed.b.is_empty() {
+            continue;
+        }
+        let (_, a_sectors, b_sectors, records, raw, (sector_records, sector_raw)) =
+            &mut classified[i];
+        (*records, *raw) = (sector_records.clone(), sector_raw.clone());
+        recl::recl_edges(
+            records, raw, a_sectors, b_sectors, &a, &b, op, &declared, band, &reversed,
+        )?;
+    }
+    let mut plans = classified
+        .iter()
+        .map(|(c, a_sectors, b_sectors, records, raw, _)| {
+            insert::plan_null_pairs(
+                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, band,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let orbits: Vec<_> = classified
+        .iter()
+        .map(|(_, a_sectors, b_sectors, ..)| (a_sectors.as_slice(), b_sectors.as_slice()))
+        .collect();
+    insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
+    // A strut at a shared vertex is minted before any fan there.
+    let mut order: Vec<usize> = (0..plans.len()).collect();
+    order.sort_by_key(|&i| !plans[i].hangs_shared_strut([orbits[i].0, orbits[i].1]));
+    let mut hung = insert::Hung::default();
+    for i in order {
+        let (_, a_sectors, b_sectors, ..) = &classified[i];
+        let out = insert::mint_plan(
+            &mut a, &mut b, &plans[i], a_sectors, b_sectors, &mut hung, band,
         )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
@@ -4323,6 +4434,11 @@ mod tests {
                 a_vertex: VertexKey::default(),
                 b_vertex: VertexKey::default(),
             },
+            BooleanError::SharedVertexCrossings {
+                operand: Operand::B,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
+            },
             BooleanError::ClassificationInvariant {
                 what: "an invariant",
             },
@@ -4488,6 +4604,7 @@ mod tests {
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
                 BooleanErrorKind::InvalidDeclaration => "InvalidDeclaration",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
+                BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CorruptOperand => "CorruptOperand",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",

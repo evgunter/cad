@@ -368,3 +368,39 @@ PR 3823's state-sync.
   `--all-features`, and no CI leg runs them that way.
 - **Next.** `pi-seam-between-two-operands-has-no-declaration` (`Seam`)
   is dispatched now that the cover rungs have landed.
+
+## 2026-10-03 — the pierce ring joins on a curved face (PR 3851) (TANG orchestrator)
+
+**Review.** A concurrent dual review (H); both reviewers returned
+APPROVE-WITH-FIXES with no MAJOR, so the tally is unchanged. Then a fix
+pass, a delta review (APPROVE-WITH-FIXES) and a last pass, read by the
+orchestrator.
+
+**What changed.**
+- The wall doors were pairing defects, not scaffolding:
+  - a cross-loop chord now reads the face's outer-cycle window;
+  - the island is wound on the wall's chart, with an exact closure;
+  - rings re-home by chart ray parity.
+- PROPS: a cylinder face's flux is its chart Green form over every loop,
+  anchored at mid-height. It now measures notched and ringed walls at
+  1e-14, and open loops and wrong-winding rings refuse.
+- Sphere islands refuse, typed (`RingOffCylinderChart`). No reachable
+  pose built one.
+
+**The rows that held it.** Three mutants were killed only after review:
+- off-axis ringed walls (MF2), whose mutant gave a silent wrong body;
+- a ring on a reversed-sense wall (MI2);
+- a bar turned about two axes (MI3), where the straight closure flips
+  the sign in 38 of 658 islands.
+
+**Filed.**
+- TANG: in-face rings paired across the gap, the planar ring's straight
+  closure, the cylinder-pair germ arm, a wedge across a full-turn
+  collar, and the carved-balls clearance row (vacuous on main).
+- CONTACT: point-in-solid on a ringed wall.
+- TESS: a notched or ringed wall mesh.
+- PROPS: level-recovery precision on tilted or off-origin axes, and
+  ellipse-trimmed rings.
+
+**Closed in the PR.** `pierce-ring-has-no-join-arm` (P0) and PROPS'
+notched-wall row.

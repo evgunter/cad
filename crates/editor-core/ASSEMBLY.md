@@ -21,7 +21,7 @@ walk is `docs/guide/assembly.md`.
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
 | A3, A11, A12 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
-| A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
+| A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs`; `DocEdit::Promote`/`Fold` in `src/edit.rs` |
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
@@ -158,8 +158,11 @@ its gauge and may carry an offset in it (A11 (2)). `Node::Mate { a, b, class, al
 (`names::FaceName`, whose one constructor is the only way a face name
 is made) plus the operand node it is read at, so a mate naming an edge
 is a program that does not compile; `class` is the kernel
-`topo::ContactClass`; `Alignment` is two `MateFrame`s in each side's
-part coordinates, a `MatePrimitive` (`FrameCoincidence`, `Coaxial`,
+`topo::ContactClass`; `Alignment` is two `MateFrame`s, each a base
+composed with an offset, a `Placement` written in the base's frame (the
+empty chain by default): the base is the side's part frame, or
+`FromFace`, which names no face and is its side's own head face; a
+`MatePrimitive` (`FrameCoincidence`, `Coaxial`,
 `PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
 primitive), an authored `AxisSense` (so no π-flip is inferred) and an
 optional clocking rider. `Node::Pattern` replicates an instance by
@@ -216,28 +219,35 @@ id, leaving one `InstantiatePart` behind. The cut is a union of whole
 groups, so a placing mate never crosses it (else
 `SplitError::TornGroup`); every gauge reference leaving it lands on
 one anchor, a kept gauge or the world; and a declaring mate that would
-start placing once the instance sits on the anchor refuses. The
-instance names the anchor, and the cut's one placed thing gives it its
-offset: a cut that is exactly one gauge under the anchor gives that
-gauge's placement and leaves the gauge out of the part, a cut that is
-exactly one placed group gives its root's offset and lands the root at
-the empty chain, and any other cut moves verbatim at the empty offset.
+start placing once the instance sits on the anchor refuses. The cut
+moves as selected: every cut node, gauges included, has its image in the part, a cut gauge whose parent leaves the cut hangs from
+the part's world, a root keeps its offset, and the instance sits at the
+empty offset on the anchor.
 A cut group nothing places moves as it is, unless a dead reference
 unplaces it, and a cut of unplaced material alone refuses.
 Remainder-side names re-anchor through the instance qualifier by
 recorded `Rebind`s. `refactor::inline` is the inverse: the instance's
 frame becomes a gauge under the instance's gauge holding its offset,
 and the part's gauges and instances hang from it; no gauge is minted
-for the empty offset, nor for a part that is one group at the empty
-chain on its world, whose root takes the offset instead. An instance
-its mates place is inlined only when its part is one such group.
+for the empty offset, where the content lands on the instance's gauge
+as it is. An instance its mates place is inlined only when its part is
+one group at the empty chain on its world, whose root takes the
+instance's place.
 Members the instance placed through mates move onto the new gauge with
-their mates, and one that carries a further offset refuses. A mate
-side crosses the seam only when its coordinates do not change (the
-instance it reads is its group's root, on the part's world, at the
-empty chain) and the placing mates of one pair still read one pair;
-otherwise the mate refuses, named. Neither computes a frame. Both are
-pure, returning values plus edit lists. Acceptance:
+their mates, and one that carries a further offset refuses. A side
+framed on its head face crosses with its head. A side with authored
+vectors crosses only when its coordinates do not change (the instance
+it reads is its group's root, on the part's world, at the empty
+chain). Either way the placing mates of one pair still read one pair,
+and a side whose member lies in an own space refuses; a mate that
+fails these refuses, named. Neither computes a frame.
+A part at a frame of its own is two
+single-document edits around a split: `Promote` turns an instance's
+offset into a gauge under its gauge, the instance on it at the empty
+chain, and `Fold` is its inverse, dissolving a gauge by joining its
+placement's steps in front of each dependent's own; cutting the content
+and leaving the gauge behind mounts the part on it. Split and
+inline are pure, returning values plus edit lists. Acceptance:
 split-then-evaluate equals unsplit evaluation at structural and
 name-resolution identity, not bit identity, and inline-of-split returns
 the document split was given, up to node ids. A mate whose two
@@ -448,10 +458,14 @@ cache, so a mated part is evaluated once). Two answers cross that
 door. The part's EXTENT — an upper bound taken from its evaluated
 body — enters only as the lever a parallelism verdict is decided
 over: `(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored
-lengths|`, no floor and no constant. A mate frame authored
-`FromFace` takes that FACE's canonical pose, read off its surface
+lengths|`, no floor and no constant. A side framed
+`FromFace` takes its head face's canonical pose, read off its surface
 parameters exactly (`topo::readback::face_pose`, no tolerance) in the
-part's own coordinates, as the side's frame; a face with no canonical
+part's own coordinates, composed with the side's offset, as the side's
+frame, so a side set on a face follows that face through any edit of
+the part. The offset is any rigid motion; which offsets a mate admits
+is its contact class's to say (a `Rest` side set back from its face
+declares a contact the gate refutes). A face with no canonical
 frame refuses typed and keeps taking authored vectors. Neither read
 changes the solve's algorithm — coset intersection over decided
 predicates, no numeric fitting, no geometry inspected inside the

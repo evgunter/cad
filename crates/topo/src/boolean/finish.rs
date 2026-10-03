@@ -347,6 +347,9 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         };
     }
     let mut vertex_map = SeamCorrespondence::new();
+    // Each A survivor's v-v pairs, each with the B survivor it gave.
+    let mut vv_partners: BTreeMap<VertexKey, BTreeMap<(VertexKey, VertexKey), VertexKey>> =
+        BTreeMap::new();
     for pair in &red.null_pairs {
         let aa = a_attr
             .get(pair.a_edge)
@@ -372,9 +375,24 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         };
         let bs = vertex_map.entry(a_survivor).or_default();
         bs.insert(b_survivor);
+        let pairs = vv_partners.entry(a_survivor).or_default();
+        let mut one_each = true;
+        if let super::PairSite::VertexVertex(c) = pair.site {
+            one_each = pairs
+                .insert((c.a, c.b), b_survivor)
+                .is_none_or(|old| old == b_survivor);
+        }
         // A welded pinch lies on a seam once per pierce it fused, with
-        // B's vertex of each.
-        if bs.len() > 1 && !a_welds.merges.iter().any(|&(_, k)| k == a_survivor) {
+        // B's vertex of each; an A vertex several crossing pairs cut
+        // lies on one seam per pair, with that pair's B vertex: every
+        // B correspondent is one pair's, and the pairs share their A
+        // vertex.
+        let shared_cut = one_each
+            && pairs
+                .keys()
+                .all(|p| pairs.keys().next().is_some_and(|q| q.0 == p.0))
+            && pairs.values().copied().collect::<BTreeSet<_>>() == *bs;
+        if bs.len() > 1 && !shared_cut && !a_welds.merges.iter().any(|&(_, k)| k == a_survivor) {
             return Err(desync("conflicting seam vertex correspondence"));
         }
     }
@@ -390,7 +408,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         &red,
         a_solid,
         &a_kept_shells,
-        &a_sides,
+        (&a_sides, &a_in_out),
         (Operand::A, &a_kept),
         (&connected.a_fragments, &b_kept),
     )?;
@@ -398,7 +416,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         &red,
         b_solid,
         &b_kept_shells,
-        &b_sides,
+        (&b_sides, &b_in_out),
         (Operand::B, &b_kept),
         (&connected.b_fragments, &a_kept),
     )?);
@@ -630,7 +648,9 @@ fn pinch_site<T: Decide>(
 /// kept side's copy of each end is the other end of one of that end's
 /// null edges — the one end among them that survived into the result,
 /// which `kept_vertex` reads in result keys, as the seam vertex map
-/// picks its survivor. `held` is this operand's chord-split rows and the
+/// picks its survivor. A vertex that several crossing pairs cut keeps
+/// a copy per pair, and the stretch's is the one on the section face's
+/// twin (`in_out`). `held` is this operand's chord-split rows and the
 /// other operand's vertices in result keys, for the held stretches
 /// (`DiscardRow::held`).
 #[allow(clippy::type_complexity)]
@@ -638,7 +658,7 @@ fn discarded<T: Decide>(
     red: &BooleanReduction<T>,
     solid: SolidKey,
     kept: &[ShellKey],
-    sides: &SecondaryMap<FaceKey, SideCode>,
+    (sides, in_out): (&SecondaryMap<FaceKey, SideCode>, &[(FaceKey, FaceKey)]),
     (operand, kept_vertex): (Operand, &dyn Fn(VertexKey) -> Option<VertexKey>),
     held: (
         &[(FaceKey, FaceKey)],
@@ -659,21 +679,57 @@ fn discarded<T: Decide>(
             .or_default()
             .insert(r.attr.below_end);
     }
-    let kept_end = |v: VertexKey| -> Result<VertexKey, BooleanError> {
-        let survivors: BTreeSet<VertexKey> = copy
+    let on_face = |face: FaceKey| -> Result<BTreeSet<VertexKey>, BooleanError> {
+        let f = body
+            .get_face(face)
+            .ok_or_else(|| desync("a section face no longer resolves"))?;
+        let mut on = BTreeSet::new();
+        for &l in core::iter::once(&f.outer).chain(&f.rings) {
+            if let LoopBoundary::Cycle { first } = body
+                .get_loop(l)
+                .ok_or_else(|| desync("a face's loop no longer resolves"))?
+                .boundary
+            {
+                for he in body
+                    .loop_cycle(first)
+                    .ok_or_else(|| desync("a face's loop is not walkable"))?
+                {
+                    on.extend(body.get_half_edge(he).map(|h| h.start));
+                }
+            }
+        }
+        Ok(on)
+    };
+    let kept_end = |v: VertexKey, across: FaceKey| -> Result<VertexKey, BooleanError> {
+        let copies = copy
             .get(&v)
-            .ok_or_else(|| desync("a section vertex has no null-edge copy"))?
-            .iter()
-            .filter_map(|&k| kept_vertex(k))
-            .collect();
-        match survivors.first() {
-            Some(&k) if survivors.len() == 1 => Ok(k),
+            .ok_or_else(|| desync("a section vertex has no null-edge copy"))?;
+        let survivors = |twin: Option<&BTreeSet<VertexKey>>| -> BTreeSet<VertexKey> {
+            copies
+                .iter()
+                .filter(|&k| twin.is_none_or(|t| t.contains(k)))
+                .filter_map(|&k| kept_vertex(k))
+                .collect()
+        };
+        let mut kept = survivors(None);
+        if kept.len() > 1 {
+            let twin = in_out
+                .iter()
+                .find_map(|&(i, o)| match (i == across, o == across) {
+                    (true, _) => Some(o),
+                    (_, true) => Some(i),
+                    _ => None,
+                });
+            kept = survivors(Some(&twin.map_or_else(|| Ok(BTreeSet::new()), on_face)?));
+        }
+        match kept.first() {
+            Some(&k) if kept.len() == 1 => Ok(k),
             _ => Err(desync(
                 "a section vertex's null-edge copies have not exactly one kept end",
             )),
         }
     };
-    let kept_ends = |u, w| Ok((kept_end(u)?, kept_end(w)?));
+    let kept_ends = |across: FaceKey, u, w| Ok((kept_end(u, across)?, kept_end(w, across)?));
     let kept_across = |f: FaceKey| sides.contains_key(f);
     let held = HeldInto {
         entries: &red.held,

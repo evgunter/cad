@@ -63,7 +63,7 @@
 //! site seams (R2) and crossing-polygon disconnections (R3),
 //! including mixed collinear+transversal channel cuts (the PR 5.5
 //! review's E-2, closed by the degenerate-segment fix in
-//! `point_in_loop`); interior-rest flush contacts (pillar standing on
+//! `point_in_vertex_polygon`); interior-rest flush contacts (pillar standing on
 //! a face); and the Fig 15.1 coplanar-overlap ∩ (seam partly on
 //! shared cap planes) — the `join` module's derived sense/role
 //! discipline is the consistency theorem behind all of them.
@@ -85,16 +85,17 @@
 //!   non-star patch adjacency); and boundary-on-boundary
 //!   configurations that are not pure REST contacts (the original
 //!   `Join(UnpairedLooseEnds)` surfaces verbatim).
-//! - **Reflex-corner vertex–vertex sites under a tilted cap**: where a
-//!   vertex of the other operand coincides with a 315° reflex corner
-//!   and the caps meet at a tilt, the op can refuse
-//!   (`SeamOrientation`, `JoinDesync`, `Join(UnpairedLooseEnds)`;
-//!   `work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`).
-//!   The cause is unmeasured. The angular strut spike order
-//!   (`bool_strut_order`) is forced only on sectors of width W ≤ π, so
-//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in an
-//!   unforced window, but no refusal has been traced to it. The
-//!   vertex-on-face form of the same corner (the corner piercing a
+//! - **Four-germ vertex–vertex sites**: where a vertex of the other
+//!   operand coincides with a 315° reflex corner and its wall lies
+//!   flush on the corner's notch wall under a tilted cap, the vertex
+//!   pair keeps four crossing germs, and `insert` runs each pair's null
+//!   edge in B in A's germ order rather than B's: the B runs overlap and
+//!   the op refuses (`Euler(FanStartMismatch)`, `JoinDesync`;
+//!   `work/join/four-germ-vertex-pairs-run-b-in-a-order`). Some such
+//!   unions are not refused: the declared-REST zip answers them after
+//!   the join's refusal, with a wrong volume
+//!   (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-volume`).
+//!   The vertex-on-face form of the same corner (the corner piercing a
 //!   cap's interior) is a whole-orbit pierce run and answers exactly.
 
 use geom_core::interval::Interval;
@@ -105,7 +106,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::BooleanDecision;
 use super::SphereQuestion;
 use super::boxes;
-use super::combine::{GraftMap, graft_solid};
+use super::combine::{Bridge, GraftMap, graft_solids_with};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::finish::setopfinish;
 use super::join::bool_connect;
@@ -126,7 +127,7 @@ use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
-use crate::validate::{decide, validate, validate_closed};
+use crate::validate::{decide, scaffolds_at_rest, validate, validate_closed};
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
 
@@ -161,6 +162,10 @@ pub enum BooleanResultKind {
 /// ordinary tier-3 currency (`validate_geometric`), and on such a
 /// body the two gates agree (3′ ≡ tier 3 plus the census actually
 /// run — pinned by the PR 6a acceptance suite).
+///
+/// The door checks tiers 1 and 2 and tier 3's transience fence on
+/// every result; the rest of that currency waits on
+/// `work/reach/boolean-door-tier-3-waits-on-the-description-gap.md`.
 #[derive(Debug)]
 pub struct BooleanBody<T: Real> {
     /// The result body: one solid, possibly multi-shell.
@@ -530,18 +535,19 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let covered = red.covered.clone();
+    let copies = Descendants::null_copies(&red.null_edges);
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
-    // do not each re-derive the whole body, and `gate` below — tier 1
-    // AND tier 2 over the result, on every build — is what this door
-    // pays instead. The guard owns the borrow, so a refusal on the way
+    // do not each re-derive the whole body, and `gate` below — tiers 1
+    // and 2 and tier 3's transience fence over the result, on every
+    // build — is what this door pays instead. The guard owns the borrow, so a refusal on the way
     // closes the scope by dropping it.
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
     let mut vertex_merges = fin.weld_merges_a.clone();
-    let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b);
+    let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b).with_copies(copies);
     // A pinch is one vertex on two seams: the first zip fuses it, so
     // each later zip reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
@@ -2274,6 +2280,9 @@ pub(super) struct Descendants {
     /// Every vertex that participated in a zip fusion (dead OR kept):
     /// its point rests were consumed into seam structure.
     fused: std::collections::BTreeSet<VertexKey>,
+    /// Each operand's null-edge copies, in its clone keys: the vertices
+    /// one null edge joins, on one point by construction.
+    copies: [Vec<(VertexKey, VertexKey)>; 2],
 }
 
 impl Descendants {
@@ -2284,6 +2293,47 @@ impl Descendants {
             b_welds: b.to_vec(),
             ..Self::default()
         }
+    }
+
+    /// The two ends of each of the reduction's null edges, per operand.
+    pub(super) fn null_copies<T: Real>(
+        null_edges: &[super::BoolNullEdgeRecord<T>],
+    ) -> [Vec<(VertexKey, VertexKey)>; 2] {
+        let mut copies = [Vec::new(), Vec::new()];
+        for r in null_edges {
+            copies[usize::from(r.operand == Operand::B)].push((r.attr.below_end, r.attr.above_end));
+        }
+        copies
+    }
+
+    /// The map that also reaches each v-v group's null-edge copies
+    /// ([`remap_contacts`]).
+    pub(super) fn with_copies(self, copies: [Vec<(VertexKey, VertexKey)>; 2]) -> Self {
+        Self { copies, ..self }
+    }
+
+    /// `v` and every vertex null edges join it to, transitively, in
+    /// `side`'s clone keys.
+    fn copies_of(&self, side: Operand, v: VertexKey) -> Vec<VertexKey> {
+        let rows = &self.copies[usize::from(side == Operand::B)];
+        let mut out = vec![v];
+        let mut i = 0;
+        while let Some(&at) = out.get(i) {
+            for &(x, y) in rows {
+                let other = if x == at {
+                    y
+                } else if y == at {
+                    x
+                } else {
+                    continue;
+                };
+                if !out.contains(&other) {
+                    out.push(other);
+                }
+            }
+            i += 1;
+        }
+        out
     }
 
     pub(super) fn absorb_zip(&mut self, rep: &super::zip::ZipReport) {
@@ -2360,6 +2410,22 @@ impl Descendants {
 /// first (graft lineage), then the D5 descendant chase — dropping
 /// records only when the entity is genuinely consumed (module docs).
 ///
+/// **v-v rows are remapped as groups.** Rows that name a common key
+/// on the same side (an A vertex or a B vertex in two rows) are one
+/// group, closed transitively, and every two distinct live vertices
+/// the group's ends and their null-edge copies map to are recorded,
+/// though no single row named that pair, two A vertices included. A
+/// copy is minted on its vertex's point, and where two crossing pairs
+/// cut one vertex the pieces the result keeps there are copies no row
+/// names. Whatever the pair, both its
+/// vertices sit at the point the reduction coincided the shared key
+/// with each of them. The inference reads keys and never positions:
+/// it records what the reduction's own coincidences imply, and no
+/// pair the census sees at one point is blessed for being there. A
+/// group whose ends map to one live vertex records nothing, since a
+/// pair fused into one vertex is structure now. A lone row maps as
+/// its two ends.
+///
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] on cycling absorption rows
@@ -2371,9 +2437,9 @@ pub(super) fn remap_contacts<T: Real>(
     b_view: KeyView<'_>,
     desc: &Descendants,
 ) -> Result<ContactRecords, BooleanError> {
-    // v-v pairs chase through zip fusions (a fused vertex's partner
-    // may still coincide with the survivor); a pair fused into ONE
-    // vertex is consumed (structural now) and drops.
+    // v-v ends chase through zip fusions (a fused vertex's partner
+    // may still coincide with the survivor); the group rule is in the
+    // doc above.
     let vert = |side: (Operand, &KeyView<'_>), v: VertexKey| desc.live_vertex(body, side, v);
     // v-on-f VERTICES deliberately do NOT chase, and any vertex that
     // took part in a zip fusion (either side of a kev) drops its
@@ -2393,18 +2459,41 @@ pub(super) fn remap_contacts<T: Real>(
     let face =
         |view: &KeyView<'_>, f: FaceKey| view.face(f).map_or(Ok(None), |k| desc.live_face(body, k));
     let mut out = ContactRecords::default();
-    for c in &contacts.vv {
-        // Two records whose ends fused into one pair are one record.
-        if let (Some(a), Some(b)) = (
-            vert((Operand::A, &a_view), c.a)?,
-            vert((Operand::B, &b_view), c.b)?,
-        ) && a != b
-            && !out
+    // The groups (doc above): a vertex coincident with two of the
+    // other operand's fuses into one and keeps touching the other,
+    // whose row names the end that fused away.
+    let mut group: Vec<usize> = (0..contacts.vv.len()).collect();
+    for i in 0..group.len() {
+        for j in 0..i {
+            let (ci, cj) = (contacts.vv[i], contacts.vv[j]);
+            let (gi, gj) = (group[i], group[j]);
+            if (ci.a == cj.a || ci.b == cj.b) && gi != gj {
+                group.iter_mut().filter(|g| **g == gi).for_each(|g| *g = gj);
+            }
+        }
+    }
+    let mut live: Vec<(usize, VertexKey)> = Vec::new();
+    for (c, &g) in contacts.vv.iter().zip(&group) {
+        for (side, view, end) in [(Operand::A, &a_view, c.a), (Operand::B, &b_view, c.b)] {
+            for k in desc.copies_of(side, end) {
+                if let Some(v) = vert((side, view), k)?
+                    && !live.contains(&(g, v))
+                {
+                    live.push((g, v));
+                }
+            }
+        }
+    }
+    for (i, &(g, a)) in live.iter().enumerate() {
+        for &(_, b) in live[i + 1..].iter().filter(|(h, _)| *h == g) {
+            // Two rows whose ends fused into one pair are one record.
+            if !out
                 .vv
                 .iter()
                 .any(|r| (r.a, r.b) == (a, b) || (r.a, r.b) == (b, a))
-        {
-            out.vv.push(VvContact { a, b });
+            {
+                out.vv.push(VvContact { a, b });
+            }
         }
     }
     for c in &contacts.a_on_b {
@@ -2578,13 +2667,21 @@ pub(super) fn remap_carried<T: Real>(
     Ok(())
 }
 
-/// The tier gates: tier 1 + tier 2 on the finished result (tier 3 is
-/// an at-rest posture with the PR 3 description gap — see the
-/// acceptance suite's documented posture).
+/// The result gate every [`BooleanBody`] passes before it is returned:
+/// tiers 1 and 2, then tier 3's transience fence
+/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest)):
+/// an edge of the finished result still described as a scaffold is a
+/// construction that stopped half-way, and no currency the wrapper
+/// claims admits it.
 pub(super) fn gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
     validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
-    Ok(())
+    let errors = scaffolds_at_rest(body);
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(BooleanError::ResultInvalid { errors })
+    }
 }
 
 /// One sphere group the extent scan wants re-cut: rigidly re-charted
@@ -3196,7 +3293,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 Some(base) => {
                     let base_solid =
                         single_solid(base).map_err(|_| corrupt("re-cut base is not one solid"))?;
-                    graft_solid(base, base_solid, &turned, tol)?;
+                    graft_solids_with(base, &[base_solid], &turned, Bridge::RemapKeys)?;
                 }
             }
         }
@@ -3319,7 +3416,12 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                     })?
                     .graft
             } else {
-                graft_solid(&mut body, solid, &b_body, tol)?
+                // The kept B shells cross whole, as the reduction left
+                // them: any edge it split at a contact was certified
+                // there through the policy's lane, and nothing touches
+                // them since, so they keep their certificates, as at the
+                // void door above.
+                graft_solids_with(&mut body, &[solid], &b_body, Bridge::RemapKeys)?
             };
             let kind = match op {
                 BooleanOp::Subtract => BooleanResultKind::Voided,
@@ -3443,10 +3545,112 @@ mod tests {
 
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{seam_class, seam_must_carry, volume_backstop};
+    use super::{gate, seam_class, seam_must_carry, volume_backstop};
     use crate::boolean::{BooleanDecision, BooleanError, BooleanOp, LeverArm};
     use crate::props::QuadLane;
     use crate::splitting::reassembly::quad_prism;
+
+    /// The result gate refuses a scaffold at rest: a box whose chords
+    /// were never described is a closed solid (tiers 1 and 2 pass) and is
+    /// refused with one `ScaffoldAtRest` per edge; the same box described
+    /// passes.
+    #[test]
+    fn the_result_gate_refuses_a_scaffold_at_rest() {
+        let tol = Tol::witness();
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let raw = quad_prism(&square, 1.0, tol);
+        assert_eq!(
+            crate::validate_closed(&raw),
+            Ok(()),
+            "the raw box is closed"
+        );
+        let Err(BooleanError::ResultInvalid { errors }) = gate(&raw) else {
+            panic!("the raw box's chords are scaffolds at rest");
+        };
+        let mut named: Vec<_> = errors
+            .iter()
+            .map(|e| match e {
+                crate::ValidationError::ScaffoldAtRest { edge } => *edge,
+                other => panic!("only the fence refuses, got {other:?}"),
+            })
+            .collect();
+        named.sort();
+        let mut edges: Vec<_> = raw.edges().map(|(k, _)| k).collect();
+        edges.sort();
+        assert_eq!(named, edges, "one finding per edge, each edge once");
+        let described =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        assert_eq!(
+            gate(&described).map_err(|e| e.to_string()),
+            Ok(()),
+            "the described box passes"
+        );
+    }
+
+    /// An operand's own scaffold reaches the gate through the public
+    /// door: an undescribed box minus a brick it never meets is the
+    /// box itself, and the gate refuses its twelve chords; the same op
+    /// on the described box answers.
+    #[test]
+    fn an_operand_carried_scaffold_is_refused_at_the_door() {
+        let tol = Tol::witness();
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let far =
+            crate::test_support_fixtures::brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let raw = quad_prism(&square, 1.0, tol);
+        let refused = crate::boolean::subtract(&raw, &far, tol);
+        let Err(BooleanError::ResultInvalid { errors }) = &refused else {
+            panic!(
+                "the box's chords are scaffolds at rest, got {:?}",
+                refused.err()
+            );
+        };
+        assert_eq!(errors.len(), 12, "one finding per chord: {errors:?}");
+        assert!(
+            errors
+                .iter()
+                .all(|e| matches!(e, crate::ValidationError::ScaffoldAtRest { .. })),
+            "{errors:?}"
+        );
+        let described =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        assert!(
+            crate::boolean::subtract(&described, &far, tol).is_ok(),
+            "the described box answers"
+        );
+    }
+
+    /// The gate's fence is check 2's: on tier-2-valid bodies,
+    /// `scaffolds_at_rest` is exactly the `ScaffoldAtRest` findings of
+    /// `validate_geometric`, in the same order. An undescribed box has
+    /// a scaffold on every edge; a described prism with a collinear
+    /// profile run keeps one, on the smooth edge between its two
+    /// coplanar walls.
+    #[test]
+    fn the_fence_is_check_twos_scaffold_findings() {
+        let tol = Tol::witness();
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let run = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        for (what, body, count) in [
+            ("undescribed box", quad_prism(&square, 1.0, tol), 12),
+            (
+                "collinear prism",
+                crate::test_support_fixtures::prism_z::<f64>(&run, 0.0, 1.0, tol).body,
+                1,
+            ),
+        ] {
+            assert_eq!(crate::validate_closed(&body), Ok(()), "{what}: tier 2");
+            let fence = crate::validate::scaffolds_at_rest(&body);
+            let check_two: Vec<_> = crate::validate_geometric(&body, tol)
+                .err()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|e| matches!(e, crate::ValidationError::ScaffoldAtRest { .. }))
+                .collect();
+            assert_eq!(fence, check_two, "{what}: the fence is check 2's");
+            assert_eq!(fence.len(), count, "{what}: scaffolds at rest");
+        }
+    }
 
     /// The backstop's refusal wiring, by construction: feed it a
     /// "result" whose exact volume violates the op's bound (a half-height

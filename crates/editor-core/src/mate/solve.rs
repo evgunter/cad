@@ -478,7 +478,7 @@ pub(crate) fn spaces_with<P: crate::ProfilePayload>(
     for &id in doc.order() {
         let Some(node) = doc.node(id) else { continue };
         let here = match node {
-            Node::Gauge { .. } | Node::Mate { .. } | Node::Declare { .. } => continue,
+            Node::Gauge { .. } | Node::Mate { .. } => continue,
             Node::InstantiatePart { .. } => space_of(id),
             _ => {
                 let mut distinct: Vec<Space> = Vec::new();
@@ -544,7 +544,9 @@ pub fn gauge_chain<P>(
 /// **The frame a gauge reference names, at `env`**: the chain's
 /// placements composed outermost first, so `[world, g1, g0]` is
 /// `P(g1) ∘ P(g0)` acting on what sits on `g0`. The world is the
-/// bit-exact identity.
+/// bit-exact identity. The steps fold one at a time down the whole
+/// chain ([`crate::placement::Placement::motion_after`]), so the frame
+/// depends on the chain's steps and not on which gauge holds each.
 ///
 /// # Errors
 ///
@@ -572,14 +574,16 @@ pub(crate) fn gauge_frame<P, T: geom_core::Decide>(
         let Some(Node::Gauge { placement, .. }) = doc.node(g) else {
             unreachable!("gauge_chain yields live gauges only")
         };
-        let step = placement.motion_at(env, band).map_err(|e| (g, e.into()))?;
-        frame = frame.compose(step);
+        frame = placement
+            .motion_after(frame, env, band)
+            .map_err(|e| (g, e.into()))?;
     }
     Ok(frame)
 }
 
 /// **A placed group's frame, at `env`** (A11 (5)): its root's gauge
-/// chain composed with its root's offset.
+/// chain composed with its root's offset, the offset's steps folded on
+/// after the chain's one at a time, as [`gauge_frame`] folds.
 ///
 /// # Errors
 ///
@@ -594,11 +598,12 @@ pub(crate) fn group_frame<P, T: geom_core::Decide>(
         return Ok(crate::placement::Motion::Identity);
     };
     let frame = gauge_frame(doc, *gauge, env, band)?;
-    let offset = match offset {
-        Some(offset) => offset.motion_at(env, band).map_err(|e| (root, e.into()))?,
-        None => crate::placement::Motion::Identity,
-    };
-    Ok(frame.compose(offset))
+    match offset {
+        Some(offset) => offset
+            .motion_after(frame, env, band)
+            .map_err(|e| (root, e.into())),
+        None => Ok(frame),
+    }
 }
 
 // ---- A12: reading edges, recomputed ----
