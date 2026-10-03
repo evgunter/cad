@@ -340,11 +340,13 @@ messages 4 and 5). Every live MSOLVE row is mate or solve work, so:
   offset, which PLACE built in PR 3961) is specced on
   `msolve/15-frame-offset-carries-the-roll` and **not started**. It
   stays unstarted. Its spec is now stale in its §1, because PLACE built
-  the frame shape. Re-cut it after the ruling lands.
-- **Every other live row is parked** with `blocked_on: [3990]`, the
-  ruling's PR. The ruling's item is not on main yet, so its id does not
-  resolve. Item 25, the new PLACE-filed rows and every other row are
-  parked this way.
+  the frame shape, and D10 moves the ground under it. Re-cut it against
+  D10 once the hold lifts.
+- **Every other live row is parked** with
+  `blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Ev ratified D10
+  on #3990, and the hold now waits on its build rather than the ruling;
+  main re-pointed the rows parked on the PR. Item 25, the new
+  PLACE-filed rows and every other row are parked this way.
 
 Once MSOLVE-14 merges, the program has nothing it may start, so its
 status goes to `blocked` and the orchestrator stops, as the hold says.
