@@ -265,6 +265,17 @@ closed them all: one `between_is_segment`, one reversal through
 winding row run from both halves so the reversal arm is read. The
 orchestrator read that diff.
 
+Two main merges after the review: TANG #3851 (the pierce ring on a
+curved face) rewrote the same ring lane, and the merge composed it
+(TANG's run kind lives on JOIN-3's chord plan; one `ring_run_ccw` with
+a planar arm closed by the segment's curve and a wall arm wound on its
+chart); no row moved against both parents. The slow set then showed
+`viewer::review_pick_r2` moved deterministically, −6/−6 refusals per
+landing in `die_composed_tour`, from 1-ulp vertex shifts of the chord
+curve; no genuine crossing refused. Re-pinned, with `m10_p_fence`'s
+interval digest (f64 unmoved). Main's three red nightly rows (eps 1e-6
+and 1e-12) fail identically on main; the arc-loft one filed on EXCH.
+
 `docs/JOIN-3-SPEC.md` deleted at merge, and `docs/JOIN-1-SPEC.md`
 with it (missed at JOIN-1's merge); both under `docs/doc-ledger/`.
 
