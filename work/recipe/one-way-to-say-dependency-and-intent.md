@@ -4,7 +4,7 @@ kind: ruling
 title: One way to say dependency and intent: variables, spaces, placements, constructions and assertions
 status: open
 opened: 2026-10-03
-priority: P1
+priority: P0
 ---
 
 
