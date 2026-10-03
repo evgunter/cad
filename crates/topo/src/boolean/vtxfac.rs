@@ -322,7 +322,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 .departure(s.start, nv)
                 .abs()
                 .max(s.end_reach.departure(s.end, nv).abs());
-            return match crate::validate::decide_nonzero_reported(
+            return match crate::validate::decide_nonzero(
                 "bool_sector_coplanar",
                 Margin::of(steeper),
                 band,

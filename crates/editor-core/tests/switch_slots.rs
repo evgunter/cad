@@ -787,8 +787,26 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-                b: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+                a: MateFrame::authored(
+                    [0.0; 3],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                    geom_core::Tol::witness(),
+                )
+                .expect("a definite frame"),
+                // A face base whose offset is a literal then a rigid
+                // step: the rigid step's slots carry the side and the
+                // step's own index.
+                b: MateFrame::on_face(
+                    Placement::literal(&Frame::translation([0.0, 0.0, 1.0])).compose(
+                        &Step::Rigid {
+                            translation: [len(0.5), len(0.0), len(0.0)],
+                            axis: [scl(0.0), scl(0.0), scl(1.0)],
+                            angle: ang(0.5),
+                        }
+                        .into(),
+                    ),
+                ),
                 primitive: MatePrimitive::Coaxial,
                 sense: AxisSense::Aligned,
                 clocking: None,
