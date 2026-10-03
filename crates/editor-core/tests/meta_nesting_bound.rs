@@ -92,11 +92,31 @@ impl serde::Serialize for Deep {
 }
 
 /// A producer that reads itself as its own newtype, forever.
+#[derive(Debug)]
 struct Loop;
 
 impl serde::Serialize for Loop {
     fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
         ser.serialize_newtype_struct("Loop", self)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Loop {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        struct Again;
+        impl<'de> serde::de::Visitor<'de> for Again {
+            type Value = Loop;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a loop")
+            }
+            fn visit_newtype_struct<D: serde::Deserializer<'de>>(
+                self,
+                de: D,
+            ) -> Result<Loop, D::Error> {
+                <Loop as serde::Deserialize>::deserialize(de)
+            }
+        }
+        de.deserialize_newtype_struct("Loop", Again)
     }
 }
 
@@ -114,7 +134,7 @@ impl serde::Serialize for Somes {
 }
 
 /// The derived producer a linked list is.
-#[derive(serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct Link(Option<Box<Link>>);
 
 /// A chain of `links` links.
@@ -274,11 +294,13 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_builds_one() {
     });
 }
 
-/// **`to_value` reads a producer of any depth only so far**, on the
-/// smallest stack: one that never ends (a newtype that holds itself),
-/// a chain of options [`FAR`] deep, and a derived linked list [`FAR`]
-/// long each refuse typed at [`MAX_PRODUCER_NESTING`], though none
-/// builds a value deeper than a leaf. A producer that wraps every level
+/// **`to_value` and `from_value` read a producer of any depth only so
+/// far**, on the smallest stack: one that never ends (a newtype that
+/// holds itself), a chain of options [`FAR`] deep, and a derived linked
+/// list [`FAR`] long each refuse typed at [`MAX_PRODUCER_NESTING`],
+/// though none builds a value deeper than a leaf; read back from a
+/// leaf, the newtype that holds itself and the linked list, which a
+/// present value makes read itself again, refuse the same way. A producer that wraps every level
 /// in three options and newtypes builds a value at the bound; one more
 /// wrapper refuses.
 #[test]
@@ -304,6 +326,20 @@ fn a_producer_of_any_depth_refuses_typed_on_the_smallest_stack() {
             refused_read(to_value(&link)),
             MAX_PRODUCER_NESTING,
             "a linked list {FAR} long"
+        );
+        assert_eq!(
+            refused_read(from_value::<Loop>(&MetaValue::Int(0))),
+            MAX_PRODUCER_NESTING,
+            "a newtype that holds itself, read back"
+        );
+        assert_eq!(
+            refused_read(from_value::<Link>(&MetaValue::Int(0))),
+            MAX_PRODUCER_NESTING,
+            "a linked list read from a present value"
+        );
+        assert!(
+            matches!(from_value::<Link>(&MetaValue::Null), Ok(Link(None))),
+            "a linked list read from absence ends"
         );
         let line = MetaError::ProducerTooDeep {
             bound: MAX_PRODUCER_NESTING,

@@ -48,13 +48,14 @@ use std::collections::BTreeMap;
 /// ([`MetaError::NestedTooDeep`]).
 pub const MAX_NESTING: usize = 128;
 
-/// **How deep a producer [`to_value`] reads may nest**, in nested
-/// `serialize` calls, the root's included: a list, a map, an option and
-/// a newtype each count one, so a producer wraps each level of the
-/// value it builds in up to three options or newtypes and still reaches
-/// [`MAX_NESTING`]. Past it [`to_value`] refuses
-/// ([`MetaError::ProducerTooDeep`]), however little of the producer the
-/// value would keep.
+/// **How deep a producer may nest**, in the nested `serialize` calls
+/// [`to_value`] reads it through or the `deserialize` calls
+/// [`from_value`] answers, the root's included: a list, a map, an
+/// option and a newtype each count one, so a producer wraps each level
+/// of a value in up to three options or newtypes and still reaches
+/// [`MAX_NESTING`]. Past it both refuse
+/// ([`MetaError::ProducerTooDeep`]) before the producer reads deeper,
+/// however little of it the value holds.
 pub const MAX_PRODUCER_NESTING: usize = 4 * MAX_NESTING;
 
 const _: () = assert!(
@@ -396,11 +397,10 @@ pub enum MetaError {
         /// The deepest a value may nest, in levels.
         bound: usize,
     },
-    /// The producer nests deeper than [`to_value`] reads
-    /// ([`MAX_PRODUCER_NESTING`]), counting its options and newtypes as
-    /// well as its lists and maps.
+    /// The producer nests deeper than [`MAX_PRODUCER_NESTING`],
+    /// counting its options and newtypes as well as its lists and maps.
     ProducerTooDeep {
-        /// The deepest [`to_value`] reads, in nested `serialize` calls.
+        /// The deepest a producer may nest, in nested calls.
         bound: usize,
     },
     /// A serde-reported error (producer `Serialize`/`Deserialize`
