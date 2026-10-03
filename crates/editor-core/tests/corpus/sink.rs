@@ -290,7 +290,8 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetAppearanceMeta {
         name: body.clone(),
         key: "tool.example/scratch".into(),
-        value: MetaValue::Map(BTreeMap::from([("v".into(), MetaValue::Int(1))])),
+        value: MetaValue::map(BTreeMap::from([("v".into(), MetaValue::Int(1))]))
+            .expect("a shallow value"),
     });
     r.push(DocEdit::ClearAppearanceMeta {
         name: body.clone(),
@@ -351,7 +352,7 @@ pub fn meta_tree() -> MetaValue {
     m.insert("blob".into(), MetaValue::Bytes(vec![0xde, 0xad, 0x00]));
     m.insert(
         "list".into(),
-        MetaValue::List(vec![MetaValue::Int(-7), MetaValue::Float(0.1)]),
+        MetaValue::list(vec![MetaValue::Int(-7), MetaValue::Float(0.1)]).expect("a shallow value"),
     );
-    MetaValue::Map(m)
+    MetaValue::map(m).expect("a shallow value")
 }

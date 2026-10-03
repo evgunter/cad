@@ -2,11 +2,12 @@
 id: a-boolean-result-gate-ships-a-scaffold-at-rest
 kind: issue
 title: The boolean's result gate runs tiers 1 and 2 only, so a body carrying a scaffold at rest ships as tier-3 currency
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
-branch: fuse/result-gate-at-rest
+closed: 2026-10-03
+pr: 3913
 ---
 
 
@@ -45,3 +46,18 @@ on an empty-contacts body), or at least the cheap structural part of it
 that `ScaffoldAtRest` belongs to, and refuse `ResultInvalid` with its
 errors. Measure the cost on the corpus first: tier 3 re-certifies every
 edge, which the result's own certificate pass may already pay for.
+
+## Closed (FUSE, PR 3913, 2026-10-03)
+
+The result gate now runs tier 3's transience fence after tiers 1 and 2,
+and refuses a scaffold at rest as `ResultInvalid`. All four
+`BooleanResult::Body` sites route through it, and there is no fifth. The
+fence was chosen by measurement: it costs under 1 % of tiers 1–2. Full
+tier 3 and 3′ at the door wait on REACH's
+`boolean-door-tier-3-waits-on-the-description-gap` and #3870, and their
+cost and refusal classes are recorded there. `is_scaffold` has one home,
+`geom_brep::EdgeDescription::is_scaffold`. Residue:
+`a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms`
+and `a-two-pinch-union-ships-a-pinch-its-records-do-not-declare` (both
+FUSE), and CONTACT's seam-description row (P1, with re-pin wording).
+Review tier: single FULL, with one fix pass.

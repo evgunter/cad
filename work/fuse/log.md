@@ -229,6 +229,11 @@ crate-wide home, closing a duplication the PR had only half-closed,
 and pins the specific scaffold edge in the `contact9` refusals.
 CONTACT's seam-description row rises to P1. The REACH-item append will
 conflict with #3870 at whichever merges second.
+## 2026-10-03 — the result gate lands (PR 3913)
+
+`a-boolean-result-gate-ships-a-scaffold-at-rest` closed. The fix pass
+gave `is_scaffold` one crate-wide home and made `ResultInvalid` and
+`BooleanBody`'s docs honest about what the gate checks.
 ## 2026-10-03 — the edge-contact CorruptOperand lands (PR 3914)
 
 `a-flush-partner-folded-onto-an-edge-contact-refuses-corrupt-operand`
@@ -241,3 +246,14 @@ closed. Its two-crossing residue is P0 on this slate.
 session_01Cue3Dtmhh4foVNGTEFWHBo). `a-subtract-through-a-pinch-line-drops-the-pinch-row-at-its-cut`
 (P1) waits for it, because both edit the reduction's v-v lane and the
 contact remap. Review tier: single FULL.
+
+## 2026-10-03 — Ev rules on the collinear fork (PR 3881)
+
+"sounds great!" for maximal edges with substitution-carried contact
+records, after Ev asked for a provably correct rule. Recorded in fork
+row 49 (A=fable, B=opus; Ev took the R5 position, neither first
+recommendation) and in the row's `## Ruled`. The row stays open as the
+carrier of a four-step build. Step 1 (cell-pair contact records,
+census certification of vertex/edge and edge/edge, substitution
+carriage, edge-split lineage) waits for the shared-vertex-crossings
+lane, because both edit `remap_contacts`.
