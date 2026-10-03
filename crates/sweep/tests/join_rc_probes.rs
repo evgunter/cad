@@ -1,248 +1,106 @@
-//! The reflex-corner probe's poses: `a` the 315° reflex prism `prism_z`
-//! over `(0,0) (2,2) (-2,2) (-2,-2) (2,-2) (2,0)`, z ∈ [0, 1], and `b` a
-//! `prism_ops` prism over z ∈ (1, 3) sheared `z' = z + sx·x + sy·y`,
-//! whose bottom cap passes through `a`'s reflex corner `(0, 0, 1)`;
-//! flush-declared. Twelve profiles put a vertex or an edge of `b` on the
-//! corner; `join1_r1_probes::join1_r1_reflex_battery` runs them all.
-//! `rc_detail` runs the one pose `RC_CASE="<profile> <sx> <sy> <op>"`
-//! names (`cargo test -p sweep --test all rc_detail -- --ignored
-//! --nocapture`).
+//! The reflex-corner probe's rows, on [`crate::common::differential`]'s
+//! poses: `a` the 315° reflex prism, `b` a sheared prism whose bottom
+//! cap passes through `a`'s reflex corner `(0, 0, 1)`, flush-declared.
+//! `join1_r1_probes::join1_r1_reflex_battery` runs the probe's twelve
+//! profiles unturned; `rc_wide_battery` turns each about the corner as
+//! well. `rc_detail` runs the one pose
+//! `RC_CASE="<profile> <rot> <sx> <sy> <op>"` names (`cargo test -p
+//! sweep --test all rc_detail -- --ignored --nocapture`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use topo::Body;
-use topo::test_support::{
-    FaceGeometry, describe_as_intersections, flush_declarations, prism_ops, prism_z,
-};
+
+use crate::common::differential::{REFLEX_OPS, REFLEX_PROFILES, outcome, reflex_pose, reflex_run};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-fn area(p: &[(f64, f64)]) -> f64 {
-    let n = p.len();
-    (0..n)
-        .map(|i| {
-            let (a, b) = (p[i], p[(i + 1) % n]);
-            a.0 * b.1 - a.1 * b.0
-        })
-        .sum::<f64>()
-        / 2.0
-}
-
-fn ccw(mut p: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
-    if area(&p) < 0.0 {
-        p.reverse();
-    }
-    p
-}
-
-/// `∫ x dA`, `∫ y dA` over a simple polygon (signed by its winding).
-fn moments(p: &[(f64, f64)]) -> (f64, f64) {
-    let n = p.len();
-    let (mut mx, mut my) = (0.0, 0.0);
-    for i in 0..n {
-        let (a, b) = (p[i], p[(i + 1) % n]);
-        let c = a.0 * b.1 - b.0 * a.1;
-        mx += (a.0 + b.0) * c;
-        my += (a.1 + b.1) * c;
-    }
-    (mx / 6.0, my / 6.0)
-}
-
-/// Sutherland–Hodgman of `poly` against the convex CCW polygon `clipper`.
-fn clip_convex(poly: &[(f64, f64)], clipper: &[(f64, f64)]) -> Vec<(f64, f64)> {
-    let mut out: Vec<(f64, f64)> = poly.to_vec();
-    let m = clipper.len();
-    for k in 0..m {
-        let (a, b) = (clipper[k], clipper[(k + 1) % m]);
-        let side = |p: (f64, f64)| (b.0 - a.0) * (p.1 - a.1) - (b.1 - a.1) * (p.0 - a.0);
-        let inp = std::mem::take(&mut out);
-        let n = inp.len();
-        for i in 0..n {
-            let (s, e) = (inp[i], inp[(i + 1) % n]);
-            let (ds, de) = (side(s), side(e));
-            let isect = || {
-                let t = ds / (ds - de);
-                (s.0 + t * (e.0 - s.0), s.1 + t * (e.1 - s.1))
-            };
-            match (ds >= 0.0, de >= 0.0) {
-                (true, true) => out.push(e),
-                (true, false) => out.push(isect()),
-                (false, true) => {
-                    out.push(isect());
-                    out.push(e);
-                }
-                (false, false) => {}
-            }
-        }
-    }
-    out
-}
-
-const A_PROFILE: [(f64, f64); 6] = [
-    (0.0, 0.0),
-    (2.0, 2.0),
-    (-2.0, 2.0),
-    (-2.0, -2.0),
-    (2.0, -2.0),
-    (2.0, 0.0),
-];
-
-/// The probe's twelve `b` profiles, by name.
-const PROFILES: [(&str, [(f64, f64); 4]); 12] = [
-    ("sqQ1", [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
-    ("sqQ2", [(-1.0, 0.0), (0.0, 0.0), (0.0, 1.0), (-1.0, 1.0)]),
-    ("sqQ3", [(-1.0, -1.0), (0.0, -1.0), (0.0, 0.0), (-1.0, 0.0)]),
-    ("sqQ4", [(0.0, -1.0), (1.0, -1.0), (1.0, 0.0), (0.0, 0.0)]),
-    ("dUp", [(0.0, 0.0), (0.5, 0.5), (0.0, 1.0), (-0.5, 0.5)]),
-    (
-        "dLeft",
-        [(0.0, 0.0), (-0.5, 0.5), (-1.0, 0.0), (-0.5, -0.5)],
-    ),
-    (
-        "dDown",
-        [(0.0, 0.0), (-0.5, -0.5), (0.0, -1.0), (0.5, -0.5)],
-    ),
-    ("dRight", [(0.0, 0.0), (0.5, -0.5), (1.0, 0.0), (0.5, 0.5)]),
-    ("eBot", [(-0.5, 0.0), (0.5, 0.0), (0.5, 1.0), (-0.5, 1.0)]),
-    ("eTop", [(-0.5, -1.0), (0.5, -1.0), (0.5, 0.0), (-0.5, 0.0)]),
-    ("eLeft", [(0.0, -0.5), (1.0, -0.5), (1.0, 0.5), (0.0, 0.5)]),
-    (
-        "eRight",
-        [(-1.0, -0.5), (0.0, -0.5), (0.0, 0.5), (-1.0, 0.5)],
-    ),
-];
-
-/// One pose: the operands, their flush declarations, and the closed-form
-/// volumes `(∩, ∪, a ∖ b)`.
-struct Pose {
-    a: Body<f64>,
-    b: Body<f64>,
-    d: topo::BooleanDeclarations,
-    want: [f64; 3],
-}
-
-fn pose(profile: &str, sx: f64, sy: f64) -> Pose {
-    let a_prof = ccw(A_PROFILE.to_vec());
-    let a = prism_z::<f64>(&a_prof, 0.0, 1.0, tol()).body;
-    let prof = ccw(PROFILES
-        .iter()
-        .find(|(n, _)| *n == profile)
-        .expect("a probe profile")
-        .1
-        .to_vec());
-    let mut b = Body::<f64>::new();
-    prism_ops(
-        &mut b,
-        &prof,
-        (1.0, 3.0),
-        |x, y, z| geom_core::Point3::new(x, y, z + sx * x + sy * y),
-        FaceGeometry::Certified,
-        tol(),
-    );
-    describe_as_intersections(&mut b, tol());
-    // ∫ over a ∩ b ∩ {L < 0} of −L, L = sx·x + sy·y.
-    let both = clip_convex(&a_prof, &prof);
-    let len = (sx * sx + sy * sy).sqrt();
-    let (ux, uy) = (-sy / len, sx / len);
-    let (ix, iy) = (-sx / len, -sy / len);
-    let big = 100.0;
-    let half = ccw(vec![
-        (ux * big, uy * big),
-        (-ux * big, -uy * big),
-        (-ux * big + ix * big, -uy * big + iy * big),
-        (ux * big + ix * big, uy * big + iy * big),
-    ]);
-    let (mx, my) = moments(&clip_convex(&both, &half));
-    let vi = -(sx * mx + sy * my);
-    let (va, vb) = (area(&a_prof), area(&prof) * 2.0);
-    let d = flush_declarations(&a, &b, tol());
-    Pose {
-        a,
-        b,
-        d,
-        want: [vi, va + vb - vi, va - vi],
-    }
-}
-
-const OPS: [&str; 3] = ["I", "U", "S_ab"];
-
-fn run(p: &Pose, op: &str) -> Result<topo::BooleanResult<f64>, topo::BooleanError> {
-    match op {
-        "I" => topo::intersect_with(&p.a, &p.b, &p.d, tol()),
-        "U" => topo::union_with(&p.a, &p.b, &p.d, tol()),
-        _ => topo::subtract_with(&p.a, &p.b, &p.d, tol()),
-    }
-}
-
-fn outcome(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -> String {
-    match r {
-        Err(e) => {
-            let s = format!("{e:?}");
-            let cut: String = s.chars().take(110).collect();
-            format!("ERR {cut}")
-        }
-        Ok(r) => match r.body() {
-            None if want.abs() < 1e-9 => "EMPTY ok".into(),
-            None => format!("EMPTY WRONG want={want}"),
-            Some(bb) => {
-                let t2 = topo::validate_closed(&bb.body).is_ok();
-                let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).is_ok();
-                let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
-                match topo::mass_properties(&bb.body, tol()).map(|m| m.volume) {
-                    Ok(v) => {
-                        let good = (v - want).abs() < 1e-7;
-                        format!(
-                            "OK {} t2={t2} t3p={t3} cert={cert} v={v:.9} want={want:.9}",
-                            if good && t2 && t3 && cert {
-                                "SOUND"
-                            } else {
-                                "BAD"
-                            }
-                        )
-                    }
-                    Err(e) => format!("OK-UNMEASURED t2={t2} t3p={t3} cert={cert} {e:?}"),
-                }
-            }
-        },
-    }
-}
-
 #[test]
-#[ignore = "detail probe: RC_CASE=\"<profile> <sx> <sy> <op>\""]
+#[ignore = "detail probe: RC_CASE=\"<profile> <rot> <sx> <sy> <op>\""]
 fn rc_detail() {
     let case = std::env::var("RC_CASE").expect("RC_CASE");
     let w: Vec<&str> = case.split_whitespace().collect();
-    let (sx, sy): (f64, f64) = (w[1].parse().unwrap(), w[2].parse().unwrap());
-    let p = pose(w[0], sx, sy);
-    let k = OPS.iter().position(|o| *o == w[3]).unwrap();
-    println!("{case} => {}", outcome(run(&p, w[3]), p.want[k]));
+    let num = |i: usize| -> f64 { w[i].parse().unwrap() };
+    let p = reflex_pose(w[0], num(1), num(2), num(3), tol());
+    let k = REFLEX_OPS.iter().position(|o| *o == w[4]).unwrap();
+    let r = reflex_run(&p, w[4], tol());
+    if let Ok(topo::BooleanResult::Body(bb)) = &r {
+        println!(
+            "{case} tier 3′: {:?}",
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+        );
+    }
+    println!("{case} => {}", outcome(r, p.want[k], tol()));
+}
+
+/// The reflex probe widened: every profile also turned about the corner
+/// by 0.003°, 7°, −20°, 33°, 100° and 190°, eleven shears per axis, all
+/// four ops; one line per pose. `RCW_SHARD="k/n"` runs one shard of the
+/// (profile, turn) pairs.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn rc_wide_battery() {
+    let shard = std::env::var("RCW_SHARD").unwrap_or_else(|_| "0/1".into());
+    let (k, n): (usize, usize) = {
+        let w: Vec<usize> = shard.split('/').map(|x| x.parse().unwrap()).collect();
+        (w[0], w[1])
+    };
+    let shears = [
+        -0.75, -0.5, -0.3, -0.25, -0.1, 0.0, 0.1, 0.25, 0.3, 0.5, 0.75,
+    ];
+    let rots = [0.0, 0.003, 7.0, -20.0, 33.0, 100.0, 190.0];
+    let mut idx = 0;
+    for (name, _) in REFLEX_PROFILES {
+        for rot in rots {
+            idx += 1;
+            if idx % n != k {
+                continue;
+            }
+            for &sx in &shears {
+                for &sy in &shears {
+                    if sx == 0.0 && sy == 0.0 {
+                        continue;
+                    }
+                    let p = reflex_pose(name, rot, sx, sy, tol());
+                    for (op, want) in REFLEX_OPS.iter().zip(p.want) {
+                        println!(
+                            "RCW {name} rot={rot} sx={sx} sy={sy} {op} => {}",
+                            outcome(reflex_run(&p, op, tol()), want, tol())
+                        );
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// **A strut at the reflex corner faces its germs by their true angle
 /// from the arrival edge.** Each pose puts both of a strut's germs in
 /// `a`'s 315° top face, at least one more than a half-turn from the
-/// corner's arrival edge `+x` (measured into the face). Every op builds
-/// a body that passes tiers 2 and 3′ and the at-rest certificate, has
-/// the closed-form volume, and is a legal operand.
+/// corner's arrival edge `+x` (measured into the face); the turned
+/// poses put a germ a hair from a half-turn bound. Every op builds a
+/// body that passes tiers 2 and 3′ and the at-rest certificate, has the
+/// closed-form volume, and is a legal operand.
 #[test]
 fn reflex_corner_struts_past_a_half_turn_build_sound() {
-    for (profile, sx, sy) in [
-        ("sqQ1", 0.5, -0.25),
-        ("sqQ2", 0.25, -0.25),
-        ("sqQ2", 0.5, 0.5),
-        ("dUp", 0.5, 0.0),
-        ("dLeft", 0.5, -0.5),
-        ("eBot", 0.25, 0.5),
-        ("eLeft", 0.5, -0.25),
-        ("eRight", -0.5, -0.5),
+    for (profile, rot, sx, sy) in [
+        ("sqQ1", 0.0, 0.5, -0.25),
+        ("sqQ2", 0.0, 0.25, -0.25),
+        ("sqQ2", 0.0, 0.5, 0.5),
+        ("dUp", 0.0, 0.5, 0.0),
+        ("dLeft", 0.0, 0.5, -0.5),
+        ("eBot", 0.0, 0.25, 0.5),
+        ("eLeft", 0.0, 0.5, -0.25),
+        ("eRight", 0.0, -0.5, -0.5),
+        ("sqQ2", 0.003, 0.25, -0.25),
+        ("eRight", 0.003, -0.5, -0.5),
     ] {
-        let p = pose(profile, sx, sy);
-        for (k, op) in OPS.iter().enumerate() {
-            let what = format!("{profile} (sx, sy) = ({sx}, {sy}) {op}");
-            let bb = match run(&p, op) {
+        let p = reflex_pose(profile, rot, sx, sy, tol());
+        for (k, op) in REFLEX_OPS[..3].iter().enumerate() {
+            let what = format!("{profile} turned {rot}° (sx, sy) = ({sx}, {sy}) {op}");
+            let bb = match reflex_run(&p, op, tol()) {
                 Ok(topo::BooleanResult::Body(bb)) => bb,
                 other => panic!("{what}: {other:?}"),
             };

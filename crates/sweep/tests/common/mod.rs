@@ -73,6 +73,10 @@
 //! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
 //!   declarations, swapped for the reversed order: what a suite drives
 //!   a door WITH, as [`poses`];
+//! - [`differential`] — the differential batteries' polygon oracles,
+//!   their one per-pose `outcome` line and the reflex-corner pose: a
+//!   truth derived without the kernel plus the check every battery
+//!   prints, so beside [`oracles`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -232,6 +236,10 @@ pub mod revert_ops;
 /// The drilled bead: a bore cylinder and a sphere zone, each a whole
 /// turn. Body authoring, so it routes here.
 pub mod bead;
+
+/// The differential batteries' polygon oracles, per-pose outcome line
+/// and reflex-corner pose.
+pub mod differential;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;

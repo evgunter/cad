@@ -77,10 +77,11 @@
 //!    anti-correlation. Insertion mints attributes to this rule
 //!    (struts included — their facing swap swaps the labels with it),
 //!    so the attributes ARE the discipline; nothing rebinds later.
-//!    The angular strut spike order (`bool_strut_order`, insert.rs)
-//!    ranks a strut's two germs by their angle from the splice
-//!    corner's arrival edge, measured inside the sector, so a reflex
-//!    corner's germs past a half-turn are ordered as a convex one's.
+//!    The angular strut spike order (`insert::strut_order`) ranks a
+//!    strut's two germs by their angle from the splice corner's
+//!    arrival edge, measured inside the sector at any width and read
+//!    as distances at the sector's arm; where nothing orders them it
+//!    refuses.
 //! 3. **What the join controls.** Surgery never reverses existing
 //!    halves, and chords close cycles forced by arc endpoints, so the
 //!    directed cycles after every join are fixed by the senses alone:

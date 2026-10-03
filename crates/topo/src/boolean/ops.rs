@@ -91,10 +91,12 @@
 //!   pair keeps four crossing germs, and `insert` runs each pair's null
 //!   edge in B in A's germ order rather than B's: the B runs overlap and
 //!   the op refuses (`Euler(FanStartMismatch)`, `JoinDesync`;
-//!   `work/join/four-germ-vertex-pairs-run-b-in-a-order`). One such
-//!   union is not refused: the declared-REST zip answers it after the
-//!   join's refusal, with a wrong volume
+//!   `work/join/four-germ-vertex-pairs-run-b-in-a-order`). Some such
+//!   unions are not refused: the declared-REST zip answers them after
+//!   the join's refusal, with a wrong volume
 //!   (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-volume`).
+//!   The vertex-on-face form of the same corner (the corner piercing a
+//!   cap's interior) is a whole-orbit pierce run and answers exactly.
 
 use geom_core::interval::Interval;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
