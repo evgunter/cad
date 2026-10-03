@@ -2,13 +2,14 @@
 id: mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move
 kind: issue
 title: mef and mfkrh onto a chart of their own, and the loop-moving kills, leave the edges they move described against the chart those edges left
-status: review
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: M
 refs: [set-face-surface-hands-the-caller-an-ordering-obligation-in-prose, loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart, description-staleness-ladder-three-spellings, kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers]
 pr: 3673
 branch: topo/euler-doors-vouch-their-charts
+closed: 2026-10-03
 ---
 
 ## What
