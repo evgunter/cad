@@ -60,7 +60,7 @@ use crate::common::seam_pairs::meeting;
 use geom::SurfaceKind;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_z, brick, revolved_about_y};
-use sweep::{Extrusion, Revolution, extrude};
+use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
 use topo::{
     Body, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult, ContactClass,
     FaceKey, FacePairDeclaration,
@@ -910,7 +910,16 @@ fn a_d_bar_on_the_slab_builds_with_its_line_seams_declared() {
     let p = profile::Profile::new(plane, vec![lp])
         .validate(tol)
         .unwrap();
-    let dbar = extrude(&p, Extrusion::Distance(1.0), tol).unwrap().body;
+    let dbar = extrude(
+        &p,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
     let half_rod = PI * 0.25 / 2.0;
     let v = topo::mass_properties(&dbar, tol).unwrap().volume;
     assert!(
@@ -1183,7 +1192,16 @@ fn a_seam_on_one_carrier_or_across_a_gap_is_contradicted() {
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol)
         .unwrap();
-    let rod = extrude(&p, Extrusion::Distance(1.0), tol).unwrap().body;
+    let rod = extrude(
+        &p,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
     for (x, y, fx, fy) in [
         (&slab, &rod, planes_at_z(&slab, 0.5), cyl(&rod)),
         (&rod, &slab, cyl(&rod), planes_at_z(&slab, 0.5)),
@@ -1499,7 +1517,16 @@ fn quarter_rod_of(side: f64, len: f64, tol: Tol) -> Body<f64> {
     let p = profile::Profile::new(plane, vec![lp])
         .validate(tol)
         .unwrap();
-    extrude(&p, Extrusion::Distance(len), tol).unwrap().body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: len,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// **A line seam is read at the line, not off the boundary.** The
@@ -1539,7 +1566,16 @@ fn a_line_seam_is_read_where_the_faces_leave_the_line() {
         let p = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
             .validate(tol)
             .unwrap();
-        let plate = extrude(&p, Extrusion::Distance(0.25), tol).unwrap().body;
+        let plate = extrude(
+            &p,
+            Extrusion::Distance {
+                depth: 0.25,
+                side: ExtrudeSide::Along,
+            },
+            tol,
+        )
+        .unwrap()
+        .body;
         for (pose, side) in [("cusp", -1.0), ("seam", 1.0)] {
             let rod = quarter_rod(side, tol);
             for (x, y) in [(&plate, &rod), (&rod, &plate)] {
@@ -1597,7 +1633,16 @@ fn plate(outline: &[(f64, f64)], tol: Tol) -> Body<f64> {
     let p = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
         .validate(tol)
         .unwrap();
-    extrude(&p, Extrusion::Distance(0.25), tol).unwrap().body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: 0.25,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// The plate's bottom against the rod's wall, declared a `Seam` in
