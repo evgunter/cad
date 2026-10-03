@@ -1123,6 +1123,33 @@ impl<T: Decide> Body<T> {
         let sides = self.sides(edge, |_, _, _| None)?;
         require_description_adjacent(Some(edge), description, sides.before.map(Slot::Kept))
     }
+
+    /// Whether `edge`'s STORED description is adjacency-coherent with
+    /// the two faces it lies between: [`require_description_adjacent`]'s
+    /// reading of the description at rest, tier 3's
+    /// `DescriptionNotAdjacent`. Exact: it compares keys and reads no
+    /// coordinate.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] when the edge, a half, a loop or a
+    /// face does not resolve; [`EulerOpError::StaleGeometry`] when its
+    /// curve does not.
+    pub(crate) fn stored_description_adjacent(&self, edge: EdgeKey) -> Result<bool, EulerOpError> {
+        let curve = self
+            .get_edge(edge)
+            .ok_or(EulerOpError::StaleKey {
+                key: EntityId::Edge(edge),
+            })?
+            .curve;
+        let stored = self
+            .get_curve_geom(curve)
+            .ok_or(EulerOpError::StaleGeometry {
+                key: crate::GeomRef::Curve(curve),
+            })?;
+        let sides = self.sides(edge, |_, _, _| None)?;
+        Ok(Named::of(stored).adjacent_to(sides.before.map(Slot::Kept), Slot::Kept))
+    }
 }
 
 /// The **description-adjacency coherence** check (module docs), one
