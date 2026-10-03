@@ -226,6 +226,136 @@ fn the_ringed_wall_rows_hold_off_the_origin() {
     assert_bar_through_the_pipe_at(c, (-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1));
 }
 
+/// **A thin bar turned about two axes gets through the join — and needs
+/// the exact closure to.** The bar `x ∈ [0.3, 3]`, `y ∈ [0.2, 0.8]`,
+/// 1 mm thick, turned 0.3 rad about `x` and then 0.5 rad about `y`: its
+/// section on the wall is a sinusoid on the chart, and the island the
+/// ring lane winds hugs it. Closing that island with a straight chart
+/// segment instead of the exact section reverses its sign (the delta
+/// review's MI3) and the union refuses `SeamOrientation` at the zip.
+/// With the exact closure the ∩ and bar ∖ pipe build, pass every tier
+/// and balance against the bar; the ∪ and pipe ∖ bar build too, and
+/// stop one layer later, at the volume backstop: their wall carries a
+/// ring trimmed by ellipse arcs, which no volume lane reads yet
+/// (`work/props/an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane.md`).
+#[test]
+fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
+    let tol = Tol::witness();
+    let t = 0.001;
+    let bar = brick((0.3, 3.0), (0.2, 0.8), (-t / 2.0, t / 2.0), tol);
+    let o = geom_core::Point3::origin();
+    let turned = topo::transform_rigid(
+        &bar,
+        &Affine3::rotation_about_axis(o, Vec3::new(1.0, 0.0, 0.0), 0.3),
+        tol,
+    )
+    .expect("a rigid pose");
+    let bar = topo::transform_rigid(
+        &turned,
+        &Affine3::rotation_about_axis(o, Vec3::new(0.0, 1.0, 0.0), 0.5),
+        tol,
+    )
+    .expect("a rigid pose");
+    let pipe = pipe();
+    let measure = |op: &str, out: Result<topo::BooleanResult<f64>, BooleanError>| {
+        let out = out.unwrap_or_else(|e| panic!("turned thin bar, {op}: refused {e:?}"));
+        let topo::BooleanResult::Body(out) = out else {
+            panic!("turned thin bar, {op}: came back empty");
+        };
+        assert_eq!(
+            topo::validate_geometric(&out.body, tol),
+            Ok(()),
+            "turned thin bar, {op}: tier 3"
+        );
+        let m = topo::mass_properties(&out.body, tol)
+            .unwrap_or_else(|e| panic!("turned thin bar, {op}: mass properties {e:?}"));
+        (m.volume, m.volume_pad)
+    };
+    let (vi, pi) = measure("∩", topo::intersect(&pipe, &bar, tol));
+    let (vd, pd) = measure("bar ∖ pipe", topo::subtract(&bar, &pipe, tol));
+    let v_bar = 2.7 * 0.6 * t;
+    assert!(
+        vi > 0.0 && vd > 0.0 && (vi + vd - v_bar).abs() <= pi + pd + 1e-12 * v_bar,
+        "∩ {vi} + bar ∖ pipe {vd} against the bar {v_bar}"
+    );
+    for (op, out) in [
+        ("∪", topo::union(&pipe, &bar, tol)),
+        ("pipe ∖ bar", topo::subtract(&pipe, &bar, tol)),
+    ] {
+        assert!(
+            matches!(
+                out,
+                Err(BooleanError::VolumeUnmeasured {
+                    source: topo::MassPropsError::RingOnCurvedFace { .. },
+                    ..
+                })
+            ),
+            "turned thin bar, {op}: expected the ellipse-ringed wall's volume backstop, got {:?}",
+            out.map(|_| "a body")
+        );
+    }
+}
+
+/// **A wall's sense bit is checked against its boundary even when the
+/// wall is notched or ringed.** Tier 3's check 6 reads a cylinder
+/// face's side off every loop's chart area; flipping the bit of a
+/// notched wall (the bar driven seam to seam) or of a ringed one (the
+/// bar whose section closes inside one wall face) must refuse
+/// `CurvedSenseInverted` on that face.
+#[test]
+fn a_notched_or_ringed_walls_flipped_sense_refuses() {
+    let tol = Tol::witness();
+    for (what, y, z, ringed) in [
+        ("notched", (-0.3, 0.3), (-0.3, 0.3), false),
+        ("ringed", (0.15, 0.7), (-0.4, 0.1), true),
+    ] {
+        let bar = brick((-1.1, 1.1), y, z, tol);
+        let topo::BooleanResult::Body(out) = topo::union(&pipe(), &bar, tol).expect("builds")
+        else {
+            panic!("{what}: empty");
+        };
+        let body = out.body;
+        let wall = body
+            .faces()
+            .find(|(_, f)| {
+                let cylinder = matches!(
+                    body.get_surface(f.surface),
+                    Some(topo::Surface::Cylinder { .. })
+                );
+                let outer_edges = match body.get_loop(f.outer).map(|l| l.boundary) {
+                    Some(topo::LoopBoundary::Cycle { first }) => {
+                        body.loop_cycle(first).map_or(0, |c| c.len())
+                    }
+                    _ => 0,
+                };
+                cylinder
+                    && if ringed {
+                        !f.rings.is_empty()
+                    } else {
+                        f.rings.is_empty() && outer_edges > 4
+                    }
+            })
+            .map(|(k, _)| k)
+            .unwrap_or_else(|| panic!("{what}: the union has such a wall"));
+        assert_eq!(
+            topo::validate_geometric(&body, tol),
+            Ok(()),
+            "{what}: as built"
+        );
+        let flipped = body
+            .flipped_face_sense_for_tests(wall)
+            .expect("live face key");
+        let errs = topo::validate_geometric(&flipped, tol)
+            .expect_err(&format!("{what}: a flipped wall must refuse"));
+        assert!(
+            errs.iter().any(
+                |e| matches!(e, topo::ValidationError::CurvedSenseInverted { face } if *face == wall)
+            ),
+            "{what}: expected CurvedSenseInverted on the flipped wall, got {errs:?}"
+        );
+    }
+}
+
 /// **A ring on a wall of reversed sense.** The bore of a bored block is
 /// a cylinder face whose outward normal is `−r̂`: the island the ring
 /// lane winds on its chart turns the other way about the outward

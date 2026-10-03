@@ -211,9 +211,9 @@ fn the_re_posed_cup_is_the_same_cup() {
 /// form over every loop, so a notched wall is no longer refused by the
 /// iso-rectangle premise (`props_rim_level`, where this row stopped
 /// before TANG's PR 3851). The difference and the intersection both pass
-/// every tier, and they balance against the cup itself: their volumes
-/// sum to the cup's within the certified pads, a statement no single
-/// op's reading can satisfy by itself.
+/// every tier, meet the cup's axisymmetric closed form, and balance
+/// against the cup itself: their volumes sum to the cup's within the
+/// certified pads.
 ///
 /// The crossing layer's door it once stopped at was the cutter's edge
 /// `x = 0.02, y = 0.1` (along `z`) against one of the cup's
@@ -242,6 +242,50 @@ fn the_boolean_on_the_cup_builds_and_balances() {
     };
     let (vd, pd) = measure("∖ cutter", topo::boolean::subtract(&cup, &cut, tol));
     let (vi, pi) = measure("∩ cutter", topo::boolean::intersect(&cup, &cut, tol));
+    // The closed form. The pot is the stepped meridian `R(y)` revolved
+    // about `y`; the cup's cavity is its mitered inward offset by
+    // `t = 1/128`, the same steps moved in by `t`. The cutter keeps
+    // `x ≥ c = 0.02`, `z ≥ 0`, `y ≤ 0.1`, so at each height it takes
+    // `F(R) − F(R_c)` of the annulus, with `F(r) = ½(r²·acos(c/r) −
+    // c·√(r² − c²))` the disc's half-segment beyond `x = c`.
+    let (t, c) = (1.0 / 128.0, 0.02);
+    let f = |r: f64| {
+        if r <= c {
+            0.0
+        } else {
+            0.5 * (r * r * (c / r).acos() - c * (r * r - c * c).sqrt())
+        }
+    };
+    let steps = |off: f64| {
+        [
+            (off, 1.0 / 64.0 + off, 3.0 / 64.0 - off),
+            (1.0 / 64.0 + off, 6.0 / 64.0 - off, 5.0 / 64.0 - off),
+            (6.0 / 64.0 - off, TOP, 3.0 / 64.0 - off),
+        ]
+    };
+    let disc = |off: f64| {
+        steps(off)
+            .iter()
+            .map(|&(a, b, r)| core::f64::consts::PI * r * r * (b - a))
+            .sum::<f64>()
+    };
+    let cut_share = |off: f64| {
+        steps(off)
+            .iter()
+            .map(|&(a, b, r)| f(r) * (b.min(0.1) - a.max(-0.01)).max(0.0))
+            .sum::<f64>()
+    };
+    let cup_truth = disc(0.0) - disc(t);
+    let inter_truth = cut_share(0.0) - cut_share(t);
+    for (what, v, pad, truth) in [
+        ("∩", vi, pi, inter_truth),
+        ("∖", vd, pd, cup_truth - inter_truth),
+    ] {
+        assert!(
+            (v - truth).abs() <= pad + 1e-12 * truth,
+            "cup {what} cutter: volume {v} ± {pad} against the closed form {truth}"
+        );
+    }
     let whole = topo::mass_properties(&cup, tol).expect("the cup measures");
     let gap = (vd + vi - whole.volume).abs();
     assert!(
