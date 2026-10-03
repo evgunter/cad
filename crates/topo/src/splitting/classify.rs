@@ -10,6 +10,7 @@ use slotmap::SecondaryMap;
 
 use super::{PlaneSide, SplitPlane, SplitReduceError};
 use crate::body::Body;
+use crate::boolean::boxes::{BoxFrame, Span};
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
@@ -20,15 +21,20 @@ use crate::validate::decide;
 /// A face passes if the split pipeline executes its `(kind × plane)`
 /// arm — `Plane`, `Cylinder` and `Cone`. A face of any other kind
 /// (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed only when the
-/// plane MAY meet it: when its padded reach box ([`gate_face_reach`])
-/// is not definitely on one side of the plane ([`box_clears`]). Behind
-/// a box that clears, the face has no vertex on or across the plane,
-/// no edge crossing it and no section through it, so every later stage
-/// carries it through whole. The box is the face's STORED locus, so an
-/// `Approx` face clears by its fit, which is the geometry there is to
-/// cut; one the plane may meet refuses by kind, since an arm executed
-/// against the fit would cut the approximation, not the surface the
-/// modeller described.
+/// plane MAY meet it: when its padded reach along the plane's normal
+/// ([`gate_face_reach`]) is not definitely on one side of the plane
+/// ([`reach_clears`]). Behind a reach that clears, the face has no
+/// vertex on or across the plane, no edge crossing it and no section
+/// through it, so every later stage carries it through whole. The
+/// reach is the face's STORED locus, so an `Approx` face clears by its
+/// fit, which is the geometry there is to cut; one the plane may meet
+/// refuses by kind, since an arm executed against the fit would cut
+/// the approximation, not the surface the modeller described.
+///
+/// The reach is read in the plane's own frame
+/// ([`crate::boolean::boxes::BoxFrame::aimed`]), never in the world's
+/// axes, so whether a cut clears a face is a fact about the two of
+/// them and not about how the body is turned.
 ///
 /// Edge carriers: `Line`, `Circle` and `Ellipse` pass. A `Spiric` or
 /// `Nurbs` carrier refuses typed only when the plane may meet it
@@ -39,6 +45,7 @@ pub(super) fn gate_operand<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
+    let frame = BoxFrame::aimed(plane.normal);
     for (face_key, face) in body.faces() {
         let Some(surface) = body.get_surface(face.surface) else {
             return Err(SplitReduceError::Euler(
@@ -54,7 +61,7 @@ pub(super) fn gate_operand<T: Decide>(
             | geom::SurfaceKind::Torus
             | geom::SurfaceKind::Nurbs
             | geom::SurfaceKind::Approx => {
-                if !box_clears(gate_face_reach(body, face_key, band), plane, band) {
+                if !reach_clears(gate_face_reach(body, face_key, band, &frame), plane, band) {
                     return Err(SplitReduceError::CurvedBooleanUnsupported {
                         face: face_key,
                         kind,
@@ -82,39 +89,81 @@ pub(super) fn gate_operand<T: Decide>(
     Ok(())
 }
 
-/// Whether the plane certainly misses an edge: behind its own reach box
-/// (`census::edge_reach`) or behind the box of either face it bounds,
-/// since an edge lies on both its faces. A spline edge has no sound box
-/// of its own (`EdgeBoxRule::NoSoundBox`), so its faces' boxes are what
-/// clear it.
+/// Whether the plane certainly misses an edge: behind its own reach
+/// (`census::edge_reach_in`) or behind the reach of either face it
+/// bounds, since an edge lies on both its faces. A spline edge has no
+/// sound box of its own (`EdgeBoxRule::NoSoundBox`), so its faces'
+/// reaches are what clear it.
 fn edge_clears<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
     plane: &SplitPlane<T>,
     band: Band,
 ) -> bool {
+    let frame = &BoxFrame::aimed(plane.normal);
     let bounding = body
         .get_edge(edge)
         .map(|e| [e.he_plus, e.he_minus].map(|he| body.face_of_half_edge(he)));
-    box_clears(crate::census::edge_reach(body, edge), plane, band)
+    reach_clears(crate::census::edge_reach_in(body, edge, frame), plane, band)
         || bounding
             .into_iter()
             .flatten()
             .flatten()
-            .any(|face| box_clears(gate_face_reach(body, face, band), plane, band))
+            .any(|face| reach_clears(gate_face_reach(body, face, band, frame), plane, band))
 }
 
 /// K name: a sphere face's polar axis, read as a unit direction for
-/// its latitude zone's slab.
+/// its latitude zone.
 const SPLIT_GATE_SPHERE_AXIS: &str = "split_gate_sphere_axis";
 
-/// A face's reach for the gate: `census::face_reach` (the boolean's
-/// `FaceBoxRule` at this body's scalar), except that a sphere face is
-/// boxed by its latitude zone where that zone is certified: the axial
-/// slab over the window `solid_contain::sphere_chart_trim` pins, met
-/// with the ball. The ball alone is the whole sphere, which a plane
-/// through any part of it meets, so a cap on a cylinder would refuse
-/// every cut of the cylinder.
+/// K name: a torus face's ring convention `R > r`, the major radius
+/// less the minor (metres), decided before its chart rectangle is read
+/// in closed form.
+const SPLIT_GATE_TORUS_RING: &str = "split_gate_torus_ring";
+
+/// A face's reach for the gate, in `frame`: `census::face_reach_in`
+/// (the boolean's `FaceBoxRule` at this body's scalar), except where
+/// the face's own patch of its carrier is certified and has a closed
+/// form along a direction — a sphere face's latitude zone
+/// ([`sphere_zone_reach`]) and a torus face's chart rectangle
+/// ([`torus_window_reach`]). The rule's box for a sphere is the whole
+/// ball, which a plane through any part of it meets, so a cap on a
+/// cylinder would refuse every cut of the cylinder; its box for a torus
+/// samples the rectangle and pays a subdivision charge that reaches
+/// thousandths of the radii.
+fn gate_face_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+    frame: &BoxFrame<T>,
+) -> Option<(Point3<T>, Point3<T>)> {
+    let rule = crate::census::face_reach_in(body, face, band, frame)?;
+    let f = body.get_face(face)?;
+    let patch = match body.get_surface(f.surface)? {
+        surface @ geom::Surface::Sphere { .. } => {
+            sphere_zone_reach(body, face, f, surface, band, frame)
+        }
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => torus_window_reach(
+            body,
+            face,
+            (*center, *axis, *u_ref),
+            (*major_radius, *minor_radius),
+            band,
+            frame,
+        ),
+        _ => None,
+    };
+    Some(patch.unwrap_or(rule))
+}
+
+/// A sphere face's latitude zone, in `frame`: [`zone_extent`] per
+/// coordinate over the window `solid_contain::sphere_chart_trim` pins.
 ///
 /// The trim reads the window off the boundary, and the boundary of a
 /// rectangle is also the boundary of its complement. The zone is
@@ -123,25 +172,24 @@ const SPLIT_GATE_SPHERE_AXIS: &str = "split_gate_sphere_axis";
 /// sense check runs) agrees with the face's `sense`, which places the
 /// face on the rectangle's side of its rims. A face whose side is
 /// unencoded, refused, or in disagreement, one outside the trim's
-/// class, and one whose trim escalates all keep the ball.
-fn gate_face_reach<T: Decide>(
+/// class, and one whose trim escalates all answer `None`, and keep the
+/// ball.
+fn sphere_zone_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
+    f: &crate::entity::Face,
+    surface: &geom::Surface<T>,
     band: Band,
+    frame: &BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    use crate::boolean::boxes::{Span, SpanBox, UnitSpanBox, slab_extent};
-    let ball = crate::census::face_reach(body, face, band)?;
-    let f = body.get_face(face)?;
-    let Some(
-        surface @ geom::Surface::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        },
-    ) = body.get_surface(f.surface)
+    let geom::Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    } = surface
     else {
-        return Some(ball);
+        return None;
     };
     let side_certified = crate::props::loop_edges(body, f.outer)
         .ok()
@@ -154,41 +202,141 @@ fn gate_face_reach<T: Decide>(
             })
         });
     if !side_certified {
-        return Some(ball);
+        return None;
     }
-    let (Ok(Some(trim)), Ok(unit)) = (
-        crate::boolean::solid_contain::sphere_chart_trim(body, face, *center, *radius, *axis, band),
-        UnitVec3::new(*axis, SPLIT_GATE_SPHERE_AXIS, band),
-    ) else {
-        return Some(ball);
-    };
+    let trim =
+        crate::boolean::solid_contain::sphere_chart_trim(body, face, *center, *radius, *axis, band)
+            .ok()??;
+    let unit = UnitVec3::new(*axis, SPLIT_GATE_SPHERE_AXIS, band).ok()?;
     let h = Span {
         lo: trim.south.map_or(T::zero() - *radius, |(h, _)| h),
         hi: trim.north.map_or(*radius, |(h, _)| h),
     };
-    let (zlo, zhi) = crate::census::span_pts(slab_extent(
-        &SpanBox::point(*center),
-        &UnitSpanBox::exact(unit),
-        h,
-        *radius,
-    ));
-    let (lo, hi) = ball;
-    Some((
-        Point3::new(lo.x.max(zlo.x), lo.y.max(zlo.y), lo.z.max(zlo.z)),
-        Point3::new(hi.x.min(zhi.x), hi.y.min(zhi.y), hi.z.min(zhi.z)),
-    ))
+    let (c, a) = (frame.point(*center), frame.vector(unit.get()));
+    let ((xl, xh), (yl, yh), (zl, zh)) = (
+        zone_extent(c.x, a.x, h, *radius),
+        zone_extent(c.y, a.y, h, *radius),
+        zone_extent(c.z, a.z, h, *radius),
+    );
+    Some((Point3::new(xl, yl, zl), Point3::new(xh, yh, zh)))
 }
 
-/// K name: an unarmed entity's padded reach box, its distance from the
-/// split plane (metres).
+/// **One coordinate of a sphere's latitude zone, exactly**: the least
+/// and greatest `e·p` over the zone of the sphere about `c` of radius
+/// `r` whose axial coordinate lies in `h`, where `e` is a unit
+/// direction, `c` is `e`'s component of the centre and `a = e·â` its
+/// component of the unit polar axis.
+///
+/// A zone point is `c + h·â + ρ·û` with `û ⊥ â` unit and
+/// `ρ = √(r² − h²)`, so `e·p − e·c = h·a + ρ·(e·û)` and `e·û` reaches
+/// `±√(1 − a²)` on every parallel. The greatest value is therefore the
+/// largest `G(h) = h·a + √(1 − a²)·√(r² − h²)` over `h`, and `G` is
+/// concave on `[−r, r]` with its one stationary point at `h = r·a`
+/// (where it is `r`, the ball's own support). The largest value over a
+/// window is `G` at that point clamped into the window; the least is
+/// the same reading of `−e`. The clamp is branch-free, so no sign is
+/// decided here, and an `h` read a rounding off its true value moves
+/// `G` by as little, since `G` is continuous.
+fn zone_extent<T: Decide>(c: T, a: T, h: Span<T>, r: T) -> (T, T) {
+    let s = (T::one() - a * a).max(T::zero()).sqrt();
+    let most = |a: T| {
+        let at = (r * a).max(h.lo).min(h.hi);
+        at * a + s * (r * r - at * at).max(T::zero()).sqrt()
+    };
+    (c - most(T::zero() - a), c + most(a))
+}
+
+/// A torus face's chart rectangle, in `frame`: [`torus_rect_extent`]
+/// per coordinate over the window the boundary's stored certified
+/// pcurves pin (`boxes::torus_chart_window`, the walk the rule's own
+/// box reads), when the ring convention `R > r` is decided. `None`
+/// when no window reads or the convention is not decided, and the rule's
+/// box stands.
+fn torus_window_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (center, axis, u_ref): (Point3<T>, geom_core::Vec3<T>, geom_core::Vec3<T>),
+    (major, minor): (T, T),
+    band: Band,
+    frame: &BoxFrame<T>,
+) -> Option<(Point3<T>, Point3<T>)> {
+    if !matches!(
+        decide(SPLIT_GATE_TORUS_RING, Margin::of(major - minor), band),
+        Ok(Sign::Positive)
+    ) {
+        return None;
+    }
+    let window = crate::boolean::boxes::torus_chart_window(
+        &crate::boolean::boxes::face_window_steps(body, face)?,
+        major,
+        minor,
+    )?;
+    let (c, ax, ur, vr) = (
+        frame.point(center),
+        frame.vector(axis),
+        frame.vector(u_ref),
+        frame.vector(axis.cross(u_ref)),
+    );
+    let at = |c: T, p: T, q: T, a: T| torus_rect_extent(c, (p, q, a), (major, minor), window);
+    let ((xl, xh), (yl, yh), (zl, zh)) = (
+        at(c.x, ur.x, vr.x, ax.x),
+        at(c.y, ur.y, vr.y, ax.y),
+        at(c.z, ur.z, vr.z, ax.z),
+    );
+    Some((Point3::new(xl, yl, zl), Point3::new(xh, yh, zh)))
+}
+
+/// **One coordinate of a ring torus's chart rectangle, exactly**: the
+/// least and greatest `e·S(u, v)` over `u ∈ U`, `v ∈ V`, where `e` is
+/// a unit direction, `c` its component of the centre and `(p, q, a)`
+/// its components of `u_ref`, `axis × u_ref` and the axis.
+///
+/// `e·S − c = (R + r·cos v)·(p·cos u + q·sin u) + r·a·sin v`. The
+/// factor `R + r·cos v` is positive on a ring torus (`R > r`), so for
+/// every `v` the best `u` is the one that maximizes
+/// `p·cos u + q·sin u = A·cos(u − u*)` over `U`, whatever `v` is: call
+/// that greatest value `M` ([`most_cos`]). What is left is
+/// `R·M + r·(M·cos v + a·sin v) = R·M + r·B·cos(v − v*)` with
+/// `B = √(M² + a²)`, maximized over `V` the same way. The least value is
+/// the same reading of `−e`. Every step is an equality, so the extent
+/// is the rectangle's own and turns with it.
+fn torus_rect_extent<T: Decide>(
+    c: T,
+    (p, q, a): (T, T, T),
+    (major, minor): (T, T),
+    (u, v): crate::boolean::boxes::TorusWindowPair<T>,
+) -> (T, T) {
+    let most = |p: T, q: T, a: T| {
+        let m = (p * p + q * q).sqrt() * most_cos(q.atan2(p), u);
+        major * m + minor * (m * m + a * a).sqrt() * most_cos(a.atan2(m), v)
+    };
+    let neg = |x: T| T::zero() - x;
+    (c - most(neg(p), neg(q), neg(a)), c + most(p, q, a))
+}
+
+/// The greatest `cos(t − t*)` over `t ∈ w`: one when `t*` lies in the
+/// window modulo a turn, otherwise the better of the two ends, since a
+/// window that misses the crest is monotone between them. The
+/// membership is read branch-free (`select_le_zero` on the crest's
+/// offset into the window less its width), and a crest a rounding off
+/// an end gives either reading to within that rounding.
+fn most_cos<T: Decide>(crest: T, w: Span<T>) -> T {
+    let into = (crest - w.lo).reduce_periodic(T::tau());
+    let ends = (w.lo - crest).cos().max((w.hi - crest).cos());
+    (into - (w.hi - w.lo)).select_le_zero(T::one(), ends)
+}
+
+/// K name: an unarmed entity's padded reach, its distance from the
+/// split plane along the plane's normal (metres).
 const SPLIT_GATE_BOX_SIDE: &str = "split_gate_box_side";
 
-/// Whether the plane certainly misses a reach box padded by the
-/// boolean sweep's pad: the box centre's distance from the plane, less
-/// the box's half-extent along the normal (its support, `Σ|nᵢ|·hᵢ`),
-/// decided definitely positive. No box (an entity the reach lane cannot
-/// bound) answers `false`.
-fn box_clears<T: Decide>(
+/// Whether the plane certainly misses a reach read in the plane's
+/// frame ([`BoxFrame::aimed`]), whose first coordinate is the
+/// component along the plane's normal: the reach's gap from the
+/// plane's own offset along that normal, less the boolean sweep's pad,
+/// decided definitely positive. No reach (an entity the reach lane
+/// cannot bound) answers `false`.
+fn reach_clears<T: Decide>(
     reach: Option<(Point3<T>, Point3<T>)>,
     plane: &SplitPlane<T>,
     band: Band,
@@ -197,17 +345,9 @@ fn box_clears<T: Decide>(
         return false;
     };
     let pad = T::from_f64(crate::boolean::boxes::sweep_pad(band));
-    let half = T::from_f64(0.5);
     let n = plane.normal.get();
-    let centre = Point3::new(
-        (lo.x + hi.x) * half,
-        (lo.y + hi.y) * half,
-        (lo.z + hi.z) * half,
-    );
-    let support = n.x.abs() * ((hi.x - lo.x) * half + pad)
-        + n.y.abs() * ((hi.y - lo.y) * half + pad)
-        + n.z.abs() * ((hi.z - lo.z) * half + pad);
-    let gap = crate::sector_shape::plane_offset(plane.origin, n, centre).abs() - support;
+    let at = n.x * plane.origin.x + n.y * plane.origin.y + n.z * plane.origin.z;
+    let gap = (lo.x - at).max(at - hi.x) - pad;
     matches!(
         decide(SPLIT_GATE_BOX_SIDE, Margin::of(gap), band),
         Ok(Sign::Positive)

@@ -326,21 +326,80 @@ impl<T: Real> SpanBox<T> {
 /// The enclosure of a DECIDED unit direction: the [`SpanBox`] of a
 /// [`UnitVec3`], minted only from one, so an extent that takes it
 /// reads a unit axis by type. The census lane takes the witness at its
-/// own scalar ([`UnitSpanBox::exact`]), the bracket lane takes its
+/// own scalar, in the frame it reads ([`BoxFrame::unit`]), the bracket
+/// lane takes its
 /// `f64` bracket ([`UnitSpanBox::bracketed`]); either way the box
 /// encloses a vector whose length was decided and divided out.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct UnitSpanBox<T>(SpanBox<T>);
 
 impl<T: Real> UnitSpanBox<T> {
-    /// The witness as three degenerate spans.
-    pub(crate) fn exact(u: UnitVec3<T>) -> Self {
-        Self(SpanBox::vector(u.get()))
-    }
-
     /// The enclosure itself.
     pub(crate) fn get(&self) -> &SpanBox<T> {
         &self.0
+    }
+}
+
+/// **The frame a box is read in**: the world's axes, or a rotation of
+/// them whose first axis is a decided unit direction.
+///
+/// Every per-kind extent in this module computes coordinate `i` of its
+/// box from coordinate `i` of its inputs alone, and its soundness
+/// argument reads coordinate `i` as the component along a UNIT
+/// direction — never as anything particular to the world's `x̂`, `ŷ`
+/// or `ẑ`. So the same extents, fed the components of their inputs
+/// along the rows of any orthonormal frame, box the face in that
+/// frame, and the first coordinate of an [`Aimed`](Self::Aimed) frame's
+/// box is the face's support along its aim. That is a reading that
+/// turns with the body: the world box of a turned face widens by how
+/// it is turned, and the support along a direction fixed to the face
+/// does not.
+///
+/// The aimed frame is the aim with [`UnitVec3::orthonormal_basis`],
+/// in the cyclic order `(aim, b1, b2)` of the right-handed
+/// `(b1, b2, aim)`, so a cross product of two mapped vectors is the
+/// mapped cross product. The rows are unit and orthogonal up to the
+/// rounding of that construction, which is ulps of a unit row and
+/// rides with the rest of the box's rounding under the pad.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum BoxFrame<T: Real> {
+    /// The world's axes: every point and vector read as it is stored.
+    World,
+    /// The rows of a right-handed orthonormal frame whose first row is
+    /// the aim.
+    Aimed([Vec3<T>; 3]),
+}
+
+impl<T: Real> BoxFrame<T> {
+    /// The frame whose first axis is `aim`.
+    pub(crate) fn aimed(aim: UnitVec3<T>) -> Self {
+        let (b1, b2) = aim.orthonormal_basis();
+        Self::Aimed([aim.get(), b1, b2])
+    }
+
+    /// A direction's components along the frame's rows.
+    pub(crate) fn vector(&self, v: Vec3<T>) -> Vec3<T> {
+        match self {
+            Self::World => v,
+            Self::Aimed([a, b, c]) => Vec3::new(a.dot(v), b.dot(v), c.dot(v)),
+        }
+    }
+
+    /// A point's coordinates in the frame, about the world origin.
+    pub(crate) fn point(&self, p: Point3<T>) -> Point3<T> {
+        match self {
+            Self::World => p,
+            Self::Aimed(_) => {
+                let v = self.vector(Vec3::new(p.x, p.y, p.z));
+                Point3::new(v.x, v.y, v.z)
+            }
+        }
+    }
+
+    /// A decided unit direction's components in the frame: a rotation
+    /// of a unit vector is one, so the witness carries.
+    pub(crate) fn unit(&self, u: UnitVec3<T>) -> UnitSpanBox<T> {
+        UnitSpanBox(SpanBox::vector(self.vector(u.get())))
     }
 }
 
@@ -3018,7 +3077,7 @@ pub(crate) mod tests {
     ///   first read in the body's own frame instead of through a
     ///   placement's affine image, which drops the image step and
     ///   changes nothing about what looseness costs.
-    /// - `census.rs` — `reach_box` and `edge_reach`, this module's
+    /// - `census.rs` — `reach_box` and `edge_reach_in`, this module's
     ///   extents entered at the census's own scalar. **Refuses**:
     ///   arm 2 clears for free only on a definitely negative margin
     ///   against a CONTAINING box, so over-width would send a separated
@@ -4458,7 +4517,7 @@ pub(crate) mod tests {
         };
         let slab = slab_extent(
             &SpanBox::point(Point3::<f64>::origin()),
-            &UnitSpanBox::exact(
+            &BoxFrame::World.unit(
                 UnitVec3::new(Vec3::<f64>::unit_z(), BOX_CYLINDER_AXIS, witness_band()).unwrap(),
             ),
             poison_h,

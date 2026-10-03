@@ -204,8 +204,8 @@ fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
 /// The planes, in the body's own frame, as `(n, point on the plane)`:
 /// cuts square to the axis at heights through and beyond the face, and
 /// oblique cuts at three tilts in two azimuths through the axis.
-fn planes(s: f64) -> Vec<(Vec3<f64>, Point3<f64>)> {
-    let mut out = Vec::new();
+fn planes(f: &Fixture, s: f64) -> Vec<(Vec3<f64>, Point3<f64>)> {
+    let mut out = grazing(f, s);
     for c in [
         -0.9, -0.5, 0.05, 0.2, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 0.99, 1.05, 1.2, 1.4, 1.6,
     ] {
@@ -216,6 +216,25 @@ fn planes(s: f64) -> Vec<(Vec3<f64>, Point3<f64>)> {
             let n = Vec3::new(phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin());
             for c in [-0.5, 0.2, 0.5, 0.8, 0.95, 1.2, 1.4] {
                 out.push((n, Point3::new(0.0, c * s, 0.0)));
+            }
+        }
+    }
+    out
+}
+
+/// Planes grazing the face from its outer side and from its inner
+/// side along tilted normals: `δ` beyond the face's least support
+/// along `n`, and `δ` inside it, at three `δ`.
+fn grazing(f: &Fixture, s: f64) -> Vec<(Vec3<f64>, Point3<f64>)> {
+    let mut out = Vec::new();
+    for phi in [0.0f64, 0.3, 0.7, 1.1, 1.4, 2.0, 2.8] {
+        for psi in [0.0f64, 1.3] {
+            let n = Vec3::new(phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin());
+            let (lo, _) = face_support(f, s, n);
+            for delta in [1e-2, 1e-4, 1e-5] {
+                for d in [lo - delta * s, lo + delta * s] {
+                    out.push((n, Point3::new(n.x * d, n.y * d, n.z * d)));
+                }
             }
         }
     }
@@ -265,7 +284,7 @@ fn probe() {
             for (pose, map) in poses(s) {
                 let posed = transform_rigid(&body, &map, Tol::witness()).unwrap();
                 let mut t = Tally::default();
-                for (n, q) in planes(s) {
+                for (n, q) in planes(&f, s) {
                     let n = n * (1.0 / (n.x * n.x + n.y * n.y + n.z * n.z).sqrt());
                     let d = n.x * q.x + n.y * q.y + n.z * q.z;
                     let (lo, hi) = face_support(&f, s, n);

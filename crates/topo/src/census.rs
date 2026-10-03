@@ -2494,13 +2494,25 @@ pub(crate) fn face_reach<T: Decide>(
     f: crate::entity::FaceKey,
     band: Band,
 ) -> Option<(Point3<T>, Point3<T>)> {
+    face_reach_in(body, f, band, &crate::boolean::boxes::BoxFrame::World)
+}
+
+/// [`face_reach`] read in `frame` ([`crate::boolean::boxes::BoxFrame`]):
+/// every point and direction the rule reads enters through the frame,
+/// and every extent is the same one.
+pub(crate) fn face_reach_in<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+    band: Band,
+    frame: &crate::boolean::boxes::BoxFrame<T>,
+) -> Option<(Point3<T>, Point3<T>)> {
     let surface = body
         .get_face(f)
         .and_then(|d| body.surfaces.get(d.surface))?;
     // A cylinder whose axis has no decided length is a broken carrier,
     // and a description with no claim in it answers `None`.
     match crate::boolean::boxes::face_box_rule(surface, band).ok()? {
-        crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f),
+        crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f, frame),
         crate::boolean::boxes::FaceBoxRule::ControlNet(patch) => {
             if patch.is_placeholder() {
                 // The mvfs placeholder's control net is poison
@@ -2525,8 +2537,8 @@ pub(crate) fn face_reach<T: Decide>(
                 // is already written for.
                 return None;
             }
-            let mut it = patch.control().iter();
-            let first = *it.next()?;
+            let mut it = patch.control().iter().map(|p| frame.point(*p));
+            let first = it.next()?;
             let (mut lo, mut hi) = (first, first);
             for p in it {
                 lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
@@ -2536,7 +2548,7 @@ pub(crate) fn face_reach<T: Decide>(
         }
         crate::boolean::boxes::FaceBoxRule::WholeBall { center, radius } => {
             Some(span_pts(crate::boolean::boxes::ball_extent(
-                &crate::boolean::boxes::SpanBox::point(center),
+                &crate::boolean::boxes::SpanBox::point(frame.point(center)),
                 radius,
             )))
         }
@@ -2548,7 +2560,10 @@ pub(crate) fn face_reach<T: Decide>(
             u_ref,
         } => {
             use crate::boolean::boxes::{Span, SpanBox, meet, torus_extent, torus_window_extent};
-            let (c, ax) = (SpanBox::point(center), SpanBox::vector(axis));
+            let (c, ax) = (
+                SpanBox::point(frame.point(center)),
+                SpanBox::vector(frame.vector(axis)),
+            );
             let whole = torus_extent(&c, &ax, major_radius, minor_radius);
             // The chart window from the boundary's own stored
             // certified pcurves: the same walk, the same guards and
@@ -2561,8 +2576,8 @@ pub(crate) fn face_reach<T: Decide>(
                         torus_window_extent(
                             &c,
                             &ax,
-                            &SpanBox::vector(u_ref),
-                            &SpanBox::vector(axis.cross(u_ref)),
+                            &SpanBox::vector(frame.vector(u_ref)),
+                            &SpanBox::vector(frame.vector(axis.cross(u_ref))),
                             Span::exact(major_radius),
                             Span::exact(minor_radius),
                             (u, v),
@@ -2584,8 +2599,8 @@ pub(crate) fn face_reach<T: Decide>(
             // necessarily at a boundary VERTEX.
             let h = boundary_axial(body, f, origin, axis.get())?;
             let slab = span_pts(crate::boolean::boxes::slab_extent(
-                &crate::boolean::boxes::SpanBox::point(origin),
-                &crate::boolean::boxes::UnitSpanBox::exact(axis),
+                &crate::boolean::boxes::SpanBox::point(frame.point(origin)),
+                &frame.unit(axis),
                 h,
                 radius,
             ));
@@ -2597,7 +2612,7 @@ pub(crate) fn face_reach<T: Decide>(
             // lanes must clip the same way or
             // `the_two_box_lanes_agree_face_for_face` reds — which is
             // exactly that row's job.
-            Some(match boundary_reach(body, f) {
+            Some(match boundary_reach(body, f, frame) {
                 Some((blo, bhi)) => (
                     Point3::new(slab.0.x.max(blo.x), slab.0.y.max(blo.y), slab.0.z),
                     Point3::new(slab.1.x.min(bhi.x), slab.1.y.min(bhi.y), slab.1.z),
@@ -2611,8 +2626,8 @@ pub(crate) fn face_reach<T: Decide>(
             half_angle,
         } => {
             let h = boundary_axial(body, f, apex, axis)?;
-            let apex = crate::boolean::boxes::SpanBox::point(apex);
-            let axis = crate::boolean::boxes::SpanBox::vector(axis);
+            let apex = crate::boolean::boxes::SpanBox::point(frame.point(apex));
+            let axis = crate::boolean::boxes::SpanBox::vector(frame.vector(axis));
             Some(span_pts(crate::boolean::boxes::cone_frustum_extent(
                 &apex,
                 &axis,
@@ -2720,6 +2735,7 @@ fn boundary_axial<T: Decide>(
 fn boundary_reach<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
+    frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let face = body.get_face(f)?;
     let mut acc: Option<(Point3<T>, Point3<T>)> = None;
@@ -2737,13 +2753,13 @@ fn boundary_reach<T: Decide>(
         match l.boundary {
             LoopBoundary::Empty { vertex } => {
                 let v = body.vertices.get(vertex)?;
-                let p = *body.points.get(v.point)?;
+                let p = frame.point(*body.points.get(v.point)?);
                 grow((p, p));
             }
             LoopBoundary::Cycle { first } => {
                 for he in body.loop_cycle(first)? {
                     let ek = body.half_edges.get(he)?.edge;
-                    grow(edge_reach(body, ek)?);
+                    grow(edge_reach_in(body, ek, frame)?);
                 }
             }
         }
@@ -2752,16 +2768,17 @@ fn boundary_reach<T: Decide>(
 }
 
 /// One edge's reach — [`crate::boolean::boxes::EdgeBoxRule`] at this
-/// lane's scalar.
-pub(crate) fn edge_reach<T: Decide>(
+/// lane's scalar, read in `frame` as [`face_reach_in`] reads a face.
+pub(crate) fn edge_reach_in<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
+    frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
     let e = body.edges.get(ek)?;
     let end = |he| -> Option<Point3<T>> {
         let hd = body.half_edges.get(he)?;
         let v = body.vertices.get(hd.start)?;
-        body.points.get(v.point).copied()
+        body.points.get(v.point).map(|p| frame.point(*p))
     };
     let (a, b) = (end(e.he_plus)?, end(e.he_minus)?);
     let chord = (
@@ -2800,9 +2817,10 @@ pub(crate) fn edge_reach<T: Decide>(
             else {
                 return None;
             };
-            let m = axis.cross(*u_ref);
+            let m = frame.vector(axis.cross(*u_ref));
             let (f_min, f_max) = geom::spiric_f_range(*major_radius, *minor_radius, *offset);
-            let base = *center + *u_ref * *offset;
+            let base = frame.point(*center + *u_ref * *offset);
+            let axis = frame.vector(*axis);
             let per = |b: T, me: T, ae: T| {
                 let (p, q) = (me * f_min, me * f_max);
                 let amp = ae.abs() * *minor_radius;
@@ -2823,7 +2841,11 @@ pub(crate) fn edge_reach<T: Decide>(
             semi_v,
             u_ref,
         } => {
-            let v_ref = axis.cross(u_ref);
+            let (center, u_ref, v_ref) = (
+                frame.point(center),
+                frame.vector(u_ref),
+                frame.vector(axis.cross(u_ref)),
+            );
             // The ARC's own extent, not the closed conic's — the same
             // construction the boolean lane reads, so the two cannot
             // drift (`the_two_box_lanes_agree_face_for_face` is what
