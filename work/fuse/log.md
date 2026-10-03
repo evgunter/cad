@@ -345,3 +345,14 @@ lane, because both edit `remap_contacts`.
   to the insertion, and no ratified text governs it, so the orchestrator
   decides it is the implementer's call rather than a designer fork. The
   lane stops if it finds ratified text that binds it.
+
+- 2026-10-03 — PR 3950 lands: a dangling null edge nests another at its
+  tip.
+  - The FULL review's MAJOR: the one-arc tie depended on insertion
+    order, and in one order regressed a typed refusal to `JoinDesync`.
+    It is answered by returning the one-arc tie to a typed refusal (own
+    row), with witnesses built both ways.
+  - The notched witnesses refuse typed, and the old pair order is
+    restored.
+  - The tie row drops to P3: only the unreached interleave arm remains,
+    and it waits on cleave's `PairingMismatch` row.

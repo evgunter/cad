@@ -1349,32 +1349,22 @@ fn ball_against_plane<T: Decide>(
 /// one key: the classification's null edges split a contact vertex into
 /// copies at that point, and which copy keeps which face's corner is
 /// the scaffolding's choice (the side each null edge's new vertex
-/// took), so every copy the vertex's null edges reach is read with it.
+/// took), so every copy the vertex's null edges reach, transitively (a
+/// strut nested in another's segment hangs at its tip), is read with it.
 fn event_pairs<T: Real>(
     red: &BooleanReduction<T>,
 ) -> Result<BTreeSet<(FaceKey, FaceKey)>, BooleanError> {
     let a_faces = faces_by_vertex(&red.a)?;
     let b_faces = faces_by_vertex(&red.b)?;
-    let mut copies: BTreeMap<(bool, VertexKey), Vec<VertexKey>> = BTreeMap::new();
-    for e in &red.null_edges {
-        copies
-            .entry((e.operand == Operand::A, e.at_vertex))
-            .or_default()
-            .extend([e.attr.below_end, e.attr.above_end]);
-    }
+    let desc = Descendants::default().with_copies(Descendants::null_copies(&red.null_edges));
     let around = |operand: Operand, v: VertexKey| {
         let m = match operand {
             Operand::A => &a_faces,
             Operand::B => &b_faces,
         };
-        let mut faces: Vec<FaceKey> = core::iter::once(v)
-            .chain(
-                copies
-                    .get(&(operand == Operand::A, v))
-                    .into_iter()
-                    .flatten()
-                    .copied(),
-            )
+        let mut faces: Vec<FaceKey> = desc
+            .copies_of(operand, v)
+            .into_iter()
             .flat_map(|u| m.get(&u).cloned().unwrap_or_default())
             .collect();
         faces.sort();

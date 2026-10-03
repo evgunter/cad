@@ -480,24 +480,8 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
     let desync = |what| BooleanError::JoinDesync { what };
     // A pierce survives as whichever of its null-edge copies the kept
     // side holds.
-    let mut copies: BTreeMap<VertexKey, BTreeSet<VertexKey>> = BTreeMap::new();
-    for r in red.null_edges.iter().filter(|r| r.operand == operand) {
-        let (u, w) = (r.attr.below_end, r.attr.above_end);
-        copies.entry(u).or_default().insert(w);
-        copies.entry(w).or_default().insert(u);
-    }
-    let copies_of = |v: VertexKey| -> BTreeSet<VertexKey> {
-        let mut seen = BTreeSet::from([v]);
-        let mut todo = vec![v];
-        while let Some(x) = todo.pop() {
-            for &y in copies.get(&x).into_iter().flatten() {
-                if seen.insert(y) {
-                    todo.push(y);
-                }
-            }
-        }
-        seen
-    };
+    let copies = super::NullCopies::of_operand(&red.null_edges, operand);
+    let copies_of = |v: VertexKey| -> BTreeSet<VertexKey> { copies.of(v).into_iter().collect() };
     let mut by_face: BTreeMap<FaceKey, Vec<BTreeSet<VertexKey>>> = BTreeMap::new();
     for r in red.pierce_rings.iter().filter(|r| r.operand == operand) {
         by_face
@@ -670,15 +654,7 @@ fn discarded<T: Decide>(
         Operand::A => (&red.a, Operand::B, &red.b),
         Operand::B => (&red.b, Operand::A, &red.a),
     };
-    let mut copy: BTreeMap<VertexKey, BTreeSet<VertexKey>> = BTreeMap::new();
-    for r in red.null_edges.iter().filter(|r| r.operand == operand) {
-        copy.entry(r.attr.below_end)
-            .or_default()
-            .insert(r.attr.above_end);
-        copy.entry(r.attr.above_end)
-            .or_default()
-            .insert(r.attr.below_end);
-    }
+    let copy = super::NullCopies::of_operand(&red.null_edges, operand);
     let on_face = |face: FaceKey| -> Result<BTreeSet<VertexKey>, BooleanError> {
         let f = body
             .get_face(face)
@@ -701,9 +677,10 @@ fn discarded<T: Decide>(
         Ok(on)
     };
     let kept_end = |v: VertexKey, across: FaceKey| -> Result<VertexKey, BooleanError> {
-        let copies = copy
-            .get(&v)
-            .ok_or_else(|| desync("a section vertex has no null-edge copy"))?;
+        let copies: Vec<VertexKey> = copy.of(v).into_iter().filter(|&k| k != v).collect();
+        if copies.is_empty() {
+            return Err(desync("a section vertex has no null-edge copy"));
+        }
         let survivors = |twin: Option<&BTreeSet<VertexKey>>| -> BTreeSet<VertexKey> {
             copies
                 .iter()
