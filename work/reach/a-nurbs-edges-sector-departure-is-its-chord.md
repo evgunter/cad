@@ -1,7 +1,7 @@
 ---
 id: a-nurbs-edges-sector-departure-is-its-chord
 kind: issue
-title: both sector walks take a NURBS edge's chord as its departure direction at an ON vertex
+title: the split's sector walk takes a NURBS edge's chord as its departure direction at an ON vertex
 status: open
 opened: 2026-10-03
 priority: P3
@@ -42,3 +42,11 @@ which does not run the gate. Becomes live the day either gate narrows.
 Give the NURBS arm the spiric's reading (`walk_tangents`,
 `walk_departure_deriv2`, `geom_brep::edge_extent`) at both sites, with
 a row that red on the chord.
+
+## The boolean half is typed (2026-10-03)
+
+`boolean/sectors.rs`'s NURBS arm now refuses
+`EdgeCarrierUnsupported { site: VertexSector }`
+(`planar-crossing-lane-reads-a-curved-carrier-as-a-line`, which deleted
+the boolean gate). The split's `neighborhood.rs` `chord` is what
+remains, behind the split gate.

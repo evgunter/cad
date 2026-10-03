@@ -38,14 +38,27 @@ The full two-direction sweep returned `Ok(())` on the second.
 
 ## Fix
 
-`plane_crossing_lane` answers `Line`, `Conic(meet)` or `Unlaned`. The
-planar arm and the curved arm (`curved_face_arm`) refuse an unlaned
-carrier as `BooleanError::CrossingCarrierUnsupported` naming the edge
-and the face; the split lane keeps its `edge_clears` pass or
-`CurvedEdgeUnsupported`. The gate stays; it is no longer what keeps the
-arm sound. Rows: `boolean/planar_lane_carrier_rows.rs`,
-`splitting::classify::tests::each_carrier_kind_lands_on_its_own_lane`.
+`plane_crossing_lane` answers `Line`, `Conic(meet)` or `Unlaned`. Every
+lane that reads an operand edge's carrier refuses a spiric or NURBS one
+at its own site as `BooleanError::EdgeCarrierUnsupported`, naming the
+edge, the face and the lane (`EdgeCarrierSite`): the planar and the
+curved crossing lanes, the join's germ frame and ring run, the vertex
+sector walk, and the continuation scan's face extent. The split lane
+keeps its `edge_clears` pass or `CurvedEdgeUnsupported`.
 
-Class residue filed: `a-nurbs-edges-sector-departure-is-its-chord`,
-`section-area-skips-a-spiric-or-nurbs-section-edge`,
-`shell/replace-face-transports-a-nurbs-edge-as-a-ruling`.
+**Scope widened (REACH orchestrator, adopting the design fork's
+reconciled reports):** with every site typed, `gate_operand_edges` and
+`BooleanError::CurvedEdgeUnsupported` are deleted. Each site has a row
+that reds without its fix (`boolean/planar_lane_carrier_rows.rs`,
+`boolean/join.rs` `spline_edge_rows`,
+`topo/tests/review_cleave_nurbs_lane.rs`), and
+`sweep/tests/spline_spiric_operands.rs` runs the loft prism and the
+spiric-rimmed cavity through every op against five brick placements in
+both orders: every outcome is a typed refusal, and any body built is
+held to its closed-form volume.
+
+Class residue filed: `a-nurbs-edges-sector-departure-is-its-chord`
+(now the split half only), `section-area-skips-a-spiric-or-nurbs-section-edge`,
+`shell/replace-face-transports-a-nurbs-edge-as-a-ruling`; decisions
+filed: `nurbs-edge-crossing-rung-is-the-ring-composite`,
+`spiric-operand-edges-reopen-with-their-first-producer`.
