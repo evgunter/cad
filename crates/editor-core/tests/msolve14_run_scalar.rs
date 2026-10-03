@@ -589,6 +589,81 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         },
     );
     out.push(("closing-loop", doc, p.opts()));
+
+    // Two pins on parallel axes and a rest: the fold meets two
+    // rotation constraints about parallel axes and SOLVES the free
+    // clocking between them (`clocking_about`'s angle), then the rest
+    // cuts the prismatic residual to DETERMINED.
+    let p = parts("msolve14-c-two-pin");
+    let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-two-pin", 1);
+    let pin = |a: [f64; 3], b: [f64; 3]| Node::Mate {
+        a: head(p.bolt_foot(bolts[0])),
+        b: head(p.slab_top(slab)),
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame::authored(a, [0.0, 0.0, -1.0], [0.6, 0.8, 0.0]),
+            b: MateFrame::authored(b, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            primitive: MatePrimitive::Coaxial,
+            sense: AxisSense::Opposed,
+            clocking: None,
+        },
+    };
+    let (doc, _) = insert(doc, pin([0.25, 0.25, 0.0], [3.0, 2.0, SLAB_HEIGHT]));
+    let (doc, _) = insert(doc, pin([0.75, 0.5, 0.0], [3.5, 2.25, SLAB_HEIGHT]));
+    let (doc, _) = insert(
+        doc,
+        Node::Mate {
+            a: head(p.bolt_foot(bolts[0])),
+            b: head(p.slab_top(slab)),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+                b: authored([0.0, 0.0, SLAB_HEIGHT], [0.0, 0.0, 1.0]),
+                primitive: MatePrimitive::PlanarRest { offset: 0.0 },
+                sense: AxisSense::Opposed,
+                clocking: None,
+            },
+        },
+    );
+    out.push(("two-pin", doc, p.opts()));
+
+    // A pin across a rest's normal: two rotation constraints about
+    // DIFFERENT axes, met through the reachability predicate and its
+    // angle (`candidate_rotation`'s two-axis arm); UNDER, naming the
+    // prismatic residual along the pin.
+    let p = parts("msolve14-c-cross-pin");
+    let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-cross-pin", 1);
+    let (doc, _) = insert(
+        doc,
+        Node::Mate {
+            a: head(p.bolt_foot(bolts[0])),
+            b: head(p.slab_top(slab)),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+                b: authored([0.0, 0.0, SLAB_HEIGHT], [0.0, 0.0, 1.0]),
+                primitive: MatePrimitive::PlanarRest { offset: 0.0 },
+                sense: AxisSense::Opposed,
+                clocking: None,
+            },
+        },
+    );
+    let (doc, _) = insert(
+        doc,
+        Node::Mate {
+            a: head(p.bolt_foot(bolts[0])),
+            b: head(p.slab_top(slab)),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: MateFrame::authored([0.5, 0.0, 0.5], [0.3, 1.0, 0.0], [0.0, 0.0, 1.0]),
+                b: MateFrame::authored([2.0, 3.0, 1.5], [1.0, 0.2, 0.0], [0.0, 0.0, 1.0]),
+                primitive: MatePrimitive::Coaxial,
+                sense: AxisSense::Aligned,
+                clocking: None,
+            },
+        },
+    );
+    out.push(("cross-pin", doc, p.opts()));
     out
 }
 
@@ -664,9 +739,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x10fd_6343_6e24_18c3),
-    (1e-6, 0x5e76_b591_d041_e048),
-    (1e-12, 0x76b0_785f_5377_979d),
+    (1e-9, 0x9699_0e48_61c0_f37c),
+    (1e-6, 0x8f98_680c_6689_9959),
+    (1e-12, 0xd74c_2d37_24c3_f3db),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
