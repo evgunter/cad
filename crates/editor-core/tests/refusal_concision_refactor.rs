@@ -45,7 +45,7 @@ test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
-        NoMaterial, UnplacedAlone, WouldStartPlacing, MateFrameCrosses, MateFaceFrameCrosses,
+        NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses, MateFaceFrameCrosses,
         UncutParamReference, PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
         RemainderEdit,
@@ -104,6 +104,10 @@ fn split_refusals() -> Vec<SplitError> {
         },
         SplitError::NoMaterial {
             node: s(1, "Gauge"),
+        },
+        SplitError::UnplaceableRoot {
+            root: s(6, "Measure"),
+            anchor: s(1, "Gauge"),
         },
         SplitError::UnplacedAlone {
             group: s(2, "InstantiatePart"),

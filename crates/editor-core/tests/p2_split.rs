@@ -576,6 +576,16 @@ fn i1_inline_at_an_offset_over_any_other_part_mints_a_gauge() {
 /// part's first base through a mate, and the mate.
 fn member_through_a_mate(p: &Parts, label: &str) -> (ProfileDoc, PartStore, [RecipeNodeId; 4]) {
     let (sub, first) = two_groups(p, &format!("{label}-sub"));
+    member_through_a_mate_of(p, sub, first, label)
+}
+
+/// [`member_through_a_mate`] over `sub`, the mate reading `first`.
+fn member_through_a_mate_of(
+    p: &Parts,
+    sub: ProfileDoc,
+    first: RecipeNodeId,
+    label: &str,
+) -> (ProfileDoc, PartStore, [RecipeNodeId; 4]) {
     let (doc, store, [g, h]) = host_of(p, sub, label);
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_gauge(doc, top, Some(g));
@@ -587,8 +597,9 @@ fn member_through_a_mate(p: &Parts, label: &str) -> (ProfileDoc, PartStore, [Rec
 }
 
 /// **The members move** (ruling 5): a top the instance places through a
-/// mate moves onto the minted gauge by a recorded `SetGauge`, its mate
-/// reads the inner root, and it is where it was.
+/// mate moves onto the minted gauge with it, by the recorded `Promote`
+/// that mints the gauge; its mate reads the inner root, and it is where
+/// it was.
 #[test]
 fn i2_a_member_the_instance_placed_moves_onto_the_minted_gauge() {
     let p = parts("i2-moved");
@@ -603,10 +614,7 @@ fn i2_a_member_the_instance_placed_moves_onto_the_minted_gauge() {
         "the top sits on the minted gauge"
     );
     assert!(
-        out.edits.contains(&DocEdit::SetGauge {
-            node: top,
-            gauge: Some(minted),
-        }),
+        out.edits.contains(&DocEdit::Promote { instance: h }),
         "the move is a recorded edit: {:?}",
         out.edits
     );
@@ -633,11 +641,26 @@ fn i2_a_member_the_instance_placed_moves_onto_the_minted_gauge() {
 
 /// **A moved member with a further offset refuses** (ruling 5): the top
 /// carries a checked offset, stated in g, which the minted gauge's
-/// frame would not keep.
+/// frame would not keep. Over a two-group part, and over a part that is
+/// one group rooted at the empty chain on its world — the shape whose
+/// root once took the instance's offset, so nothing moved, and which
+/// now mints a gauge like any other.
 #[test]
 fn i3_a_moved_member_with_a_further_offset_refuses() {
     let p = parts("i3-offset");
-    let (doc, store, [h, top, _, _]) = member_through_a_mate(&p, "i3-offset");
+    let one = ProfileDoc::empty(DocumentId::derive("i3-offset-one"), Tol::witness());
+    let (one, only) = insert(one, Node::instantiate_part(p.base));
+    let one = set_offset(one, only, Some(Placement::IDENTITY));
+    for (doc, store, [h, top, _, _]) in [
+        member_through_a_mate(&p, "i3-offset"),
+        member_through_a_mate_of(&p, one, only, "i3-offset-one-group"),
+    ] {
+        i3_refuses(&doc, &store, h, top);
+    }
+}
+
+fn i3_refuses(doc: &ProfileDoc, store: &PartStore, h: RecipeNodeId, top: RecipeNodeId) {
+    let (doc, store) = (doc.clone(), store.clone());
     let o = with_resolver(store.clone());
     let solved = solve(&doc, &o, Tol::witness())
         .placement(&doc, top)
@@ -1301,4 +1324,91 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         let (doc, ids) = scene();
         round_trip(&doc, &ids, &p, shape);
     }
+}
+
+/// **A cut root that sits on no gauge refuses where the cut anchors on
+/// a gauge** (R1's other half): a placed pair on gauge g, and a root
+/// that is no instance, mate or gauge — a measure of the base's two
+/// caps, or an assertion over it. Each lives in no space and casts no
+/// vote, so the cut anchors on g, and inline could not put the root
+/// back on g; split refuses `UnplaceableRoot` naming the root and g.
+/// A face frame read off the base lives in the world, so it votes the
+/// world and refuses `TwoAnchors` first. Folding g, the recourse, makes
+/// each cut round-trip.
+#[test]
+fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
+    let p = parts("r1-no-gauge");
+    let o = p.opts();
+    let (doc, g) = insert(
+        ProfileDoc::empty(DocumentId::derive("r1-no-gauge"), Tol::witness()),
+        Node::gauge(None, literal([0.0, 8.0, 0.0])),
+    );
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_gauge(doc, base, Some(g));
+    let doc = set_offset(doc, base, Some(literal([4.0, 0.0, 0.0])));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let doc = set_gauge(doc, top, Some(g));
+    let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+    let measure_of = |doc: ProfileDoc| {
+        insert(
+            doc,
+            Node::measure(
+                editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance {
+                    a: 0,
+                    b: 1,
+                }),
+                vec![
+                    editor_core::SitedRef::new(base, p.base_cap(base)),
+                    editor_core::SitedRef::new(base, base_bottom(&p, base)),
+                ],
+            )
+            .expect("both indices address a reference"),
+        )
+    };
+    let (measured, measure) = measure_of(doc.clone());
+    let (asserted, assertion) = insert(
+        measured.clone(),
+        Node::Assertion {
+            measure,
+            bound: fixture::len(1.0),
+            dir: editor_core::AssertionDir::AtLeast,
+        },
+    );
+    let (framed, frame) = insert(
+        doc.clone(),
+        Node::Datum(editor_core::Datum::FaceFrame {
+            at: base,
+            face: p.base_cap(base),
+            spin: fixture::ang(0.0),
+        }),
+    );
+    for (what, doc, root, extra) in [
+        ("a measure", measured, measure, vec![measure]),
+        ("an assertion", asserted, assertion, vec![measure, assertion]),
+    ] {
+        let ids = [&[base, top, mate][..], &extra].concat();
+        let err = split(&doc, &ids, what, &o).expect_err(what);
+        assert!(
+            matches!(&err, SplitError::UnplaceableRoot { root: r, anchor } if r.id() == root && anchor.id() == g),
+            "{what}: {err:?}"
+        );
+        let said = err.to_string();
+        assert!(
+            said.contains(&format!(
+                "Recourse: add {g} and what sits on it to the cut, or fold {g} (Fold), then split",
+                g = doc.spoken(g)
+            )),
+            "{what}: {said}"
+        );
+        let (folded, _) = step(doc, DocEdit::Fold { gauge: g });
+        round_trip(&folded, &ids, &p, what);
+    }
+    let ids = [base, top, mate, frame];
+    let err = split(&framed, &ids, "a face frame", &o).expect_err("a face frame");
+    assert!(
+        matches!(&err, SplitError::TwoAnchors { node, .. } if node.id() == frame),
+        "a face frame: {err:?}"
+    );
+    let (folded, _) = step(framed, DocEdit::Fold { gauge: g });
+    round_trip(&folded, &ids, &p, "a face frame");
 }

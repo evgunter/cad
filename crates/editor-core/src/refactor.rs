@@ -552,6 +552,18 @@ pub enum SplitError {
         /// The cut's first node, in document order.
         node: SpokenNode,
     },
+    /// **A cut root inline could not put back** (A4's round trip): the
+    /// cut anchors on a gauge, where the instance left behind sits, and
+    /// a root of the cut is neither an instance, a mate nor a gauge — a
+    /// measure, an assertion, a datum or other recipe content, which
+    /// sits on no gauge — so inline of the split would refuse
+    /// ([`InlineError::UnplaceableFrame`]).
+    UnplaceableRoot {
+        /// The root.
+        root: SpokenNode,
+        /// The gauge the cut anchors on.
+        anchor: SpokenNode,
+    },
     /// **The cut is unplaced material alone** (A4): every geometric
     /// node in it lives in an unplaced group's own space, so the
     /// instance the split would leave behind has nothing to be placed
@@ -761,6 +773,18 @@ impl core::fmt::Display for SplitError {
                 "split: nothing the cut holds denotes a body (it begins at {node}), so the \
                  instance the split leaves behind would evaluate to nothing. {}",
                 Recourse("add to the cut the instances or geometry that make its material")
+            ),
+            Self::UnplaceableRoot { root, anchor } => write!(
+                f,
+                "split: the cut anchors on {g}, where the instance left behind sits, but cut \
+                 root {r} is not an instance, a mate or a gauge, and recipe content sits on no \
+                 gauge, so inline could not put {r} back. {}",
+                Recourse(&format!(
+                    "add {g} and what sits on it to the cut, or fold {g} (Fold), then split",
+                    g = anchor
+                )),
+                g = anchor,
+                r = root
             ),
             Self::UnplacedAlone { group } => write!(
                 f,
@@ -1552,6 +1576,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PromoteMemberOffset { .. }
             | EditError::FoldOnNonGauge { .. }
             | EditError::FoldWouldStartPlacing { .. }
+            | EditError::FoldWouldDangle { .. }
             | EditError::PlacementRuleMismatch { .. }
             | EditError::EmptyPlacementList { .. }
             | EditError::ImproperPlacement { .. }
@@ -2491,6 +2516,17 @@ pub fn split(
         }
     }
     let anchor = anchor.flatten();
+    if let Some(gauge) = anchor
+        && let Some(&root) = doc
+            .roots()
+            .iter()
+            .find(|&&r| cut.contains(&r) && !splices_onto_a_gauge(doc.node(r)))
+    {
+        return Err(SplitError::UnplaceableRoot {
+            root: doc.spoken(root),
+            anchor: doc.spoken(gauge),
+        });
+    }
     // Unplaced material alone: every node the cut holds that lives in a
     // space lives in an unplaced group's own.
     let mut in_world = false;
@@ -2962,6 +2998,19 @@ pub fn split(
 
 // ---- Inline ----
 
+/// **Whether a part root splices onto a gauge** (A4): an instance, a
+/// mate or a gauge sits wherever its gauge reference puts it, so it
+/// lands on any gauge; every other root is recipe content, which sits
+/// on no gauge. The one reading split and inline share, so split
+/// admits no cut whose part inline would refuse to put back
+/// ([`SplitError::UnplaceableRoot`], [`InlineError::UnplaceableFrame`]).
+fn splices_onto_a_gauge(node: Option<&Node<ProfileProgram>>) -> bool {
+    matches!(
+        node,
+        Some(Node::InstantiatePart { .. } | Node::Mate { .. } | Node::Gauge { .. })
+    )
+}
+
 /// **How an inlined part's content lands in the host** (A4).
 enum Landing {
     /// On the instance's gauge, as it is: the instance sat at the
@@ -2974,9 +3023,9 @@ enum Landing {
         root: RecipeNodeId,
         offset: Option<crate::placement::Placement>,
     },
-    /// On a gauge minted under the instance's gauge, holding this
-    /// offset.
-    Gauge(crate::placement::Placement),
+    /// On a gauge minted under the instance's gauge holding its offset:
+    /// a promote of the instance ([`DocEdit::Promote`]).
+    Gauge,
 }
 
 /// Splices the document `instance` references into `doc` and deletes
@@ -3144,7 +3193,7 @@ pub fn inline(
         if o.steps.is_empty() {
             Landing::Verbatim
         } else {
-            Landing::Gauge(o.clone())
+            Landing::Gauge
         }
     } else if let Some(root) = one_such_group {
         Landing::Root {
@@ -3191,38 +3240,31 @@ pub fn inline(
                 .unwrap_or_default(),
         });
     };
-    // Plain recipe geometry sits on no gauge, so it splices in place
-    // only where the instance sits at the world's origin.
+    // Recipe content sits on no gauge, so it splices in place only
+    // where the instance sits at the world's origin.
     if !(host_gauge.is_none() && matches!(landing, Landing::Verbatim)) {
         for &root in part.roots() {
-            if !matches!(
-                part.node(root),
-                Some(Node::InstantiatePart { .. } | Node::Mate { .. } | Node::Gauge { .. })
-            ) {
+            if !splices_onto_a_gauge(part.node(root)) {
                 return Err(InlineError::UnplaceableFrame {
                     root: part.spoken(root),
                 });
             }
         }
     }
-    // Onto a minted gauge, the members the instance placed through
-    // mates move with it; an offset one carries was stated in `g`, and
-    // would not hold in the minted gauge's frame.
-    let moved: Vec<RecipeNodeId> = match landing {
-        Landing::Gauge(_) => group.iter().copied().filter(|&m| m != instance).collect(),
-        _ => Vec::new(),
-    };
-    if let Some(&member) = moved.iter().find(|&&m| {
-        matches!(
-            doc.node(m),
-            Some(Node::InstantiatePart {
-                offset: Some(_),
-                ..
-            })
-        )
-    }) {
-        return Err(InlineError::MovedMemberOffset {
-            member: doc.spoken(member),
+    // At an offset the instance's frame becomes a gauge by a promote of
+    // the instance, which moves the members it placed through mates
+    // onto the gauge with it. Its one refusal here is a member carrying
+    // an offset, stated in `g` and so not in the minted gauge's frame.
+    if let Landing::Gauge = landing
+        && let Err(error) = crate::edit::promote_plan(doc, instance)
+    {
+        return Err(match error {
+            EditError::PromoteMemberOffset { member, .. } => {
+                InlineError::MovedMemberOffset { member }
+            }
+            other => InlineError::Edit {
+                error: Box::new(other),
+            },
         });
     }
     // The frame rule and the fold rule (A4), over every host mate side
@@ -3343,22 +3385,17 @@ pub fn inline(
             )?,
         }
     }
-    // The minted gauge, under the instance's gauge holding its offset,
-    // takes the instance's label: it stands in for the instance.
+    // The promoted gauge, under the instance's gauge holding its
+    // offset, takes the instance's label: it stands in for the instance,
+    // which the inline deletes.
     let world = match &landing {
-        Landing::Gauge(o) => {
+        Landing::Gauge => {
             let minted = current
-                .apply(
-                    DocEdit::InsertNode {
-                        node: Box::new(Node::gauge(*host_gauge, o.clone())),
-                    },
-                    tol,
-                    &reach,
-                )
+                .apply(DocEdit::Promote { instance }, tol, &reach)
                 .map_err(|error| InlineError::Edit {
                     error: Box::new(error),
                 })?
-                .unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
+                .unwrap_or_else(|| unreachable!("an accepted promote mints its gauge"));
             if let Some(label) = doc.label(instance) {
                 step(
                     &mut current,
@@ -3467,19 +3504,6 @@ pub fn inline(
             },
         )?;
     }
-    // The members the instance placed join the inner members their
-    // mates now read, on the minted gauge (A11 (2): mates place only
-    // within one gauge). After the rebinds, so the list replays with
-    // every mate already reading its inner member.
-    for &member in &moved {
-        step(
-            &mut current,
-            DocEdit::SetGauge {
-                node: member,
-                gauge: world,
-            },
-        )?;
-    }
     // The record dissolves (ASM-R2b D-4, and the function docs): every
     // crossing's part-side reference must land on a spliced local
     // name. The declaration itself survives in the mate node, which is
@@ -3497,7 +3521,7 @@ pub fn inline(
     let mut desired: Vec<RecipeNodeId> = Vec::new();
     for &r in doc.roots() {
         if r == instance {
-            if let Landing::Gauge(_) = landing {
+            if let Landing::Gauge = landing {
                 desired.extend(world);
             }
             desired.extend(part.roots().iter().filter_map(|p| node_map.get(p).copied()));

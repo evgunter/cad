@@ -665,9 +665,29 @@ impl Placement {
         env: &ParamEnv<T>,
         band: Band,
     ) -> Result<Motion<T>, NodeErrorKind> {
+        self.motion_after(Motion::Identity, env, band)
+    }
+
+    /// **`before`, then this placement's steps, one step at a time** —
+    /// the fold every chain of placements goes through
+    /// (`mate::solve::group_frame` down a gauge chain and into an
+    /// offset). Folding step by step makes a chain's frame a function
+    /// of its steps alone, not of how they are grouped into placements,
+    /// so the edits that regroup them ([`crate::DocEdit::Promote`],
+    /// [`crate::DocEdit::Fold`]) move no bit of any pose.
+    ///
+    /// # Errors
+    ///
+    /// [`Placement::eval`]'s.
+    pub(crate) fn motion_after<T: Decide>(
+        &self,
+        before: Motion<T>,
+        env: &ParamEnv<T>,
+        band: Band,
+    ) -> Result<Motion<T>, NodeErrorKind> {
         let vals = crate::eval::slots::eval_rows(self.rows(), env)
             .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-        self.chain_motion(&vals, band)
+        self.chain_motion(before, &vals, band)
     }
 
     /// **The one construction of a placement's motion**, from its
@@ -685,16 +705,19 @@ impl Placement {
         vals: &SlotValues<T>,
         band: Band,
     ) -> Result<Affine3<T>, NodeErrorKind> {
-        self.chain_motion(vals, band).map(Motion::affine)
+        self.chain_motion(Motion::Identity, vals, band)
+            .map(Motion::affine)
     }
 
-    /// [`Placement::motion`] with the identity kept marked.
+    /// [`Placement::motion`] after `before`, with the identity kept
+    /// marked.
     fn chain_motion<T: Decide>(
         &self,
+        before: Motion<T>,
         vals: &SlotValues<T>,
         band: Band,
     ) -> Result<Motion<T>, NodeErrorKind> {
-        let mut composed = Motion::Identity;
+        let mut composed = before;
         for (k, step) in self.steps.iter().enumerate() {
             let map = match step {
                 Step::Rigid { .. } => {

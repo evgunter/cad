@@ -463,6 +463,13 @@ pub enum DocEdit<P> {
     /// Set the gauge a node sits on (A11 (2)): an instance's gauge or
     /// a gauge's parent, `None` for the world. The gauge must be live
     /// and must not sit on `node` through its own chain.
+    ///
+    /// A declaring mate whose two instances this puts on one gauge
+    /// starts placing, and that is admitted: the regauge is what the
+    /// caller named, and "these two now share a frame" is what a
+    /// placing mate means. The edits that regauge as a side effect of
+    /// something else ([`regauge_then_mate`], [`DocEdit::Fold`]) refuse
+    /// it instead.
     SetGauge {
         /// The instance or gauge.
         node: RecipeNodeId,
@@ -476,15 +483,17 @@ pub enum DocEdit<P> {
     /// placed still places. The gauge's id is minted as its insert
     /// would mint it, and the record returns it; it joins the root
     /// list just ahead of the instance, or at the end when the
-    /// instance is not a root. [`DocEdit::Fold`] is the inverse.
+    /// instance is not a root. It moves no label. [`DocEdit::Fold`] is
+    /// the inverse.
     ///
     /// Refuses a node that is no instance
-    /// ([`EditError::PromoteOnNonInstance`]), an instance with no
-    /// offset ([`EditError::PromoteWithoutOffset`]), one whose offset
-    /// is a statement its group checks rather than where the group
-    /// sits ([`EditError::PromoteNonRoot`]), and a group whose other
-    /// member carries an offset, stated in the instance's gauge and so
-    /// not on the new one ([`EditError::PromoteMemberOffset`]).
+    /// ([`EditError::PromoteOnNonInstance`]), an instance that is not
+    /// the earliest member of its group carrying an offset
+    /// ([`EditError::PromoteNonRoot`]), an instance whose group carries
+    /// no offset at all ([`EditError::PromoteWithoutOffset`]), and a
+    /// group whose other member carries an offset, stated in the
+    /// instance's gauge and so not on the new one
+    /// ([`EditError::PromoteMemberOffset`]).
     Promote {
         /// The instance whose offset becomes a gauge.
         instance: RecipeNodeId,
@@ -492,15 +501,27 @@ pub enum DocEdit<P> {
     /// **Dissolve a gauge** (A4): every node on it hangs from its
     /// parent instead, and each one's own chain — a gauge's
     /// placement, an instance's offset when it has one — gets the
-    /// gauge's steps in front ([`crate::placement::Placement::compose`]),
-    /// so every pose is unchanged and no frame is computed. An
-    /// instance with no offset keeps none. With exactly one node on
-    /// it, that node takes the gauge's label when it has none.
+    /// gauge's steps in front ([`crate::placement::Placement::compose`]).
+    /// No frame is computed, and every pose is unchanged bit for bit:
+    /// a frame is folded one step at a time down the whole chain
+    /// (`mate::solve::group_frame`), so where a step sits among the
+    /// chain's placements does not change its arithmetic. An instance
+    /// with no offset keeps none. The gauge goes as
+    /// [`DocEdit::DeleteNode`] takes a node, with the same
+    /// maintenance.
+    ///
+    /// **Labels.** With exactly one node on it and that node
+    /// unlabelled, the node takes the gauge's label; otherwise the
+    /// label goes, reported ([`Maintenance::LabelDropped`]). So
+    /// `promote ∘ fold` is the identity up to node ids on a gauge with
+    /// one dependent at the empty chain and no label, and
+    /// `fold ∘ promote` is the identity.
     ///
     /// Refuses a node that is no gauge ([`EditError::FoldOnNonGauge`]),
-    /// and a fold that would put both instances of a declaring mate on
-    /// one gauge, so that it would start placing
-    /// ([`EditError::FoldWouldStartPlacing`]).
+    /// a gauge another node reads as an input
+    /// ([`EditError::FoldWouldDangle`]), and a fold that would put both
+    /// instances of a declaring mate on one gauge, so that it would
+    /// start placing ([`EditError::FoldWouldStartPlacing`]).
     Fold {
         /// The gauge that dissolves.
         gauge: RecipeNodeId,
@@ -1355,19 +1376,20 @@ pub enum EditError {
         /// The offending target.
         node: SpokenNode,
     },
-    /// A promote of an instance that carries no offset: there is no
-    /// chain to become a gauge.
+    /// A promote of an instance whose group carries no offset at all:
+    /// there is no chain to become a gauge.
     PromoteWithoutOffset {
         /// The instance.
         node: SpokenNode,
     },
-    /// A promote of an instance that is not its group's root: its
-    /// offset is a statement the solve checks, not where the group
-    /// sits (A11 (2)).
+    /// A promote of an instance that is not the earliest member of its
+    /// group carrying an offset: that member's offset is the one that
+    /// states where the group sits (A11 (2)), and any offset `node`
+    /// carries is a statement the solve checks.
     PromoteNonRoot {
         /// The instance.
         node: SpokenNode,
-        /// Its group's root, whose offset places the group.
+        /// The earliest member of its group carrying an offset.
         root: SpokenNode,
     },
     /// A promote whose group holds another member carrying an offset:
@@ -1383,6 +1405,15 @@ pub enum EditError {
     FoldOnNonGauge {
         /// The offending target.
         node: SpokenNode,
+    },
+    /// A fold of a gauge another node reads as an input (an in-plane
+    /// axis drawn in its frame): the gauge goes as a delete takes it,
+    /// and the reader would dangle.
+    FoldWouldDangle {
+        /// The gauge folded.
+        node: SpokenNode,
+        /// The first node, in document order, that reads it.
+        referenced_by: SpokenNode,
     },
     /// A fold that would put both instances of `mate`, which declares
     /// today, on one gauge, so it would start placing and move a group
@@ -1836,7 +1867,11 @@ impl EditError {
                 node,
                 member: input,
             }
-            | Self::FoldWouldStartPlacing { node, mate: input } => {
+            | Self::FoldWouldStartPlacing { node, mate: input }
+            | Self::FoldWouldDangle {
+                node,
+                referenced_by: input,
+            } => {
                 *node = node.respoken(doc);
                 *input = input.respoken(doc);
             }
@@ -2622,7 +2657,8 @@ impl EditError {
             Self::PromoteWithoutOffset { node } => {
                 write!(
                     f,
-                    "{} carries no offset, so there is no chain to become a gauge",
+                    "no member of {}'s group carries an offset, so there is no chain to become \
+                     a gauge",
                     node
                 )?;
                 tail.recourse(
@@ -2633,13 +2669,11 @@ impl EditError {
             Self::PromoteNonRoot { node, root } => {
                 write!(
                     f,
-                    "{}'s offset is a statement its group's solve checks; {} places the group",
+                    "{} is not its group's root: {} is the earliest member carrying an offset, \
+                     and that offset is the one that states where the group sits",
                     node, root
                 )?;
-                tail.recourse(
-                    f,
-                    format_args!("clear {}'s offset (SetOffset), then promote {}", node, root),
-                )
+                tail.recourse(f, format_args!("promote {}", root))
             }
             Self::PromoteMemberOffset { node, member } => {
                 write!(
@@ -2656,6 +2690,23 @@ impl EditError {
             Self::FoldOnNonGauge { node } => {
                 write!(f, "{} is not a gauge, so there is nothing to fold", node)?;
                 tail.recourse(f, format_args!("fold a gauge"))
+            }
+            Self::FoldWouldDangle {
+                node,
+                referenced_by,
+            } => {
+                write!(
+                    f,
+                    "{} reads {} as an input, and the fold takes {} out of the document",
+                    referenced_by, node, node
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "delete {} (and what reads it), then fold {}",
+                        referenced_by, node
+                    ),
+                )
             }
             Self::FoldWouldStartPlacing { node, mate } => {
                 write!(
@@ -2799,7 +2850,7 @@ impl core::fmt::Display for ParamDimensionRecourse {
 /// without it a caller could never reference an inserted node).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EditRecord {
-    /// The id minted by an `InsertNode`, `None` otherwise.
+    /// The id an `InsertNode` or a `Promote` minted, `None` otherwise.
     pub minted: Option<RecipeNodeId>,
     /// Whether the edit was STRUCTURAL (spec D3/D6): it can change
     /// the result's combinatorial shape — insert/delete, a
@@ -2891,6 +2942,16 @@ pub enum Maintenance {
         /// reshaping dropped.
         name: SpokenName,
     },
+    /// **A label a fold dropped** ([`DocEdit::Fold`]): the gauge went
+    /// and no single unlabelled node took its place — it had several
+    /// dependents, none, or one already labelled — so its label went
+    /// with it.
+    LabelDropped {
+        /// The gauge folded, spoken from the document the fold entered.
+        gauge: SpokenNode,
+        /// The label it carried.
+        label: crate::Label,
+    },
 }
 
 impl core::fmt::Display for Maintenance {
@@ -2931,6 +2992,12 @@ impl core::fmt::Display for Maintenance {
                  resolves to nothing until it is rebound or cleared",
                 name.name().kind.article(),
                 name
+            ),
+            Self::LabelDropped { gauge, label } => write!(
+                f,
+                "the fold took {} out of the document, and no single unlabelled node stood \
+                 in for it, so its label \"{}\" went with it",
+                gauge, label
             ),
         }
     }
@@ -3267,6 +3334,8 @@ pub struct Applied<P> {
 /// - A [`Maintenance::OffsetCleared`] survives when the instance is
 ///   live at the end and still carries no offset: a later edit that
 ///   deleted it, or gave it an offset again, took the report back.
+/// - A [`Maintenance::LabelDropped`] always survives: the gauge is
+///   gone and its id is never minted again.
 ///
 /// Surviving rows keep the order the edits reported them in, each
 /// edit's rows in [`Applied::maintenance`]'s own order.
@@ -3304,6 +3373,7 @@ impl MaintenanceNet {
                     end.node(instance.id()),
                     Some(Node::InstantiatePart { offset: None, .. })
                 ),
+                Maintenance::LabelDropped { .. } => true,
             })
             .collect()
     }
@@ -3880,23 +3950,10 @@ fn regauges_for<P: Clone + crate::ProfilePayload>(
                 doc.node(instance).and_then(Node::gauge_ref)
             }
         };
-        for &id in doc.order() {
-            let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
-                continue;
-            };
-            let (Some(x), Some(y)) = (
-                crate::mate::member_of(doc, a),
-                crate::mate::member_of(doc, b),
-            ) else {
-                continue;
-            };
-            if !crate::mate::places(doc, x.instance, y.instance)
-                && gauge_after(x.instance) == gauge_after(y.instance)
-            {
-                return Err(EditError::WouldStartPlacing {
-                    mate: doc.spoken(id),
-                });
-            }
+        if let Some(id) = mate_that_would_start_placing(doc, gauge_after) {
+            return Err(EditError::WouldStartPlacing {
+                mate: doc.spoken(id),
+            });
         }
         for &member in moved {
             if doc.node(member).and_then(Node::gauge_ref) != gauge {
@@ -4117,42 +4174,15 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     id: SpokenNode::absent(*id),
                 });
             }
-            // Who reads this node is `roots`' question — the same
-            // predicate the root set is maintained by, so the
-            // refusal and the re-rooting below cannot disagree about
-            // what a live consumer is.
-            if let Some(referenced_by) = crate::roots::consumer(&new, *id) {
-                return Err(EditError::DeleteWouldDangle {
+            reported = remove_unread(doc, &mut new, *id).map_err(|referenced_by| {
+                EditError::DeleteWouldDangle {
                     id: doc.spoken(*id),
                     referenced_by: doc.spoken(referenced_by),
-                });
-            }
-            // The liveness check above proved the entry present and
-            // nothing since removes it, so the removal that takes the
-            // node out of the document is also what yields the input
-            // list `roots::on_delete` needs: no absent case is left to
-            // default, and an empty list would be a different edit.
-            let Some(node) = new.nodes.remove(id) else {
-                unreachable!("DeleteNode: node {} was live at the check above", id)
-            };
-            let inputs = node.inputs();
-            new.order.retain(|&n| n != *id);
-            // DM7: a name of this node is not a DAG edge, so the
-            // check above never saw one and the edit stands. What the
-            // door owes is the report — every surviving reference
-            // whose minting node just left, in both of the document's
-            // carriers, read out of the document as it now stands.
-            reported = stranded_references(doc, &new, *id);
-            crate::roots::on_delete(&mut new, *id, &inputs);
-            // The node's witness (if any) dies with it — ids are
-            // never reused, so the entry could never be read again.
-            new.witnesses.remove(id);
+                }
+            })?;
             // A gauge's references are kept, dangling (A11 (2)): the
             // group it unplaced names it as the cause, and a
             // `SetGauge` re-places it.
-            // Its label goes: the store's keys name live nodes.
-            new.labels.remove(id);
-            // The mint log keeps the id: ids are never reused (D3).
             EditRecord {
                 minted: None,
                 structural: true,
@@ -4735,27 +4765,11 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             }
         }
         DocEdit::Promote { instance } => {
-            let Some(target) = doc.node(*instance) else {
-                return Err(EditError::UnknownNode {
-                    id: SpokenNode::absent(*instance),
-                });
-            };
-            let Node::InstantiatePart {
-                gauge: parent,
+            let PromotePlan {
+                parent,
                 offset,
-                ..
-            } = target
-            else {
-                return Err(EditError::PromoteOnNonInstance {
-                    node: doc.spoken(*instance),
-                });
-            };
-            let Some(offset) = offset.clone() else {
-                return Err(EditError::PromoteWithoutOffset {
-                    node: doc.spoken(*instance),
-                });
-            };
-            let parent = *parent;
+                group,
+            } = promote_plan(doc, *instance)?;
             let promoted: Node<P> = Node::gauge(parent, offset);
             let mut mint = new.mint.clone();
             let id = mint
@@ -4766,32 +4780,6 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             // The gauge's parent is the instance's gauge, which a live
             // group's root may name dangling: the insert door's check.
             check_gauge_ref(&new, id, parent, || SpokenNode::entering(id, &promoted))?;
-            let groups = crate::mate::groups(doc);
-            let Some(group) = groups.iter().find(|g| g.contains(instance)) else {
-                unreachable!("a live instance is in one of its document's groups")
-            };
-            let (root, _) = crate::mate::solve::root_and_cause(doc, group);
-            if root != *instance {
-                return Err(EditError::PromoteNonRoot {
-                    node: doc.spoken(*instance),
-                    root: doc.spoken(root),
-                });
-            }
-            if let Some(&member) = group.iter().find(|&&m| {
-                m != *instance
-                    && matches!(
-                        doc.node(m),
-                        Some(Node::InstantiatePart {
-                            offset: Some(_),
-                            ..
-                        })
-                    )
-            }) {
-                return Err(EditError::PromoteMemberOffset {
-                    node: doc.spoken(*instance),
-                    member: doc.spoken(member),
-                });
-            }
             new.mint = mint;
             new.nodes.insert(id, promoted);
             new.order.push(id);
@@ -4799,7 +4787,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 Some(at) => new.roots.insert(at, id),
                 None => new.roots.push(id),
             }
-            for member in group {
+            for member in &group {
                 let Some(Node::InstantiatePart { gauge, offset, .. }) = new.nodes.get_mut(member)
                 else {
                     unreachable!("a group's members are live instances")
@@ -4829,24 +4817,11 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 Some(g) if g == *gauge => *parent,
                 other => other,
             };
-            for &mate in doc.order() {
-                let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
-                    continue;
-                };
-                let (Some(x), Some(y)) = (
-                    crate::mate::member_of(doc, a),
-                    crate::mate::member_of(doc, b),
-                ) else {
-                    continue;
-                };
-                if !crate::mate::places(doc, x.instance, y.instance)
-                    && after(x.instance) == after(y.instance)
-                {
-                    return Err(EditError::FoldWouldStartPlacing {
-                        node: doc.spoken(*gauge),
-                        mate: doc.spoken(mate),
-                    });
-                }
+            if let Some(mate) = mate_that_would_start_placing(doc, after) {
+                return Err(EditError::FoldWouldStartPlacing {
+                    node: doc.spoken(*gauge),
+                    mate: doc.spoken(mate),
+                });
             }
             let dependents: Vec<RecipeNodeId> = doc
                 .order()
@@ -4876,17 +4851,23 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     _ => unreachable!("a node with a gauge reference is an instance or a gauge"),
                 }
             }
-            if let [only] = dependents[..]
-                && !new.labels.contains_key(&only)
-                && let Some(label) = new.labels.get(gauge).cloned()
-            {
-                new.labels.insert(only, label);
+            if let Some(label) = new.labels.get(gauge).cloned() {
+                match dependents[..] {
+                    [only] if !new.labels.contains_key(&only) => {
+                        new.labels.insert(only, label);
+                    }
+                    _ => reported.push(Maintenance::LabelDropped {
+                        gauge: doc.spoken(*gauge),
+                        label,
+                    }),
+                }
             }
-            new.labels.remove(gauge);
-            new.nodes.remove(gauge);
-            new.order.retain(|n| n != gauge);
-            new.witnesses.remove(gauge);
-            crate::roots::on_delete(&mut new, *gauge, &[]);
+            reported.extend(remove_unread(doc, &mut new, *gauge).map_err(|referenced_by| {
+                EditError::FoldWouldDangle {
+                    node: doc.spoken(*gauge),
+                    referenced_by: doc.spoken(referenced_by),
+                }
+            })?);
             EditRecord {
                 minted: None,
                 structural: true,
@@ -5014,6 +4995,148 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
         doc: new,
         record,
         maintenance: reported,
+    })
+}
+
+/// **The mate a regauge would make start placing** (A11 (2)): the
+/// first mate, in document order, that declares in `doc` — its two
+/// instances on different gauge references — and would place once
+/// every instance sits where `gauge_after` puts it, which would move a
+/// group nobody named.
+///
+/// One predicate for every edit that regauges as a side effect of
+/// what its caller named ([`regauge_then_mate`], [`DocEdit::Fold`]).
+/// [`DocEdit::SetGauge`] does not ask it: there the regauge is what
+/// the caller named.
+fn mate_that_would_start_placing<P>(
+    doc: &Doc<P>,
+    gauge_after: impl Fn(RecipeNodeId) -> Option<RecipeNodeId>,
+) -> Option<RecipeNodeId> {
+    doc.order().iter().copied().find(|&id| {
+        let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
+            return false;
+        };
+        let (Some(x), Some(y)) = (
+            crate::mate::member_of(doc, a),
+            crate::mate::member_of(doc, b),
+        ) else {
+            return false;
+        };
+        !crate::mate::places(doc, x.instance, y.instance)
+            && gauge_after(x.instance) == gauge_after(y.instance)
+    })
+}
+
+/// **Take a node no one reads out of the document**, with every piece
+/// of bookkeeping a removal owes — the one home of it, so
+/// [`DocEdit::DeleteNode`] and [`DocEdit::Fold`] cannot drift.
+///
+/// Who reads the node is `roots`' question ([`crate::roots::consumer`]),
+/// the predicate the root set is maintained by, so the refusal and the
+/// re-rooting cannot disagree about what a live consumer is; the
+/// reader is the `Err`. Otherwise the node leaves the node table, the
+/// order, the witness and label stores, and the root list (whose
+/// maintenance re-roots the inputs it orphaned), and the answer is
+/// DM7's report of every surviving reference whose minting node just
+/// left ([`stranded_references`]): a name is not a DAG edge, so the
+/// consumer check never saw one. The mint log keeps the id: ids are
+/// never reused (D3). `before` is the document the door was handed.
+fn remove_unread<P: crate::ProfilePayload>(
+    before: &Doc<P>,
+    new: &mut Doc<P>,
+    id: RecipeNodeId,
+) -> Result<Vec<Maintenance>, RecipeNodeId> {
+    if let Some(referenced_by) = crate::roots::consumer(new, id) {
+        return Err(referenced_by);
+    }
+    let Some(node) = new.nodes.remove(&id) else {
+        unreachable!("node {} is removed only while live", id)
+    };
+    let inputs = node.inputs();
+    new.order.retain(|&n| n != id);
+    let reported = stranded_references(before, new, id);
+    crate::roots::on_delete(new, id, &inputs);
+    new.witnesses.remove(&id);
+    new.labels.remove(&id);
+    Ok(reported)
+}
+
+/// What a [`DocEdit::Promote`] builds: the gauge's parent and
+/// placement, and the group that moves onto it.
+pub(crate) struct PromotePlan {
+    /// The instance's gauge, which the minted gauge sits on.
+    pub(crate) parent: Option<RecipeNodeId>,
+    /// The instance's offset, which the minted gauge holds.
+    pub(crate) offset: crate::placement::Placement,
+    /// The instance's group, in document order.
+    pub(crate) group: Vec<RecipeNodeId>,
+}
+
+/// **Promote's refusals, and what it would build** — the one reading
+/// of "can this instance's offset become a gauge", which
+/// [`DocEdit::Promote`] and `refactor::inline`'s minted gauge share.
+///
+/// The root is the earliest member carrying an offset (A11 (2)),
+/// asked before anything else so each recourse names an edit that
+/// moves forward: a member that is not that one refuses
+/// [`EditError::PromoteNonRoot`] naming it; a group with no offset at
+/// all refuses [`EditError::PromoteWithoutOffset`] (setting the
+/// instance's then makes it the root); another member's offset refuses
+/// [`EditError::PromoteMemberOffset`].
+///
+/// # Errors
+///
+/// [`EditError::UnknownNode`], [`EditError::PromoteOnNonInstance`] and
+/// the three above.
+pub(crate) fn promote_plan<P>(
+    doc: &Doc<P>,
+    instance: RecipeNodeId,
+) -> Result<PromotePlan, EditError> {
+    let Some(target) = doc.node(instance) else {
+        return Err(EditError::UnknownNode {
+            id: SpokenNode::absent(instance),
+        });
+    };
+    let Node::InstantiatePart { gauge: parent, .. } = target else {
+        return Err(EditError::PromoteOnNonInstance {
+            node: doc.spoken(instance),
+        });
+    };
+    let groups = crate::mate::groups(doc);
+    let Some(group) = groups.into_iter().find(|g| g.contains(&instance)) else {
+        unreachable!("a live instance is in one of its document's groups")
+    };
+    let offset_of = |id: RecipeNodeId| match doc.node(id) {
+        Some(Node::InstantiatePart { offset, .. }) => offset.clone(),
+        _ => None,
+    };
+    let Some(root) = group.iter().copied().find(|&m| offset_of(m).is_some()) else {
+        return Err(EditError::PromoteWithoutOffset {
+            node: doc.spoken(instance),
+        });
+    };
+    if root != instance {
+        return Err(EditError::PromoteNonRoot {
+            node: doc.spoken(instance),
+            root: doc.spoken(root),
+        });
+    }
+    if let Some(&member) = group
+        .iter()
+        .find(|&&m| m != instance && offset_of(m).is_some())
+    {
+        return Err(EditError::PromoteMemberOffset {
+            node: doc.spoken(instance),
+            member: doc.spoken(member),
+        });
+    }
+    let Some(offset) = offset_of(instance) else {
+        unreachable!("the root carries an offset")
+    };
+    Ok(PromotePlan {
+        parent: *parent,
+        offset,
+        group,
     })
 }
 
