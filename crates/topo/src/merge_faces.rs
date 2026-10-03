@@ -5355,13 +5355,17 @@ mod winding_arm_tests {
             other => panic!("the disc winds: {other:?}"),
         };
         assert_eq!(run(first, second), whole, "the whole run is the disc");
-        // The run `first` closed by a chord curve, as the ring lane reads
-        // it: a [`SegmentCurve`] between two halves standing for the
-        // match's, whose spec is the edge under `he`, computed running
-        // the way that edge's plus half runs; `with_traversal` says
-        // whether the closing (from the run's end back to its start) runs
-        // that way too.
-        let closed = |he: crate::HalfEdgeKey, with_traversal: bool| {
+        // The one-half run `opens` closed by a chord curve, as the ring
+        // lane reads it: a [`SegmentCurve`] between `opens` and the other
+        // half, standing for the match's, whose spec is the edge under
+        // `he`, computed running the way that edge's plus half runs;
+        // `with_traversal` says whether the closing (from the run's end
+        // back to its start) runs the way `he` does. Both edges' plus
+        // halves run a → b, so the closing of `first` (b → a's half, its
+        // edge's minus) is the curve as computed, and the closing of
+        // `second` is the curve run back.
+        let closed = |opens: crate::HalfEdgeKey, he: crate::HalfEdgeKey, with_traversal: bool| {
+            let other = if opens == first { second } else { first };
             let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
             let curve = body
                 .get_curve_geom(edge.curve)
@@ -5387,16 +5391,15 @@ mod winding_arm_tests {
             };
             let forward = with_traversal == edge.claim(he).unwrap().plus;
             let halves = if forward {
-                (second, first)
+                (other, opens)
             } else {
-                (first, second)
+                (opens, other)
             };
-            let ends = (Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 0.0));
-            let segment = crate::chord_join::SegmentCurve::of(halves, ends, Some(spec));
+            let segment = crate::chord_join::SegmentCurve::of(halves, Some(spec));
             let face = body.get_loop(disc).unwrap().face;
-            let closing = segment.run_closing(first, face).unwrap();
+            let closing = segment.run_closing(opens, face).unwrap();
             match body.planar_run_winding_decided(
-                (first, first),
+                (opens, opens),
                 RunClosing::of(closing.as_ref()),
                 n,
                 b,
@@ -5405,16 +5408,18 @@ mod winding_arm_tests {
                 other => panic!("the closed run winds: {other:?}"),
             }
         };
-        assert_eq!(
-            closed(second, true),
-            whole,
-            "a semicircle closed by the other one is the disc"
-        );
-        assert_eq!(
-            closed(first, false).sign,
-            Sign::Zero,
-            "a semicircle closed by itself run back encloses nothing"
-        );
+        for (opens, other) in [(first, second), (second, first)] {
+            assert_eq!(
+                closed(opens, other, true),
+                whole,
+                "a semicircle closed by the other one is the disc"
+            );
+            assert_eq!(
+                closed(opens, opens, false).sign,
+                Sign::Zero,
+                "a semicircle closed by itself run back encloses nothing"
+            );
+        }
     }
 
     /// **The ring lane's own shape**: a run that opens AND closes on a

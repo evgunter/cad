@@ -35,8 +35,10 @@
 //! any chord is minted ([`SegmentCurve`]): the joiner mints both chords
 //! on it, and the ring lane winds the run the first chord closes with
 //! it ([`ring_run_ccw`]). The mekr and outer lanes order the halves
-//! first, topologically, and the curve is computed in that order; the
-//! ring lane computes it first and orders the halves by it.
+//! first, topologically, and the curve is computed in that order; so
+//! does a ring-face match across its segment's own edge, whose one
+//! chord the two orders mint alike. Any other ring-lane match computes
+//! the curve first and orders the halves by it.
 //!
 //! Boolean runs mint copies of BOTH parities (In-runs mint
 //! `NewVertexSide::Below` copies — the PR 4 interface fact); nothing

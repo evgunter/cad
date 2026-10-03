@@ -1380,7 +1380,7 @@ fn select_arc<T: Decide>(
             });
         }
     };
-    Ok(oriented_arc(conic, th1, th2, ccw))
+    oriented_arc(conic, face, th1, th2, ccw)
 }
 
 /// The candidate arc of `conic` from `th1` to `th2` (exact conic
@@ -1388,10 +1388,11 @@ fn select_arc<T: Decide>(
 /// arc as it stands, the cw arc on the axis-flipped carrier.
 fn oriented_arc<T: Real>(
     conic: &SectionConic<T>,
+    face: FaceKey,
     th1: T,
     th2: T,
     ccw: bool,
-) -> (geom::Curve3<T>, T, T) {
+) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
     let tau = T::tau();
     // The arc's own span, forward from `th1` — the `[0, τ)` window for
     // the same reason [`select_arc`]'s azimuth gap takes it, and with
@@ -1411,17 +1412,20 @@ fn oriented_arc<T: Real>(
     if ccw {
         // The ccw arc from p1 lies in the face.
         let span = (th2 - th1).reduce_periodic(tau);
-        (conic.carrier.clone(), th1, th1 + span)
+        Ok((conic.carrier.clone(), th1, th1 + span))
     } else {
         // The cw arc: the carrier run back runs forward from p1.
         let span = tau - (th2 - th1).reduce_periodic(tau);
-        // A section conic is a circle or an ellipse, which reverses.
         let flipped = conic
             .carrier
             .reversed()
-            .unwrap_or_else(|| conic.carrier.clone());
+            .ok_or(SplitJoinError::SectionInvariant {
+                face,
+                what: "a section conic that does not reverse (a section conic is a circle or \
+                       an ellipse)",
+            })?;
         let th1f = T::zero() - th1;
-        (flipped, th1f, th1f + span)
+        Ok((flipped, th1f, th1f + span))
     }
 }
 
@@ -1725,7 +1729,7 @@ fn select_arc_by_run_side<T: Decide>(
         }
     }
     let ccw = ccw.ok_or(refuse(ArcSideCase::NoCertifiedRun))?;
-    Ok(oriented_arc(conic, th1, th2, ccw))
+    oriented_arc(conic, face, th1, th2, ccw)
 }
 
 /// The chord spec for dividing `face` between vertices `u1 → u2`
@@ -1891,7 +1895,8 @@ fn chord_spec<T: Decide>(
         // the ordinary certification gate by the mef/mekr caller. No
         // arc-side rule applies: a line has no complementary candidate.
         SectionCase::Tangent(line) => {
-            let geom::Curve3::Line { origin, dir } = line else {
+            let (geom::Curve3::Line { origin, dir }, Some(back)) = (line.clone(), line.reversed())
+            else {
                 return Err(SplitJoinError::SectionInvariant {
                     face,
                     what: "tangent classification carried a non-line",
@@ -1914,14 +1919,7 @@ fn chord_spec<T: Decide>(
             .map_err(|diag| SplitJoinError::Escalated { face, diag })?
             {
                 Sign::Positive => (line.clone(), t1, t2),
-                Sign::Negative => (
-                    line.reversed().ok_or(SplitJoinError::SectionInvariant {
-                        face,
-                        what: "tangent classification carried a non-line",
-                    })?,
-                    T::zero() - t1,
-                    T::zero() - t2,
-                ),
+                Sign::Negative => (back, T::zero() - t1, T::zero() - t2),
                 Sign::Zero => {
                     return Err(SplitJoinError::SectionInvariant {
                         face,
@@ -2256,8 +2254,6 @@ fn bool_planar_chord_spec<T: Decide>(
 pub(crate) struct SegmentCurve<T: Real> {
     /// The matched halves the curve runs between, from the first's site.
     halves: (HalfEdgeKey, HalfEdgeKey),
-    /// The two sites' points, in `halves` order.
-    ends: (Point3<T>, Point3<T>),
     /// The curve, or `None` for the straight chord.
     spec: Option<EdgeCurveSpec<T>>,
 }
@@ -2266,12 +2262,8 @@ pub(crate) struct SegmentCurve<T: Real> {
 impl<T: Real> SegmentCurve<T> {
     /// A segment curve as `segment_curve` would hand it over, for a row
     /// that winds a closing without a join.
-    pub(crate) fn of(
-        halves: (HalfEdgeKey, HalfEdgeKey),
-        ends: (Point3<T>, Point3<T>),
-        spec: Option<EdgeCurveSpec<T>>,
-    ) -> Self {
-        Self { halves, ends, spec }
+    pub(crate) fn of(halves: (HalfEdgeKey, HalfEdgeKey), spec: Option<EdgeCurveSpec<T>>) -> Self {
+        Self { halves, spec }
     }
 }
 
@@ -2335,9 +2327,7 @@ impl<T: Decide> SegmentCurve<T> {
                 }))
             }
             geom_brep::EdgeDescriptionSpec::Scaffold(_) => match carrier {
-                geom::Curve3::Line { .. } => {
-                    Ok(Some(EdgeCurveSpec::line_between(self.ends.1, self.ends.0)))
-                }
+                geom::Curve3::Line { .. } => Ok(EdgeCurveSpec::segment_of_line(carrier, t0, t1)),
                 back => EdgeCurveSpec::arc_of_circle(back, t0, t1)
                     .map(Some)
                     .ok_or(invariant(
@@ -2385,12 +2375,7 @@ fn skip_adjacent_chord<T: Decide>(
     band: Band,
 ) -> Result<bool, SplitJoinError> {
     match chords {
-        Chords::Segment { edge, .. } => {
-            let between = body
-                .get_half_edge(between)
-                .ok_or_else(|| corrupt_he(between))?;
-            Ok(*edge == Some(between.edge))
-        }
+        Chords::Segment { edge, .. } => between_is_segment(body, *edge, between),
         Chords::Split(ctx) => match between_edge_is_section(body, ctx, between, band)? {
             Some(in_plane) => Ok(in_plane),
             None => Err(SplitJoinError::SectionInvariant {
@@ -3225,19 +3210,24 @@ pub(crate) fn segment_chord_sites<T: Decide>(
     segment: Option<EdgeKey>,
 ) -> Result<(Option<ChordSite>, Option<ChordSite>), SplitJoinError> {
     let shape = join_shape(body, halves)?;
-    let mut skip = segment_skip(segment);
+    let mut skip = |b: &Body<T>, he| between_is_segment(b, segment, he);
     Ok((
         first_chord(body, halves, &shape, &mut skip)?.map(|p| p.site),
         second_chord(body, halves, &shape, &mut skip)?.map(|p| p.site),
     ))
 }
 
-/// A boolean match's skip test: the between edge is the edge the
+/// A boolean match's adjacency skip: the between edge is the edge the
 /// segment's locus names.
-fn segment_skip<T: Decide>(
+fn between_is_segment<T: Real>(
+    body: &Body<T>,
     segment: Option<EdgeKey>,
-) -> impl FnMut(&Body<T>, HalfEdgeKey) -> Result<bool, SplitJoinError> {
-    move |body, he| Ok(segment == Some(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge))
+    between: HalfEdgeKey,
+) -> Result<bool, SplitJoinError> {
+    let between = body
+        .get_half_edge(between)
+        .ok_or_else(|| corrupt_he(between))?;
+    Ok(segment == Some(between.edge))
 }
 
 impl ChordJoiner {
@@ -3268,7 +3258,7 @@ impl ChordJoiner {
             .parent_loop;
         let face = body.get_loop(l1).ok_or_else(|| corrupt_loop(l1))?.face;
         let shape = join_shape(body, halves)?;
-        let mut skip = segment_skip(segment);
+        let mut skip = |b: &Body<T>, he| between_is_segment(b, segment, he);
         let plan = match first_chord(body, halves, &shape, &mut skip)? {
             Some(plan) => plan,
             None => second_chord(body, halves, &shape, &mut skip)?.ok_or(
@@ -3291,7 +3281,6 @@ impl ChordJoiner {
         };
         Ok(SegmentCurve {
             halves: (plan.from, to),
-            ends: (vertex_point(body, u1)?, vertex_point(body, u2)?),
             spec,
         })
     }
