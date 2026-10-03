@@ -442,7 +442,9 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                     },
                 ),
                 LeverRefusal::NotAnInstance { node } => (Some(*node), None),
-                LeverRefusal::OutOfRange { .. } => (None, None),
+                LeverRefusal::OutOfRange { .. } | LeverRefusal::BelowZeroBand { .. } => {
+                    (None, None)
+                }
             };
             MateFaultPayload {
                 mate: Some(*mate),
@@ -502,6 +504,11 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
         // set — a roll's tilt or a residual — and a length measured
         // outright, or the structural refusal, carries none of the
         // three.
+        MateFault::PoseOutOfRange { held, added } => MateFaultPayload {
+            held: Some(*held),
+            added: Some(*added),
+            ..none
+        },
         MateFault::Contradictory {
             held,
             added,
@@ -615,7 +622,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                     error: Some(node_error_tag(error.kind().class())),
                     ..base
                 },
-                OffsetCheck::Unleverable(_) => base,
+                OffsetCheck::Unleverable(_) | OffsetCheck::OutOfRange => base,
                 OffsetCheck::Indeterminate(diag) => with_escalation(base, diag),
                 // The refused mate that strands the member.
                 OffsetCheck::Unreached { mate } => MateFaultPayload {
