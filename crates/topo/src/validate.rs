@@ -2317,6 +2317,7 @@ fn unnamed(margin: &geom_core::MarginDiag) -> Cow<'static, str> {
 /// home props' own checks compose that ending from.
 #[cfg(test)]
 #[test]
+#[allow(clippy::unwrap_used)]
 fn the_not_yet_ending_is_one_spelling() {
     let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
     for margin in [

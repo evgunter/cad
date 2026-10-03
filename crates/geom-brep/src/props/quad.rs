@@ -637,9 +637,9 @@ impl AbsEnclosure for Interval {
 /// scalar so every lane (f64 / Probe / Interval) records identically.
 fn classify_len<T: Decide>(
     name: &'static str,
-    check: PropsCheck,
     margin: Margin<f64>,
     band: Band,
+    check: PropsCheck,
 ) -> Result<Sign, PropsError> {
     geom_core::k_stats::decide(name, margin.lift::<T>(), band)
         .map_err(|cause| PropsError::Escalated { cause, check })
@@ -845,9 +845,9 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
         let width_len = mean_boundary_displacement(flux, area)?;
         if classify_len::<T>(
             "props_quad_converged",
-            PropsCheck::Converged,
             Margin::of(target_len - width_len),
             band,
+            PropsCheck::Converged,
         )? == Sign::Positive
         {
             // Face-extent gate on the CONVERGED enclosure: the area
@@ -857,9 +857,9 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             let perim: f64 = edges.iter().map(|e| edge_metric_length(e, radius)).sum();
             match classify_len::<T>(
                 "props_quad_face_extent",
-                PropsCheck::Extent,
                 Margin::over_lever(lo_or_refuse(area), perim),
                 band,
+                PropsCheck::Extent,
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
@@ -2968,9 +2968,9 @@ fn last_round_refuses<T: Decide>(last_round_len: f64, target_len: f64, band: Ban
     matches!(
         classify_len::<T>(
             "props_quad_last_round",
-            PropsCheck::Converged,
             Margin::of(target_len - last_round_len),
-            band
+            band,
+            PropsCheck::Converged
         ),
         Ok(Sign::Negative)
     )
@@ -3437,16 +3437,16 @@ fn rational_patch_face<T: Decide>(
         let width_len = mean_boundary_displacement(flux, area)?;
         if classify_len::<T>(
             "props_quad_converged",
-            PropsCheck::Converged,
             Margin::of(target_len - width_len),
             band,
+            PropsCheck::Converged,
         )? == Sign::Positive
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
-                PropsCheck::Extent,
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
+                PropsCheck::Extent,
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
@@ -3757,16 +3757,16 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         let width_len = mean_boundary_displacement(flux, area)?;
         if classify_len::<T>(
             "props_quad_converged",
-            PropsCheck::Converged,
             Margin::of(target_len - width_len),
             band,
+            PropsCheck::Converged,
         )? == Sign::Positive
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
-                PropsCheck::Extent,
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
+                PropsCheck::Extent,
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
@@ -3842,16 +3842,16 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         let width_len = mean_boundary_displacement(flux, area)?;
         if classify_len::<T>(
             "props_quad_converged",
-            PropsCheck::Converged,
             Margin::of(target_len - width_len),
             band,
+            PropsCheck::Converged,
         )? == Sign::Positive
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
-                PropsCheck::Extent,
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
+                PropsCheck::Extent,
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
@@ -4302,9 +4302,9 @@ fn piece_monotone<T: Decide>(
     // sliver.
     classify_len::<T>(
         "props_trim_piece_monotone",
-        PropsCheck::Inventory,
         Margin::metered(span, InfSpeed::new(rate)),
         band,
+        PropsCheck::Inventory,
     )
 }
 
@@ -5085,9 +5085,9 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         let width_len = mean_boundary_displacement(flux, area)?;
         if classify_len::<T>(
             "props_quad_converged",
-            PropsCheck::Converged,
             Margin::of(target_len - width_len),
             band,
+            PropsCheck::Converged,
         )? == Sign::Positive
         {
             // The perimeter this gate levers by is the DOOR's, derived
@@ -5097,9 +5097,9 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             // (#1368, open), and this one deliberately does not join it.
             match classify_len::<T>(
                 "props_quad_face_extent",
-                PropsCheck::Extent,
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
+                PropsCheck::Extent,
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
