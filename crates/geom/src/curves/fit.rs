@@ -193,9 +193,9 @@ impl core::fmt::Display for FitError {
             ),
             FitError::BudgetExhausted { budget, achieved } => write!(
                 f,
-                "the fit's removal budget {budget} ran out (achieved bound {achieved:e}); \
-                 the budget is sized for inputs of a few hundred samples. Recourse: fit the \
-                 data in pieces, or raise FIT_REMOVAL_BUDGET for a genuinely larger fit"
+                "the fit's removal budget {budget}, sized for a few hundred samples, ran out \
+                 at bound {achieved:e}. Recourse: fit the data in pieces, or raise \
+                 FIT_REMOVAL_BUDGET for a genuinely larger fit"
             ),
         }
     }
@@ -902,10 +902,16 @@ mod tests {
     /// adds that the carrier is rendered whole and that its clause
     /// survives into the message a caller reads.
     ///
-    /// `Lsq` and `KnotAlgebra` are asserted as DELEGATIONS only. Their
-    /// carriers have no enforcement row yet, so a recourse assertion
-    /// over them would be a claim about whichever payload this test
-    /// happened to build.
+    /// `Lsq` and `KnotAlgebra` are asserted TRANSITIVELY too, as of
+    /// their carriers' own enforcement rows
+    /// (`geom_core::linalg::lsq`'s `every_lsq_error_arm_names_a_recourse`
+    /// and `geom_core::spline::algebra`'s
+    /// `every_knot_algebra_error_arm_names_a_recourse`): each arm of
+    /// each carrier names one labelled repair, so a payload this test
+    /// builds stands for all of them. This row adds that the carrier is
+    /// rendered whole and that its repair survives into the message a
+    /// caller of the public fit door reads — the five characters
+    /// `"fit: "` add no second one.
     #[test]
     fn every_fit_error_arm_names_a_recourse() {
         // A vocabulary, not a part-of-speech test: an arm that names
@@ -958,6 +964,14 @@ mod tests {
             };
             if let Some(carrier) = carrier {
                 assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
+                // The carrier's own repair is the one the reader sees,
+                // and this arm adds none: its enforcement row above
+                // makes that a statement about every payload.
+                assert_eq!(
+                    test_utils::refusal::recourse_markers(&msg),
+                    1,
+                    "not exactly one labelled repair: {msg}"
+                );
                 continue;
             }
             if let FitError::Structure(e) = arm {

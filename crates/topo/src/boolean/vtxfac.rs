@@ -239,6 +239,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 BooleanCoincidence::Continuation => {
                     BooleanError::ContinuationContradicted { a, b, fact, margin }
                 }
+                BooleanCoincidence::Seam => BooleanError::SeamContradicted { a, b, fact, margin },
                 BooleanCoincidence::Contact(class) => BooleanError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact { a, b, class },
                     steer: fact.and_then(super::contact_verify::fit_steer),
@@ -247,9 +248,15 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 },
             });
         }
+        // A declared one-carrier pair's lump bridges an in-band tilt, and
+        // a `Tangent` pair's descends to the second order; a seam has no
+        // lump arm here, so its in-band tilt refuses as an undeclared
+        // one does.
         let refused = match (&tilt, class) {
-            (Ok(Sign::Zero), _) | (Err(_), Some(_)) => false,
-            (Ok(Sign::Positive | Sign::Negative), _) | (Err(_), None) => true,
+            (Ok(Sign::Zero), _) => false,
+            (Err(_), Some(BooleanCoincidence::Seam) | None)
+            | (Ok(Sign::Positive | Sign::Negative), _) => true,
+            (Err(_), Some(_)) => false,
         };
         if refused {
             // A one-carrier declaration bridges the residue only against

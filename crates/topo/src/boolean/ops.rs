@@ -2611,9 +2611,9 @@ pub(super) fn declared_surface_pairs<T: Real>(
                  class,
              }| {
                 // A one-carrier declaration (`Rest` or a continuation)
-                // licenses a merge-stage coincidence; a `Tangent` pair's
-                // carriers are DISTINCT by its own verification and never
-                // merge.
+                // licenses a merge-stage coincidence; a `Tangent` or
+                // seam pair's carriers are DISTINCT by its own
+                // verification and never merge.
                 if !class.is_one_carrier() {
                     return None;
                 }

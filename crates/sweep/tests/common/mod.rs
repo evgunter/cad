@@ -77,6 +77,9 @@
 //! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
 //!   declarations, swapped for the reversed order: what a suite drives
 //!   a door WITH, as [`poses`];
+//! - [`seam_pairs`] — the face pairs of two face sets that meet along
+//!   a curve, so a seam or `Tangent` declaration names only those: what
+//!   a suite drives a door WITH, as [`revert_ops`];
 //! - [`differential`] — the differential batteries' polygon oracles,
 //!   their one per-pose `outcome` line and the reflex-corner pose: a
 //!   truth derived without the kernel plus the check every battery
@@ -247,6 +250,10 @@ pub mod certificates;
 /// The differential batteries' polygon oracles, per-pose outcome line
 /// and reflex-corner pose.
 pub mod differential;
+/// The pairs of two face sets that meet along a curve, kept from a
+/// cross product of seam or `Tangent` declarations. What a suite drives
+/// a door WITH, so it routes here.
+pub mod seam_pairs;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;

@@ -164,7 +164,7 @@ fn r2_a_definitely_absent_rim_keeps_the_bare_class_refusal() {
         matches!(
             e,
             BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent
+                class: topo::BooleanCoincidence::TANGENT
             }
         ),
         "a definitely-absent rim is not an escalation — that verdict belongs to the \

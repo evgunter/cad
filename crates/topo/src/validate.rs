@@ -2288,11 +2288,18 @@ const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
 /// prefixed by the input check a poisoned margin wants first.
 fn too_close(margin: Option<&geom_core::MarginDiag>) -> &'static str {
     match margin {
-        Some(margin) if margin.is_invalid() => {
-            "Recourse: check the inputs that built this body, then declare the coincidence, \
-             move the geometry, or lower the tolerance"
-        }
-        _ => "Recourse: declare the coincidence, move the geometry, or lower the tolerance",
+        Some(margin) if margin.is_invalid() => concat!(
+            "Recourse: check the inputs that built this body, then ",
+            geom_core::coincidence_declare_arm!(),
+            ", or ",
+            geom_core::coincidence_move_arm!()
+        ),
+        _ => concat!(
+            "Recourse: ",
+            geom_core::coincidence_declare_arm!(),
+            ", or ",
+            geom_core::coincidence_move_arm!()
+        ),
     }
 }
 
@@ -2313,6 +2320,30 @@ fn unnamed(margin: &geom_core::MarginDiag) -> Cow<'static, str> {
         format!("{NOT_YET}: {UNREADABLE_MARGIN_NOTE}").into()
     } else {
         NOT_YET.into()
+    }
+}
+
+/// `unnamed`'s words, held to `geom_brep::recourse::not_yet`'s — the one
+/// home props' own checks compose that ending from.
+#[cfg(test)]
+#[test]
+#[allow(clippy::unwrap_used)]
+fn the_not_yet_ending_is_one_spelling() {
+    let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+    for margin in [
+        geom_core::MarginDiag::value(5e-9),
+        geom_core::MarginDiag::INVALID,
+    ] {
+        let cause = geom_core::Indeterminate {
+            margin,
+            band,
+            predicate: None,
+            terminal_sliver: false,
+        };
+        assert_eq!(
+            unnamed(&margin),
+            geom_brep::recourse::not_yet(RefusedArm::Undecided(&cause))
+        );
     }
 }
 
@@ -2718,7 +2749,7 @@ pub(crate) struct MassPropsReading {
 
 pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassPropsReading {
     use crate::props::MassPropsError as M;
-    use geom_brep::props::PropsError as P;
+    use geom_brep::props::{PropsCheck, PropsError as P};
     let reading = |why, recourse: Cow<'static, str>, defect| MassPropsReading {
         why,
         recourse,
@@ -2727,23 +2758,36 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
     match e {
         M::Band { error } => reading(classify_band(error), TOLERANCE.into(), false),
         M::Face { source, .. } => match source {
-            // The quadrature's own convergence test: its enclosure
-            // width against its target, nothing of the model's — no
-            // coincidence to declare and no size to change.
-            P::Escalated { cause } if cause.predicate == Some("props_quad_converged") => reading(
-                "the quadrature could not decide whether its enclosure of a face's \
-                 contribution had converged",
-                unnamed(&cause.margin),
-                false,
+            // **Both halves read the variant's own check**, so this
+            // window and the refusal itself cannot disagree about what
+            // was being decided or what to do: the ending is
+            // `PropsCheck`'s table, and only an incidence premise — one
+            // no valid body violates — is read as a defect.
+            P::Escalated { cause, check } => reading(
+                match check {
+                    PropsCheck::Exact => {
+                        "a stored boundary edge may not lie on its own face's surface"
+                    }
+                    PropsCheck::Inventory => {
+                        "a face's contribution is too close to call at \
+                                              this tolerance"
+                    }
+                    PropsCheck::Extent => {
+                        "a face's area could not be certified positive at this tolerance"
+                    }
+                    PropsCheck::Converged => {
+                        "the quadrature could not decide whether its \
+                                              enclosure of a face's contribution had converged"
+                    }
+                },
+                check
+                    .ending(RefusedArm::Undecided(cause), Reading::AtRest)
+                    .into(),
+                *check == PropsCheck::Exact,
             ),
-            P::Escalated { cause } => reading(
-                "a face's contribution is too close to call at this tolerance",
-                unnamed(&cause.margin),
-                false,
-            ),
-            P::QuadratureBudget { .. } => reading(
+            P::QuadratureBudget { width_len, .. } => reading(
                 "a face's contribution did not converge to the tolerance",
-                "Recourse: loosen the tolerance".into(),
+                geom_brep::props::quadrature_budget_recourse(*width_len).into(),
                 false,
             ),
             P::Unimplemented
@@ -2754,6 +2798,14 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 "the kernel cannot yet measure a face of this kind",
                 NOT_YET.into(),
                 false,
+            ),
+            // An edge that does not lie on its own face's surface: a
+            // premise no valid body violates, so it is the body's own
+            // fault however the face came to need measuring.
+            P::OffSurface { .. } => reading(
+                "a stored boundary edge does not lie on its own face's surface",
+                DEFECT.into(),
+                true,
             ),
             // A tilted-circle sphere face whose loop does not bound a
             // region of its sphere, or whose bit its boundary
@@ -2773,7 +2825,9 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             // thin to certify, not a contradiction in the body.
             P::DegenerateFace => reading(
                 "a face's area could not be certified positive at this tolerance",
-                "Recourse: widen the face well past the tolerance".into(),
+                geom_brep::props::FACE_EXTENT
+                    .recourse(RefusedArm::SignCertain, Reading::AtRest)
+                    .into(),
                 false,
             ),
         },
