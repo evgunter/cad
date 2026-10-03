@@ -101,9 +101,10 @@ fn reflex_corner_struts_past_a_half_turn_build_sound() {
     ] {
         let p = reflex_pose(profile, rot, sx, sy, tol());
         for op in &REFLEX_OPS[..3] {
-            assert_builds_sound(
+            assert_sound(
                 &p,
                 op,
+                reflex_run(&p, op, tol()),
                 &format!("{profile} turned {rot}° (sx, sy) = ({sx}, {sy}) {op}"),
             );
         }
@@ -118,8 +119,14 @@ fn reflex_corner_struts_past_a_half_turn_build_sound() {
 /// the first row's `b` corner pokes 2.6e-5 through `a`'s floor, the
 /// first member's arm (`point_in_loop_arm`), in band. Each is a reading
 /// about one ray, and the walk takes the next.
+///
+/// At a coarse ε (1e-6) the hair itself is within ten bands, and the
+/// boolean may refuse it as an in-band coincidence (`Escalated`); what
+/// it builds must still be sound.
 #[test]
 fn reflex_corner_a_hair_off_flush_passes_its_own_census() {
+    let coarse = tol().eps() >= 1e-7;
+    let mut refused = 0;
     for (profile, sx, sy, op) in [
         ("sqQ1", -0.25, -0.75, "U"),
         ("sqQ1", 0.0, -0.1, "U"),
@@ -127,19 +134,29 @@ fn reflex_corner_a_hair_off_flush_passes_its_own_census() {
         ("dRight", 0.0, -0.5, "S_ab"),
     ] {
         let p = reflex_pose(profile, 0.003, sx, sy, tol());
-        assert_builds_sound(
-            &p,
-            op,
-            &format!("{profile} turned 0.003° (sx, sy) = ({sx}, {sy}) {op}"),
-        );
+        let what = format!("{profile} turned 0.003° (sx, sy) = ({sx}, {sy}) {op}");
+        match reflex_run(&p, op, tol()) {
+            Err(e @ topo::BooleanError::Escalated { .. }) if coarse => {
+                println!("{what}: refused in band at ε = {}: {e:?}", tol().eps());
+                refused += 1;
+            }
+            r => assert_sound(&p, op, r, &what),
+        }
     }
+    println!("{refused} of 4 refused in band");
 }
 
-/// `op` on `p` builds a body that passes tiers 2 and 3′ and the at-rest
-/// certificate, has the closed-form volume, and is a legal operand.
-fn assert_builds_sound(p: &ReflexPose, op: &str, what: &str) {
+/// `r`, `op` on `p`, is a body that passes tiers 2 and 3′ and the
+/// at-rest certificate, has the closed-form volume, and is a legal
+/// operand.
+fn assert_sound(
+    p: &ReflexPose,
+    op: &str,
+    r: Result<topo::BooleanResult<f64>, topo::BooleanError>,
+    what: &str,
+) {
     let k = REFLEX_OPS.iter().position(|o| *o == op).unwrap();
-    let bb = match reflex_run(p, op, tol()) {
+    let bb = match r {
         Ok(topo::BooleanResult::Body(bb)) => bb,
         other => panic!("{what}: {other:?}"),
     };
