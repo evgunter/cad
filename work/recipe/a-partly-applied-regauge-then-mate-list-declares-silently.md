@@ -2,9 +2,13 @@
 id: a-partly-applied-regauge-then-mate-list-declares-silently
 kind: issue
 title: regauge_then_mate's edit list is computed against the pre-regauge document; applying the insert alone, or first, inserts a DECLARING mate without a word
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
+cost: M
+branch: recipe/regauge-then-mate-door
+pr: 3925
+closed: 2026-10-03
 ---
 
 
@@ -34,3 +38,13 @@ A door that applies the compound action and returns the mate's id,
 as Python's does. Or an edit the insert door can check (a "this
 mate must place" flag that refuses a declaring result, typed, with
 the regauge recourse).
+
+## Built (2026-10-03, PR 3925)
+
+Option (a): `regauge_then_mate` applies the whole action and answers a
+`RegaugeThenMateOutcome`: the document, the edits it applied in order (a
+record, the shape of `InlineOutcome`), the maintenance netted through
+`MaintenanceNet`, and the mate's id. The caller is handed no list to
+apply, only a record of one already applied, and a refusal at any step
+answers no outcome. Python's door and the tour's `mate_onto` call it.
+PR 3925 has the choice, the sweep and the filed VSEAM row.

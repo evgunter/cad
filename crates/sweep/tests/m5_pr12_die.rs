@@ -304,7 +304,7 @@ fn the_pip_caps_measure_through_the_closed_form() {
 ///   reviewer measured the true clearance of the named pair at 1.6 cm
 ///   and it refused anyway. The M6 rider gave CIRCLE carriers a
 ///   definite-miss verdict in closed form
-///   (`bool_circle_curved_clearance`, the `circle_span_bounds` harmonic
+///   (`bool_conic_curved_clearance`, the `circle_span_bounds` harmonic
 ///   algebra), so every far pair cleared and the ordering marched past
 ///   the reduce stage — to the containment stage's `PartialSphereFace`
 ///   door, because a cut leaves TRIMMED sphere faces and the

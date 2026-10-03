@@ -158,6 +158,20 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
     graft_solids_with(dst, &[dst_solid], src, Bridge::Recertify { tol })
 }
 
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    /// The bridge each of this thread's grafts ran, in call order: the
+    /// witness a test reads to tell which one a graft took, where both
+    /// mint the same certificates.
+    static BRIDGES: core::cell::RefCell<Vec<Bridge>> = const { core::cell::RefCell::new(Vec::new()) };
+}
+
+/// Drains [`BRIDGES`].
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn take_bridges() -> Vec<Bridge> {
+    BRIDGES.with(|b| core::mem::take(&mut *b.borrow_mut()))
+}
+
 /// How a transplanted edge DESCRIPTION crosses into the destination's
 /// key space (the surface-key remap at the end of the graft).
 ///
@@ -167,23 +181,25 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
 /// the difference is which claim the graft makes about the result:
 ///
 /// - [`Bridge::Recertify`] re-runs the certification schedule against
-///   the destination's surfaces — what the boolean pipeline wants,
-///   whose operands have been through surgery.
+///   the destination's surfaces — what the seam-zip lanes want, whose
+///   operands have been through surgery.
 /// - [`Bridge::RemapKeys`] carries the source's certificate verbatim
 ///   with only the handles rewritten
 ///   ([`geom_brep::EdgeCurve::with_remapped_surfaces`]) — what a
 ///   DISJOINT graft wants, where the transplanted geometry is bitwise
 ///   the source's and no surgery happened: an import's placed
-///   instances and the void door's reversed cavity
-///   ([`super::voids::insert_voids`]). It is also the only form that
+///   instances, the void door's reversed cavity
+///   ([`super::voids::insert_voids`]), the containment fallback's
+///   assembly and a sphere re-cut's rotated shells. It is also the only form that
 ///   can carry a description the certification lanes cannot express at
 ///   all (a rational NURBS wall certifies nowhere), or one only a
 ///   lane certifies (a plane × NURBS `Intersection`), at a scalar that
 ///   holds none.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Bridge {
-    /// Re-run the schedule against the destination (booleans), at the
-    /// band of `tol` — the one reader of a tolerance in the graft.
+    /// Re-run the schedule against the destination (the seam-zip
+    /// lanes), at the band of `tol` — the one reader of a tolerance in
+    /// the graft.
     Recertify {
         /// The run's tolerance.
         tol: Tol,
@@ -243,6 +259,8 @@ fn graft_solids_impl<T: geom_core::Decide>(
     let corrupt = || BooleanError::JoinDesync {
         what: "graft source is not a well-formed body",
     };
+    #[cfg(any(test, feature = "test-support"))]
+    BRIDGES.with(|b| b.borrow_mut().push(bridge));
     // Arity is this door's precondition, distinct from corruption: the
     // caller states which destination each source solid lands in, so a
     // count mismatch is a caller error, never a thing to guess at.

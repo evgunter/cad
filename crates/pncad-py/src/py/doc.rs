@@ -177,7 +177,8 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
 /// would not serialize, an insert that minted no id, a placement rule
 /// spelled through the wrong constructor.
 ///
-/// It has a `variant` and nothing else to carry, and the attributes
+/// It has a `variant`, the `inner_variant` the same kernel arm
+/// publishes at its own door, and nothing else to carry; the attributes
 /// the document layer's arms fill are present and `None`: the class's
 /// shape is one shape at every raise site, whichever side of the
 /// boundary decided it.
@@ -185,11 +186,12 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
 /// **Where the `variant` comes from**, and it is not "always
 /// `crate::tags`": the test is whether a kernel enum arm stands
 /// behind the refusal. Where one does, the refusal carries the kernel
-/// VALUE and the word is that enum's own map's, even though the raise
+/// VALUE and the words are that enum's own maps', even though the raise
 /// site is here — `Doc.insert`'s `no_minted_id` and
-/// `Node.placed_union`'s count-spelling refusal are the two live
-/// cases, and forwarding the value is what keeps each ONE word with
-/// the kernel door that publishes the same one. Where none does — a
+/// `Node.placed_union`'s count-spelling refusal (`variant` and
+/// `inner_variant` both) are the two live cases, and forwarding the
+/// value is what keeps each the words the kernel door that publishes
+/// the same refusal speaks. Where none does — a
 /// `serde_json` failure has no arm anywhere — the word is minted in
 /// `crate::tags`, where the tag inventory reads it.
 ///
@@ -208,7 +210,7 @@ fn boundary_edit_err(py: Python<'_>, refusal: BoundaryEdit<'_>, message: String)
         &edit_fields(
             py,
             crate::tags::boundary_edit_tag(refusal),
-            None,
+            crate::tags::boundary_edit_inner_tag(refusal),
             &crate::edit_payload::EditPayload::NONE,
         ),
     )
@@ -843,17 +845,18 @@ pub(crate) struct Doc {
     /// The Rust `apply` returns this beside the new document; the
     /// Python wrapper owns the document and swaps it, so the record
     /// is held here for the same span the document it describes is —
-    /// an invariant [`Doc::accept`] holds by being the only place
+    /// an invariant [`Doc::take_up`] holds by being the only place
     /// either of the two is written.
     pub(crate) maintenance: Vec<d::Maintenance>,
 }
 
-/// The wrapper's own plumbing: the ONE place an accepted edit is taken
-/// up, and the two shared door bodies that land there. None of it is a
+/// The wrapper's own plumbing: the ONE place an accepted document is
+/// taken up ([`Doc::take_up`]), the single-edit door onto it, and the
+/// shared door bodies that land there. None of it is a
 /// Python method.
 impl Doc {
-    /// **The swap point.** Every accepting door lands here, and it
-    /// replaces the held document and the maintenance record TOGETHER
+    /// A single edit's door onto **the swap point**, [`Doc::take_up`],
+    /// which replaces the held document and the maintenance record TOGETHER
     /// — which is what makes `last_maintenance` a fact about the
     /// document now held rather than about some earlier one. Returns
     /// the edit's record so each door can read the id it minted.
@@ -871,16 +874,26 @@ impl Doc {
     /// [`Doc::insert_node`] closes that hole for `insert` by accepting
     /// internally, and [`Doc::declare_findings`] closes it for the
     /// declare doors by taking the kernel sugar's whole acceptance up
-    /// here; a door reaching `d::apply` for any OTHER edit lands here
-    /// or is a bug the test names. The refactoring wrappers are the
+    /// here; a door reaching `d::apply` for any OTHER edit lands here,
+    /// and a kernel door answering a whole action's paired document and
+    /// maintenance lands in [`Doc::take_up`] directly; anything else is a
+    /// bug the test names. The refactoring wrappers are the
     /// one family that does not pass through: they never `apply` a
     /// single edit, they project a kernel outcome whose document and
     /// maintenance were already paired below this wrapper, and they
     /// carry that pairing across whole.
     fn accept(&mut self, applied: d::Applied<d::ProfileProgram>) -> d::EditRecord {
-        self.inner = applied.doc;
-        self.maintenance = applied.maintenance;
+        self.take_up(applied.doc, applied.maintenance);
         applied.record
+    }
+
+    /// [`Doc::accept`]'s swap, for a kernel door that applied a whole
+    /// action and answers its document and maintenance already paired
+    /// (`regauge_then_mate`'s outcome) rather than one edit's
+    /// [`d::Applied`].
+    fn take_up(&mut self, doc: d::ProfileDoc, maintenance: Vec<d::Maintenance>) {
+        self.inner = doc;
+        self.maintenance = maintenance;
     }
 
     /// Insert a node, label it when `label` is given, and take the
@@ -1066,27 +1079,10 @@ impl Doc {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        // Applied in order on values, and taken up once, whole: the
-        // action's record is every edit's, and the funnel (`accept`)
-        // swaps the document and that record together.
-        let mut maintenance = Vec::new();
-        let mut last: Option<d::Applied<d::ProfileProgram>> = None;
-        let edits = d::regauge_then_mate(&self.inner, mate.inner.clone())
+        let out = d::regauge_then_mate(&self.inner, mate.inner.clone(), tol, &reach)
             .map_err(|err| edit_err(py, &err))?;
-        for edit in edits {
-            let base = last.as_ref().map_or(&self.inner, |applied| &applied.doc);
-            let applied = d::apply(base, &edit, tol, &reach).map_err(|err| edit_err(py, &err))?;
-            maintenance.extend(applied.maintenance.iter().cloned());
-            last = Some(applied);
-        }
-        let Some(mut applied) = last else {
-            unreachable!("the compound door's list ends in the mate's insert")
-        };
-        applied.maintenance = maintenance;
-        let Some(id) = self.accept(applied).minted else {
-            unreachable!("the compound door's last edit is an insert, which mints")
-        };
-        Ok(NodeId(id))
+        self.take_up(out.doc, out.maintenance);
+        Ok(NodeId(out.mate))
     }
 
     /// The maintenance the LAST accepted edit performed, in the order
@@ -2904,8 +2900,8 @@ impl Node {
     ///
     /// An `explicit` rule brings its OWN placements, so pairing it
     /// with a count is the two-sources-of-truth state: it refuses here
-    /// (`EditError`, `placement_rule_mismatch`) and
-    /// `Node.placed_union_at` is its door.
+    /// (`EditError`, `placement_rule_mismatch`, `inner_variant`
+    /// `listed_with_count`) and `Node.placed_union_at` is its door.
     #[staticmethod]
     fn placed_union(
         py: Python<'_>,
@@ -2917,7 +2913,9 @@ impl Node {
         let node = d::Node::placed_union(input.0, count, kind.0.clone()).ok_or_else(|| {
             boundary_edit_err(
                 py,
-                BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling),
+                BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling {
+                    shape: d::CountMismatch::ListedWithCount,
+                }),
                 "an explicit placement rule carries its own placements, so it has no \
                      count slot: use Node.placed_union_at"
                     .to_owned(),

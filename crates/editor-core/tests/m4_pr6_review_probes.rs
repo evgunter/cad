@@ -456,7 +456,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::SetAppearanceMeta {
             name: body.clone(),
             key: "adv/probe".into(),
-            value: MetaValue::Map(m.clone()),
+            value: MetaValue::map(m.clone()).expect("a shallow value"),
         },
     );
     push(
@@ -464,7 +464,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::SetAppearanceMeta {
             name: body.clone(),
             key: "adv/probe2".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
     );
     // 11 ClearAppearanceMeta
@@ -629,7 +629,7 @@ fn attack_meta_order_canonical() {
             m.insert("a".to_owned(), MetaValue::Int(2));
             m.insert("v".to_owned(), MetaValue::Int(1));
         }
-        MetaValue::Map(m)
+        MetaValue::map(m).expect("a shallow value")
     };
     let mk = |order: bool| {
         let d = apply(
@@ -697,7 +697,7 @@ fn duplicate_keys_refuse_in_every_map() {
         &DocEdit::SetAppearanceMeta {
             name: body,
             key: "k".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -1,6 +1,6 @@
 //! **Ray-parity point-in-region** — the one home for the trilean
 //! containment walk, shared by the crate's three consumers:
-//! [`crate::splitting::containment::point_in_loop`] (a planar loop in
+//! [`crate::splitting::containment::point_in_vertex_polygon`] (a planar loop in
 //! 3-space), `chart_region::point_in_polygon` (a chart-space polygon
 //! in 2-D) and [`crate::chart_bound`]'s outside test (a chart-space
 //! polygon again, under its own K rows and sharing `chart_region`'s
@@ -68,6 +68,44 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec2, Vec3};
 
 use crate::validate::decide;
+
+/// **The rays a schedule abandoned on an in-band reading of their own**:
+/// the first such reading is kept, and is the walk's refusal only if no
+/// ray decides. The one home of the argument every ray walk in the crate
+/// cites — `point_in_loop`'s polygon walk and its arc walk, and
+/// `point_in_solid`'s 3-D sweep.
+///
+/// **Why a ray-level margin abandons the ray.** A walk's boundary pass
+/// asks where `q` itself stands, and its rows escalate. Every row past
+/// it is a fact about ONE RAY: where it passes a vertex, meets a conic
+/// or a face's carrier, clears an uncrossable edge's ball, how far
+/// along it a crossing falls, or which way it runs against a carrier.
+/// A verdict is read only off a ray whose every decision on it is
+/// definite, so abandoning a ray on an in-band one — as a graze is
+/// abandoned — can turn a refusal into an answer, never into a wrong
+/// one. What abandoning does NOT license is reading an in-band margin
+/// as a definite one: a ray that runs along a carrier within the band
+/// may or may not meet the face on it, and is abandoned too, never
+/// skipped past the face.
+pub(crate) struct Abandoned<E>(Option<E>);
+
+impl<E> Abandoned<E> {
+    /// No ray abandoned yet.
+    pub(crate) const fn new() -> Self {
+        Self(None)
+    }
+
+    /// Abandon the current ray on `reading`, keeping the first.
+    pub(crate) fn abandon(&mut self, reading: E) {
+        self.0.get_or_insert(reading);
+    }
+
+    /// The refusal once the schedule is exhausted: the first abandoned
+    /// reading, else `otherwise`.
+    pub(crate) fn refusal(self, otherwise: impl FnOnce() -> E) -> E {
+        self.0.unwrap_or_else(otherwise)
+    }
+}
 
 /// The point/displacement algebra the walk needs, so that one body of
 /// code serves the 2-D and 3-D consumers without either projecting

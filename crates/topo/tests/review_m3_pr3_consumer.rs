@@ -273,9 +273,9 @@ fn plane_section_outlines_wind_counter_clockwise() {
     let mut signs = Vec::new();
     for poly in s.regions.iter().map(|r| &r.outline) {
         let mut twice = 0.0;
-        for i in 0..poly.uv.len() {
-            let a = poly.uv[i];
-            let b = poly.uv[(i + 1) % poly.uv.len()];
+        for i in 0..poly.uv().len() {
+            let a = poly.uv()[i];
+            let b = poly.uv()[(i + 1) % poly.uv().len()];
             twice += a.x * b.y - b.x * a.y;
         }
         signs.push(twice.signum());

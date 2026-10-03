@@ -21,8 +21,8 @@ use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::{EntityKind, ProfileEdgeRef};
 use crate::node::{
-    AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault, SlotId,
-    StableName, StepId,
+    AssertionBoundFault, CountMismatch, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault,
+    SlotId, StableName, StepId,
 };
 use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
@@ -1274,13 +1274,12 @@ pub enum EditError {
         mate: SpokenNode,
     },
     /// A placement-rule node whose rule and count slot would give two
-    /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN): an
-    /// `Explicit` rule paired with a count slot, a stepped rule with
-    /// none — or a `Pattern` carrying an `Explicit` rule at all, since
-    /// its count is a non-optional field.
+    /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN).
     PlacementRuleMismatch {
         /// The offending node.
         node: SpokenNode,
+        /// Which answer it gives twice.
+        shape: CountMismatch,
     },
     /// A placement-rule node whose `Explicit` rule lists NO placements
     /// (GROUP-BOOLEAN-DESIGN): the list IS the count, so an empty one
@@ -1686,7 +1685,7 @@ impl EditError {
             | Self::DuplicateWitnessEntry { node }
             | Self::OffsetOnNonInstance { node }
             | Self::GaugeOnNonPlaced { node }
-            | Self::PlacementRuleMismatch { node }
+            | Self::PlacementRuleMismatch { node, shape: _ }
             | Self::EmptyPlacementList { node }
             | Self::ImproperPlacement {
                 node,
@@ -2454,15 +2453,34 @@ impl EditError {
                 )
             }
             // The two rule-shaped arms FORWARD the fault set's one
-            // prose vocabulary (`PlacementRuleFault`'s `Display`); the
-            // two frame-shaped arms below keep their own prose because
-            // their subject is a single group frame, which has no
-            // index in a rule's placement list.
+            // prose vocabulary (`PlacementRuleFault`'s `Display`). A
+            // rule's shape is written only by the insert that authors
+            // its node, so the recourse is that insert's.
             Self::EmptyPlacementList { node } => {
-                write!(f, "{node}: {}", PlacementRuleFault::NoPlacements)
+                write!(f, "{node}: {}", PlacementRuleFault::NoPlacements)?;
+                tail.recourse(f, format_args!("list at least one placement"))
             }
-            Self::PlacementRuleMismatch { node } => {
-                write!(f, "{node}: {}", PlacementRuleFault::CountSpelling)
+            Self::PlacementRuleMismatch { node, shape } => {
+                write!(
+                    f,
+                    "{node}: {}",
+                    PlacementRuleFault::CountSpelling { shape: *shape }
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "{}",
+                        match shape {
+                            CountMismatch::ListedWithCount =>
+                                "insert it without a count, since the list is the count",
+                            CountMismatch::SteppedWithoutCount => "insert it with a count",
+                            CountMismatch::ListedOnPattern =>
+                                "keep a pattern of separate copies by giving it a stepped rule, \
+                                 or insert a placed union to list the placements, fusing the \
+                                 copies into one body",
+                        }
+                    ),
+                )
             }
             Self::ImproperPlacement {
                 node,
@@ -3646,32 +3664,94 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
     Ok(())
 }
 
-/// **"Copy `b`'s gauge to `a`, then mate `a` to `b`"** (A11 (2)): the
-/// edits that put every member of the group the mate's `a` side reads
-/// onto the gauge its `b` side's instance sits on, then insert the
-/// mate — which then places, and joins the two groups: the first
-/// operand's group is placed on the second's
-/// ([`DocEdit::InsertNode`]'s mate door clears the offsets `a`'s group
-/// held). One compound edit: the caller applies the list in order, and
-/// atomicity is applying all of it, as for [`cascade_delete_order`].
+/// What [`regauge_then_mate`] did: the document the whole action
+/// produced, the edits that produce it, the maintenance they
+/// performed, and the mate's id. The edits are a record beside a
+/// document the door has already applied — the shape of
+/// [`crate::InlineOutcome`] — so a caller that keeps edits (a history,
+/// the log [`crate::persist::save`] writes) records the action whole,
+/// and one that keeps only documents takes up `doc` and `maintenance`
+/// together. Undo is the caller keeping the input value: the input is
+/// untouched.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RegaugeThenMateOutcome<P> {
+    /// The input document with the action applied.
+    pub doc: Doc<P>,
+    /// The edits that produce `doc` from the input, in the order the
+    /// door applied them: a [`DocEdit::SetGauge`] for each member of
+    /// `a`'s group not already on `b`'s gauge, then the mate's
+    /// [`DocEdit::InsertNode`].
+    pub edits: Vec<DocEdit<P>>,
+    /// The maintenance `edits` reported, net of what a later edit in
+    /// the list took back ([`MaintenanceNet`]), in edit order.
+    pub maintenance: Vec<Maintenance>,
+    /// The mate's id, minted by its insert.
+    pub mate: RecipeNodeId,
+}
+
+/// **"Copy `b`'s gauge to `a`, then mate `a` to `b`"** (A11 (2)), as
+/// one action: every member of the group the mate's `a` side reads is
+/// put on the gauge its `b` side's instance sits on, then the mate is
+/// inserted — which then places, and joins the two groups: the first
+/// operand's group is placed on the second's ([`DocEdit::InsertNode`]'s
+/// mate door clears the offsets `a`'s group held).
 ///
-/// The answer is the bare insert when the two sides already share a
+/// The door applies the whole action and answers the result with its
+/// record ([`RegaugeThenMateOutcome`]). The re-gauges are computed
+/// against the input document, and each edit is applied to the
+/// document the one before it produced; a refusal at any step refuses
+/// the whole action, and no outcome comes back.
+///
+/// The action is the bare insert when the two sides already share a
 /// gauge, when a side resolves to no member — the insert door then
 /// refuses the mate in its own words — and for a node that is not a
-/// mate, which has no gauge to copy. Nothing is applied here.
+/// mate, which has no gauge to copy.
 ///
 /// # Errors
 ///
 /// [`EditError::WouldStartPlacing`] when the re-gauge would put the
 /// two instances of a mate already in the document on one gauge: that
 /// mate declares today, and would start placing — moving a group the
-/// action never named.
+/// action never named. Otherwise [`apply`]'s, from the step that
+/// refuses.
 pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     mate: Node<P>,
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> Result<RegaugeThenMateOutcome<P>, EditError> {
+    let mut edits = regauges_for(doc, &mate)?;
+    edits.push(DocEdit::InsertNode {
+        node: Box::new(mate),
+    });
+    let mut done = doc.clone();
+    let mut net = MaintenanceNet::new();
+    let mut minted = None;
+    for edit in &edits {
+        let applied = apply(&done, edit, tol, reach)?;
+        net.push(&applied);
+        minted = applied.record.minted;
+        done = applied.doc;
+    }
+    let Some(mate) = minted else {
+        unreachable!("an accepted InsertNode mints its node's id")
+    };
+    Ok(RegaugeThenMateOutcome {
+        maintenance: net.finish(&done),
+        doc: done,
+        edits,
+        mate,
+    })
+}
+
+/// The `SetGauge` edits [`regauge_then_mate`] applies before its
+/// insert, in order, computed against `doc`.
+fn regauges_for<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    mate: &Node<P>,
 ) -> Result<Vec<DocEdit<P>>, EditError> {
     let mut edits = Vec::new();
-    if let Node::Mate { a, b, .. } = &mate
+    if let Node::Mate { a, b, .. } = mate
         && let (Some(ma), Some(mb)) = (
             crate::mate::member_of(doc, a),
             crate::mate::member_of(doc, b),
@@ -3717,9 +3797,6 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
             }
         }
     }
-    edits.push(DocEdit::InsertNode {
-        node: Box::new(mate),
-    });
     Ok(edits)
 }
 
@@ -4577,10 +4654,12 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
     // lists at least one placement, and its frames meet the SAME bar
     // every placement's literal steps are held to
     // (`Frame::admission_fault`).
-    // Checked over the whole document rather than per arm because a
-    // structural slot edit can reach a bad state from a node that was
-    // consistent before; in document order, so where one edit breaks
-    // two nodes the refusal names the one placed first.
+    // A rule's shape and its listed frames are written only by the
+    // insert that authors its node, but a listed frame is admitted at
+    // the `tol` this edit is applied at, which need not be the one its
+    // insert was; so the whole document is checked, in document order,
+    // and where one edit breaks two nodes the refusal names the one
+    // placed first.
     for (&node, n) in new
         .order
         .iter()
@@ -4589,9 +4668,10 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
         let listed = |index| FrameSite::Listed { index };
         match n.placement_rule_fault(tol) {
             None => {}
-            Some(PlacementRuleFault::CountSpelling) => {
+            Some(PlacementRuleFault::CountSpelling { shape }) => {
                 return Err(EditError::PlacementRuleMismatch {
                     node: written(doc, node, n),
+                    shape,
                 });
             }
             Some(PlacementRuleFault::NoPlacements) => {

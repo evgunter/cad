@@ -256,7 +256,7 @@ fn probe_near_parallel_axis_never_answers_wrong() {
 /// At M5 the inner ball's circle edges hit the UNCONDITIONAL
 /// conic-carrier pierce arm, so this pinned a typed refusal and the
 /// scan's nested arm sat shadowed behind it as defense-in-depth. The
-/// M6 rider (`bool_circle_curved_clearance`) proves the inner ball's
+/// M6 rider (`bool_conic_curved_clearance`) proves the inner ball's
 /// circles DEFINITELY inside the outer sphere and the outer ball's
 /// circles definitely outside the inner one — no examined pair
 /// survives — so the pair reaches the containment walk, whose

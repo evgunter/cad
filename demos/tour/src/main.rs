@@ -126,6 +126,9 @@ struct SceneBody {
     /// built it from an evaluated document and could hand one over.
     /// See [`SceneBody::named`].
     face_names: Option<tess_meter::FaceNames>,
+    /// `Some(δ)` when the scene asks this body for a finer chordal
+    /// deviation than its own [`Stop::delta`]. See [`SceneBody::finer`].
+    delta: Option<f64>,
 }
 
 impl SceneBody {
@@ -142,6 +145,7 @@ impl SceneBody {
             transparency: 0,
             step_frontier: None,
             face_names: None,
+            delta: None,
         }
     }
 
@@ -151,6 +155,39 @@ impl SceneBody {
     fn transparent(mut self, t: u8) -> Self {
         self.transparency = t;
         self
+    }
+
+    /// The same body, meshed at chordal deviation `delta` where the
+    /// rest of its scene takes [`Stop::delta`]: a small feature on one
+    /// body (a glyph's inner arc) is paid for on that body alone.
+    ///
+    /// Finer only — [`SceneBody::delta`] refuses a `delta` that is not
+    /// strictly under the scene's, so the scene's budget is the
+    /// coarsest any of its bodies is meshed at.
+    fn finer(mut self, delta: f64) -> Self {
+        self.delta = Some(delta);
+        self
+    }
+
+    /// The chordal deviation this body is meshed at, in a scene whose
+    /// own is `scene`.
+    ///
+    /// # Panics
+    ///
+    /// If the body's [`SceneBody::finer`] budget is not strictly finer
+    /// than `scene`.
+    fn delta(&self, scene: f64) -> f64 {
+        match self.delta {
+            None => scene,
+            Some(d) => {
+                assert!(
+                    d > 0.0 && d < scene,
+                    "{}: a per-body delta {d:e} must be finer than its scene's {scene:e}",
+                    self.name
+                );
+                d
+            }
+        }
     }
 
     /// **The scene DECLARES this body past the STEP writer's named
@@ -207,6 +244,7 @@ impl SceneBody {
             transparency: 0,
             step_frontier: None,
             face_names: None,
+            delta: None,
         }
     }
 
@@ -244,6 +282,7 @@ impl SceneBody {
             transparency: 0,
             step_frontier: None,
             face_names: None,
+            delta: None,
         }
     }
 
@@ -317,6 +356,8 @@ struct Stop {
     montage: bool,
     story: &'static str,
     ops: &'static str,
+    /// The chordal deviation every body is meshed at, unless it asks
+    /// for a finer one ([`SceneBody::finer`]).
     delta: f64,
     note: Option<String>,
     view: View,
@@ -749,7 +790,7 @@ fn run_stop(
     let bodies: Vec<ManifestBody> = stop
         .bodies
         .iter()
-        .map(|sb| run_body(sb, stop.delta, outdir, dumps, tol))
+        .map(|sb| run_body(sb, sb.delta(stop.delta), outdir, dumps, tol))
         .collect();
     manifest.push_str(&scene_json(stop, &bodies));
 }
@@ -1238,5 +1279,36 @@ fn main() {
     match pncad::tolerance::committed_report() {
         Some(report) => println!("{report}"),
         None => println!("tolerance: never committed (no predicate ran)"),
+    }
+}
+
+#[cfg(test)]
+mod scene_body_delta {
+    use super::SceneBody;
+
+    fn body() -> SceneBody {
+        SceneBody::plain("probe", [0.5, 0.5, 0.5], pncad::topo::Body::new())
+    }
+
+    #[test]
+    fn a_body_takes_its_scenes_delta_unless_it_asks_for_a_finer_one() {
+        assert_eq!(body().delta(1e-2), 1e-2, "no per-body delta: the scene's");
+        assert_eq!(
+            body().finer(2e-3).delta(1e-2),
+            2e-3,
+            "a finer per-body delta"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must be finer than its scene's")]
+    fn a_coarser_per_body_delta_is_refused() {
+        body().finer(2e-2).delta(1e-2);
+    }
+
+    #[test]
+    #[should_panic(expected = "must be finer than its scene's")]
+    fn an_equal_per_body_delta_is_refused() {
+        body().finer(1e-2).delta(1e-2);
     }
 }
