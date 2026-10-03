@@ -31,8 +31,9 @@ exact-vs-decided reframing signed off.
   is this design's charter for §4.
 - **C4** (CONTACT-DESIGN): declarations are recipe data by stable
   name, verified never trusted, per-class tables, four typed
-  failures. `Node::Declare { pairs: Vec<(StableName, StableName)> }`
-  is SHIPPED and consumed by `Node::Boolean`'s `declare` input.
+  failures. A `Node::Boolean`'s and a `Node::Union`'s own `declare`
+  payload (`Vec<DeclaredPair>`, settable on a live node by
+  `DocEdit::SetDeclare`) is SHIPPED.
 - **The #256/#250 precedent**: degenerate coincidence has NO absorb
   arm; the repair menu is declare-it (verified) or move-the-geometry.
   Keep-as-spline is banned; exact analytic geometry has exactly one
@@ -289,10 +290,11 @@ and no new ledger rows are
 minted for detection — the interpretation-discipline contract is
 "the detector interprets nothing the verifier doesn't".
 
-**(c) Declare — sugar over the shipped vocabulary.** `Node::Declare
-{ pairs }` exists; the sugar is a document-layer convenience that
-takes explicitly-passed pairs and appends/creates a Declare node
-wired into the consuming Boolean. Thin by design. The arity
+**(c) Declare — sugar over the shipped vocabulary.** A boolean's
+`declare` payload and `DocEdit::SetDeclare` exist; the sugar is a
+document-layer convenience that takes explicitly-passed findings and
+sets them as a live Boolean's or Union's declared pairs. Thin by
+design. The arity
 question is GS-Q3, RULED: the boundary is FUSION, not arity. Both
 `declare(finding)` and
 `declare_all(findings: Vec<FlushFinding>)` ship; what stays
@@ -354,13 +356,11 @@ precedent): all three names — `find_flush_candidates`, `declare`,
 above and keys from a body below, and a prelude must not make one
 shadow the other.
 
-M9-1 PR-2 closed the gap between (a) and (c): `Node::Declare`'s pairs
-each carry their class, so the class a finding reports is the class
-the declaration records and the class the boolean verifies against —
-one vocabulary end-to-end, now as data and not only as a type. Before
-that change `declare_node` dropped `finding.class` on the floor, which
-was invisible while `Rest` was the only class and would have become a
-silent mis-verification the moment a second one existed.
+M9-1 PR-2 closed the gap between (a) and (c): declared pairs each
+carry their class, so the class a finding reports is the class the
+declaration records and the class the boolean verifies against — one
+vocabulary end-to-end, as data and not only as a type
+(`declared_pairs` carries `finding.class` with its pair).
 
 **What the detector still does NOT do.** The `Tangent` arm of
 `find_flush_candidates` is not built. Detecting a tangency needs the
@@ -426,7 +426,7 @@ sketcher/tree design time):
 **The one-type rule.** A GUI selection is the SAME
 value as a recipe reference: `Vec<StableName>` — the exact type the
 structural materializer returns, `Node::Fillet`'s selection stores,
-and `Node::Declare` pairs are built from. G3's "selection feeds the
+and declared pairs are built from. G3's "selection feeds the
 existing edit doors" is this rule stated from the GUI side: click →
 ID-buffer hit → key→name inversion (U7's doors) → `StableName`,
 and from that point the GUI is indistinguishable from a library
@@ -438,8 +438,8 @@ no second staleness story.
 **No representation dependency.** Selectors interrogate EVALUATED
 bodies through the name table; nothing here touches profile
 representation, the persisted schema, or Expr binding.
-`Node::Declare` is shipped vocabulary, so §3's sugar adds no schema
-change.
+A boolean's declared pairs are shipped vocabulary, so §3's sugar adds
+no schema change.
 
 **The datum-distance predicate takes an `Expr` value**, never a bare
 float: a selection rule written against a named document parameter
@@ -489,8 +489,8 @@ apparent tension is that a detector returns finding objects that
 look verdict-shaped; the resolution is that LB7's line forbids
 values becoming TOPOLOGY without a structural/declared rung, and the
 coincidence ladder itself blesses detection as "a diagnostic/
-affordance only". A `FlushFinding` is a value about values; only
-`Node::Declare` crosses the line, and C4 polices that crossing. So
+affordance only". A `FlushFinding` is a value about values; only a
+boolean's declared pairs cross the line, and C4 polices that crossing. So
 both `declare(finding)` and `declare_all(findings)` ship, and a
 fused detect-and-declare door is forbidden permanently: the
 enforceable property is that findings pass through user-visible

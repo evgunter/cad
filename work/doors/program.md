@@ -2,7 +2,7 @@
 id: doors
 kind: program
 title: DOORS — the viewer halves of the node shapes Ev ruled on AUTHOR's forks, and the GUI's clearance consumer
-status: blocked
+status: ready
 opened: 2026-10-02
 area: gui
 prefix: doors/

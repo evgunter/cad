@@ -2451,7 +2451,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
             op: pncad::document::BooleanOp::Subtract,
             a: first_box,
             b: second_box,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, downstream) = insert(
@@ -2460,7 +2460,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
             op: pncad::document::BooleanOp::Union,
             a: cut,
             b: first_box,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = doors_evaluate(&doc);
@@ -2604,7 +2604,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             op: BooleanOp::Union,
             a: plate,
             b: tab,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // A MEASURE and its ASSERTION (ERROR-DESIGN E3/E10), so the
