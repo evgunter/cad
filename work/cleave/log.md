@@ -415,3 +415,16 @@ The hold landed at 18:58Z. This sitting acted on it only at about 20:05Z, when E
   - `split-refusal-detector-names-a-shared-parameter-coincidence` (Expr parameters);
   - `the-rest-lane-reads-a-nested-struts-site-at-its-holders-tip` and `seam-zip-grafts-re-certify-...` (the declared-Rest lane).
 - **Not held, still startable:** the split/boolean topology and certifier rows, including `split-answers-an-inside-out-operand-with-two-inside-out-halves`, the corner-crossing P1s, the chord recompute, and the validators/tessellator P2s. CLEAVE is not blocked.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.

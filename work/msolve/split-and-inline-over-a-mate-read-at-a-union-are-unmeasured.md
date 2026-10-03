@@ -7,7 +7,7 @@ priority: P3
 cost: M
 parent: MSOLVE-13
 opened: 2026-10-03
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

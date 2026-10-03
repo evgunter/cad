@@ -4,7 +4,7 @@ kind: issue
 title: The torus peg-in-socket union's chord join cannot read its section loops' roles above eps 2e-7
 status: parked
 opened: 2026-10-02
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

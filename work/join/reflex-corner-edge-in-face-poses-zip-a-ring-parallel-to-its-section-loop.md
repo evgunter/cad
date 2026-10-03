@@ -7,7 +7,7 @@ opened: 2026-10-02
 priority: P1
 cost: H
 refs: [reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap, locus-matching-moves-frontier-refusals-to-join-desync]
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
