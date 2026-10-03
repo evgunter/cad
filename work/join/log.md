@@ -280,3 +280,37 @@ and 1e-12) fail identically on main; the arc-loft one filed on EXCH.
 with it (missed at JOIN-1's merge); both under `docs/doc-ledger/`.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-03 — PR 3880 lands: JOIN-2, the zip reads the join's segments
+
+JOIN-2 closed, and with it
+`rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`
+and the tangent-germ and like-far-ends rows. The declared-REST zip takes
+`join::section_segments` (one producer of segments); `germ_loci` reads
+a germ only tangent to an edge as lying in the face its curve enters
+(the far-end rank), and a like-far-ends tie by the partner face's trim;
+paired far ends on lines and circles are one segment by structure
+(`GermEdgeCarrierUnsupported` otherwise). The zip's own enumeration,
+its straight-chord facing test, `arc_along`, `fan_edge_between` and
+`ParallelSeamEdges` are gone; seams grow outward from joined vertices.
+
+Review tier: DUAL (two cloud sessions, frozen head `17c254c9`), both
+APPROVE-WITH-FIXES with one MAJOR each; coded blind (byte 110), tally
+0: each MAJOR was the other review's MINOR (the span order; the
+like-far-ends residue). Fix pass 1, then a delta review
+(`17c254c9..4c18c2cb`, 0/2/5: `coincide` decided nothing a row could
+see; `runs_in` folded corruption into undecided), then fix pass 2 with
+the JOIN-3 merge (no row moved against both parents). Across the
+reviewers' batteries main → head: 0 SOUND→refusal, 0 new BAD, 949
+refusal→SOUND.
+
+**Process deviation.** The like-far-ends row carried `design: true`;
+the orchestrator decided it in fix pass 1's brief (the trim test)
+without the two-designer weighing. The delta review flagged it. A wrong
+pick refuses and never ships a body (mutant M2b); recorded on the row.
+
+Found on the way: the r1 grid's 804 tier-3′ BAD lines (box beside a
+rounded plate) are main's, identical on both trees, absent at main
+`66bbdaa6b`; evidence on CONTACT's census row.
+
+Signed (JOIN orchestrator).

@@ -2,12 +2,13 @@
 id: rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity
 kind: issue
 title: The REST zip's enumerate_segments faces germs by a straight-chord test the join no longer uses, and identifies a segment by its vertex pair, so two arcs between one pair refuse ParallelSeamEdges
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
 refs: [dumbbell-joint-union-leaves-four-loose-ends]
 parent: JOIN-2
+closed: 2026-10-03
 ---
 
 
@@ -66,3 +67,5 @@ vertices, and `pair_patches` verifies the result by cycle congruence.
 with two arcs between one vertex pair reaches the zip: the dumbbell and
 the aligned half-rod stack build in the join. The twin's arc runs
 back through `geom::Curve3::reversed`, the reversal's one home.
+
+Closed with JOIN-2, PR 3880, 2026-10-03.

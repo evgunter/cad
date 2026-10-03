@@ -80,3 +80,14 @@ R2's 36. Pinned by `join2_r2_probes`'s
 `a_like_far_ends_tie_is_decided_by_the_partner_faces_trim` and
 `join2_r1_probes`'s
 `unions_through_ring_vertices_and_like_far_ends_build_sound`.
+
+## Process note (JOIN orchestrator, 2026-10-03)
+
+This row carries `design: true`, and it was decided without the
+two-designer weighing `work/README.md` asks for: the orchestrator's
+fix-pass brief chose the partner face's trim as the tie rule, and the
+lane built it. The delta review flagged it (S7). What bounds the risk:
+a wrong pick refuses at the join and never ships a body (the delta
+review's mutant M2b: the trim pick reversed gives 42 SOUND→refusal and
+0 BAD). The flag stays set so the record says what kind of question it
+was.
