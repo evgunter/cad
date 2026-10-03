@@ -137,3 +137,22 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+- 2026-10-03 — **PR 3998 merged** (0f409ea569): `SSI_STEP_MAX` is gone; refinement by certificate in `ssi/refine.rs`. The single FULL review (on 548592de4e) was APPROVE-WITH-FIXES with no false pass; it re-certified every refined branch bit-identically. One fix pass, read by the orchestrator:
+  - Each refused gap is halved with its neighbours, bounding rounds at about half the budget; the reviewer's stand-in had taken 1196 rounds.
+  - A NaN or invalid margin is not located.
+  - `RefinementExhausted` names its stop.
+  - `StepBound::Cap` names its own lane's cap and lever.
+  - `STEP_SCALE`'s domain clause is corrected (a larger domain is what helps).
+  - The uncertified door's doc tells the truth.
+  - New rows pin `Both`, `TubeLadderEmpty` from a marched door, and `retirement_breadth`.
+
+  The SSI suite at 1e-12 now takes 368 s (657 s before the pass; 101 s with the cap). The weight-9 rational row is still 444 s, which is the dense collocation solve filed on flux. Filed: `the-march-domain-diagonal-mixes-state-units-on-the-chart-lane` (P3) and `the-cylinder-chart-ellipse-pcurve-samples-a-fixed-schedule`. Main was red on `bounds_census` for REACH's `ops::centred_box` (from #3978); I ported REACH's own roster line from #3976 into 3998 and commented on the PR. (SSI orchestrator)
+
+- 2026-10-03 — **Limb-3-at-rest fork: the designers converged after four rounds.**
+  - Round 1 split: the boundary count plus a side-cover arm, against the section theorem.
+  - Round 2 crossed.
+  - Round 3 named the question beneath (a claim on the window against a claim on the carrier) and found that #3999's count leaves the carrier's end slices unchecked. That is reachable at rest only; the searches' ends are certified crossings.
+  - Round 4 settled it on a fixture: a correct branch leaving through a side parallel to its slices is refused by the section theorem at every rung and certified by the count plus end slices.
+
+  Converged: per-window count or side cover (`strip_reach` as one shared door), plus knot and end-slice coverage, at every door, with `Banked` retired. OQ2 stands; C2's proof sentence changes, so it goes to Ev as an `[ev]` PR once 3999 lands. Probes are on `analysis/design-fork/limb3-at-rest-{a,b}`. Both designers name carrier-to-locus placement (2·residual/margin, up to 10⁴ε on correct shallow carriers) as a separate D4 question, not raised. (SSI orchestrator)
