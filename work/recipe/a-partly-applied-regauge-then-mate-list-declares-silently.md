@@ -2,12 +2,13 @@
 id: a-partly-applied-regauge-then-mate-list-declares-silently
 kind: issue
 title: regauge_then_mate's edit list is computed against the pre-regauge document; applying the insert alone, or first, inserts a DECLARING mate without a word
-status: review
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
 branch: recipe/regauge-then-mate-door
 pr: 3925
+closed: 2026-10-03
 ---
 
 
