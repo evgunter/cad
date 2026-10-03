@@ -162,10 +162,14 @@ is a program that does not compile; `class` is the kernel
 composed with an offset, a `Placement` written in the base's frame (the
 empty chain by default): the base is the side's part frame, or
 `FromFace`, which names no face and is its side's own head face; a
-`MatePrimitive` (`FrameCoincidence`, `Coaxial`,
-`PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
-primitive), an authored `AxisSense` (so no π-flip is inferred) and an
-optional clocking rider. `Node::Pattern` replicates an instance by
+`MatePrimitive` that names only the residual subgroup and carries no
+number (`FrameCoincidence`, `Coaxial { roll: Free | Pinned }`,
+`PlanarRest`); and an authored `AxisSense` (so no π-flip is inferred).
+Every number that says where the two sides meet lives in the sides'
+offsets: the roll about a shared axis is a rotation in an offset, and
+a pinned coaxial's roll is the angle between the two sides' resolved
+references, so no primitive can be written that the table has no row
+for. `Node::Pattern` replicates an instance by
 `PatternKind::Linear`, `Circular` or `Explicit`. Evaluation mints each
 mate's declaration into the product's `ContactRecords`, the same
 currency as the boolean wrapper's; declarations are verified, never
@@ -395,8 +399,7 @@ Empty}` and several mates on one pair fold by exact coset intersection
 (`mate/coset.rs`): DETERMINED, UNDER or CONTRADICTORY, the last refusing
 with the added mate's measured clash. The edit door asks the same
 per-mate admission of a mate being inserted — the walk, the class,
-each frame, the table's row, the rider on a coincidence decided over
-the mate's own lever — so a mate the table refuses on its own is
+each frame, the table's row — so a mate the table refuses on its own is
 refused at the insert door (`EditError::MateRefused`, carrying the
 solve's fault); the doors decide edits and the solve decides states,
 so a verdict about the pair, and a state a mate comes to hold after
@@ -443,7 +446,12 @@ verified by the gate. No cycle is ever solved; an inconsistent loop
 dies at its closing mate's verification (`MateFault::Contradictory`,
 recourse `CONTRADICTORY_RECOURSE`). The solve is total and
 per-node: a refusing group faults its own mate and instances
-(`SolvedPoses::fault`), nothing else. (5) A placed instance's world pose composes its gauge's frame and its
+(`SolvedPoses::fault`), nothing else. The solve states where each instance
+is and what each mate decides, and never that a product exists:
+whether the document has a product is the gather's question alone
+(A10), so a product refusal — `PlacedUnderTwoRoots`, one instance
+placed under two transform roots, among them — is not a mate fault,
+and a document can solve whole and still have no product. (5) A placed instance's world pose composes its gauge's frame and its
 root's offset onto the solved relative pose; a lone instance returns
 its placement's frame bit for bit. An unplaced instance has no world
 pose, only its pose in its group's own frame. It is one of A2a's
