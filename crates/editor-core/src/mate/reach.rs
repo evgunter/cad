@@ -183,14 +183,6 @@ pub enum FacePoseRefusal {
     /// its own body does not hold: the table and the body are one
     /// evaluation's product, emitted together, so no door reaches it.
     Readback(topo::readback::ReadbackError),
-    /// The product is elaborated at a scalar that pins no single
-    /// `f64` (`eval`'s `SectionScalar`: an enclosure or a sensitivity
-    /// lane), so the pose has no `f64` coordinates to read. Reading
-    /// the nominal would drop the pose's own sensitivity to the
-    /// parameters, and pinning an enclosure there would certify a
-    /// face that moves inside the box, so a face frame resolves on
-    /// the nominal lane only ([`super::MateFrame`]).
-    Unpinned,
 }
 
 impl core::fmt::Display for FacePoseRefusal {
@@ -226,12 +218,6 @@ impl core::fmt::Display for FacePoseRefusal {
             Self::Readback(_) => write!(
                 f,
                 "the part's table names a face its own body does not read back. {defect}"
-            ),
-            Self::Unpinned => f.write_str(
-                "the part is elaborated at a scalar that pins no single number, so the face \
-                 has no coordinates the solve can read: a face frame resolves on the nominal \
-                 lane only. Recourse: to solve on this lane, delete the mate and insert it \
-                 again with authored vectors",
             ),
         }
     }

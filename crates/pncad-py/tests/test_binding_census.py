@@ -1060,7 +1060,7 @@ BOUND_AS = {
     # it (`mate_face_unresolved`), and its discriminant is the word that
     # arm publishes: why a `from_face` side's head face answered no pose
     # (`part_unresolved`, `no_such_name`, `ambiguous`, `not_a_face`,
-    # `readback`, `unpinned`, `not_an_instance`, `no_part_face`). The
+    # `readback`, `not_an_instance`, `no_part_face`). The
     # instance crosses as `MateFault.instance`, the face as
     # `MateFault.face`.
     "FaceRefusal": "MateFault.inner_variant",

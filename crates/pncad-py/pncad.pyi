@@ -5552,15 +5552,8 @@ class MateFrame:
     edit the part so the face moves, or rebind the head, and the mate
     follows; split and inline carry it with its head. A face with
     no canonical frame (a NURBS carrier) refuses at the solve and keeps
-    taking authored vectors.
-
-    A face frame resolves at the NOMINAL value only. Under an analysis
-    lane — `stackup.sensitivities`' dual passes, a certified
-    `clearance`'s interval leaf — the part's product pins no single
-    number, so the side refuses `mate_face_unresolved` / `unpinned`
-    rather than drop the pose's own sensitivity: those doors refuse an
-    assembly that holds a face frame, where the same mate authored as
-    vectors still solves."""
+    taking authored vectors. A face frame resolves on every lane: a seed
+    run reads the pose with its tangent, a box run an enclosure of it."""
 
     def __init__(
         self,
@@ -5886,7 +5879,7 @@ class MateFault:
         or `out_of_range` and `below_zero_band`, about the pair's lever
         rather than one part, with no `instance`), or the face refusal's on
         `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
-        `ambiguous`, `not_a_face`, `readback`, `unpinned`,
+        `ambiguous`, `not_a_face`, `readback`,
         `not_an_instance`, `no_part_face`, with the
         instance as `instance` and the face as `face`). `None` on an
         arm whose payload is a struct rather than an enum — an

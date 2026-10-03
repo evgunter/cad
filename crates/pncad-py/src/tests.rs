@@ -5080,7 +5080,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_a_face",
             "part_unresolved",
             "readback",
-            "unpinned",
         ],
         delegates: &[],
     },

@@ -481,8 +481,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                         FacePoseRefusal::PartUnresolved { .. }
                         | FacePoseRefusal::NoSuchName
                         | FacePoseRefusal::Ambiguous { .. }
-                        | FacePoseRefusal::Readback(_)
-                        | FacePoseRefusal::Unpinned => None,
+                        | FacePoseRefusal::Readback(_) => None,
                     },
                 ),
                 FaceRefusal::NotAnInstance { node } => (*node, None),

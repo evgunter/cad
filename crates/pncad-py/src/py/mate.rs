@@ -96,13 +96,9 @@ fn direction(v: pncad::geom_core::Vec3<f64>) -> (f64, f64, f64) {
 /// mate's `AxisSense` says which way the sides point. Nothing is
 /// stored twice: edit the part so the face moves, and the mate
 /// follows. A face with no canonical frame (a NURBS carrier) refuses
-/// at the solve, typed, and keeps taking authored vectors.
-///
-/// A face frame resolves at the NOMINAL value only: under an analysis
-/// lane — `stackup.sensitivities`' dual passes, a certified
-/// `clearance`'s interval leaf — its side refuses `unpinned`, so those
-/// doors refuse an assembly holding one, where the same mate authored
-/// as vectors still solves.
+/// at the solve, typed, and keeps taking authored vectors. A face frame
+/// resolves on every lane: a seed run reads the pose with its tangent,
+/// a box run an enclosure of it.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct MateFrame(pub(crate) d::MateFrame);
@@ -748,8 +744,8 @@ impl MateFault {
     /// text in the PART's own spelling, or the head itself where it
     /// names no face of the part — where the refusal is about one
     /// (`mate_face_unresolved`, whose `inner_variant` names why: the
-    /// part not in hand, the face's own row, tie or carrier, a product
-    /// on an analysis lane, or `no_part_face`).
+    /// part not in hand, the face's own row, tie or carrier, or
+    /// `no_part_face`).
     #[getter]
     fn face(&self, py: Python<'_>) -> PyResult<Option<String>> {
         self.payload()

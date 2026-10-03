@@ -20,7 +20,7 @@
 //! name and an unresolvable part refusing in the resolver's own voice
 //! at the door, at evaluation and never at load;
 //! the memo key moving under an edit to the face's part and holding
-//! under one outside it; a tie and an analysis lane refusing typed;
+//! under one outside it; a tie refusing typed; an analysis lane resolving;
 //! the wire round-trip of both arms, the stray-key refusal, the
 //! untagged frame's and an older file's; and every tracked document
 //! loading on the tagged wire and re-saving byte for byte.
@@ -746,16 +746,26 @@ fn a_tied_face_refuses_ambiguous_at_the_door() {
     );
 }
 
-/// **A face frame resolves on the nominal lane only**: the same seat
-/// evaluated at `Dual64` — the scalar `stackup::sensitivities` runs its
-/// passes at — faults the mate `Unpinned`, naming the instance, the
-/// part and the face, where the `f64` evaluation of the same document
-/// resolves it. The pose's coordinates carry a tangent there, and the
-/// solve's `f64` frames have no place for it.
+/// **A face frame resolves on every lane**: the same seat evaluated at
+/// `Dual64` — the scalar `stackup::sensitivities` runs its passes at —
+/// and at `Interval` — a certified `clearance`'s — evaluates the mate
+/// and places the block, the dual's value channel on the `f64` build's
+/// bits and the interval's enclosure around them. The part is
+/// evaluated with no box and no seed, so the pose carries no tangent
+/// and an enclosure only as wide as rounding.
 #[test]
-fn a_face_frame_under_a_dual_evaluation_refuses_unpinned() {
+fn a_face_frame_under_an_analysis_evaluation_resolves() {
+    use geom_core::Bounds;
     let s = seat("msolve9-dual", 1.0);
-    assert!(run(&s.doc, &s.opts).node_error(s.mate).is_none());
+    let at_f64 = run(&s.doc, &s.opts);
+    assert!(at_f64.node_error(s.mate).is_none());
+    let nominal: Vec<_> = editor_core::all_vertices(&at_f64, s.block_i)
+        .into_iter()
+        .map(|v| {
+            let p = editor_core::vertex_position(&at_f64, s.block_i, &v).expect("a vertex");
+            (v, [p.x, p.y, p.z])
+        })
+        .collect();
     let dual = editor_core::evaluate::<geom_core::Dual64>(
         &s.doc,
         None,
@@ -763,34 +773,39 @@ fn a_face_frame_under_a_dual_evaluation_refuses_unpinned() {
         &s.opts,
         Tol::witness(),
     );
-    let fault = match &dual
-        .node_error(s.mate)
-        .expect("the mate faults at Dual64")
-        .kind
-    {
-        NodeErrorKind::Mate(fault) => (**fault).clone(),
-        other => panic!("a mate's own refusal: {other}"),
-    };
-    let MateFault::FaceUnresolved {
-        side: MateSide::A,
-        refusal,
-        ..
-    } = &fault
-    else {
-        panic!("expected FaceUnresolved, got {fault:?}");
-    };
-    assert!(
-        matches!(
-            refusal.as_ref(),
-            FaceRefusal::Reach {
-                instance,
-                face,
-                refusal: FacePoseRefusal::Unpinned,
-                ..
-            } if *instance == s.post_i && **face == cap(s.post_body, CapEnd::End)
-        ),
-        "{refusal:?}"
+    let interval = editor_core::evaluate::<geom_core::Interval>(
+        &s.doc,
+        None,
+        &CancelToken::new(),
+        &s.opts,
+        Tol::witness(),
     );
+    assert!(
+        dual.node_error(s.mate).is_none(),
+        "{:?}",
+        dual.node_error(s.mate)
+    );
+    assert!(
+        interval.node_error(s.mate).is_none(),
+        "{:?}",
+        interval.node_error(s.mate)
+    );
+    for (v, at) in nominal {
+        let d = editor_core::vertex_position(&dual, s.block_i, &v).expect("placed at Dual64");
+        assert_eq!(
+            [d.x.value, d.y.value, d.z.value].map(f64::to_bits),
+            at.map(f64::to_bits),
+            "the dual's value channel is the f64 build's at {v:?}"
+        );
+        assert_eq!([d.x.deriv, d.y.deriv, d.z.deriv], [0.0; 3]);
+        let i = editor_core::vertex_position(&interval, s.block_i, &v).expect("placed");
+        for (x, t) in [i.x, i.y, i.z].into_iter().zip(at) {
+            assert!(
+                x.lo() <= t && t <= x.hi(),
+                "the enclosure holds {t} at {v:?}"
+            );
+        }
+    }
 }
 
 // ---- The vanished name and the unresolvable part ----

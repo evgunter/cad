@@ -356,11 +356,9 @@ carrier's, and its origin is the face's canonical one. Authored
 vectors are the spelling for a point that is not a face's origin (the
 shelf's two seats above, both on its one underside), and for a roll
 the carrier does not give. A
-face frame also resolves at the NOMINAL value only: under an analysis
-lane — `stackup.sensitivities`' dual passes, a certified `clearance`'s
-interval leaf — the part's product pins no single number, the face
-side refuses `unpinned`, and those two doors refuse an assembly that
-holds one, where the same mate authored as vectors still solves. The
+face frame resolves on every lane: `stackup.sensitivities`' dual passes
+read the pose with its tangent, and a certified `clearance`'s interval
+leaf an enclosure of it. The
 solve's
 *algorithm* is unchanged — coset intersection over decided
 predicates, no numeric fitting — and its inputs are the document plus
@@ -1206,13 +1204,11 @@ is one node whose placements are a rule; a mate names an instance. The
 bench's flat-pack layout and its assembled stand are two documents for
 this reason, not one.
 
-**A face frame gives up two things authored vectors keep.** Its roll
+**A face frame gives up one thing authored vectors keep.** Its roll
 is the carrier's own reference, so it cannot turn a mate about its
-axis; and it resolves on the nominal lane only, so sensitivities and
-certified clearance refuse an assembly that holds one. An authored
-frame keeps both, and pays for them the old way: nothing checks it
-against the faces the mate names, which is why the gate exists, and
-why a mate that solves is not yet a mate that certifies.
+axis. An authored frame keeps it, and pays for it the old way: nothing
+checks it against the faces the mate names, which is why the gate
+exists, and why a mate that solves is not yet a mate that certifies.
 
 **A mate is a product root.** Roots are the live nodes nothing else
 consumes, and a mate is consumed by nothing, so `Doc.roots` on the

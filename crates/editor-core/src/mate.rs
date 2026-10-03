@@ -234,15 +234,10 @@ impl AuthoredFrame {
 /// at the mate, the side, the instance and the part
 /// ([`MateFault::FaceUnresolved`]) and keeps taking authored vectors.
 ///
-/// **A face frame resolves at the nominal value only.** The pose is
-/// read off the part's evaluated product and crosses to the solve as
-/// `f64`; on an analysis lane — the `Dual64` passes of
-/// `stackup::sensitivities`, the `Interval` leaf of a certified
-/// `clearance` — the product's coordinates pin no single number, and
-/// the side refuses [`FacePoseRefusal::Unpinned`] rather than read the
-/// nominal and drop the pose's own sensitivity to the parameters. So
-/// those two doors refuse an assembly that holds a face frame, where
-/// the same mate authored as vectors still solves on every lane.
+/// **A face frame resolves on every lane.** The pose is read off the
+/// part's evaluated product at the evaluation's own scalar, as the
+/// solve runs at it (`ASSEMBLY.md` A11 (5)): at `f64` the nominal, in a
+/// seed run the pose with its tangent, in a box run an enclosure.
 ///
 /// On the wire the arm is externally tagged — `{"Authored": {…}}`, or
 /// the bare string `"FromFace"`, which carries nothing — and the
@@ -1254,9 +1249,9 @@ pub enum MateFault {
     /// mated part's own evaluation answered no pose for the face the
     /// side's head names ([`MateReach::face_pose`]), in the resolver's
     /// or the readback's own voice — the part not in hand, a name the
-    /// part's table lacks or ties, a carrier with no canonical frame, a
-    /// product on an analysis lane — or the head names no face of the
-    /// part at all ([`FaceRefusal`]). Raised
+    /// part's table lacks or ties, a carrier with no canonical frame —
+    /// or the head names no face of the part at all ([`FaceRefusal`]).
+    /// Raised
     /// where the solve reads the side's frame, before the coset table
     /// and before any lever is formed; the insert door raises it for
     /// a mate being inserted, and the solve at every evaluation for a
