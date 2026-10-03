@@ -8,6 +8,7 @@ priority: P0
 cost: H
 design: true
 refs: [loop-walk-branch-is-an-opaque-floor-atom, 3781]
+needs_ev: true
 ---
 
 The follow-on the incidence-and-fidelity unit names, filed when that
