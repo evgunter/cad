@@ -150,3 +150,29 @@ fn census_fold_repro_disjoint_union() {
         }
     }
 }
+
+/// Class (iii): a corner-kiss union carries its contact in the
+/// `BooleanBody`'s records; tier 3 on the bare body passes, the empty
+/// 3′ refuses, and 3′ with the op's own records passes.
+#[test]
+fn census_fold_repro_corner_kiss() {
+    let a = rect_prism(0.0, 1.0, 0.0, 1.0, 1.0);
+    let b = {
+        let p = Profile::new(SketchPlane::xy(), vec![poly(&[(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)])])
+            .validate(tol())
+            .unwrap();
+        // Extruded DOWN, so the boxes meet at the one point (1, 1, 0).
+        extrude(&p, Extrusion::Vector(Vec3::new(0.0, 0.0, -1.0)), tol()).unwrap().body
+    };
+    match topo::union(&a, &b, tol()) {
+        Ok(BooleanResult::Body(bb)) => {
+            println!("REPRO corner kiss: kind={:?} vv={} vf={}", bb.kind, bb.contacts.vv.len(), bb.contacts.a_on_b.len() + bb.contacts.b_on_a.len());
+            gates("corner kiss union", &bb.body);
+            println!(
+                "REPRO corner kiss union: 3'(own records)={:?}",
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).map_err(|e| e.len())
+            );
+        }
+        other => println!("REPRO corner kiss: {}", format!("{other:?}").chars().take(200).collect::<String>()),
+    }
+}
