@@ -1157,8 +1157,6 @@ impl NeighbourOffset {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum RestZipFrontier {
-    /// Two edges of one operand span one segment of the seam.
-    ParallelSeamEdges,
     /// The Euler operator minting a seam chord across its host face
     /// refused.
     ChordMefRefused,
@@ -1172,6 +1170,9 @@ pub enum RestZipFrontier {
     ChordEndpointAbsent,
     /// A seam chord joins two isolated pierce points.
     ChordBetweenIsolatedPierces,
+    /// Seam segments are left whose ends are all isolated pierce points,
+    /// with no boundary for the seam to grow from.
+    SegmentsBetweenIsolatedPierces,
     /// A seam chord's endpoint recurs on its host face's boundary.
     ChordEndpointRevisited,
     /// The other part's edge a chord stands for has no certified line
@@ -1204,12 +1205,14 @@ impl RestZipFrontier {
     #[must_use]
     pub const fn what(self) -> &'static str {
         match self {
-            Self::ParallelSeamEdges => "two parallel operand edges span one seam segment",
             Self::ChordMefRefused => "seam chord mef refused on its host face",
             Self::ChordMekrRefused => "seam chord mekr refused on its host face",
             Self::PierceRingMekrRefused => "seam chord mekr (pierce ring) refused",
             Self::ChordEndpointAbsent => "seam chord endpoint has no boundary presence",
             Self::ChordBetweenIsolatedPierces => "seam chord between two isolated pierce points",
+            Self::SegmentsBetweenIsolatedPierces => {
+                "seam segments left between isolated pierce points only"
+            }
             Self::ChordEndpointRevisited => {
                 "seam chord endpoint revisited by its host face boundary"
             }
@@ -1243,12 +1246,12 @@ impl RestZipFrontier {
             // the seam no move of the parts is known to avoid while
             // keeping the contact: a contact already planar can meet
             // them (two isolated pierce points).
-            Self::ParallelSeamEdges
-            | Self::ChordMefRefused
+            Self::ChordMefRefused
             | Self::ChordMekrRefused
             | Self::PierceRingMekrRefused
             | Self::ChordEndpointAbsent
             | Self::ChordBetweenIsolatedPierces
+            | Self::SegmentsBetweenIsolatedPierces
             | Self::ChordEndpointRevisited
             | Self::TwinCarrierUnsupported
             | Self::PatchVertexUnmatched
