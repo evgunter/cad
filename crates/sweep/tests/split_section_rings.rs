@@ -383,8 +383,8 @@ fn a_hairline_slot_cut_nearly_along_its_axis_answers() {
 /// join, the unleaned pose answers, and every pose that answers is at
 /// rest. A lean that puts a crossing vertex's sector bisector in the
 /// band refuses at the reduction (`split_bisector_side`), and one the
-/// pcurve mint cannot certify refuses there (`pcurve_trim_containment`)
-/// — stages before and after the join's order, not this row's subject.
+/// pcurve mint cannot certify refuses there — stages before and after
+/// the join's order, not this row's subject.
 /// (Review R1's concern.)
 #[test]
 fn a_cap_line_a_hair_off_the_sweeps_v_axis_never_refuses_at_the_join() {

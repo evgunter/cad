@@ -328,14 +328,7 @@ fn a_tampered_branch_is_refused_at_rest() {
     let band = Band::linear(Tol::witness()).unwrap();
     // A window wide enough that trim containment is not what fires —
     // the finding must be the BRANCH, not the box.
-    let window = topo::ChartWindow {
-        u_min: -100.0,
-        u_max: 100.0,
-        v_min: -100.0,
-        v_max: 100.0,
-    };
-    let tampered =
-        topo::PcurveCache::certify(shifted, t0, t1, &carrier, &surface, window, band).unwrap();
+    let tampered = topo::PcurveCache::certify(shifted, t0, t1, &carrier, &surface, band).unwrap();
     above.attach_pcurve(victim, tampered);
     let findings = topo::pcurves::validate_pcurves(&above, band);
     assert!(

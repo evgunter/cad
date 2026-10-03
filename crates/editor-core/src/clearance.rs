@@ -1796,7 +1796,8 @@ pub fn min_separation(
     // every drive over a `min_clearance` document its certified leaves:
     // this door is called from inside an evaluation, so MINTING the
     // description records the boundary walk's own funnel rows
-    // (`pcurve_loop_closure`, `_height`, `_continuity`, `_pole_joint`)
+    // (`pcurve_loop_branch`, `_pole_joint`, and on a spline chart
+    // `_continuity`)
     // in the leaf's census, while the `f64` witness build never walks
     // at all — `MinClearanceLane for f64` answers `None` — so the two
     // builds differ `0 -> N` on every box and the leaf refuses

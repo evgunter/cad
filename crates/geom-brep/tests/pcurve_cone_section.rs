@@ -8,17 +8,8 @@
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{PlaneConeSection, plane_cone_section};
-use geom_brep::{ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, chart_pcurve};
+use geom_brep::{EnvelopeStatement, Pcurve, PcurveCache, chart_pcurve};
 use geom_core::{Point3, Vec3};
-
-fn wide() -> ChartWindow<f64> {
-    ChartWindow {
-        u_min: -20.0,
-        u_max: 20.0,
-        v_min: -20.0,
-        v_max: 20.0,
-    }
-}
 
 /// A cone off the origin about a skew axis, given with either axis
 /// sign. The two are the same locus; the cut below lies on the `+axis`
@@ -112,7 +103,7 @@ fn the_image_is_exact_on_both_nappes_and_both_traversals() {
                 let d = surface.eval(uv.x, uv.y).distance(carrier.eval(t));
                 assert!(d < 1e-12, "{what}: t {t}: {d:e}");
             }
-            let cache = PcurveCache::certify(image, 0.3, 4.0, &carrier, &surface, wide(), band())
+            let cache = PcurveCache::certify(image, 0.3, 4.0, &carrier, &surface, band())
                 .unwrap_or_else(|e| panic!("{what}: {e}"));
             let cert = cache.certificate();
             assert!(
@@ -165,7 +156,7 @@ fn a_wrong_number_in_the_image_refuses() {
             sense,
         };
         assert!(
-            PcurveCache::certify(bad, 0.3, 4.0, &carrier, &surface, wide(), band()).is_err(),
+            PcurveCache::certify(bad, 0.3, 4.0, &carrier, &surface, band()).is_err(),
             "{name} moved by {h} still certifies"
         );
     }
@@ -185,7 +176,7 @@ fn a_wrong_number_in_the_image_refuses() {
         u_ref,
     };
     assert!(
-        PcurveCache::certify(image, 0.3, 4.0, &carrier, &other, wide(), band()).is_err(),
+        PcurveCache::certify(image, 0.3, 4.0, &carrier, &other, band()).is_err(),
         "the image certified against another cone"
     );
 }
@@ -227,9 +218,8 @@ fn the_envelope_covers_an_admitted_slant_error() {
                 sense,
             };
             let (t0, t1) = (0.3, 4.0);
-            let cache =
-                PcurveCache::certify(moved.clone(), t0, t1, &carrier, &surface, wide(), band())
-                    .unwrap_or_else(|e| panic!("{what}: {e}"));
+            let cache = PcurveCache::certify(moved.clone(), t0, t1, &carrier, &surface, band())
+                .unwrap_or_else(|e| panic!("{what}: {e}"));
             let envelope = cache.certificate().envelope;
             let sup = (0..=4096)
                 .map(|i| {

@@ -17,9 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{
-    ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError, SpiricImage,
-};
+use geom_brep::{EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError, SpiricImage};
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 
 const R: f64 = 0.09375;
@@ -113,19 +111,7 @@ fn certify(
     surface: &Surface<f64>,
     b: Band,
 ) -> Result<PcurveCache<f64>, PcurveCertifyError> {
-    let window = wide();
-    PcurveCache::certify(p, T0, T1, &carrier(), surface, window, b)
-}
-
-/// A window no chart box can escape — check 5 is not what these rows
-/// are about.
-fn wide() -> ChartWindow<f64> {
-    ChartWindow {
-        u_min: -100.0,
-        u_max: 100.0,
-        v_min: -100.0,
-        v_max: 100.0,
-    }
+    PcurveCache::certify(p, T0, T1, &carrier(), surface, b)
 }
 
 /// **The minted pair is the baseline**: the wall certifies

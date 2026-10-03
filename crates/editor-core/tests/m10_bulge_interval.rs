@@ -105,6 +105,16 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   decisions, definite.
 /// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
 ///   node between them, four joints' two ends go through the door.
+///
+/// **PCERT's chart-angle unit** retires the loop's angle equalities and
+/// check 5: `pcurve_loop_continuity` (9/0/4/5), `pcurve_loop_closure`
+/// (0/0/0/3), `pcurve_loop_closure_height` (3/0/0/0) and
+/// `pcurve_trim_containment` (18/0/0/30) leave the table, and
+/// `pcurve_loop_pole_joint` (0/0/0/9) goes with them: a cylinder has no
+/// singular set, so no joint of it decides one. `pcurve_loop_branch`
+/// 0/0/0/18 -> 0/0/0/24: the closure is the closing joint's integer,
+/// two more marks on each of the three loops. The same rows move the
+/// same way on the boss.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
@@ -139,13 +149,8 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("pcurve_envelope", [8, 0, 0, 4]),
     ("pcurve_fidelity_branch", [0, 0, 0, 24]),
     ("pcurve_interval_forward", [0, 0, 0, 12]),
-    ("pcurve_loop_branch", [0, 0, 0, 18]),
-    ("pcurve_loop_closure", [0, 0, 0, 3]),
-    ("pcurve_loop_closure_height", [3, 0, 0, 0]),
-    ("pcurve_loop_continuity", [9, 0, 4, 5]),
-    ("pcurve_loop_pole_joint", [0, 0, 0, 9]),
+    ("pcurve_loop_branch", [0, 0, 0, 24]),
     ("pcurve_map_residual", [0, 0, 18, 0]),
-    ("pcurve_trim_containment", [18, 0, 0, 30]),
     ("segment_straightness", [6, 0, 0, 6]),
     ("side_cylinders_cosurface", [2, 0, 0, 0]),
     ("side_planes_cosurface", [0, 0, 0, 2]),
@@ -256,13 +261,8 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_envelope", [12, 0, 0, 0]),
             ("pcurve_fidelity_branch", [0, 0, 0, 24]),
             ("pcurve_interval_forward", [0, 0, 0, 12]),
-            ("pcurve_loop_branch", [0, 0, 0, 18]),
-            ("pcurve_loop_closure", [0, 0, 0, 3]),
-            ("pcurve_loop_closure_height", [3, 0, 0, 0]),
-            ("pcurve_loop_continuity", [9, 0, 6, 3]),
-            ("pcurve_loop_pole_joint", [0, 0, 0, 9]),
+            ("pcurve_loop_branch", [0, 0, 0, 24]),
             ("pcurve_map_residual", [0, 0, 18, 0]),
-            ("pcurve_trim_containment", [0, 18, 0, 30]),
             ("segment_straightness", [2, 0, 0, 6]),
             ("side_cylinders_cosurface", [2, 0, 0, 0]),
             ("vertex_separation", [0, 0, 0, 8]),

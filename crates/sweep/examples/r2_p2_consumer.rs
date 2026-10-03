@@ -273,7 +273,6 @@ fn main() {
                 let (a, b) = c.params();
                 (c.carrier().clone(), a, b)
             };
-            let window = out.as_ref().unwrap().chart_box(ct0, ct1);
             let surf = Surface::Nurbs(Arc::new(chart.clone()));
             // (a) with no mate:
             let with_mint_mate = PcurveCache::certify_general(
@@ -283,7 +282,6 @@ fn main() {
                 &cc,
                 &surf,
                 None,
-                window,
                 band,
                 <f64 as topo::AtRestPolicy>::fitted_lane(),
             );
@@ -303,7 +301,6 @@ fn main() {
                 &cc,
                 &surf,
                 Some(&plane_surf),
-                window,
                 band,
                 <f64 as topo::AtRestPolicy>::fitted_lane(),
             );
@@ -377,7 +374,6 @@ fn main() {
                 Some(acc) => geom_brep::ChartWindow::<f64>::hull(acc, bx),
             });
         }
-        let window = window.unwrap();
         println!("\nQ4  all derived — now the CERTIFICATION door on each:");
         for (he, p, a, b) in &boxes {
             let e = cleared
@@ -397,12 +393,11 @@ fn main() {
                         &cc,
                         &surf,
                         mate,
-                        window,
                         band,
                         <f64 as topo::AtRestPolicy>::fitted_lane(),
                     )
                 }
-                other => PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, window, band),
+                other => PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, band),
             };
             println!(
                 "  {he:?}: {}",
@@ -433,7 +428,6 @@ fn main() {
                 Some(acc) => geom_brep::ChartWindow::<f64>::hull(acc, bx),
             });
         }
-        let window = window.unwrap();
         println!("\nQ5  the certification door, forced (window = hull of the 3 derived boxes):");
         for (he, p, a, b) in &boxes {
             let e = cleared
@@ -453,14 +447,13 @@ fn main() {
                         &cc,
                         &surf,
                         None,
-                        window,
                         band,
                         <f64 as topo::AtRestPolicy>::fitted_lane(),
                     ),
                 ),
                 other => (
                     "IsoLine from the WIDENED cap-rim branch",
-                    PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, window, band),
+                    PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, band),
                 ),
             };
             println!(

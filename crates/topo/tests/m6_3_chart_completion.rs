@@ -180,7 +180,6 @@ where
     let (t0, t1) = (T::from_f64(f0), T::from_f64(f1));
     let image = Arc::new(lift2::<T>(&lane_image()));
     let (mut body, he_plus, he_minus) = spur_body(&carrier, tilted_plane::<T>(), ARC);
-    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
     // Both half-edges live in the sphere face's loop (the spur-edge
     // shape), and a face with ANY cache must be complete — attach to
     // both, exactly as the M6-2 fixture does.
@@ -192,7 +191,6 @@ where
             &carrier,
             &sphere::<T>(),
             Some(&tilted_plane::<T>()),
-            window,
             band,
             T::fitted_lane().expect("a certifying scalar holds the fitted door"),
         )?;
@@ -399,7 +397,6 @@ fn a_corrupted_image_refuses_between_its_samples() {
         NurbsCurve2::new(image.knots().clone(), control, image.weights().to_vec())
             .expect("same structure"),
     );
-    let window = Pcurve::Fitted(Arc::clone(&corrupted)).chart_box(t0, t1);
     let err = PcurveCache::<f64>::certify_fitted(
         corrupted,
         t0,
@@ -407,7 +404,6 @@ fn a_corrupted_image_refuses_between_its_samples() {
         &general_circle::<f64>(),
         &sphere::<f64>(),
         None,
-        window,
         band,
         geom_brep::FittedLane::certified(),
     )

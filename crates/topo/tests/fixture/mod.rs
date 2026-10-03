@@ -49,7 +49,7 @@ use std::sync::Arc;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
-use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::{Body, HalfEdgeKey};
@@ -80,7 +80,6 @@ pub struct Built<T: Real> {
     pub image: Arc<NurbsCurve2<T>>,
     pub cylinder: Surface<T>,
     pub sphere: Surface<T>,
-    pub window: ChartWindow<T>,
 }
 
 fn cylinder<T: Real>() -> Surface<T> {
@@ -342,7 +341,6 @@ where
         )
         .expect("the rung-3 edge certifies at rest");
 
-    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
     let edge = body.get_edge(made.edge).expect("the edge resolves");
     let (he_plus, he_minus) = (edge.he_plus, edge.he_minus);
     for he in [he_plus, he_minus] {
@@ -353,7 +351,6 @@ where
             &Curve3::Nurbs(Arc::clone(&carrier)),
             &cylinder::<T>(),
             Some(&sphere::<T>()),
-            window,
             band,
             T::fitted_lane().expect("a certifying scalar holds the fitted door"),
         )
@@ -369,6 +366,5 @@ where
         image,
         cylinder: cylinder::<T>(),
         sphere: sphere::<T>(),
-        window,
     }
 }

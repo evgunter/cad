@@ -139,46 +139,27 @@
 //!
 //! # Domain validity (spec §3)
 //!
-//! Two limbs, both part of the certificate:
+//! A row certifies against its carrier and its chart alone, on **one
+//! branch**: on a periodic chart the azimuth channel of a
+//! [`Pcurve::Harmonic`] is `α + β·t` with a *single* stored `α` and a
+//! winding `β ∈ {−1, 0, +1}`. There is no per-sample branch choice to
+//! get wrong: the M2 PR 5 meridian finding ("nearest-previous
+//! per-sample unwrapping is a bug") is generalized here by making the
+//! wrong unwrap **unrepresentable** — a τ jump cannot be expressed. The
+//! one-period statement certified here is the row's own azimuth extent
+//! ([`PcurveCheck::AzimuthPeriod`]).
 //!
-//! - **One branch, pinned at the start.** On a periodic chart the
-//!   azimuth channel of a [`Pcurve::Harmonic`] is `α + β·t` with a
-//!   *single* stored `α` and a winding `β ∈ {−1, 0, +1}`. There is no
-//!   per-sample branch choice to get wrong: the M2 PR 5 meridian
-//!   finding ("nearest-previous per-sample unwrapping is a bug")
-//!   is generalized here by making the wrong unwrap
-//!   **unrepresentable** — a τ jump cannot be expressed. Which branch
-//!   (`α + kτ`) a given half-edge takes is chosen once per face by the
-//!   loop walk in `topo::pcurves` and *certified* by loop continuity
-//!   there.
-//! - **Trim containment.** The certificate records exactly one thing:
-//!   that the pcurve's chart-box enclosure lies inside the face's chart
-//!   window ([`ChartWindow`], supplied by the caller — the face's own
-//!   one-branch hull); escaping it is the typed
-//!   [`PcurveCertifyError::TrimEscape`]. It is a **precondition this
-//!   door requires of its caller**, and what it buys is that it is the
-//!   cache's only BRANCH constraint: on a periodic chart a τ-shifted
-//!   pcurve certifies every other check identically, so this is the
-//!   one check that can tell the two apart. Whether any given caller
-//!   can trip it is that caller's property. `topo::pcurves`'s mint
-//!   cannot, by construction (its window is the hull of the boxes it
-//!   checks); its split carry is a real check — each half against a
-//!   window holding the parent's box — that a half passes because
-//!   [`Pcurve::chart_box`] is restriction-monotone. Two honesty notes,
-//!   both binding:
-//!   - The window is a conservative *over-approximation* of the trim
-//!     region (a box, not the region bounded by the loop).
-//!     Point-in-trim-region is the tessellation trim-loop consumer's,
-//!     arriving with PR 11.
-//!   - **No bound on the window's own azimuth width is certified
-//!     here.** The one-period statement that IS certified is the
-//!     per-pcurve azimuth extent ([`PcurveCheck::AzimuthPeriod`]) plus,
-//!     at body level, the loop-closure check in `topo::pcurves` (a
-//!     loop's total azimuth advance is 0 or exactly ±τ). A naive
-//!     "window width ≤ τ" check would be WRONG as stated: a full rim's
-//!     box spans the whole turn in azimuth, so a legitimately minted
-//!     seam-closed wall's window is a full period wide before any
-//!     conservatism in the boxes is counted.
+//! No caller's window enters the certificate, and nothing here tells a
+//! row from the same row a whole period over: both certify
+//! identically. Which branch (`α + kτ`) a half-edge takes is the
+//! loop's fact, decided in `topo::pcurves`: at each joint the walk
+//! decides the deck element as an integer ([`whole_periods`]), with
+//! half the step to the next orbit point as room (half a period, or a
+//! quarter on a sphere, whose twin sits half a period over), and each
+//! loop winds at most one period per channel. A joint's
+//! 3-D coincidence is not a chart fact either: it follows from the two
+//! rows' envelopes (check 4) and the edge certificate's pinning of each
+//! carrier's ends to its vertices.
 //!
 //! # Consumers
 //!
@@ -294,7 +275,7 @@ pub enum Pcurve<T: Real> {
     /// `Intersection` loci, and any chart image a future lane fits
     /// directly).
     ///
-    /// It certifies at exactly the Fitted GRADE — the same five checks
+    /// It certifies at exactly the Fitted GRADE — the same four checks
     /// over the same carrier kind (over a rung-3 carrier, the C2
     /// certificate: hull sup-norm and uniqueness tube), through
     /// [`PcurveCache::certify_general`] — because the grade is a
@@ -615,7 +596,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
     // `[t0, t0 + angle]` the map is a genuine extrapolation and `g` is
     // legitimately outside `[0, 1]`; the clamp saturates it. Every
     // caller evaluates on the trimmed interval (the schedule, the loop
-    // walk's entry/exit, `trim_containment`), and `locate_spans`
+    // walk's entry/exit, `chart_box`), and `locate_spans`
     // already saturated the span choice off-domain, so no caller sees
     // a changed answer — but a future off-domain one would, and that
     // is a property of this function, not an accident of its callers.
@@ -639,8 +620,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
 /// A channel with only one of the two parts — every image a
 /// constructor mints — gets the meet of the whole channel's chord and
 /// ball. **Restriction-monotone**: a sub-span's box lies inside the
-/// span's, which [`Pcurve::chart_box`]'s callers that re-certify a
-/// split edge's halves against the parent's window rely on. The linear
+/// span's. The linear
 /// box is monotone exactly; the trigonometric box is pinned by
 /// `tests/chart_box_span.rs`'s sub-span fuzz. Summing the parts rather
 /// than taking one chord of the whole channel is what buys it: a
@@ -886,9 +866,7 @@ impl<T: Real> Pcurve<T> {
     /// parameter: `S'(u, −v) = origin + u_ref·u + (−v_ref)·(−v)`, and
     /// `(−a)·(−b)` is `a·b` exactly in IEEE arithmetic, so every
     /// coordinate is bit-identical up to the sign of a zero, which a
-    /// distance squares away (a squared zero is `+0`). The window a
-    /// face's rows hull mirrors with them (`(−a) − (−b)` is `b − a`
-    /// exactly). So every number the schedule would produce again is
+    /// distance squares away (a squared zero is `+0`). So every number the schedule would produce again is
     /// the number it produced, and the certificate travels verbatim —
     /// the same reading [`crate::EdgeCurve::with_remapped_surfaces`]
     /// lands under: a re-statement under which no metred value can
@@ -995,17 +973,15 @@ impl<T: SpanLocate> Pcurve<T> {
     }
 
     /// A **conservative** chart-box enclosure of the pcurve over
-    /// `[t₀, t₁]` — a box over-approximation (module docs), always
-    /// sound in the containment direction: it can only make a
-    /// containment claim harder to satisfy, never falsely satisfied.
+    /// `[t₀, t₁]`: every point of the image over the span lies in it,
+    /// so an extent read off it (check 2's azimuth headroom, the cone's
+    /// `|v|` reach) can only be over-stated.
     /// A harmonic or iso-line image's box is `harmonic_span_box`'s, and
     /// a cone-section image's [`Pcurve::closed_form_span_box`]'s.
     ///
     /// **Restriction-monotone on every arm**: a sub-span's box lies
     /// inside the span's (the net and arc-segment arms ignore the span;
-    /// the harmonic arm by its construction's docs). A split edge's
-    /// halves re-certified against a window holding the parent's box
-    /// therefore cannot escape it.
+    /// the harmonic arm by its construction's docs).
     pub fn chart_box(&self, t0: T, t1: T) -> ChartWindow<T> {
         match self {
             Pcurve::Harmonic { p0, pa, pb, pl } => harmonic_span_box(*p0, *pa, *pb, *pl, t0, t1),
@@ -1087,7 +1063,7 @@ impl<T: SpanLocate> Pcurve<T> {
             //
             // Whole-period in `f` like the carrier's own box, so a
             // sub-span gets a conservative answer, never a wrong one —
-            // the containment direction every arm here keeps.
+            // the enclosure every arm here keeps.
             Pcurve::Spiric {
                 major,
                 minor,
@@ -1166,9 +1142,8 @@ impl<T: SpanLocate> Pcurve<T> {
     }
 }
 
-/// A chart-space axis-aligned window: the conservative
-/// over-approximation of a face's trim region the domain-validity limb
-/// certifies against (module docs).
+/// A chart-space axis-aligned box: the conservative enclosure of a
+/// row's image over a span ([`Pcurve::chart_box`]).
 #[derive(Clone, Copy, Debug)]
 pub struct ChartWindow<T: Real> {
     /// Lower azimuth/first-parameter bound.
@@ -1219,8 +1194,6 @@ pub enum PcurveCheck {
     ChartWinding,
     /// The pcurve's azimuth extent against one period.
     AzimuthPeriod,
-    /// The pcurve's chart box against the face's window.
-    TrimContainment,
 }
 
 /// One term of check 4's envelope on a periodic chart — the bound the
@@ -1708,10 +1681,6 @@ pub enum PcurveCertifyError {
         /// The schedule sample index (0 for span-wide checks).
         sample: u32,
     },
-    /// The pcurve leaves the face's chart window — the trim-containment
-    /// limb of domain validity (module docs: a box over-approximation
-    /// at M5).
-    TrimEscape,
     /// A classification escalated (sliver band or poison) — D4 ¶3's
     /// escalate-never-guess.
     Escalated {
@@ -1877,11 +1846,6 @@ impl core::fmt::Display for PcurveCertifyError {
                  tolerance band — the pcurve does not represent the carrier through the \
                  map (D4 ¶2; the residual is a 3-D displacement in metres)"
             ),
-            Self::TrimEscape => write!(
-                f,
-                "pcurve certification: the pcurve leaves its face's chart window — domain \
-                 validity is part of the certificate"
-            ),
             Self::Escalated {
                 check,
                 sample,
@@ -1910,7 +1874,6 @@ impl PcurveCertifyError {
             Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain),
             Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain),
             Self::AzimuthPeriodExceeded => (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain),
-            Self::TrimEscape => (PcurveCheck::TrimContainment, RefusedArm::SignCertain),
             // The fitted lane's SSI certificate is an approximation's, as
             // the plane × NURBS lane's residual limbs are
             // (`CertCheck::PlaneNurbsOnLocus`, `CertCheck::PlaneNurbsHull`).
@@ -1948,10 +1911,10 @@ impl PcurveCheck {
             Self::AzimuthPeriod => crate::certify::recourse(CertCheck::ParamWinding, arm, reading),
             // The winding the kernel stores exactly: a form selection.
             Self::ChartWinding => Unsized::Defect.recourse(arm, reading),
-            // A map residual, its between-samples envelope and the trim
-            // box are bounds on a fitted image as well as an exact one,
-            // and the routing reads the check alone.
-            Self::MapResidual | Self::Envelope | Self::EnvelopeTerm(_) | Self::TrimContainment => {
+            // A map residual and its between-samples envelope are
+            // bounds on a fitted image as well as an exact one, and the
+            // routing reads the check alone.
+            Self::MapResidual | Self::Envelope | Self::EnvelopeTerm(_) => {
                 Unsized::LastResort.recourse(arm, reading)
             }
         }
@@ -2818,10 +2781,10 @@ impl<T: Decide> PcurveCache<T> {
     /// Certifies a **closed-form** image — [`Pcurve::Harmonic`],
     /// [`Pcurve::IsoLine`], [`Pcurve::IsoArc`], [`Pcurve::Spiric`] or
     /// [`Pcurve::ConeSection`] — of `carrier` on `surface` over
-    /// `[t0, t1]`, inside the face's chart `window`: the minting lane's
-    /// door, at every `Decide` scalar. Which of the five is being
-    /// certified selects the check-4 statement and nothing else; the
-    /// other four checks are one sequence.
+    /// `[t0, t1]`: the minting lane's door, at every `Decide` scalar.
+    /// Which of the five is being certified selects the check-4
+    /// statement and nothing else; the other three checks are one
+    /// sequence.
     ///
     /// A [`Pcurve::Fitted`] image refuses here, naming
     /// [`PcurveCache::certify_fitted`]: the fitted lane's certificate
@@ -2874,8 +2837,6 @@ impl<T: Decide> PcurveCache<T> {
     ///    - [`Pcurve::ConeSection`]: the harmonic closed form of the
     ///      image's Kepler decomposition plus its remainder term
     ///      (`run_cone_section_checks`).
-    /// 5. **Trim containment**: the pcurve's chart box lies inside
-    ///    `window`.
     ///
     /// # Errors
     ///
@@ -2888,7 +2849,6 @@ impl<T: Decide> PcurveCache<T> {
         t1: T,
         carrier: &Curve3<T>,
         surface: &Surface<T>,
-        window: ChartWindow<T>,
         band: Band,
     ) -> Result<Self, PcurveCertifyError> {
         let certificate = match &pcurve {
@@ -2902,9 +2862,7 @@ impl<T: Decide> PcurveCache<T> {
             // The iso lane (M6-3): closed-form like the harmonic one —
             // no mate operand, no bracket obligation — so it shares
             // this `Decide`-scalar door.
-            Pcurve::IsoLine { p0, pl } => {
-                run_iso_checks(*p0, *pl, t0, t1, carrier, surface, window, band)?
-            }
+            Pcurve::IsoLine { p0, pl } => run_iso_checks(*p0, *pl, t0, t1, carrier, surface, band)?,
             Pcurve::IsoArc {
                 p0,
                 pd,
@@ -2912,7 +2870,7 @@ impl<T: Decide> PcurveCache<T> {
                 angle,
                 breaks,
             } => run_iso_arc_checks(
-                *p0, *pd, *at0, *angle, breaks, t0, t1, carrier, surface, window, band,
+                *p0, *pd, *at0, *angle, breaks, t0, t1, carrier, surface, band,
             )?,
             // EXHAUSTIVE by variant, never a catch-all (D3): a
             // catch-all here would route a NEW closed-form variant
@@ -2920,16 +2878,16 @@ impl<T: Decide> PcurveCache<T> {
             // not say a word. Adding a variant must be a
             // compiler-guided edit at every dispatch site.
             harmonic @ Pcurve::Harmonic { .. } => {
-                run_harmonic_checks(harmonic, t0, t1, carrier, surface, window, band)?
+                run_harmonic_checks(harmonic, t0, t1, carrier, surface, band)?
             }
             // The spiric lane: closed-form like the harmonic and iso
             // ones — no mate operand, no bracket obligation — so it
             // shares this `Decide`-scalar door.
             spiric @ Pcurve::Spiric { .. } => {
-                run_spiric_checks(spiric, t0, t1, carrier, surface, window, band)?
+                run_spiric_checks(spiric, t0, t1, carrier, surface, band)?
             }
             section @ Pcurve::ConeSection { .. } => {
-                run_cone_section_checks(section, t0, t1, carrier, surface, window, band)?
+                run_cone_section_checks(section, t0, t1, carrier, surface, band)?
             }
         };
         Ok(Self {
@@ -2961,7 +2919,7 @@ impl<T: Decide> PcurveCache<T> {
     /// (`docs/PCURVE-UNIFY-DESIGN.md` U2) certifies through
     /// [`PcurveCache::certify_general`] beside this door.
     ///
-    /// Same five checks in the same fixed order as
+    /// Same four checks in the same fixed order as
     /// [`PcurveCache::certify`], with two differences that are the
     /// whole content of the lane: check 1 admits a `Curve3::Nurbs` or
     /// an exact `Curve3::Circle` carrier, and check 4 is a hull bound
@@ -2995,21 +2953,11 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         mate: Option<&Surface<T>>,
-        window: ChartWindow<T>,
         band: Band,
         lane: crate::FittedLane<T>,
     ) -> Result<Self, PcurveCertifyError> {
-        let certificate = run_fitted_checks(
-            &image,
-            t0,
-            t1,
-            carrier,
-            surface,
-            mate,
-            window,
-            band,
-            Some(lane),
-        )?;
+        let certificate =
+            run_fitted_checks(&image, t0, t1, carrier, surface, mate, band, Some(lane))?;
         Ok(Self {
             pcurve: Pcurve::Fitted(image),
             param_start: t0,
@@ -3019,7 +2967,7 @@ impl<T: Decide> PcurveCache<T> {
     }
 
     /// Certifies a **general curve-in-UV** ([`Pcurve::General`], U2's
-    /// arm) at the FITTED GRADE: the identical five checks in the
+    /// arm) at the FITTED GRADE: the identical four checks in the
     /// identical order as [`PcurveCache::certify_fitted`], against the
     /// identical `(surface, mate)` operand pair, producing the
     /// identical certificate.
@@ -3067,12 +3015,10 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         mate: Option<&Surface<T>>,
-        window: ChartWindow<T>,
         band: Band,
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<Self, PcurveCertifyError> {
-        let certificate =
-            run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band, lane)?;
+        let certificate = run_fitted_checks(&image, t0, t1, carrier, surface, mate, band, lane)?;
         Ok(Self {
             pcurve: Pcurve::General(image),
             param_start: t0,
@@ -3108,7 +3054,6 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         mate: Option<&Surface<T>>,
-        window: ChartWindow<T>,
         band: Band,
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
@@ -3120,7 +3065,6 @@ impl<T: Decide> PcurveCache<T> {
                 carrier,
                 surface,
                 mate,
-                window,
                 band,
                 lane,
             ),
@@ -3131,7 +3075,6 @@ impl<T: Decide> PcurveCache<T> {
                 self.param_end,
                 carrier,
                 surface,
-                window,
                 band,
             ),
             Pcurve::IsoArc {
@@ -3150,7 +3093,6 @@ impl<T: Decide> PcurveCache<T> {
                 self.param_end,
                 carrier,
                 surface,
-                window,
                 band,
             ),
             spiric @ Pcurve::Spiric { .. } => run_spiric_checks(
@@ -3159,7 +3101,6 @@ impl<T: Decide> PcurveCache<T> {
                 self.param_end,
                 carrier,
                 surface,
-                window,
                 band,
             ),
             section @ Pcurve::ConeSection { .. } => run_cone_section_checks(
@@ -3168,7 +3109,6 @@ impl<T: Decide> PcurveCache<T> {
                 self.param_end,
                 carrier,
                 surface,
-                window,
                 band,
             ),
             // Exhaustive by variant (see `certify`).
@@ -3178,7 +3118,6 @@ impl<T: Decide> PcurveCache<T> {
                 self.param_end,
                 carrier,
                 surface,
-                window,
                 band,
             ),
         }
@@ -3472,9 +3411,9 @@ impl ChartWindings {
 /// OVER-statement per kind (module docs' sphere note): cylinder `r`,
 /// sphere `r` (true arm `r·cos v ≤ r`), torus `R + r` (the outer
 /// equator's), cone `v_sup·sin α` — the cone has no surface-level
-/// constant, so the caller supplies the pcurve's/window's own `|v|`
-/// sup, which dominates the local arm `v·sin α` everywhere the object
-/// being metered lives.
+/// constant, so the caller supplies the pcurve box's own `|v|` sup,
+/// which dominates the local arm `v·sin α` everywhere the object being
+/// metered lives.
 fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
     match *surface {
         Surface::Cylinder { radius, .. } | Surface::Sphere { radius, .. } => radius,
@@ -3707,7 +3646,6 @@ fn run_harmonic_checks<T: Decide>(
     t1: T,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
-    window: ChartWindow<T>,
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     let Pcurve::Harmonic { p0, pa, pb, pl } = *pcurve else {
@@ -3858,9 +3796,6 @@ fn run_harmonic_checks<T: Decide>(
             });
         }
     }
-
-    // ---- Check 5: trim containment (the chart-box limb). ----
-    trim_containment(pcurve, t0, t1, surface, window, band)?;
 
     Ok(PcurveCertificate {
         samples,
@@ -4390,9 +4325,10 @@ pub enum BranchMiss {
     /// branch at this width (D4 ¶3, escalate-never-guess).
     Undecided(Indeterminate),
     /// The gap sits ON a half-period mark (the mark decided Zero): it
-    /// is half a period from two branches and is the gap of neither —
-    /// a stored image a half period off, or a sphere's involution twin
-    /// read with period `τ`.
+    /// is half a period from two branches and is the gap of neither — a
+    /// stored image half a period off (`topo::pcurves` reads a sphere's
+    /// twin as its own orbit point, with half the period, so a twin is
+    /// never this).
     OnMark,
     /// The gap is more than [`MAX_BRANCH_PERIODS`] periods out.
     OutOfReach,
@@ -4420,7 +4356,7 @@ pub fn whole_periods<T: Decide>(
     period: T,
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
-) -> Result<T, BranchMiss> {
+) -> Result<i32, BranchMiss> {
     let half = T::from_f64(0.5);
     let mark = |k: i32, side: T| {
         decide(
@@ -4462,7 +4398,7 @@ pub fn whole_periods<T: Decide>(
                 }
             }
         }
-        return Ok(T::from_f64(f64::from(k)));
+        return Ok(k);
     }
 }
 
@@ -4523,6 +4459,7 @@ fn fidelity<T: Decide>(
             |gap| Margin::levered(gap, arm.get()),
             band,
         )
+        .map(|k| T::from_f64(f64::from(k)))
     };
     // The azimuth's branch, and on a sphere whether the stored image is
     // `P_d` or its involution twin `(u + π, π − v)`: both are branches
@@ -4589,7 +4526,7 @@ fn fidelity<T: Decide>(
     Ok(())
 }
 
-/// **The cone-section lane's five checks** — the harmonic lane's order
+/// **The cone-section lane's four checks** — the harmonic lane's order
 /// and meters, with check 4 the harmonic lane's closed form plus one
 /// remainder term.
 ///
@@ -4619,14 +4556,12 @@ fn fidelity<T: Decide>(
 ///    rounding-scale on a minted image (the remainder vanishes in ℝ
 ///    exactly when the image is a section of this cone), and the drift
 ///    a banded `sense` admitted rides on top.
-/// 5. **Trim containment**: the shared chart-box limb.
 fn run_cone_section_checks<T: Decide>(
     pcurve: &Pcurve<T>,
     t0: T,
     t1: T,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
-    window: ChartWindow<T>,
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     let esc = |check| {
@@ -4771,9 +4706,6 @@ fn run_cone_section_checks<T: Decide>(
         &mut envelope_margin,
     )?;
 
-    // ---- Check 5: trim containment (the chart-box limb). ----
-    trim_containment(pcurve, t0, t1, surface, window, band)?;
-
     Ok(PcurveCertificate {
         samples: CERT_SAMPLES,
         max_residual,
@@ -4783,7 +4715,7 @@ fn run_cone_section_checks<T: Decide>(
     })
 }
 
-/// **The spiric lane's five checks** — the harmonic lane's order, the
+/// **The spiric lane's four checks** — the harmonic lane's order, the
 /// harmonic lane's meters, and two different check-4 statements, one
 /// per [`SpiricImage`].
 ///
@@ -4827,14 +4759,12 @@ fn run_cone_section_checks<T: Decide>(
 ///      whose residues are visible at every sample —
 ///      [`EnvelopeStatement::SpiricIdentity`], envelope `0` plus the
 ///      drift check 1 admitted.
-/// 5. **Trim containment**: the shared chart-box limb.
 fn run_spiric_checks<T: Decide>(
     pcurve: &Pcurve<T>,
     t0: T,
     t1: T,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
-    window: ChartWindow<T>,
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     let &Pcurve::Spiric {
@@ -5172,9 +5102,6 @@ fn run_spiric_checks<T: Decide>(
         &mut envelope_margin,
     )?;
 
-    // ---- Check 5: trim containment (the chart-box limb). ----
-    trim_containment(pcurve, t0, t1, surface, window, band)?;
-
     Ok(PcurveCertificate {
         samples: CERT_SAMPLES,
         max_residual,
@@ -5222,7 +5149,7 @@ pub enum NoChartSup {
 /// placeholder has no locus at all and answers
 /// [`NoChartSup::Placeholder`]. A cone
 /// caller goes through [`chart_arms_at`], which supplies
-/// `v_sup·sin α` from the check's own boxes, or through
+/// `v_sup·sin α` from the row's own box, or through
 /// [`chart_stretch_sup_v`] for the `v` channel alone, which is exact
 /// on every kind.
 ///
@@ -5232,7 +5159,7 @@ pub enum NoChartSup {
 ///
 /// - **ESCAPE metering (sound).** A claim of the form *"this
 ///   chart-space displacement does not move the point out of the
-///   band"* — trim containment, loop continuity, an azimuth-period
+///   band"* — a spline chart's loop continuity, an azimuth-period
 ///   headroom. Over-stating the arm inflates the metred displacement,
 ///   which can only make the in-band verdict HARDER to obtain: the
 ///   error direction refuses, it never falsely certifies.
@@ -5245,7 +5172,7 @@ pub enum NoChartSup {
 ///   be read as one.
 ///
 /// A sphere's true azimuth arm is `r·cos v ≤ r`, so quoting `r`
-/// **over**-states the escape and can only make containment harder —
+/// **over**-states the escape and can only make an in-band verdict harder —
 /// the safe direction, and the same posture the cylinder arm takes
 /// exactly. A plane chart's parameters are already metres, so its
 /// arms are exactly `(1, 1)` by construction rather than by default.
@@ -5278,8 +5205,10 @@ pub fn chart_stretch_sup<T: Real>(
         //
         // **RATIONAL charts take the same arms since M8-3**, and they
         // must: an arm under-states only in the UNSAFE direction here
-        // (`trim_containment` meters an escape, so a smaller arm makes
-        // an escape easier to admit), and before M8-3 the unit arms
+        // (its consumers meter escapes: a spline chart's joint gap,
+        // `topo::pcurves`' `spline_gap_closes`, and the iso lane's
+        // knot-deviation and overshoot terms; a smaller arm makes an
+        // escape easier to admit), and before M8-3 the unit arms
         // were harmless only because the iso lane's own rational gate
         // refused before any rational chart reached this function.
         // That gate is gone, so the arm has to be real —
@@ -5323,25 +5252,24 @@ pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> Result<SupSpeed<T>,
     }
 }
 
-/// [`chart_stretch_sup`] with the containment check's own boxes in
-/// hand — the caller that can answer the refusal the surface-level
-/// door cannot: the cone's azimuth arm becomes `v_sup·sin α`, with
-/// `v_sup` the larger `|v|` reach of the pcurve's box and the window
-/// (dominating the local arm everywhere either object lives — the
-/// safe direction); every other kind answers as [`chart_stretch_sup`].
+/// [`chart_stretch_sup`] with the row's own chart box in hand — the
+/// caller that can answer the refusal the surface-level door cannot:
+/// the cone's azimuth arm becomes `v_sup·sin α`, with `v_sup` the
+/// box's `|v|` reach (dominating the local arm everywhere the row
+/// lives — the safe direction); every other kind answers as
+/// [`chart_stretch_sup`].
 ///
-/// The placeholder has arms in no window, and refuses as
+/// The placeholder has arms nowhere, and refuses as
 /// [`PcurveCertifyError::PlaceholderChart`] — the same refusal every
 /// lane's check 1 answers for it before this is reached.
 fn chart_arms_at<T: Real>(
     surface: &Surface<T>,
     boxed: &ChartWindow<T>,
-    window: &ChartWindow<T>,
 ) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
     match chart_stretch_sup(surface) {
         Ok(pair) => Ok(pair),
         Err(NoChartSup::ConeAzimuthGrowsWithV) => {
-            let v_sup = boxed.v_reach().max(window.v_reach());
+            let v_sup = boxed.v_reach();
             Ok((
                 SupSpeed::new(azimuth_lever(surface, v_sup)),
                 SupSpeed::new(T::one()),
@@ -5726,42 +5654,7 @@ fn schedule_residuals<T: Decide>(
     Ok(())
 }
 
-/// Check 5 for either lane: the pcurve's chart box inside the face's
-/// window, metered through the map (no UV tolerance is ever compared
-/// against ε — C4).
-fn trim_containment<T: Decide>(
-    pcurve: &Pcurve<T>,
-    t0: T,
-    t1: T,
-    surface: &Surface<T>,
-    window: ChartWindow<T>,
-    band: Band,
-) -> Result<(), PcurveCertifyError> {
-    let boxed = pcurve.chart_box(t0, t1);
-    let (u_arm, v_arm) = chart_arms_at(surface, &boxed, &window)?;
-    let escapes = [
-        Margin::metered_sup(window.u_min - boxed.u_min, u_arm),
-        Margin::metered_sup(boxed.u_max - window.u_max, u_arm),
-        Margin::metered_sup(window.v_min - boxed.v_min, v_arm),
-        Margin::metered_sup(boxed.v_max - window.v_max, v_arm),
-    ];
-    for over in escapes {
-        match decide("pcurve_trim_containment", over, band) {
-            Ok(Sign::Negative | Sign::Zero) => {}
-            Ok(Sign::Positive) => return Err(PcurveCertifyError::TrimEscape),
-            Err(cause) => {
-                return Err(PcurveCertifyError::Escalated {
-                    check: PcurveCheck::TrimContainment,
-                    sample: 0,
-                    cause,
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
-/// **The fitted lane's five checks** (M6-2), in the same fixed order as
+/// **The fitted lane's four checks** (M6-2), in the same fixed order as
 /// the closed-form lane's — what differs is check 1's admission rule
 /// and check 4's mechanism.
 ///
@@ -5786,7 +5679,6 @@ fn trim_containment<T: Decide>(
 ///    ([`PcurveCertifyError::FittedLaneUnsupported`]) and nowhere
 ///    earlier: checks 1–3 read no door, so their verdicts are the same
 ///    at every scalar.
-/// 5. **Trim containment**: identical, and shared code.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
 fn run_fitted_checks<T: Decide>(
     image: &Arc<NurbsCurve2<T>>,
@@ -5795,7 +5687,6 @@ fn run_fitted_checks<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     mate: Option<&Surface<T>>,
-    window: ChartWindow<T>,
     band: Band,
     lane: Option<crate::FittedLane<T>>,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
@@ -5842,14 +5733,14 @@ fn run_fitted_checks<T: Decide>(
     ) {
         // The azimuth headroom is an ANGLE, so it reaches the band
         // through the chart's own lever arm — the cone's taken at the
-        // `v` reach that dominates both the pcurve's box and the
-        // window, which is the local lever's supremum everywhere
-        // either object lives (`chart_arms_at`'s safe direction).
+        // `v` reach of the pcurve's box, which is the local lever's
+        // supremum everywhere the row lives (`chart_arms_at`'s safe
+        // direction).
         // The headroom is dimensionless (radians), so this crossing is
         // the LEVERED door's, not the metric one's: the arm is metres
         // per radian at a `v`, not a rate per parameter unit, and the
         // sup tag comes off at the call.
-        let (u_arm, _) = chart_arms_at(surface, &boxed, &window)?;
+        let (u_arm, _) = chart_arms_at(surface, &boxed)?;
         let headroom = decide(
             "pcurve_azimuth_period",
             Margin::levered(T::tau() - (boxed.u_max - boxed.u_min), u_arm.get()),
@@ -5919,9 +5810,6 @@ fn run_fitted_checks<T: Decide>(
         &mut envelope_margin,
     )?;
 
-    // ---- Check 5: trim containment (the chart-box limb). ----
-    trim_containment(&pcurve, t0, t1, surface, window, band)?;
-
     Ok(PcurveCertificate {
         samples: CERT_SAMPLES,
         max_residual,
@@ -5934,7 +5822,7 @@ fn run_fitted_checks<T: Decide>(
 /// **The ARC-RIM iso class** (M8-3) — certification of a
 /// [`Pcurve::IsoArc`], to the same bar as every other minted pcurve.
 ///
-/// The five checks in the same fixed order as [`run_iso_checks`]; only
+/// The four checks in the same fixed order as [`run_iso_checks`]; only
 /// check 4 differs, and it is the whole content of the class.
 ///
 /// # The envelope chain
@@ -5977,7 +5865,6 @@ fn run_iso_arc_checks<T: Decide>(
     t1: T,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
-    window: ChartWindow<T>,
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the certified lane. ----
@@ -6275,9 +6162,6 @@ fn run_iso_arc_checks<T: Decide>(
         &mut envelope_margin,
     )?;
 
-    // ---- Check 5: trim containment (the chart-box limb). ----
-    trim_containment(&pcurve, t0, t1, surface, window, band)?;
-
     Ok(PcurveCertificate {
         samples: CERT_SAMPLES,
         max_residual,
@@ -6344,7 +6228,7 @@ fn constant_weights(w: &[f64]) -> bool {
     w.windows(2).all(|pair| pair[0] == pair[1])
 }
 
-/// **The iso lane's five checks** (M6-3), same fixed order as the
+/// **The iso lane's four checks** (M6-3), same fixed order as the
 /// closed-form lane's. What differs: check 1 admits any described-NURBS
 /// chart — the blanket non-rational gate it used to carry came off in
 /// M8-3, which moved the rationality hypothesis into the class arms of
@@ -6365,7 +6249,6 @@ fn run_iso_checks<T: Decide>(
     t1: T,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
-    window: ChartWindow<T>,
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the certified lane. ----
@@ -6795,9 +6678,6 @@ fn run_iso_checks<T: Decide>(
         band,
         &mut envelope_margin,
     )?;
-
-    // ---- Check 5: trim containment (the chart-box limb). ----
-    trim_containment(&pcurve, t0, t1, surface, window, band)?;
 
     Ok(PcurveCertificate {
         samples: CERT_SAMPLES,
@@ -8137,19 +8017,9 @@ mod tests {
         assert!(pb.y.abs() < 1e-15);
         assert!(pa.x.abs() < 1e-15 && pb.x.abs() < 1e-15);
         // And it certifies over the half-arc the corpus cuts.
-        let cache =
-            PcurveCache::certify(p, 0.0, PI, &carrier, &cyl, wide_window(), band()).unwrap();
+        let cache = PcurveCache::certify(p, 0.0, PI, &carrier, &cyl, band()).unwrap();
         assert!(cache.certificate().max_residual < 1e-14);
         assert!(cache.certificate().envelope < 1e-14);
-    }
-
-    fn wide_window() -> ChartWindow<f64> {
-        ChartWindow {
-            u_min: -100.0,
-            u_max: 100.0,
-            v_min: -100.0,
-            v_max: 100.0,
-        }
     }
 
     /// A rim circle on its cylinder chart is the `v = const` line —
@@ -8171,8 +8041,7 @@ mod tests {
         assert!(p0.x.abs() < 1e-15 && (p0.y - h).abs() < 1e-15);
         assert!(pa.y.abs() < 1e-15 && pb.y.abs() < 1e-15 && pl.y.abs() < 1e-15);
         assert!((pl.x - 1.0).abs() < 1e-15);
-        let cache =
-            PcurveCache::certify(p, 0.0, FRAC_PI_2, &carrier, &cyl, wide_window(), band()).unwrap();
+        let cache = PcurveCache::certify(p, 0.0, FRAC_PI_2, &carrier, &cyl, band()).unwrap();
         assert!(cache.certificate().envelope < 1e-15);
     }
 
@@ -8193,7 +8062,7 @@ mod tests {
             panic!("the closed-form lane stores harmonic images")
         };
         assert!((pl.x + 1.0).abs() < 1e-15);
-        PcurveCache::certify(p, 0.0, FRAC_PI_2, &carrier, &cyl, wide_window(), band()).unwrap();
+        PcurveCache::certify(p, 0.0, FRAC_PI_2, &carrier, &cyl, band()).unwrap();
     }
 
     /// A meridian (seam) line on a cylinder chart is the `u = const`
@@ -8215,7 +8084,7 @@ mod tests {
         assert!(p0.x.abs() < 1e-15 && p0.y.abs() < 1e-15);
         assert!(pa.x.abs() < 1e-15 && pb.x.abs() < 1e-15 && pl.x.abs() < 1e-15);
         assert!((pl.y - 1.0).abs() < 1e-15);
-        PcurveCache::certify(p, 0.0, 1.0, &carrier, &cyl, wide_window(), band()).unwrap();
+        PcurveCache::certify(p, 0.0, 1.0, &carrier, &cyl, band()).unwrap();
     }
 
     /// The SAME seam edge, on the SAME surface, carries two DIFFERENT
@@ -8241,26 +8110,16 @@ mod tests {
         };
         assert!((b.x - a.x - TAU).abs() < 1e-15, "different chart curves");
         // Both certify against the same carrier and the same surface —
-        // the chart is periodic, so both branches map to the same locus.
-        let w = ChartWindow {
-            u_min: -1.0,
-            u_max: 1.0,
-            v_min: -1.0,
-            v_max: 2.0,
-        };
-        PcurveCache::certify(base, 0.0, 1.0, &carrier, &cyl, w, band()).unwrap();
-        let w2 = ChartWindow {
-            u_min: TAU - 1.0,
-            u_max: TAU + 1.0,
-            v_min: -1.0,
-            v_max: 2.0,
-        };
-        PcurveCache::certify(wrapped_for_shift, 0.0, 1.0, &carrier, &cyl, w2, band()).unwrap();
-        // And each escapes the OTHER face's window — typed, not silent.
-        assert!(matches!(
-            PcurveCache::certify(wrapped, 0.0, 1.0, &carrier, &cyl, w, band()),
-            Err(PcurveCertifyError::TrimEscape)
-        ));
+        // the chart is periodic, so both branches map to the same locus,
+        // and nothing in a row's certificate tells them apart: which
+        // branch a half-edge takes is its loop's fact (`topo::pcurves`).
+        let a = PcurveCache::certify(base, 0.0, 1.0, &carrier, &cyl, band()).unwrap();
+        let b = PcurveCache::certify(wrapped_for_shift, 0.0, 1.0, &carrier, &cyl, band()).unwrap();
+        assert_eq!(
+            a.certificate().envelope.to_bits(),
+            b.certificate().envelope.to_bits(),
+            "a whole-period shift certifies identically"
+        );
     }
 
     /// A conic in a plane chart maps coefficient by coefficient (the
@@ -8280,8 +8139,7 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let p = chart_pcurve(&carrier, &plane, band()).unwrap();
-        let cache =
-            PcurveCache::certify(p, 0.2, 2.0, &carrier, &plane, wide_window(), band()).unwrap();
+        let cache = PcurveCache::certify(p, 0.2, 2.0, &carrier, &plane, band()).unwrap();
         assert!(cache.certificate().max_residual < 1e-15);
         assert!(cache.certificate().envelope < 1e-15);
     }
@@ -8328,7 +8186,7 @@ mod tests {
             },
         ];
         for (i, bad) in corruptions.into_iter().enumerate() {
-            let out = PcurveCache::certify(bad, 0.0, PI, &carrier, &cyl, wide_window(), band());
+            let out = PcurveCache::certify(bad, 0.0, PI, &carrier, &cyl, band());
             assert!(
                 matches!(out, Err(PcurveCertifyError::ResidualExceeded { .. })),
                 "corruption {i} certified: {out:?}"
@@ -8421,15 +8279,8 @@ mod tests {
             pb,
             pl: Vec2::new(pl.x + delta, pl.y),
         };
-        let Ok(cache) = PcurveCache::certify(
-            drifted.clone(),
-            0.0,
-            PI,
-            &carrier,
-            &cyl,
-            wide_window(),
-            band(),
-        ) else {
+        let Ok(cache) = PcurveCache::certify(drifted.clone(), 0.0, PI, &carrier, &cyl, band())
+        else {
             panic!("a drift of 0.3·ε sits inside the Zero band, so the snap admits it");
         };
         let stored = cache.certificate().envelope;
@@ -8469,8 +8320,7 @@ mod tests {
         };
         assert_eq!((pa.x, pb.x), (0.0, 0.0));
         assert_eq!(pl.x, 1.0);
-        let cache =
-            PcurveCache::certify(p, 0.0, PI, &carrier, &cyl, wide_window(), band()).unwrap();
+        let cache = PcurveCache::certify(p, 0.0, PI, &carrier, &cyl, band()).unwrap();
         assert!(cache.certificate().envelope < 1e-14);
     }
 
@@ -8508,7 +8358,7 @@ mod tests {
                 "sup {sup:e} beats envelope {env:e} for ({ca},{cb},{cl},{c0})"
             );
             assert!(
-                PcurveCache::certify(bad, 0.0, PI, &carrier, &cyl, wide_window(), band()).is_err(),
+                PcurveCache::certify(bad, 0.0, PI, &carrier, &cyl, band()).is_err(),
                 "an off-by-1e-4 pcurve certified"
             );
         }
@@ -8622,7 +8472,7 @@ mod tests {
             pb,
             pl: Vec2::new(pl.x + off / PI, pl.y),
         };
-        let out = PcurveCache::certify(stored, 0.0, PI, &carrier, &cyl, wide_window(), band());
+        let out = PcurveCache::certify(stored, 0.0, PI, &carrier, &cyl, band());
         assert!(
             matches!(
                 out,
@@ -8668,9 +8518,7 @@ mod tests {
             .unwrap()
             .total();
         assert!(envelope >= true_sup(&image, &cyl, &carrier, 0.0, PI));
-        assert!(
-            PcurveCache::certify(image, 0.0, PI, &carrier, &cyl, wide_window(), band()).is_err()
-        );
+        assert!(PcurveCache::certify(image, 0.0, PI, &carrier, &cyl, band()).is_err());
     }
 
     /// The chart-derivation pins across the frontier's two flips
@@ -9085,22 +8933,22 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let out = PcurveCache::certify(p, 0.0, TAU + 0.5, &carrier, &cyl, wide_window(), band());
+        let out = PcurveCache::certify(p, 0.0, TAU + 0.5, &carrier, &cyl, band());
         assert!(matches!(
             out,
             Err(PcurveCertifyError::AzimuthPeriodExceeded)
         ));
     }
 
-    /// The cone's azimuth lever DOMINATES the local one everywhere
-    /// either object lives. `azimuth_lever` at a single `v` is the
-    /// parallel radius there (`|v|·sin alpha`); the arm the checks take
-    /// is that lever at the `|v|` supremum of the pcurve's box and the
-    /// face window together, so it is an upper bound at every `v` in
-    /// either — the direction that cannot under-state an escape or a
-    /// winding. Both signs of `v` (both nappes) are swept.
+    /// The cone's azimuth lever DOMINATES the local one everywhere the
+    /// row lives. `azimuth_lever` at a single `v` is the parallel
+    /// radius there (`|v|·sin alpha`); the arm the checks take is that
+    /// lever at the `|v|` supremum of the pcurve's box, so it is an
+    /// upper bound at every `v` in it — the direction that cannot
+    /// under-state a winding or a headroom. Both signs of `v` (both
+    /// nappes) are swept.
     #[test]
-    fn the_cone_azimuth_lever_dominates_the_local_lever_over_box_and_window() {
+    fn the_cone_azimuth_lever_dominates_the_local_lever_over_the_box() {
         let half_angle = 0.5_f64.atan();
         let cone = Surface::Cone {
             apex: Point3::origin(),
@@ -9114,28 +8962,20 @@ mod tests {
             v_min: -3.0,
             v_max: 1.5,
         };
-        let window = ChartWindow {
-            u_min: -0.5,
-            u_max: PI,
-            v_min: 0.25,
-            v_max: 2.25,
-        };
-        let (arm, v_arm) = chart_arms_at(&cone, &boxed, &window).unwrap();
+        let (arm, v_arm) = chart_arms_at(&cone, &boxed).unwrap();
         let (arm, v_arm) = (arm.get(), v_arm.get());
         assert!(
             (v_arm - 1.0).abs() < 1e-15,
             "the cone's v IS a slant length"
         );
-        for w in [&boxed, &window] {
-            for i in 0..=64 {
-                let t = f64::from(i) / 64.0;
-                let v = w.v_min + (w.v_max - w.v_min) * t;
-                let local = azimuth_lever(&cone, v.abs());
-                assert!(
-                    local <= arm + 1e-15,
-                    "the arm {arm:e} must dominate the local lever {local:e} at v = {v:e}"
-                );
-            }
+        for i in 0..=64 {
+            let t = f64::from(i) / 64.0;
+            let v = boxed.v_min + (boxed.v_max - boxed.v_min) * t;
+            let local = azimuth_lever(&cone, v.abs());
+            assert!(
+                local <= arm + 1e-15,
+                "the arm {arm:e} must dominate the local lever {local:e} at v = {v:e}"
+            );
         }
         // And it is the lever AT the supremum, not something larger:
         // an arm bigger than the geometry demands would refuse honest
@@ -9205,15 +9045,6 @@ mod tests {
         ruled_wall_with([1.0, 1.0, w, w, 1.0, 1.0])
     }
 
-    fn wide() -> ChartWindow<f64> {
-        ChartWindow {
-            u_min: -10.0,
-            u_max: 10.0,
-            v_min: -10.0,
-            v_max: 10.0,
-        }
-    }
-
     /// A `Curve3::Line` from `origin` along `dir` (already unit here).
     fn ruling_line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
         Curve3::Line { origin, dir }
@@ -9233,7 +9064,6 @@ mod tests {
             1.0,
             &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
             &ruled_wall(),
-            wide(),
             band(),
         )
         .expect("the exact ruling certifies");
@@ -9260,7 +9090,6 @@ mod tests {
             1.0,
             &ruling_line(Point3::new(1.0, 0.0, 1.0), Vec3::new(0.0, 0.0, -1.0)),
             &ruled_wall(),
-            wide(),
             band(),
         )
         .expect("the reversed ruling certifies");
@@ -9282,7 +9111,6 @@ mod tests {
             1.0,
             &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
             &ruled_wall(),
-            wide(),
             band(),
         );
         assert!(got.is_err(), "the other column is not this line: {got:?}");
@@ -9305,16 +9133,8 @@ mod tests {
             pl: Vec2::new(0.0, 1.0),
         };
         let d = 0.3 * Tol::witness().get().eps;
-        let cache = PcurveCache::certify(
-            image(),
-            0.0,
-            1.0,
-            &displaced(d),
-            &ruled_wall(),
-            wide(),
-            band(),
-        )
-        .expect("an in-band displacement certifies");
+        let cache = PcurveCache::certify(image(), 0.0, 1.0, &displaced(d), &ruled_wall(), band())
+            .expect("an in-band displacement certifies");
         let envelope = cache.certificate().envelope;
         assert!(
             envelope >= d * 0.99,
@@ -9327,7 +9147,6 @@ mod tests {
                 1.0,
                 &displaced(1.0e3 * Tol::witness().get().eps),
                 &ruled_wall(),
-                wide(),
                 band(),
             )
             .is_err(),
@@ -9354,7 +9173,6 @@ mod tests {
             1.0,
             &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
             &ruled_wall_with([0.7, 0.7, w, w, 1.0, 1.0]),
-            wide(),
             band(),
         );
         match got {
@@ -9380,7 +9198,6 @@ mod tests {
             1.5,
             &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
             &ruled_wall(),
-            wide(),
             band(),
         );
         match got {
@@ -9602,9 +9419,9 @@ mod placeholder_sup {
             v_max: 1.0,
         };
         assert_eq!(
-            chart_arms_at(&ph, &unit, &unit).err(),
+            chart_arms_at(&ph, &unit).err(),
             Some(PcurveCertifyError::PlaceholderChart),
-            "the boxed door, which trim containment reads"
+            "the boxed door, which the azimuth headroom reads"
         );
         let inf = chart_stretch_inf(&ph);
         assert_eq!(

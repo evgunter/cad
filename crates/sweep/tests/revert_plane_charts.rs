@@ -184,8 +184,7 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         .unwrap();
     let (carrier3, (t0, t1)) = carrier(&cavity, ek);
     let plane = cavity.get_surface(surface_key).unwrap().clone();
-    let window = image.chart_box(t0, t1);
-    let row = PcurveCache::certify(image, t0, t1, &carrier3, &plane, window, band)
+    let row = PcurveCache::certify(image, t0, t1, &carrier3, &plane, band)
         .expect("a plane row certifies in the harmonic lane");
     assert!(cavity.attach_pcurve(he, row.clone()).is_none());
 
@@ -211,7 +210,6 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
             &carrier3,
             reverted_plane,
             None,
-            mirrored.pcurve().chart_box(t0, t1),
             band,
             <f64 as topo::AtRestPolicy>::fitted_lane(),
         )
@@ -225,7 +223,6 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         &carrier3,
         reverted_plane,
         None,
-        window,
         band,
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     );

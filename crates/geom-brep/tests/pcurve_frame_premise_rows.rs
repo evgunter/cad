@@ -18,21 +18,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{
-    ChartWindow, EnvelopeTerm, Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck, chart_pcurve,
-};
+use geom_brep::{EnvelopeTerm, Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck, chart_pcurve};
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
 use crate::shared::tol::band;
-
-fn window<T: geom_core::Real>() -> ChartWindow<T> {
-    ChartWindow {
-        u_min: T::from_f64(-100.0),
-        u_max: T::from_f64(100.0),
-        v_min: T::from_f64(-1e7),
-        v_max: T::from_f64(1e7),
-    }
-}
 
 fn dense_sup(p: &Pcurve<f64>, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: f64) -> f64 {
     (0..=4096)
@@ -64,12 +53,12 @@ fn run_named(
     let lift = |x: f64| Interval::from_f64(x);
     let (si, ci) = (s.map_scalar(lift), c.map_scalar(lift));
     let pi = chart_pcurve(&ci, &si, band()).expect("interval derivation");
-    let at_box = PcurveCache::certify(pi, lift(t0), lift(t1), &ci, &si, window(), band());
+    let at_box = PcurveCache::certify(pi, lift(t0), lift(t1), &ci, &si, band());
     if let Err(e) = &at_box {
         println!("[{name}] the interval refusal: {e:?}");
     }
     let pf = chart_pcurve(c, s, band()).expect("f64 derivation");
-    let at_point = PcurveCache::certify(pf.clone(), t0, t1, c, s, window(), band());
+    let at_point = PcurveCache::certify(pf.clone(), t0, t1, c, s, band());
     let sup = dense_sup(&pf, s, c, t0, t1);
     let env = at_box
         .as_ref()

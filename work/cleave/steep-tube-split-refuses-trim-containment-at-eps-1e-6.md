@@ -2,8 +2,9 @@
 id: steep-tube-split-refuses-trim-containment-at-eps-1e-6
 kind: issue
 title: review_cleave_wrongarc's steep tube cut refuses its split Pcurves TrimContainment at CAD_TOLERANCE_EPS=1e-6, so the row is red on main there
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-03
 priority: P1
 cost: M
 ---
@@ -47,3 +48,16 @@ margin at the first sample (`HalfEdgeKey(24v1)` at `flip false`,
 `18v1` at `flip true`). Decide whether it is a real overshoot of the
 trimmed window whose size tracks ε, or a certifier margin that does not
 scale. Then fix the code, or state the row's ε premise.
+
+## Closed
+
+Closed by the retirement of check 5 (PCERT's
+`pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`,
+ratified on [ev] PR 3919): trim containment against a `ChartWindow` is
+no longer part of the pcurve certificate, so the split carry has no
+window to escalate against. Re-measured on that branch,
+`CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p sweep -E
+'test(steep_cuts_of_tubes_chord_inside_each_bore_face)'` passes:
+`TALLY p2 tube: ok 48, skipped 0, wrong 0, refused 0, volume refused 2`.
+The `−3.06e-6` margin was the window test's, so there is nothing left
+to measure about it.

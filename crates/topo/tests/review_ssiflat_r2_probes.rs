@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2};
-use geom_brep::{Pcurve, PcurveCache};
+use geom_brep::PcurveCache;
 use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::fixture::arc_chain;
@@ -90,7 +90,6 @@ where
 {
     let (carrier, image) = rung3::<T>(radius, arc);
     let (t0, t1) = (T::from_f64(arc.0), T::from_f64(arc.1));
-    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
     PcurveCache::<T>::certify_fitted(
         image,
         t0,
@@ -98,7 +97,6 @@ where
         &carrier,
         &sphere::<T>(radius),
         Some(&tilted_plane::<T>()),
-        window,
         band,
         T::fitted_lane().expect("a certifying scalar holds the fitted door"),
     )
@@ -372,7 +370,6 @@ fn the_margin_is_legible_through_the_public_topo_door() {
         )
         .expect("the general-circle edge certifies");
     let edge = body.get_edge(made.edge).expect("edge resolves");
-    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
     for he in [edge.he_plus, edge.he_minus] {
         let cache = PcurveCache::<Interval>::certify_fitted(
             Arc::clone(&image),
@@ -381,7 +378,6 @@ fn the_margin_is_legible_through_the_public_topo_door() {
             &carrier,
             &sphere::<Interval>(radius),
             Some(&tilted_plane::<Interval>()),
-            window,
             loose_band(),
             geom_brep::FittedLane::certified(),
         )

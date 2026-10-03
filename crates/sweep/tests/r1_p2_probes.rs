@@ -358,7 +358,6 @@ fn r1_certify_general_refuses_a_plausible_wrong_column() {
     let (carrier, t0, t1) = carrier_of(&body, he);
     let mate = seam_plane(&body, he);
     let shifted = Arc::new(shifted);
-    let window = Pcurve::General(Arc::clone(&shifted)).chart_box(t0, t1);
     let verdict = geom_brep::PcurveCache::certify_general(
         shifted,
         t0,
@@ -366,7 +365,6 @@ fn r1_certify_general_refuses_a_plausible_wrong_column() {
         &carrier,
         &Surface::Nurbs(Arc::new(chart)),
         Some(&mate),
-        window,
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     );
@@ -519,14 +517,12 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
                 "on a column strictly INSIDE the chart's u domain [{du0}, {du1}]: {}",
                 p0.x
             );
-            let window = pcurve.chart_box(t0, t1);
             let cache = geom_brep::PcurveCache::certify(
                 pcurve,
                 t0,
                 t1,
                 &carrier,
                 &Surface::Nurbs(Arc::new(chart.clone())),
-                window,
                 band(),
             )
             .unwrap_or_else(|e| panic!("the interior column certifies exactly: {e}"));
@@ -824,7 +820,6 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         body.get_surface(other).cloned().expect("the mate resolves")
     };
     let eps = Tol::witness().get().eps;
-    let window = out.as_ref().unwrap().chart_box(t0, t1);
     let cache = geom_brep::PcurveCache::certify_general(
         std::sync::Arc::clone(image),
         t0,
@@ -832,7 +827,6 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         &carrier,
         &Surface::Nurbs(Arc::new(chart.clone())),
         Some(&mate),
-        window,
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     )
@@ -890,19 +884,11 @@ fn r1_cap_rim_measured_map_certifies() {
         let Ok(pcurve) = topo::pcurve_of(&body, he, band()) else {
             panic!("the rim derives")
         };
-        let window = pcurve.chart_box(t0, t1);
-        let cache = geom_brep::PcurveCache::certify(
-            pcurve.clone(),
-            t0,
-            t1,
-            &carrier,
-            &surface,
-            window,
-            band(),
-        )
-        .unwrap_or_else(|e| {
-            panic!("the measured rim map certifies at the closed-form door: {e:?}")
-        });
+        let cache =
+            geom_brep::PcurveCache::certify(pcurve.clone(), t0, t1, &carrier, &surface, band())
+                .unwrap_or_else(|e| {
+                    panic!("the measured rim map certifies at the closed-form door: {e:?}")
+                });
         let cert = cache.certificate();
         assert_eq!(
             cert.envelope, 0.0,

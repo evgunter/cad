@@ -189,12 +189,10 @@ fn study_over_certified() -> String {
 /// **Does the published certified box apply to THIS run?**
 ///
 /// [`CERTIFIED_PIN_BOX`] and [`CERTIFIABLE_FRACTION`] are measured at
-/// the compiled default ε, and the box MOVES with ε (`6.747e-5` at
-/// `1e-6` against `6.751e-8` at the default, measured) — so at another
+/// the compiled default ε, and the box MOVES with ε (`1.083e-1` at
+/// `1e-6` against `1.110e-1` at the default, measured) — so at another
 /// ε it is a different box, and `chaintol` says so (`demo-tour certified`).
-/// It moves because the wall is an enclosure escalating against the
-/// band (the placed rows' angular comparisons, since the extrude closes
-/// with the pcurve mint), so the box is ε-relative. The sheet
+/// Why it moves is `chaintol`'s header's ("What sets the wall"). The sheet
 /// has to agree with it: at one ε they are one statement, and a legend
 /// claiming `0.111` certifies while the cell reports a declared
 /// frontier at the same ε is the picture contradicting the report.
@@ -1082,7 +1080,7 @@ fn sheet(
     let (teal_bold, teal_notes) = if certified {
         (
             format!(
-                "teal: the CERTIFIED enclosure per joint \u{2014} exact over a box, and silent outside it. The widest box that certifies THIS chain whole is {:.3e} of the study.",
+                "teal: the CERTIFIED enclosure per joint \u{2014} exact over a box, and silent outside it. The widest box that certifies THIS chain whole is {:.3} of the study.",
                 CERTIFIABLE_FRACTION
             ),
             [
@@ -1097,13 +1095,13 @@ fn sheet(
     } else {
         (
             format!(
-                "CERTIFIED: no enclosure is drawn here. The published box ({:.3e} of the study) is measured at the default \u{03b5}; this run is at \u{03b5} = {:e}.",
+                "CERTIFIED: no enclosure is drawn here. The published box ({:.3} of the study) is measured at the default \u{03b5}; this run is at \u{03b5} = {:e}.",
                 CERTIFIABLE_FRACTION,
                 Tol::witness().eps()
             ),
             [
                 format!(
-                    "\u{2014} the box MOVES with \u{03b5} (6.747e-5 at 1e-6 against {:.3e} at the default, measured), so at another \u{03b5} it is a different box.",
+                    "\u{2014} the box MOVES with \u{03b5} (1.083e-1 at 1e-6 against {:.3e} at the default, measured), so at another \u{03b5} it is a different box.",
                     CERTIFIABLE_FRACTION
                 ),
                 "\u{2014} the tour's chaintol cell (demo-tour certified) declares that frontier at the same \u{03b5}; the sheet says what the cell says."

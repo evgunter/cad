@@ -62,7 +62,6 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
         NurbsCurve2::new(image.knots().clone(), control, image.weights().to_vec()).unwrap(),
     );
     let (t0, t1) = (T::from_f64(t0), T::from_f64(t1));
-    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
     PcurveCache::certify_fitted(
         image,
         t0,
@@ -70,7 +69,6 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
         carrier,
         &sphere(),
         None,
-        window,
         band(),
         FittedLane::certified(),
     )

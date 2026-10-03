@@ -4369,13 +4369,11 @@ mod tests {
             "the tilted section's v channel is a live cosine — the class the gate excludes"
         );
         let (t0, t1) = (0.2, 1.6);
-        let window = pcurve.chart_box(t0, t1);
-        let cache =
-            geom_brep::PcurveCache::certify(pcurve, t0, t1, &ellipse, &surface, window, band())
-                .expect(
-                    "the sinusoid image itself certifies (C5 row) — the exclusion is the \
+        let cache = geom_brep::PcurveCache::certify(pcurve, t0, t1, &ellipse, &surface, band())
+            .expect(
+                "the sinusoid image itself certifies (C5 row) — the exclusion is the \
                          REGION machinery's, not the cache's",
-                );
+            );
         // Plant it on the wall's bottom rim: the region query must
         // refuse typed at the inventory gate.
         let bottom_he = {

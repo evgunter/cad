@@ -32,15 +32,14 @@
 //!   same analytic circle (what an exporter emits when a vertex lands
 //!   on a rim) each derive their own row coordinate; the gap is the
 //!   one a consumer discards when it gives the whole side one value.
-//!   Lever: [`Chart::v_lever`], constant per kind. **Reachable from
-//!   the Euler doors only, and no lane there meshes or measures the
-//!   body it is reported on.** Through
-//!   the import door it is dead at every ε row, measured: the pcurve
-//!   re-mint decides the same v jump at each junction
-//!   (`pcurve_loop_continuity`, the same band) and refuses every body
-//!   this condition would report on, so no imported body carries a
-//!   rim-continuation finding — not for want of a fixture but by
-//!   construction (issue 1588's answer). The certifying Euler doors
+//!   Lever: [`Chart::v_lever`], constant per kind. The pcurve re-mint
+//!   does not decide this v jump (a joint's 3-D coincidence follows
+//!   from the rows' envelopes and the endpoint pinning, and the walk
+//!   decides only its deck element), so it admits every body the
+//!   certifying doors build here, and the import door's reach is open
+//!   up to the endpoint band and unmeasured
+//!   (`work/tess/rim-continuation-import-reach-reopened-by-the-deck-element-walk.md`).
+//!   The certifying Euler doors
 //!   admit two on-surface rims a band apart with their junctions in
 //!   the endpoint band, which is a rim-only cap whose two levels are
 //!   an ambiguity band apart: the shape door and the flux lane both
@@ -51,10 +50,8 @@
 //!   door's escalation while the gap is in the band, and as
 //!   `MeridianFreeCurvedFace` (the loop has no meridian) at zero gap.
 //!   `topo/tests/mesh12_rim_row_reach.rs` pins each of these, and pins
-//!   the record itself without a file: the re-mint's
-//!   admission threshold and this condition's reporting threshold,
-//!   bisected on one body at the run's ε, do not overlap
-//!   (`the_remint_admits_no_gap_the_examination_reports`); the
+//!   that the re-mint admits the gaps this condition reports
+//!   (`the_remint_admits_the_gaps_the_examination_reports`); the
 //!   synthetic off-surface circle of `topo/tests/mesh8_coherence.rs`
 //!   remains the band-scaled witness.
 //! - [`CoherenceCondition::MeridianContinuation`] — the same, one axis

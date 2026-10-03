@@ -376,6 +376,14 @@ fn digest() -> String {
 /// anchor-free). Only `bulged_extrusion`'s verdict row moves again,
 /// 13 → 18, and its hash; its volume and area bits, and every other
 /// row, are unchanged.
+///
+/// **Re-cut at all three ε when the pcurve loop's angle equalities and
+/// check 5 retired** (PCERT's chart-angle unit). Only the two
+/// sym-session `validate_geometric` lines move: `sym_arc_loft` and
+/// `sym_thin_strip` each take 48 fewer decisions at tier 3 (692 → 644;
+/// `sz` 54 → 48 on the loft, the rest numeric), because those
+/// decisions no longer exist. Every f64 row, every mass-properties
+/// line and every freeze count is unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
