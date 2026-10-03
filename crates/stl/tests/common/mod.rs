@@ -13,7 +13,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{AtRestBody, Body, BooleanResult};
+use topo::{Body, BooleanResult};
 
 pub use sweep::test_support::finished;
 
