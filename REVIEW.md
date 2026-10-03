@@ -79,9 +79,8 @@ expected because their poses have no tangent germ.
   partner ends `Apart` or `Boundary`, and the edge inside it ends `Boundary` or `Face`. Only a tie
   is possible. The "touches the partner elsewhere, past a gap" construction (M1's notch) produces
   exactly that tie, not a wrong rank.
-- *Fail-safe.* A misread locus cannot pair: `partners` requires equal loci at both ends, and
-  `locus_at_site` requires the edge at both sites (`join.rs:941`, `:990`). The outcome is a refusal,
-  not a body.
+- *Fail-safe.* A misread locus cannot pair: `partners` needs equal loci at both ends and
+  `locus_at_site` the edge at both sites (`join.rs:941`, `:990`), so it refuses, never builds.
 
 **N2. Claim 2 holds.** Executed with the instrumented build over 4150 tests (all pass). The only test
 whose loci move is the tangency row (304 diffs). On my battery, every line outside M1 matches main.
