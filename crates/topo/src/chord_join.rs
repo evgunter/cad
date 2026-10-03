@@ -1843,7 +1843,8 @@ fn arcpair_check<T: Decide>(
         use std::io::Write;
         if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
             let test = std::thread::current().name().unwrap_or("?").to_string();
-            let _ = writeln!(f, "{tag}\t{lane}\t{face:?}\t{test}\told={:?}\tnew={:?}", old.as_ref().map_err(|e| format!("{e:?}")), new.as_ref().map_err(|e| format!("{e:?}")));
+            let line = format!("{tag}\t{lane}\t{face:?}\t{test}\told={:?}\tnew={:?}\n", old.as_ref().map_err(|e| format!("{e:?}")), new.as_ref().map_err(|e| format!("{e:?}")));
+            let _ = f.write_all(line.as_bytes());
         }
     }
     match (old, new) {
@@ -2122,7 +2123,7 @@ fn chord_spec<T: Decide>(
     })();
     if std::env::var("ARCPAIR_DEBUG").is_ok() {
         let mid = |ccw: bool| { let (c, a, b) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw); c.eval((a + b) * T::from_f64(0.5)) };
-        eprintln!("ARCDBG wall face={face:?} mono={} p1={p1:?} p2={p2:?} leave={leave:?} old={old:?} mid_ccw={:?} mid_cw={:?} run={}", conic.azimuth_monotone, mid(true), mid(false), match run { ChordRun::CoBounded(h) => format!("co{}", h.len()), ChordRun::FaceWindow(h) => format!("fw{}", h.len()) });
+        eprintln!("ARCDBG wall face={face:?} mono={} p1={p1:?} p2={p2:?} leave={leave:?} old={old:?} new={:?} mid_ccw={:?} mid_cw={:?} run={}", conic.azimuth_monotone, arc_leaving(face, band, &conic, p1, leave), mid(true), mid(false), match run { ChordRun::CoBounded(h) => format!("co{}", h.len()), ChordRun::FaceWindow(h) => format!("fw{}", h.len()) });
     }
     let ccw = arcpair_check::<T>("wall", face, old, arc_leaving(face, band, &conic, p1, leave))?;
     let (carrier, t_start, t_end) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw);
