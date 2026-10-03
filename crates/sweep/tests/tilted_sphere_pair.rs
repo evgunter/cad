@@ -7,9 +7,8 @@
 //! section is the radical-plane circle, handed to both sides' wall
 //! lanes; offset along `x` (or anywhere in
 //! the seam plane `z = c_z`) that circle is tilted against both charts'
-//! polar axis, so its azimuth doubles back and the join selects its arcs
-//! by the side of the run they leave on
-//! (`chord_join::select_arc_by_run_side`). The faces it leaves are
+//! polar axis, so its azimuth doubles back; the join takes each chord's
+//! arc from the germs it pairs, which reads no chart. The faces it leaves are
 //! bounded by circles that are neither rims nor meridians, and the
 //! sphere flux arm measures them by Gauss–Bonnet
 //! (`props::curved::sphere_circle_loop`). Every body is held to all
@@ -17,10 +16,9 @@
 //! spheres share, computed here from the radii and the centre distance
 //! alone.
 //!
-//! The rows a tilted section does not yet reach are pinned at the door
-//! they stop at: an offset that leaves the seam plane (a pierce ring),
-//! and a plane tilted against the ball's chart (the boolean's planar
-//! side, which has only the sphere face's azimuth window to select by).
+//! A pierce ring off the seam plane and a plane tilted against the ball's
+//! chart build too; the rows a tilted section does not yet reach are
+//! pinned at the door they stop at.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -149,7 +147,7 @@ fn sphere_pairs_tilted_against_both_charts_build_under_every_boolean() {
 }
 
 /// **The equal pair at the `Interval` scalar**: enclosures throughout,
-/// the run-side rule's trileans and the Gauss–Bonnet turning angles on
+/// the chords' departure trileans and the Gauss–Bonnet turning angles on
 /// enclosures, and every body certifies with a volume bracket around
 /// the lens closed form — at the default and the 1e-6 band; at 1e-12
 /// the pcurve mint escalates first, pinned below.
@@ -224,69 +222,83 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
     }
 }
 
-/// **Where a tilted section stops.** An offset with a component off the
-/// seam plane drives the pierce off the seam, into a half-band: the
-/// pierce lands as a ring, whose run carries no certified edge for the
-/// run-side rule to read (`work/tang/pierce-ring-has-no-join-arm.md`). A PLANE
-/// tilted against the ball's chart — a box face across the ball, and a
-/// pip whose poles land on the cube's top — refuses on the planar side,
-/// which selects its arc by the sphere face's azimuth window and has no
-/// window for a tilted section
-/// (`work/reach/planar-side-of-a-tilted-plane-sphere-cut-has-no-arc-cue.md`).
+/// **A pierce ring builds.** An offset with a component off the seam
+/// plane drives B's boundary through the interior of one of A's
+/// half-bands, where the section lands as a ring of that face, joined
+/// to its outer loop by `mekr`. Its chord co-bounds no run, and takes
+/// the arc the pierce germs' directions name: an equal ball off the seam
+/// plane, and a smaller one off every axis.
 #[test]
-fn a_tilted_section_stops_at_the_pierce_ring_and_the_planar_side() {
-    for (pose, b) in [
-        (
-            "off the seam plane",
-            ball(1.0, BASE + Vec3::new(1.3, 0.0, 0.2)),
-        ),
+fn a_pierce_off_the_seam_plane_builds_under_every_boolean() {
+    for (pose, r, offset) in [
+        ("off the seam plane", 1.0, Vec3::new(1.3, 0.0, 0.2)),
         (
             "a smaller ball off every axis",
-            ball(0.7, BASE + Vec3::new(0.9, 0.3, 0.6)),
+            0.7,
+            Vec3::new(0.9, 0.3, 0.6),
         ),
     ] {
-        for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            let e = run(op, &ball(1.0, BASE), &b)
-                .err()
-                .unwrap_or_else(|| panic!("{pose}, {op:?}: built where the frontier was pinned"));
-            assert!(
-                matches!(
-                    e,
-                    topo::BooleanError::Join(topo::SplitJoinError::SectionArcSide {
-                        case: topo::ArcSideCase::NoCertifiedRun,
-                        ..
-                    })
-                ),
-                "{pose}, {op:?}: expected the pierce ring's empty run, got {e:?}"
-            );
-        }
+        assert_every_op(
+            pose,
+            &ball(1.0, BASE),
+            &ball(r, BASE + offset),
+            ball_volume(1.0),
+            ball_volume(r),
+            lens_volume(1.0, r, offset.norm()),
+        );
     }
-    let box_face = sweep::test_support::brick((0.5, 3.0), (-2.0, 2.0), (0.0, 2.0), Tol::witness());
-    let cube = sweep::test_support::cube::<f64>(1.0, Tol::witness());
-    for (pose, a, b) in [
-        (
-            "a box face across the ball",
-            box_face,
-            ball(1.0, Vec3::new(0.0, 0.0, 0.0)),
-        ),
-        (
-            "a pip on the cube's top",
-            cube,
-            ball(0.3, Vec3::new(0.5, 0.5, 1.0)),
-        ),
+}
+
+/// **A plane tilted against the ball's chart builds.** A box face across
+/// the `y`-poled unit ball at the origin, in the plane `x = 0.5`: the
+/// boolean's planar side takes the same arc as the sphere side, from the
+/// germs, so the box over `z ∈ (0, 2)`, its mirror over `z ∈ (−2, 0)`
+/// and the box over both (whose face holds the whole section circle, a
+/// pierce ring on the plane) each build under every op. The shared
+/// volume is the cap beyond `x = 0.5`, `c = πh²(3 − h)/3` at `h = ½`,
+/// halved where the box covers one side of `z = 0`.
+#[test]
+fn a_plane_tilted_against_the_balls_chart_builds_under_every_boolean() {
+    let cap = cap_volume(1.0, 0.5);
+    for (pose, z, shared) in [
+        ("a box face across the ball", (0.0, 2.0), cap / 2.0),
+        ("the box mirrored", (-2.0, 0.0), cap / 2.0),
+        ("a box face holding the whole section", (-2.0, 2.0), cap),
     ] {
-        for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            let e = run(op, &a, &b)
-                .err()
-                .unwrap_or_else(|| panic!("{pose}, {op:?}: built where the frontier was pinned"));
-            assert!(
-                matches!(
-                    e,
-                    topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
-                ),
-                "{pose}, {op:?}: expected the planar side's tilted section, got {e:?}"
-            );
-        }
+        let a = sweep::test_support::brick((0.5, 3.0), (-2.0, 2.0), z, Tol::witness());
+        assert_every_op(
+            pose,
+            &a,
+            &ball(1.0, Vec3::new(0.0, 0.0, 0.0)),
+            2.5 * 4.0 * (z.1 - z.0),
+            ball_volume(1.0),
+            shared,
+        );
+    }
+}
+
+/// **A pip whose poles lie in the cube's top face stops at the role
+/// read.** The `y`-poled ball(0.3) at `(0.5, 0.5, 1)` has its seam great
+/// circle in the plane `z = 1`, so every section segment runs along a
+/// seam edge of the ball, and both chords of a join take the germs' arc.
+/// What stops it is reading which section loop bounds the result: every
+/// witness of both hemispheres lies on the cube's top face
+/// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
+#[test]
+fn a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read() {
+    let cube = sweep::test_support::cube::<f64>(1.0, Tol::witness());
+    let pip = ball(0.3, Vec3::new(0.5, 0.5, 1.0));
+    for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+        let e = run(op, &cube, &pip)
+            .err()
+            .unwrap_or_else(|| panic!("{op:?}: built where the frontier was pinned"));
+        assert!(
+            matches!(
+                e,
+                topo::BooleanError::Join(topo::SplitJoinError::SectionLoopUndecided { .. })
+            ),
+            "{op:?}: expected the undecided section loop, got {e:?}"
+        );
     }
 }
 
@@ -341,22 +353,16 @@ fn a_flipped_tilted_face_is_refused_by_name() {
     }
 }
 
-/// **The two arc rules never meet on one face today, and this row says
-/// so where it can fail.** CLEAVE's conic pairing
-/// (`topo::splitting::join`'s `conic_pairs`, `SectionCrossings`) decides
-/// WHICH crossings of a curved face a split chord joins. The run-side
-/// rule (`chord_join::select_arc_by_run_side`, `SectionArcSide`) decides
-/// WHICH ARC of the section conic that chord takes, and only on a
-/// sphere section tilted against its chart. The pairing runs only in the
-/// split lane, and the split lane refuses a sphere face at its reduce,
-/// so a tilted sphere section reaches the run-side rule only through the
-/// boolean lane, which pairs by its own walk. A ball, the tilted pair's
-/// union and its lens, each split by planes tilted against their charts,
-/// all refuse there, before either rule. When the split lane admits
-/// sphere faces this goes red: compose the two then (the pairing first,
-/// then the arc; both name the arc inside the face).
+/// **A tilted split of a sphere body refuses at the reduce.** The split
+/// lane refuses a sphere face before its join, where CLEAVE's conic
+/// pairing (`topo::splitting::join`'s `conic_pairs`) would walk the
+/// section and hand each chord the arc it walked. A ball, the tilted
+/// pair's union and its lens, each split by planes tilted against their
+/// charts, all refuse there. When the split lane admits sphere faces this
+/// goes red, and the chord takes the walk's arc with nothing more to
+/// compose.
 #[test]
-fn a_tilted_split_of_a_sphere_body_refuses_before_either_arc_rule() {
+fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
     let tol = Tol::witness();
     let a = ball(1.0, BASE);
     let b = ball(1.0, BASE + Vec3::new(1.4, 0.0, 0.0));

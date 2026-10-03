@@ -131,9 +131,10 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 /// that edge passes within `r` of the sphere center (the two conditions
 /// are the same inequality, `cx² + s² < r²`), so the REDUCE stage meets
 /// the edge first: the line × sphere roots pierce it, the pierce
-/// point's sector side certifies, and the op stops at the join, whose
-/// section plane is tilted against the ball's polar axis
-/// (`SplitJoinError::SectionNotPolar`), typed. The
+/// point's sector side certifies, and the op stops at the join, where
+/// the section passes through the ball's face as a ring whose island the
+/// join winds on a cylinder wall's chart alone
+/// (`SplitJoinError::RingOffCylinderChart`), typed. The
 /// scan's near-boundary arm remains as certified-enclosure
 /// defense-in-depth behind that door (its residual live width is the
 /// box pad; the shadowing is structural — the reduction runs before
@@ -142,10 +143,12 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 fn probe_edge_escape_refuses_typed_before_the_scan() {
     let b = ball_poled_y(0.5, Vec3::new(0.3, 2.0, 1.2), Tol::witness());
     let err = topo::union(&slab(), &b, Tol::witness()).expect_err("edge escape must not certify");
-    let BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. }) = err else {
-        panic!(
-            "expected the pierce to land and the join to refuse the tilted section, got {err:?}"
-        );
+    let BooleanError::Join(topo::SplitJoinError::RingOffCylinderChart {
+        kind: geom::SurfaceKind::Sphere,
+        ..
+    }) = err
+    else {
+        panic!("expected the pierce to land and the join to refuse the sphere ring, got {err:?}");
     };
 }
 

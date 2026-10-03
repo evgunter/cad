@@ -13,8 +13,7 @@
 //! from the same seam, so each seam meridian pierces the other sphere
 //! on the other's seam meridian and every chord runs seam to seam. Spin
 //! one ball about the shared axis and the pierce lands inside a
-//! half-band instead, which is the pierce-ring door — pinned below as
-//! the frontier, not as a body.
+//! half-band instead, as a pierce ring, which builds too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -579,8 +578,8 @@ fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
 /// **The snowman builds spun, too.** Spin B about the shared axis by any
 /// angle off `0` and `π` and A's seam meridian pierces B's sphere at a
 /// point INSIDE B's half-band rather than on B's seam: that pierced face
-/// carries a pierce ring, and its chords take their arc from the face's
-/// own azimuth window. The spin moves no volume, so every op meets the
+/// carries a pierce ring, and its chords take the arc the pierce germs'
+/// directions name. The spin moves no volume, so every op meets the
 /// coplanar pose's closed form.
 #[test]
 fn a_spun_snowman_builds_under_every_boolean() {
@@ -612,28 +611,67 @@ fn a_spun_snowman_builds_under_every_boolean() {
 /// **A straight edge through a ball** reaches the line × sphere roots
 /// through a public op: a square bar poking out of a ball, its long
 /// edges straddling the sphere. They pierce, the pierce points' sector
-/// sides certify, and the op goes on to the join, where the bar's faces
-/// cut the sphere in circles tilted against its polar axis. Those take
-/// the run-side arc rule, and a run end the bar's corner leaves reflex
-/// refuses there (`SectionArcSide { ReflexRunEnd }`), typed, for every
-/// op. A refusal at the pierce door would mean the root lane went dark.
+/// sides certify, and the bar's faces cut the sphere in circles tilted
+/// against its polar axis, each chord ending at a corner of the bar
+/// where the face it divides turns reflex. Every op builds. The shared
+/// volume is `∬ (√(1 − y² − z²) − ½) dy dz` over the bar's square
+/// section, integrated here in `z` in closed form and in `y` by
+/// Simpson's rule. The sphere faces left are bounded by circles tilted
+/// against the ball's chart, which the tessellator does not draw yet
+/// (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`),
+/// so the rows stop at the exact volume and the three tiers.
 #[test]
-fn a_bar_through_a_ball_crosses_the_sphere() {
+fn a_bar_through_a_ball_builds_under_every_boolean() {
     let a = ball(R1, 0.0);
+    let half = 0.3;
     let bar =
-        topo::test_support::brick::<f64>((0.5, 2.0), (-0.3, 0.3), (-0.3, 0.3), Tol::witness());
-    for op in OPS {
-        let e = refusal(op, &a, &bar);
+        topo::test_support::brick::<f64>((0.5, 2.0), (-half, half), (-half, half), Tol::witness());
+    // ∫_{−h}^{h} √(c² − z²) dz = h·√(c² − h²) + c²·asin(h/c), c² = 1 − y².
+    let slice = |y: f64| {
+        let c2 = 1.0 - y * y;
+        half * (c2 - half * half).sqrt() + c2 * (half / c2.sqrt()).asin() - half
+    };
+    let n = 2000;
+    let step = 2.0 * half / f64::from(n);
+    let simpson: f64 = (0..=n)
+        .map(|i| {
+            let w = if i == 0 || i == n {
+                1.0
+            } else if i % 2 == 1 {
+                4.0
+            } else {
+                2.0
+            };
+            w * slice(-half + f64::from(i) * step)
+        })
+        .sum();
+    let shared = simpson * step / 3.0;
+    let (va, vb) = (ball_volume(R1), 1.5 * (2.0 * half).powi(2));
+    for (label, op, x, y, expected) in [
+        ("ball ∪ bar", BooleanOp::Union, &a, &bar, va + vb - shared),
+        ("ball ∩ bar", BooleanOp::Intersect, &a, &bar, shared),
+        ("ball ∖ bar", BooleanOp::Subtract, &a, &bar, va - shared),
+        ("bar ∖ ball", BooleanOp::Subtract, &bar, &a, vb - shared),
+    ] {
+        let body = run(op, x, y);
+        assert_eq!(topo::validate(&body), Ok(()), "{label}: validate");
+        assert_eq!(
+            topo::validate_closed(&body),
+            Ok(()),
+            "{label}: validate_closed"
+        );
+        assert_eq!(
+            topo::validate_geometric(&body, Tol::witness()),
+            Ok(()),
+            "{label}: validate_geometric"
+        );
+        let p = topo::mass_properties(&body, Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
+        assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
         assert!(
-            matches!(
-                e,
-                topo::BooleanError::Join(topo::SplitJoinError::SectionArcSide {
-                    case: topo::ArcSideCase::ReflexRunEnd,
-                    ..
-                })
-            ),
-            "bar through a ball under {op:?}: expected to cross the sphere and stop at the \
-             run-side rule's reflex run end, got {e:?}"
+            (p.volume - expected).abs() <= 1e-9 * expected.max(1.0),
+            "{label}: volume {} against the slice integral {expected}",
+            p.volume
         );
     }
 }

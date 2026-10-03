@@ -13,16 +13,18 @@
 //!   neighbours are the two torus faces; today every op refuses at the
 //!   join's germ frame, which has no torus × plane arm);
 //! - a tube whose outer wall is two faces meeting in a circle, the box
-//!   top in that circle's plane holding an arc of it, or all of it
-//!   (today every op refuses at the join);
+//!   top in that circle's plane holding an arc of it (every op answers
+//!   its closed form; `point_in_solid` on the result refuses typed on
+//!   the notched full-turn wall,
+//!   `work/contain/a-notched-full-turn-wall-has-no-ray-trim.md`), or all
+//!   of it (today every op refuses at the join);
 //! - a die pip whose ball is poled along `y`, so its seam meridian and
 //!   both poles lie in the cube's top face (today every op refuses at
-//!   the join's tilted plane×sphere section; before the sweep recorded
-//!   the poles, the no-crossings fallback re-charted the ball and ∖
-//!   answered its closed form).
+//!   the join's role read, `SectionLoopUndecided`).
 //!
 //! Each op must refuse typed or answer its closed-form volume with
-//! `point_in_solid` agreeing on its set membership at witness points.
+//! `point_in_solid` agreeing on its set membership at witness points,
+//! or refusing typed there.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -295,9 +297,15 @@ fn every_op_refuses_or_answers_its_closed_form() {
                     SolidContainment::Out
                 };
                 let q = Point3::new(x, y, z);
-                let got = topo::point_in_solid(body, q, band, tol);
-                if !matches!(got, Ok(c) if c == expect) {
-                    failures.push(format!("{what}: point_in_solid{q:?} = {got:?}"));
+                match topo::point_in_solid(body, q, band, tol) {
+                    Ok(c) if c == expect => {}
+                    // The notched full-turn wall's ray trim (module docs).
+                    Err(topo::PointInSolidError::Escalated { diag, .. })
+                        if diag.predicate == Some("bool_wall_trim_period") =>
+                    {
+                        refusals.push(format!("{what}: point_in_solid{q:?}: {diag:?}"));
+                    }
+                    got => failures.push(format!("{what}: point_in_solid{q:?} = {got:?}")),
                 }
             }
         }
