@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-02
 priority: P1
 cost: H
-design: true
 parent: placement-split-and-inline-at-a-gauge-are-refused-until-p2-split
 ---
 
@@ -20,3 +19,10 @@ Two questions are open, both on ratified A4 text, so they go to a designer pair 
 - **The representation.** Re-spelling through a new edit, or a face frame spelled in the host's naming so the existing `Rebind` carries it (which reaches MSOLVE's `FaceFrame`, the wire, and M1, `work/msolve/a-mate-frame-is-written-in-the-reading-instances-coordinates.md`).
 
 The same `[ev]` PR carries the spec's D1: A4's round trip against the gauge hoist and inline's sugar, which fold a gauge with an empty placement, or one holding exactly one group at the empty chain, into the root's offset.
+
+## RULED (2026-10-03, Ev on `[ev]` #3888)
+
+- **A gauge in the cut moves into the part as it is** ("i agree with (i)"). Split has no hoist and inline no sugar. `Promote`/`Fold` carry the convenience. A4's acceptance (inline-of-split is the identity up to node ids) holds on every shape. This retires the spec's D1 and D3.
+- **A `FromFace` side names no face.** Its frame is its head's own face, so it crosses the seam with its head. This was taken with the designers' lean, under Ev's delegation in the same thread. `MateFaceFrameCrosses` and the planned `SetMateFrame` go.
+
+A4, A3 and A11 (5) state it. The design-fork log records it as row 51.

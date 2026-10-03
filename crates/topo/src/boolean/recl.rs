@@ -254,14 +254,11 @@ pub(super) fn recl_sectors<T: Decide>(
             };
             let s_a = surface_of(a_body, sa.face)?;
             let s_b = surface_of(b_body, sb.face)?;
-            let p = a_body
-                .get_half_edge(sa.he)
-                .and_then(|he| a_body.get_vertex(he.start))
-                .and_then(|v| a_body.get_point(v.point))
-                .copied()
-                .ok_or(BooleanError::ClassificationInvariant {
+            let p = a_body.half_edge_start_point(sa.he).ok_or(
+                BooleanError::ClassificationInvariant {
                     what: "v-v site lost its point",
-                })?;
+                },
+            )?;
             let side = |own: &geom::Surface<T>, other: &geom::Surface<T>, n, d| {
                 super::sectors::tangent_relative_side(own, other, n, p, d, arm, read, band)
             };
@@ -973,14 +970,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                             };
                             let s_own = surface_of(own_body, own_sec.face)?;
                             let s_other = surface_of(other_body, other_sec.face)?;
-                            let p = own_body
-                                .get_half_edge(own_sec.he)
-                                .and_then(|he| own_body.get_vertex(he.start))
-                                .and_then(|vd| own_body.get_point(vd.point))
-                                .copied()
-                                .ok_or(BooleanError::ClassificationInvariant {
+                            let p = own_body.half_edge_start_point(own_sec.he).ok_or(
+                                BooleanError::ClassificationInvariant {
                                     what: "edge-edge site lost its point",
-                                })?;
+                                },
+                            )?;
                             let reach = declared.reach_of(
                                 own_op,
                                 own_sec.face,

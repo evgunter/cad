@@ -52,3 +52,26 @@ them. Changing it moves each consumer's refusal surface, so it needs
 its own measurement. The fix is small: pass `ArmBand::Retry` and map
 `ray_verdict`'s error to a graze, the way the arc path does.
 
+
+## Update (CLEAVE far-plane, PR 3866)
+
+The side and advance halves are done.
+
+- `polygon_walk` now abandons a ray on an in-band `point_in_loop_side`
+  or `point_in_loop_advance`, through `ray_parity::Abandoned`, which
+  holds the soundness argument. The first such reading is the refusal
+  only if the schedule exhausts.
+- `review_m3_pr3_pil::the_verdict_is_blind_to_the_normals_sign` pins
+  both outcomes:
+  - a dart probe whose first ray passes a far vertex in band now
+    answers `In`;
+  - a star loop whose every ray passes a vertex in band still refuses
+    on the first ordinate, with signed margins.
+
+**Still open: `point_in_loop_arm`.** It is the one ray-level row
+`polygon_walk` still escalates, through `walk_schedule(...,
+ArmBand::Escalate, ...)`. It is now the only unscheduled exception to
+the abandon rule. Moving it to `ArmBand::Retry` changes refusals that
+`editor-core/tests/docm2_part_interval.rs` pins: that file names
+`point_in_loop_arm` as the predicate its narrow rungs certify past.
+That consumer has to be measured first.
