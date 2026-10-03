@@ -95,10 +95,14 @@ What holds:
   entities. The editor finishes each boolean operand once at the seat
   (`NodeErrorKind::UnfinishedOperand`); the n-ary union's accumulation
   stays finished between steps.
-- The stranded-operand invariant retires
+- The stranded-operand invariant retires at certifying scalars
   (`work/hone/a-stranded-operand-reaches-the-classification-invariant.md`,
-  closed), and so does CLEAVE's check-7 operand read and
-  `BooleanError::InsideOutOperand`.
+  closed). CLEAVE's check-7 operand read runs only where no verdict
+  rides the operand: a dual's policy runs no at-rest gate, so the door
+  runs main's operand gate and `validate::inside_out_solids` for it
+  (`reduce::gate_unverdicted_operand`), and main's result gate (tiers
+  1–2 and the scaffold fence, `ops::structural_gate`) where the kept
+  gate did not run.
 - Tier 3's predicates at the door have their reasons in editor-core's
   decision-log census (`WORDLESS`).
 

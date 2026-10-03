@@ -131,7 +131,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::contact::{BooleanCoincidence, ContactClass};
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
@@ -1645,6 +1645,21 @@ pub enum BooleanError {
         /// The validator's tier-2 findings, each naming its entity.
         errors: Vec<ValidationError>,
     },
+    /// An operand holds an inside-out solid: tier 3's check 7 decides
+    /// its signed volume definitely negative
+    /// ([`ValidationError::NegativeVolume`]), so its faces bound the
+    /// complement of the region they enclose. A finished body never
+    /// holds one; the door reads check 7 itself on an operand whose
+    /// scalar runs no at-rest gate (a dual,
+    /// [`crate::AtRestOutcome::NotRunAtThisScalar`]), and refuses it
+    /// before any classification reads it, rather than answering for
+    /// the complement.
+    InsideOutOperand {
+        /// The offending operand.
+        operand: Operand,
+        /// Its first inside-out solid, in arena order.
+        solid: SolidKey,
+    },
     /// F7: two adjacent faces of one operand are structurally or
     /// declaredly coplanar — the operand is not maximal-faced; run
     /// `merge_coplanar_faces` explicitly first.
@@ -2406,6 +2421,8 @@ pub enum BooleanErrorKind {
     ArcLoopContainmentUnsupported,
     /// [`BooleanError::ScaffoldingOperand`].
     ScaffoldingOperand,
+    /// [`BooleanError::InsideOutOperand`].
+    InsideOutOperand,
     /// [`BooleanError::NonMaximalFaces`].
     NonMaximalFaces,
     /// [`BooleanError::CoplanarNeighbours`].
@@ -2617,6 +2634,7 @@ impl BooleanError {
                 BooleanErrorKind::ArcLoopContainmentUnsupported
             }
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
+            Self::InsideOutOperand { .. } => BooleanErrorKind::InsideOutOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
             Self::CoplanarNeighbours { .. } => BooleanErrorKind::CoplanarNeighbours,
             Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
@@ -2827,6 +2845,13 @@ impl core::fmt::Display for BooleanError {
                 "the {} operand is not a finished solid: it still carries what an edit \
                  left behind, such as a strut or an empty loop, so the Boolean refuses \
                  it. Recourse: finish that edit first",
+                operand_word(*operand),
+            ),
+            Self::InsideOutOperand { operand, .. } => write!(
+                f,
+                "the {} operand is inside-out: its faces point into its material, so it \
+                 encloses negative volume and the Boolean refuses it. Recourse: build it \
+                 with its faces pointing outward, or revert it",
                 operand_word(*operand),
             ),
             Self::NonMaximalFaces { operand, .. } => write!(
@@ -5232,6 +5257,10 @@ mod tests {
                     vertex: VertexKey::default(),
                 }],
             },
+            BooleanError::InsideOutOperand {
+                operand: Operand::B,
+                solid: SolidKey::default(),
+            },
             BooleanError::NonMaximalFaces {
                 operand: Operand::A,
                 edge,
@@ -5450,6 +5479,7 @@ mod tests {
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
+                BooleanErrorKind::InsideOutOperand => "InsideOutOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
                 BooleanErrorKind::CoplanarNeighbours => "CoplanarNeighbours",
                 BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",

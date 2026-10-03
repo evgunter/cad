@@ -1595,6 +1595,31 @@ fn a_stranded_split_top_is_refused_at_the_at_rest_gate() {
     let body = super::tests::top_split_redescribed(|p0, along, _| {
         plane_through(p0 + up * offset, along, up)
     });
+    // The stranded half: the one face whose plane was lifted off the
+    // top, and the vertices and edges of its boundary.
+    let stranded = body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(crate::Surface::Plane { origin, .. }) if (origin.z - (1.0 + offset)).abs() < 0.5 * offset
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the re-described half");
+    let outer = body.get_face(stranded).expect("a live face").outer;
+    let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).expect("its loop").boundary
+    else {
+        panic!("the stranded half's outer loop is a cycle");
+    };
+    let boundary: Vec<_> = body
+        .loop_cycle(first)
+        .expect("its loop walks")
+        .into_iter()
+        .map(|he| body.get_half_edge(he).expect("a live half-edge"))
+        .collect();
+    let edges: Vec<_> = boundary.iter().map(|he| he.edge).collect();
+    let vertices: Vec<_> = boundary.iter().map(|he| he.start).collect();
     let errors = crate::AtRestBody::validate(body, Tol::witness())
         .expect_err("a stranded body is not a finished body");
     assert!(
@@ -1603,15 +1628,22 @@ fn a_stranded_split_top_is_refused_at_the_at_rest_gate() {
             .any(|e| matches!(e, crate::ValidationError::PlanarFaceResidual { .. })),
         "the stranded half's vertices lie off its plane: {errors:?}"
     );
-    assert!(
-        errors.iter().all(|e| matches!(
-            e,
-            crate::ValidationError::PlanarFaceResidual { .. }
-                | crate::ValidationError::PlanarBoundaryResidual { .. }
-                | crate::ValidationError::DescriptionNotAdjacent { .. }
-        )),
-        "every finding is the stranding's: {errors:?}"
-    );
+    for e in &errors {
+        let own = match e {
+            crate::ValidationError::PlanarFaceResidual { face, vertex } => {
+                *face == stranded && vertices.contains(vertex)
+            }
+            crate::ValidationError::PlanarBoundaryResidual { face, edge } => {
+                *face == stranded && edges.contains(edge)
+            }
+            crate::ValidationError::DescriptionNotAdjacent { edge } => edges.contains(edge),
+            _ => false,
+        };
+        assert!(
+            own,
+            "a finding that is not the stranded half's own: {e:?} in {errors:?}"
+        );
+    }
 }
 
 /// The plane through `p` with unit normal `n`, containing the unit
@@ -1910,6 +1942,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PointSplitCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::ScaffoldingOperand
+        | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::NonMaximalFaces
         | BooleanErrorKind::NonFiniteSectorChord
         | BooleanErrorKind::UnderflowedSectorChord

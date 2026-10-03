@@ -72,6 +72,7 @@ use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::null::CurveGeom;
+use crate::props::AtRestOutcome;
 use crate::splitting::ConicPlaneMeet;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -417,9 +418,9 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
 ///    rung-3 edges being what the zip MINTS rather than what it
 ///    consumes;
 ///
-/// Orientation is not read here: an operand is a finished body
-/// ([`crate::AtRestBody`]), whose tier-3 verdict includes check 7 per
-/// solid, so an inside-out solid never reaches the door.
+/// Orientation is not read here: a `Validated` operand's tier-3 verdict
+/// includes check 7 per solid, and [`gate_unverdicted_operand`] reads it
+/// for an operand that carries no verdict.
 pub(super) fn gate_operand<T: Decide>(
     body: &Body<T>,
     operand: Operand,
@@ -438,6 +439,37 @@ pub(super) fn gate_operand<T: Decide>(
         });
     }
     gate_operand_edges(body, operand)?;
+    Ok(())
+}
+
+/// **The operand gate where no at-rest gate ran** — an operand whose
+/// scalar's policy answers [`AtRestOutcome::NotRunAtThisScalar`] (a
+/// dual) carries no verdict, so the door owes it what it owes every
+/// operand without the type: [`gate_operand`], then orientation —
+/// tier 3's check 7, per solid, at the scalar's lane
+/// ([`crate::AtRestPolicy::quad_lane`]). A solid it decides definitely
+/// negative refuses [`BooleanError::InsideOutOperand`]; one whose sign
+/// it leaves open passes, as check 7 passes it. A `Validated` operand
+/// passes untouched: its verdict already holds both.
+///
+/// The subject of the orientation read is the solid: a body's total
+/// hides a sign, so this runs before the pipeline reads a several-solid
+/// operand as one solid (`ops::one_solid`).
+pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
+    body: &crate::AtRestBody<T>,
+    operand: Operand,
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    if body.outcome() == AtRestOutcome::Validated {
+        return Ok(());
+    }
+    gate_operand(body, operand)?;
+    if let Some(&solid) =
+        crate::validate::inside_out_solids(body, band, tol, T::quad_lane()).first()
+    {
+        return Err(BooleanError::InsideOutOperand { operand, solid });
+    }
     Ok(())
 }
 

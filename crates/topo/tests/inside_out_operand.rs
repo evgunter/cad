@@ -3,16 +3,18 @@
 //! and 2, but its faces point inward: tier 3's check 7 decides its
 //! volume negative, per solid, and the at-rest gate that finishes an
 //! operand refuses it there. Consumed, it would be the complement of the
-//! wedge it bounds, and ∖ and ∩ answered each other's volume.
+//! wedge it bounds, and ∖ and ∩ answered each other's volume. At a dual,
+//! whose policy runs no at-rest gate, the door reads check 7 itself and
+//! refuses the operand typed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
 
 use common::{brick, flush_declarations};
-use geom_core::{Bounds, Decide, Interval, Tol};
+use geom_core::{Bounds, Decide, Dual64, Interval, Tol};
 use topo::{
-    AtRestBody, AtRestPolicy, Body, BooleanError, BooleanResult, ValidationError, intersect_with,
-    mass_properties, subtract_with, union_with,
+    AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanError, BooleanResult, Operand,
+    ValidationError, intersect_with, mass_properties, subtract_with, union_with,
 };
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
@@ -81,6 +83,35 @@ fn an_inside_out_operand_refuses_in_every_op_at_f64() {
 #[test]
 fn an_inside_out_operand_refuses_in_every_op_at_interval() {
     refuses_inside_out::<Interval>("Interval");
+}
+
+/// **At a dual the door reads check 7 itself.** A dual's policy runs no
+/// at-rest gate, so the wedge finishes with no verdict
+/// ([`AtRestOutcome::NotRunAtThisScalar`]) and the door owes it the
+/// orientation read: every op, in both operand orders, refuses it as
+/// the inside-out operand it is, naming the operand. Red without that
+/// read: ∖ answered 0.0352 and ∩ 0.9648, each the other's volume.
+#[test]
+fn an_inside_out_operand_refuses_in_every_op_at_a_dual() {
+    let tol = Tol::witness();
+    let (brick, wedge) = operands::<Dual64>(false, tol);
+    let (brick, wedge) = (
+        Dual64::gate_at_rest_kept(brick, tol).expect("a dual gate runs nothing"),
+        Dual64::gate_at_rest_kept(wedge, tol).expect("a dual gate runs nothing"),
+    );
+    assert_eq!(wedge.outcome(), AtRestOutcome::NotRunAtThisScalar);
+    for (name, op) in ops::<Dual64>() {
+        for (a, b, inside_out) in [(&brick, &wedge, Operand::B), (&wedge, &brick, Operand::A)] {
+            let decls = flush_declarations(a, b, tol);
+            match op(a, b, &decls, tol) {
+                Err(BooleanError::InsideOutOperand { operand, .. }) => assert_eq!(
+                    operand, inside_out,
+                    "{name}: the refusal names the inside-out operand"
+                ),
+                other => panic!("{name}: want InsideOutOperand, got {:?}", other.map(|_| ())),
+            }
+        }
+    }
 }
 
 /// **The counterclockwise control answers the true volumes**, read off

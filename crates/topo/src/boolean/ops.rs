@@ -140,7 +140,7 @@ use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
-use crate::validate::{AtRestBody, decide};
+use crate::validate::{AtRestBody, decide, scaffolds_at_rest, validate, validate_closed};
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
 
@@ -476,8 +476,8 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// [`boolean_op_with`]'s body.
 fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
     tol: Tol,
@@ -530,6 +530,10 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 other_kind: p.other_kind,
             });
         }
+    }
+    let band = Band::linear(tol)?;
+    for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
+        super::reduce::gate_unverdicted_operand(body, operand, band, tol)?;
     }
     let (a, b) = (one_solid(a)?, one_solid(b)?);
     boolean_op_recut(op, &a, &b, decls, strategy, true, tol)
@@ -2805,7 +2809,8 @@ pub(super) fn remap_carried<T: Real>(
 /// sorted one solid per piece of material ([`crate::pieces`]), then
 /// finished ([`AtRestPolicy::gate_at_rest_kept`]: tier 3, whose first
 /// act is tiers 1 and 2), so the verdict rides the result and is taken
-/// on the bits the caller receives.
+/// on the bits the caller receives. Where the scalar runs no at-rest
+/// gate, [`structural_gate`] runs in its place.
 ///
 /// # Errors
 ///
@@ -2829,7 +2834,29 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
         from.elapsed(),
         kept.as_ref().map(|_| ()).map_err(Vec::as_slice),
     ));
-    kept.map_err(|errors| BooleanError::ResultInvalid { errors })
+    let kept = kept.map_err(|errors| BooleanError::ResultInvalid { errors })?;
+    if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
+        structural_gate(&kept)?;
+    }
+    Ok(kept)
+}
+
+/// The result gate where no at-rest gate ran (a dual's policy answers
+/// [`crate::AtRestOutcome::NotRunAtThisScalar`]): tiers 1 and 2, then
+/// tier 3's transience fence
+/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest)),
+/// which read no certification arithmetic and so answer at every
+/// scalar. An edge of the result still described as a scaffold is a
+/// construction that stopped half-way.
+fn structural_gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
+    validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
+    validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
+    let errors = scaffolds_at_rest(body);
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(BooleanError::ResultInvalid { errors })
+    }
 }
 
 /// One sphere group the extent scan wants re-cut: rigidly re-charted
@@ -3736,6 +3763,78 @@ mod tests {
             Ok(()),
             "the described box passes"
         );
+    }
+
+    /// **At a dual the result gate is main's structural gate.** A dual's
+    /// policy runs no at-rest gate, so tiers 1 and 2 and the transience
+    /// fence run in its place: the undescribed box refuses one
+    /// `ScaffoldAtRest` per chord, and the described box passes, with no
+    /// verdict.
+    #[test]
+    fn at_a_dual_the_result_gate_still_refuses_a_scaffold_at_rest() {
+        use geom_core::Dual64;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let mut raw = crate::Body::<Dual64>::new();
+        crate::test_support_fixtures::prism_ops(
+            &mut raw,
+            &square,
+            (0.0, 1.0),
+            crate::test_support_fixtures::identity_map,
+            crate::test_support_fixtures::FaceGeometry::Certified,
+            tol,
+        );
+        let Err(BooleanError::ResultInvalid { errors }) = gate(raw.clone(), band, tol) else {
+            panic!("the raw box's chords are scaffolds at rest, at a dual too");
+        };
+        assert_eq!(
+            errors.len(),
+            raw.edges().count(),
+            "one per chord: {errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .all(|e| matches!(e, crate::ValidationError::ScaffoldAtRest { .. })),
+            "{errors:?}"
+        );
+        let described =
+            crate::test_support_fixtures::brick::<Dual64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let kept = gate(described, band, tol).expect("the described box passes");
+        assert_eq!(kept.outcome(), crate::AtRestOutcome::NotRunAtThisScalar);
+    }
+
+    /// The gate's fence is check 2's: on tier-2-valid bodies,
+    /// `scaffolds_at_rest` is exactly the `ScaffoldAtRest` findings of
+    /// `validate_geometric`, in the same order. An undescribed box has
+    /// a scaffold on every edge; a described prism with a collinear
+    /// profile run keeps one, on the smooth edge between its two
+    /// coplanar walls.
+    #[test]
+    fn the_fence_is_check_twos_scaffold_findings() {
+        let tol = Tol::witness();
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let run = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        for (what, body, count) in [
+            ("undescribed box", quad_prism(&square, 1.0, tol), 12),
+            (
+                "collinear prism",
+                crate::test_support_fixtures::prism_z::<f64>(&run, 0.0, 1.0, tol).body,
+                1,
+            ),
+        ] {
+            assert_eq!(crate::validate_closed(&body), Ok(()), "{what}: tier 2");
+            let fence = crate::validate::scaffolds_at_rest(&body);
+            let check_two: Vec<_> = crate::validate_geometric(&body, tol)
+                .err()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|e| matches!(e, crate::ValidationError::ScaffoldAtRest { .. }))
+                .collect();
+            assert_eq!(fence, check_two, "{what}: the fence is check 2's");
+            assert_eq!(fence.len(), count, "{what}: scaffolds at rest");
+        }
     }
 
     /// An operand's own scaffold never reaches the door: the undescribed

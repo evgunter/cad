@@ -57,3 +57,11 @@ typed at the at-rest gate, with the stranded half's own
 findings, at every ε. The pinning row is
 `offer_rows::a_stranded_split_top_is_refused_at_the_at_rest_gate`
 (`crates/topo/src/boolean/offer_rows.rs`).
+
+At a dual the policy runs no at-rest gate, so a stranded operand carries
+no verdict and reaches the pipeline as it did on main at every scalar;
+the door's dual remainder runs main's operand gate (tiers 1–2, edge
+carriers, orientation), which the stranded top passes. No dual
+construction strands a face (the stranding is
+`set_face_surface_stranding_for_tests`), so the classification
+invariant is reached at a dual by no public construction.
