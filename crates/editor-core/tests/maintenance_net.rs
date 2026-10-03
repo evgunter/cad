@@ -38,7 +38,7 @@ fn net_of(
     }
     let Recorded {
         doc, maintenance, ..
-    } = action.finish();
+    } = action.finish().expect("every edit landed");
     (maintenance, each, doc)
 }
 
@@ -196,11 +196,9 @@ fn a_declared_strand_a_later_set_declare_clears_is_not_reported() {
 /// **What a recorded action answers beside its net**: the edits in the
 /// order they applied, what each minted — the typed insert's id among
 /// them — and the document the last one produced, which is the one
-/// `apply` threaded edit by edit produces. A refused edit records
-/// nothing and the action goes on from where it stood; a strand an
-/// early delete made and a later `SetDeclare` of the same action
-/// cleared is netted out; an action that records nothing answers its
-/// start.
+/// `apply` threaded edit by edit produces. A strand an early delete
+/// made and a later `SetDeclare` of the same action cleared is netted
+/// out; an action that records nothing answers its start.
 #[test]
 fn a_recording_answers_its_edits_ids_and_document_in_order() {
     let doc = ProfileDoc::empty_derived("net-record", Tol::witness());
@@ -227,16 +225,6 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
     let deleted = action.apply(DocEdit::DeleteNode { id: b });
     assert_eq!(deleted, Ok(None), "a delete mints nothing");
     assert!(!action.is_empty(), "the delete is recorded");
-    let before_refusal = action.doc().clone();
-    let refused = action.apply(DocEdit::DeleteNode { id: b });
-    assert!(
-        matches!(refused, Err(EditError::UnknownNode { .. })),
-        "the node is gone: {refused:?}"
-    );
-    assert!(
-        action.doc().bit_eq(&before_refusal),
-        "a refused edit leaves the action where it stood"
-    );
     let inserted = action.insert(other.clone()).expect("the union lands");
     let cleared = action.apply(DocEdit::SetDeclare {
         node: union,
@@ -244,7 +232,7 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
     });
     assert_eq!(cleared, Ok(None), "a set-declare mints nothing");
     assert_eq!(action.minted(), &[None, Some(inserted), None]);
-    let recorded = action.finish();
+    let recorded = action.finish().expect("every edit landed");
 
     let delete = DocEdit::DeleteNode { id: b };
     let insert = DocEdit::InsertNode {
@@ -281,10 +269,81 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         first.maintenance
     );
 
-    let idle = Recording::start(&doc, Tol::witness(), &RefusingReach).finish();
+    let idle = Recording::start(&doc, Tol::witness(), &RefusingReach)
+        .finish()
+        .expect("nothing was refused");
     assert!(idle.doc.bit_eq(&doc), "no edit, the start");
     assert_eq!(
         (idle.edits, idle.maintenance, idle.minted),
         (Vec::new(), Vec::new(), Vec::new())
+    );
+}
+
+/// **A refusal ends the action**, whether or not its caller stops at
+/// it: the refused edit records nothing, an edit that would land on its
+/// own after it is refused with the same refusal and applies nothing,
+/// and `finish` answers that refusal instead of the edits around it. A
+/// caller that swallows the refusal therefore cannot finish with a
+/// partial action: this row reds if a recording goes on past a refusal,
+/// at `apply`, at `insert`, or at `finish`.
+#[test]
+fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
+    let doc = ProfileDoc::empty_derived("net-refused", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+    let delete_b = DocEdit::DeleteNode { id: b };
+    let union = Node::Union {
+        members: vec![b, c],
+        declare: Vec::new(),
+    };
+
+    let mut action = Recording::start(&doc, Tol::witness(), &RefusingReach);
+    action
+        .apply(DocEdit::DeleteNode { id: a })
+        .expect("the first delete lands");
+    let after_first = action.doc().clone();
+    for edit in [
+        delete_b.clone(),
+        DocEdit::InsertNode {
+            node: Box::new(union.clone()),
+        },
+    ] {
+        assert!(
+            apply(&after_first, &edit, Tol::witness(), &RefusingReach).is_ok(),
+            "the premise: {edit:?} lands on its own where the refusal left the action"
+        );
+    }
+    let refused = action
+        .apply(DocEdit::DeleteNode { id: a })
+        .expect_err("the node is gone");
+    assert!(
+        matches!(refused, EditError::UnknownNode { .. }),
+        "the door's own refusal: {refused:?}"
+    );
+    // The caller swallows the refusal and goes on.
+    assert_eq!(
+        action.apply(delete_b),
+        Err(refused.clone()),
+        "an apply after the refusal answers it"
+    );
+    assert_eq!(
+        action.insert(union),
+        Err(refused.clone()),
+        "an insert after the refusal answers it"
+    );
+    assert!(
+        action.doc().bit_eq(&after_first),
+        "nothing after the refusal applied"
+    );
+    assert_eq!(
+        action.minted(),
+        &[None],
+        "only the edit before the refusal is recorded"
+    );
+    assert_eq!(
+        action.finish(),
+        Err(refused),
+        "the action finishes as its refusal, not as the edits around it"
     );
 }

@@ -2941,13 +2941,15 @@ pub fn split(
         edits: remainder_edits,
         maintenance: remainder_maintenance,
         ..
-    } = remainder.finish();
+    } = remainder.finish().map_err(rem_refused)?;
     let Recorded {
         doc: part,
         edits: part_edits,
         maintenance: part_maintenance,
         ..
-    } = part.finish();
+    } = part.finish().map_err(|error| SplitError::PartEdit {
+        error: Box::new(error),
+    })?;
     Ok(SplitOutcome {
         remainder,
         part,
@@ -3506,7 +3508,7 @@ pub fn inline(
         edits,
         maintenance,
         ..
-    } = current.finish();
+    } = current.finish().map_err(refused)?;
     Ok(InlineOutcome {
         doc,
         edits,

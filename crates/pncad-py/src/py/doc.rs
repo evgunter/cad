@@ -927,7 +927,7 @@ impl Doc {
                 label: Some(label),
             })?;
         }
-        let done = action.finish();
+        let done = action.finish()?;
         self.take_up(done.doc, done.maintenance);
         Ok(NodeId(id))
     }
