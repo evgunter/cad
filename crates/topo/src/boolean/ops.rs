@@ -110,7 +110,7 @@
 //!   cap's interior) is a whole-orbit pierce run and answers exactly.
 
 use geom_core::interval::Interval;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -136,6 +136,7 @@ use super::{
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
+use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{decide, scaffolds_at_rest, validate, validate_closed};
@@ -606,7 +607,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
-        .map_err(BooleanError::Merge)?;
+        .map_err(of_merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
     let mut contacts = remap_contacts(
@@ -1977,15 +1978,11 @@ fn bound_holds<'t, 'b, T: Decide>(
 
 /// D6 (M3 PR 6a): honest descriptions on boolean-minted edges AT MINT
 /// TIME — the worklist is tracked lineage (the zips' surviving seam
-/// edges plus every boundary edge of a merge-kept face, whose
-/// adjacency the merge just rewrote), never a post-hoc scan of the
-/// body. Each worklist edge that still resolves is described from its
-/// two faces' surfaces (structural adjacency): definitely transverse ⇒
-/// `Intersection` with the chord-midpoint witness; definitely smooth ⇒
-/// the must-carry rule over the edge ([`seam_must_carry`]) — the
-/// intrinsic `TangentIntersection` where the surfaces determine the
-/// locus, else the conventional description (D2's split); escalation
-/// refuses typed.
+/// edges plus every boundary edge of a face whose merge group the
+/// merge door SKIPPED), never a post-hoc scan of the body. The
+/// merge-kept faces' boundaries are the door's own: it re-describes
+/// them before it returns ([`Body::merge_coplanar_faces_declared`]).
+/// Each worklist edge is described by [`describe_edges`].
 pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     seam_edges: &[crate::entity::EdgeKey],
@@ -1993,55 +1990,137 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    let corrupt = || BooleanError::JoinDesync {
-        what: "description worklist edge not walkable",
-    };
+    let worklist = describe_worklist(body, seam_edges, merged)?;
+    describe_edges(body, worklist, &merged.skipped, band, tol).map_err(of_describe)
+}
+
+/// [`describe_minted_edges`]' worklist: the seam edges that survived
+/// the merge, then the skipped groups' faces' boundaries.
+fn describe_worklist<T: Real>(
+    body: &Body<T>,
+    seam_edges: &[crate::entity::EdgeKey],
+    merged: &crate::merge_faces::MergeCoplanarOutcome,
+) -> Result<Vec<crate::entity::EdgeKey>, BooleanError> {
     let mut worklist: Vec<crate::entity::EdgeKey> = Vec::new();
     for &e in seam_edges {
         if body.get_edge(e).is_some() {
             worklist.push(e); // merge may have consumed flush seam edges
         }
     }
-    // Merge-KEPT faces' boundaries (adjacency rewritten by the glue)
-    // AND SKIPPED groups' faces' boundaries (M4 PR 5 F1: the glue
-    // those groups' classification anticipated did NOT happen, so
-    // their in-plane cut edges may carry descriptions citing
-    // no-longer-adjacent surfaces — they must be re-checked against
-    // the ACTUAL adjacency below). A declared pair the door declined
-    // (a non-planar carrier) enters this worklist through the same
-    // field: its faces were left as the zip shipped them, and their
-    // boundaries are re-checked here for the same reason.
-    let group_faces = merged
-        .groups
-        .iter()
-        .map(|g| g.kept)
-        .chain(merged.skipped.iter().flat_map(|s| s.faces.iter().copied()));
-    for f in group_faces {
+    // SKIPPED groups' faces' boundaries (M4 PR 5 F1: the glue those
+    // groups' classification anticipated did NOT happen, so their
+    // in-plane cut edges may carry descriptions citing no-longer-
+    // adjacent surfaces — they must be re-checked against the ACTUAL
+    // adjacency). A declared pair the door declined (a non-planar
+    // carrier) enters this worklist through the same field: its faces
+    // were left as the zip shipped them, and their boundaries are
+    // re-checked here for the same reason.
+    let skipped = boundary_edges(
+        body,
+        merged.skipped.iter().flat_map(|s| s.faces.iter().copied()),
+    )
+    .ok_or(BooleanError::JoinDesync {
+        what: join_desync_text(EdgeDescribeFailure::NotWalkable),
+    })?;
+    worklist.extend(skipped.into_iter().map(|(_, edge)| edge));
+    Ok(worklist)
+}
+
+/// Every boundary edge of each live face in `faces`, once, with the
+/// first listed face that holds it: outer loop then rings, each in
+/// cycle order. A face that no longer resolves contributes nothing;
+/// `None` when a loop of a live face does not walk.
+pub(crate) fn boundary_edges<T: Real>(
+    body: &Body<T>,
+    faces: impl IntoIterator<Item = FaceKey>,
+) -> Option<Vec<(FaceKey, crate::entity::EdgeKey)>> {
+    let mut seen: BTreeSet<crate::entity::EdgeKey> = BTreeSet::new();
+    let mut edges = Vec::new();
+    for f in faces {
         let Some(face) = body.get_face(f) else {
             continue;
         };
         for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-            let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary
-            else {
+            let LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
                 continue;
             };
-            for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-                worklist.push(body.get_half_edge(he).ok_or_else(corrupt)?.edge);
+            for he in body.loop_cycle(first)? {
+                let edge = body.get_half_edge(he)?.edge;
+                if seen.insert(edge) {
+                    edges.push((f, edge));
+                }
             }
         }
     }
+    Some(edges)
+}
+
+/// The boolean's words for what the describer could not do: a join
+/// desync, as its own description pass has always raised it.
+const fn join_desync_text(failure: EdgeDescribeFailure) -> &'static str {
+    match failure {
+        EdgeDescribeFailure::NotWalkable => "description worklist edge not walkable",
+        EdgeDescribeFailure::Intersection => "minted-edge description failed certification",
+        EdgeDescribeFailure::Tangency => "tangent-seam description failed certification",
+        EdgeDescribeFailure::NoConventionalLane => {
+            "stale CURVED smooth-seam description (no conventional re-description lane exists \
+             for this carrier kind)"
+        }
+        EdgeDescribeFailure::Arc => "stale arc description failed re-certification",
+        EdgeDescribeFailure::Line => "stale in-plane description failed re-certification",
+    }
+}
+
+/// The boolean's refusal for an edge its describer could not describe.
+pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
+    match refusal {
+        DescribeRefusal::Failed { failure, .. } => BooleanError::JoinDesync {
+            what: join_desync_text(failure),
+        },
+        DescribeRefusal::Undecided { reading, diag, .. } => seam_refusal(reading, diag),
+    }
+}
+
+/// The boolean's refusal for a merge-door refusal: the door's
+/// re-description of its kept faces' boundaries refuses as the
+/// boolean's own description pass does ([`of_describe`]), and every
+/// other refusal is the output stage's.
+pub(super) fn of_merge(refusal: crate::merge_faces::MergeCoplanarError) -> BooleanError {
+    match refusal.kept_boundary() {
+        Some(described) => of_describe(described),
+        None => BooleanError::Merge(refusal),
+    }
+}
+
+/// Describes each worklist edge from its two faces' surfaces
+/// (structural adjacency): definitely transverse ⇒ `Intersection` with
+/// the chord-midpoint witness; definitely smooth ⇒ the must-carry rule
+/// over the edge ([`must_carry_reading`]) — the intrinsic
+/// `TangentIntersection` where the surfaces determine the locus, else
+/// the conventional description (D2's split); an undecided reading
+/// refuses typed. `skipped` is the merge stage's record of the groups
+/// it left unglued. The boolean's minted edges and the merge door's
+/// kept boundaries are both described here, and each door words the
+/// refusal as its own.
+pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    worklist: impl IntoIterator<Item = crate::entity::EdgeKey>,
+    skipped: &[crate::merge_faces::SkippedMerge],
+    band: Band,
+    tol: Tol,
+) -> Result<(), DescribeRefusal> {
     // Whether two faces both belong to one recorded merge skip: the
     // licensed cosurface pairs the merge stage ships unglued.
     let recorded_skip = |f1: Option<crate::entity::FaceKey>, f2: Option<crate::entity::FaceKey>| {
         let (Some(f1), Some(f2)) = (f1, f2) else {
             return false;
         };
-        merged
-            .skipped
+        skipped
             .iter()
             .any(|s| s.faces.contains(&f1) && s.faces.contains(&f2))
     };
     for edge in worklist {
+        let corrupt = || DescribeRefusal::failed(edge, EdgeDescribeFailure::NotWalkable);
         let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
         let sides = crate::readback::edge_sides(body, edge).map_err(|_| corrupt())?;
         let (s1, s2) = sides.surfaces();
@@ -2064,11 +2143,13 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
         let curved = existing.as_ref().is_some_and(|c| c.carrier().is_curved());
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (witness, extent) = (draft.witness, draft.extent);
-        match seam_class(surf1, surf2, witness, extent, band)? {
+        match seam_reading(surf1, surf2, witness, extent, band)
+            .map_err(|(reading, diag)| DescribeRefusal::undecided(edge, reading, diag))?
+        {
             geom_brep::DihedralClass::Transverse => {
                 body.set_edge_curve(edge, draft.into_spec(s1, s2), tol)
-                    .map_err(|_| BooleanError::JoinDesync {
-                        what: "minted-edge description failed certification",
+                    .map_err(|_| {
+                        DescribeRefusal::failed(edge, EdgeDescribeFailure::Intersection)
                     })?;
             }
             geom_brep::DihedralClass::Smooth => {
@@ -2114,11 +2195,13 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
                 // The D6 smooth ladder (M9-3): a definitely-smooth
                 // seam descends one order through the must-carry rule
                 // over the edge, at the stations tier 3's must-carry arm
-                // re-reads (`seam_must_carry`).
+                // re-reads (`must_carry_reading`).
                 let mint_intrinsic = {
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
-                    seam_must_carry(surf1, surf2, c.carrier(), t0, t1, extent, band)?
+                    must_carry_reading(surf1, surf2, c.carrier(), t0, t1, extent, band).map_err(
+                        |(reading, diag)| DescribeRefusal::undecided(edge, reading, diag),
+                    )?
                 };
                 if mint_intrinsic {
                     // Mint the intrinsic tangency on the existing
@@ -2138,10 +2221,9 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
                         param_start: t0,
                         param_end: t1,
                     };
-                    body.set_edge_curve(edge, spec, tol)
-                        .map_err(|_| BooleanError::JoinDesync {
-                            what: "tangent-seam description failed certification",
-                        })?;
+                    body.set_edge_curve(edge, spec, tol).map_err(|_| {
+                        DescribeRefusal::failed(edge, EdgeDescribeFailure::Tangency)
+                    })?;
                 } else if stale {
                     if curved {
                         // The conventional re-description for an arc
@@ -2160,15 +2242,13 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
                         let Some(spec) =
                             geom_brep::EdgeCurveSpec::arc_of_circle(c.carrier().clone(), t0, t1)
                         else {
-                            return Err(BooleanError::JoinDesync {
-                                what: "stale CURVED smooth-seam description (no conventional \
-                                       re-description lane exists for this carrier kind)",
-                            });
+                            return Err(DescribeRefusal::failed(
+                                edge,
+                                EdgeDescribeFailure::NoConventionalLane,
+                            ));
                         };
                         body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|_| BooleanError::JoinDesync {
-                                what: "stale arc description failed re-certification",
-                            })?;
+                            .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Arc))?;
                     } else {
                         body.set_edge_curve(
                             edge,
@@ -2176,9 +2256,7 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
                                 .at_rest_in_chart(s1, false),
                             tol,
                         )
-                        .map_err(|_| BooleanError::JoinDesync {
-                            what: "stale in-plane description failed re-certification",
-                        })?;
+                        .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Line))?;
                     }
                 }
             }
@@ -2190,6 +2268,7 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
 /// **A seam edge of the result, as its re-description reads it**: the
 /// dihedral of its two surfaces at `witness` over `extent`, whose arm
 /// rung is the seam's own lever and whose reading is the seam's wedge.
+#[cfg(test)]
 pub(super) fn seam_class<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
@@ -2197,13 +2276,37 @@ pub(super) fn seam_class<T: Decide>(
     extent: T,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
-    geom_brep::classify_dihedral(surf1, surf2, witness, extent, band).map_err(|escalation| {
-        BooleanError::of_lever(
+    seam_reading(surf1, surf2, witness, extent, band)
+        .map_err(|(reading, diag)| seam_refusal(reading, diag))
+}
+
+/// [`seam_class`]'s reading, unworded: the rung that could not decide
+/// and its diagnostics.
+fn seam_reading<T: Decide>(
+    surf1: &geom::Surface<T>,
+    surf2: &geom::Surface<T>,
+    witness: Point3<T>,
+    extent: T,
+    band: Band,
+) -> Result<geom_brep::DihedralClass, (DihedralReading, Indeterminate)> {
+    geom_brep::classify_dihedral(surf1, surf2, witness, extent, band)
+        .map_err(|escalation| (DihedralReading::Lever(escalation.rung), escalation.diag))
+}
+
+/// The boolean's refusal for an undecided seam reading: the seam's
+/// first-order arm or wedge, by rung, or its second-order bend.
+pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> BooleanError {
+    match reading {
+        DihedralReading::Lever(rung) => BooleanError::of_lever(
             super::LeverArm::Seam,
             super::DeclarationRead::Moot,
-            escalation,
-        )
-    })
+            geom_brep::LeverEscalation { rung, diag },
+        ),
+        DihedralReading::Bend => BooleanError::Escalated {
+            decision: BooleanDecision::SeamJet,
+            diag,
+        },
+    }
 }
 
 /// **A smooth seam edge of the result, one order down**: whether its
@@ -2224,6 +2327,7 @@ pub(super) fn seam_class<T: Decide>(
 ///   [`seam_class`] ends it, or its second-order bend
 ///   ([`BooleanDecision::SeamJet`]). Certifiable as neither, so never
 ///   folded into either description (D4 ¶3).
+#[cfg(test)]
 pub(super) fn seam_must_carry<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
@@ -2233,22 +2337,30 @@ pub(super) fn seam_must_carry<T: Decide>(
     extent: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
+    must_carry_reading(surf1, surf2, carrier, t0, t1, extent, band)
+        .map_err(|(reading, diag)| seam_refusal(reading, diag))
+}
+
+/// [`seam_must_carry`]'s verdict, unworded: an undecided station
+/// returns the reading that raised it and its diagnostics.
+fn must_carry_reading<T: Decide>(
+    surf1: &geom::Surface<T>,
+    surf2: &geom::Surface<T>,
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    t1: T,
+    extent: T,
+    band: Band,
+) -> Result<bool, (DihedralReading, Indeterminate)> {
     use geom_brep::{MustCarryEscalation, MustCarryVerdict};
     match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, extent, band) {
         MustCarryVerdict::JetDeterminate => Ok(true),
         MustCarryVerdict::UnderDetermined | MustCarryVerdict::Transverse => Ok(false),
         MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
-            Err(BooleanError::of_lever(
-                super::LeverArm::Seam,
-                super::DeclarationRead::Moot,
-                escalation,
-            ))
+            Err((DihedralReading::Lever(escalation.rung), escalation.diag))
         }
         MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(diag)) => {
-            Err(BooleanError::Escalated {
-                decision: BooleanDecision::SeamJet,
-                diag,
-            })
+            Err((DihedralReading::Bend, diag))
         }
     }
 }
@@ -3467,7 +3579,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
             let merged = body
                 .merge_coplanar_faces_declared(&declared_pairs, tol)
-                .map_err(BooleanError::Merge)?;
+                .map_err(of_merge)?;
             let mut desc = Descendants::default();
             desc.absorb_merge(&merged);
             describe_minted_edges(&mut body, &[], &merged, band, tol)?;
@@ -3533,9 +3645,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     // result. A declared pair that held the absent operand's region
     // through the kept one is `covered`; the surviving operand's
     // CARRIED records still apply.
-    let merged = body
-        .merge_coplanar_faces(tol)
-        .map_err(BooleanError::Merge)?;
+    let merged = body.merge_coplanar_faces(tol).map_err(of_merge)?;
     let mut desc = Descendants::default();
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &[], &merged, band, tol)?;
@@ -4793,20 +4903,21 @@ mod tests {
         }
     }
 
-    /// **The rebuild's smooth arm decides through [`seam_must_carry`]
-    /// and spells no second-order reading of its own**, so the rows
-    /// above, which call the helper, speak for the boolean's seams: a
-    /// loop inlined back into `describe_minted_edges` reds here.
+    /// **The rebuild's smooth arm decides through [`must_carry_reading`]
+    /// — the verdict [`seam_must_carry`] words — and spells no
+    /// second-order reading of its own**, so the rows above, which call
+    /// the helper, speak for the boolean's seams: a loop inlined back
+    /// into `describe_edges` reds here.
     #[test]
     fn the_smooth_seam_arm_routes_through_the_must_carry_rule() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/boolean/ops.rs");
         let source = test_utils::source::code_only(&std::fs::read_to_string(path).unwrap());
         let start = source
-            .find("fn describe_minted_edges")
+            .find("fn describe_edges")
             .expect("the rebuild's description pass");
         let body = &source[start..start + source[start..].find("\n}\n").expect("its end")];
         assert_eq!(
-            body.matches("seam_must_carry(").count(),
+            body.matches("must_carry_reading(").count(),
             1,
             "the smooth arm asks the rule once"
         );
@@ -4820,7 +4931,131 @@ mod tests {
         ] {
             assert!(
                 !body.contains(spelling),
-                "describe_minted_edges spells `{spelling}` beside the rule"
+                "describe_edges spells `{spelling}` beside the rule"
+            );
+        }
+    }
+
+    /// **The kept faces' boundaries are the merge door's, not this
+    /// worklist's.** For a merge outcome that kept one face and skipped
+    /// nothing, the boolean's description worklist over no seam edges
+    /// is empty: the door re-describes a kept face's boundary before it
+    /// returns, and the boolean does not describe it a second time.
+    #[test]
+    fn the_description_worklist_carries_no_kept_boundary() {
+        let prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let kept = prism.side_faces[0];
+        let mut merged = crate::merge_faces::MergeCoplanarOutcome::default();
+        merged.groups.push(crate::merge_faces::MergedGroup {
+            kept,
+            absorbed: Vec::new(),
+            killed_edges: Vec::new(),
+            rings_made: Vec::new(),
+            killed_vertices: Vec::new(),
+        });
+        assert_eq!(
+            super::boundary_edges(&prism.body, [kept]).map(|edges| edges.len()),
+            Some(4),
+            "the kept wall has four boundary edges for the worklist to leave out"
+        );
+        assert!(
+            matches!(super::describe_worklist(&prism.body, &[], &merged), Ok(w) if w.is_empty()),
+            "the boolean's worklist holds none of the kept face's boundary"
+        );
+    }
+
+    /// **A boundary edge both of whose sides are listed is walked once**,
+    /// so the describer is handed it once.
+    #[test]
+    fn a_boundary_edge_between_two_listed_faces_is_listed_once() {
+        let prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let faces = [prism.side_faces[0], prism.side_faces[1]];
+        let edges = super::boundary_edges(&prism.body, faces).expect("the walls' loops walk");
+        assert_eq!(
+            edges.len(),
+            7,
+            "two quads sharing one edge: 4 + 4 - 1 = {edges:?}"
+        );
+        assert_eq!(
+            edges.iter().filter(|&&(face, _)| face == faces[1]).count(),
+            3,
+            "the shared edge is listed with the first face that holds it"
+        );
+    }
+
+    /// **The door's refusal comes back to the boolean as the boolean's
+    /// own**: every refusal the describer can raise, worded by the merge
+    /// door and handed through `of_merge`, is the very `BooleanError`
+    /// the boolean's own description pass raises for it.
+    #[test]
+    fn a_kept_boundary_refusal_comes_back_as_the_booleans_own() {
+        use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
+        let (mut body, kept, absorbed, strut) =
+            crate::merge_faces::kept_rows::wall_beside_a_leaning_neighbour(Tol::witness());
+        let surface = |face| body.get_face(face).unwrap().surface;
+        let pair = (surface(kept), surface(absorbed));
+        let refusal = body
+            .merge_coplanar_faces_declared(&[pair], Tol::witness())
+            .expect_err("the leaning neighbour's dihedral is in band at the kept face's edge");
+        let described = refusal
+            .kept_boundary()
+            .expect("the door's refusal is the describer's");
+        assert_eq!(
+            format!("{:?}", super::of_merge(refusal.clone())),
+            format!("{:?}", super::of_describe(described)),
+            "the live refusal passes through as the boolean's own"
+        );
+        let text = super::of_merge(refusal).to_string();
+        assert!(
+            text.contains("seam") && !text.contains("kept face"),
+            "the boolean words it as its own seam's: {text}"
+        );
+        let diag = match described {
+            DescribeRefusal::Undecided { diag, .. } => diag,
+            DescribeRefusal::Failed { .. } => panic!("the live refusal is undecided"),
+        };
+        let mut every = vec![
+            DescribeRefusal::undecided(
+                strut,
+                DihedralReading::Lever(geom_brep::LeverRung::Arm),
+                diag,
+            ),
+            DescribeRefusal::undecided(
+                strut,
+                DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                diag,
+            ),
+            DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
+        ];
+        for failure in [
+            EdgeDescribeFailure::NotWalkable,
+            EdgeDescribeFailure::Intersection,
+            EdgeDescribeFailure::Tangency,
+            EdgeDescribeFailure::NoConventionalLane,
+            EdgeDescribeFailure::Arc,
+            EdgeDescribeFailure::Line,
+        ] {
+            every.push(DescribeRefusal::failed(strut, failure));
+        }
+        for described in every {
+            let worded = crate::merge_faces::MergeCoplanarError::of_kept_boundary(
+                &[(kept, strut)],
+                described,
+            );
+            assert_eq!(
+                format!("{:?}", super::of_merge(worded)),
+                format!("{:?}", super::of_describe(described)),
+                "{described:?} passes through as the boolean's own"
             );
         }
     }

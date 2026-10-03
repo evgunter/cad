@@ -2361,8 +2361,8 @@ pub fn binary_header_error_tag(err: &BinaryHeaderError) -> &'static str {
 /// (the assembly gate's `Reference` arm rides one).
 pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
     match why {
-        RefusedRef::Vanished => "ref_vanished",
-        RefusedRef::ReadBelowARoot { .. } => "ref_read_below_a_root",
+        RefusedRef::Vanished { .. } => "ref_vanished",
+        RefusedRef::MovedAbove { .. } => "ref_moved_above",
         RefusedRef::Ambiguous { .. } => "ref_ambiguous",
     }
 }
