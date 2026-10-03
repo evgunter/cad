@@ -2,9 +2,11 @@
 id: lily-leaf-b-mass-exhausts-the-quadrature-budget-at-eps-1e-12
 kind: issue
 title: The k-probe sweep panics at eps 1e-12: lily_leaf_b's mass exhausts the quadrature budget (since #3838)
-status: open
+status: review
 opened: 2026-10-02
 priority: P1
+pr: 3976
+branch: reach/lily-leaf-1e12
 ---
 
 
