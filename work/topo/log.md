@@ -6481,3 +6481,10 @@ expressed, crossed three times, so per protocol rule 5 a further designer was di
 PR 4006 carries one recommendation. The only question for Ev is one D2-addendum sentence, which the code
 does not wait on. Fork-log row 63 holds the recommendation half; the designer mapping is on the analysis
 branch. Off-question defect still to file: `readback::DanglingRef` raises `Entity` for record links.
+
+## 23:30 check-in (2026-10-03)
+
+Merged main into the orchestration branch; no new notices. The test-door rename is PR 4005. Its lane report:
+92-site substitution, all suites green except two editor-core `c4_band` tests that need nextest's
+one-process mode and pass there. A cloud reviewer was dispatched (light review, E unit). The fan-split lane
+has no PR yet. PRs 3970 and 4006 are with Ev. Next check-in at 00:17 UTC.
