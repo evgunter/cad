@@ -1162,9 +1162,9 @@ impl PairTerm {
         }
     }
 
-    /// The term at `S = s`.
+    /// The term at `S = s`: [`PairTerm::about`] `s` itself.
     fn at(&self, s: [Interval; 3]) -> [Interval; 3] {
-        core::array::from_fn(|k| (self.lever[k] + self.dw * (self.p0[k] - s[k])) * self.scale)
+        self.about(s).k
     }
 }
 
@@ -1203,9 +1203,11 @@ impl Affine {
 /// radii), and only the best-screened pair, and then each pair whose
 /// screen is above the maximum read so far, is read in certification
 /// arithmetic. A pair skipped has a real norm at most that maximum, so
-/// the result is the full enumeration's up to rounding. Every input is
-/// asked for its refusal first, as the full enumeration's `norm_sup`
-/// would ask every pair.
+/// the result is at most the full enumeration's and below it only by
+/// rounding. A screen that is `+∞` or `NaN` (an unbounded or
+/// unformable radius or centre) rules nothing out, so such a pair is
+/// read. Every input is asked for its refusal first, as the full
+/// enumeration's `norm_sup` would ask every pair.
 fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine]) -> f64 {
     let certified = |a: &Affine| a.g.is_certified() && a.k.iter().all(|c| c.is_certified());
     if !(xs.iter().all(certified)
@@ -1259,7 +1261,9 @@ fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine]) -> f64 {
 }
 
 /// An enclosure as an `f64` centre and a radius rounded up: every
-/// point of it is within the radius of the centre on each axis.
+/// point of it is within the radius of the centre on each axis. A
+/// radius that overflowed reads `+∞` and one that cannot be formed
+/// reads `NaN`; [`screen_bound`] screens nothing out on either.
 #[derive(Clone, Copy)]
 struct Centred {
     mid: [f64; 3],
@@ -1271,8 +1275,8 @@ impl Centred {
     fn of(v: &[Interval; 3]) -> Self {
         let mid = v.map(|c| 0.5 * c.lo() + 0.5 * c.hi());
         let rad = (0..3)
-            .map(|k| (v[k].hi() - mid[k]).max(mid[k] - v[k].lo()).next_up())
-            .fold(0.0, f64::max);
+            .map(|k| max_bound(v[k].hi() - mid[k], mid[k] - v[k].lo()).next_up())
+            .fold(0.0, max_bound);
         Self { mid, rad }
     }
 
@@ -1286,24 +1290,32 @@ impl Centred {
     /// `k_c − g_c·q_c` on each axis, and computing that centre rounds
     /// it by at most `3u·(|k_c| + |g_c·q_c|)`; the radius is that sum
     /// with `4ε` for the centre's rounding, enlarged by `1 + 8ε` for
-    /// its own and by the smallest normal for any subnormal step.
+    /// its own and by the smallest normal for any subnormal step. A zero
+    /// factor is an exact zero ([`times_or_zero`]), so an unbounded offset beside
+    /// a term that does not read it adds nothing rather than `0·∞`.
     fn of_affine(k: &Self, g: &Self, q: &Self) -> Self {
         let (gm, gr) = (g.mid[0], g.rad);
-        let mid: [f64; 3] = core::array::from_fn(|i| k.mid[i] - gm * q.mid[i]);
+        let mid: [f64; 3] = core::array::from_fn(|i| k.mid[i] - times_or_zero(gm, q.mid[i]));
         let rad = (0..3)
             .map(|i| {
                 let qa = q.mid[i].abs();
                 k.rad
-                    + gm.abs() * q.rad
-                    + gr * (qa + q.rad)
-                    + 4.0 * f64::EPSILON * (k.mid[i].abs() + gm.abs() * qa)
+                    + times_or_zero(gm.abs(), q.rad)
+                    + times_or_zero(gr, qa + q.rad)
+                    + 4.0 * f64::EPSILON * (k.mid[i].abs() + times_or_zero(gm.abs(), qa))
             })
-            .fold(0.0, f64::max);
+            .fold(0.0, max_bound);
         Self {
             mid,
             rad: rad * (1.0 + 8.0 * f64::EPSILON) + f64::MIN_POSITIVE,
         }
     }
+}
+
+/// `a·b` with a zero factor an exact zero: a bound times a factor that
+/// is exactly zero contributes nothing, whatever the bound.
+fn times_or_zero(a: f64, b: f64) -> f64 {
+    if a == 0.0 || b == 0.0 { 0.0 } else { a * b }
 }
 
 /// An upper bound on `‖x + y‖` over `x` and `y` in the two boxes,
@@ -1312,16 +1324,18 @@ impl Centred {
 /// centres (`u` relative), the three-term norm away from underflow (at
 /// most `4u`), the radius sum and its product with `√3`, and the final
 /// sum and product — total well under `32ε`. `+∞`, which screens
-/// nothing out, wherever that argument does not hold: a non-finite
-/// operand, or a norm below `1e-150` (squares near the subnormal range)
-/// other than an exact zero, or above `1e150`.
+/// nothing out, wherever that argument does not hold: a `NaN` or
+/// infinite centre or radius, or a norm below `1e-150` (squares near
+/// the subnormal range, which can read `0` for a centre that is not)
+/// unless the centre sum is exactly zero, or a norm above `1e150`.
 fn screen_bound(a: &Centred, b: &Centred) -> f64 {
     const SQRT_3_UP: f64 = 1.732_050_807_568_877_4;
     const SLACK: f64 = 1.0 + 32.0 * f64::EPSILON;
     let m: [f64; 3] = core::array::from_fn(|k| a.mid[k] + b.mid[k]);
     let n = m.iter().map(|c| c.powi(2)).sum::<f64>().sqrt();
     let rad = a.rad + b.rad;
-    if !(n.is_finite() && rad.is_finite()) || (n != 0.0 && n < 1e-150) || n > 1e150 {
+    let zero = m.iter().all(|&c| c == 0.0);
+    if !(n.is_finite() && rad.is_finite()) || (!zero && n < 1e-150) || n > 1e150 {
         return f64::INFINITY;
     }
     (n + SQRT_3_UP * rad) * SLACK
@@ -1886,6 +1900,277 @@ mod tests {
             assert!(
                 pair_norm_sup(&qs, &refused, &ys).is_nan(),
                 "case {case}: a refused coordinate must refuse the read — {}",
+                fuzz::replay()
+            );
+        }
+    }
+
+    /// The full enumeration [`pair_norm_sup`] screens: `norm_sup` of every
+    /// pair at every offset, folded keeping `NaN`.
+    fn enumerated_pair_norm(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine]) -> f64 {
+        let mut all: Option<f64> = None;
+        for q in qs {
+            for x in xs {
+                for y in ys {
+                    let (a, b) = (x.at(*q), y.at(*q));
+                    let m = norm_sup(&core::array::from_fn(|k| a[k] + b[k]));
+                    all = Some(all.map_or(m, |s| max_bound(s, m)));
+                }
+            }
+        }
+        all.unwrap_or(f64::NAN)
+    }
+
+    /// **An unbounded or unformable radius screens nothing out.** Written
+    /// down, not searched: offsets spanning the whole finite range (whose
+    /// radius overflows to `+∞`) beside terms that do not read them
+    /// (`g` exactly zero, where `0·∞` would be `NaN` and a `NaN`-dropping
+    /// fold would shrink the radius to nothing); the same with terms that
+    /// do read them; offsets near overflow; and terms whose own enclosure
+    /// is unbounded. On each the screened read must be the enumeration's:
+    /// both refused, or the screened one at most the enumeration's and
+    /// below it only by rounding.
+    #[test]
+    fn an_unbounded_radius_screens_nothing_out() {
+        let iv = Interval::from_bounds;
+        let pt = Interval::point;
+        let zero = Affine {
+            k: [pt(0.0); 3],
+            g: pt(0.0),
+        };
+        let big = f64::MAX;
+        let whole = [[iv(-big, big); 3]];
+        let near = [[iv(-big / 4.0, big / 4.0); 3], [pt(0.0); 3]];
+        let wide_k = Affine {
+            k: [iv(-10.0, 10.0), pt(0.0), pt(0.0)],
+            g: pt(0.0),
+        };
+        let unit_k = Affine {
+            k: [pt(1.0), pt(0.0), pt(0.0)],
+            g: pt(0.0),
+        };
+        let reads_q = Affine {
+            k: [pt(1.0), pt(0.0), pt(0.0)],
+            g: pt(1e-300),
+        };
+        let unbounded_k = Affine {
+            k: [iv(-big, big), pt(0.0), pt(0.0)],
+            g: pt(0.0),
+        };
+        type Case<'a> = (&'a str, &'a [[Interval; 3]], Vec<Affine>);
+        let cases: [Case<'_>; 5] = [
+            (
+                "whole-range offsets, terms that do not read them",
+                &whole,
+                vec![wide_k, unit_k],
+            ),
+            ("the same, the wide term last", &whole, vec![unit_k, wide_k]),
+            (
+                "whole-range offsets, a term that reads them",
+                &whole,
+                vec![unit_k, reads_q],
+            ),
+            (
+                "offsets near overflow",
+                &near,
+                vec![unit_k, wide_k, reads_q],
+            ),
+            ("an unbounded term", &near, vec![unit_k, unbounded_k]),
+        ];
+        for (name, qs, xs) in cases {
+            let got = pair_norm_sup(qs, &xs, &[zero]);
+            let all = enumerated_pair_norm(qs, &xs, &[zero]);
+            assert!(
+                (got.is_nan() && all.is_nan())
+                    || (got <= all && got >= all * (1.0 - 64.0 * f64::EPSILON)),
+                "{name}: screened {got} against the enumeration's {all}"
+            );
+        }
+    }
+
+    /// `a + b` exactly, as an unevaluated sum.
+    fn two_sum(a: f64, b: f64) -> (f64, f64) {
+        let s = a + b;
+        let v = s - a;
+        (s, (a - (s - v)) + (b - v))
+    }
+
+    /// `a·b` exactly, as an unevaluated sum.
+    fn two_prod(a: f64, b: f64) -> (f64, f64) {
+        let p = a * b;
+        (p, a.mul_add(b, -p))
+    }
+
+    /// The sign of `Σ terms` read in double-double, with anything within
+    /// `1e-28` of the largest term's magnitude called zero: far below
+    /// the one-ulp misses the checks below are built to see.
+    fn dd_sign(terms: &[f64]) -> core::cmp::Ordering {
+        let (mut hi, mut lo) = (0.0_f64, 0.0_f64);
+        for &t in terms {
+            let (s, e) = two_sum(hi, t);
+            hi = s;
+            lo += e;
+        }
+        let total = hi + lo;
+        let scale = terms.iter().fold(0.0_f64, |m, t| m.max(t.abs()));
+        if total.abs() <= 1e-28 * scale {
+            core::cmp::Ordering::Equal
+        } else {
+            total.total_cmp(&0.0)
+        }
+    }
+
+    /// **The `f64` screen's centres, radii and bound hold against exact
+    /// arithmetic.** Random enclosures over magnitudes from `1e-100` to
+    /// `1e100`, with near-tie cases (the bound's own rounding the only
+    /// margin):
+    ///
+    /// * [`Centred::of`]: both ends of every axis lie within the radius
+    ///   of the centre, checked exactly;
+    /// * [`Centred::of_affine`]: every corner `k − g·q` of the three
+    ///   enclosures (the extremes of a bilinear form), formed exactly
+    ///   with a fused multiply, lies within its radius of its centre;
+    /// * [`screen_bound`]: its square is at least the exact squared norm
+    ///   of the far corner of the two boxes' sum, `Σ(|m_k| + r)²`, with
+    ///   the centres' sum formed exactly.
+    ///
+    /// What a pure-`f64` row can and cannot see: dropping the screen's
+    /// `1 + 32ε`, `Centred::of`'s rounding up, or the screen's refusal
+    /// of a nonzero centre whose norm underflows to `0` goes red here
+    /// (the mutations were run). [`Centred::of_affine`]'s `1 + 8ε` and its
+    /// smallest-normal term sit beside a `4ε` centre term that already
+    /// covers the rounding they guard on every normal-range input, so
+    /// dropping either one alone stays green: they guard against the
+    /// radius sum's own rounding, which this row cannot isolate.
+    #[test]
+    fn the_screen_holds_against_exact_arithmetic() {
+        use core::cmp::Ordering::Less;
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("enclose::screen_exact");
+        let mag = |rng: &mut fuzz::Rng| {
+            let m = 10f64.powf(rng.range(-100.0, 100.0));
+            if rng.below(2) == 0 { m } else { -m }
+        };
+        for case in 0..fuzz::scaled(4000) {
+            let tie = case % 3 == 0;
+            // Components whose squares underflow to zero: a norm that
+            // reads `0` for a centre that is not.
+            let tiny = case % 7 == 0;
+            let scale = 10f64.powf(rng.range(-100.0, 100.0));
+            let side = |rng: &mut fuzz::Rng| {
+                if tiny {
+                    return Interval::point(rng.range(-1.0, 1.0) * 1e-165);
+                }
+                let c = if tie {
+                    scale * rng.range(0.5, 1.0)
+                } else {
+                    mag(rng)
+                };
+                match case % 4 {
+                    0 => Interval::point(c),
+                    1 => Interval::from_bounds(c - c.abs() * 1e-17, c + c.abs() * 1e-17),
+                    // Ends of unrelated magnitude, where `hi − mid` rounds.
+                    2 => {
+                        let d = mag(rng);
+                        Interval::from_bounds(c.min(d), c.max(d))
+                    }
+                    _ => {
+                        let r = c.abs() * rng.range(0.0, 0.5);
+                        Interval::from_bounds(c - r, c + r)
+                    }
+                }
+            };
+            let k: [Interval; 3] = core::array::from_fn(|_| side(&mut rng));
+            let g = if tiny {
+                Interval::point(0.0)
+            } else {
+                side(&mut rng)
+            };
+            let q: [Interval; 3] = core::array::from_fn(|_| side(&mut rng));
+            if !(k.iter().chain(&q).all(|c| c.is_certified()) && g.is_certified()) {
+                continue;
+            }
+            let (ck, cg, cq) = (Centred::of(&k), Centred::of(&[g, g, g]), Centred::of(&q));
+            for (v, c) in [(&k, &ck), (&q, &cq)] {
+                for (i, (vi, mid)) in v.iter().zip(c.mid).enumerate() {
+                    for end in [vi.lo(), vi.hi()] {
+                        let (d, e) = two_sum(end, -mid);
+                        assert!(
+                            dd_sign(&[c.rad, -d.abs(), -e * d.signum()]) != Less,
+                            "case {case}: end {end} of axis {i} is outside {:?} ± {} — {}",
+                            c.mid,
+                            c.rad,
+                            fuzz::replay()
+                        );
+                    }
+                }
+            }
+            let img = Centred::of_affine(&ck, &cg, &cq);
+            for i in 0..3 {
+                for kv in [k[i].lo(), k[i].hi()] {
+                    for gv in [g.lo(), g.hi()] {
+                        for qv in [q[i].lo(), q[i].hi()] {
+                            let (p, pe) = two_prod(gv, qv);
+                            let (d, de) = two_sum(kv, -p);
+                            let (d2, de2) = two_sum(d, -img.mid[i]);
+                            let lo_part = de - pe + de2;
+                            let sign = if d2 + lo_part < 0.0 { -1.0 } else { 1.0 };
+                            assert!(
+                                dd_sign(&[img.rad, -sign * d2, -sign * de, sign * pe, -sign * de2])
+                                    != Less,
+                                "case {case}: corner k {kv} − g {gv}·q {qv} on axis {i} is \
+                                 outside {} ± {} — {}",
+                                img.mid[i],
+                                img.rad,
+                                fuzz::replay()
+                            );
+                        }
+                    }
+                }
+            }
+            let other = if tiny {
+                Centred {
+                    mid: [0.0; 3],
+                    rad: 0.0,
+                }
+            } else {
+                Centred::of(&core::array::from_fn(|_| side(&mut rng)))
+            };
+            let bound = screen_bound(&img, &other);
+            if !bound.is_finite() {
+                continue;
+            }
+            // Scaled up by an exact power of two so no square below
+            // underflows: the comparison is homogeneous.
+            let top = img
+                .mid
+                .iter()
+                .chain(&other.mid)
+                .chain([&img.rad, &other.rad, &bound])
+                .fold(0.0_f64, |m, x| m.max(x.abs()));
+            let up = if top > 0.0 && top < 1.0 {
+                2f64.powi(-(top.log2().floor() as i32))
+            } else {
+                1.0
+            };
+            let (b2, b2e) = two_prod(bound * up, bound * up);
+            let (r, re) = two_sum(img.rad * up, other.rad * up);
+            let mut terms = vec![b2, b2e];
+            for i in 0..3 {
+                let (m, me) = two_sum(img.mid[i] * up, other.mid[i] * up);
+                let (a, ae) = two_sum(m.abs(), r);
+                let ae = ae + me * m.signum() + re;
+                let (s, se) = two_prod(a, a);
+                terms.extend([-s, -se, -2.0 * a * ae]);
+            }
+            assert!(
+                dd_sign(&terms) != Less,
+                "case {case}: the screen {bound} is below the far corner of {:?} ± {} \
+                 plus {:?} ± {} — {}",
+                img.mid,
+                img.rad,
+                other.mid,
+                other.rad,
                 fuzz::replay()
             );
         }
