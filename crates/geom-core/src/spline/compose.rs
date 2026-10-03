@@ -797,6 +797,12 @@ impl CompositeForm {
         acc
     }
 
+    /// A certified upper bound on `|f ∘ C|` over each span of
+    /// [`Self::span_bounds`], `NaN` where the span is refused.
+    pub fn span_sup_bounds(&self) -> Vec<f64> {
+        self.span_bounds().into_iter().map(|b| b.mag()).collect()
+    }
+
     /// A certified upper bound on `|f ∘ C|` over the whole domain —
     /// C2.2's sup-norm honesty limb as one number. `NaN` on every
     /// refusal path (fails `≤ ε` in every direction, D4 ¶2).

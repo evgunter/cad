@@ -1472,8 +1472,8 @@ mod tests {
                     "whether two parallel directions at a corner point the same way or opposite \
                      ways is undecided: "
                 ) && text.ends_with(&format!(
-                    "Recourse: make the edges at the corner where the two faces meet clearly \
-                     longer than the tolerance, or, if this length of the corner's shorter edge \
+                    "Recourse: make the edges at the corner where the two faces meet span \
+                     clearly more than the tolerance, or, if this length of the corner's shorter edge \
                      is intended, tighten the tolerance below {:e} m",
                     arm / (e / z)
                 )),
@@ -1836,8 +1836,8 @@ mod tests {
                 "whether an edge at a corner is long enough to read which side of a face it \
                  leaves on is undecided: "
             ) && text.ends_with(&format!(
-                "Recourse: make the edges at the corner where the two faces meet clearly longer \
-                 than the tolerance, or, if this edge's length or rise is intended, tighten \
+                "Recourse: make the edges at the corner where the two faces meet span clearly \
+                 more than the tolerance, or, if this edge's length or rise is intended, tighten \
                  the tolerance below {:e} m",
                 departure(mid) / (e / z)
             )) && !text.contains("declare"),
