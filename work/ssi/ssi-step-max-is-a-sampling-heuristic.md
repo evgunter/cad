@@ -2,10 +2,13 @@
 id: ssi-step-max-is-a-sampling-heuristic
 kind: issue
 title: ssi: SSI_STEP_MAX (the longest march step, 1/32 of the extent) is a sampling heuristic standing in for the certificate; refine by certification instead
-status: open
+status: closed
 opened: 2026-10-03
 priority: P2
 cost: M
+pr: 3998
+branch: ssi/step-max-certify
+closed: 2026-10-03
 ---
 
 
@@ -43,3 +46,31 @@ Sibling extent fractions to weigh in the same pass, since each is a fraction of 
 - `SSI_STEP_MAX` is gone, or derived from what the certificate needs.
 - The SSI suite's answers hold at every ε.
 - Any moved rows are re-pinned with a reason for each.
+
+## Closed (2026-10-03, PR 3998)
+
+`SSI_STEP_MAX` is gone. A realized step is the curvature rungs'
+against ε, bounded by the domain's diagonal, and by `|AB|/5` between
+known crossings (or `length/5` on the ℝ³ short-branch re-march), the
+fit's sample minimum. Where limb 1 or 2 refuses the fitted carrier, the
+certificate locates the refused spans, every gap between samples they
+meet is halved (the midpoint settled onto the locus), and the carrier
+is refitted (`march::refine_by_certificate`). A gap is halved only
+while half of it clears the band, and no round overruns the fit budget;
+then the certificate's refusal stands. The uncertified door samples the
+same way.
+
+Outcomes moved: every curved-dome cut certifies at ε 1e-6 and 1e-9
+(cause 4 of `plane-nurbs-ssi-does-not-certify-a-curved-dome`), as do
+the weight-9 rational wall's edge cut and the multicell wall; a straight
+metre takes 6 samples where it took 33. Branches certified before and
+after take 4–7% fewer samples. The cost is the refits: the dense
+collocation solve dominates a round, filed as
+`work/flux/the-interpolating-fit-solves-a-banded-collocation-system-densely.md`.
+
+The extent's other fractions stay, each for its own reason (PR 3998's
+readers table): the idealized step defines the spec stepper, the tube
+ladder's widest rung is a separation scale, and the seeding floor only
+finds what the ε-tied accounting floor proves. The fixed pcurve schedule
+the sweep found is
+`work/ssi/the-cylinder-chart-ellipse-pcurve-samples-a-fixed-schedule.md`.
