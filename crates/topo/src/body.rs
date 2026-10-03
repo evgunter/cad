@@ -2242,6 +2242,65 @@ mod tests {
         assert_eq!(orphan.faces_of_vertex(root), None);
     }
 
+    /// The declined cube torn by two `next` writes, by position in its
+    /// half-edge arena, with the arena's keys and the vertex `v` whose
+    /// emanating walk the tear closes through two half-edges of another
+    /// vertex `u`. The walk is stepped here by hand, reading no start,
+    /// so the fixture proves the tear lands without the walk under test.
+    fn torn_cube_closing_through_another_vertex() -> (Body<f64>, Vec<HalfEdgeKey>, VertexKey) {
+        let mut body = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[19]).unwrap().next = halves[6];
+        body.get_half_edge_mut(halves[4]).unwrap().next = halves[11];
+        let start = |h: HalfEdgeKey| body.get_half_edge(h).unwrap().start;
+        let v = start(halves[11]);
+        let first = body.get_vertex(v).unwrap().emanating.unwrap();
+        let mut walk = vec![first];
+        loop {
+            let mate = body.mate(*walk.last().unwrap()).unwrap();
+            let next = body.get_half_edge(mate).unwrap().next;
+            if next == first {
+                break;
+            }
+            assert!(walk.len() < 24, "the hand walk closes");
+            walk.push(next);
+        }
+        let u = start(halves[5]);
+        assert_ne!(u, v);
+        assert_eq!(
+            walk.iter().map(|&h| start(h)).collect::<Vec<_>>(),
+            vec![v, v, v, u, u],
+            "the walk from v's emanating closes through two of u's half-edges"
+        );
+        (body, halves, v)
+    }
+
+    /// A walk a torn `next` closes through another vertex's half-edges
+    /// is not this vertex's orbit, and the read doors refuse it rather
+    /// than list the other vertex's edges and faces among this one's.
+    #[test]
+    fn the_vertex_doors_refuse_a_walk_closed_through_another_vertex() {
+        let (body, _, v) = torn_cube_closing_through_another_vertex();
+        if let Some(edges) = body.edges_of_vertex(v) {
+            for e in &edges {
+                let data = body.get_edge(*e).unwrap();
+                assert!(
+                    [data.he_plus, data.he_minus].iter().any(|&h| body
+                        .get_half_edge(h)
+                        .unwrap()
+                        .start
+                        == v),
+                    "edges_of_vertex({v:?}) = {edges:?} lists {e:?}, which no half of \
+                     starts at {v:?}"
+                );
+            }
+        }
+        let first = body.get_vertex(v).unwrap().emanating.unwrap();
+        assert_eq!(body.vertex_orbit(first), None, "vertex_orbit");
+        assert_eq!(body.edges_of_vertex(v), None, "edges_of_vertex");
+        assert_eq!(body.faces_of_vertex(v), None, "faces_of_vertex");
+    }
+
     #[test]
     fn walks_are_bounded_on_corrupt_bodies() {
         // Overrun: point a0's next into loop B's cycle — the walk from a0
