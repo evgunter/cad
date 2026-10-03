@@ -2,10 +2,11 @@
 id: two-pinches-crossing-on-one-line-refuse-their-union
 kind: issue
 title: Two pinches crossing on one line refuse their union: two crossing pairs share both their vertices
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P0
 cost: H
+branch: fuse/two-pinches-one-line
 ---
 
 

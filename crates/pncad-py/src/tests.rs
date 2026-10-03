@@ -4719,7 +4719,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "mate_head_not_a_face",
             "name_serialize",
-            "no_minted_id",
             "param_name_not_an_identifier",
         ],
         delegates: &["label_fault_tag", "placement_rule_fault_tag"],

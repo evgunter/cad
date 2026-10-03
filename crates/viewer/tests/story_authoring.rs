@@ -7,13 +7,9 @@
 //! cylindrical shaft, and a square crown block whose crenellations are
 //! cut by two crossing slots — every dimension chosen so the evaluated
 //! volume has a closed form the assertions derive beside the ops. (The
-//! crown is square deliberately: a slab cut through a cylinder WALL
-//! pierces it, a pierce ring in a wall face has no join arm yet, and
-//! the cut refuses typed at the join
-//! (`work/tang/pierce-ring-has-no-join-arm`; the round crown's cut is
-//! `editor-core`'s `reach_slab_cut_sector_side` row) — while the
-//! curved unions below are the supported boss class. The story stays
-//! on what the kernel ships. Stacked discs stand in for the revolved
+//! crown is square: the scene predates the join arm that lets a slab
+//! cut through a cylinder WALL, whose round-crown cut is `editor-core`'s
+//! `reach_slab_cut_sector_side` row. Stacked discs stand in for the revolved
 //! silhouette a rook naturally is: this scene predates
 //! `ProfileShape`'s `Path` arm, which can now spell one.) On the way
 //! the user mis-picks a boolean (typed refusals), tries to crown the
