@@ -2895,10 +2895,10 @@ fn maintenance_display_says_what_the_edit_did() {
                 "Datum frame (on face) 000000000005 carries a name for the end cap of Extrude \
                  000000000007",
                 // The row is made by two edits — a delete and a
-                // reshaping — and the sentence names what either
-                // removed without claiming which.
-                "this edit removed what it denoted",
-                "a node or profile step it names",
+                // reshaping — and the sentence names what either took
+                // without claiming which, nor that a kept step went.
+                "this edit took what it denoted",
+                "a node or profile step it names, or a piece a kept step no longer draws",
                 "resolves to nothing until it is rebound",
             ],
         ),
@@ -2909,7 +2909,7 @@ fn maintenance_display_says_what_the_edit_did() {
             vec![
                 "the appearance store holds an attachment under a name for the end cap of \
                  Extrude 000000000007",
-                "this edit removed what it denoted",
+                "this edit took what it denoted",
                 "rebound or cleared",
             ],
         ),

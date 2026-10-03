@@ -1663,8 +1663,10 @@ fn filleted_to_sharp(old: &[StepId]) -> Vec<Option<StepId>> {
 /// the corner and keeps every step: the fillet's run out now holds the
 /// right wall, so the kept leg is not drawn (N1, "Undrawn pieces
 /// vanish rather than alias"), and no value edit brings it back. The
-/// edit removed the name's referent, so it reports both carriers
-/// (DM7); dropping the fillet draws the leg again and reports nothing.
+/// edit took the name's referent, so it reports both carriers (DM7),
+/// each saying the kept leg's step at the row it holds in the new
+/// program, never the row it held before, which is now another step's;
+/// dropping the fillet draws the leg again and reports nothing.
 #[test]
 fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
     let (doc, profile, ext) = extruded("shadow-by-insert", vec![corner(false)]);
@@ -1680,19 +1682,40 @@ fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
 
     let keep = vec![sharp_to_filleted(&old)];
     let applied = accepted(&doc, profile, vec![corner(true)], keep);
+    let said = doc.spoken_name(&up).steps_respoken(&applied.doc);
     assert_eq!(
         applied.maintenance,
         vec![
             Maintenance::Strand {
                 node: doc.spoken(frame),
-                name: doc.spoken_name(&up),
+                name: said.clone(),
             },
-            Maintenance::StrandedAppearance {
-                name: doc.spoken_name(&up),
-            },
+            Maintenance::StrandedAppearance { name: said },
         ],
         "the kept leg's names strand: the frame's, then the paint's"
     );
+    let new = ids_of(&applied.doc, profile)[0].clone();
+    let (was, is) = (
+        old.iter()
+            .position(|s| *s == old[4])
+            .expect("the sharp corner draws the leg"),
+        new.iter()
+            .position(|s| *s == old[4])
+            .expect("the reshaping keeps the leg's step"),
+    );
+    assert_ne!(new[was], old[4], "the leg's old row is another step's now");
+    for row in &applied.maintenance {
+        let row = row.to_string();
+        assert!(
+            row.contains(&format!("loop 0 step {is} "))
+                && !row.contains(&format!("loop 0 step {was} ")),
+            "a kept step is said at its row in the new program, {is}, never its old {was}: {row}"
+        );
+        assert!(
+            row.contains(&applied.doc.spoken_name(&up).to_string()),
+            "the name reads as the new program says it: {row}"
+        );
+    }
     assert_eq!(frame_face(&applied.doc, frame), up, "nothing is rewritten");
     frame_refuses_vanished(&applied.doc, frame, &up);
     let fillet = ids_of(&applied.doc, profile)[0][3];
@@ -1738,14 +1761,18 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
     let up = wall_by(ext, old[4], PieceRole::Leg);
     let (doc, frame) = frame_on(doc, ext, up.clone());
     let keep = || vec![sharp_to_filleted(&old)];
-    let strand = vec![Maintenance::Strand {
-        node: doc.spoken(frame),
-        name: doc.spoken_name(&up),
-    }];
+    // The kept leg is said at its row in the program the edit made.
+    let strand = |after: &ProfileDoc| {
+        vec![Maintenance::Strand {
+            node: doc.spoken(frame),
+            name: doc.spoken_name(&up).steps_respoken(after),
+        }]
+    };
 
     let replaying = accepted(&doc, profile, vec![corner(true)], keep());
     assert_eq!(
-        replaying.maintenance, strand,
+        replaying.maintenance,
+        strand(&replaying.doc),
         "from the replaying state the leg's frame strands"
     );
     let parked = set_value(&doc, "hole_r", 0.0).doc;
@@ -1757,7 +1784,8 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
     );
     let applied = accepted(&parked, profile, vec![corner(true)], keep());
     assert_eq!(
-        applied.maintenance, strand,
+        applied.maintenance,
+        strand(&applied.doc),
         "from the parked state the same frame strands"
     );
     frame_refuses_vanished(&applied.doc, frame, &up);

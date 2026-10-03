@@ -151,3 +151,7 @@ Two designers weighed this independently and reached the same final state in the
   - `BlendTarget::of_face` goes.
   - A hover mark lights each line of the declare offer.
 - `committed-nodes-do-not-light-the-faces-they-reference` (P3) stays its own row: it is the picture half for committed nodes.
+
+## The composer speaks within the landed evaluation (PR 3886, 2026-10-03)
+
+Ev's ruling on #3906 gives a speaker that holds the body's name table — the viewer's pick readout among them — a detail that tells each name apart in that table. The composer this row builds holds that table: every site it serves reads the landed pair. So it says each face through `Speaker::of(landed).within(evaluation)`, as `frame::pick_refusal`, `idpass::Disagreement::notice` and `frame::tool_notice` already do. A face the evaluation does not hold is then said in full.

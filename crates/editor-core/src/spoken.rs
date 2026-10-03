@@ -38,16 +38,16 @@
 //! sentence made where the document is at hand says it as a
 //! [`SpokenName`], each step where the profile pane shows it. Both are
 //! [`Speaker::name`]'s one sentence, in full; a speaker holding the
-//! name's table says it at the least detail that tells it apart there
+//! name's table says it at a detail that tells it apart there
 //! ([`Speaker::within`]).
 
 use core::fmt;
 
 use crate::doc::Doc;
 use crate::label::Label;
-use crate::names::words::{Detail, least_detail};
+use crate::names::words::{Detail, unique_detail};
 use crate::names::{NameTable, StableName};
-use crate::node::{Datum, Node, RecipeNodeId, StepId};
+use crate::node::{BooleanOp, Datum, Node, RecipeNodeId, StepId};
 use crate::program::ProfilePayload;
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
@@ -279,6 +279,10 @@ impl HoldsNodes for SpokenNameParts {
     fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
         self.held.sole_profile(feature)
     }
+
+    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
+        self.held.boolean_op(id)
+    }
 }
 
 impl SpokenName {
@@ -311,6 +315,29 @@ impl SpokenName {
     #[must_use]
     pub fn minter(&self) -> &SpokenNode {
         &self.0.minter
+    }
+
+    /// **This name with each profile step `doc` still draws said where
+    /// `doc` draws it**, and each step `doc` no longer draws where it
+    /// sat when this was spoken: for a row about the edit that made
+    /// `doc`, which says a step it dropped where the step was, and a
+    /// step it kept where the step is now — its old row may be another
+    /// step's. Its nodes are kept as spoken.
+    #[must_use]
+    pub fn steps_respoken<P: ProfilePayload>(&self, doc: &Doc<P>) -> Self {
+        let held = &self.0.held;
+        Self::new(
+            self.name().clone(),
+            self.minter().clone(),
+            HeldNodes {
+                steps: held
+                    .steps
+                    .iter()
+                    .map(|&(id, at)| (id, doc.step(id).unwrap_or(at)))
+                    .collect(),
+                ..held.clone()
+            },
+        )
     }
 
     /// This name with its nodes and steps spoken again from `doc`, a
@@ -426,6 +453,9 @@ trait HoldsNodes {
     /// The one profile `feature` reads, `None` where it reads none or
     /// several, or is not held here.
     fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId>;
+    /// The operation of the Boolean `id`, `None` where `id` is no
+    /// Boolean, or is not held here.
+    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp>;
 }
 
 impl<P: ProfilePayload> HoldsNodes for Doc<P> {
@@ -459,6 +489,13 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
             .filter(|input| matches!(self.node(**input), Some(Node::Profile(_))));
         match (profiles.next(), profiles.next()) {
             (Some(one), None) => Some(*one),
+            _ => None,
+        }
+    }
+
+    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
+        match self.node(id)? {
+            Node::Boolean { op, .. } => Some(*op),
             _ => None,
         }
     }
@@ -501,6 +538,8 @@ pub struct HeldNodes {
     steps: Box<[(StepId, StepAt)]>,
     /// The features the words name, each with the one profile it read.
     profiles: Box<[(RecipeNodeId, RecipeNodeId)]>,
+    /// The Booleans the words name, each with its operation.
+    ops: Box<[(RecipeNodeId, BooleanOp)]>,
 }
 
 impl HeldNodes {
@@ -526,6 +565,14 @@ impl HeldNodes {
                     None => Some((feature, profile)),
                 })
                 .collect(),
+            ops: self
+                .ops
+                .iter()
+                .filter_map(|&(boolean, op)| match doc.node(boolean) {
+                    Some(_) => Some((boolean, doc.boolean_op(boolean)?)),
+                    None => Some((boolean, op)),
+                })
+                .collect(),
         }
     }
 }
@@ -549,6 +596,12 @@ impl HoldsNodes for HeldNodes {
         self.profiles
             .iter()
             .find_map(|&(held, profile)| (held == feature).then_some(profile))
+    }
+
+    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
+        self.ops
+            .iter()
+            .find_map(|&(held, op)| (held == id).then_some(op))
     }
 }
 
@@ -600,6 +653,15 @@ impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
                 .collect();
         }
         Some(profile)
+    }
+
+    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
+        let op = self.doc.boolean_op(id)?;
+        let mut said = self.said.borrow_mut();
+        if said.ops.iter().all(|(held, _)| *held != id) {
+            said.ops = said.ops.iter().copied().chain([(id, op)]).collect();
+        }
+        Some(op)
     }
 }
 
@@ -654,8 +716,9 @@ impl<'a> Speaker<'a> {
 
     /// **This speaker, saying each name within its table**: a name
     /// `tables` holds, in the table of the node whose output holds it,
-    /// is said at the least detail no other name of that table reads
-    /// alike at; any other name, in full.
+    /// is said at a detail no other name of that table reads alike at
+    /// (found greedily, not the fewest openings); any other name, in
+    /// full.
     #[must_use]
     pub fn within(self, tables: &'a dyn NameTables) -> Self {
         Self {
@@ -677,7 +740,28 @@ impl<'a> Speaker<'a> {
         if table.lookup(name).is_none() {
             return Detail::Full;
         }
-        least_detail(name, self, table)
+        unique_detail(name, self, table)
+    }
+
+    /// The operation of the Boolean `id` in this speaker's document,
+    /// `None` by tag or where it holds no such Boolean.
+    pub(crate) fn boolean_op(self, id: RecipeNodeId) -> Option<BooleanOp> {
+        self.doc?.boolean_op(id)
+    }
+
+    /// The node `id` as this speaker's document holds it, `noun` said
+    /// for its kind (`Subtract 1669` for a Boolean): `this node` when it
+    /// is the node the enclosing sentence is about ([`Speaker::about`]),
+    /// `node <tag>` where the document does not hold it.
+    pub(crate) fn node_as_kind(self, id: RecipeNodeId, noun: &'static str) -> impl fmt::Display {
+        let said = (self.subject != Some(id)).then(|| {
+            let held = self.spoken(id);
+            SpokenNode {
+                kind: held.kind.map(|_| noun),
+                ..held
+            }
+        });
+        NodeAs("node", said)
     }
 
     /// The one profile `feature` reads in this speaker's document.
@@ -714,7 +798,7 @@ impl<'a> Speaker<'a> {
     }
 
     /// The name `name` in words ([`crate::LeafRole`]): `the end cap of
-    /// Extrude e548, joined at Boolean 1669`. The one spelling of a name
+    /// Extrude e548, cut in at Subtract 1669`. The one spelling of a name
     /// in a sentence, article-led; [`StableName`]'s own `Display` is
     /// this, said by tag.
     #[must_use]
@@ -791,6 +875,18 @@ impl<T: Say + ?Sized> fmt::Display for Said<'_, T> {
 #[must_use]
 pub fn spoken_by<T: Say + ?Sized, P: ProfilePayload>(value: &T, doc: &Doc<P>) -> String {
     Said(value, Speaker::of(doc)).to_string()
+}
+
+/// `value`'s sentence as `doc` speaks its nodes now, each name it
+/// forwards said within the table `tables` holds it in
+/// ([`Speaker::within`]): what a frame holding the evaluation says.
+#[must_use]
+pub fn spoken_within<T: Say + ?Sized, P: ProfilePayload>(
+    value: &T,
+    doc: &Doc<P>,
+    tables: &dyn NameTables,
+) -> String {
+    Said(value, Speaker::of(doc).within(tables)).to_string()
 }
 
 /// **A report renders only from the document it was taken of.** A

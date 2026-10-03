@@ -1722,8 +1722,10 @@ impl ViewerBehavior<'_> {
             .blend_mut()
             .and_then(|tool| tool.load_all_edges(target, landed, eval, index));
         if let Some(event) = event {
-            self.notices
-                .push(frame::tool_notice(&ToolNotice::Blend(event), Some(landed)));
+            self.notices.push(frame::tool_notice(
+                &ToolNotice::Blend(event),
+                Some((landed, eval)),
+            ));
         }
     }
 

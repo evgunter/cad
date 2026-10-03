@@ -951,7 +951,7 @@ impl ViewerApp {
         // it did not survive, so the act that accepts the next one is
         // what retires it; `frame::tool_notice` reads from the event
         // whether the pick is lost for good.
-        let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        let landed = self.session.landed_pair();
         self.notices.extend(
             dropped
                 .iter()
@@ -2033,7 +2033,7 @@ impl eframe::App for ViewerApp {
         // A declined pick answers an act the user aimed at the
         // document, like every other rank-2 notice this frame.
         let declined = self.tools.feed(self.session.doc(), &ops);
-        let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        let landed = self.session.landed_pair();
         self.notices.extend(
             declined
                 .iter()

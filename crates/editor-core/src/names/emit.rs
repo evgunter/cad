@@ -386,8 +386,7 @@ impl crate::spoken::Say for NamingError {
         match self {
             // The role path rides along here, alone among the crate's
             // name renderings: a duplicate mint is a kernel bug report,
-            // and the PATH is what distinguishes the colliding name
-            // from every other name the node minted.
+            // and its reader replays the mint from the path's structure.
             Self::Duplicate { name } => write!(
                 f,
                 "{EMISSION_FRAMING}: {} (role path {:?}) was minted twice — names \

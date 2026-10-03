@@ -1145,11 +1145,11 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         .expect_err("an extrude is not a datum");
     assert!(matches!(refusal, SelectRefusal::NotADatum { datum, .. } if datum == extrude));
     assert!(
-        refusal.spoken(&doc).starts_with(&format!(
+        refusal.spoken(&doc, &ev).starts_with(&format!(
             "select: the query measures from Extrude \"base plate\" ({e}), which produced"
         )),
         "{}",
-        refusal.spoken(&doc)
+        refusal.spoken(&doc, &ev)
     );
 
     let poisoned = NodeStanding::Poisoned {
@@ -1181,7 +1181,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     // refusal that forwards a standing or a name.
     let failed = NodeStanding::Failed { node: extrude };
     assert_eq!(
-        HitTestError::Standing(failed).spoken(&doc),
+        HitTestError::Standing(failed).spoken(&doc, &ev),
         format!("hit test: {plate} failed, so it has no value — fix the node's own failure")
     );
     assert_eq!(
@@ -1209,13 +1209,13 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         last_good: None,
     };
     assert!(
-        vanished.spoken(&doc).starts_with(&format!(
+        vanished.spoken(&doc, &ev).starts_with(&format!(
             "the end cap of {plate} no longer resolves in this evaluation: a structural \
              parameter changed on the derivation path: slot {} of {plate}",
             SlotId::Count.label()
         )),
         "{}",
-        vanished.spoken(&doc)
+        vanished.spoken(&doc, &ev)
     );
     assert!(
         vanished
@@ -1225,17 +1225,18 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     );
 
     let (gone, _) = step(doc.clone(), DocEdit::DeleteNode { id: extrude });
+    let gone_ev = eval(&gone);
     let Resolution::Failed(failure) = resolve(
         RunCtx {
             doc: &gone,
-            eval: &eval(&gone),
+            eval: &gone_ev,
         },
         &wall,
     ) else {
         panic!("a name whose minting node was deleted does not resolve");
     };
     assert_eq!(
-        failure.error.spoken(&gone),
+        failure.error.spoken(&gone, &gone_ev),
         format!(
             "the end cap of node {e} is stranded: node {e} was deleted — the repair is an \
              explicit rebind"

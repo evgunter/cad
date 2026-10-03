@@ -75,3 +75,19 @@ The fix pass builds the #3906 ruling.
 - **Gates** (`editor-core/tests/name_words_corpus.rs`, slow set): the full form is injective over every corpus table, from the document and by tag; the scoped words are unique per body (no admissions); `respoken_after_a_dropped_step`. The budget gate is a ratchet: seven of the eight forwarding rows overrun 75 words with the corpus's longest scoped names, filed as `refusals-with-the-longest-scoped-names-overrun-the-budget`.
 - **Review fixes.** A dropped step lets go of its row in `HeldNodes::respoken`; `PairInBand`'s prose meets the refusal standard on its own; `SelectionRefusal::Unresolved`/`NotAFace` carry the name and say it through the speaker; the stranded sentence names the node that went.
 - **Remains.** The viewer's pick readout speaking within the landed evaluation is DOORS' `face-pick-cannot-name-which-face`. A strand row's kept step at its old row is `a-strand-row-says-a-kept-steps-old-row`.
+
+## Built (2026-10-03, PR 3886, second fix pass)
+
+- **Speakers holding the evaluation now say names within it.** The kernel refusals raised against an evaluation are `NodeError`, `ResolveError`, `SelectRefusal` and `HitTestError`. Their `spoken` now takes the evaluation (`spoken(doc, evaluation)`, through `spoken_within`), so no caller can say them in full by default. Two families of caller use it:
+  - The viewer's tree rows, pick refusal, picking-paths notice, index badge and tool notices speak through `Speaker::of(landed).within(evaluation)`.
+  - The Python surface's node failure, poisoning, select, resolve and hit-test errors pass the evaluation they were raised against.
+- **Production gate.** The budget rows are said through those `spoken` doors. The resolve rows forward a name the evaluation does not hold, so they are said in full. Measured: 263, 136, 96, 81, 76, 137, 127 and 133 words. The rows are ratcheted, and a second ratchet (`SAID_WORDS`) pins the words of every corpus name. Re-filed with these numbers as `refusals-with-the-longest-scoped-names-overrun-the-budget`, `needs_ev`.
+- **Scoped uniqueness** is gated per whole table, ties and every body included. Documents built outside the corpus are a test of their own.
+- **The scoped detail** is re-checked against every name of the table before it is given (`unique_detail`). The docs say it is greedy, not the least.
+- **Words.** A Boolean join is said by its operation ("cut in at Subtract 1669"). `head` has words for every segment, and no silent arm: a path no operation mints, and a seam junction, say each segment.
+- **The strand row** says a kept step at its new row; `a-strand-row-says-a-kept-steps-old-row` is closed.
+- **No role path reaches the status line's pick refusal.** `idpass::NameAndPath` keeps the path for the picking-paths bug report (`Disagreement`, `IdAnswer`) alone.
+- **Remains.**
+  - The DOORS face composer (`face-pick-cannot-name-which-face`) speaks within the landed evaluation when it lands.
+  - The budget is Ev's question.
+  - Six rows' unmarked recourses are WIRE's `refusals-forwarding-a-name-state-no-marked-recourse`.

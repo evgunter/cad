@@ -138,7 +138,7 @@ pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 pub use spoken::{
     FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, held_by,
-    node_kind_noun, spoken_by,
+    node_kind_noun, spoken_by, spoken_within,
 };
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather

@@ -117,7 +117,7 @@ pub use editor_core::{
 // channel prints.
 pub use editor_core::{
     FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, held_by,
-    node_kind_noun, spoken_by,
+    node_kind_noun, spoken_by, spoken_within,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the

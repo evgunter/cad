@@ -55,7 +55,7 @@
 //! **A name is read in words.** [`leaf_role`] says which entity a
 //! name denotes as a person tells it from its neighbours: its role, the
 //! feature that made it, and each secondary operand it was joined
-//! through (`the end cap of Extrude e548, joined at Boolean 1669`,
+//! through (`the end cap of Extrude e548, cut in at Subtract 1669`,
 //! `the part above the split of the side wall over the leg of loop 0
 //! step 2 of Extrude e548, on Split 2fec`). [`role_leaf`] is the name
 //! the role is read off; a name's own `Display` is these words.

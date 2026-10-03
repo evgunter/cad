@@ -245,11 +245,17 @@ impl core::fmt::Display for HitTestError {
 
 impl HitTestError {
     /// **The refusal as the frame holding the evaluated document says it**:
-    /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
-    /// reads an evaluation alone, so the refusal holds ids, never a label.
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]), each
+    /// name within the table `evaluation` holds it in
+    /// ([`crate::Speaker::within`]). The door reads an evaluation alone,
+    /// so the refusal holds ids, never a label.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
-        crate::spoken::spoken_by(self, doc)
+    pub fn spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &crate::doc::Doc<P>,
+        evaluation: &dyn crate::NameTables,
+    ) -> String {
+        crate::spoken::spoken_within(self, doc, evaluation)
     }
 }
 

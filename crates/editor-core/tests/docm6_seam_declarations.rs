@@ -1214,7 +1214,7 @@ fn a_carried_levels_inner_nodes_are_spoken_from_the_part_only_by_a_frame_holding
     let ev = run(&outer, &with_resolver(store.clone()));
     let own = ev.node_error(added).expect("the second mate is refused");
     assert_eq!(
-        own.spoken(&outer),
+        own.spoken(&outer, &ev),
         format!(
             "Mate \"outer added\" ({ta}) failed: the mate solve refused: Mate \"outer held\" \
              ({th}) and this mate cannot both hold: {}",
@@ -1239,10 +1239,10 @@ fn a_carried_levels_inner_nodes_are_spoken_from_the_part_only_by_a_frame_holding
         },
     );
     assert!(
-        own.spoken(&renamed)
+        own.spoken(&renamed, &ev)
             .contains(&format!("Mate \"outer renamed\" ({th}) and this mate")),
         "the memoized refusal holds the id, so a rename shows with nothing re-evaluated: {}",
-        own.spoken(&renamed)
+        own.spoken(&renamed, &ev)
     );
 
     let error = ev
@@ -1269,7 +1269,7 @@ fn a_carried_levels_inner_nodes_are_spoken_from_the_part_only_by_a_frame_holding
         .expect("the part's own tree draws the level's node failed");
     assert_eq!(
         level.line_in_part(&inner, Tol::witness()),
-        inner_own.spoken(&inner),
+        inner_own.spoken(&inner, &inner_ev),
         "a frame holding the part draws the level as the part's own tree does"
     );
     assert!(
@@ -1290,10 +1290,10 @@ fn a_carried_levels_inner_nodes_are_spoken_from_the_part_only_by_a_frame_holding
     let t = test_utils::refusal::tag(level.node.0);
     assert!(
         error
-            .spoken(&outer)
+            .spoken(&outer, &ev)
             .contains(&format!("the part's node {t} failed")),
         "the outer frame says the part's node by tag, though it holds the id: {}",
-        error.spoken(&outer)
+        error.spoken(&outer, &ev)
     );
 }
 
@@ -1442,7 +1442,7 @@ fn a_parts_product_refusal_keeps_its_tags_where_the_outer_document_holds_the_id(
         refusal.kind(),
         editor_core::ProductErrorKind::PlacedUnderTwoRoots
     );
-    let in_outer = error.spoken(&outer);
+    let in_outer = error.spoken(&outer, &ev);
     assert!(
         in_outer.contains(&format!("node {t}'s body is placed under two roots"))
             && !in_outer.contains("block\""),

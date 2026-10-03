@@ -2992,17 +2992,19 @@ impl core::fmt::Display for Maintenance {
                  group, so {i}'s offset was cleared",
                 i = instance
             ),
-            // The sentence names what was removed as the name's
-            // REFERENT — a node under a delete, a profile step under a
-            // reshaping — because the row does not say which edit made
-            // it and must not claim the node is gone when the step is.
+            // The sentence names what was taken as the name's
+            // REFERENT — a node under a delete, a profile step or a kept
+            // step's piece under a reshaping — because the row does not
+            // say which edit made it and must not claim the node is gone
+            // when the step is, nor the step when only its piece is.
             // "the end cap of node 7, which this edit deleted" would
             // read as though the name were deleted, and the name is
             // exactly what survives.
             Self::Strand { node, name } => write!(
                 f,
-                "{} carries a name for {}; this edit removed what it denoted (a node or \
-                 profile step it names), so the name resolves to nothing until it is rebound",
+                "{} carries a name for {}; this edit took what it denoted (a node or profile \
+                 step it names, or a piece a kept step no longer draws), so the name resolves \
+                 to nothing until it is rebound",
                 node, name
             ),
             // The same sentence with the store where the carrying
@@ -3013,8 +3015,9 @@ impl core::fmt::Display for Maintenance {
             Self::StrandedAppearance { name } => write!(
                 f,
                 "the appearance store holds an attachment under a name for {}; this edit \
-                 removed what it denoted (a node or profile step it names), so the name \
-                 resolves to nothing until it is rebound or cleared",
+                 took what it denoted (a node or profile step it names, or a piece a kept \
+                 step no longer draws), so the name resolves to nothing until it is rebound \
+                 or cleared",
                 name
             ),
             Self::LabelDropped { gauge, label } => write!(
@@ -3207,7 +3210,8 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
 /// Nothing is rewritten: the name keeps its spelling and resolves
 /// `Vanished`. A step id is unique across the document, so which node
 /// minted the name does not enter. The rows speak their nodes from
-/// `before`.
+/// `before`, a kept step where `doc` draws it and a dropped one where
+/// it sat in `before` ([`crate::SpokenName::steps_respoken`]).
 fn stranded_steps<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
@@ -3231,11 +3235,11 @@ fn stranded_steps<P: crate::ProfilePayload>(
         match carrier {
             NameCarrier::Payload { node, name } => strands.push(Maintenance::Strand {
                 node: before.spoken(node),
-                name: before.spoken_name(name),
+                name: before.spoken_name(name).steps_respoken(doc),
             }),
             NameCarrier::Store { name } => {
                 keys.push(Maintenance::StrandedAppearance {
-                    name: before.spoken_name(name),
+                    name: before.spoken_name(name).steps_respoken(doc),
                 });
             }
         }

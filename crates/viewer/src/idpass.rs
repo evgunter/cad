@@ -29,7 +29,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, ProfileProgram, Said, Say, Speaker};
+use pncad::document::{Doc, Evaluation, ProfileProgram, Said, Say, Speaker};
 use pncad::prelude::StableName;
 use pncad::select::UnnamedEntity;
 
@@ -215,9 +215,9 @@ impl core::fmt::Display for IdAnswer {
 
 /// **A name as a bug report says it**: the name's own words
 /// ([`Speaker::name`]), then the whole role path as `Debug` — the one
-/// operator diagnostic that prints the path's structure
-/// ([`Disagreement`]'s sentence says why). The tie
-/// `crate::frame::pick_refusal` reports says its faces this way too.
+/// operator diagnostic that prints the path's structure, said only by
+/// [`IdAnswer`] and [`Disagreement`], the picking paths' bug report
+/// ([`Disagreement`]'s sentence says why).
 pub struct NameAndPath<'a>(pub &'a StableName, pub Speaker<'a>);
 
 impl core::fmt::Display for NameAndPath<'_> {
@@ -310,15 +310,18 @@ impl Disagreement {
     /// retires it on
     /// the id log's own judgement that the question has moved on.
     ///
-    /// Its names are said from `doc`, the landed document the index
-    /// that drew the picture was built against.
+    /// Its nodes are said from the landed document the index that drew
+    /// the picture was built against, and its names within the tables
+    /// of that document's evaluation ([`Speaker::within`]), both in
+    /// `landed`.
     ///
     /// [`Retold::Again`]: the same hover says it again while the
     /// paths still disagree.
-    pub fn notice(&self, doc: &Doc<ProfileProgram>) -> Message {
+    pub fn notice(&self, landed: (&Doc<ProfileProgram>, &Evaluation<f64>)) -> Message {
+        let (doc, evaluation) = landed;
         Message::new(
             Subject::Cursor,
-            Said(self, Speaker::of(doc)).to_string(),
+            Said(self, Speaker::of(doc).within(evaluation)).to_string(),
             Retold::Again,
         )
     }

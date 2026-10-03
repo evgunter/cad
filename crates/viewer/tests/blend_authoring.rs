@@ -538,7 +538,7 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
     };
     assert_eq!(
         *message,
-        error.spoken(session.committed_doc()),
+        error.spoken(session.committed_doc(), eval),
         "the badge is the typed error's own rendering"
     );
 }
@@ -578,7 +578,7 @@ fn a_blend_the_kernel_refuses_badges_on_the_authored_node() {
     );
     let row = common::row_of(&rows, fillet);
     assert!(
-        matches!(&row.status, RowStatus::Failed { message, .. } if *message == error.spoken(session.committed_doc())),
+        matches!(&row.status, RowStatus::Failed { message, .. } if *message == error.spoken(session.committed_doc(), eval)),
         "the badge renders the typed refusal: {:?}",
         row.status
     );

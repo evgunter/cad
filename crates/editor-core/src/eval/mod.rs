@@ -2789,12 +2789,23 @@ impl<'a> Iterator for CarriedChain<'a> {
 impl NodeError {
     /// **The failure as the frame that owns the node's document speaks
     /// it**: the node as `doc` holds it now ([`Doc::spoken`]), then its
-    /// kind's prose. The error lives in the [`Evaluation`], which a
-    /// frame holds across edits (and a label edit recomputes nothing),
-    /// so it holds the id and never a label a rename could leave stale.
+    /// kind's prose, each name it forwards within the table
+    /// `evaluation`, the evaluation that raised it, holds it in
+    /// ([`crate::Speaker::within`]). The error lives in the
+    /// [`Evaluation`], which a frame holds across edits (and a label edit
+    /// recomputes nothing), so it holds the id and never a label a rename
+    /// could leave stale.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
-        failed_line(self.node, &self.kind, crate::spoken::Speaker::of(doc))
+    pub fn spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        evaluation: &dyn crate::NameTables,
+    ) -> String {
+        failed_line(
+            self.node,
+            &self.kind,
+            crate::spoken::Speaker::of(doc).within(evaluation),
+        )
     }
 }
 

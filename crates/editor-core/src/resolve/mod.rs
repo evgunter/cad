@@ -192,11 +192,17 @@ impl core::fmt::Display for ResolveError {
 impl ResolveError {
     /// **The refusal as the frame holding the resolved document says it**:
     /// each node as `doc` holds it now ([`crate::Doc::spoken`]), a node it
-    /// does not hold (a deleted one) by its tag. Speak it from the document
-    /// of the run the resolution is about, never the prior run's.
+    /// does not hold (a deleted one) by its tag, and each name within
+    /// the table `evaluation` holds it in ([`crate::Speaker::within`]).
+    /// Speak it from the document and evaluation of the run the
+    /// resolution is about, never the prior run's.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
-        crate::spoken::spoken_by(self, doc)
+    pub fn spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &crate::doc::Doc<P>,
+        evaluation: &dyn crate::NameTables,
+    ) -> String {
+        crate::spoken::spoken_within(self, doc, evaluation)
     }
 }
 
