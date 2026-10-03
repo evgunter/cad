@@ -4048,6 +4048,13 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
         Some("vertex_on_face")
     );
     assert_eq!(
+        word(StaleDeclaration::VertexOnEdge {
+            vertex: VertexKey::default(),
+            edge: Default::default(),
+        }),
+        Some("vertex_on_edge")
+    );
+    assert_eq!(
         word(StaleDeclaration::CurveLocus {
             face_a: FaceKey::default(),
             face_b: FaceKey::default(),
@@ -5940,7 +5947,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "stale_declaration_tag",
-        values: &["curve_locus", "patch", "vertex_on_face", "vertex_vertex"],
+        values: &[
+            "curve_locus",
+            "patch",
+            "vertex_on_edge",
+            "vertex_on_face",
+            "vertex_vertex",
+        ],
         delegates: &[],
     },
     TagEntry {

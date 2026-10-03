@@ -698,8 +698,8 @@ impl Body {
 ///   matters: an `"edge_face_pierce"` is interpenetration and cannot
 ///   be declared, while an `"edge_edge_overlap"` can be.
 /// * `stale_kind` — which declared record the census could not
-///   confirm (`"vertex_vertex"`, `"vertex_on_face"`, `"curve_locus"`,
-///   `"patch"`). The granularity is which record to withdraw or
+///   confirm (`"vertex_vertex"`, `"vertex_on_face"`, `"vertex_on_edge"`,
+///   `"curve_locus"`, `"patch"`). The granularity is which record to withdraw or
 ///   re-seat; withdrawing another one leaves the refusal standing.
 /// * `ring_contact_kind` — how a ring meets its face's own outer loop
 ///   (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,

@@ -406,7 +406,7 @@ struct StepFrontierPin {
 /// `sweep/tests/m5_pr9_boss_union.rs`); a result that declares some
 /// takes 3′ with them.
 fn declares_no_contacts(contacts: &ContactRecords) -> bool {
-    contacts.vv.is_empty() && contacts.a_on_b.is_empty() && contacts.b_on_a.is_empty()
+    contacts.cell_pairs().next().is_none()
 }
 
 /// The writer's named subset frontier, as one list. Refusals in this

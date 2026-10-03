@@ -795,6 +795,7 @@ fn census_with<T: Decide + Bounds>(
 struct Declared {
     vv: BTreeSet<(VertexKey, VertexKey)>,
     vf: BTreeSet<(VertexKey, FaceKey)>,
+    ve: BTreeSet<(VertexKey, EdgeKey)>,
     /// Face-granularity keys (M9-2): the face pairs the body's
     /// curve/patch records name, both orientations. A face-pair
     /// record backs the vertex-granular events SUBORDINATE to it —
@@ -817,6 +818,7 @@ impl Declared {
         for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
             vf.insert((c.vertex, c.face));
         }
+        let ve = contacts.ve.iter().map(|c| (c.vertex, c.edge)).collect();
         let mut faces = BTreeSet::new();
         for (a, b) in contacts
             .curves
@@ -827,7 +829,7 @@ impl Declared {
             faces.insert((a, b));
             faces.insert((b, a));
         }
-        Self { vv, vf, faces }
+        Self { vv, vf, ve, faces }
     }
 
     /// The face rung for a v-v event: some declared face pair holds
@@ -869,6 +871,12 @@ impl Declared {
     /// `ef_bound_backed`'s scheduled step).
     fn ve_face_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
         self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
+    }
+
+    /// A vertex-on-edge event's backing: its own `(vertex, edge)`
+    /// record, or the face rung.
+    fn ve_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
+        self.ve.contains(&(v, e.key)) || self.ve_face_backed(geo, v, e)
     }
 }
 
@@ -1378,7 +1386,7 @@ fn pair_vertex_edge<T: Decide>(
             }
         }
     }
-    if interior && !declared.ve_face_backed(geo, vk, e) {
+    if interior && !declared.ve_backed(geo, vk, e) {
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::VertexOnEdge {
                 vertex: vk,
@@ -1642,13 +1650,14 @@ fn ef_bound_backed<T: Decide>(
 ) -> bool {
     let q = e.p0 + e.dir * s;
     let Some(ve) = edge_vertex_at(e, s, band, errors) else {
-        return any_boundary_vertex_at(f, geo, q, band, errors, |w| {
-            declared.ve_face_backed(geo, w, e)
-        });
+        return any_boundary_vertex_at(f, geo, q, band, errors, |w| declared.ve_backed(geo, w, e));
     };
     if declared.vf.contains(&(ve, f.key))
         || f.boundary.contains(&ve)
         || declared.vf_face_backed(geo, ve, f.key)
+        || geo.edges.iter().any(|g| {
+            (g.f_plus == f.key || g.f_minus == f.key) && declared.ve.contains(&(ve, g.key))
+        })
     {
         return true;
     }
@@ -2304,8 +2313,8 @@ fn ee_bound_backed<T: Decide>(
                 || declared.vv.contains(&(va, vb))
                 || declared.vv_face_backed(geo, va, vb)
         }
-        (Some(va), None) => declared.ve_face_backed(geo, va, eb),
-        (None, Some(vb)) => declared.ve_face_backed(geo, vb, ea),
+        (Some(va), None) => declared.ve_backed(geo, va, eb),
+        (None, Some(vb)) => declared.ve_backed(geo, vb, ea),
         // Neither edge resolves a vertex at the bound: an escalated
         // span (already pushed), never a backing.
         (None, None) => false,
@@ -5502,6 +5511,9 @@ fn confirm_declarations<T: Decide>(
         }
     }
     confirm_curve_and_patch_records(body, contacts, band, region, errors);
+    for c in &contacts.ve {
+        confirm_vertex_on_edge(body, geo, *c, band, errors);
+    }
     for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
         let stale = ValidationError::StaleContactDeclaration {
             declaration: StaleDeclaration::VertexOnFace {
@@ -5533,6 +5545,72 @@ fn confirm_declarations<T: Decide>(
             Some(FaceContainment::In) => {}
             Some(_) => errors.push(stale),
             None => {}
+        }
+    }
+}
+
+/// One `(vertex, edge)` record's witness: both cells live, the vertex
+/// not an end of the edge, on the edge's line and strictly inside its
+/// span (pass 2's two decisions, so the two directions agree). The
+/// lane is pass 2's: a record on a live edge whose carrier is not a
+/// line refuses typed.
+fn confirm_vertex_on_edge<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    c: crate::boolean::VeContact,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    let stale = ValidationError::StaleContactDeclaration {
+        declaration: StaleDeclaration::VertexOnEdge {
+            vertex: c.vertex,
+            edge: c.edge,
+        },
+    };
+    let Some(&q) = geo.vmap.get(&c.vertex) else {
+        errors.push(stale);
+        return;
+    };
+    let Some(e) = geo.edges.iter().find(|e| e.key == c.edge) else {
+        if body.get_edge(c.edge).is_some() {
+            errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Edge(c.edge)),
+                cause: CensusUnsupportedCause::ContactLane(
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a vertex-on-edge record is certified on a line edge only",
+                    },
+                ),
+            });
+        } else {
+            errors.push(stale);
+        }
+        return;
+    };
+    if c.vertex == e.v0 || c.vertex == e.v1 {
+        errors.push(stale);
+        return;
+    }
+    let off = Margin::norm3((q - e.p0).cross(e.dir));
+    match gap_is_zero("pm_census_ve_line_gap", off, band, errors) {
+        Some(true) => {}
+        Some(false) => {
+            errors.push(stale);
+            return;
+        }
+        None => return,
+    }
+    let s = (q - e.p0).dot(e.dir);
+    for m in [s, e.len - s] {
+        match decide("pm_census_ve_span", Margin::of(m), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => {
+                errors.push(stale);
+                return;
+            }
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                return;
+            }
         }
     }
 }
@@ -5971,6 +6049,67 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         (body, w1, w2)
+    }
+
+    /// **A `(vertex, edge)` record on a curved edge refuses typed**:
+    /// pass 2's lane is the line edge, so the confirm pass cannot
+    /// witness the record and says so rather than calling it stale.
+    /// Red when the arm reads a live curved edge as a dead one (a
+    /// `StaleContactDeclaration`) or skips it.
+    #[test]
+    fn a_vertex_on_edge_record_on_a_curved_edge_is_census_unsupported() {
+        let mut body = Body::<f64>::new();
+        unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let rim = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                body.get_edge(e)
+                    .and_then(|d| body.get_curve_geom(d.curve))
+                    .and_then(|g| g.certified())
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+            })
+            .expect("the sheet has a rim arc");
+        let far = body
+            .vertices()
+            .map(|(k, _)| k)
+            .find(|&v| {
+                let d = body.get_edge(rim).unwrap();
+                v != body.get_half_edge(d.he_plus).unwrap().start
+                    && v != body.get_half_edge(d.he_minus).unwrap().start
+            })
+            .expect("a vertex off the rim");
+        let records = ContactRecords {
+            ve: vec![crate::boolean::VeContact {
+                vertex: far,
+                edge: rim,
+            }],
+            ..ContactRecords::default()
+        };
+        let errors = census_and_certify(&body, &records, band(), Tol::witness(), None);
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::CensusUnsupported {
+                    subject: CensusSubject::Entity(EntityId::Edge(edge)),
+                    ..
+                } if *edge == rim
+            )),
+            "{errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+            "{errors:?}"
+        );
     }
 
     #[test]

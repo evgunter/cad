@@ -2111,6 +2111,14 @@ pub enum StaleDeclaration {
         /// The record's face.
         face: FaceKey,
     },
+    /// A v-on-e record whose vertex or edge is dead, whose vertex ends
+    /// the edge, or whose vertex does not rest on the edge's interior.
+    VertexOnEdge {
+        /// The record's vertex.
+        vertex: VertexKey,
+        /// The record's edge.
+        edge: crate::entity::EdgeKey,
+    },
     /// A curve-granularity record whose faces or witness edge no
     /// longer resolve — the locus that certified it is gone.
     CurveLocus {
@@ -2145,6 +2153,7 @@ impl fmt::Display for StaleDeclaration {
         f.write_str(match self {
             Self::VertexVertex { .. } => "a declared vertex-to-vertex contact",
             Self::VertexOnFace { .. } => "a declared vertex-on-face contact",
+            Self::VertexOnEdge { .. } => "a declared vertex-on-edge contact",
             Self::CurveLocus { .. } => "a declared contact along an edge",
             Self::Patch { .. } => "a declared face-to-face contact",
         })

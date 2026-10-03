@@ -291,7 +291,7 @@ class ValidationFinding:
       `edge_edge_overlap` can be.
     - `stale_kind` — which declared record the tier-3′ census could
       not confirm (`"vertex_vertex"`, `"vertex_on_face"`,
-      `"curve_locus"`, `"patch"`). The granularity IS the recourse:
+      `"vertex_on_edge"`, `"curve_locus"`, `"patch"`). The granularity IS the recourse:
       it says which record to withdraw or re-seat, and withdrawing
       another one leaves the refusal standing.
     - `ring_contact_kind` — how a ring meets its face's own outer loop

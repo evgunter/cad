@@ -1361,41 +1361,24 @@ fn carry_contacts(
     from: &ContactRecords,
     keys: &topo::GraftKeys,
 ) -> Result<(), &'static str> {
-    let vertex = |v| keys.vertex(v).ok_or("vertex");
-    let face = |f| keys.face(f).ok_or("face");
-    let edge = |e| keys.edge(e).ok_or("edge");
-    for c in &from.vv {
-        into.vv.push(topo::VvContact {
-            a: vertex(c.a)?,
-            b: vertex(c.b)?,
-        });
-    }
-    for (src, dst) in [(&from.a_on_b, 0u8), (&from.b_on_a, 1)] {
-        for c in src {
-            let moved = topo::VfContact {
-                vertex: vertex(c.vertex)?,
-                face: face(c.face)?,
-            };
-            if dst == 0 {
-                into.a_on_b.push(moved);
-            } else {
-                into.b_on_a.push(moved);
-            }
-        }
-    }
-    for c in &from.curves {
-        into.curves.push(topo::CurveContact {
-            face_a: face(c.face_a)?,
-            face_b: face(c.face_b)?,
-            witness: edge(c.witness)?,
-        });
-    }
-    for c in &from.patches {
-        into.patches.push(topo::PatchContact {
-            face_a: face(c.face_a)?,
-            face_b: face(c.face_b)?,
-        });
-    }
+    use topo::Cell;
+    let moved = from
+        .rekeyed(|cell| match cell {
+            Cell::Vertex(v) => keys.vertex(v).map(Cell::Vertex),
+            Cell::Edge(e) => keys.edge(e).map(Cell::Edge),
+            Cell::Face(f) => keys.face(f).map(Cell::Face),
+        })
+        .map_err(|cell| match cell {
+            Cell::Vertex(_) => "vertex",
+            Cell::Edge(_) => "edge",
+            Cell::Face(_) => "face",
+        })?;
+    into.vv.extend(moved.vv);
+    into.a_on_b.extend(moved.a_on_b);
+    into.b_on_a.extend(moved.b_on_a);
+    into.ve.extend(moved.ve);
+    into.curves.extend(moved.curves);
+    into.patches.extend(moved.patches);
     Ok(())
 }
 

@@ -1439,17 +1439,18 @@ fn declared_pairs<T: Decide>(
             out.insert(if a <= b { (a, b) } else { (b, a) });
         }
     };
-    for c in &contacts.vv {
-        note(owner.vertex(c.a), owner.vertex(c.b));
-    }
-    for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
-        note(owner.vertex(c.vertex), owner.face(c.face));
-    }
-    for c in &contacts.curves {
-        note(owner.face(c.face_a), owner.face(c.face_b));
-    }
-    for c in &contacts.patches {
-        note(owner.face(c.face_a), owner.face(c.face_b));
+    let solid = |cell| match cell {
+        topo::Cell::Vertex(v) => owner.vertex(v),
+        // An edge belongs to its ends' solid.
+        topo::Cell::Edge(e) => gathered
+            .body
+            .get_edge(e)
+            .and_then(|d| gathered.body.get_half_edge(d.he_plus))
+            .and_then(|h| owner.vertex(h.start)),
+        topo::Cell::Face(f) => owner.face(f),
+    };
+    for (a, b) in contacts.cell_pairs() {
+        note(solid(a), solid(b));
     }
     out
 }

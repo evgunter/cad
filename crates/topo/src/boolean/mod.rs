@@ -397,6 +397,38 @@ pub struct VfContact {
     pub face: FaceKey,
 }
 
+/// A vertex-on-edge record: `vertex` rests on the interior of `edge`,
+/// a cell of another shell (or of the same shell's other side of a
+/// pinch). It is what a join leaves of a v-v record whose partner it
+/// joined away, and what an edge split hands the piece the vertex lies
+/// on: the cell pair `(vertex, edge)`, never a point or a parameter.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VeContact {
+    /// The resting vertex.
+    pub vertex: VertexKey,
+    /// The edge whose interior holds it.
+    pub edge: crate::entity::EdgeKey,
+}
+
+/// One cell of a body: what a contact record names, two at a time.
+///
+/// A record is a pair of cells whose interiors meet. Its kind is the
+/// pair's dimensions: vertex/vertex ([`VvContact`]), vertex/edge
+/// ([`VeContact`]), vertex/face ([`VfContact`]), face/face
+/// ([`CurveContact`], [`PatchContact`]). Edge/edge and edge/face
+/// contacts are certified from their bounds, each a vertex event of one
+/// of the kinds above (`topo::census`, the D3 rule), so they have no
+/// stored kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Cell {
+    /// A vertex.
+    Vertex(VertexKey),
+    /// An edge.
+    Edge(crate::entity::EdgeKey),
+    /// A face.
+    Face(FaceKey),
+}
+
 /// A **certified curve touch** (C3): two faces meeting along the
 /// locus carried by `witness`.
 ///
@@ -464,11 +496,114 @@ pub struct ContactRecords {
     pub a_on_b: Vec<VfContact>,
     /// Vertices of B on faces of A (`sonvb`).
     pub b_on_a: Vec<VfContact>,
+    /// Vertices resting on another shell's edge interior.
+    pub ve: Vec<VeContact>,
     /// Curve-granularity contacts (C3).
     pub curves: Vec<CurveContact>,
     /// Patch-granularity contacts (C3) — see [`PatchContact`] for the
     /// not-yet-certifiable posture this list ships under.
     pub patches: Vec<PatchContact>,
+}
+
+impl ContactRecords {
+    /// Every record as the cell pair it names, kind by kind in field
+    /// order. A face/face record's witness edge is not a cell of the
+    /// pair: it is where the pair's contact is certified.
+    pub fn cell_pairs(&self) -> impl Iterator<Item = (Cell, Cell)> + '_ {
+        let vv = self
+            .vv
+            .iter()
+            .map(|c| (Cell::Vertex(c.a), Cell::Vertex(c.b)));
+        let vf = self
+            .a_on_b
+            .iter()
+            .chain(&self.b_on_a)
+            .map(|c| (Cell::Vertex(c.vertex), Cell::Face(c.face)));
+        let ve = self
+            .ve
+            .iter()
+            .map(|c| (Cell::Vertex(c.vertex), Cell::Edge(c.edge)));
+        let ff = self
+            .curves
+            .iter()
+            .map(|c| (c.face_a, c.face_b))
+            .chain(self.patches.iter().map(|c| (c.face_a, c.face_b)))
+            .map(|(a, b)| (Cell::Face(a), Cell::Face(b)));
+        vv.chain(vf).chain(ve).chain(ff)
+    }
+
+    /// The same records with every cell re-keyed through `key`, a map
+    /// that keeps each cell's kind (a graft into another arena). The
+    /// first cell `key` cannot map refuses with that cell.
+    ///
+    /// # Errors
+    ///
+    /// The cell that has no image.
+    pub fn rekeyed(&self, key: impl Fn(Cell) -> Option<Cell>) -> Result<Self, Cell> {
+        let vertex = |v| match key(Cell::Vertex(v)) {
+            Some(Cell::Vertex(k)) => Ok(k),
+            _ => Err(Cell::Vertex(v)),
+        };
+        let edge = |e| match key(Cell::Edge(e)) {
+            Some(Cell::Edge(k)) => Ok(k),
+            _ => Err(Cell::Edge(e)),
+        };
+        let face = |f| match key(Cell::Face(f)) {
+            Some(Cell::Face(k)) => Ok(k),
+            _ => Err(Cell::Face(f)),
+        };
+        let vf = |c: &VfContact| {
+            Ok(VfContact {
+                vertex: vertex(c.vertex)?,
+                face: face(c.face)?,
+            })
+        };
+        Ok(Self {
+            vv: self
+                .vv
+                .iter()
+                .map(|c| {
+                    Ok(VvContact {
+                        a: vertex(c.a)?,
+                        b: vertex(c.b)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+            a_on_b: self.a_on_b.iter().map(vf).collect::<Result<_, _>>()?,
+            b_on_a: self.b_on_a.iter().map(vf).collect::<Result<_, _>>()?,
+            ve: self
+                .ve
+                .iter()
+                .map(|c| {
+                    Ok(VeContact {
+                        vertex: vertex(c.vertex)?,
+                        edge: edge(c.edge)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+            curves: self
+                .curves
+                .iter()
+                .map(|c| {
+                    Ok(CurveContact {
+                        face_a: face(c.face_a)?,
+                        face_b: face(c.face_b)?,
+                        witness: edge(c.witness)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+            patches: self
+                .patches
+                .iter()
+                .map(|c| {
+                    Ok(PatchContact {
+                        face_a: face(c.face_a)?,
+                        face_b: face(c.face_b)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+        })
+    }
 }
 
 /// Operand-internal contact records carried by recipe intent (F5, M4
@@ -483,6 +618,8 @@ pub struct CarriedContacts {
     pub vv: Vec<CarriedVv>,
     /// Vertex-on-face rests within the operand.
     pub vf: Vec<CarriedVf>,
+    /// Vertex-on-edge rests within the operand.
+    pub ve: Vec<CarriedVe>,
 }
 
 /// A carried vertex-vertex declaration: the pair AND the class it
@@ -511,10 +648,20 @@ pub struct CarriedVf {
     pub class: ContactClass,
 }
 
+/// A carried vertex-on-edge declaration ([`CarriedVv`] for why the
+/// class is not defaultable).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CarriedVe {
+    /// The vertex-on-edge rest.
+    pub rest: VeContact,
+    /// The class the carried declaration asserts.
+    pub class: ContactClass,
+}
+
 impl CarriedContacts {
     /// True iff nothing is carried.
     pub fn is_empty(&self) -> bool {
-        self.vv.is_empty() && self.vf.is_empty()
+        self.vv.is_empty() && self.vf.is_empty() && self.ve.is_empty()
     }
 }
 

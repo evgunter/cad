@@ -653,6 +653,10 @@ fn stale_declarations() -> Vec<StaleDeclaration> {
             b: vertex,
         },
         StaleDeclaration::VertexOnFace { vertex, face },
+        StaleDeclaration::VertexOnEdge {
+            vertex,
+            edge: EdgeKey::default(),
+        },
         StaleDeclaration::CurveLocus {
             face_a: face,
             face_b: face,
