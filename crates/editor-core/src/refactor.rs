@@ -574,25 +574,12 @@ pub enum SplitError {
         mate: SpokenNode,
     },
     /// **A mate side would change coordinates across the seam** (A4's
-    /// frame rule): a kept mate reads a cut instance that, in the part,
-    /// is not its group's root on the part's world at the empty chain,
-    /// so the frame it is authored in would mean another place once it
-    /// reads the instance the split leaves behind.
+    /// frame rule): a kept mate's authored side reads a cut instance
+    /// that, in the part, is not its group's root on the part's world
+    /// at the empty chain, or its face side reads one that is not
+    /// placed in the part's world, so its frame would mean another
+    /// place once it reads the instance the split leaves behind.
     MateFrameCrosses {
-        /// The mate.
-        mate: SpokenNode,
-        /// Which of its sides crosses.
-        side: crate::mate::MateSide,
-    },
-    /// **A `FromFace` side would cross the seam**: a kept mate's side
-    /// that reads a cut instance names its frame as a face of that
-    /// instance's part, in the part's own spelling, and once the side
-    /// reads the instance the split leaves behind the name is not a
-    /// row of the new part's table. The face would be in the new
-    /// part, under the name the inner instance wraps it in; the
-    /// re-spelling is not built, so the split refuses rather than
-    /// leave a frame naming nothing.
-    MateFaceFrameCrosses {
         /// The mate.
         mate: SpokenNode,
         /// Which of its sides crosses.
@@ -788,23 +775,11 @@ impl core::fmt::Display for SplitError {
             Self::MateFrameCrosses { mate, side } => write!(
                 f,
                 "split: {m}'s {} side reads a cut instance that is not, in the new part, \
-                 its group's root at the empty chain on the part's world, so its frame would \
+                 its group's root at the empty chain on the part's world (for an authored \
+                 frame) or placed in the part's world (for a face frame), so its frame would \
                  mean another place. {}",
                 side.name(),
                 Recourse(&format!("delete {m}, then split", m = mate)),
-                m = mate
-            ),
-            Self::MateFaceFrameCrosses { mate, side } => write!(
-                f,
-                "split: {m}'s {} side reads a cut instance and its frame names a face of \
-                 that instance's part, a name the new part's table does not carry, so the frame \
-                 would name nothing. {}",
-                side.name(),
-                Recourse(&format!(
-                    "author {m}'s {} frame as numbers, or delete {m}, then split",
-                    side.name(),
-                    m = mate
-                )),
                 m = mate
             ),
             Self::HoistedMemberOffset { instance } => write!(
@@ -951,17 +926,33 @@ impl core::fmt::Display for SplitError {
 
 impl core::error::Error for SplitError {}
 
-/// **A4's frame rule, the one predicate split and inline both ask**: a
-/// mate side keeps its coordinates across the seam only when the
-/// member it reads is read at its own instance — no pattern copy, no
-/// placer between — and that instance is, in the part, its group's
-/// root at the empty chain on the part's world (`root_at_empty`, which
-/// each door answers from the part it holds or builds).
+/// **A4's frame rule, the one predicate split and inline both ask**,
+/// over the member a side reads and three conditions on it:
+/// (a) it is read at its own instance, no pattern copy and no placer
+/// between; (b) that instance lies, in the part, in a group of the
+/// part's world, never in an own space or under a dead reference
+/// (`placed`); (c) it is its group's root at the empty chain on the
+/// part's world (`root_at_empty`). Each door answers `placed` and
+/// `root_at_empty` from the part it holds or builds.
+///
+/// An authored side is held to all three: its vectors are coordinates
+/// of the instance it reads, and only there do they not change. A
+/// `FromFace` side is held to (b) alone: its frame is its head's face
+/// in the member's part, the head crosses with it, and the face moves
+/// only if the member's place in the world does.
 fn frame_survives(
+    frame: &crate::mate::MateFrame,
     read: &crate::mate::Member,
+    placed: impl Fn(RecipeNodeId) -> bool,
     root_at_empty: impl Fn(RecipeNodeId) -> bool,
 ) -> bool {
-    read.copy.is_empty() && read.at == read.instance && root_at_empty(read.instance)
+    let b = placed(read.instance);
+    match frame {
+        crate::mate::MateFrame::FromFace => b,
+        crate::mate::MateFrame::Authored(_) => {
+            read.copy.is_empty() && read.at == read.instance && b && root_at_empty(read.instance)
+        }
+    }
 }
 
 /// A gauge reference as a sentence names it.
@@ -1107,22 +1098,11 @@ pub enum InlineError {
     /// **A mate side would change coordinates across the seam** (A4's
     /// frame rule): a host mate reads the instance through a face of
     /// an inner instance that is not its part group's root at the
-    /// empty chain on the part's world — or of no instance at all —
-    /// so the frame it is authored in would mean another place once it
-    /// reads the spliced node.
+    /// empty chain on the part's world (an authored side) or not
+    /// placed in the part's world (a face side) — or of no instance at
+    /// all — so its frame would mean another place once it reads the
+    /// spliced node.
     MateFrameCrosses {
-        /// The host mate.
-        mate: SpokenNode,
-        /// Which of its sides.
-        side: crate::mate::MateSide,
-    },
-    /// **A `FromFace` side would cross the seam**: a host mate's side
-    /// that reads the instance names its frame as a face of the
-    /// referenced document, in that document's spelling, and once the
-    /// side reads the spliced inner node the name is not a row of the
-    /// inner instance's part. The re-spelling is not built, so inline
-    /// refuses rather than leave a frame naming nothing.
-    MateFaceFrameCrosses {
         /// The host mate.
         mate: SpokenNode,
         /// Which of its sides.
@@ -1346,23 +1326,11 @@ impl core::fmt::Display for InlineError {
             Self::MateFrameCrosses { mate, side } => write!(
                 f,
                 "inline: {m}'s {} side would read an inner node that is not its part \
-                 group's root at the empty chain on the part's world, so its frame would mean \
+                 group's root at the empty chain on the part's world (for an authored frame) \
+                 or placed in the part's world (for a face frame), so its frame would mean \
                  another place. {}",
                 side.name(),
                 Recourse(&format!("delete {m}, then inline", m = mate)),
-                m = mate
-            ),
-            Self::MateFaceFrameCrosses { mate, side } => write!(
-                f,
-                "inline: {m}'s {} side reads the instance and its frame names a face of the \
-                 referenced document, a name the inner instance's part does not carry, so the \
-                 frame would name nothing. {}",
-                side.name(),
-                Recourse(&format!(
-                    "author {m}'s {} frame as numbers, or delete {m}, then inline",
-                    side.name(),
-                    m = mate
-                )),
                 m = mate
             ),
             Self::MatePairSplits { first, second } => write!(
@@ -2155,10 +2123,8 @@ fn remap_node(
             },
             class: *class,
             // The datum crosses verbatim: its vectors are numbers, and
-            // a `FromFace` side's name is a row of the PART's table,
-            // in the part's own id space, which no cut of this
-            // document moves — it crosses as the instance's own
-            // reference does.
+            // a `FromFace` side holds nothing, its face being the
+            // head's, remapped above.
             alignment: alignment.clone(),
         },
         // A measure's references are BOTH names and edges, so they
@@ -2554,15 +2520,20 @@ pub fn split(
     // instance left behind, which sits on the anchor (a placing one
     // tears its group, and a declaring one, or one whose cut side read
     // no instance, would start); and its cut side's coordinates must
-    // not change, so an instance it reads must be, in the part, its
-    // group's root at the empty chain on the part's world. A cut side
-    // whose frame is `FromFace` refuses besides: its name is a row of
-    // the cut instance's part, which the new part carries only wrapped
-    // at the inner instance, and that re-spelling is not built.
+    // not change, which is the frame rule (`frame_survives`): an
+    // authored side's instance must be, in the part, its group's root
+    // at the empty chain on the part's world; a `FromFace` side's
+    // member must be placed in the part's world, and its head carries
+    // its face across.
     //
     // A verbatim root lands on the part's world only when its gauge
     // reference leaves the cut; one on a cut gauge lands on that
     // gauge's image.
+    let placed_in_part = |instance: RecipeNodeId| {
+        cut_groups
+            .iter()
+            .any(|&(members, _, cause)| cause.is_none() && members.contains(&instance))
+    };
     let root_lands_empty = |instance: RecipeNodeId| match hoisted {
         Some((_, root)) => root == instance,
         None => cut_groups.iter().any(|&(_, root, cause)| {
@@ -2601,15 +2572,9 @@ pub fn split(
                 });
             }
             if let Some(read) = crate::mate::member_of(doc, inner)
-                && !frame_survives(&read, root_lands_empty)
+                && !frame_survives(frame, &read, placed_in_part, root_lands_empty)
             {
                 return Err(SplitError::MateFrameCrosses {
-                    mate: doc.spoken(mate),
-                    side,
-                });
-            }
-            if frame.face().is_some() {
-                return Err(SplitError::MateFaceFrameCrosses {
                     mate: doc.spoken(mate),
                     side,
                 });
@@ -3152,6 +3117,11 @@ pub fn inline(
             }) if o.steps.is_empty()
         )
     };
+    let part_placed = |id: RecipeNodeId| {
+        part_groups
+            .iter()
+            .any(|(members, _, cause)| cause.is_none() && members.contains(&id))
+    };
     let part_root_at_empty = |id: RecipeNodeId| {
         part_groups
             .iter()
@@ -3285,11 +3255,10 @@ pub fn inline(
     // that reads the instance — its name wrapped at it, which the
     // rebind below re-anchors onto the inner name. The inner instance
     // must be its part group's root at the empty chain on the part's
-    // world, so the frame means what it meant; and the placing mates
-    // of one pair must still read one pair. A side whose frame is
-    // `FromFace` refuses besides: its name is a row of the referenced
-    // document, not of the inner instance's part, and the re-spelling
-    // is not built.
+    // world, so the frame means what it meant — or, for a `FromFace`
+    // side, its inner member must be placed in the part's world, its
+    // head carrying its face across (`frame_survives`); and the placing
+    // mates of one pair must still read one pair.
     let mut pair_reads: Vec<(crate::mate::Member, RecipeNodeId, RecipeNodeId)> = Vec::new();
     for &mate in doc.order() {
         let Some(Node::Mate {
@@ -3311,18 +3280,14 @@ pub fn inline(
             let inner = FaceName::new((**of).clone()).ok().and_then(|face| {
                 crate::mate::member_of(&part, &crate::node::SitedFace::at_mint(face))
             });
-            let Some(inner) = inner.filter(|m| frame_survives(m, part_root_at_empty)) else {
+            let Some(inner) =
+                inner.filter(|m| frame_survives(frame, m, part_placed, part_root_at_empty))
+            else {
                 return Err(InlineError::MateFrameCrosses {
                     mate: doc.spoken(mate),
                     side,
                 });
             };
-            if frame.face().is_some() {
-                return Err(InlineError::MateFaceFrameCrosses {
-                    mate: doc.spoken(mate),
-                    side,
-                });
-            }
             if let Some(other) = crate::mate::member_of(doc, there)
                 && crate::mate::places(doc, instance, other.instance)
             {

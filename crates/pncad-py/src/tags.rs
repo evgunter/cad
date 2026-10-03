@@ -1790,6 +1790,7 @@ pub fn face_refusal_tag(refusal: &FaceRefusal) -> &'static str {
     match refusal {
         FaceRefusal::Reach { refusal, .. } => face_pose_refusal_tag(refusal),
         FaceRefusal::NotAnInstance { .. } => "not_an_instance",
+        FaceRefusal::NoPartFace { .. } => "no_part_face",
     }
 }
 
@@ -2454,7 +2455,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::WouldStartPlacing { .. } => "would_start_placing",
         SplitError::PlacingMateLeft { .. } => "placing_mate_left",
         SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
-        SplitError::MateFaceFrameCrosses { .. } => "mate_face_frame_crosses",
         SplitError::HoistedMemberOffset { .. } => "hoisted_member_offset",
         SplitError::UncutParamReference { .. } => "uncut_param_reference",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
@@ -2489,7 +2489,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::MovedMemberOffset { .. } => "moved_member_offset",
         InlineError::PartDeadGauge { .. } => "part_dead_gauge",
         InlineError::MateFrameCrosses { .. } => "mate_frame_crosses",
-        InlineError::MateFaceFrameCrosses { .. } => "mate_face_frame_crosses",
         InlineError::MatePairSplits { .. } => "mate_pair_splits",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",

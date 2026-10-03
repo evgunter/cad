@@ -290,6 +290,30 @@ pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Option<Member> 
     walk(doc, r).ok().map(|w| w.member)
 }
 
+/// **The face of the member's PART a head names** — the head with the
+/// member walk's qualifiers stripped: one `Instance(i)` per pattern
+/// level the walk consumed ([`Member::copy`]), then the one `InPart`
+/// the member's instance puts round its part's names
+/// ([`crate::FaceName::part_local`]). What a
+/// [`super::MateFrame::FromFace`] side reads its frame off, in the
+/// part's own coordinates; a copy reads its MASTER's face, since the
+/// copy map between them is the walk's static offset, applied by the
+/// solve.
+///
+/// `None` when the head is not of that shape: a qualifier missing at
+/// some level, or a name at the instance that is not one `InPart`
+/// round a face.
+pub fn head_face(head: &crate::names::StableName, member: &Member) -> Option<crate::FaceName> {
+    let mut name = head;
+    for _ in &member.copy {
+        let Some(RoleSeg::Instance { of, .. }) = name.path.first() else {
+            return None;
+        };
+        name = of;
+    }
+    crate::FaceName::part_local(name, member.instance)
+}
+
 /// **[`member_of`] for a MATE's reference**: the walk, with the mate
 /// and side that attribute its refusal (N5).
 ///

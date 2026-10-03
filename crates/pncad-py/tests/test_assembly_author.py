@@ -543,10 +543,7 @@ class TestBenchStand(BenchWorkspace):
             shelf_i,
             s_bottom,
             ContactClass.Rest,
-            bench_scene.seat(
-                *bench_scene.STAND_SEATS[1],
-                post_cap=bench_scene.part_cap(self.post, CapEnd.End),
-            ),
+            bench_scene.seat(*bench_scene.STAND_SEATS[1]),
         )
         doc.regauge_then_mate(remate, resolver=self.ws)
         self.assertEqual(
@@ -1983,19 +1980,10 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
 
 
 class TestMateFrameFromFace(BenchWorkspace):
-    """`MateFrame.from_face`: a mate frame that names a face of the
-    part and resolves at the solve, through the part's own
-    evaluation."""
+    """`MateFrame.from_face()`: a mate side whose frame is its own head
+    face, resolved at the solve through the part's own evaluation."""
 
-    def post_cap(self, post_doc):
-        """The post's top cap by the POST's own name: selected on the
-        part document's own evaluation, no instance wrapped round it."""
-        ev = evaluate(post_doc)
-        found = ev.select(post_doc.roots[0], bench_scene.cap_selector(CapEnd.End))
-        self.assertEqual(len(found), 1, found)
-        return found[0]
-
-    def seated(self, seed, post_frame):
+    def seated(self, seed, post_frame, a_top=None):
         doc = Doc(seed)
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
@@ -2003,7 +1991,8 @@ class TestMateFrameFromFace(BenchWorkspace):
         # operand's group on its second's, so with the post first the
         # shelf's empty offset keeps the post the root it seats on.
         doc.apply(DocEdit.set_offset(shelf_i, None))
-        a_top = self.instance_face(doc, post_i, CapEnd.End)
+        if a_top is None:
+            a_top = self.instance_face(doc, post_i, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
         alignment = Alignment(
             post_frame,
@@ -2017,42 +2006,41 @@ class TestMateFrameFromFace(BenchWorkspace):
         )
         return doc, post_i, shelf_i, mate
 
-    def test_from_face_is_its_own_arm_and_carries_the_name(self):
-        cap = self.post_cap(self.post)
-        frame = MateFrame.from_face(cap)
+    def test_from_face_is_its_own_arm_and_names_nothing(self):
+        frame = MateFrame.from_face()
         self.assertEqual(frame.variant, "from_face")
-        self.assertEqual(frame.face, cap)
         self.assertIsNone(frame.origin)
         self.assertIsNone(frame.axis)
         self.assertIsNone(frame.reference)
+        # The head is the face: the frame carries no name to read back.
+        self.assertFalse(hasattr(frame, "face"))
         with self.assertRaises(TypeError):
             frame.placement()
-        # The name is the whole frame: its roll is the carrier's, and
-        # no reference can be authored beside it.
+        # Nothing can be authored beside it: not a face, not a roll.
         with self.assertRaises(TypeError):
-            MateFrame.from_face(cap, reference=(0.0, 1.0, 0.0))
-        self.assertEqual(frame, MateFrame.from_face(cap))
+            MateFrame.from_face("a face")
+        with self.assertRaises(TypeError):
+            MateFrame.from_face(reference=(0.0, 1.0, 0.0))
+        self.assertEqual(frame, MateFrame.from_face())
+        self.assertEqual(repr(frame), "MateFrame.from_face()")
         authored = mate_frame(POST_SEAT)
         self.assertEqual(authored.variant, "authored")
-        self.assertIsNone(authored.face)
+        self.assertNotEqual(frame, authored)
         self.assertIsNone(
             Alignment(
                 frame, authored, MatePrimitive.frame_coincidence(), AxisSense.Aligned
             ).lever_arm
         )
-        with self.assertRaises(ValueError):
-            MateFrame.from_face("not a name")
 
     def test_the_mate_follows_the_edited_face(self):
-        cap = self.post_cap(self.post)
         doc, _post_i, shelf_i, mate = self.seated(
-            "from-face-follows", MateFrame.from_face(cap)
+            "from-face-follows", MateFrame.from_face()
         )
         evaluate(doc, resolver=self.ws).value(mate)
         before = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(before.origin[2].meters, POST_HEIGHT, places=12)
         # The post grows on disk, edited in place so its cap keeps the
-        # name the frame holds; the reference moves; the shelf comes up
+        # name the head holds; the reference moves; the shelf comes up
         # with the cap, by exactly the height change.
         self.post.apply(
             DocEdit.set_param(
@@ -2069,38 +2057,42 @@ class TestMateFrameFromFace(BenchWorkspace):
         )
 
     def test_a_vanished_face_refuses_typed_with_the_face_named(self):
-        # The post's own cap name, re-headed at a node the post does
-        # not have: the shape of a name whose face an edit removed.
+        # The post's own cap, wrapped at the instance as a head is, with
+        # the part-local name inside re-headed at a node the post does
+        # not have: the shape of a head whose face an edit removed.
         import json
 
-        spelled = json.loads(self.post_cap(self.post))
-        spelled["node"] = 99
-        bogus = json.dumps(spelled)
-        doc = Doc("from-face-vanished")
-        post_i = doc.insert(Node.instantiate_part(self.post_ref))
-        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
-        a_top = self.instance_face(doc, post_i, CapEnd.End)
-        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
-        alignment = Alignment(
-            MateFrame.from_face(bogus),
-            mate_frame(SEAT_A),
-            MatePrimitive.frame_coincidence(),
-            AxisSense.Aligned,
-        )
+        probe = Doc("from-face-vanished-probe")
+        probe_i = probe.insert(Node.instantiate_part(self.post_ref))
+        spelled = json.loads(self.instance_face(probe, probe_i, CapEnd.End))
+
+        def inner_names(value, depth=0):
+            if isinstance(value, dict):
+                if depth > 0 and "node" in value:
+                    yield value
+                for child in value.values():
+                    yield from inner_names(child, depth + 1)
+            elif isinstance(value, list):
+                for child in value:
+                    yield from inner_names(child, depth + 1)
+
+        (local,) = list(inner_names(spelled))
+        local["node"] = 99
         with self.assertRaises(pncad.EditError) as caught:
-            doc.insert(
-                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
-                resolver=self.ws,
+            self.seated(
+                "from-face-vanished",
+                MateFrame.from_face(),
+                a_top=json.dumps(spelled),
             )
         err = caught.exception
         self.assertEqual(err.variant, "mate_refused")
         fault = err.fault
         self.assertEqual(fault.variant, "mate_face_unresolved")
         self.assertEqual(fault.inner_variant, "no_such_name")
-        self.assertEqual(fault.instance, post_i)
-        # The name text is opaque; the fault's face is the same name,
-        # compared as names rather than as one spelling of the text.
-        self.assertEqual(json.loads(fault.face), spelled)
+        # The name text is opaque; the fault's face is the head's
+        # part-local name, compared as names rather than as one
+        # spelling of the text.
+        self.assertEqual(json.loads(fault.face), local)
         self.assertIn("did not resolve to a pose", str(fault))
 
 

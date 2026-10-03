@@ -1057,22 +1057,22 @@ BOUND_AS = {
     "LeverRefusal": "MateFault.inner_variant",
     # THE FACE REFUSAL, curated beside the `MateFault` arm that carries
     # it (`mate_face_unresolved`), and its discriminant is the word that
-    # arm publishes: why a `from_face` frame's face answered no pose
+    # arm publishes: why a `from_face` side's head face answered no pose
     # (`part_unresolved`, `no_such_name`, `ambiguous`, `not_a_face`,
-    # `readback`, `unpinned`, `not_an_instance`). The instance crosses
-    # as `MateFault.instance`, the face as `MateFault.face`.
+    # `readback`, `unpinned`, `not_an_instance`, `no_part_face`). The
+    # instance crosses as `MateFault.instance`, the face as
+    # `MateFault.face`.
     "FaceRefusal": "MateFault.inner_variant",
     # The reach's own refusal of a face pose, named against the part
     # alone; the solve wraps it into `FaceRefusal` with the instance
     # and the face, which is the shape Python reads.
     "FacePoseRefusal": "MateFault.inner_variant",
-    # THE TWO ARMS OF A MATE FRAME: three authored vectors, or a face
-    # of the part resolved at the solve. `MateFrame` is one Python
+    # THE TWO ARMS OF A MATE FRAME: three authored vectors, or the
+    # side's head face resolved at the solve. `MateFrame` is one Python
     # class whose `variant` says which (`authored`, `from_face`); the
-    # authored vectors are its `origin`/`axis`/`reference` and the face
-    # its `face`, so neither inner struct is a class of its own.
+    # authored vectors are its `origin`/`axis`/`reference`, so the
+    # inner struct is not a class of its own.
     "AuthoredFrame": "MateFrame.variant",
-    "FaceFrame": "MateFrame.variant",
     # What a frame fails to be a placement: the edit door spreads it
     # into three arms of its own, so its discriminant crosses as
     # `EditError.variant` (`non_finite_placement`,
@@ -3567,7 +3567,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::MovedMemberOffset": "InlineError.variant",
     "InlineError::PartDeadGauge": "InlineError.variant",
     "InlineError::MateFrameCrosses": "InlineError.variant",
-    "InlineError::MateFaceFrameCrosses": "InlineError.variant",
     "InlineError::MatePairSplits": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
@@ -3589,7 +3588,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::FaceUnresolved": "MateFault.variant",
     # A mate frame's two arms cross as `MateFrame.variant`
     # (`authored`, `from_face`); the constructor `MateFrame(...)` is
-    # the authored arm and `MateFrame.from_face(...)` the other.
+    # the authored arm and `MateFrame.from_face()` the other.
     "MateFrame::Authored": "MateFrame.variant",
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::OffsetDisagrees": "MateFault.variant",
@@ -3708,7 +3707,6 @@ MEMBERS_BOUND_AS = {
     "SplitError::WouldStartPlacing": "SplitError.variant",
     "SplitError::PlacingMateLeft": "SplitError.variant",
     "SplitError::MateFrameCrosses": "SplitError.variant",
-    "SplitError::MateFaceFrameCrosses": "SplitError.variant",
     "SplitError::HoistedMemberOffset": "SplitError.variant",
     "SplitError::UncutParamReference": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",

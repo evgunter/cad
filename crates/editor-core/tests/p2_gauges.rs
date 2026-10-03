@@ -1122,17 +1122,15 @@ fn a_declaring_mate_crossing_a_cut_fills_the_interface_record() {
     );
 }
 
-/// **A `FromFace` side does not cross the seam yet**: a kept mate's
-/// side that reads the cut names its frame as a face of the cut
-/// instance's part, in that part's spelling, and once the side reads
-/// the instance left behind the name is not a row of the new part —
-/// the frame would name nothing (the solve refuses it `NoSuchName` the
-/// moment the mate places). The re-spelling is not built in P2-core,
-/// so split refuses typed where its authored twin crosses; and inline
-/// refuses the mirror case, a host side naming its face in the
-/// referenced document's spelling.
+/// **A `FromFace` side crosses the seam with its head**: a kept
+/// declaring mate whose side reading the cut is framed on its head
+/// face crosses split exactly as its authored twin does — the head
+/// re-anchors through the instance qualifier, and the face it names
+/// in the new part is the same face — and inline carries it back, the
+/// head unwrapped onto the inner instance. The mate solves on each
+/// document, declaring, with no fault.
 #[test]
-fn a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline() {
+fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     let p = parts("p2-face-crossing");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("p2-face-crossing"), Tol::witness());
@@ -1140,49 +1138,26 @@ fn a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline() {
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, base, Some(k));
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
-    let from_face = |name: StableName| {
-        MateFrame::from_face(editor_core::FaceName::new(name).expect("a face name"))
+    let Node::Mate {
+        a,
+        b,
+        class,
+        mut alignment,
+    } = seat(head(p.top_cap(top)), head(p.base_cap(base)))
+    else {
+        panic!("a mate");
     };
-    let with_face_side = |node: Node<editor_core::ProfileProgram>, frame: MateFrame| {
-        let Node::Mate {
-            a,
-            b,
-            class,
-            mut alignment,
-        } = node
-        else {
-            panic!("a mate");
-        };
-        alignment.a = frame;
-        Node::Mate {
-            a,
-            b,
-            class,
-            alignment,
-        }
-    };
-    let split_top = |doc: &ProfileDoc| {
-        editor_core::split(
-            doc,
-            &cut(&[top]),
-            DocumentId::derive("p2-face-crossing-part"),
-            Tol::witness(),
-            o.resolver.as_ref(),
-        )
-    };
+    alignment.a = MateFrame::FromFace;
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let top_bottom = StableName {
-        kind: editor_core::EntityKind::Face,
-        node: p.top_body,
-        path: vec![editor_core::RoleSeg::Cap(CapEnd::Start)],
-    };
     let (faced, mate) = fixture::step_with(
-        doc.clone(),
+        doc,
         DocEdit::InsertNode {
-            node: Box::new(with_face_side(
-                seat(head(p.top_cap(top)), head(p.base_cap(base))),
-                from_face(top_bottom.clone()),
-            )),
+            node: Box::new(Node::Mate {
+                a,
+                b,
+                class,
+                alignment,
+            }),
         },
         &reach,
     );
@@ -1191,71 +1166,57 @@ fn a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline() {
         solve(&faced, &o, Tol::witness()).role(mate),
         Some(MateRole::Declaring)
     );
-    let err = split_top(&faced).expect_err("the face side crosses");
-    assert!(
-        matches!(
-            &err,
-            editor_core::SplitError::MateFaceFrameCrosses { mate: m, side }
-                if m.id() == mate && *side == editor_core::MateSide::A
-        ),
-        "{err:?}"
-    );
-    assert!(err.to_string().contains("Recourse:"), "{err}");
-
-    // The authored twin crosses; inline its remainder with a second,
-    // face-sided mate naming the top's face in the part's spelling.
-    let (authored, _) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let out = split_top(&authored).expect("the authored twin crosses");
+    let out = editor_core::split(
+        &faced,
+        &cut(&[top]),
+        DocumentId::derive("p2-face-crossing-part"),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    )
+    .expect("the face side crosses with its head");
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
-    let in_new_part = |name: StableName| StableName {
-        kind: editor_core::EntityKind::Face,
-        node: out.node_map[&top],
-        path: vec![editor_core::RoleSeg::InPart { of: name.into() }],
-    };
-    let through = |name: StableName| StableName {
-        kind: editor_core::EntityKind::Face,
-        node: out.instance,
-        path: vec![editor_core::RoleSeg::InPart {
-            of: in_new_part(name).into(),
-        }],
-    };
     let store_opts = with_resolver(store.clone());
-    let store_reach = editor_core::mate_reach::<f64>(&store_opts, Tol::witness());
-    let (host, face_mate) = fixture::step_with(
-        out.remainder.clone(),
-        DocEdit::InsertNode {
-            node: Box::new(with_face_side(
-                seat(head(through(top_bottom.clone())), head(p.base_cap(base))),
-                from_face(in_new_part(top_bottom)),
-            )),
-        },
-        &store_reach,
+    let Some(Node::Mate {
+        a: crossed,
+        alignment: crossed_alignment,
+        ..
+    }) = out.remainder.node(mate)
+    else {
+        panic!("the kept mate");
+    };
+    assert_eq!(crossed_alignment.a, MateFrame::FromFace);
+    assert_eq!(
+        crossed.name.node, out.instance,
+        "the head re-anchors through the instance"
     );
-    let face_mate = face_mate.expect("the mate");
-    let err = editor_core::inline(
-        &host,
-        out.instance,
-        &resolver(store.clone()),
-        Tol::witness(),
-    )
-    .expect_err("the face side crosses back");
-    assert!(
-        matches!(
-            &err,
-            editor_core::InlineError::MateFaceFrameCrosses { mate: m, side }
-                if m.id() == face_mate && *side == editor_core::MateSide::A
-        ),
-        "{err:?}"
+    let ev = run(&out.remainder, &store_opts);
+    assert!(ev.node_error(mate).is_none(), "{:?}", ev.node_error(mate));
+    assert_eq!(
+        solve(&out.remainder, &store_opts, Tol::witness()).role(mate),
+        Some(MateRole::Declaring)
     );
-    assert!(err.to_string().contains("Recourse:"), "{err}");
-    editor_core::inline(
+    let back = editor_core::inline(
         &out.remainder,
         out.instance,
         &resolver(store),
         Tol::witness(),
     )
-    .expect("its authored twin inlines");
+    .expect("and inlines back with its head");
+    let Some(Node::Mate {
+        alignment: back_alignment,
+        ..
+    }) = back.doc.node(mate)
+    else {
+        panic!("the host mate");
+    };
+    assert_eq!(back_alignment.a, MateFrame::FromFace);
+    let ev = run(&back.doc, &o);
+    assert!(
+        ev.node_error(mate).is_none(),
+        "the host mate evaluates clean: {:?}",
+        ev.node_error(mate)
+    );
 }
 
 /// **The fold rule at inline** (A4): two placing mates of one pair —

@@ -203,16 +203,15 @@ def mate_frame(origin):
     )
 
 
-def seat(a_frame, b_frame, primitive=None, post_cap=None):
+def seat(a_frame, b_frame, primitive=None):
     """The scene's alignment: two frames meeting, axes aligned, no
-    clocking rider. A seat given as `POST_CAP` is the face frame on
-    `post_cap`, the post's own cap name; any other seat is an authored
-    frame at that point."""
+    clocking rider. A seat given as `POST_CAP` is the face frame, which
+    is the side's own head (the post's cap); any other seat is an
+    authored frame at that point."""
 
     def frame(spelling):
         if spelling is POST_CAP:
-            assert post_cap is not None, "a face seat needs the post's cap name"
-            return MateFrame.from_face(post_cap)
+            return MateFrame.from_face()
         return mate_frame(spelling)
 
     return Alignment(
@@ -223,11 +222,10 @@ def seat(a_frame, b_frame, primitive=None, post_cap=None):
     )
 
 
-#: The post's seat as the tour authors it: the post's top cap FACE,
-#: by the post's own name, resolved by the solve from the post's own
+#: The post's seat as the tour authors it: the post side's own head,
+#: the post's top cap FACE, resolved by the solve from the post's own
 #: evaluation — so a post whose height changes moves the seat with
-#: it. A marker here; `stand` spells it as `MateFrame.from_face` on
-#: the cap it selects from the post document.
+#: it. A marker here; `seat` spells it as `MateFrame.from_face()`.
 POST_CAP = "the post's top cap face"
 
 #: The stand's two mates, as (a seat, b seat) in document order, each
@@ -237,14 +235,6 @@ POST_CAP = "the post's top cap face"
 #: post sides are the cap face, the shelf sides authored points (the
 #: shelf's own datum, not a face of it).
 STAND_SEATS = ((SEAT_A, POST_CAP), (POST_CAP, SEAT_B))
-
-
-def part_cap(part_doc, side):
-    """A cap face of a PART, by the part's own name: selected on the
-    part document's own evaluation, with no instance wrapped round it
-    — what a mate frame that names a face stores."""
-    found = evaluate(part_doc).select(part_doc.roots[0], cap_selector(side))
-    return one(found)
 
 
 # ---- The assembly documents ----
@@ -324,11 +314,8 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     a_top = instance_face(store, doc, post_a, CapEnd.End)
     b_top = instance_face(store, doc, post_b, CapEnd.End)
     s_bottom = instance_face(store, doc, shelf_i, CapEnd.Start)
-    # The post's seat is its cap face by the POST's own name — read
-    # off the post document the store resolves, never off the
-    # instance — and the insert resolves it through the store, since
-    # the face is the part's.
-    post_cap = part_cap(store.resolve(post_ref), CapEnd.End)
+    # The post's seat is its head's face, and the insert resolves it
+    # through the store, since the face is the part's.
     mate_1 = doc.insert(
         Node.mate(
             shelf_i,
@@ -336,7 +323,7 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
             post_a,
             a_top,
             class_,
-            seat(*STAND_SEATS[0], primitive, post_cap=post_cap),
+            seat(*STAND_SEATS[0], primitive),
         ),
         resolver=store,
     )
@@ -347,7 +334,7 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
             shelf_i,
             s_bottom,
             class_,
-            seat(*STAND_SEATS[1], primitive, post_cap=post_cap),
+            seat(*STAND_SEATS[1], primitive),
         ),
         resolver=store,
     )

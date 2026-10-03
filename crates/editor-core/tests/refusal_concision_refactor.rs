@@ -45,7 +45,7 @@ test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
-        NoMaterial, UnplacedAlone, WouldStartPlacing, MateFrameCrosses, MateFaceFrameCrosses,
+        NoMaterial, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
         HoistedMemberOffset, UncutParamReference, PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
         RemainderEdit,
@@ -56,7 +56,7 @@ test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, InstanceConsumed, Unresolved, EpsilonSeam,
         PartCarriesMetadata, ParamConflict, UnplaceableFrame, MatePlaced, Unplaced,
-        MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MateFaceFrameCrosses, MatePairSplits,
+        MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MatePairSplits,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
         StrandedPartName, Edit,
     ];
@@ -110,10 +110,6 @@ fn split_refusals() -> Vec<SplitError> {
         },
         SplitError::WouldStartPlacing { mate: s(7, "Mate") },
         SplitError::MateFrameCrosses {
-            mate: s(7, "Mate"),
-            side: MateSide::B,
-        },
-        SplitError::MateFaceFrameCrosses {
             mate: s(7, "Mate"),
             side: MateSide::B,
         },
@@ -219,10 +215,6 @@ fn inline_refusals() -> Vec<InlineError> {
             node: s(3, "Extrude"),
         },
         InlineError::MateFrameCrosses {
-            mate: s(7, "Mate"),
-            side: MateSide::A,
-        },
-        InlineError::MateFaceFrameCrosses {
             mate: s(7, "Mate"),
             side: MateSide::A,
         },

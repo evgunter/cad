@@ -1208,13 +1208,13 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
             "the root post's offset",
         )
         # A seat is an authored point (`mate_frame(NAME)`) or the
-        # post's cap face (`post_seat(post_top)`), read in document
+        # head's own face (`MateFrame::FromFace`, the post's cap), read in document
         # order.
         seats = re.findall(
-            r"^\s+[ab]: (?:mate_frame\((\w+)\)|(post_seat)\(post_top\)),$", stand, re.M
+            r"^\s+[ab]: (?:mate_frame\((\w+)\)|(MateFrame::FromFace)),$", stand, re.M
         )
         self.assertEqual(len(seats), 4, "the stand no longer authors exactly two mates")
-        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "post_seat": POST_CAP}
+        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "MateFrame::FromFace": POST_CAP}
         self.assertScene(
             tuple(named[point or face] for point, face in seats),
             tuple(seat for mate in STAND_SEATS for seat in mate),

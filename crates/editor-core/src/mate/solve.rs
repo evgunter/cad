@@ -1167,8 +1167,10 @@ pub(crate) fn part_of<P>(
 /// table then reads through the frame witness ([`mate_coset`]).
 ///
 /// An `Authored` frame is its own vectors. A `FromFace` frame is the
-/// named face's canonical pose, asked of the member's part through
-/// the reach ([`MateReach::face_pose`]) in the part's own coordinates
+/// canonical pose of the face the side's own HEAD names in the
+/// member's part ([`super::head_face`]: the head with the walk's
+/// qualifiers stripped), asked of that part through the reach
+/// ([`MateReach::face_pose`]) in the part's own coordinates
 /// — the same coordinates the authored vectors are written in, so no
 /// placement enters — with the pose's origin and CHART axis (the
 /// orientation sense is not folded in; the mate's own
@@ -1192,13 +1194,14 @@ fn resolve_side<P: crate::ProfilePayload>(
     reach: &dyn MateReach,
     mate: RecipeNodeId,
     side: MateSide,
+    head: &crate::node::SitedFace,
     member: &Member,
     frame: &MateFrame,
 ) -> Result<AuthoredFrame, Box<MateFault>> {
-    let face = match frame {
+    match frame {
         MateFrame::Authored(authored) => return Ok(*authored),
-        MateFrame::FromFace(face) => face,
-    };
+        MateFrame::FromFace => {}
+    }
     let unresolved = |refusal| {
         Box::new(MateFault::FaceUnresolved {
             mate,
@@ -1208,15 +1211,20 @@ fn resolve_side<P: crate::ProfilePayload>(
     };
     let part =
         part_of(doc, member).map_err(|node| unresolved(FaceRefusal::NotAnInstance { node }))?;
-    let named = |refusal| {
+    let face = super::head_face(&head.name, member).ok_or_else(|| {
+        unresolved(FaceRefusal::NoPartFace {
+            instance: member.instance,
+            head: head.name.clone(),
+        })
+    })?;
+    let pose = reach.face_pose(&part, &face).map_err(|refusal| {
         unresolved(FaceRefusal::Reach {
             instance: member.instance,
             part,
-            face: face.face.clone(),
+            face: face.clone(),
             refusal,
         })
-    };
-    let pose = reach.face_pose(&part, &face.face).map_err(named)?;
+    })?;
     // `topo::readback::face_pose` answers every carrier it answers
     // through one constructor that fixes `u_ref` (an edge's pose is
     // the only readback with none), so a face's pose always carries
@@ -1314,7 +1322,7 @@ fn admit_class(mate: RecipeNodeId, class: super::ContactClass) -> Result<(), Box
 /// store replay never holds. Everything decided on the datum alone is
 /// decided again (each authored side's frame ladder, the table's
 /// static gaps). A declined decision leaves nothing false in the
-/// document: the datum is what it was — a `FromFace` side's name is
+/// document: the datum is what it was — a `FromFace` side's head is
 /// the datum — and the next solve decides it again.
 ///
 /// # Errors
@@ -1386,8 +1394,8 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
         }
         return Ok(());
     };
-    let a = resolve_side(doc, reach, mate, MateSide::A, &wa.member, &alignment.a)?;
-    let b = resolve_side(doc, reach, mate, MateSide::B, &wb.member, &alignment.b)?;
+    let a = resolve_side(doc, reach, mate, MateSide::A, a, &wa.member, &alignment.a)?;
+    let b = resolve_side(doc, reach, mate, MateSide::B, b, &wb.member, &alignment.b)?;
     let form = || {
         let parts = pair_reach(doc, reach, first, second).map_err(|refusal| {
             Box::new(MateFault::Unleverable {
@@ -1447,7 +1455,10 @@ fn fold_pair<P: crate::ProfilePayload>(
     for pm in mates {
         let mate = pm.mate;
         let Some(Node::Mate {
-            class, alignment, ..
+            a: head_a,
+            b: head_b,
+            class,
+            alignment,
         }) = doc.node(mate)
         else {
             continue;
@@ -1460,8 +1471,8 @@ fn fold_pair<P: crate::ProfilePayload>(
         s.record.unit(mate, || {
             admit_class(mate, *class)?;
             // The sides' frames, resolved before the lever they enter.
-            let a = resolve_side(doc, reach, mate, MateSide::A, ha, &alignment.a)?;
-            let b = resolve_side(doc, reach, mate, MateSide::B, hb, &alignment.b)?;
+            let a = resolve_side(doc, reach, mate, MateSide::A, head_a, ha, &alignment.a)?;
+            let b = resolve_side(doc, reach, mate, MateSide::B, head_b, hb, &alignment.b)?;
             let parts = match parts_reach {
                 Some(parts) => parts,
                 None => {

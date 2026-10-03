@@ -4759,7 +4759,7 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
                 // resolves against (`mate::solve::part_of`), so the key
                 // and the solve name one part for one side.
                 let part_of = |reference, frame: &crate::mate::MateFrame| {
-                    frame.face()?;
+                    matches!(frame, crate::mate::MateFrame::FromFace).then_some(())?;
                     let member = crate::mate::member_of(doc, reference)?;
                     crate::mate::solve::part_of(doc, &member).ok()
                 };
@@ -5943,10 +5943,10 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
         None => h.write_tag(tag::presence::ABSENT),
     }
     // Each side's arm as a word, then its payload: an authored frame's
-    // nine coordinates; a face frame's PART-LOCAL name, the whole of
-    // what it authors. The part the face resolves against is the
-    // mate's other channel (`SolveAnswer::feed_face_parts`), read after
-    // this.
+    // nine coordinates; a face frame authors none. Its face is the
+    // head's, which the mate's key feeds beside this, and the part the
+    // face resolves against is the mate's other channel
+    // (`SolveAnswer::feed_face_parts`), read after this.
     for frame in [&a.a, &a.b] {
         match frame {
             crate::mate::MateFrame::Authored(frame) => {
@@ -5960,10 +5960,7 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
                     h.write_f64_bits(*x);
                 }
             }
-            crate::mate::MateFrame::FromFace(face) => {
-                h.write_tag(tag::mate_frame::FROM_FACE);
-                feed_stable_name(h, &face.face);
-            }
+            crate::mate::MateFrame::FromFace => h.write_tag(tag::mate_frame::FROM_FACE),
         }
     }
 }

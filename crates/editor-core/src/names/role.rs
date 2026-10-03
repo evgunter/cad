@@ -464,7 +464,7 @@ impl FaceName {
     /// **The part-local face a placed name wraps** — the row of the
     /// part's own table under the one `InPart` qualifier `instance`
     /// put round it, read INSIDE the part where no instance exists:
-    /// what a `FromFace` mate frame stores. `None` when `name` is not
+    /// the last step of [`crate::mate::head_face`]. `None` when `name` is not
     /// of that shape (headed elsewhere, qualified otherwise, or not a
     /// face); [`FaceName::in_part`] is its inverse.
     pub fn part_local(name: &StableName, instance: RecipeNodeId) -> Option<FaceName> {
