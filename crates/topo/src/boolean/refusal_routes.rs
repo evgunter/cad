@@ -1115,7 +1115,7 @@ pub enum NeighbourOffset {
     /// nonzero one in the zero band is a size a smaller tolerance
     /// decides apart.
     Zero(Classified),
-    /// The offset landed in the ambiguity band, or was poisoned.
+    /// The offset landed in the ambiguity band.
     Undecided(Indeterminate),
 }
 
@@ -3388,6 +3388,30 @@ mod tests {
     /// the refusal names the gate's decision and lever with the
     /// tolerance its margin gives, not the declare menu, which no
     /// declaration between two faces of one operand could settle.
+    /// **A neighbour whose offset datum is not finite is the operand's
+    /// defect at the maximal-faces gate** (F7): the brick's split top,
+    /// one half re-charted parallel through `z = +∞`. The offset decides
+    /// no sign, so the gate neither passes the pair as apart nor refuses
+    /// it as coplanar neighbours: the datum is poisoned, read at rest.
+    #[test]
+    fn the_maximal_faces_gate_refuses_an_infinite_neighbour_offset_as_poison() {
+        let body = top_split_redescribed(|p0, along, _| crate::Surface::Plane {
+            origin: Point3::new(p0.x, p0.y, f64::INFINITY),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: along,
+        });
+        let err = super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
+            .expect_err("an infinite offset is no plane apart from its neighbour");
+        let BooleanError::PoisonedCarrierDatum { pair, diag } = err else {
+            panic!("the gate refuses the poisoned datum: {err:?}");
+        };
+        assert_eq!(diag.predicate, Some("bool_plane_offset"), "{diag:?}");
+        assert!(
+            pair.iter().all(|&(operand, _)| operand == Operand::A),
+            "both neighbours are the operand's: {pair:?}"
+        );
+    }
+
     #[test]
     fn the_maximal_faces_gate_ends_near_flat_neighbours_in_its_own_lever() {
         let b = band();
