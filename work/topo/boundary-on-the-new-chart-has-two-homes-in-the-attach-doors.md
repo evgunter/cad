@@ -54,3 +54,35 @@ disagreements above decided once.
 `Body::description_surfaces` (`crates/topo/src/body.rs`) and
 `Named::keys` (`attach.rs`) are two spellings of "the keys a description
 names". They predate PR 3598. Fold them together when this row is taken.
+
+## Evidence: the Euler doors take the keys home (PR 3673)
+
+`mef_chords` / `mef_lone`, `mfkrh_with` and `ring_move_with` now ask
+the keys-only question through `Body::vouch_move`
+(`crates/topo/src/attach.rs`), which `set_face_surface` calls too: one
+walk (`Body::rechart_edges`, now over the edges a door hands it and a
+per-half-edge move) and one decision (`Sides::vouched`), which also
+answers for the chord `mef` mints (it has no key yet, so it is asked
+as an edge whose two halves lay on the parent's chart). So the keys
+reading has one home across five doors; no door added a residual
+reading. The residual reading is still the describing door's alone
+(`check_moved_boundary`), and the two disagreements this row names —
+curved charts and the lone vertex — are unchanged. `kef` and `kfmrh`
+ask neither yet
+(`kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+
+## Evidence: the plug's refusal, and the describing door onto its placeholder (PR 3673's fix pass)
+
+`Body::mfkrh_plug` now refuses as its own door (`RechartDoor::MfkrhPlug`)
+and names `mfkrh` onto a chart the ring's edges name as its lever
+(`attach::tests::mfkrh_plugs_refusals_name_mfkrh_onto_the_chart_the_ring_names`).
+The plug's other route is a third case of this row's disagreement. An
+executed probe on the brick's described inlay, the membrane demoted into
+the cap (`kfmrh`): `mfkrh_plug(ring, true)` refuses
+`RechartUnvouched { door: MfkrhPlug, .. }` naming all four edges. But
+`mfkrh(ring, Inherit)`, then
+`set_face_surfaces_describing(vec![Rechart::new(nurbs_placeholder, face, sense)], &[], tol)`
+returns `Ok`. The four edges keep their images in the cap's chart, and
+tier 3 at rest reports only `UncertifiableSurface`. The describing door
+certified nothing about the boundary on the placeholder, which the
+keys-only reading refuses. Not fixed there: it is this row's decision.
