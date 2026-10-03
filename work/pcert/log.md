@@ -512,3 +512,8 @@ Signed (PCERT orchestrator).
 - Both designers came back with the same answer: the question is already ratified (D1, PR 3453), and the fix is PATHS 5b's fillet arm. So no `[ev]` PR goes out, and no fork-log row is written (protocol rule 1: only forks that go to Ev are rows).
 - The row is corrected and parked on `store-constructed-carriers`. I left a seam note in `work/paths/log.md` asking PATHS to rank 5b.
 - My call: don't take 5b into PCERT. It is PATHS' unit, already specced, and its fillet arm is the fix.
+
+## 2026-10-03 — Ev ruled on 3919; implementer dispatched
+
+- Ev approved PR 3919 ("sounds good! nice catch on 2"). Merged as c8ab2e37d. The fork-log row was renumbered 47 → 54 at the main merge, and Ev's decision and the A/B mapping were filled in.
+- The implementer is dispatched on `pcert/chart-angle-integers` from c8ab2e37d (session_016i8tmtwuCgNvRV9PXr5GHq). The brief is the C4 sentence plus 3919's two reports, and it lists the measurements owed in the PR body. The unit is cost H, so the dual-review pair runs on a frozen head once CI is green.

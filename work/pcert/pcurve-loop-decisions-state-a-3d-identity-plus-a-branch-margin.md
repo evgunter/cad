@@ -2,12 +2,13 @@
 id: pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin
 kind: issue
 title: the chart's angular comparisons (loop continuity, closure, pole joint, trim containment) compare angles over a parameter box, so they widen there the way check 4 did
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P0
 cost: H
 design: true
 refs: [loop-walk-branch-is-an-opaque-floor-atom, 3781]
+branch: pcert/chart-angle-integers
 ---
 
 The follow-on the incidence-and-fidelity unit names, filed when that
