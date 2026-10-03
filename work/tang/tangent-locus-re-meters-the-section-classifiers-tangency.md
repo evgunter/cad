@@ -8,6 +8,7 @@ priority: P1
 cost: M
 closed: 2026-10-03
 branch: tang/tangent-locus-consumes-classifiers
+pr: 3949
 ---
 
 
