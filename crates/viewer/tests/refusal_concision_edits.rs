@@ -9,7 +9,8 @@
 //! of the number; this is the same number for the edit chain).
 //!
 //! The forwarding arms are rendered over what they forward: every
-//! `MateFault` arm inside `MateRefused`, every
+//! `MateFault` arm inside `MateRefused`, every `CountMismatch` inside
+//! `PlacementRuleMismatch`, every
 //! `StepIdFault` arm an edit door raises inside `StepIdsRefused`, and
 //! the longest path refusals inside `ProfileProgramRefused` (the
 //! feature tree's rows in `editor-core/tests/refusal_concision_chains.rs`
@@ -19,10 +20,10 @@
 
 use editor_core::program::ProgramRefusal;
 use editor_core::{
-    AttrKind, ContentPin, Dimension, DimensionError, DistributionFault, DistributionField,
-    DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault, MeasureNodeFault,
-    MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId, SpokenName,
-    SpokenNode, StableName, StepIdFault,
+    AttrKind, ContentPin, CountMismatch, Dimension, DimensionError, DistributionFault,
+    DistributionField, DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault,
+    MeasureNodeFault, MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId,
+    SpokenName, SpokenNode, StableName, StepIdFault,
 };
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
@@ -529,16 +530,12 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "WouldStartPlacing",
             EditError::WouldStartPlacing { mate: s(9, "Mate") },
         ),
-        (
-            "PlacementRuleMismatch",
-            EditError::PlacementRuleMismatch {
-                node: s(5, "InstantiatePart"),
-            },
-        ),
+        // `PlacementRuleMismatch`: every shape, each spoken with the
+        // node kind that raises it, in `forwarded_edit_refusals`.
         (
             "EmptyPlacementList",
             EditError::EmptyPlacementList {
-                node: s(5, "InstantiatePart"),
+                node: s(5, "PlacedUnion"),
             },
         ),
         (
@@ -651,6 +648,15 @@ fn next_distribution_fault(fault: &DistributionFault) -> Option<DistributionFaul
         // routes a non-finite offset to `NonFiniteDocParam`, which has
         // its own.
         DistributionFault::NonFinite { .. } => None,
+    }
+}
+
+/// The count mismatch after `shape`, every arm in turn.
+fn next_count_mismatch(shape: &CountMismatch) -> Option<CountMismatch> {
+    match shape {
+        CountMismatch::ListedOnPattern => Some(CountMismatch::ListedWithCount),
+        CountMismatch::ListedWithCount => Some(CountMismatch::SteppedWithoutCount),
+        CountMismatch::SteppedWithoutCount => None,
     }
 }
 
@@ -914,6 +920,19 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
             EditError::Roots(fault),
         ));
     }
+    for shape in witnesses(CountMismatch::ListedOnPattern, next_count_mismatch) {
+        let kind = match shape {
+            CountMismatch::ListedOnPattern => "Pattern",
+            CountMismatch::ListedWithCount | CountMismatch::SteppedWithoutCount => "PlacedUnion",
+        };
+        rows.push((
+            format!("PlacementRuleMismatch({})", variant(&shape)),
+            EditError::PlacementRuleMismatch {
+                node: s(5, kind),
+                shape,
+            },
+        ));
+    }
     for fault in witnesses(StepIdFault::Preminted, next_step_id_fault) {
         rows.push((
             format!("StepIdsRefused({})", variant(&fault)),
@@ -953,10 +972,18 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
 /// mate the refusal is about, and a pair's corner list.
 const LABELS: &[(&str, &str)] = &[
     (
-        "Edit/PlacementRuleMismatch",
-        "InstantiatePart \"base plate\"",
+        "Edit/PlacementRuleMismatch(ListedOnPattern)",
+        "Pattern \"base plate\"",
     ),
-    ("Edit/EmptyPlacementList", "InstantiatePart \"base plate\""),
+    (
+        "Edit/PlacementRuleMismatch(ListedWithCount)",
+        "PlacedUnion \"base plate\"",
+    ),
+    (
+        "Edit/PlacementRuleMismatch(SteppedWithoutCount)",
+        "PlacedUnion \"base plate\"",
+    ),
+    ("Edit/EmptyPlacementList", "PlacedUnion \"base plate\""),
     ("Edit/MeasureMalformed", "Measure \"base plate\""),
     ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),
     (
@@ -969,11 +996,6 @@ const LABELS: &[(&str, &str)] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 const FILED_NO_RECOURSE: &[&str] = &[
-    // work/recipe/edit-refusals-short-of-the-shape-guard.md, held for
-    // work/place/placement-is-spelled-three-ways-node-registry-and-rule.md:
-    // the two placement-rule arms, which the gauge unit did not touch.
-    "Edit/EmptyPlacementList",
-    "Edit/PlacementRuleMismatch",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
     "Edit/ProfileProgramRefused(Resolve)",
     "Edit/ProfileProgramRefused(Transition)",

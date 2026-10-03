@@ -2502,14 +2502,23 @@ fn inner_arm_tags_are_stable() {
         pair(&NodeErrorKind::UnschedulableCycle),
         ("unschedulable_cycle", None)
     );
-    // The word is already the fault's, under the carrier's own name:
-    // `kind` IS the inner discriminant here, and projecting it twice
-    // would say the same thing in two places.
+    // The fault's word is already the carrier's own (`kind` IS that
+    // discriminant), so the second word is the count mismatch's shape,
+    // as `EditError.inner_variant` publishes it, and a fault with no
+    // arms of its own has none.
     assert_eq!(
         pair(&NodeErrorKind::PlacementRule(
-            PlacementRuleFault::CountSpelling
+            PlacementRuleFault::CountSpelling {
+                shape: pncad::document::CountMismatch::ListedOnPattern,
+            }
         )),
-        ("placement_rule_mismatch", None)
+        ("placement_rule_mismatch", Some("listed_on_pattern"))
+    );
+    assert_eq!(
+        pair(&NodeErrorKind::PlacementRule(
+            PlacementRuleFault::NoPlacements
+        )),
+        ("empty_placement_list", None)
     );
 }
 
@@ -2733,7 +2742,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "input"],
     );
     carries(&E::WouldStartPlacing { mate: sp(1) }, &["node"]);
-    carries(&E::PlacementRuleMismatch { node: sp(1) }, &["node"]);
+    carries(
+        &E::PlacementRuleMismatch {
+            node: sp(1),
+            shape: pncad::document::CountMismatch::ListedOnPattern,
+        },
+        &["node"],
+    );
     carries(&E::EmptyPlacementList { node: sp(1) }, &["node"]);
     carries(
         &E::NonFinitePlacement {
@@ -4686,6 +4701,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "boundary_edit_inner_tag",
+        values: &[],
+        delegates: &["edit_inner_variant_tag", "placement_rule_inner_tag"],
+    },
+    TagEntry {
         function: "boundary_edit_tag",
         values: &[
             "mate_head_not_a_face",
@@ -4765,6 +4785,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "encloses_leg_carrier",
             "no_corner_side_candidate",
             "offset_carriers_disjoint",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "count_mismatch_tag",
+        values: &[
+            "listed_on_pattern",
+            "listed_with_count",
+            "stepped_without_count",
         ],
         delegates: &[],
     },
@@ -4878,6 +4907,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         // `mate_fault_tag` once: the per-mate admission forwards the
         // solve's fault whole.
         delegates: &[
+            "count_mismatch_tag",
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "mate_fault_tag",
@@ -5304,6 +5334,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "param_attach_error_tag",
             "param_box_error_tag",
             "pieces_fault_tag",
+            "placement_rule_inner_tag",
             "profile_error_tag",
             "readback_error_tag",
             "replay_error_tag",
@@ -5460,6 +5491,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "placement_rule_fault_tag",
         values: &[],
         delegates: &["node_error_tag"],
+    },
+    TagEntry {
+        function: "placement_rule_inner_tag",
+        values: &[],
+        delegates: &["count_mismatch_tag"],
     },
     TagEntry {
         function: "product_error_tag",
