@@ -1738,10 +1738,9 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// through a one-sided cover arm — those rest on a line's separation
 /// story.
 ///
-/// **What a successful wall pierce reaches next is a typed door, not
-/// a body**: a ring minted in a cylinder face has no join arm (#1291),
-/// so it lands on `SplitJoinError::SectionArcWindow{NoChartedRun}`. A
-/// planar cap pierce joins.
+/// A successful wall pierce reaches the join with a ring in the
+/// pierced face, and the ring's chords take their arc from that face's
+/// own azimuth window (`chord_join`'s `cross_loop_window_cycle`).
 ///
 /// **This lane WIDENS what an undeclared pair reaches, and the widening
 /// is named here rather than left to be discovered.** Before it,
@@ -3337,8 +3336,11 @@ impl Placement {
     ///   on-carrier end on a face whose trim the chart door declines (a
     ///   ringed face) while every boundary edge is a line or a circle
     ///   (anything else answers `Unread` first), and the one such bore
-    ///   tried — a collar less a partial-revolve wedge — refuses
-    ///   `Join(SectionArcWindow{NoChartedRun})` before any mate;
+    ///   tried — a full-turn collar less a partial-revolve wedge —
+    ///   refuses before any mate: `Join(SectionArcWindow{BothContained})`
+    ///   with the wedge inside the collar's height, `JoinDesync` where it
+    ///   crosses a cap
+    ///   (`work/tang/a-wedge-across-a-full-turn-collar-desyncs-its-chord-roles.md`);
     /// - **any `Recorded`** records;
     /// - **every on-carrier end `Elsewhere`** has placed nothing on this
     ///   face. That is no event only when `interior_clear` — the arm

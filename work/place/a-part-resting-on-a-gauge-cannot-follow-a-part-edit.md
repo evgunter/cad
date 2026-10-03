@@ -5,7 +5,6 @@ title: a part set on another part's gauge cannot follow that part's edit: a mate
 status: open
 opened: 2026-10-02
 priority: P3
-design: true
 cost: H
 ---
 
@@ -70,3 +69,11 @@ Some candidates, none ruled:
 
 Each touches A11 (2)'s "contact between groups on different gauges is
 declared and verified, never placed".
+
+## RULED (2026-10-03, Ev on `[ev]` #3920)
+
+A mate frame is a base composed with an offset, a `Placement` written in the base's frame. In general form, `MateFrame { base: Part | Face, offset: Placement }`:
+- today's authored vectors become the part base plus one literal step;
+- `FromFace` is the face base, with the empty chain by default.
+
+The crate sits on the shelf's gauge, with a placing mate whose shelf side is the shelf's top face offset in that face's frame. It follows any edit of the shelf. Gauges are unchanged, and A11 (2) is unchanged. The offset can be any rigid motion; the mate's contact class decides which offsets are legal. A3 and A11 (5) state this, and the design-fork log records it as row 53. The tour's shelf-top gauge goes when this is built.
