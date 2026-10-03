@@ -438,15 +438,23 @@ const PLATE_MAX_TERMS: usize = 252;
 ///   normalisations and the invariants are new forms in every walk.
 ///   Calls and freezes do not move: the twin is the same frame on this
 ///   plate's literal charts, so no decision is added or lost.
+///
+/// **When the loop's angle equalities and check 5 retired** (PCERT's
+/// chart-angle unit), the walks lost exactly those decisions' forms
+/// and nothing they shared: `Plain/Decision` 1127 → 1047 calls (16429 →
+/// 16105 forms), `Early/Decision` 416 → 352, `Door/Decision` 590 → 530,
+/// each `Assertion` line 20 calls down, and freezes unmoved. The two
+/// `Report` lines go: the 32 residuals they rendered were among the
+/// retired decisions', and nothing else blocks on the plate under the
+/// shipped rules (8 still do with the canonical root off, against 40
+/// before).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1127 forms 16429 frozen 696 digest f0075c185b84ceaa1e6776fef010ba7a\n\
-     Plain/Assertion calls 666 forms 4051 frozen 372 digest 2d8a3120e46d4f5e79adece7f2080b4f\n\
-     Plain/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 416 forms 9188 frozen 8 digest 4a83df50386eccfa36dc691f0258eb7e\n\
-     Early/Assertion calls 666 forms 5015 frozen 0 digest f8fb8acfd73cd5e780d9157d6836fa88\n\
-     Early/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 590 forms 13928 frozen 0 digest ad9c2d1d4a3be10b1f9edb793fc74e67\n\
-     Door/Assertion calls 410 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Plain/Decision calls 1047 forms 16105 frozen 696 digest 1a441a45e623d01447888e3a648a5828\n\
+     Plain/Assertion calls 646 forms 3983 frozen 372 digest 9afb477f480c7b5bbf7d12d5c19e4b70\n\
+     Early/Decision calls 352 forms 8988 frozen 8 digest d8130fafb4cad863a8d6b10ee2182322\n\
+     Early/Assertion calls 646 forms 4899 frozen 0 digest f229a9f32c205f4ad94e4b01956496e1\n\
+     Door/Decision calls 530 forms 13322 frozen 0 digest fd04ab520db1eba424f658c6eaa1994e\n\
+     Door/Assertion calls 390 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -608,21 +616,22 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|l| l.split_whitespace().nth(2))
             .and_then(|n| n.parse::<u64>().ok())
     };
-    let sets: [(&str, SymRules, u64); 4] = [
-        ("shipped", SymRules::shipped(), 32),
+    // `None`: nothing blocked, so no `Plain/Report` line is written.
+    let sets: [(&str, SymRules, Option<u64>); 4] = [
+        ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            40,
+            Some(8),
         ),
-        ("without_the_reads", SymRules::without_the_reads(), 32),
+        ("without_the_reads", SymRules::without_the_reads(), None),
         (
             "both new dials off",
             SymRules {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            40,
+            Some(8),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;
@@ -640,7 +649,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
         );
         assert_eq!(
             report_calls(&ledger),
-            Some(blocked),
+            blocked,
             "{name}: the plain walk renders a different number of blocked residuals"
         );
         match &seen {

@@ -452,6 +452,15 @@ fn sym_9_what_each_retry_recovers() {
 /// → `[459, 20, …]` and the bracket `[1235, 59, …]` → `[1259, 35, …]`.
 /// `registered`, `numeric` and `retried` do not move.
 ///
+/// PCERT's chart-angle unit retired the loop's angle equalities and
+/// check 5, so every document lost those decisions outright, in every
+/// column at once: without the ladder the plate reads
+/// `[907, 0, 140, 646]`, the annulus `[424, 0, 140, 393]`, the boss
+/// `[447, 2, 96, 371]`, the bracket `[1239, 5, 146, 1013]` and the link
+/// `[641, 0, 110, 691]`. That is a baseline moving, not a retry taking
+/// a decision away: what the ladder adds over the same replay without
+/// it, and `retried`, are unmoved on every document.
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -471,21 +480,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [947, 0, 148, 698], [947, 0, 148, 698], 0),
-        ("r1_annulus", [440, 24, 148, 445], [440, 24, 148, 445], 0),
-        (
-            "r1_segment_boss",
-            [459, 20, 102, 410],
-            [459, 20, 102, 410],
-            0,
-        ),
+        ("two_hole_plate", [907, 0, 140, 646], [907, 0, 140, 646], 0),
+        ("r1_annulus", [424, 0, 140, 393], [424, 0, 140, 393], 0),
+        ("r1_segment_boss", [447, 2, 96, 371], [447, 2, 96, 371], 0),
         (
             "r2_filleted_bracket",
-            [1259, 35, 156, 1078],
-            [1259, 35, 162, 1072],
+            [1239, 5, 146, 1013],
+            [1239, 5, 152, 1007],
             6,
         ),
-        ("r2_link", [681, 0, 118, 743], [683, 0, 130, 729], 14),
+        ("r2_link", [641, 0, 110, 691], [643, 0, 122, 677], 14),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -560,7 +564,10 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// receipt was `[1206, 51, 176, 1145, 6]` (bare `[1206, 51, 170, 1151,
 /// 0]`): the same six retried, and the restated certificate's
 /// theorems in place of the schedule's registered and numeric
-/// residuals.
+/// residuals. The retirement of the loop's angle equalities and check 5
+/// took `[1259, 35, 162, 1072, 6]` to `[1239, 5, 152, 1007, 6]` (bare
+/// `[1259, 35, 156, 1078, 0]` to `[1239, 5, 146, 1013, 0]`): the same
+/// six retried.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
@@ -602,11 +609,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1259, 35, 162, 1072, 6],
+        [1239, 5, 152, 1007, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=162 retried=6\n"),
+        line.contains("registered=152 retried=6\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
@@ -622,7 +629,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1259, 35, 156, 1078, 0]
+        [1239, 5, 146, 1013, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

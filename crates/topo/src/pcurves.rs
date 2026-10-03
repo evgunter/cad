@@ -3561,8 +3561,10 @@ impl<T: Real> Lift<T> {
 /// incidence is UNDECIDED, nothing is skipped on an analytic chart: the
 /// branch is decided as at any other joint, which is sound either way
 /// (a whole-period shift is a deck transformation of the chart, so it
-/// moves no point), and where it cannot be decided the incidence's
-/// escalation is the joint's. A spline chart has no injectivity lemma
+/// moves no point), and where its marks cannot be decided either, the
+/// unshifted gap must be decided within ε at the vertex's own lever
+/// ([`near_pole_gap_closes`]); otherwise the incidence's escalation is
+/// the joint's. A spline chart has no injectivity lemma
 /// (a net can fold, so a 3-D coincidence does not name the sheet), and
 /// each of its joints states its chart-space gap as well
 /// ([`spline_gap_closes`]), which is what keeps its net-level skip
@@ -3591,16 +3593,21 @@ fn lift_joint<T: Decide>(
     let whole = |k: i32| T::from_f64(f64::from(k));
     for (is_twin, cand) in core::iter::once((false, base)).chain(twin.map(|t| (true, t))) {
         let raw = cand.eval(entry_t);
+        let gap = prev.x - raw.x;
         let ku = match (u_period, singular) {
             (None, _) | (_, Singular::On) => Ok(0),
             (Some(_), Singular::Undecided(_)) if spline => Ok(0),
-            (Some(p), _) => whole_periods(
-                "pcurve_loop_branch",
-                prev.x - raw.x,
-                p,
-                |gap| arm.meter(gap),
-                band,
-            ),
+            (Some(p), Singular::Off) => {
+                whole_periods("pcurve_loop_branch", gap, p, |g| arm.meter(g), band)
+            }
+            (Some(p), Singular::Undecided(cause)) => {
+                match whole_periods("pcurve_loop_branch", gap, p, |g| arm.meter(g), band) {
+                    Err(BranchMiss::Undecided(_) | BranchMiss::OnMark) => {
+                        near_pole_gap_closes(arm, gap, cause, band)
+                    }
+                    decided => decided,
+                }
+            }
         };
         let ku = match ku {
             Ok(k) => k,
@@ -3648,6 +3655,26 @@ fn lift_joint<T: Decide>(
         None if out_of_reach => PinMiss::OutOfReach,
         None => PinMiss::Discontinuity,
     })
+}
+
+/// The branch of a joint whose vertex's incidence on the singular set
+/// is undecided, where the half-period marks are undecided too: the
+/// vertex sits within the band of a pole or an apex, so its own lever
+/// `arm` is band-sized and no mark reads definitely. `k = 0` is taken
+/// only where the unshifted `gap`, metered at that lever, is decided
+/// within ε (`pcurve_loop_continuity`): the two chart points then agree
+/// in metres at the vertex, and no branch is asserted that a margin did
+/// not see. Anything else is the incidence's escalation, `cause`.
+fn near_pole_gap_closes<T: Decide>(
+    arm: ChartArm<T>,
+    gap: T,
+    cause: Indeterminate,
+    band: Band,
+) -> Result<i32, BranchMiss> {
+    match decide("pcurve_loop_continuity", arm.meter(gap), band) {
+        Ok(Sign::Zero) => Ok(0),
+        _ => Err(BranchMiss::Undecided(cause)),
+    }
 }
 
 /// **A spline chart's joint gap**: the entry `entry` and the
