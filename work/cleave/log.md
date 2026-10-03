@@ -341,3 +341,22 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   - two sites are deferred to step 4 (I16's radius is input-reachable; N5).
 
   The lane's open doubt: a decided zero on the wrong side now offers a tolerance that cannot pass, at every gate. A single full review is dispatched (cloud).
+- Steep tube (PR 3981, DR "steep-tube", sequential): the first review is APPROVE-WITH-FIXES with no MAJOR, so it is the only review.
+  - The reviewer found the clamp sound for all six callers and the re-baselines honest, and recommends landing it before PCERT retires check 5.
+  - Fix pass sent:
+    - the pin prose;
+    - the tip ratio, which drifts with link count (0.3% headroom): restate the claim and do not widen the gate;
+    - one helper for "decide only the positive escape";
+    - a chaintol test that could not go red;
+    - pin the infinite-arm NaN;
+    - raise the contact sag row to P1;
+    - file `pcurve_azimuth_period`, which has the same shape.
+- Mints step 1 (PR 3979): the single full review is APPROVE-WITH-FIXES with one MAJOR, demonstrated at public `require_ring_torus`.
+  - The MAJOR: a gate's rejection of a wrong-side decided zero offers a tolerance that cannot pass, which D4 ¶1 (i) forbids. It is the lane's own open doubt, now spread to every plain gate.
+  - Ruled: the PR does not merge until it is fixed. The gate carries its pass set on the rejection; a small move toward the design's step-5 seal is accepted.
+  - Fix pass sent with the MINORs:
+    - `at_wedge`'s Negative arm;
+    - the past-band "declare" offer;
+    - the reviewer's two mutation-killing rows;
+    - a stale doc;
+    - the style items.
