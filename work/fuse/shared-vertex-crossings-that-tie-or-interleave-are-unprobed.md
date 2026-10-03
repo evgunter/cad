@@ -2,11 +2,10 @@
 id: shared-vertex-crossings-that-tie-or-interleave-are-unprobed
 kind: issue
 title: "SharedVertexCrossings: a dangling null edge holding another pair's cut is reachable and refuses; the fan-interleave and one-arc arms are reached by no witness"
-status: dispatched
+status: open
 opened: 2026-10-03
 priority: P0
 cost: M
-branch: fuse/shared-vertex-tie
 ---
 
 
@@ -55,3 +54,16 @@ Decide the nested-null-edge structure for the reachable arm and build
 it, flipping its pin. Re-probe the interleave arm once the
 `PairingMismatch` row is fixed. Find a witness for the one-arc arm or
 show it unreachable.
+
+## Landed (FUSE, PR 3943, 2026-10-03)
+
+The tie arms are built, and the strut tie is an invariant. Review tier:
+single FULL, with one fix pass that added three things:
+- strut cuts take their side from angular ends;
+- `reconcile_shared` runs to a bounded fixed point;
+- a row that turns red under the old leaving-germ splice.
+
+The row stays open at P0 for the reachable arm. Its pinch-end 3′
+failure is now its own row,
+`a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`.
+
