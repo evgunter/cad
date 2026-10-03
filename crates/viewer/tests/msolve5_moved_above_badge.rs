@@ -1,10 +1,10 @@
-//! **The at-rest badge names the operand for a mate read below a
-//! product root.**
+//! **The at-rest badge names the operand and the placer for a mate
+//! read below a pattern.**
 //!
 //! The badge renders the gate's own `Display`, so the viewer needs no
 //! code for the arm: this row pins that the sentence a user reads on
 //! the issue's document — a pattern over a transform over the shelf,
-//! the mate read AT the transform — IS the gate's `ReadBelowARoot`
+//! the mate read AT the transform — IS the gate's `MovedAbove`
 //! refusal, word for word. The words themselves are pinned once, in
 //! `editor-core`'s `display_contract`.
 
@@ -29,7 +29,7 @@ use viewer::session::{AtRestBadge, DocSession, SessionOp};
 /// lifted by a transform, a two-copy pattern of the lifted shelf, and
 /// the seat mate read AT the transform. Stored beside the bench's
 /// parts so the session's resolver finds them.
-fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, AssemblyError) {
+fn moved_above(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, AssemblyError) {
     let mut asm = ProfileDoc::empty(DocumentId::derive("msolve5-viewer"), tol);
     let post = insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
     let shelf = insert_into(&mut asm, Node::instantiate_part(bench.shelf), tol);
@@ -46,7 +46,7 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Assem
         tol,
     );
     // The second copy clears the post and the first copy.
-    insert_into(
+    let pattern = insert_into(
         &mut asm,
         Node::Pattern {
             input: lifted,
@@ -76,17 +76,21 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Assem
             mate,
             side: MateSide::B,
             name: Box::new(b),
-            why: RefusedRef::ReadBelowARoot { at: lifted },
+            why: RefusedRef::MovedAbove {
+                at: lifted,
+                by: pattern,
+                copies: true,
+            },
         }],
     };
     (path, expected)
 }
 
 #[test]
-fn the_badge_names_the_operand_of_a_mate_read_below_a_root() {
+fn the_badge_names_the_operand_and_the_placer_of_a_mate_read_below_a_pattern() {
     let tol = Tol::witness();
     let bench = asm::bench("msolve5-badge", tol);
-    let (path, expected) = read_below_a_root(&bench, tol);
+    let (path, expected) = moved_above(&bench, tol);
     let mut session = DocSession::inline(
         pncad::document::Doc::empty_derived("msolve5-boot", tol),
         tol,
@@ -105,6 +109,6 @@ fn the_badge_names_the_operand_of_a_mate_read_below_a_root() {
             expected.spoken(session.committed_doc()),
             "the badge is the gate's own refusal, word for word"
         ),
-        other => panic!("a mate read below a root turns the badge red, got {other:?}"),
+        other => panic!("a mate read below a pattern turns the badge red, got {other:?}"),
     }
 }
