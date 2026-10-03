@@ -517,3 +517,34 @@ Signed (PCERT orchestrator).
 
 - Ev approved PR 3919 ("sounds good! nice catch on 2"). Merged as c8ab2e37d. The fork-log row was renumbered 47 → 54 at the main merge, and Ev's decision and the A/B mapping were filled in.
 - The implementer is dispatched on `pcert/chart-angle-integers` from c8ab2e37d (session_016i8tmtwuCgNvRV9PXr5GHq). The brief is the C4 sentence plus 3919's two reports, and it lists the measurements owed in the PR body. The unit is cost H, so the dual-review pair runs on a frozen head once CI is green.
+
+## 2026-10-03 — PR 3945 dual review adjudicated
+
+- Frozen head 78e55c70. Both reviews are delivered: R1 (comment 5968113330) and R2 (comment 5968109956). Both verdicts are APPROVE-WITH-FIXES, and both report that lane isolation held.
+- **Correspondence pre-note (rule 7), written before the blinded coding returns:**
+  - **Bilateral MAJOR:** the sphere twin is decided with zero margin, so at K below about 4 the wrong sheet certifies or is stored shifted by τ. Both reproduced it, by different probes.
+  - **Bilateral MINOR:**
+    - surviving mutants on the near-pole path, the undecided skip, the winding bound, `identity()` ignoring the twin, and the `joint_arm` lever;
+    - stale `trim_containment` / continuity-margin prose;
+    - torax's either-or pin.
+  - **Unilateral, R2 only:**
+    - `kv` dropped (a surviving mutant);
+    - one predicate name for two questions;
+    - the `pin_branch` wrapper;
+    - the audit row's escape wording;
+    - mesh12 has no upper bound;
+    - the `lift_joint` doc matrix;
+    - the on-axis, off-surface lever (a note).
+  - **Unilateral, R1 only:**
+    - `chart_boundary` cites the 4ε bound for uncertified images;
+    - the gate test bypasses `singular_at`;
+    - two lever functions;
+    - the `loop_closes` combinations.
+  - **Tally candidates:** none, since the only MAJOR is bilateral. Expected tally contribution: 0.
+- **Fix list (the union) sent to the implementer:**
+  - the blocking fix for the twin, following B's design: nearest orbit point, with margin half the separation;
+  - the README re-word that follows from it;
+  - killing rows for every surviving mutant;
+  - the prose sweep;
+  - the minors.
+- Blinded coding dispatched (session_01JZy2Fs1EhBc7PrvXSvX4AE). The byte and mapping are recorded privately until merge.
