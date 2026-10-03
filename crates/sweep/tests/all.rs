@@ -590,6 +590,8 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "extent_scan_off_face_tangency.rs"]
+mod extent_scan_off_face_tangency;
 #[path = "full_turn_wall.rs"]
 mod full_turn_wall;
 #[path = "germ_circle_torus.rs"]
