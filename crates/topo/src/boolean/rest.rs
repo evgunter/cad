@@ -226,10 +226,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 ends: (s.a_u, s.a_v),
                 cell: s.a_cell,
                 theirs: (s.b_u, s.b_v),
-                twin: match s.b_cell {
-                    Locus::OnEdge(e) => Some(e),
-                    Locus::InFace(_) => None,
-                },
+                twin: s.b_cell.edge(),
             })
             .collect::<Vec<_>>(),
         &a_rings,
@@ -1144,7 +1141,7 @@ impl<T: Decide> Twin<T> {
 
     /// The twin's curve run from `from`: `None` for a line, which the
     /// straight chord mints as it stands; a circle's own arc in the
-    /// direction asked (reversed by flipping the axis).
+    /// direction asked ([`geom::Curve3::reversed`] runs it back).
     fn spec(&self, from: VertexKey) -> Option<EdgeCurveSpec<T>> {
         let Self::Circle {
             carrier,
@@ -1155,25 +1152,10 @@ impl<T: Decide> Twin<T> {
         else {
             return None;
         };
-        let geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } = *carrier
-        else {
-            return None;
-        };
         if from == *start {
             EdgeCurveSpec::arc_of_circle(carrier.clone(), *t0, *t1)
         } else {
-            let reversed = geom::Curve3::Circle {
-                center,
-                axis: -axis,
-                radius,
-                u_ref,
-            };
-            EdgeCurveSpec::arc_of_circle(reversed, -*t1, -*t0)
+            EdgeCurveSpec::arc_of_circle(carrier.reversed()?, -*t1, -*t0)
         }
     }
 }

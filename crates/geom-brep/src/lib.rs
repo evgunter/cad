@@ -151,12 +151,13 @@ pub use props::{
     require_one_chart_branch,
 };
 pub use ssi::{
-    ChartAxis, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
+    BandVerdict, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd, ChartSide,
+    ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
     ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, ReachBound, SSI_FIT_DEGREE,
-    SSI_FLOOR, SSI_MAX_STEPS, SettlingRefusal, SsiBranch, SsiCertificate, SsiDomain, SsiError,
-    SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision,
-    TubeDegeneracy, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
-    trace_plane_nurbs_uncertified,
+    SSI_FLOOR, SSI_MAX_STEPS, SectionRoot, SettlingRefusal, SsiBoundaryContact, SsiBranch,
+    SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault,
+    StepperMode, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3,
+    cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

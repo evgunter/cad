@@ -64,4 +64,5 @@ by vertex pair, asks only whether some edge already joins the two
 vertices, and `pair_patches` verifies the result by cycle congruence.
 `RestZipFrontier::ParallelSeamEdges` is deleted. No declared-REST pose
 with two arcs between one vertex pair reaches the zip: the dumbbell and
-the aligned half-rod stack build in the join.
+the aligned half-rod stack build in the join. The twin's arc runs
+back through `geom::Curve3::reversed`, the reversal's one home.

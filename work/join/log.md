@@ -245,3 +245,38 @@ Filed: `a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-cens
 The ZIP wrong-volume row gains its wider class.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-03 — PR 3895 lands: JOIN-3, the segment's chord curve
+
+JOIN-3 closed, and with it
+`blind-d-pocket-subtract-refuses-with-join-internal-words`. Review tier:
+DUAL (two cloud sessions, frozen head `3191f2ee`), both
+APPROVE-WITH-FIXES with no MAJOR; coded blind, tally 0. A fix pass
+took both reviews' minors and style and filed R2's ring re-homing
+pockets. A delta review
+(`3191f2ee..2cc1455c`) executed the reversal rows and mutations: one
+MINOR (the winding unit row never reached `running_from`'s reversal
+arm) and style (two spellings of the boolean adjacency skip, a second
+reversal spelling in the scaffold-line arm and in
+`blend::surgery::scaled`, a silent fallback in `oriented_arc`, a dead
+error arm, a stale module doc). A second fix pass, in a fresh cloud session,
+closed them all: one `between_is_segment`, one reversal through
+`Curve3::reversed`, `oriented_arc` refusing `SectionInvariant`, and the
+winding row run from both halves so the reversal arm is read. The
+orchestrator read that diff.
+
+Two main merges after the review: TANG #3851 (the pierce ring on a
+curved face) rewrote the same ring lane, and the merge composed it
+(TANG's run kind lives on JOIN-3's chord plan; one `ring_run_ccw` with
+a planar arm closed by the segment's curve and a wall arm wound on its
+chart); no row moved against both parents. The slow set then showed
+`viewer::review_pick_r2` moved deterministically, −6/−6 refusals per
+landing in `die_composed_tour`, from 1-ulp vertex shifts of the chord
+curve; no genuine crossing refused. Re-pinned, with `m10_p_fence`'s
+interval digest (f64 unmoved). Main's three red nightly rows (eps 1e-6
+and 1e-12) fail identically on main; the arc-loft one filed on EXCH.
+
+`docs/JOIN-3-SPEC.md` deleted at merge, and `docs/JOIN-1-SPEC.md`
+with it (missed at JOIN-1's merge); both under `docs/doc-ledger/`.
+
+Signed (JOIN orchestrator).
