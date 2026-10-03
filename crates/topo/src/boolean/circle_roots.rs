@@ -165,22 +165,30 @@ pub(super) enum CircleRoots<T> {
     /// cannot read as one, a meter that refuses, or no anchor whose pole
     /// is definitely off the surface AND well conditioned.
     Uncertain,
-    /// A certified count (2 or 4) and the carrier parameters `θ` of those
-    /// roots, unordered, in `thetas[..count]`. Every `θ` lies within `π`
+    /// A certified count (even, at most twice the residual's degree) and
+    /// the carrier parameters `θ` of those roots, unordered, in
+    /// `thetas[..count]`. Every `θ` lies within `π`
     /// of the arc's midpoint, so it compares with the arc `[t₀, t₁]` the
     /// caller passed without wrapping.
-    Certified { count: usize, thetas: [T; 4] },
+    Certified {
+        count: usize,
+        thetas: [T; 2 * MAX_DEGREE],
+    },
     /// The quartic's constructed roots disagree in number with its
     /// certified count ([`TorusRoots::CountDisagrees`]).
     CountDisagrees,
 }
 
-impl<T> From<TorusRoots<T>> for CircleRoots<T> {
+impl<T: geom_core::Real> From<TorusRoots<T>> for CircleRoots<T> {
     /// The quartic ladder's answer in the doors' shape: it has no
     /// on-surface case (no line lies on a torus).
     fn from(roots: TorusRoots<T>) -> Self {
         match roots {
-            TorusRoots::Certified { count, ts } => Self::Certified { count, thetas: ts },
+            TorusRoots::Certified { count, ts } => {
+                let mut thetas = [T::zero(); 2 * MAX_DEGREE];
+                thetas[..ts.len()].copy_from_slice(&ts);
+                Self::Certified { count, thetas }
+            }
             TorusRoots::Miss => Self::Miss,
             TorusRoots::Uncertain => Self::Uncertain,
             TorusRoots::CountDisagrees => Self::CountDisagrees,
@@ -196,6 +204,62 @@ pub(super) struct Harmonics<T> {
     pub(super) s1: T,
     pub(super) c2: T,
     pub(super) s2: T,
+}
+
+/// The most harmonics [`certified_subdivision`] reads: a conic against a
+/// torus ([`geom_brep::ConicTorusHarmonics`]).
+pub(super) const MAX_DEGREE: usize = 4;
+
+/// A trigonometric polynomial `Σₖ cos[k]·cos kθ + sin[k]·sin kθ` of
+/// degree `degree ≤ MAX_DEGREE`; coefficients past `degree`, and
+/// `sin[0]`, are not read.
+pub(super) struct TrigPoly<T> {
+    pub(super) cos: [T; MAX_DEGREE + 1],
+    pub(super) sin: [T; MAX_DEGREE + 1],
+    pub(super) degree: usize,
+}
+
+impl<T: geom_core::Real> From<&Harmonics<T>> for TrigPoly<T> {
+    fn from(f: &Harmonics<T>) -> Self {
+        let z = T::zero();
+        Self {
+            cos: [f.c0, f.c1, f.c2, z, z],
+            sin: [z, f.s1, f.s2, z, z],
+            degree: 2,
+        }
+    }
+}
+
+/// Where [`certified_subdivision`] works: the arc `[t0, t1]` its roots
+/// are reported about, the carrier's top speed `|C′|` (metres per
+/// radian), and `noise` and `f_per_metre` as [`HalfAngleFrame`] carries
+/// them.
+pub(super) struct SubdivisionFrame<T> {
+    pub(super) t0: T,
+    pub(super) t1: T,
+    pub(super) speed_hi: T,
+    pub(super) noise: T,
+    pub(super) f_per_metre: T,
+}
+
+/// **The root-slack meter** a caller of [`certified_subdivision`] may
+/// hand it: `residual`, the surface's residual (metres) at a carrier
+/// parameter carried with a running bound on its own rounding, and
+/// `f_per_metre_hi`, a CEILING on `|F| / |residual|` near the surface.
+///
+/// A root located on its monotone piece is off the true one by at most
+/// `|residual(θ)| + error` metres of residual — the reading's own
+/// magnitude plus the bound on its rounding — over the residual's least
+/// slope there, which is at least `F`'s least slope on the piece over
+/// `f_per_metre_hi`. At the carrier's top speed that is an arc length,
+/// and it must be definitely inside the band under `row`, or the span
+/// and trim decisions the caller makes on the root are made on the wrong
+/// point; an unreadable reading refuses too. A first-order bound, as the
+/// running bound is.
+pub(super) struct RootSlack<'a, T> {
+    pub(super) row: &'static str,
+    pub(super) residual: &'a dyn Fn(T) -> geom_core::Rounded<T>,
+    pub(super) f_per_metre_hi: T,
 }
 
 /// The predicate rows one caller of [`half_angle_roots`] meters under.
@@ -286,7 +350,20 @@ pub(super) fn half_angle_roots<T: Decide>(
     band: Band,
 ) -> Result<CircleRoots<T>, BooleanError> {
     ladder_roots(f, &residual, &frame, rows, band)?;
-    certified_subdivision(f, &residual, &frame, &rows.verify, band)
+    certified_subdivision(
+        &TrigPoly::from(f),
+        &residual,
+        &SubdivisionFrame {
+            t0: frame.t0,
+            t1: frame.t1,
+            speed_hi: frame.speed_hi,
+            noise: frame.noise,
+            f_per_metre: frame.f_per_metre,
+        },
+        &rows.verify,
+        None,
+        band,
+    )
 }
 
 /// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle
@@ -448,6 +525,9 @@ const SPLITS: [f64; 9] = [
     0.88,
 ];
 
+/// The harmonic indices `k` as scalars, for the levers `kʲ`.
+const HARMONIC_INDEX: [f64; MAX_DEGREE + 1] = [0.0, 1.0, 2.0, 3.0, 4.0];
+
 /// The bisection steps that locate a root in its monotone piece: enough
 /// to reach the scalar's resolution from a sixteenth of a turn.
 const BISECTIONS: u32 = 64;
@@ -495,48 +575,65 @@ const BISECTIONS: u32 = 64;
 /// `2ᵏ·noise` (Bernstein's inequality for a trigonometric polynomial of
 /// degree 2), and each Taylor term above is charged its own share.
 #[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
-fn certified_subdivision<T: Decide>(
-    f: &Harmonics<T>,
+pub(super) fn certified_subdivision<T: Decide>(
+    f: &TrigPoly<T>,
     residual: &impl Fn(T) -> T,
-    frame: &HalfAngleFrame<T>,
+    frame: &SubdivisionFrame<T>,
     rows: &SubdivisionRows,
+    slack: Option<&RootSlack<'_, T>>,
     band: Band,
 ) -> Result<CircleRoots<T>, BooleanError> {
-    let HalfAngleFrame {
+    let SubdivisionFrame {
         t0,
         t1,
         speed_hi,
         noise,
         f_per_metre,
-        ..
     } = *frame;
     let two = T::from_f64(2.0);
+    let n_deg = f.degree.min(MAX_DEGREE);
+    let k_of = |k: usize| T::from_f64(HARMONIC_INDEX[k]);
+    let deg = k_of(n_deg);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
-    let (a1, a2) = (hypot(f.c1, f.s1), hypot(f.c2, f.s2));
-    let (four, eight) = (T::from_f64(4.0), T::from_f64(8.0));
-    // `|F⁗| ≤ A₁ + 16A₂`, for the true `F` once its harmonics' error is
-    // charged at `2⁴·noise`.
-    let fourth_hi = a1 + T::from_f64(16.0) * (a2 + noise);
+    // `|F⁗| ≤ Σ k⁴Aₖ`, for the true `F` once its harmonics' error is
+    // charged at `N⁴·noise` (carried on the top harmonic's term).
+    let fourth_hi = (1..=n_deg).fold(T::zero(), |acc, k| {
+        let amp = hypot(f.cos[k], f.sin[k]);
+        let amp = if k == n_deg { amp + noise } else { amp };
+        acc + k_of(k).powi(4) * amp
+    });
+    // `(sin kt, cos kt)` for `k = 1..=N`.
+    let turns = |t: T| -> [(T, T); MAX_DEGREE + 1] {
+        let mut out = [(T::zero(), T::one()); MAX_DEGREE + 1];
+        for (k, slot) in out.iter_mut().enumerate().take(n_deg + 1).skip(1) {
+            *slot = (k_of(k) * t).sin_cos();
+        }
+        out
+    };
     let value = |t: T| {
-        let (s1t, c1t) = t.sin_cos();
-        let (s2t, c2t) = (two * t).sin_cos();
-        f.c0 + f.c1 * c1t + f.s1 * s1t + f.c2 * c2t + f.s2 * s2t
+        let sc = turns(t);
+        (1..=n_deg).fold(f.cos[0], |acc, k| {
+            acc + f.cos[k] * sc[k].1 + f.sin[k] * sc[k].0
+        })
     };
-    let slope = |t: T| {
-        let (s1t, c1t) = t.sin_cos();
-        let (s2t, c2t) = (two * t).sin_cos();
-        f.s1 * c1t - f.c1 * s1t + two * (f.s2 * c2t - f.c2 * s2t)
+    // The `j`-th derivative's harmonic `k` is `kʲ` times the harmonic
+    // turned by `jπ/2`.
+    let derivative = |t: T, j: i32| {
+        let sc = turns(t);
+        (1..=n_deg).fold(T::zero(), |acc, k| {
+            let (sk, ck) = sc[k];
+            let (c, s) = (f.cos[k], f.sin[k]);
+            let lever = k_of(k).powi(j);
+            match j {
+                1 => acc + lever * (s * ck - c * sk),
+                2 => acc - lever * (c * ck + s * sk),
+                _ => acc + lever * (c * sk - s * ck),
+            }
+        })
     };
-    let bend = |t: T| {
-        let (s1t, c1t) = t.sin_cos();
-        let (s2t, c2t) = (two * t).sin_cos();
-        T::zero() - f.c1 * c1t - f.s1 * s1t - T::from_f64(4.0) * (f.c2 * c2t + f.s2 * s2t)
-    };
-    let jerk = |t: T| {
-        let (s1t, c1t) = t.sin_cos();
-        let (s2t, c2t) = (two * t).sin_cos();
-        f.c1 * s1t - f.s1 * c1t + T::from_f64(8.0) * (f.c2 * s2t - f.s2 * c2t)
-    };
+    let slope = |t: T| derivative(t, 1);
+    let bend = |t: T| derivative(t, 2);
+    let jerk = |t: T| derivative(t, 3);
     let (six, twenty_four) = (T::from_f64(6.0), T::from_f64(24.0));
     let definitely = |row, m: T| matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive));
     let side = |t: T| match decide(rows.side, Margin::of(residual(t)), band) {
@@ -580,9 +677,9 @@ fn certified_subdivision<T: Decide>(
         // derivatives of an error bounded by `noise` are bounded by
         // `2ᵏ·noise` (Bernstein's inequality, degree 2).
         let (d1, d2, d3) = (slope(m).abs(), bend(m).abs(), jerk(m).abs());
-        let (d1_lo, d1_hi) = (d1 - two * noise, d1 + two * noise);
-        let d2_hi = d2 + four * noise;
-        let d3_hi = d3 + eight * noise;
+        let (d1_lo, d1_hi) = (d1 - deg * noise, d1 + deg * noise);
+        let d2_hi = d2 + deg.powi(2) * noise;
+        let d3_hi = d3 + deg.powi(3) * noise;
         let fall = d1_hi * half
             + d2_hi * half.powi(2) / two
             + d3_hi * half.powi(3) / six
@@ -616,9 +713,18 @@ fn certified_subdivision<T: Decide>(
             let mid = (t0 + t1) / two;
             let root = mid + ((lo + hi) / two - mid).reduce_periodic_centred(T::tau());
             match decide(rows.side, Margin::of(residual(root)), band) {
-                Ok(Sign::Zero) => roots.push(root),
+                Ok(Sign::Zero) => {}
                 _ => return Ok(CircleRoots::Uncertain),
             }
+            if let Some(meter) = slack {
+                let off = (meter.residual)(root).magnitude();
+                let arc = speed_hi * meter.f_per_metre_hi * off / least_slope;
+                match decide(meter.row, Margin::of(arc), band) {
+                    Ok(Sign::Zero | Sign::Negative) => {}
+                    Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
+                }
+            }
+            roots.push(root);
             continue;
         }
         if !definitely(rows.width, speed_hi * (r - l)) {
@@ -639,14 +745,14 @@ fn certified_subdivision<T: Decide>(
     // and its harmonics disagreeing by more than `noise` — and more than
     // four is more than a degree-2 polynomial has. Either way a root was
     // lost or invented, and nothing is certified.
-    if roots.len() > 4 || roots.len() % 2 == 1 {
+    if roots.len() > 2 * n_deg || roots.len() % 2 == 1 {
         return Ok(CircleRoots::Uncertain);
     }
     let count = roots.len();
     if count == 0 {
         return Ok(CircleRoots::Miss);
     }
-    let mut thetas = [T::zero(); 4];
+    let mut thetas = [T::zero(); 2 * MAX_DEGREE];
     thetas[..count].copy_from_slice(&roots);
     Ok(CircleRoots::Certified { count, thetas })
 }
@@ -797,12 +903,12 @@ pub(super) fn first_harmonic_roots<T: Decide>(
     let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
     Ok(CircleRoots::Certified {
         count: 2,
-        thetas: [
-            near_mid(phi - half_chord),
-            near_mid(phi + half_chord),
-            T::zero(),
-            T::zero(),
-        ],
+        thetas: {
+            let mut thetas = [T::zero(); 2 * MAX_DEGREE];
+            thetas[0] = near_mid(phi - half_chord);
+            thetas[1] = near_mid(phi + half_chord);
+            thetas
+        },
     })
 }
 
@@ -837,20 +943,19 @@ mod subdivision_guard_rows {
         noise: f64,
         eps: f64,
     ) -> CircleRoots<f64> {
-        let frame = HalfAngleFrame {
+        let frame = SubdivisionFrame {
             t0: -0.5,
             t1: 0.5,
-            speed_lo: 1.0,
             speed_hi: 1.0,
-            lever: 2.0,
             noise,
             f_per_metre: 1.0,
         };
         certified_subdivision(
-            f,
+            &TrigPoly::from(f),
             residual,
             &frame,
             &ROWS,
+            None,
             Band::new(eps, 10.0 * eps).unwrap(),
         )
         .unwrap()

@@ -1,7 +1,7 @@
 //! **The ellipse root door**: the certified crossings of an ELLIPSE
-//! carrier with a sphere or a cylinder wall. Like the circle doors it
-//! owns no root machinery: it reads the residual's harmonics from their
-//! one home and hands them to one of the shared root cores
+//! carrier with a sphere, a cylinder wall or a torus. Like the circle
+//! doors it owns no root machinery: it reads the residual's harmonics
+//! from their one home and hands them to one of the shared root cores
 //! ([`super::circle_roots`]), whose answer it gives.
 //!
 //! # The residual is a degree-2 trigonometric polynomial
@@ -46,12 +46,40 @@
 //!   a circle's is `2ρ` on the cylinder door, and for the same reason it
 //!   is not clamped by the sphere's size: the roots spread along the
 //!   carrier, not across the surface.
+//!
+//! # Against a torus, the residual is of degree four
+//!
+//! The torus's implicit `F = (S + R² − r²)² − 4R²(S − h²)` has
+//! `S = |C − c|²` of degree two along an ellipse (on a circle its second
+//! harmonic vanishes) and `h = (C − c)·â` of degree one, so `F` is a
+//! trigonometric polynomial of degree FOUR — an octic in the tangent
+//! half-angle, up to eight crossings per turn
+//! ([`geom_brep::ConicTorusHarmonics`]). No half-angle ladder runs: its
+//! octic has no certified solver, and the quartic ladder's only part in
+//! the degree-2 doors is its escalations. The shared certified
+//! subdivision answers alone ([`super::circle_roots::certified_subdivision`],
+//! at degree four), under the `bool_ellipse_torus_sub_*` rows, with the
+//! circle × torus door's metering: `F`'s rounding charged against its
+//! term bound, read in residual metres through the floor
+//! `2r(R² − r²)` on `|F|` per metre of residual. Its answers are
+//! `Certified`, `Miss` or `Uncertain`, never an escalation.
+//!
+//! **Every root's slack is charged from the computation's own running
+//! bound** (`bool_ellipse_torus_root_slack`): the residual at the root,
+//! evaluated with a first-order bound on its rounding
+//! ([`geom_brep::conic_torus_residual`]), plus its own magnitude, over
+//! the residual's least slope on the root's monotone piece — `F`'s least
+//! slope over the ceiling on `|F|` per metre of residual — at the
+//! carrier's top speed, must be definitely inside the band. A shallow
+//! crossing whose root the representation cannot place refuses as
+//! `Uncertain` there.
 
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::circle_roots::{
     CircleRoots, FirstHarmonic, FirstHarmonicRows, HalfAngleFrame, HalfAngleRows, Harmonics,
-    SubdivisionRows, first_harmonic_roots, half_angle_roots, rounding_charge,
+    MAX_DEGREE, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
+    first_harmonic_roots, half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -92,15 +120,23 @@ const fn ladder_rows(decision: BooleanDecision) -> HalfAngleRows {
     }
 }
 
+/// The torus arm's subdivision rows (module docs).
+const TORUS_ROWS: SubdivisionRows = SubdivisionRows {
+    clear: "bool_ellipse_torus_sub_clear",
+    monotone: "bool_ellipse_torus_sub_monotone",
+    side: "bool_ellipse_torus_sub_side",
+    width: "bool_ellipse_torus_sub_width",
+};
+
 /// The certified crossings of the `carrier` ellipse with `surface`, a
-/// sphere or a cylinder wall, reported within `π` of the midpoint of
-/// `[t0, t1]` (module docs).
+/// sphere, a cylinder wall or a torus, reported within `π` of the
+/// midpoint of `[t0, t1]` (module docs).
 ///
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] when `carrier` is not an
-/// ellipse or `surface` neither a sphere nor a cylinder — the caller
-/// dispatched on those kinds, so a mismatch is a desync, never an
+/// ellipse or `surface` none of a sphere, a cylinder and a torus — the
+/// caller dispatched on those kinds, so a mismatch is a desync, never an
 /// answer. An escalation as the surface's arc decision for an in-band
 /// classifying sign: an extreme or constant residual of the
 /// first-harmonic arm, or a rung of the ladder. A second harmonic in the
@@ -114,7 +150,7 @@ pub(super) fn ellipse_roots<T: Decide>(
 ) -> Result<CircleRoots<T>, BooleanError> {
     let desync = || BooleanError::ClassificationInvariant {
         what: "the ellipse root door was handed a carrier that is not an ellipse or a surface \
-               that is neither a sphere nor a cylinder",
+               that is not a sphere, a cylinder or a torus",
     };
     let conic = match carrier {
         geom::Curve3::Ellipse { .. } => geom_brep::Conic::of(carrier),
@@ -137,6 +173,22 @@ pub(super) fn ellipse_roots<T: Decide>(
             radius,
             BooleanDecision::ArcCylinderRoots,
         ),
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            return torus_roots(
+                &conic,
+                (center, axis, major_radius, minor_radius),
+                t0,
+                t1,
+                surface,
+                band,
+            );
+        }
         _ => return Err(desync()),
     };
     let two = T::from_f64(2.0);
@@ -189,6 +241,45 @@ pub(super) fn ellipse_roots<T: Decide>(
     )
 }
 
+/// The torus arm (module docs, "Against a torus, the residual is of
+/// degree four"): `torus` is `(centre, unit axis, R, r)`.
+fn torus_roots<T: Decide>(
+    conic: &geom_brep::Conic<T>,
+    torus: (geom_core::Point3<T>, geom_core::Vec3<T>, T, T),
+    t0: T,
+    t1: T,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<CircleRoots<T>, BooleanError> {
+    let (center, axis, major_radius, minor_radius) = torus;
+    let h = geom_brep::conic_torus_harmonics(conic, center, axis, major_radius, minor_radius);
+    let placed = |theta: T| {
+        geom_brep::conic_torus_residual(conic, center, axis, major_radius, minor_radius, theta)
+    };
+    certified_subdivision(
+        &TrigPoly {
+            cos: h.cos,
+            sin: h.sin,
+            degree: MAX_DEGREE,
+        },
+        &|theta| geom_brep::implicit_residual(surface, conic.point(theta)),
+        &SubdivisionFrame {
+            t0,
+            t1,
+            speed_hi: conic.speed_hi(),
+            noise: rounding_charge(h.terms),
+            f_per_metre: h.f_per_metre_lo,
+        },
+        &TORUS_ROWS,
+        Some(&RootSlack {
+            row: "bool_ellipse_torus_root_slack",
+            residual: &placed,
+            f_per_metre_hi: h.f_per_metre_hi,
+        }),
+        band,
+    )
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -236,6 +327,23 @@ mod tests {
             origin: Point3::from_array(o),
             axis,
             radius: r,
+            u_ref: (x - axis * x.dot(axis)).normalize(),
+        }
+    }
+
+    fn torus(c: [f64; 3], axis: [f64; 3], big: f64, small: f64) -> geom::Surface<f64> {
+        let axis = Vec3::from_array(axis).normalize();
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let x = if axis.cross(x).norm() < 0.1 {
+            Vec3::new(0.0, 1.0, 0.0)
+        } else {
+            x
+        };
+        geom::Surface::Torus {
+            center: Point3::from_array(c),
+            axis,
+            major_radius: big,
+            minor_radius: small,
             u_ref: (x - axis * x.dot(axis)).normalize(),
         }
     }
@@ -337,6 +445,87 @@ mod tests {
                 &wall([0.5, 0.0, 0.0], [0.2, 1.0, 0.4], 0.3),
                 t0,
                 2,
+            );
+        }
+    }
+
+    /// **Against a torus, up to eight crossings.** The residual is of
+    /// degree four: an ellipse in the torus's equatorial plane, centred
+    /// on its axis, with semi-axes `0.53` and `0.5` against a tube of
+    /// radius `0.01` about the core circle of radius `0.515`, enters and
+    /// leaves the tube in each quadrant — eight crossings, which no
+    /// degree-2 residual has. Moved off the axis it crosses six or four
+    /// times; tilted and offset, two or four. Each count and place
+    /// against the true distance, at several arcs.
+    #[test]
+    fn torus_crossings_match_the_true_distance() {
+        let flat = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 0.53, 0.5);
+        let tilted = ellipse([0.1, 0.2, 0.0], [0.3, -0.2, 1.0], [1.0, 1.0, 0.0], 0.8, 0.5);
+        let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 0.515, 0.01);
+        for t0 in [0.0, 1.7, -2.9] {
+            assert_matches_oracle("flat × ring", &flat, &ring, t0, 8);
+            assert_matches_oracle(
+                "flat × ring, off the axis",
+                &flat,
+                &torus([0.012, 0.0, 0.0], [0.0, 0.0, 1.0], 0.515, 0.01),
+                t0,
+                6,
+            );
+            assert_matches_oracle(
+                "flat × ring, raised",
+                &flat,
+                &torus([0.0, 0.0, 0.007], [0.0, 0.0, 1.0], 0.515, 0.01),
+                t0,
+                8,
+            );
+            assert_matches_oracle(
+                "tilted × a torus through it",
+                &tilted,
+                &torus([0.9, 0.2, 0.0], [0.0, 1.0, 0.2], 0.3, 0.1),
+                t0,
+                2,
+            );
+            assert_matches_oracle(
+                "tilted × a fat torus about it",
+                &tilted,
+                &torus([0.1, 0.2, 0.0], [0.0, 0.0, 1.0], 0.6, 0.12),
+                t0,
+                4,
+            );
+        }
+    }
+
+    /// An ellipse clear of a torus — inside its tube, through its hole,
+    /// beside it — is a certified `Miss`.
+    #[test]
+    fn a_carrier_clear_of_a_torus_is_a_miss() {
+        let flat = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 0.53, 0.5);
+        for (label, s) in [
+            (
+                "inside the tube",
+                torus([0.0; 3], [0.0, 0.0, 1.0], 0.515, 0.03),
+            ),
+            (
+                "through the hole",
+                torus([0.0, 0.0, 0.2], [0.0, 0.0, 1.0], 0.25, 0.1),
+            ),
+            (
+                "beside it",
+                torus([2.0, 0.0, 0.0], [0.0, 1.0, 0.0], 0.4, 0.2),
+            ),
+            (
+                "round it",
+                torus([0.0, 0.0, 0.1], [0.1, 0.0, 1.0], 1.0, 0.3),
+            ),
+        ] {
+            assert!(
+                matches!(door(&flat, &s, 0.0, TAU), CircleRoots::Miss),
+                "{label}: got {:?}",
+                door(&flat, &s, 0.0, TAU)
+            );
+            assert!(
+                oracle(&flat, &s, 0.0, TAU).is_empty(),
+                "{label}: the oracle agrees"
             );
         }
     }
@@ -573,15 +762,13 @@ mod tests {
             Err(BooleanError::ClassificationInvariant { .. })
         ));
         let e = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 1.0, 0.5);
-        let torus = geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            major_radius: 1.0,
-            minor_radius: 0.2,
+        let plane = geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         assert!(matches!(
-            ellipse_roots(&e, 0.0, 1.0, &torus, band()),
+            ellipse_roots(&e, 0.0, 1.0, &plane, band()),
             Err(BooleanError::ClassificationInvariant { .. })
         ));
     }

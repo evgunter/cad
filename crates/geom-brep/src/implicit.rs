@@ -1104,6 +1104,174 @@ pub fn conic_sphere_harmonics<T: Real>(
     quadric_harmonics(conic, s_center, s_radius, |x| x)
 }
 
+/// The torus's implicit `F = (|q|² + R² − r²)² − 4R²(|q|² − (q·â)²)`,
+/// `q = C(θ) − c`, along a [`Conic`] carrier, as a trigonometric
+/// polynomial of degree FOUR in its parameter `θ`:
+/// `Σₖ cos[k]·cos kθ + sin[k]·sin kθ`, `k = 0..=4` (`sin[0]` is zero).
+///
+/// With `C(θ) − C₀ = a·û cos θ + b·v̂ sin θ` and `w = C₀ − c`, `S = |q|²`
+/// is of degree two — its second harmonic `((a²|û|² − b²|v̂|²)/2,
+/// ab·û·v̂)` vanishes only on a circle — and `h = q·â` of degree one, so
+/// `F = (S + R² − r²)² − 4R²S + 4R²h²` is of degree four: an octic in
+/// the tangent half-angle, at most eight crossings per turn. On a
+/// circle the third and fourth harmonics vanish and `F` is the degree-2
+/// polynomial of the circle × torus door. The products are formed
+/// EXACTLY in the harmonic basis (`cos kθ cos mθ = (cos(k+m)θ +
+/// cos(k−m)θ)/2` and its two siblings), so the polynomial describes the
+/// carrier [`Conic::point`] evaluates, frame defects included.
+///
+/// `F = 2r·res·Q` with `res` the torus's [`implicit_residual`] and
+/// `Q = (ρ + R)² + h² − r²` (`ρ` the distance from the axis), so near
+/// the surface `|F|` per metre of residual lies in
+/// [`Self::f_per_metre_lo`, `Self::f_per_metre_hi`].
+#[derive(Debug, Clone, Copy)]
+pub struct ConicTorusHarmonics<T> {
+    /// The cosine coefficients, `cos[k]` of `cos kθ` (`F`'s units, m⁴).
+    pub cos: [T; 5],
+    /// The sine coefficients, `sin[k]` of `sin kθ`; `sin[0]` is zero.
+    pub sin: [T; 5],
+    /// A bound on every magnitude the coefficients are built from (m⁴),
+    /// the scale their rounding is charged against
+    /// ([`rounding_charge`]): `(|S + R² − r²|)² + 4R²(|S| + |h|²)` read
+    /// at the coefficients' magnitudes.
+    pub terms: T,
+    /// A floor on `|F| / |res|` near the surface: `2r(R² − r²)`, `Q`'s
+    /// least value on a ring torus.
+    pub f_per_metre_lo: T,
+    /// A ceiling on `|F| / |res|` near the surface:
+    /// `2r((|C₀ − c| + max(|a|, |b|)) + R)²`, `Q`'s most along the
+    /// carrier (`(ρ + R)² + h² ≤ (|q| + R)²`).
+    pub f_per_metre_hi: T,
+}
+
+/// The product of two trigonometric polynomials given by their cosine
+/// and sine coefficients, truncated to degree four (the callers'
+/// factors have degrees summing to at most four).
+fn trig_product<T: Real>(a: ([T; 5], [T; 5]), b: ([T; 5], [T; 5])) -> ([T; 5], [T; 5]) {
+    let half = T::from_f64(0.5);
+    let (mut cos, mut sin) = ([T::zero(); 5], [T::zero(); 5]);
+    for k in 0..5 {
+        for m in 0..5 - k {
+            let (ck, sk, cm, sm) = (a.0[k], a.1[k], b.0[m], b.1[m]);
+            // cos k cos m, sin k sin m, cos k sin m, sin k cos m, each
+            // split over k + m and |k − m|.
+            let (cc, ss) = (ck * cm * half, sk * sm * half);
+            let (cs, sc) = (ck * sm * half, sk * cm * half);
+            let (sum, diff) = (k + m, k.abs_diff(m));
+            cos[sum] = cos[sum] + cc - ss;
+            cos[diff] = cos[diff] + cc + ss;
+            sin[sum] = sin[sum] + cs + sc;
+            // sin(m − k) for cos k sin m, sin(k − m) for sin k cos m.
+            match m.cmp(&k) {
+                core::cmp::Ordering::Greater => sin[diff] = sin[diff] + cs - sc,
+                core::cmp::Ordering::Less => sin[diff] = sin[diff] + sc - cs,
+                core::cmp::Ordering::Equal => {}
+            }
+        }
+    }
+    (cos, sin)
+}
+
+/// [`ConicTorusHarmonics`] of `conic` against the torus
+/// `(t_center, t_axis, major_radius, minor_radius)`. `t_axis` unit,
+/// unchecked; the conic's frame need not be orthonormal (module docs of
+/// the struct). Total arithmetic.
+#[must_use]
+pub fn conic_torus_harmonics<T: Real>(
+    conic: &Conic<T>,
+    t_center: Point3<T>,
+    t_axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+) -> ConicTorusHarmonics<T> {
+    let (two, half) = (T::from_f64(2.0), T::from_f64(0.5));
+    let (a, b) = (conic.major, conic.minor);
+    let (u, v) = (conic.u_ref, conic.v_ref());
+    let w = conic.center - t_center;
+    let (aa, bb) = (a.powi(2) * u.norm_squared(), b.powi(2) * v.norm_squared());
+    let rr = major_radius.powi(2);
+    let k = rr - minor_radius.powi(2);
+    let zero = T::zero();
+    let s = (
+        [
+            w.norm_squared() + (aa + bb) * half,
+            two * a * w.dot(u),
+            (aa - bb) * half,
+            zero,
+            zero,
+        ],
+        [zero, two * b * w.dot(v), a * b * u.dot(v), zero, zero],
+    );
+    let h = (
+        [w.dot(t_axis), a * u.dot(t_axis), zero, zero, zero],
+        [zero, b * v.dot(t_axis), zero, zero, zero],
+    );
+    let mut p = s;
+    p.0[0] = p.0[0] + k;
+    let (pp_c, pp_s) = trig_product(p, p);
+    let (hh_c, hh_s) = trig_product(h, h);
+    let four_rr = T::from_f64(4.0) * rr;
+    let (mut cos, mut sin) = ([zero; 5], [zero; 5]);
+    for j in 0..5 {
+        cos[j] = pp_c[j] - four_rr * (s.0[j] - hh_c[j]);
+        sin[j] = pp_s[j] - four_rr * (s.1[j] - hh_s[j]);
+    }
+    let abs_sum = |c: [T; 5], s: [T; 5]| {
+        c.iter()
+            .chain(s.iter())
+            .fold(T::zero(), |acc, &x| acc + x.abs())
+    };
+    let (s_abs, p_abs, h_abs) = (abs_sum(s.0, s.1), abs_sum(p.0, p.1), abs_sum(h.0, h.1));
+    let reach = w.norm() + conic.speed_hi() + major_radius;
+    ConicTorusHarmonics {
+        cos,
+        sin,
+        terms: p_abs.powi(2) + four_rr * (s_abs + h_abs.powi(2)),
+        f_per_metre_lo: two * minor_radius * k,
+        f_per_metre_hi: two * minor_radius * reach.powi(2),
+    }
+}
+
+/// The torus's [`implicit_residual`] at the [`Conic`] point of parameter
+/// `theta`, `(d² + h² − r²)/2r` with `d = ρ − R`, carried with a
+/// first-order running bound on its rounding ([`Rounded`]): the point's
+/// own evaluation ([`Conic::point`]'s order, `sin` and `cos` charged an
+/// ulp each), the axial split, the distance from the axis and the
+/// residual. `theta`, the frames and the radii are taken as exact; the
+/// value is the plain chain's to within that bound.
+#[must_use]
+pub fn conic_torus_residual<T: Real>(
+    conic: &Conic<T>,
+    t_center: Point3<T>,
+    t_axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+    theta: T,
+) -> Rounded<T> {
+    use geom_core::running::{cross, dot, exact_vec};
+    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
+    let (sin, cos) = theta.sin_cos();
+    let transcendental = |x: T| Rounded {
+        value: x,
+        error: ulp * x.abs(),
+    };
+    let (sin, cos) = (transcendental(sin), transcendental(cos));
+    let (a, b) = (Rounded::exact(conic.major), Rounded::exact(conic.minor));
+    let (n, u) = (exact_vec(conic.axis), exact_vec(conic.u_ref));
+    let v = cross(n, u);
+    let c = exact_vec(Vec3::new(conic.center.x, conic.center.y, conic.center.z));
+    let tc = exact_vec(Vec3::new(t_center.x, t_center.y, t_center.z));
+    let (ac, bs) = (a * cos, b * sin);
+    let q: [Rounded<T>; 3] = core::array::from_fn(|i| c[i] + u[i] * ac + v[i] * bs - tc[i]);
+    let axis = exact_vec(t_axis);
+    let h = dot(q, axis);
+    let w: [Rounded<T>; 3] = core::array::from_fn(|i| q[i] - axis[i] * h);
+    let rho = w[0].hypot(w[1]).hypot(w[2]);
+    let d = rho - Rounded::exact(major_radius);
+    let r = Rounded::exact(minor_radius);
+    (d.square() + h.square() - r.square()).div_exact(T::from_f64(2.0) * minor_radius)
+}
+
 /// The sphere's linearized residual along a circle carrier, which is a
 /// pure first harmonic: `c₀ + A₁cos(θ − φ)` with `φ = atan2(e_v, e_u)`.
 ///

@@ -3060,12 +3060,13 @@ fn wall_crossing<T: Decide>(
             }
             _ => return Ok(SpanVerdict::Unsettled),
         },
-        // The ellipse door ([`super::ellipse_roots`]), on the kinds whose
-        // residual along it is a degree-2 trigonometric polynomial. Against
-        // a torus it is degree four (an octic in the half-angle), which no
-        // lane here solves, so that cell is `Unsettled`.
+        // The ellipse door ([`super::ellipse_roots`]): its residual is a
+        // trigonometric polynomial of degree two against a sphere or a
+        // wall and of degree four against a torus.
         geom::Curve3::Ellipse { .. } => match surface {
-            geom::Surface::Sphere { .. } | geom::Surface::Cylinder { .. } => {
+            geom::Surface::Sphere { .. }
+            | geom::Surface::Cylinder { .. }
+            | geom::Surface::Torus { .. } => {
                 super::ellipse_roots::ellipse_roots(carrier, t0, t1, surface, band)?
             }
             _ => return Ok(SpanVerdict::Unsettled),
@@ -3201,9 +3202,10 @@ fn line_wall_roots_of<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, SpanVerdict<T>>, BooleanError> {
     use super::solid_contain::WallRoots;
-    let two = |ts: [T; 2]| CircleRoots::Certified {
-        count: 2,
-        thetas: [ts[0], ts[1], T::zero(), T::zero()],
+    let two = |ts: [T; 2]| {
+        let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
+        thetas[..2].copy_from_slice(&ts);
+        CircleRoots::Certified { count: 2, thetas }
     };
     // The certified roots, per kind. Every lane answers the same three
     // ways — a certified root set, a definite miss, or no certain

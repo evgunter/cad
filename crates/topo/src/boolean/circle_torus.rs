@@ -469,7 +469,7 @@ fn parallel_axes_roots<T: Decide>(
         ),
     ];
     let mid = (t0 + t1) / two;
-    let mut thetas = [T::zero(); 4];
+    let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
     let mut count = 0usize;
     for (contour, hit) in crossed {
         if !hit {
