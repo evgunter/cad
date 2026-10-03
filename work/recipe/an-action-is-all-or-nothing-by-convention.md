@@ -2,12 +2,13 @@
 id: an-action-is-all-or-nothing-by-convention
 kind: issue
 title: A viewer action is all or nothing only because every closure ends on its first refusal with ?; Recording lets an action go on past a refusal
-status: review
+status: closed
 opened: 2026-10-03
 priority: P2
 cost: M
 branch: recipe/action-all-or-nothing
 pr: 3937
+closed: 2026-10-03
 ---
 
 

@@ -284,8 +284,10 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
 /// own after it is refused with the same refusal and applies nothing,
 /// and `finish` answers that refusal instead of the edits around it. A
 /// caller that swallows the refusal therefore cannot finish with a
-/// partial action: this row reds if a recording goes on past a refusal,
-/// at `apply`, at `insert`, or at `finish`.
+/// partial action: this row reds if a recording goes on past an
+/// `apply`'s refusal, or if `finish` answers edits around one. An
+/// `insert` that drops its own refusal is held by `lib_placedunion` and
+/// the viewer's `an_action_that_swallows_a_refusal_commits_nothing`.
 #[test]
 fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
     let doc = ProfileDoc::empty_derived("net-refused", Tol::witness());
