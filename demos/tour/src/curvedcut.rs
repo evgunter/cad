@@ -19,8 +19,11 @@
 //!
 //! **Walls.** The lettering belongs on the elliptical section face (an
 //! oval nameplate), the natural order is cut first and engrave after,
-//! and the natural C has one arc per side. None of the three builds;
-//! [`walls`] attempts each every run, the section face on both halves.
+//! and the natural C has one arc per side. [`walls`] attempts each every
+//! run, the section face on both halves: the U now cuts the upper
+//! half's section face at its closed-form volume (checked there); the
+//! C on the lower half's, the cap after the cut and the one-arc C still
+//! refuse.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -33,9 +36,7 @@ use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::splitting::{SplitPart, split};
-use pncad::topo::{
-    Body, BooleanError, BooleanResult, Curve3, EdgeDescription, Operand, PointInSolidError,
-};
+use pncad::topo::{Body, BooleanError, BooleanResult, Curve3, EdgeDescription, PointInSolidError};
 
 use crate::booleans::try_subtract;
 use crate::scalar::{Scalar, sketch_frame, split_plane};
@@ -371,26 +372,6 @@ fn pocket_narration(stages: &[Body<f64>], tol: Tol) -> (f64, String) {
     (total, lines.join("; "))
 }
 
-/// Whether `e` is the curved pierce arm refusing `body`'s `Ellipse`
-/// section rim.
-fn ellipse_pierce(body: &Body<f64>, e: &BooleanError) -> bool {
-    let BooleanError::CurvedPierceUnsupported {
-        operand: Operand::A,
-        edge,
-        ..
-    } = e
-    else {
-        return false;
-    };
-    matches!(
-        body.get_edge(*edge)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(|g| g.certified())
-            .map(|c| c.carrier()),
-        Some(Curve3::Ellipse { .. })
-    )
-}
-
 /// The lettering where it was wanted, attempted live.
 fn walls(cut: &Cut<f64>, tol: Tol) {
     // The section face's own frame: u along the ellipse's major axis,
@@ -406,6 +387,10 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
             tol,
         )
     };
+    // The section face's `Ellipse` rim is crossed or cleared exactly
+    // since REACH's conic rung (PR 3805); the C on the lower half's face
+    // then stops at the containment probe
+    // (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
     let below = &cut.below;
     let c = tool(section(), glyph_c::<f64>(tol).outline, tol);
     crate::walls::wall(
@@ -413,28 +398,42 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
         1,
         "engrave the C into the lower half's elliptical section face",
         try_subtract(below, &c, tol),
-        |e| ellipse_pierce(below, e),
+        |e| {
+            matches!(
+                e,
+                BooleanError::Containment(PointInSolidError::VolumeUncertified)
+            )
+        },
         "move the lettering onto the section face (the oval nameplate) and retire \
-         walls 1 and 2",
+         this probe",
     );
-    // The arc-bearing glyphs (C, U, a disc) refuse here on either half's
-    // section face at every pose tried: offsets (0, 0), (0.3, 0.2) and
-    // (−0.2, −0.3) in the face's frame, depths 0.02, 0.05 and 0.2. A
-    // lines-only glyph depends on the pose and the half: on the lower
-    // half a square and the T refuse `Containment(VolumeUncertified)`
-    // at all nine poses, while on the upper half a square cuts at 8 of
-    // 9 and the T at offset (−0.2, −0.3) for depths 0.02 and 0.05, each
-    // at its closed-form volume.
+    // Before the conic rung every arc-bearing glyph (C, U, a disc)
+    // refused at the rim on either half's section face, at every pose
+    // tried (offsets (0, 0), (0.3, 0.2) and (−0.2, −0.3) in the face's
+    // frame, depths 0.02, 0.05 and 0.2); a lines-only glyph depended on
+    // the pose and the half (on the lower half a square and the T
+    // refused `Containment(VolumeUncertified)` at all nine poses, on the
+    // upper half a square cut at 8 of 9). Re-measured with the rung only
+    // at the walls' own pose.
+    // The U on the upper half's section face BUILDS since the conic
+    // rung (PR 3805), and is held to the scene's own oracle: its pocket
+    // removes the glyph's area × DEPTH from the half, inside the
+    // certified bracket, at tier 3. The scene still engraves the cap.
     let above = &cut.above;
-    let u = tool(section(), glyph_u::<f64>(tol).outline, tol);
-    crate::walls::wall(
-        "tilted cut",
-        2,
-        "engrave the U into the upper half's elliptical section face",
-        try_subtract(above, &u, tol),
-        |e| ellipse_pierce(above, e),
-        "move the lettering onto the section face (the oval nameplate) and retire \
-         walls 1 and 2",
+    let glyph = glyph_u::<f64>(tol);
+    let removed = glyph.area * DEPTH;
+    let u = tool(section(), glyph.outline, tol);
+    let engraved = try_subtract(above, &u, tol)
+        .ok()
+        .and_then(|r| r.body().map(|b| b.body.clone()))
+        .expect("the U engraves the upper half's section face");
+    pncad::topo::validate_geometric(&engraved, tol).expect("the engraved half is tier-3 valid");
+    let before = pncad::topo::mass_properties(above, tol).expect("the half measures");
+    let after = pncad::topo::mass_properties(&engraved, tol).expect("the engraved half measures");
+    assert!(
+        (before.volume - after.volume - removed).abs() <= before.volume_pad + after.volume_pad,
+        "the U pocket removed {} m^3, not its area x depth {removed} m^3",
+        before.volume - after.volume
     );
     // The order the scene would adopt: cut first, then engrave the
     // upper half's top cap. Every glyph tried refuses the same way on
@@ -485,9 +484,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "extrude(disc); per glyph: extrude(lines + arcs) -> subtract (blind \
               pocket); topo::split(tilted plane); exact Curve3::Ellipse section \
               carriers; pcurve trim loops + certified quadrature",
-        // The inner arcs (radius 0.1 to 0.15) want 2e-3, and the one
-        // scene-wide delta spends it on the whole cylinder too
-        // (`work/show/a-tour-scene-meshes-every-body-at-one-delta.md`).
+        // The glyphs' inner arcs (radius 0.1 to 0.15) want 2e-3, and
+        // both halves take it so they render alike: one body's delta
+        // covers every face of it
+        // (`work/tess/a-body-meshes-every-face-at-its-smallest-features-delta.md`).
         delta: 2e-3,
         note: Some(format!(
             "cutting a cylinder at an angle produces an ellipse, and this kernel \

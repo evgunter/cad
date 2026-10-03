@@ -239,11 +239,11 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             instance: i,
             ..
         } => (none(), none(), none(), id(g), id(i), none(), none(), none()),
-        // The gauge a cut holds, or the one a cut instance's chain names
-        // that was deleted, is the `node`; the instance it is about is
-        // `instance`.
-        E::CutHoldsGauge { gauge } => (
-            id(gauge),
+        // A gauge refusal names the node whose gauge reference is at
+        // issue in `node` — the kept node on a cut gauge, or the cut
+        // node on a dead chain — and that gauge in `gauge` (below).
+        E::SeveredGauge { kept: n, .. } | E::DeadGaugeReference { node: n, .. } => (
+            id(n),
             none(),
             none(),
             none(),
@@ -252,12 +252,12 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::DeadGaugeReference { instance, gauge } => (
-            id(gauge),
+        E::NoMaterial { node: n } => (
+            id(n),
             none(),
             none(),
             none(),
-            id(instance),
+            none(),
             none(),
             none(),
             none(),
@@ -360,6 +360,10 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
         ),
     };
+    let gauge = match err {
+        E::SeveredGauge { gauge: g, .. } | E::DeadGaugeReference { gauge: g, .. } => id(g),
+        _ => none(),
+    };
     typed_err(
         py,
         ErrorClass::Split,
@@ -377,6 +381,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             ("param", param),
             ("name", name),
             ("id", doc_id),
+            ("gauge", gauge),
         ],
     )
 }
@@ -644,10 +649,12 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
         ),
         // The instance is the subject: why it cannot be spliced is the
-        // variant, and an unplaced one's cause is in the message.
+        // variant, and an unplaced one's cause is in the message. A
+        // mate-placed instance's host root and part root ride their own
+        // slots (below), and a moved member rides `node`.
         E::MatePlaced { instance, .. }
         | E::Unplaced { instance, .. }
-        | E::NeedsAGauge { instance } => (
+        | E::MovedMemberOffset { member: instance } => (
             id(instance),
             none(),
             none(),
@@ -716,6 +723,21 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
         ),
     };
+    let (host_root, part_root, part_gauges) = match err {
+        E::MatePlaced {
+            host_root,
+            part_root,
+            part_gauges,
+            ..
+        } => (
+            id(host_root),
+            part_root.as_deref().map_or_else(none, id),
+            pyo3::types::PyList::new(py, part_gauges.iter().map(id))
+                .map(|l| l.unbind().into_any())
+                .unwrap_or_else(|_| py.None()),
+        ),
+        _ => (none(), none(), none()),
+    };
     typed_err(
         py,
         ErrorClass::Inline,
@@ -733,6 +755,9 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             ("root", root),
             ("host_epsilon", host_eps),
             ("part_epsilon", part_eps),
+            ("host_root", host_root),
+            ("part_root", part_root),
+            ("part_gauges", part_gauges),
         ],
     )
 }

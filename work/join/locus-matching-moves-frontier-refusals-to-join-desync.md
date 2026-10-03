@@ -123,3 +123,14 @@ and the 2 `JoinDesync` → `JoinDesync` moves are a B sense bound wrong
 at the reflex vertex
 (`a-reflex-vertex-and-its-partner-read-the-same-b-sense-along-an-edge-through-the-corner`).
 Both are evidence for `reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`.
+
+## The reflex `SeamOrientation` moves, fixed (reflex-corner lane, PR 3900)
+
+The first step that goes wrong at these poses is `bool_strut_order`:
+a strut whose two germs both lie in the 315° top face, at least one more than a half-turn from the corner's
+arrival edge, had its halves ordered by a bare cosine, which is not
+monotone past a half-turn. The order now reads the angle
+(`insert::strut_order`), and all 159 of the probe's `SeamOrientation`
+poses (∩, ∪, `a ∖ b`) build sound, the 32 movers among them. The
+parallel ring is that wrong facing, read at the zip
+(`work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`).

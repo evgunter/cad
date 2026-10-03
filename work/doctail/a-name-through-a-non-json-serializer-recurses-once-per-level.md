@@ -34,3 +34,18 @@ Either say at `meta::to_value`'s door that a name is not metadata
 (refused typed), or give the derived path a depth it refuses past. A
 row that puts a deep name through `meta::to_value` on the smallest
 stack.
+
+## Partly closed by PR 3909
+
+`meta::to_value` now bounds what it builds and how deep it reads a
+producer (`meta::MAX_NESTING`, `meta::MAX_PRODUCER_NESTING`), so a
+name 10 000 levels deep through it refuses typed rather than
+overflowing, and "`MetaValue`'s own nesting has no bound either" above
+no longer holds. Measured on the 1 MiB stack, a name nested by
+`RoleSeg::Merged`: with a node id within `i64`, it refuses as
+`MetaError::NestedTooDeep` from 32 levels (40 and 10 000 too); with a
+node id above `i64::MAX` (a minted id can be), it refuses as
+`IntOutOfRange` at any depth, one level included, because a
+`RecipeNodeId` serializes as a `u64`. So `to_value` refuses a deep name
+as a deep value, not as a name, and a shallow one by accident of its
+id. A caller's own serializer outside `to_json` is unchanged.

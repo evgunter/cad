@@ -506,7 +506,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),
-        value: MetaValue::Map(m),
+        value: MetaValue::map(m).expect("a shallow value"),
     };
     match save(&doc, &[meta_edit], Tol::witness()) {
         Err(PersistError::NonFinite {
@@ -601,7 +601,7 @@ fn metadata_convention_doors_refuse_typed() {
         &DocEdit::SetAppearanceMeta {
             name: name.clone(),
             key: "k".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -779,7 +779,7 @@ fn unreplayable_edit_log_refuses_at_save() {
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),
-        value: MetaValue::Map(m),
+        value: MetaValue::map(m).expect("a shallow value"),
     };
     match save(&doc, &[bad], Tol::witness()) {
         Err(PersistError::EditReplay { index: 0, error }) => assert!(

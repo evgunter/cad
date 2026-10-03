@@ -123,6 +123,8 @@ const VALIDATOR_SHARED: &[&str] = &[
     "bool_ring_run_winding",
     "bool_point_in_solid_plane",
     "bool_point_in_solid_denom",
+    "bool_point_in_solid_clearance",
+    "bool_point_in_solid_beside",
     "bool_point_in_solid_advance",
     "bool_point_in_solid_order",
     "bool_point_in_solid_infinity",

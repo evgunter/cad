@@ -17,7 +17,7 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p3, v3};
-use pncad::geom_core::{Affine3, Point2, Vec3};
+use pncad::geom_core::{Affine3, Vec3};
 use pncad::topo::splitting::{PlaneSide, SplitPart, SplitPlane, plane_section, split};
 
 use crate::SceneBody;
@@ -203,35 +203,21 @@ pub(crate) fn build<S: Scalar>(
     )
 }
 
-/// Twice the signed area of a polygon given by its corners.
-fn twice_area(uv: &[Point2<f64>]) -> f64 {
-    (0..uv.len())
-        .map(|i| {
-            let (a, b) = (uv[i], uv[(i + 1) % uv.len()]);
-            a.x * b.y - b.x * a.y
-        })
-        .sum()
-}
-
 /// What [`read_section`] measured, for the narration.
 struct SectionReading {
     regions: usize,
     holes: usize,
-    /// The regions' area: the wall regions' polygon areas plus the
-    /// bored bosses' closed-form annuli.
+    /// The regions' area, as `plane_section` reads it on their edges.
     area: f64,
 }
 
 /// `plane_section` of the box, checked against the closed forms and
 /// against the area the split's halves enclose (`split_area`).
 ///
-/// A wall or floor region is a polygon, so its area is its corners'.
-/// A bored boss's region is the boss's ellipse around the bore's, and
-/// `plane_section` reports each as its two corners, whose shoelace is
-/// 0: the arcs between them are dropped
-/// (`work/cleave/plane-section-polygons-drop-their-arcs.md`). So the
-/// scene checks those corners against the two circles and supplies
-/// the area in closed form, `π (R² − r²) / cos φ`.
+/// A wall or floor region is a polygon; a bored boss's region is the
+/// boss's ellipse around the bore's, each two corners joined by two
+/// arcs, and its area is checked against the closed form
+/// `π (R² − r²) / cos φ`.
 fn read_section(
     boxbody: &pncad::topo::Body<f64>,
     (split_area, split_pad): (f64, f64),
@@ -251,24 +237,27 @@ fn read_section(
     let mut area = 0.0;
     let mut holes = 0;
     for region in &section.regions {
-        let corners = &region.outline.points;
+        let corners = &region.outline.points();
+        let enclosed = region.area();
         if region.holes.is_empty() {
-            let outline = twice_area(&region.outline.uv) / 2.0;
-            assert!(outline > 0.0, "a wall region winds counter-clockwise");
+            assert!(enclosed > 0.0, "a wall region winds counter-clockwise");
             assert!(
                 !corners.iter().any(on_circle(BOSS_R)),
                 "a wall region's corners lie off the bosses: {corners:?}"
             );
-            area += outline;
         } else {
             assert_eq!(region.holes.len(), 1, "a boss's region holds its one bore");
-            let hole = &region.holes[0].points;
+            let hole = &region.holes[0].points();
             assert!(
                 corners.iter().all(on_circle(BOSS_R)) && hole.iter().all(on_circle(BORE_R)),
                 "a bored boss's region is its boss around its bore: {corners:?}, {hole:?}"
             );
-            area += annulus;
+            assert!(
+                (enclosed - annulus).abs() <= 1e-12,
+                "a bored boss's region encloses {enclosed}, its annulus {annulus}"
+            );
         }
+        area += enclosed;
         holes += region.holes.len();
     }
     assert_eq!(
@@ -311,8 +300,8 @@ pub(crate) fn sectioned_beside(
          through {through:?}, normal {normal:?} — tilted, no axis alignment — through \
          two bored bosses; each half keeps {faces} section faces, the two through the \
          bosses annuli ringed by their bores; `plane_section` reads {regions} regions \
-         with {holes} holes, area {area:.9} (wall polygons plus pi (R^2 - r^2) / cos phi \
-         per bored boss, the arcs being dropped from its polygons) against {split:.9} \
+         with {holes} holes, area {area:.9} (read on the regions' segments and arcs, each \
+         bored boss's pi (R^2 - r^2) / cos phi) against {split:.9} \
          ± {pad:.1e} from the halves' surface areas; halves partition the volume \
          within their certified brackets ({v_above:.6} + {v_below:.6} = {v_box:.6}, \
          gap {gap:.1e}); halves then moved apart by rigid transforms (edge witnesses \

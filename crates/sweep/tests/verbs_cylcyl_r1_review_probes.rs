@@ -230,9 +230,12 @@ fn off_carrier_points_are_out_at_every_probed_radius() {
 }
 
 /// The iso-bounded class gate from a DIFFERENT pose than the unit's
-/// own pin: a steeper tilt, cutting the other way, on a wider post.
+/// own pin: a steeper tilt, cutting the other way, on a wider post. The
+/// ellipse-bounded wall is read by its outline, not its vertex
+/// rectangle: a point on the carrier below the cut is `In` exactly one
+/// wall face, one above it none.
 #[test]
-fn a_steeply_tilted_cut_wall_still_answers_none() {
+fn a_steeply_tilted_cut_wall_is_read_by_its_outline() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let post = cyl(0.0, 0.0, 2.0, 0.0, 6.0);
@@ -257,14 +260,19 @@ fn a_steeply_tilted_cut_wall_still_answers_none() {
         .map(|(k, _)| k)
         .collect();
     assert!(!walls.is_empty());
-    let q = Point3::new(2.0 * 0.5_f64.cos(), 2.0 * 0.5_f64.sin(), 0.5);
-    for &f in &walls {
-        assert!(
-            topo::curved_face_containment(below, f, q, band)
-                .unwrap()
-                .is_none(),
-            "an ellipse-bounded wall must answer None"
-        );
+    // The cut is at `z = 3 + x·tan φ`: 5.21 over θ = 0.5.
+    for (h, inside) in [(0.5, true), (5.0, true), (5.5, false)] {
+        let q = Point3::new(2.0 * 0.5_f64.cos(), 2.0 * 0.5_f64.sin(), h);
+        let ins = walls
+            .iter()
+            .map(|&f| {
+                topo::curved_face_containment(below, f, q, band)
+                    .unwrap()
+                    .unwrap_or_else(|| panic!("h = {h}: a verdict on {f:?}"))
+            })
+            .filter(|v| matches!(v, topo::FaceContainment::In))
+            .count();
+        assert_eq!(ins, usize::from(inside), "h = {h}");
     }
 }
 

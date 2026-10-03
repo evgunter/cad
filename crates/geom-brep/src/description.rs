@@ -149,6 +149,12 @@ pub enum EdgeDescription<T: Real> {
 }
 
 impl<T: Real> EdgeDescription<T> {
+    /// Whether this is the scaffolding door: a description tier 3
+    /// refuses at rest (`ScaffoldAtRest`).
+    pub fn is_scaffold(&self) -> bool {
+        matches!(self, EdgeDescription::Scaffold(_))
+    }
+
     /// The chart image, when this description has one — the accessor
     /// consumers read instead of matching two conventional variants.
     pub fn chart(&self) -> Option<&ChartCurve<T>> {

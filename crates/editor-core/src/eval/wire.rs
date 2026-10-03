@@ -4261,8 +4261,11 @@ pub(crate) fn stepped_rule_map<T: Decide>(ops: &SteppedOperands<T>, i: i64) -> A
 
 /// [`stepped_rule_map`] behind the evaluation's slot reads, which stay
 /// INSIDE so a rule's operands are demanded only when a step uses them.
+/// A listed rule refuses as `listed`, the mismatch it is on the
+/// caller's node.
 fn stepped_map<T: Decide>(
     kind: &PatternKind,
+    listed: crate::node::CountMismatch,
     i: i64,
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -4293,7 +4296,7 @@ fn stepped_map<T: Decide>(
         // An explicit rule's frames ARE the maps.
         PatternKind::Explicit(_) => {
             return Err(NodeErrorKind::PlacementRule(
-                crate::node::PlacementRuleFault::CountSpelling,
+                crate::node::PlacementRuleFault::CountSpelling { shape: listed },
             ));
         }
     };
@@ -4321,7 +4324,9 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     // an explicit placement list, and this is the hand-built backstop.
     if kind.placements().is_some() {
         return Err(NodeErrorKind::PlacementRule(
-            crate::node::PlacementRuleFault::CountSpelling,
+            crate::node::PlacementRuleFault::CountSpelling {
+                shape: crate::node::CountMismatch::ListedOnPattern,
+            },
         ));
     }
     let value = value_of(results, input)?;
@@ -4336,7 +4341,14 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     let naming = NodeErrorKind::Naming;
     let mut instances: Vec<Arc<Body<T>>> = master.to_vec();
     for j in 1..n {
-        let map = stepped_map(kind, j, results, vals, tol)?;
+        let map = stepped_map(
+            kind,
+            crate::node::CountMismatch::ListedOnPattern,
+            j,
+            results,
+            vals,
+            tol,
+        )?;
         let j = usize::try_from(j).unwrap_or(usize::MAX);
         instances.extend(place_each(master, &map, id, j, tol)?);
     }
@@ -4391,7 +4403,16 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 return Err(NodeErrorKind::NonPositiveCount { count: n });
             }
             (0..n)
-                .map(|i| stepped_map(kind, i, results, vals, tol))
+                .map(|i| {
+                    stepped_map(
+                        kind,
+                        crate::node::CountMismatch::ListedWithCount,
+                        i,
+                        results,
+                        vals,
+                        tol,
+                    )
+                })
                 .collect::<Result<_, _>>()?
         }
     };

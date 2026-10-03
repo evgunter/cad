@@ -177,7 +177,8 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
 /// would not serialize, an insert that minted no id, a placement rule
 /// spelled through the wrong constructor.
 ///
-/// It has a `variant` and nothing else to carry, and the attributes
+/// It has a `variant`, the `inner_variant` the same kernel arm
+/// publishes at its own door, and nothing else to carry; the attributes
 /// the document layer's arms fill are present and `None`: the class's
 /// shape is one shape at every raise site, whichever side of the
 /// boundary decided it.
@@ -185,11 +186,12 @@ fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr
 /// **Where the `variant` comes from**, and it is not "always
 /// `crate::tags`": the test is whether a kernel enum arm stands
 /// behind the refusal. Where one does, the refusal carries the kernel
-/// VALUE and the word is that enum's own map's, even though the raise
+/// VALUE and the words are that enum's own maps', even though the raise
 /// site is here — `Doc.insert`'s `no_minted_id` and
-/// `Node.placed_union`'s count-spelling refusal are the two live
-/// cases, and forwarding the value is what keeps each ONE word with
-/// the kernel door that publishes the same one. Where none does — a
+/// `Node.placed_union`'s count-spelling refusal (`variant` and
+/// `inner_variant` both) are the two live cases, and forwarding the
+/// value is what keeps each the words the kernel door that publishes
+/// the same refusal speaks. Where none does — a
 /// `serde_json` failure has no arm anywhere — the word is minted in
 /// `crate::tags`, where the tag inventory reads it.
 ///
@@ -208,7 +210,7 @@ fn boundary_edit_err(py: Python<'_>, refusal: BoundaryEdit<'_>, message: String)
         &edit_fields(
             py,
             crate::tags::boundary_edit_tag(refusal),
-            None,
+            crate::tags::boundary_edit_inner_tag(refusal),
             &crate::edit_payload::EditPayload::NONE,
         ),
     )
@@ -2946,8 +2948,8 @@ impl Node {
     ///
     /// An `explicit` rule brings its OWN placements, so pairing it
     /// with a count is the two-sources-of-truth state: it refuses here
-    /// (`EditError`, `placement_rule_mismatch`) and
-    /// `Node.placed_union_at` is its door.
+    /// (`EditError`, `placement_rule_mismatch`, `inner_variant`
+    /// `listed_with_count`) and `Node.placed_union_at` is its door.
     #[staticmethod]
     fn placed_union(
         py: Python<'_>,
@@ -2959,7 +2961,9 @@ impl Node {
         let node = d::Node::placed_union(input.0, count, kind.0.clone()).ok_or_else(|| {
             boundary_edit_err(
                 py,
-                BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling),
+                BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling {
+                    shape: d::CountMismatch::ListedWithCount,
+                }),
                 "an explicit placement rule carries its own placements, so it has no \
                      count slot: use Node.placed_union_at"
                     .to_owned(),

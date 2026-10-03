@@ -69,9 +69,7 @@ fn main() {
                     f.body
                         .get_curve_geom(e.curve)
                         .and_then(topo::CurveGeom::certified)
-                        .is_some_and(|c| {
-                            matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_))
-                        })
+                        .is_some_and(|c| c.description().is_scaffold())
                 })
                 .count();
             let t3 = topo::validate_geometric(&f.body, Tol::witness());

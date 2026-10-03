@@ -272,7 +272,7 @@ fn row4_metadata_edit_moves_pin() {
         DocEdit::SetAppearanceMeta {
             name: body,
             key: "tool.example/pin-row".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
     );
     assert_ne!(content_pin(&annotated, Tol::witness()).unwrap(), before);

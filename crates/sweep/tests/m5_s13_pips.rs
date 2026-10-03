@@ -36,6 +36,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::ball_poled_y;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::test_support::GraftBridge;
 use topo::{Body, BooleanDeclarations, BooleanError};
 
 // ---------------------------------------------------------------------
@@ -192,7 +193,9 @@ fn die_pip_intersect_is_the_cap_and_additive() {
 /// closed-sphere GROUP arm under multiple sphere surfaces. The two-ball
 /// operand is itself §1 output (a no-crossing ∪ whose extent scan
 /// certifies the balls disjoint and assembles two shells), and the
-/// subtract re-cuts EACH group about its own escape normal.
+/// subtract re-cuts EACH group about its own escape normal. The
+/// assembly and the re-cut graft carry certificates and the seam zip
+/// re-certifies, each graft's bridge read off its record.
 #[test]
 fn two_pips_cut_under_the_group_arm() {
     // Placements: disjoint balls, both far enough from every slab
@@ -207,6 +210,7 @@ fn two_pips_cut_under_the_group_arm() {
     // idealized sweep EXAMINES every pair, and a conic edge against a
     // curved face is the pre-existing pierce frontier -- typed, not
     // this unit's; the realized tree prunes those distant pairs).
+    let _ = topo::test_support::take_graft_bridges();
     let pair = topo::union(&b1, &b2, Tol::witness())
         .expect("disjoint balls assemble through the certified scan")
         .body()
@@ -215,7 +219,25 @@ fn two_pips_cut_under_the_group_arm() {
         .clone();
     assert_eq!(pair.shells().count(), 2, "two disjoint balls, two shells");
 
+    // The assembly carries its kept ball's certificates.
+    assert_eq!(
+        topo::test_support::take_graft_bridges(),
+        [GraftBridge::RemapKeys],
+        "the disjoint union's assembly graft"
+    );
     let cut = both_lanes(BooleanOp::Subtract, &slab(), &pair);
+    // Per lane: the re-cut grafts the second turned ball back onto the
+    // first, carrying, and the seam zip then re-certifies.
+    assert_eq!(
+        topo::test_support::take_graft_bridges(),
+        [
+            GraftBridge::RemapKeys,
+            GraftBridge::Recertify,
+            GraftBridge::RemapKeys,
+            GraftBridge::Recertify,
+        ],
+        "the re-cut graft, then the seam zip's, in each lane"
+    );
     assert!(
         (vol(&cut) - (16.0 - 2.0 * cap(PIP_R, PIP_H))).abs() < slack(),
         "two pips: got {}",
@@ -426,4 +448,88 @@ fn a_ball_above_the_cylinders_cap_is_certified_separated() {
         matches!(kind, topo::boolean::BooleanResultKind::Assembly),
         "two disjoint solids union to an assembly, got {kind:?}"
     );
+}
+
+/// **A ball straddling a notched wall's carrier, clear of the wall
+/// face, builds.** The slab's wall turns three quarters of the way
+/// round; the ball (radius 0.05) sits on the wall's cylinder in the
+/// missing quarter, so it straddles the CARRIER while missing the
+/// trimmed face, 0.247 from each flat face. Its box meets the wall's
+/// (which spans the whole turn's square), no edge pair crosses, and the
+/// fallback hands the sphere × wall pair to the section pass, which
+/// certifies the section out of the face. Every op in both orders,
+/// tier 3, against `¾·π·0.35²·1.3` and `4π·0.05³/3` within the volume
+/// enclosure's own half-width. A carrier-only
+/// certificate (clear of the whole cylinder, or inside it) cannot speak
+/// here; this pose refused `FallbackExtentUnsupported` under one.
+#[test]
+fn a_ball_straddling_a_notched_walls_carrier_builds() {
+    let notched = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(0.35, 0.0), (3.0 * PI / 8.0).tan()),
+        (Point2::new(0.0, -0.35), 0.0),
+    ]);
+    let vp = Profile::new(SketchPlane::xy(), vec![notched])
+        .validate(Tol::witness())
+        .unwrap();
+    let slab = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.3,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let at = 0.35 * core::f64::consts::FRAC_1_SQRT_2;
+    let ball = ball_poled_y(0.05, Vec3::new(at, -at, 0.65), Tol::witness());
+    let (v_slab, v_ball) = (
+        0.75 * PI * 0.35_f64.powi(2) * 1.3,
+        4.0 * PI * 0.05_f64.powi(3) / 3.0,
+    );
+    for (op, x, y, want) in [
+        (BooleanOp::Union, &slab, &ball, Some(v_slab + v_ball)),
+        (BooleanOp::Union, &ball, &slab, Some(v_slab + v_ball)),
+        (BooleanOp::Intersect, &slab, &ball, None),
+        (BooleanOp::Intersect, &ball, &slab, None),
+        (BooleanOp::Subtract, &slab, &ball, Some(v_slab)),
+        (BooleanOp::Subtract, &ball, &slab, Some(v_ball)),
+    ] {
+        let out = boolean_op_with(
+            op,
+            x,
+            y,
+            &BooleanDeclarations::none(),
+            SweepStrategy::Realized,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{op:?}: refused {e:?}"));
+        match (out.body(), want) {
+            (Some(b), Some(w)) => {
+                assert_eq!(
+                    topo::validate_geometric(&b.body, Tol::witness()),
+                    Ok(()),
+                    "{op:?}: tier 3"
+                );
+                // Against the enclosure's own half-width, which must be
+                // able to see the ball: `slack()` is 1e-3 at ε = 1e-6,
+                // twice the ball's whole volume.
+                let props = topo::mass_properties(&b.body, Tol::witness()).unwrap();
+                assert!(
+                    props.volume_pad < v_ball / 10.0,
+                    "{op:?}: a pad of {} cannot see a ball of {v_ball}",
+                    props.volume_pad
+                );
+                assert!(
+                    (props.volume - w).abs() <= props.volume_pad + 1e-12,
+                    "{op:?}: volume {} against {w} (pad {})",
+                    props.volume,
+                    props.volume_pad
+                );
+            }
+            (None, None) => {}
+            (got, _) => panic!("{op:?}: {:?} against {want:?}", got.map(|b| vol(&b.body))),
+        }
+    }
 }

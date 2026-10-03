@@ -36,6 +36,10 @@ use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
+use crate::common::differential::{
+    REFLEX_OPS, REFLEX_PROFILES, area, clip_convex, clip_rect, outcome, reflex_pose, reflex_run,
+};
+
 fn tol() -> Tol {
     Tol::witness()
 }
@@ -74,94 +78,8 @@ fn rod(h: f64) -> Body<f64> {
     .body
 }
 
-fn area(p: &[(f64, f64)]) -> f64 {
-    let n = p.len();
-    (0..n)
-        .map(|i| {
-            let (a, b) = (p[i], p[(i + 1) % n]);
-            a.0 * b.1 - a.1 * b.0
-        })
-        .sum::<f64>()
-        / 2.0
-}
-
-/// Sutherland–Hodgman against an axis rectangle.
-fn clip(poly: &[(f64, f64)], x: (f64, f64), y: (f64, f64)) -> Vec<(f64, f64)> {
-    let mut out: Vec<(f64, f64)> = poly.to_vec();
-    let planes: [(usize, f64, bool); 4] = [
-        (0, x.0, true),
-        (0, x.1, false),
-        (1, y.0, true),
-        (1, y.1, false),
-    ];
-    for (ax, c, keep_ge) in planes {
-        let inp = std::mem::take(&mut out);
-        let n = inp.len();
-        if n == 0 {
-            break;
-        }
-        let inside = |p: (f64, f64)| {
-            let v = if ax == 0 { p.0 } else { p.1 };
-            if keep_ge { v >= c } else { v <= c }
-        };
-        for i in 0..n {
-            let (s, e) = (inp[i], inp[(i + 1) % n]);
-            let isect = || {
-                let (vs, ve) = if ax == 0 { (s.0, e.0) } else { (s.1, e.1) };
-                let t = (c - vs) / (ve - vs);
-                (s.0 + t * (e.0 - s.0), s.1 + t * (e.1 - s.1))
-            };
-            match (inside(s), inside(e)) {
-                (true, true) => out.push(e),
-                (true, false) => out.push(isect()),
-                (false, true) => {
-                    out.push(isect());
-                    out.push(e);
-                }
-                (false, false) => {}
-            }
-        }
-    }
-    out
-}
-
 fn overlap(a: (f64, f64), b: (f64, f64)) -> f64 {
     (a.1.min(b.1) - a.0.max(b.0)).max(0.0)
-}
-
-fn outcome(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -> String {
-    match r {
-        Err(e) => {
-            let s = format!("{e:?}");
-            let cut: String = s.chars().take(110).collect();
-            format!("ERR {cut}")
-        }
-        Ok(r) => match r.body() {
-            None => {
-                if want.abs() < 1e-9 {
-                    "EMPTY ok".into()
-                } else {
-                    format!("EMPTY WRONG want={want}")
-                }
-            }
-            Some(bb) => {
-                let t2 = topo::validate_closed(&bb.body).is_ok();
-                let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).is_ok();
-                let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
-                let v = topo::mass_properties(&bb.body, tol()).map(|m| m.volume);
-                match v {
-                    Ok(v) => {
-                        let good = (v - want).abs() < 1e-7;
-                        format!(
-                            "OK {} t2={t2} t3p={t3} cert={cert} v={v:.9} want={want:.9}",
-                            if good && t2 && t3 { "SOUND" } else { "BAD" }
-                        )
-                    }
-                    Err(e) => format!("OK-UNMEASURED t2={t2} t3p={t3} cert={cert} {e:?}"),
-                }
-            }
-        },
-    }
 }
 
 #[test]
@@ -216,7 +134,7 @@ fn join1_r1_battery() {
                 for &z in &zs {
                     let b = brick(x, y, z, tol());
                     let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
-                    let vi = area(&clip(pts, x, y)) * overlap(h, z);
+                    let vi = area(&clip_rect(pts, x, y)) * overlap(h, z);
                     for (op, want_ab, want_ba) in [
                         ("U", va + vb - vi, va + vb - vi),
                         ("S", va - vi, vb - vi),
@@ -231,7 +149,7 @@ fn join1_r1_battery() {
                             };
                             println!(
                                 "POSE {name} x={x:?} y={y:?} z={z:?} {op} {order} => {}",
-                                outcome(res, want)
+                                outcome(res, want, tol())
                             );
                         }
                     }
@@ -277,7 +195,7 @@ fn ball_box(r: f64, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> f64 {
     let slice = |yy: f64| {
         let rho = (r * r - yy * yy).max(0.0).sqrt();
         let p: Vec<(f64, f64)> = base.iter().map(|&(a, b)| (a * rho, b * rho)).collect();
-        area(&clip(&p, x, z))
+        area(&clip_rect(&p, x, z))
     };
     let g = [
         (-0.774_596_669_241_483_4, 5.0 / 9.0),
@@ -338,7 +256,7 @@ fn join1_r1_seam_battery() {
                     let b = brick(x, y, z, tol());
                     let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                     let vi = if name == "rcyl" {
-                        area(&clip(&disc, x, z)) * overlap((0.0, 2.0), y)
+                        area(&clip_rect(&disc, x, z)) * overlap((0.0, 2.0), y)
                     } else {
                         ball_box(r, x, y, z)
                     };
@@ -360,7 +278,7 @@ fn join1_r1_seam_battery() {
                             };
                             println!(
                                 "SEAM {name} x={x:?} y={y:?} z={z:?} {op} {order} => {}",
-                                outcome(res, want)
+                                outcome(res, want, tol())
                             );
                         }
                     }
@@ -368,36 +286,6 @@ fn join1_r1_seam_battery() {
             }
         }
     }
-}
-
-/// Sutherland–Hodgman of `poly` against the convex CCW polygon `clipper`.
-fn clip_convex(poly: &[(f64, f64)], clipper: &[(f64, f64)]) -> Vec<(f64, f64)> {
-    let mut out: Vec<(f64, f64)> = poly.to_vec();
-    let m = clipper.len();
-    for k in 0..m {
-        let (a, b) = (clipper[k], clipper[(k + 1) % m]);
-        let side = |p: (f64, f64)| (b.0 - a.0) * (p.1 - a.1) - (b.1 - a.1) * (p.0 - a.0);
-        let inp = std::mem::take(&mut out);
-        let n = inp.len();
-        for i in 0..n {
-            let (s, e) = (inp[i], inp[(i + 1) % n]);
-            let (ds, de) = (side(s), side(e));
-            let isect = || {
-                let t = ds / (ds - de);
-                (s.0 + t * (e.0 - s.0), s.1 + t * (e.1 - s.1))
-            };
-            match (ds >= 0.0, de >= 0.0) {
-                (true, true) => out.push(e),
-                (true, false) => out.push(isect()),
-                (false, true) => {
-                    out.push(isect());
-                    out.push(e);
-                }
-                (false, false) => {}
-            }
-        }
-    }
-    out
 }
 
 /// A prism along `+y` over `y ∈ [y0, y1]` of a polygon given in world
@@ -471,7 +359,7 @@ fn join1_r1_declared_battery() {
                 for &z in &zs {
                     let b = brick(x, y, z, tol());
                     let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
-                    let vi = area(&clip(pts, x, y)) * overlap(h, z);
+                    let vi = area(&clip_rect(pts, x, y)) * overlap(h, z);
                     for (op, want_ab, want_ba) in [
                         ("U", va + vb - vi, va + vb - vi),
                         ("S", va - vi, vb - vi),
@@ -488,7 +376,7 @@ fn join1_r1_declared_battery() {
                                         "S" => topo::subtract_with(l, r, &d, tol()),
                                         _ => topo::intersect_with(l, r, &d, tol()),
                                     };
-                                    outcome(res, want)
+                                    outcome(res, want, tol())
                                 }
                             };
                             println!("DECL {name} x={x:?} y={y:?} z={z:?} {op} {order} => {line}");
@@ -530,26 +418,6 @@ fn join1_r1_hex_detail() {
     println!("faces {}", bb.body.faces().count());
 }
 
-/// `∫ x dA`, `∫ y dA` over a simple polygon (signed by its winding).
-fn moments(p: &[(f64, f64)]) -> (f64, f64) {
-    let n = p.len();
-    let (mut mx, mut my) = (0.0, 0.0);
-    for i in 0..n {
-        let (a, b) = (p[i], p[(i + 1) % n]);
-        let c = a.0 * b.1 - b.0 * a.1;
-        mx += (a.0 + b.0) * c;
-        my += (a.1 + b.1) * c;
-    }
-    (mx / 6.0, my / 6.0)
-}
-
-fn ccw(mut p: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
-    if area(&p) < 0.0 {
-        p.reverse();
-    }
-    p
-}
-
 /// The `reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`
 /// probe, rebuilt from its issue text: `a` the 315° reflex prism, `b` a
 /// prism over z ∈ (1, 3) sheared `z' = z + sx·x + sy·y`, its bottom cap
@@ -557,117 +425,18 @@ fn ccw(mut p: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
 #[test]
 #[ignore = "differential battery; run with --ignored"]
 fn join1_r1_reflex_battery() {
-    use topo::test_support::{
-        FaceGeometry, describe_as_intersections, flush_declarations, prism_ops, prism_z,
-    };
-    let a_prof = ccw(vec![
-        (0.0, 0.0),
-        (2.0, 2.0),
-        (-2.0, 2.0),
-        (-2.0, -2.0),
-        (2.0, -2.0),
-        (2.0, 0.0),
-    ]);
-    let a = prism_z::<f64>(&a_prof, 0.0, 1.0, tol()).body;
-    let va = area(&a_prof);
-    let profiles: Vec<(&str, Vec<(f64, f64)>)> = vec![
-        ("sqQ1", vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
-        (
-            "sqQ2",
-            vec![(-1.0, 0.0), (0.0, 0.0), (0.0, 1.0), (-1.0, 1.0)],
-        ),
-        (
-            "sqQ3",
-            vec![(-1.0, -1.0), (0.0, -1.0), (0.0, 0.0), (-1.0, 0.0)],
-        ),
-        (
-            "sqQ4",
-            vec![(0.0, -1.0), (1.0, -1.0), (1.0, 0.0), (0.0, 0.0)],
-        ),
-        ("dUp", vec![(0.0, 0.0), (0.5, 0.5), (0.0, 1.0), (-0.5, 0.5)]),
-        (
-            "dLeft",
-            vec![(0.0, 0.0), (-0.5, 0.5), (-1.0, 0.0), (-0.5, -0.5)],
-        ),
-        (
-            "dDown",
-            vec![(0.0, 0.0), (-0.5, -0.5), (0.0, -1.0), (0.5, -0.5)],
-        ),
-        (
-            "dRight",
-            vec![(0.0, 0.0), (0.5, -0.5), (1.0, 0.0), (0.5, 0.5)],
-        ),
-        (
-            "eBot",
-            vec![(-0.5, 0.0), (0.5, 0.0), (0.5, 1.0), (-0.5, 1.0)],
-        ),
-        (
-            "eTop",
-            vec![(-0.5, -1.0), (0.5, -1.0), (0.5, 0.0), (-0.5, 0.0)],
-        ),
-        (
-            "eLeft",
-            vec![(0.0, -0.5), (1.0, -0.5), (1.0, 0.5), (0.0, 0.5)],
-        ),
-        (
-            "eRight",
-            vec![(-1.0, -0.5), (0.0, -0.5), (0.0, 0.5), (-1.0, 0.5)],
-        ),
-    ];
     let shears = [-0.5, -0.25, 0.0, 0.25, 0.5];
-    for (name, prof) in &profiles {
-        let prof = ccw(prof.clone());
-        let vb = area(&prof) * 2.0;
+    for (name, _) in REFLEX_PROFILES {
         for &sx in &shears {
             for &sy in &shears {
                 if sx == 0.0 && sy == 0.0 {
                     continue;
                 }
-                let mut b = Body::<f64>::new();
-                prism_ops(
-                    &mut b,
-                    &prof,
-                    (1.0, 3.0),
-                    |x, y, z| geom_core::Point3::new(x, y, z + sx * x + sy * y),
-                    FaceGeometry::Certified,
-                    tol(),
-                );
-                describe_as_intersections(&mut b, tol());
-                // ∫ over a ∩ b ∩ {L < 0} of −L, L = sx·x + sy·y.
-                let both = clip_convex(&a_prof, &prof);
-                let half: Vec<(f64, f64)> = {
-                    // The half-plane L ≤ 0 as a large CCW quad.
-                    let (nx, ny) = (sx, sy);
-                    let len = (nx * nx + ny * ny).sqrt();
-                    let (ux, uy) = (-ny / len, nx / len); // along the line
-                    let (ix, iy) = (-nx / len, -ny / len); // into L < 0
-                    let big = 100.0;
-                    ccw(vec![
-                        (ux * big, uy * big),
-                        (-ux * big, -uy * big),
-                        (-ux * big + ix * big, -uy * big + iy * big),
-                        (ux * big + ix * big, uy * big + iy * big),
-                    ])
-                };
-                let low = clip_convex(&both, &half);
-                let (mx, my) = moments(&low);
-                let vi = -(sx * mx + sy * my);
-                let d = flush_declarations(&a, &b, tol());
-                for (op, want) in [
-                    ("I", vi),
-                    ("U", va + vb - vi),
-                    ("S_ab", va - vi),
-                    ("S_ba", vb - vi),
-                ] {
-                    let res = match op {
-                        "I" => topo::intersect_with(&a, &b, &d, tol()),
-                        "U" => topo::union_with(&a, &b, &d, tol()),
-                        "S_ab" => topo::subtract_with(&a, &b, &d, tol()),
-                        _ => topo::subtract_with(&b, &a, &d, tol()),
-                    };
+                let p = reflex_pose(name, 0.0, sx, sy, tol());
+                for (op, want) in REFLEX_OPS.iter().zip(p.want) {
                     println!(
                         "REFLEX {name} sx={sx} sy={sy} {op} => {}",
-                        outcome(res, want)
+                        outcome(reflex_run(&p, op, tol()), want, tol())
                     );
                 }
             }
@@ -731,7 +500,7 @@ fn solid_of_rev_box(
     let base = disc_poly(1.0, 1 << 13);
     let disc_rect = |rho: f64| {
         let p: Vec<(f64, f64)> = base.iter().map(|&(a, b)| (a * rho, b * rho)).collect();
-        area(&clip(&p, x, z))
+        area(&clip_rect(&p, x, z))
     };
     let inner = disc_rect(bore);
     let g = [
@@ -758,8 +527,8 @@ fn join1_r1_tube_battery() {
     let (bore, r, h) = (0.2, 0.5, 2.0);
     let tube = revolved_tube(bore, r, h);
     let ann = |rect_x: (f64, f64), rect_z: (f64, f64)| {
-        area(&clip(&disc_poly(r, 1 << 16), rect_x, rect_z))
-            - area(&clip(&disc_poly(bore, 1 << 16), rect_x, rect_z))
+        area(&clip_rect(&disc_poly(r, 1 << 16), rect_x, rect_z))
+            - area(&clip_rect(&disc_poly(bore, 1 << 16), rect_x, rect_z))
     };
     let vt = ann((-1.0, 1.0), (-1.0, 1.0)) * h;
     // Boxes whose faces hold the seam ruling (x = 0.5, z = 0): the face
@@ -790,7 +559,7 @@ fn join1_r1_tube_battery() {
                     "S" => topo::subtract(l, rr, tol()),
                     _ => topo::intersect(l, rr, tol()),
                 };
-                println!("TUBE {tag} {op} {order} => {}", outcome(res, want));
+                println!("TUBE {tag} {op} {order} => {}", outcome(res, want, tol()));
             }
         }
     };
@@ -885,7 +654,7 @@ fn join1_r1_bored_capsule_battery() {
                         };
                         println!(
                             "BCAP x={x:?} y={y:?} z={z:?} {op} {order} => {}",
-                            outcome(res, want)
+                            outcome(res, want, tol())
                         );
                     }
                 }

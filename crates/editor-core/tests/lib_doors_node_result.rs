@@ -581,7 +581,10 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ],
         ),
         (
-            PlacementRuleFault::CountSpelling.to_string(),
+            PlacementRuleFault::CountSpelling {
+                shape: editor_core::CountMismatch::ListedOnPattern,
+            }
+            .to_string(),
             &["disagree about how many placements"],
         ),
         (

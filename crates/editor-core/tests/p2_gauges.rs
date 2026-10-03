@@ -42,12 +42,12 @@ use topo::Body;
 
 // ---- substrate ----
 
-const BASE_WIDTH: f64 = 3.0;
-const BASE_HEIGHT: f64 = 1.0;
-const TOP_HEIGHT: f64 = 3.0;
+pub(crate) const BASE_WIDTH: f64 = 3.0;
+pub(crate) const BASE_HEIGHT: f64 = 1.0;
+pub(crate) const TOP_HEIGHT: f64 = 3.0;
 
 /// A `w x w x h` block, as a whole part document, and its body.
-fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
+pub(crate) fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -68,15 +68,15 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 
 /// The two parts in one store: the store's options, each part's
 /// reference and body.
-struct Parts {
-    store: PartStore,
-    base: DocRef,
-    base_body: RecipeNodeId,
-    top: DocRef,
-    top_body: RecipeNodeId,
+pub(crate) struct Parts {
+    pub(crate) store: PartStore,
+    pub(crate) base: DocRef,
+    pub(crate) base_body: RecipeNodeId,
+    pub(crate) top: DocRef,
+    pub(crate) top_body: RecipeNodeId,
 }
 
-fn parts(label: &str) -> Parts {
+pub(crate) fn parts(label: &str) -> Parts {
     let mut store = PartStore::new();
     let (base, base_body) = store.insert_part(
         block(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
@@ -96,37 +96,41 @@ fn parts(label: &str) -> Parts {
 }
 
 impl Parts {
-    fn opts(&self) -> EvalOptions {
+    pub(crate) fn opts(&self) -> EvalOptions {
         with_resolver(self.store.clone())
     }
     /// The base's top cap.
-    fn base_cap(&self, base: RecipeNodeId) -> StableName {
+    pub(crate) fn base_cap(&self, base: RecipeNodeId) -> StableName {
         in_part(base, self.base_body, CapEnd::End)
     }
     /// The top block's bottom cap.
-    fn top_cap(&self, top: RecipeNodeId) -> StableName {
+    pub(crate) fn top_cap(&self, top: RecipeNodeId) -> StableName {
         in_part(top, self.top_body, CapEnd::Start)
     }
     /// The top block's upper cap, which a second block seats on.
-    fn top_upper_cap(&self, top: RecipeNodeId) -> StableName {
+    pub(crate) fn top_upper_cap(&self, top: RecipeNodeId) -> StableName {
         in_part(top, self.top_body, CapEnd::End)
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+pub(crate) fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
 }
 
 /// **"Mate the top to the base"**: the top block's bottom cap (the
 /// FIRST operand, which moves) seated on the base's top cap at
 /// `(1, 1)`, outward normals opposed.
-fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
     seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
 }
 
 /// [`seat`] onto a cap whose seat point is `at`, in its own part's
 /// coordinates.
-fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn seat_on(
+    mover: SitedFace,
+    onto: SitedFace,
+    at: [f64; 3],
+) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
         a: mover,
         b: onto,
@@ -141,13 +145,16 @@ fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core:
     }
 }
 
-fn lift() -> ParamName {
+pub(crate) fn lift() -> ParamName {
     ParamName::from_static("lift")
 }
 
 /// A gauge on `parent` at `[0, 0, lift]`, turned `angle` about z — a
 /// placement the document's `lift` drives.
-fn lifting_gauge(parent: Option<RecipeNodeId>, angle: f64) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn lifting_gauge(
+    parent: Option<RecipeNodeId>,
+    angle: f64,
+) -> Node<editor_core::ProfileProgram> {
     Node::gauge(
         parent,
         Step::Rigid {
@@ -158,11 +165,11 @@ fn lifting_gauge(parent: Option<RecipeNodeId>, angle: f64) -> Node<editor_core::
     )
 }
 
-fn literal(t: [f64; 3]) -> Placement {
+pub(crate) fn literal(t: [f64; 3]) -> Placement {
     Placement::literal(&Frame::translation(t))
 }
 
-fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
+pub(crate) fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
         DocEdit::SetDocParamValue {
@@ -173,7 +180,7 @@ fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     .0
 }
 
-fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
+pub(crate) fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
         DocEdit::SetDocParam {
@@ -184,15 +191,23 @@ fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     .0
 }
 
-fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -> ProfileDoc {
+pub(crate) fn set_gauge(
+    doc: ProfileDoc,
+    node: RecipeNodeId,
+    gauge: Option<RecipeNodeId>,
+) -> ProfileDoc {
     step(doc, DocEdit::SetGauge { node, gauge }).0
 }
 
-fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement>) -> ProfileDoc {
+pub(crate) fn set_offset(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    offset: Option<Placement>,
+) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
 
-fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Body<T>> {
+pub(crate) fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Body<T>> {
     match &ev
         .value(id)
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
@@ -204,25 +219,25 @@ fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Bo
 }
 
 /// A body's points, in arena order, as `f64` triples.
-fn points(body: &Body<f64>) -> Vec<[f64; 3]> {
+pub(crate) fn points(body: &Body<f64>) -> Vec<[f64; 3]> {
     body.points().map(|(_, p)| [p.x, p.y, p.z]).collect()
 }
 
 /// A body's lowest corner — where a block's own origin landed.
-fn min_corner(body: &Body<f64>) -> [f64; 3] {
+pub(crate) fn min_corner(body: &Body<f64>) -> [f64; 3] {
     points(body).into_iter().fold([f64::INFINITY; 3], |m, p| {
         [m[0].min(p[0]), m[1].min(p[1]), m[2].min(p[2])]
     })
 }
 
-fn close(a: [f64; 3], b: [f64; 3], what: &str) {
+pub(crate) fn close(a: [f64; 3], b: [f64; 3], what: &str) {
     assert!(
         a.iter().zip(b).all(|(x, y)| (x - y).abs() <= 1e-12),
         "{what}: {a:?} vs {b:?}"
     );
 }
 
-fn resolver(store: PartStore) -> Arc<dyn PartResolver> {
+pub(crate) fn resolver(store: PartStore) -> Arc<dyn PartResolver> {
     Arc::new(store)
 }
 
@@ -796,7 +811,7 @@ fn with_no_placer_on_the_path_the_world_pose_is_the_frame_onto_the_solve_bit_for
 
 /// A placed pair — the base at an offset, the top mated onto it — and
 /// the store holding its parts.
-fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
+pub(crate) fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
     let p = parts(label);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
@@ -806,14 +821,14 @@ fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
     (p, doc, [base, top, mate])
 }
 
-fn cut(ids: &[RecipeNodeId]) -> BTreeSet<RecipeNodeId> {
+pub(crate) fn cut(ids: &[RecipeNodeId]) -> BTreeSet<RecipeNodeId> {
     ids.iter().copied().collect()
 }
 
-/// **A cut holding a gauge refuses until the gauge hoist is built, and
-/// gauge references leaving a cut must land on one anchor** (A4).
+/// **Gauge references leaving a cut must land on one anchor** (A4). A
+/// cut holding a gauge is `p2_split`'s.
 #[test]
-fn a_cut_holding_a_gauge_or_landing_on_two_anchors_refuses_typed() {
+fn a_cut_landing_on_two_anchors_refuses_typed() {
     let p = parts("p2-split-gauge");
     let doc = ProfileDoc::empty(DocumentId::derive("p2-split-gauge"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 5.0, 0.0])));
@@ -830,12 +845,6 @@ fn a_cut_holding_a_gauge_or_landing_on_two_anchors_refuses_typed() {
             o.resolver.as_ref(),
         )
     };
-    let err = split(&[g, on_g]).expect_err("the gauge hoist is not built");
-    assert!(
-        matches!(&err, editor_core::SplitError::CutHoldsGauge { gauge } if gauge.id() == g),
-        "{err:?}"
-    );
-    assert!(err.to_string().contains("Recourse:"), "{err}");
     let err = split(&[on_g, on_world]).expect_err("two anchors");
     assert!(
         matches!(
@@ -881,8 +890,8 @@ fn a_cut_reaching_a_dead_gauge_or_of_unplaced_material_alone_refuses_typed() {
     assert!(
         matches!(
             &err,
-            editor_core::SplitError::DeadGaugeReference { instance, gauge }
-                if instance.id() == dead && gauge.id() == g
+            editor_core::SplitError::DeadGaugeReference { node, gauge }
+                if node.id() == dead && gauge.id() == g
         ),
         "{err:?}"
     );
@@ -1009,13 +1018,14 @@ fn the_group_hoist_and_the_frame_rule_at_a_split() {
     assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
-/// **Inline, as built in P2-core** (A4): the sugar — a root-placed
-/// instance over a part that is one group rooted at the empty chain on
-/// its world, whose root takes the instance's offset — and the empty
-/// offset, where the content lands verbatim; every other shape refuses
-/// typed. `inline(split(d))` is `d` up to node ids.
+/// **Inline's sugar and its empty offset** (A4): a root-placed instance
+/// over a part that is one group rooted at the empty chain on its
+/// world has that root take the instance's offset, and at the empty
+/// offset the content lands verbatim. The round trip of the group
+/// hoist through the sugar is equal in evaluation (the spec's D1); the
+/// minted gauge and the mate-placed inline are `p2_split`'s.
 #[test]
-fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_rest_typed() {
+fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_unplaced_typed() {
     let (p, doc, [base, top, mate]) = placed_pair("p2-inline");
     let o = p.opts();
     let out = editor_core::split(
@@ -1055,31 +1065,7 @@ fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_rest_typed() {
     editor_core::inline(&at_origin, out.instance, &r, Tol::witness())
         .expect("the empty offset lands the content verbatim");
 
-    // The refusals.
-    let mated = {
-        let (d, host) = insert(out.remainder.clone(), Node::instantiate_part(p.base));
-        let d = set_offset(d, out.instance, None);
-        let (d, _) = insert(
-            d,
-            seat(
-                head(StableName {
-                    kind: editor_core::EntityKind::Face,
-                    node: out.instance,
-                    path: vec![editor_core::RoleSeg::InPart {
-                        of: p.top_cap(out.node_map[&top]).into(),
-                    }],
-                }),
-                head(p.base_cap(host)),
-            ),
-        );
-        d
-    };
-    let err = editor_core::inline(&mated, out.instance, &r, Tol::witness())
-        .expect_err("a mate-placed instance");
-    assert!(
-        matches!(&err, editor_core::InlineError::MatePlaced { instance, .. } if instance.id() == out.instance),
-        "{err:?}"
-    );
+    // The refusal: an unplaced instance has no frame to splice at.
     let unplaced = set_offset(out.remainder.clone(), out.instance, None);
     let err = editor_core::inline(&unplaced, out.instance, &r, Tol::witness())
         .expect_err("an unplaced instance");
@@ -1087,40 +1073,7 @@ fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_rest_typed() {
         matches!(&err, editor_core::InlineError::Unplaced { instance, cause: Unplaced::NoOffset } if instance.id() == out.instance),
         "{err:?}"
     );
-    // A part whose root does NOT sit at the empty chain needs a gauge.
-    let (shifted, _) = step(
-        out.part.clone(),
-        DocEdit::SetOffset {
-            instance: out.node_map[&base],
-            offset: Some(literal([1.0, 0.0, 0.0])),
-        },
-    );
-    let mut shifted_store = p.store.clone();
-    let shifted_ref = shifted_store.insert(shifted, Tol::witness());
-    let (repinned, _) = step(
-        out.remainder.clone(),
-        DocEdit::UpdateReference {
-            node: out.instance,
-            new_pin: shifted_ref.pin,
-        },
-    );
-    let err = editor_core::inline(
-        &repinned,
-        out.instance,
-        &resolver(shifted_store),
-        Tol::witness(),
-    )
-    .expect_err("an inline at an offset over a part not rooted at the empty chain");
-    assert!(
-        matches!(&err, editor_core::InlineError::NeedsAGauge { instance } if instance.id() == out.instance),
-        "{err:?}"
-    );
-    for err in [
-        editor_core::inline(&mated, out.instance, &r, Tol::witness()).unwrap_err(),
-        editor_core::inline(&unplaced, out.instance, &r, Tol::witness()).unwrap_err(),
-    ] {
-        assert!(err.to_string().contains("Recourse:"), "{err}");
-    }
+    assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
 /// **A declaring mate crossing a cut fills the instance's interface

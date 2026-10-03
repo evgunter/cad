@@ -889,7 +889,7 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
             .get_curve_geom(curve_key)
             .and_then(topo::CurveGeom::certified)
             // Null scaffolding carries no description at all.
-            .is_some_and(|c| matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)));
+            .is_some_and(|c| c.description().is_scaffold());
         if !scaffolded {
             continue;
         }
