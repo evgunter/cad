@@ -1025,7 +1025,8 @@ fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
 /// `carrier` over `span` against the plane `x = x0`, as the conic root
 /// lane reads it.
 fn conic_roots(carrier: &geom::Curve3<f64>, span: (f64, f64), x0: f64) -> Result<(), BooleanError> {
-    match crate::splitting::conic_plane_crossing_roots(
+    use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
+    match crate::splitting::plane_crossing_lane(
         carrier,
         span.0,
         span.1,
@@ -1033,12 +1034,16 @@ fn conic_roots(carrier: &geom::Curve3<f64>, span: (f64, f64), x0: f64) -> Result
         Vec3::new(1.0, 0.0, 0.0),
         band(),
     ) {
-        Ok(crate::splitting::ConicPlaneMeet::Roots(Err(fault))) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
-            diag: fault.diag(),
-        }),
-        Ok(_) => Ok(()),
-        Err(()) => panic!("a conic"),
+        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(fault))) => {
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
+                diag: fault.diag(),
+            })
+        }
+        PlaneCrossingLane::Conic(_) => Ok(()),
+        lane @ (PlaneCrossingLane::Line | PlaneCrossingLane::Unlaned) => {
+            panic!("a conic takes the root lane, not {lane:?}")
+        }
     }
 }
 
@@ -1836,6 +1841,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CurvedEdgeUnsupported
+        | BooleanErrorKind::CrossingCarrierUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::ScaffoldingOperand

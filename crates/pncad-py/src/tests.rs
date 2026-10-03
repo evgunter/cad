@@ -4703,6 +4703,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "continuation_contradicted",
             "coplanar_neighbours",
             "corrupt_operand",
+            "crossing_carrier_unsupported",
             "crossing_insertion",
             "curved_boolean_unsupported",
             "curved_edge_unsupported",

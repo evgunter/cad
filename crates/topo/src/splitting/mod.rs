@@ -55,7 +55,7 @@
 
 mod classify;
 pub mod containment;
-pub(crate) use classify::{ConicPlaneMeet, conic_plane_crossing_roots};
+pub(crate) use classify::{ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane};
 pub use classify::{ConicRootFault, CrossingDecision};
 pub(crate) mod finish;
 mod insert;

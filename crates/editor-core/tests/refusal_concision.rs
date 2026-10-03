@@ -254,6 +254,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "CrossingCarrierUnsupported",
+            BooleanError::CrossingCarrierUnsupported {
+                operand: Operand::A,
+                edge,
+                face,
+            },
+        ),
+        (
             "PointSplitCarrierUnsupported",
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,
