@@ -27,11 +27,11 @@ use crate::wire::doctored;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocParam, DocParamValue,
-    DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Frame, Maintenance, MateFault, MateFrame,
-    MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, ParamName,
-    PartResolver, PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach, SitedFace,
-    SitedRef, StableName, Step, Unplaced, ValuePayload, apply, apply_replayed, evaluate, groups,
-    load, product, regauge_then_mate, root_of, save,
+    DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Frame, Maintenance, MateFault,
+    MateFrame, MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind,
+    ParamName, PartResolver, PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach,
+    SitedFace, SitedRef, StableName, Step, Unplaced, ValuePayload, apply, apply_replayed, evaluate,
+    groups, load, product, regauge_then_mate, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, seat_map};
@@ -423,8 +423,7 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
     let done = out.doc;
     let mate = out.mate;
     assert_eq!(
-        out
-            .maintenance
+        out.maintenance
             .iter()
             .filter_map(|row| match row {
                 Maintenance::OffsetCleared { instance, .. } => Some(instance.id()),
