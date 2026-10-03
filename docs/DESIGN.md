@@ -1218,7 +1218,10 @@ trace in its plane and continue tangent to it). Agreement that needs
 more than linear arithmetic, or that holds only because two free
 variables have equal values, is found by the symbolic tier (E12) and
 offered as the one edit that makes it one construction; it never glues
-on its own.
+on its own. Every coincidence decision goes through one door, so a
+later rung — such as the symbolic tier's identities consulted on an
+in-band margin — is one addition there: a rung may only turn a refusal
+into glue, never change a body that already builds.
 
 **Booleans.** A boolean's operands are already in one space. A
 structural coincidence glues; a definite verdict acts; an in-band
