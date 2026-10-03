@@ -34,8 +34,10 @@
 //! accepted iff the in-plane displacement it commands at the loop's
 //! own scale — `(|r_k − n(n·r_k)| / |r_k|) · extent`, not the bare
 //! projected length — is definitely positive (**`point_in_loop_arm`**;
-//! a near-parallel `r_k` is skipped, and a loop collapsed onto `q`
-//! zeroes the arm for *every* member and ends in `RayExhausted`).
+//! a near-parallel `r_k` is skipped, an in-band one abandoned like any
+//! ray-level reading ([`ray_parity::Abandoned`]), and a loop collapsed
+//! onto `q` zeroes the arm for *every* member and ends in
+//! `RayExhausted`).
 //!
 //! # Predicates (all K-tagged, meters)
 //!
@@ -423,13 +425,14 @@ fn polygon_walk<T: Decide>(
     // A ray-level margin in band abandons the ray
     // ([`ray_parity::Abandoned`]).
     let mut abandoned = ray_parity::Abandoned::new();
+    let mut skipped = ray_parity::Abandoned::new();
     let walked = walk_schedule(
         r#loop,
         normal,
         extent,
         "point_in_loop_arm",
-        ArmBand::Escalate,
         band,
+        &mut skipped,
         |d, side_axis| match ray_parity::ray_verdict(points, q, d, side_axis, &ROWS, band) {
             Ok(verdict) => Ok(verdict),
             Err(diag) => {
@@ -440,7 +443,7 @@ fn polygon_walk<T: Decide>(
     );
     match walked {
         Err(exhausted @ PointInLoopError::RayExhausted { .. }) => {
-            Err(abandoned.refusal(|| exhausted))
+            Err(abandoned.refusal(|| skipped.refusal(|| exhausted)))
         }
         walked => walked,
     }
@@ -451,14 +454,16 @@ fn polygon_walk<T: Decide>(
 /// the plane, gated on the in-plane displacement it commands at the
 /// loop's own `extent` (`arm_row`), and handed to `ray` as the in-plane
 /// frame `(d, n̂ × d)`. `ray` answers `Some(inside)` or `None` for a
-/// graze; exhaustion is the loop's typed `RayExhausted`.
+/// graze; exhaustion is the loop's typed `RayExhausted`. An in-band arm
+/// is a reading about one schedule member, not about `q`: the member is
+/// abandoned into `skipped`, as a ray is.
 fn walk_schedule<T: Decide>(
     r#loop: LoopKey,
     normal: Vec3<T>,
     extent: T,
     arm_row: &'static str,
-    arm_band: ArmBand,
     band: Band,
+    skipped: &mut ray_parity::Abandoned<PointInLoopError>,
     mut ray: impl FnMut(Vec3<T>, Vec3<T>) -> Result<Option<bool>, PointInLoopError>,
 ) -> Result<LoopContainment, PointInLoopError> {
     for r in &SCHEDULE {
@@ -476,8 +481,10 @@ fn walk_schedule<T: Decide>(
         match decide(arm_row, arm, band) {
             Ok(Sign::Positive) => {}
             Ok(_) => continue, // near-parallel schedule member: skip
-            Err(_) if arm_band == ArmBand::Retry => continue,
-            Err(diag) => return Err(PointInLoopError::Escalated { r#loop, diag }),
+            Err(diag) => {
+                skipped.abandon(PointInLoopError::Escalated { r#loop, diag });
+                continue;
+            }
         }
         let d = d_raw.normalize();
         let side_axis = normal.cross(d); // in-plane ⟂, unit
@@ -490,16 +497,6 @@ fn walk_schedule<T: Decide>(
         }
     }
     Err(PointInLoopError::RayExhausted { r#loop })
-}
-
-/// What [`walk_schedule`] does with an in-band margin on its arm row,
-/// which is about one schedule MEMBER and not about the point.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ArmBand {
-    /// Escalate — [`point_in_vertex_polygon`]'s posture.
-    Escalate,
-    /// Skip that member, as a near-parallel one is skipped.
-    Retry,
 }
 
 /// The arc-bearing walk's K rows over a loop's STRAIGHT edges — the
@@ -1755,13 +1752,14 @@ fn carrier_walk<T: Decide>(
     // `blocked`, which outranks an abandoned reading as the refusal.
     let mut blocked: Option<Uncrossable> = None;
     let mut abandoned = ray_parity::Abandoned::new();
+    let mut skipped = ray_parity::Abandoned::new();
     let walked = walk_schedule(
         r#loop,
         normal,
         extent,
         "point_in_arc_loop_arm",
-        ArmBand::Retry,
         band,
+        &mut skipped,
         |d, side_axis| {
             // A ray that could meet an uncrossable edge's ball answers
             // nothing: `|w − d·max(w·d, 0)|` is the ray's distance from
@@ -1826,7 +1824,9 @@ fn carrier_walk<T: Decide>(
         // could not be read there, which is not an exhausted schedule.
         Err(PointInLoopError::RayExhausted { .. }) => Err(match blocked {
             Some(u) => PointInLoopError::Uncrossable(u),
-            None => abandoned.refusal(|| PointInLoopError::RayExhausted { r#loop }),
+            None => {
+                abandoned.refusal(|| skipped.refusal(|| PointInLoopError::RayExhausted { r#loop }))
+            }
         }),
         Err(e) => Err(e),
     }
