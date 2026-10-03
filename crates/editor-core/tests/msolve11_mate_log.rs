@@ -239,10 +239,11 @@ const OWN_FRAMES: [&str; 4] = [
 /// - The fold's intersection is decided while the PIN is added to what
 ///   the rest left (`mate_axis_normal_perpendicular`, then the
 ///   membership checks), so it is the pin's and not the rest's.
-/// - The pair's left factor — the pattern's direction, derived for
-///   the pair once its mates are folded (`eval_direction_norm`) — is
-///   the pair's first mate's: the rest's, the mate an UNDER on this
-///   pair would name, and not the pin's.
+/// - The pair's left factor — the pattern's direction and the sign of
+///   its spacing, derived for the pair once its mates are folded
+///   (`eval_direction_norm`, `pattern_spacing`) — is the pair's first
+///   mate's: the rest's, the mate an UNDER on this pair would name,
+///   and not the pin's.
 /// - The rider on the coincidence (`mate_clocking_redundant`) is its
 ///   own mate's.
 #[test]
@@ -282,15 +283,17 @@ fn each_decision_is_on_the_log_of_the_mate_whose_answer_it_decided() {
             .any(|p| p.starts_with("mate_member_") || p.starts_with("mate_axis")),
         "the first mate's log holds no intersection: {rest_log:?}"
     );
-    assert_eq!(
-        rest_log.last(),
-        Some(&"eval_direction_norm"),
+    const LEFT_FACTOR: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
+    assert!(
+        rest_log.ends_with(&LEFT_FACTOR),
         "the pair's left factor is the first mate's, decided after the fold: {rest_log:?}"
     );
-    assert!(
-        !on(&pin_log, "eval_direction_norm") && !on(&coincidence_log, "eval_direction_norm"),
-        "the left factor is on no other mate's log: {pin_log:?} {coincidence_log:?}"
-    );
+    for p in LEFT_FACTOR {
+        assert!(
+            !on(&pin_log, p) && !on(&coincidence_log, p),
+            "the left factor's {p} is on no other mate's log: {pin_log:?} {coincidence_log:?}"
+        );
+    }
     assert_eq!(
         coincidence_log[OWN_FRAMES.len()..],
         ["mate_clocking_redundant"],
