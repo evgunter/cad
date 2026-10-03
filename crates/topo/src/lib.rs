@@ -288,8 +288,8 @@ pub mod test_support {
         CubeOps, CylFrame, CylKey, FaceGeometry, Prism, PrismOps, RingFaceOps, StraddleSeat,
         assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
         cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, flush_declarations,
-        geometric_cube, holed_block, identity_map, line, mapped_cube, plane, plant_ring_face,
-        prism, prism_ops, prism_z, split_plane, straddle_seat,
+        geometric_cube, holed_block, identity_map, line, mapped_cube, plane, plant_disc_face,
+        plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
 
@@ -625,18 +625,19 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Coincide,
-    CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError, Contradiction, Corruption,
-    CurveContact, DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration, HeldEdge,
-    LeverArm, NeighbourOffset, NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite,
-    PairSite, PairUnread, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
-    PlaneRelation, PlaneRung, PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling,
-    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy,
-    SweepTrace, TorusConvention, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared,
-    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    insert_void, insert_voids, intersect, intersect_with, lineage_root, oriented_plane_eq,
-    point_in_solid, point_in_solid_faces, point_in_solid_of, subtract, subtract_with,
-    tangent_pair_relation, union, union_with,
+    CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError,
+    Contradiction, Corruption, CurveContact, DeclarationRead, DiscardRow, FaceContainment,
+    FacePairDeclaration, HeldEdge, LeverArm, NeighbourOffset, NullEdgePairRecord, Operand,
+    OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact, PierceRingRecord,
+    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError,
+    RestZipFrontier, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode, SolidContainment,
+    SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TorusConvention, VfContact,
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, intersect_with, lineage_root, oriented_plane_eq, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
+    union_with,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
@@ -703,7 +704,7 @@ pub use pcurves::{
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
     ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate,
-    TargetUnreached, VolumeEnclosure, classify_shells, classify_shells_of,
+    TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells, classify_shells_of,
     classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
