@@ -6138,3 +6138,35 @@ same A/B mapping. They check:
 - whether one derivation works across `Chart` and `Intersection`;
 - whether the per-op check holds with legitimately transient strands;
 - what wrong-answer paths remain.
+
+## PR 3970, round 3: both designers recommend a corrected B+ (2026-10-03)
+
+Both reports are posted verbatim (`5971199683`), and the archive holds
+`design-kef-A-r3.md` and `design-kef-B-r3.md`.
+
+**Agreed corrections to my B+:**
+- A token on its own is advisory: the fields are `pub` behind
+  `pub(crate)` accessors.
+- No write site has a cycle: `vouch_move` already runs in the plan.
+- The per-op feature runs only `surgery::tests` and ignores surgery
+  scopes.
+- The right cut is three restaters into one, which re-certifies, while
+  the certificate-carrying maps (`with_remapped_surfaces`,
+  `with_chart_v_mirrored`) stay apart.
+- A chartless arm belongs inside `vouch_move`.
+- The adjacency predicate has three copies (`Named::adjacent_to`,
+  `require_description_adjacent` and tier 3's inline check). Fix that
+  regardless.
+
+**Split, three choices for Ev:**
+1. **Confining the writes:** private fields (B) or an allowlist gate (A).
+2. **The naming check:** promote it to tier 1 (B, which edits D1's
+   tier-1 list, Ev's M1 text) or keep one predicate plus the scope-close
+   assertion (A).
+3. **Key swaps:** the twin derives them (A), or the caller passes them in
+   (B, per ruling 4).
+
+**Off-question defects to file once Ev rules:**
+- the three-home adjacency predicate;
+- two readings of a listed spec's keys (`repoint` against literal);
+- `loop_rekeyed` and `carried_spec` disagreeing on chart images.
