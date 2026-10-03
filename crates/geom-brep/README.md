@@ -174,25 +174,26 @@ vertex lies on a face stays the
 consumer's decision, and the exact empty answer stands outside the
 domain. Every root is settled onto both surfaces, or refuses
 `SsiError::EndNotOnLocus`. The crossings are the only ends a branch has
-on this lane: a trace runs from one to the unused crossing on the side
-it leaves, the one nearest where its last step meets that side, its
-step capped at a fifth of the distance to the nearest crossing not yet
-used, so at most a fifth of the branch's; a march that leaves where no
-crossing matches refuses as the march's limit
-(`SsiError::CrossingUnmatched`). The plane's window must hold the
+on this lane, and between them the simplest candidate is tried first:
+from a crossing, the Hermite cubic to the nearest crossing not yet
+used, through their tangents, one span exact at both ends. Where the
+certificate refuses it, a march runs from the crossing to the unused
+crossing on the side it leaves, the one nearest where its last step
+meets that side, its step capped at a fifth of the distance to the
+nearest crossing not yet used, so at most a fifth of the branch's; a
+march that leaves where no crossing matches refuses as the march's
+limit (`SsiError::CrossingUnmatched`). The plane's window must hold the
 wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
 march ends only at the knot rectangle. The ℝ³ lane still ends an open
 branch at the caller's slab by its boundary search
 (`ssi_branch_open_end`), and the slab is not
-geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). Where the march
-cannot progress, its step falling in the band (`StepCollapsed`, or
-undecided there), the candidate is the Hermite cubic from its crossing
-to the nearest crossing not yet used, through their tangents. Either
-way the
-certificate decides; a Hermite candidate it refuses on a branch too
-short for a fifth of it to clear the band is a sized refusal in the
-branch's length (`SsiError::ShortBranchUncertified`), and on a longer
-one the march's refusal stands. The extent keeps its other roles:
+geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). Neither candidate
+is trusted, its pairing of crossings included: the certificate decides
+each, and a cubic to another branch's crossing leaves the locus, which
+limbs 1 and 2 refuse. Where neither certifies,
+the march's refusal stands, except on a branch too short for a fifth
+of it to clear the band, which is a sized refusal in the branch's
+length (`SsiError::ShortBranchUncertified`). The extent keeps its other roles:
 the lever arm's clamp, the seeding floor and the tube ladder.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
