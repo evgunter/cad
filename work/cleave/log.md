@@ -389,3 +389,13 @@ the above — land it as planned. Park each row the hold covers
 (`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
 so the row fires when the ruling closes). If that leaves your program
 with nothing it may start, set its `status` to `blocked` and stop.
+- Mints step 1 (PR 3979) merged after its fix pass. The MAJOR was fixed and checked against the diff: a gate's rejection carries a tag (the decided sign and the signs the gate passes) inside `MarginDiag`'s private reading, so no struct literal changed. A tolerance is offered only where a smaller one decides the margin onto a passing side.
+  - The MINORs and style items are done. The past-band "declare" offer is fixed at the bare Display; site lever lists go to step 4.
+  - Closes VERDICT's `decide-positive-synthesizes-invalid-for-a-decided-zero`.
+  - Step 2 (typed `Coincidence`, the six `is_invalid()` readers) dispatched as cloud lane `cleave/mints-coincidence`.
+- Steep tube (PR 3981) fix pass is done:
+  - the tip ratio is pinned per link count, with its trend asserted and the one-number claim retired;
+  - one `escape` helper;
+  - the azimuth-period row filed.
+
+  DR-64 rides the PR as its last commit, and it merges when CI is green.
