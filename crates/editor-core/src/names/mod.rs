@@ -66,7 +66,7 @@ pub(crate) use emit_union::{
 pub use flush::{
     BooleanCoincidence, CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict,
     DeclareError, DeclaredContact, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare,
-    declare_all, declare_node, find_flush_candidates,
+    declare_all, declared_pairs, find_flush_candidates,
 };
 pub use geompred::{
     Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,

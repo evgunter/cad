@@ -1415,6 +1415,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     carrier: topo::UncrossableCarrier::Spiric,
                 })),
             ),
+            (
+                "RingHoming(OffPlane)",
+                J::RingHoming(topo::PointInLoopError::OffPlane(topo::OffPlane {
+                    r#loop: LoopKey::default(),
+                    cause: topo::OffPlaneCause::Query,
+                })),
+            ),
             ("UnpairedLooseEnds", J::UnpairedLooseEnds { count: 3 }),
             (
                 "SingleSiteSectionLoop",
@@ -1463,6 +1470,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::SectionInvariant {
                     face,
                     what: "a section arc with no endpoint on the face's boundary",
+                },
+            ),
+            (
+                "RingOffCylinderChart",
+                J::RingOffCylinderChart {
+                    face,
+                    kind: geom::SurfaceKind::Sphere,
                 },
             ),
             ("SectionNotPolar", J::SectionNotPolar { face, band: band() }),

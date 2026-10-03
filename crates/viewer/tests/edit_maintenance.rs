@@ -1,10 +1,9 @@
 //! **What an accepted edit did that the user did not ask for, carried
 //! to the chrome** (`crates/editor-core/REFERENCES.md` DM7).
 //!
-//! The edit door reports a stranded payload name, a stranded
-//! appearance key and a declaration left with no consumer on
-//! `Applied::maintenance`, and a mate that joined two groups reports the
-//! offset it cleared; a value edit reports nothing, because a
+//! The edit door reports a stranded payload name and a stranded
+//! appearance key on `Applied::maintenance`, and a mate that joined
+//! two groups reports the offset it cleared; a value edit reports nothing, because a
 //! profile's names are its minted steps and no value moves one. The log
 //! keeps only the edits, because replay re-derives every row, so the
 //! session's outcome is the one road the rows have to a user.
@@ -26,8 +25,8 @@ use test_utils::refusal::tagged;
 use editor_core::{Attr, Rgba8};
 use pncad::document::{
     Datum, Dimension, Doc, DocEdit, DocParam, LoopProgram, Maintenance, Node, ParamName,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, SpokenName,
-    SpokenNode, StepArg, cascade_delete_order,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, SpokenName, SpokenNode,
+    StepArg,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
@@ -166,69 +165,6 @@ fn a_delete_that_strands_a_payload_name_reaches_the_line() {
     );
 }
 
-/// **A strand whose carrier evaluates cleanly is said nowhere else**,
-/// which is why `frame::maintenance_notice` cannot answer a strand
-/// `Retold::Again`.
-///
-/// A `Declare` carries its members' names in its payload
-/// (`Node::payload_names`) and evaluates to that payload without
-/// resolving them. Deleting a member strands the declaration's name for
-/// it, and after the delete lands every tree row reads `Ok`: no fault
-/// will ever say the name resolves to nothing. So a refusal in the same
-/// frame must not take the sentence — it rides beside the refusal.
-#[test]
-fn a_strand_on_a_declaration_rides_beside_a_refusal() {
-    use viewer::session::{Refusal, Step};
-
-    let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-declare-strand", Tol::witness());
-    let (doc, _union, declare) = declared_union(&doc);
-    let Some(Node::Declare { .. }) = doc.node(declare) else {
-        panic!("the premise: the carrier is a declaration");
-    };
-    let member = doc
-        .node(declare)
-        .map(|node| node.payload_names())
-        .and_then(|names| names.first().map(|name| name.node))
-        .expect("the declaration names its members");
-
-    let mut session = DocSession::inline(doc, Tol::witness());
-    let delete = SessionOp::DeleteNode { node: member };
-    let outcome = session.perform(delete.clone());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let strand = outcome
-        .maintenance
-        .iter()
-        .find(|row| matches!(row, Maintenance::Strand { node, .. } if node.id() == declare))
-        .expect("the delete strands the declaration's name for the member");
-
-    // Nothing else says it: the delete lands and no row fails.
-    session.pump();
-    let (landed, eval) = session.landed_pair().expect("the delete lands");
-    let faults: Vec<String> =
-        viewer::tree::rows(landed, Some(eval), &viewer::parts::PartFiles::default())
-            .iter()
-            .filter_map(|row| row.status.message().map(str::to_owned))
-            .collect();
-    assert_eq!(faults, Vec::<String>::new(), "every row evaluates cleanly");
-
-    // So a refusal in the same frame leaves it on the line.
-    let notices: Vec<frame::Message> = frame::outcome_notices(&outcome).collect();
-    let refusal = Refusal::NothingToDo {
-        direction: Step::Undo,
-    };
-    let RankedVerdict::Show(line) =
-        frame::frame_status(&notices, &[delete, SessionOp::Undo], Some(&refusal))
-    else {
-        panic!("a refusing frame shows its refusal");
-    };
-    let told: Vec<&str> = line.text().split(frame::NOTICE_SEPARATOR).collect();
-    assert_eq!(told.first(), Some(&"nothing to undo"));
-    assert!(
-        told.contains(&strand.to_string().as_str()),
-        "the strand rides beside the refusal: {line}"
-    );
-}
-
 /// **Every worded maintenance row rides beside a refusal**, each by its
 /// own arm: none can show that anything will say it again
 /// (`frame::maintenance_notice` gives each arm's reason).
@@ -249,9 +185,6 @@ fn every_maintenance_row_rides_beside_a_refusal() {
             name: face(7),
         },
         Maintenance::StrandedAppearance { name: face(8) },
-        Maintenance::OrphanedDeclare {
-            declare: SpokenNode::absent(RecipeNodeId(tagged(5))),
-        },
     ];
     let notices: Vec<frame::Message> = rows
         .iter()
@@ -262,8 +195,8 @@ fn every_maintenance_row_rides_beside_a_refusal() {
             .iter()
             .map(frame::Message::retold)
             .collect::<Vec<_>>(),
-        [frame::Retold::Never; 3],
-        "strand, stranded appearance, orphaned declaration"
+        [frame::Retold::Never; 2],
+        "strand, stranded appearance"
     );
 
     let refusal = Refusal::NothingToDo {
@@ -281,9 +214,7 @@ fn every_maintenance_row_rides_beside_a_refusal() {
          resolves to nothing until it is rebound \u{2022} the appearance store holds an \
          attachment under a face name minted by node 000000000008; this edit removed what it denoted (its \
          minting node, or the profile segment it named), so the name resolves to nothing until \
-         it is rebound or cleared \u{2022} node 000000000005 declares contacts and this edit deleted the \
-         last node that consumed it, so no node consumes the declaration until a boolean or \
-         union names it again"
+         it is rebound or cleared"
     );
 }
 
@@ -321,90 +252,6 @@ fn a_delete_that_strands_an_appearance_key_reaches_the_line() {
         "the deleted node's key, and not the kept block's"
     );
     assert_line_words(&line_after(&outcome, op), &expected);
-}
-
-/// Two overlapping blocks, a declaration of one pair of their walls, and a union
-/// consuming it; `(doc, union, declare)`.
-fn declared_union(doc: &Doc<ProfileProgram>) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
-    let tol = Tol::witness();
-    let (doc, a) = block(doc, 0.0);
-    let (doc, b) = block(&doc, 0.5);
-    let (doc, declare) = common::inserted(
-        &doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(a, wall(&doc, a, 0, 0)),
-            SitedRef::new(b, wall(&doc, b, 0, 0)),
-        )]),
-        tol,
-    );
-    let (doc, union) = common::inserted(
-        &doc,
-        Node::Union {
-            members: vec![a, b],
-            declare: Some(declare),
-        },
-        tol,
-    );
-    (doc, union, declare)
-}
-
-/// **A delete that takes a declaration's last consumer reports the
-/// orphan.**
-#[test]
-fn a_delete_that_orphans_a_declaration_reaches_the_line() {
-    let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-orphan", Tol::witness());
-    let (doc, union, declare) = declared_union(&doc);
-
-    let expected = vec![Maintenance::OrphanedDeclare {
-        declare: doc.spoken(declare),
-    }];
-    let mut session = DocSession::inline(doc, Tol::witness());
-    let op = SessionOp::DeleteNode { node: union };
-    let outcome = session.perform(op.clone());
-    assert_eq!(outcome.maintenance, expected);
-    assert_line_words(&line_after(&outcome, op), &expected);
-}
-
-/// **A cascade's transient is not news.** Deleting the declaration
-/// cascades its union first, and that step alone reports the
-/// declaration orphaned — the next step deletes it. The door's rows
-/// are per edit; the outcome is the ACTION's, and the action leaves
-/// nothing orphaned, so the line says nothing about it.
-#[test]
-fn a_cascade_reports_nothing_its_own_later_steps_took_back() {
-    let tol = Tol::witness();
-    let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-cascade", tol);
-    let (doc, union, declare) = declared_union(&doc);
-    assert_eq!(
-        cascade_delete_order(&doc, declare),
-        vec![union, declare],
-        "the premise: the union goes first"
-    );
-    let step = pncad::document::apply(
-        &doc,
-        &DocEdit::DeleteNode { id: union },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the union's delete lands");
-    assert_eq!(
-        step.maintenance,
-        vec![Maintenance::OrphanedDeclare {
-            declare: doc.spoken(declare),
-        }],
-        "the premise: the cascade's first step reports the orphan"
-    );
-
-    let mut session = DocSession::inline(doc, tol);
-    let outcome = session.perform(SessionOp::DeleteNode { node: declare });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 2, "both nodes went, as one action");
-    assert_eq!(
-        outcome.maintenance,
-        Vec::new(),
-        "the orphan's subject went in the same action"
-    );
-    assert_eq!(frame::outcome_notices(&outcome).count(), 0);
 }
 
 /// A triangle `(0,0) → (2,0) → (1,1)`, counterclockwise, extruded, with

@@ -418,8 +418,9 @@ geometry. This is the declare arm's protocol:
 `FlushFinding` values — the contact verifier itself run in
 candidate-generation mode, so a finding can never disagree with
 the boolean's own verify-at-use — and `declare` /
-`declare_all` turn findings the caller has INSPECTED into the
-shipped `Node::Declare` vocabulary. Detection and declaration are
+`declare_all` set findings the caller has INSPECTED as a live
+boolean's or union's declared pairs (the `SetDeclare` edit; a new
+node takes them as its `declare` list). Detection and declaration are
 separate doors on purpose (the ruled no-fusion boundary): findings
 pass through your hands as values, never straight into a recipe.
 
@@ -465,11 +466,11 @@ let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5)
 
 // Undeclared, the union refuses — coincidence is never inferred
 // from values (the coincidence ladder).
-let (undeclared, uni) = insert(
+let (doc, uni) = insert(
     &doc,
-    Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: None },
+    Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: Vec::new() },
 );
-let ev = evaluate::<f64>(&undeclared, None, &CancelToken::new(), &EvalOptions::default(), tol);
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
     panic!("the undeclared union must refuse");
 };
@@ -481,23 +482,19 @@ let NodeErrorKind::UndeclaredCoincidence { finding, .. } = &e.kind else {
 };
 assert_eq!(finding.class, BooleanCoincidence::REST);
 
-// The declare arm: detect, INSPECT, declare, and the SAME doors
-// that refused now verify the declared contact. (Declaring the
-// menu's own finding — `declare(&doc, finding)` — is the same
-// door; the detector shows the full inventory.)
-let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+// The declare arm: detect, INSPECT, declare on the live union,
+// and the SAME node that refused now verifies the declared contact.
+// (Declaring the menu's own finding — `declare(&doc, uni, finding)`
+// — is the same door; the detector shows the full inventory.)
 let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
 assert_eq!(findings.len(), 1);
 assert_eq!(findings[0].class, BooleanCoincidence::REST);
-let (applied, decl) = declare_all(&doc, &findings, tol).expect("declarable");
+let applied = declare_all(&doc, uni, &findings, tol).expect("declarable");
 // `applied` is the accepted edit whole: the document, and the
-// maintenance the insert performed. A caller that keeps
-// a mirror of that record takes both together; this one keeps none.
+// maintenance the edit performed (none — a declaration moves no
+// group). A caller that keeps a mirror of that record takes both
+// together; this one keeps none.
 let doc = applied.doc;
-let (doc, uni) = insert(
-    &doc,
-    Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: Some(decl) },
-);
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let ValuePayload::Boolean(BooleanValue::Body { body, .. }) =
     &ev.value(uni).expect("the declared union evaluates").payload

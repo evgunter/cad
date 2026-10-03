@@ -404,6 +404,22 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
     }
 }
 
+/// The trace of [`implicit_hessian_form`]'s Hessian restricted to the
+/// tangent plane at `p`, `tr H − n̂ᵀHn̂` with `n̂` the unit gradient: over
+/// `|∇F|`, the sum of the principal curvatures, signed against the
+/// gradient. Branch-free (no basis choice). Poison in, poison out.
+pub(crate) fn implicit_restricted_trace<T: Real>(
+    s: &Surface<T>,
+    p: Point3<T>,
+    n_hat: Vec3<T>,
+) -> T {
+    let form = |d| implicit_hessian_form(s, p, d);
+    form(Vec3::new(T::one(), T::zero(), T::zero()))
+        + form(Vec3::new(T::zero(), T::one(), T::zero()))
+        + form(Vec3::new(T::zero(), T::zero(), T::one()))
+        - form(n_hat)
+}
+
 /// The **largest normal-curvature magnitude** of `s` at `p` over its
 /// tangent plane (1/meters) — the direction-free second-order datum
 /// the C12.2 tangent-contact descent classifies against (M5 PR 9):
@@ -431,9 +447,7 @@ pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T
     let hxy = (implicit_hessian_form(s, p, ex + ey) - hxx - hyy) / two;
     let hyz = (implicit_hessian_form(s, p, ey + ez) - hyy - hzz) / two;
     let hxz = (implicit_hessian_form(s, p, ex + ez) - hxx - hzz) / two;
-    // Restricted trace: tr H − n̂ᵀHn̂.
-    let n_form = implicit_hessian_form(s, p, n_hat);
-    let tr_r = hxx + hyy + hzz - n_form;
+    let tr_r = implicit_restricted_trace(s, p, n_hat);
     // Restricted determinant: n̂ᵀ adj(H) n̂ (cofactors, fixed order).
     let adj_xx = hyy * hzz - hyz.powi(2);
     let adj_yy = hxx * hzz - hxz.powi(2);

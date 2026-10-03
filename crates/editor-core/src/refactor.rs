@@ -81,7 +81,7 @@
 //! # Names re-anchor across the seam (the bridge, both directions)
 //!
 //! Split rewrites every remainder-side reference to a cut entity —
-//! Declare pairs, fillet selections, appearance keys — from its local
+//! declared pairs, fillet selections, appearance keys — from its local
 //! name to the `InPart`-wrapped name at the new instance (a recorded
 //! [`DocEdit::Rebind`] per name), which is exactly how "every stable
 //! name that resolved before resolves after, through the instance
@@ -117,8 +117,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::doc::{Doc, NameCarrier};
-use crate::edit::{DocEdit, EditError, apply};
-use crate::edit::{Maintenance, MaintenanceNet};
+use crate::edit::Maintenance;
+use crate::edit::{DocEdit, EditError, Recorded, Recording};
 use crate::ident::{DocRef, DocumentId};
 use crate::names::{
     Carry, EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
@@ -279,7 +279,7 @@ fn gauges_first(source: &ProfileDoc, olds: &[RecipeNodeId]) -> Vec<RecipeNodeId>
 /// same re-statement, with no solve.
 ///
 /// A name the maps lack whose missing id belongs to a node still to
-/// come is a FORWARD reference (a Declare or a blend selection rebound
+/// come is a FORWARD reference (a declared pair or a blend selection rebound
 /// onto a later node): no order of inserts satisfies it, and it refuses
 /// as the insert door would, [`EditError::DeclareNamesMissingNode`],
 /// spelled in `source`'s ids and so spoken from `source` (see
@@ -291,8 +291,7 @@ fn gauges_first(source: &ProfileDoc, olds: &[RecipeNodeId]) -> Vec<RecipeNodeId>
 fn carry<E>(
     source: &ProfileDoc,
     olds: &[RecipeNodeId],
-    target: &mut Recording,
-    (tol, reach): (Tol, &dyn crate::mate::MateReach),
+    target: &mut Recording<'_, ProfileProgram>,
     (world, carried_gauge, settle): (
         Option<RecipeNodeId>,
         impl Fn(RecipeNodeId) -> bool,
@@ -335,33 +334,20 @@ fn carry<E>(
             Err(other) => return Err(miss(old, other)),
         };
         settle(old, &mut carried);
-        let new = target
-            .apply(
-                DocEdit::InsertNode {
-                    node: Box::new(carried),
-                },
-                tol,
-                reach,
-            )
-            .map_err(&edit)?
-            .unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
+        let new = target.insert(carried).map_err(&edit)?;
         node_map.insert(old, new);
-        if let Some(Node::InstantiatePart { offset, .. }) = target.doc.node(new) {
+        if let Some(Node::InstantiatePart { offset, .. }) = target.doc().node(new) {
             stated.push((new, offset.clone()));
         }
         if let Some(label) = source.label(old) {
             target
-                .apply(
-                    DocEdit::SetLabel {
-                        node: new,
-                        label: Some(label.clone()),
-                    },
-                    tol,
-                    reach,
-                )
+                .apply(DocEdit::SetLabel {
+                    node: new,
+                    label: Some(label.clone()),
+                })
                 .map_err(&edit)?;
         }
-        if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc.node(new)) {
+        if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc().node(new)) {
             let shape = |ids: &[Vec<StepId>]| ids.iter().map(Vec::len).collect::<Vec<_>>();
             if shape(&from.ids) != shape(&to.ids) {
                 unreachable!(
@@ -381,7 +367,7 @@ fn carry<E>(
         }
     }
     for (instance, offset) in stated {
-        let Some(Node::InstantiatePart { offset: held, .. }) = target.doc.node(instance) else {
+        let Some(Node::InstantiatePart { offset: held, .. }) = target.doc().node(instance) else {
             unreachable!(
                 "the carry only inserts and labels, so every instance it inserted is live and \
                  still an instance"
@@ -389,7 +375,7 @@ fn carry<E>(
         };
         if *held != offset {
             target
-                .apply(DocEdit::SetOffset { instance, offset }, tol, reach)
+                .apply(DocEdit::SetOffset { instance, offset })
                 .map_err(&edit)?;
         }
     }
@@ -680,7 +666,7 @@ pub enum SplitError {
     },
     /// Replaying the constructed part-side edits refused — a
     /// construction bug in this module or a document state its edit
-    /// vocabulary cannot re-author (e.g. a Declare rebound to a node
+    /// vocabulary cannot re-author (e.g. a declared pair rebound to a node
     /// inserted after it, which no insertion order can satisfy).
     /// Surfaced typed, never absorbed.
     PartEdit {
@@ -1450,7 +1436,9 @@ impl core::fmt::Display for ReplayTail<'_> {
         let Self(error, replay) = *self;
         match error {
             // A payload name on a node inserted AFTER the one carrying
-            // it — a Declare or a blend selection rebound forward. The
+            // it — a blend selection or a frame's face rebound forward
+            // (a declared pair cannot be: its doors refuse a name not
+            // minted before its node). The
             // replay inserts in document order, so no order satisfies
             // it. The remainder inserts one instance, whose names the
             // replay wrote itself.
@@ -1508,6 +1496,9 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::RepeatedDesignation { .. }
             | EditError::SelectionNotCanonical { .. }
             | EditError::SetMembersOnNonList { .. }
+            | EditError::SetDeclareOnNonDeclaring { .. }
+            | EditError::DeclaredSiteNotAnOperand { .. }
+            | EditError::DeclaredNameNotUpstream { .. }
             | EditError::SetProgramOnNonProfile { .. }
             | EditError::StepIdsRefused { .. }
             | EditError::NodeIdCollides { .. }
@@ -1523,7 +1514,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PayloadDocParamDimension { .. }
             | EditError::MeasureMalformed { .. }
             | EditError::AssertionTarget { .. }
-            | EditError::DeclareInputNotDeclare { .. }
             | EditError::AssertionDimension { .. }
             | EditError::ContinuousParamCannotBeCount { .. }
             | EditError::DocParamNotDeclared { .. }
@@ -1592,7 +1582,7 @@ pub struct SplitOutcome {
     /// The recorded edits producing `remainder` from the input.
     pub remainder_edits: Vec<DocEdit<ProfileProgram>>,
     /// The maintenance `remainder_edits` reported, net of what a later
-    /// edit in the list took back ([`MaintenanceNet`]), in edit order:
+    /// edit in the list took back ([`crate::MaintenanceNet`]), in edit order:
     /// a payload name a departing cut node stranded behind it (DM7)
     /// that `remainder` still carries. A refactoring is one action, so
     /// the outcome carries what the action did beside what it
@@ -1603,7 +1593,7 @@ pub struct SplitOutcome {
     /// `Doc::empty(part_id)`.
     pub part_edits: Vec<DocEdit<ProfileProgram>>,
     /// The maintenance `part_edits` reported, net of what a later edit
-    /// in the list took back ([`MaintenanceNet`]), in edit order. The
+    /// in the list took back ([`crate::MaintenanceNet`]), in edit order. The
     /// carry re-states every offset a carried mate's insert cleared,
     /// so no [`Maintenance::OffsetCleared`] for a carried node
     /// survives.
@@ -1630,7 +1620,7 @@ pub struct InlineOutcome {
     /// The recorded edits producing `doc` from the input.
     pub edits: Vec<DocEdit<ProfileProgram>>,
     /// The maintenance `edits` reported, net of what a later edit in
-    /// the list took back ([`MaintenanceNet`]), in edit order. The
+    /// the list took back ([`crate::MaintenanceNet`]), in edit order. The
     /// carry re-states every offset a spliced mate's insert cleared,
     /// so no [`Maintenance::OffsetCleared`] for a carried node
     /// survives. A refactoring is one action; a caller holding a
@@ -1643,60 +1633,6 @@ pub struct InlineOutcome {
     /// The part's profile step ids → the ids the host minted for them,
     /// in the same order.
     pub step_map: StepMap,
-}
-
-/// A document under reconstruction by recorded edits: the value so
-/// far, the edits that produce it, and the maintenance those edits
-/// performed, folded into a [`MaintenanceNet`]. The ONE place a
-/// refactoring takes an accepted edit up, which is what keeps each
-/// [`apply`] result's document and maintenance together — the
-/// record's minted id goes back to the caller, and its `structural`
-/// bit is a fact of the edit already in the list. A refactoring is one
-/// action of several edits, so an outcome built from one reports what
-/// the action did, net of what a later edit in the list took back,
-/// beside what it produced.
-struct Recording {
-    doc: ProfileDoc,
-    edits: Vec<DocEdit<ProfileProgram>>,
-    maintenance: MaintenanceNet,
-}
-
-impl Recording {
-    fn start(doc: ProfileDoc) -> Self {
-        Self {
-            doc,
-            edits: Vec::new(),
-            maintenance: MaintenanceNet::new(),
-        }
-    }
-
-    /// Apply one edit and record it: the new document replaces the
-    /// held one, the edit joins the list, and the maintenance the edit
-    /// performed is folded in, in edit order. Returns the id the edit
-    /// minted, if any.
-    ///
-    /// # Errors
-    ///
-    /// The edit's own refusal; nothing is recorded on that arm.
-    fn apply(
-        &mut self,
-        edit: DocEdit<ProfileProgram>,
-        tol: Tol,
-        reach: &dyn crate::mate::MateReach,
-    ) -> Result<Option<RecipeNodeId>, EditError> {
-        let applied = apply(&self.doc, &edit, tol, reach)?;
-        self.maintenance.push(&applied);
-        self.doc = applied.doc;
-        self.edits.push(edit);
-        Ok(applied.record.minted)
-    }
-
-    /// The document, its edit list, and the rows that survive against
-    /// the document the list ends at.
-    fn finish(self) -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, Vec<Maintenance>) {
-        let maintenance = self.maintenance.finish(&self.doc);
-        (self.doc, self.edits, maintenance)
-    }
 }
 
 // ---- Name and node remapping ----
@@ -1883,6 +1819,33 @@ fn remap_rule(
             step: step.clone(),
         },
     })
+}
+
+/// Rewrites a Boolean's or Union's declared pairs. Each half remaps
+/// like a mate's head: the NAME through the name door and the SITE
+/// through the id door, because a site is a node id. Either one the cut
+/// severed makes the remap MISS loudly.
+///
+/// # Errors
+///
+/// The first [`RemapMiss`].
+fn remap_declared(
+    pairs: &[crate::DeclaredPair],
+    id: &impl Fn(RecipeNodeId) -> Result<RecipeNodeId, RemapMiss>,
+    nm: &impl Fn(&StableName) -> Result<StableName, RemapMiss>,
+) -> Result<Vec<crate::DeclaredPair>, RemapMiss> {
+    pairs
+        .iter()
+        .map(|((a, b), class)| {
+            Ok((
+                (
+                    crate::node::SitedRef::new(id(a.at)?, nm(&a.name)?),
+                    crate::node::SitedRef::new(id(b.at)?, nm(&b.name)?),
+                ),
+                *class,
+            ))
+        })
+        .collect()
 }
 
 /// Rewrites a node payload's id references — DAG inputs AND
@@ -2072,11 +2035,11 @@ fn remap_node(
             op: *op,
             a: id(*a)?,
             b: id(*b)?,
-            declare: declare.map(id).transpose()?,
+            declare: remap_declared(declare, &id, &nm)?,
         },
         Node::Union { members, declare } => Node::Union {
             members: members.iter().map(|&m| id(m)).collect::<Result<_, _>>()?,
-            declare: declare.map(id).transpose()?,
+            declare: remap_declared(declare, &id, &nm)?,
         },
         Node::Transform { input, placement } => Node::Transform {
             input: id(*input)?,
@@ -2097,24 +2060,6 @@ fn remap_node(
             input: id(*input)?,
             count: count.clone(),
             kind: remap_rule(kind, &id)?,
-        },
-        // A declared pair's two halves remap like a mate's: the
-        // NAME through the name door and the SITE through the id
-        // door, because a site is a node id. Either one the cut
-        // severed makes the remap MISS loudly.
-        Node::Declare { pairs } => Node::Declare {
-            pairs: pairs
-                .iter()
-                .map(|((a, b), class)| {
-                    Ok((
-                        (
-                            crate::node::SitedRef::new(id(a.at)?, nm(&a.name)?),
-                            crate::node::SitedRef::new(id(b.at)?, nm(&b.name)?),
-                        ),
-                        *class,
-                    ))
-                })
-                .collect::<Result<_, RemapMiss>>()?,
         },
         // The reference crosses verbatim (the function's docs say why);
         // the gauge it sits on is the one id it holds, and the door
@@ -2212,8 +2157,8 @@ fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamNam
 // ---- Split ----
 
 /// **Whether a node, as a root, denotes a body** — what a product
-/// gathers. A datum, a profile, a gauge, a mate, a declaration, a
-/// measure and an assertion denote none. Exhaustive, so a new node
+/// gathers. A datum, a profile, a gauge, a mate, a measure and an
+/// assertion denote none. Exhaustive, so a new node
 /// kind is classified here.
 fn denotes_a_body(node: &Node<ProfileProgram>) -> bool {
     match node {
@@ -2221,7 +2166,6 @@ fn denotes_a_body(node: &Node<ProfileProgram>) -> bool {
         | Node::Profile(_)
         | Node::Gauge { .. }
         | Node::Mate { .. }
-        | Node::Declare { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => false,
         Node::Extrude { .. }
@@ -2723,19 +2667,21 @@ pub fn split(
     // a Join at most, never a moved root — so they lever through the
     // caller's own seam; the remainder side, below, needs more.
     let part_reach = crate::eval::PartReach::<f64>::with_resolver(resolver, tol);
-    let mut part = Recording::start(Doc::empty(part_id, tol));
-    let part_apply =
-        |part: &mut Recording, edit: DocEdit<ProfileProgram>| -> Result<(), SplitError> {
-            part.apply(edit, tol, &part_reach)
-                .map(|_| ())
-                .map_err(|error| SplitError::PartEdit {
-                    error: Box::new(error),
-                })
-        };
+    let empty = Doc::empty(part_id, tol);
+    let mut part = Recording::start(&empty, tol, &part_reach);
+    let part_apply = |part: &mut Recording<'_, ProfileProgram>,
+                      edit: DocEdit<ProfileProgram>|
+     -> Result<(), SplitError> {
+        part.apply(edit)
+            .map(|_| ())
+            .map_err(|error| SplitError::PartEdit {
+                error: Box::new(error),
+            })
+    };
     // The recorded ε carries over iff it differs from what the empty
     // document adopts (the committed process ε — the only value a
     // document this process can evaluate records anyway).
-    if doc.epsilon().to_bits() != part.doc.epsilon().to_bits() {
+    if doc.epsilon().to_bits() != part.doc().epsilon().to_bits() {
         part_apply(&mut part, DocEdit::SetTolerance { eps: doc.epsilon() })?;
     }
     for param in cut_refs.keys() {
@@ -2757,7 +2703,6 @@ pub fn split(
         doc,
         &in_order,
         &mut part,
-        (tol, &part_reach),
         (
             // A gauge reference leaving the cut lands on the anchor,
             // which is the part's world; one inside it lands on the
@@ -2821,10 +2766,10 @@ pub fn split(
         .iter()
         .filter_map(|r| node_map.get(r).copied())
         .collect();
-    if part.doc.roots() != part_roots {
+    if part.doc().roots() != part_roots {
         part_apply(&mut part, DocEdit::SetRoots { roots: part_roots })?;
     }
-    let pin = content_pin(&part.doc, tol).map_err(|error| SplitError::Pin {
+    let pin = content_pin(part.doc(), tol).map_err(|error| SplitError::Pin {
         error: Box::new(error),
     })?;
 
@@ -2920,18 +2865,17 @@ pub fn split(
     }
 
     // ---- The remainder, as recorded edits from the input ----
-    let mut remainder = Recording::start(doc.clone());
     // The remainder inserts no mate — an instance, rebinds, deletes and
     // the root list — so none of its edits asks a reach.
     let rem_reach = crate::mate::RefusingReach;
-    let rem_apply = |remainder: &mut Recording,
+    let mut remainder = Recording::start(doc, tol, &rem_reach);
+    let rem_refused = |error| SplitError::RemainderEdit {
+        error: Box::new(error),
+    };
+    let rem_apply = |remainder: &mut Recording<'_, ProfileProgram>,
                      edit: DocEdit<ProfileProgram>|
-     -> Result<Option<RecipeNodeId>, SplitError> {
-        remainder
-            .apply(edit, tol, &rem_reach)
-            .map_err(|error| SplitError::RemainderEdit {
-                error: Box::new(error),
-            })
+     -> Result<(), SplitError> {
+        remainder.apply(edit).map(|_| ()).map_err(rem_refused)
     };
     // The instance names the anchor, and the cut's one placed thing
     // gives it its offset: the hoisted root's, or the empty chain.
@@ -2939,18 +2883,14 @@ pub fn split(
         Some((_, root)) => offset_of(root),
         None => Some(crate::placement::Placement::IDENTITY),
     };
-    let minted = rem_apply(
-        &mut remainder,
-        DocEdit::InsertNode {
-            node: Box::new(Node::instantiate_part_with(
-                DocRef { id: part_id, pin },
-                InterfaceRecord { crossings },
-                anchor,
-                offset,
-            )),
-        },
-    )?;
-    let instance = minted.unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
+    let instance = remainder
+        .insert(Node::instantiate_part_with(
+            DocRef { id: part_id, pin },
+            InterfaceRecord { crossings },
+            anchor,
+            offset,
+        ))
+        .map_err(rem_refused)?;
     for from in &rebinds {
         let of = remap_name(from, &node_map, &step_map)
             .map_err(|missing| SplitError::straddles(doc, from, missing))?;
@@ -2993,11 +2933,21 @@ pub fn split(
             desired.push(r);
         }
     }
-    if remainder.doc.roots() != desired {
+    if remainder.doc().roots() != desired {
         rem_apply(&mut remainder, DocEdit::SetRoots { roots: desired })?;
     }
-    let (remainder, remainder_edits, remainder_maintenance) = remainder.finish();
-    let (part, part_edits, part_maintenance) = part.finish();
+    let Recorded {
+        doc: remainder,
+        edits: remainder_edits,
+        maintenance: remainder_maintenance,
+        ..
+    } = remainder.finish();
+    let Recorded {
+        doc: part,
+        edits: part_edits,
+        maintenance: part_maintenance,
+        ..
+    } = part.finish();
     Ok(SplitOutcome {
         remainder,
         part,
@@ -3370,16 +3320,13 @@ pub fn inline(
     }
     wrapped.sort();
     wrapped.dedup();
-    let mut current = Recording::start(doc.clone());
-    let step =
-        |current: &mut Recording, edit: DocEdit<ProfileProgram>| -> Result<(), InlineError> {
-            current
-                .apply(edit, tol, &reach)
-                .map(|_| ())
-                .map_err(|error| InlineError::Edit {
-                    error: Box::new(error),
-                })
-        };
+    let mut current = Recording::start(doc, tol, &reach);
+    let refused = |error| InlineError::Edit {
+        error: Box::new(error),
+    };
+    let step = |current: &mut Recording<'_, ProfileProgram>,
+                edit: DocEdit<ProfileProgram>|
+     -> Result<(), InlineError> { current.apply(edit).map(|_| ()).map_err(refused) };
     // Parameters merge only when they already agree bit for bit; a
     // disagreeing shared name refuses (no silent pick).
     for (name, value) in part.params() {
@@ -3404,17 +3351,8 @@ pub fn inline(
     let world = match &landing {
         Landing::Gauge(o) => {
             let minted = current
-                .apply(
-                    DocEdit::InsertNode {
-                        node: Box::new(Node::gauge(*host_gauge, o.clone())),
-                    },
-                    tol,
-                    &reach,
-                )
-                .map_err(|error| InlineError::Edit {
-                    error: Box::new(error),
-                })?
-                .unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
+                .insert(Node::gauge(*host_gauge, o.clone()))
+                .map_err(refused)?;
             if let Some(label) = doc.label(instance) {
                 step(
                     &mut current,
@@ -3434,7 +3372,6 @@ pub fn inline(
         &part,
         part.order(),
         &mut current,
-        (tol, &reach),
         (
             // The part's world is the instance's gauge, or the minted
             // one; every gauge of the part is carried.
@@ -3561,10 +3498,15 @@ pub fn inline(
             desired.push(r);
         }
     }
-    if current.doc.roots() != desired {
+    if current.doc().roots() != desired {
         step(&mut current, DocEdit::SetRoots { roots: desired })?;
     }
-    let (doc, edits, maintenance) = current.finish();
+    let Recorded {
+        doc,
+        edits,
+        maintenance,
+        ..
+    } = current.finish();
     Ok(InlineOutcome {
         doc,
         edits,
@@ -3744,10 +3686,15 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
     #[test]
     fn a_payload_miss_carries_both_the_name_and_the_node() {
         let name = nested(EntityKind::Edge);
-        let node = Node::declare_rest(vec![(
-            SitedRef::new(OUTER, name.clone()),
-            SitedRef::at_mint(name.clone()),
-        )]);
+        let node = Node::Boolean {
+            op: crate::node::BooleanOp::Union,
+            a: OUTER,
+            b: OUTER,
+            declare: crate::declare_rest(vec![(
+                SitedRef::new(OUTER, name.clone()),
+                SitedRef::at_mint(name.clone()),
+            )]),
+        };
         match remap_node(&node, &map(), &StepMap::new(), &|g| Ok(g)) {
             Err(RemapMiss::Name {
                 name: reported,

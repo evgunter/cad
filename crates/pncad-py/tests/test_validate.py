@@ -107,8 +107,8 @@ def two_slabs_resting():
 
     The upper slab's four bottom corners land strictly inside the
     lower's top face, so the coincidence is real and its class is a
-    REST — the shape `find_flush_candidates` reports and `Node.declare`
-    records.
+    REST — the shape `find_flush_candidates` reports and a boolean's
+    `declare=` records.
     """
     doc = Doc()
     lower = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
@@ -182,8 +182,9 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         doc, lower, upper = two_slabs_resting()
         findings = evaluate(doc).find_flush_candidates(lower, upper)
         self.assertEqual(len(findings), 1)
-        decl = doc.declare_all(findings)
-        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper, declare=decl))
+        glued = doc.insert(
+            Node.boolean(BooleanOp.Union, lower, upper, declare=findings)
+        )
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()
         # The glue is a glue: the exact dyadic volume of the two parts.
@@ -527,10 +528,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc, lower, upper = two_slabs_resting()
         findings = evaluate(doc).find_flush_candidates(lower, upper)
         self.assertEqual(len(findings), 1)
-        declaration = doc.declare(findings[0])
-        glued = doc.insert(
-            Node.boolean(BooleanOp.Union, lower, upper, declare=declaration)
-        )
+        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+        doc.declare(glued, findings[0])
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()  # raises if a record went stale
 

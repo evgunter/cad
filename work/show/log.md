@@ -578,3 +578,25 @@ rework; a lane is merging it. The rider
 `klein-bottle-loop-sweeps-from-a-world-axis-placement-not-the-paths-normal-plane`
 closed with its unit. Undispatched: gallery, helix, projectbox
 sixteenths, per-body delta, and `lily-rootstock-joins-at-its-socket`.
+
+## 2026-10-03
+
+**Merged:** 3838 lily blades, 3898 gallery, 3899 projectbox bosses on
+the floor, 3910 lily rootstock, 3905 per-body δ, 3922 plate holes
+(parked: no natural spelling carries the study), 3923 chain sheet, 3918
+helix spring. Each was reviewed by a separate lane and fixed before
+merging; frames looked at on every `[render]`.
+
+**Ordering.** 3910 landed before 3905; 3905 absorbed it (the rootstock
+takes 2e-3) and re-spliced only its blade rows onto main's census.
+
+**Render drift.** 3905's mc render zeroed the chain sheet's certified
+boxes. Bisected to a30963372a (#3759): `CERTIFIABLE_FRACTION` collapsed
+0.111 → 6.751e-8 after the pcurve mint (kernel side: the pcert P0). 3923
+floors every side of the box, computes the ratio from the constant, and
+guards the overlay.
+
+**For Ev.** `work/recipe/a-measured-part-is-not-a-product-root.md`
+(`design: true`) reopens the PR 2231 ruling: a part measured in-graph is
+not a sink, so no natural spelling of the plate has a product. Not yet
+weighed by the designer pair.

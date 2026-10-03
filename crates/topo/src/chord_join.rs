@@ -24,7 +24,8 @@
 //! - then the second chord `mef(Chords { he1: h2, he2: next(h1) })`
 //!   guarded by `next(next(h1)) != h2`; if the first `mef` split a
 //!   face that still owns rings, the rings are re-homed by trilean
-//!   containment ([`crate::splitting::containment`]) +
+//!   containment ([`crate::splitting::containment`] on a plane,
+//!   [`chart_ring_side`] on a cylinder wall's chart) +
 //!   [`Body::ring_move`] — the `laringmv` step (lkemr/ring-placement
 //!   mirror site).
 //!
@@ -93,7 +94,7 @@ use crate::euler_ring::MekrSite;
 use crate::face_normal;
 use crate::geometry::SurfaceKey;
 use crate::null::CurveGeom;
-use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_carrier_loop};
+use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -109,30 +110,16 @@ pub enum ArcWindowCase {
     /// The joined run carries no edge with a closed-form chart image,
     /// so the divided face has no azimuth window at all.
     ///
-    /// **Its ROUTINE source is a pierce RING**, and that is a
-    /// legitimate typed destination rather than a corruption. A ring
-    /// minted in a wall face is an EMPTY loop carrying only null
-    /// scaffolding, and `run_azimuth_window` skips null scaffolding
-    /// (zero-length, no azimuth extent) by contract — so a run made of
-    /// nothing else leaves the face windowless every time, by
-    /// construction. That is what a line-edge pierce into a cylinder
-    /// wall produces today, and it stands until the ring-join unit
-    /// (#1291) gives a ring's run its own chord lane. (An earlier reading —
-    /// "a cylinder face's run always carries one on the shipped lane;
-    /// this is the typed door for a corrupt or frontier-carrier run" —
-    /// was falsified by that lane, and is replaced rather than left
-    /// standing beside it.) A corrupt or frontier-carrier run still
-    /// arrives here too; this variant does not distinguish the two.
+    /// A cross-loop chord reads the divided face's outer cycle
+    /// ([`cross_loop_window_cycle`]), never a pierce ring's own null
+    /// scaffolding, which `run_azimuth_window` steps over. A same-loop
+    /// chord reads the run it co-bounds the new face with, so a run made
+    /// of scaffolding alone, a frontier-carrier run and a corrupt one
+    /// arrive here; this variant does not distinguish them.
     NoChartedRun,
     /// NEITHER candidate arc lies inside the window — the window is
     /// degenerate relative to the chord (an ill-conditioned operand, or
     /// a run that does not actually co-bound the face with this chord).
-    ///
-    /// An asymmetric wall pierce lands here (an off-centre bar through
-    /// a pipe, a rod through a three-face wall). The x₁ rows below say
-    /// which of the two readings that is — a run that does not end
-    /// where its chord starts is the PAIRING one — and #1291 holds the
-    /// question with those fixtures.
     NeitherContained,
     /// BOTH candidates lie inside the window: the window spans at least
     /// one full period, so containment does not distinguish the arcs.
@@ -309,11 +296,11 @@ pub enum SplitJoinError {
     /// A run reaches it two ways: a below-side PINCH (pieces meeting
     /// at a tip line on the NEGATIVE side of the run's plane normal,
     /// where the ch. 14 insertion mints no vertex copies), and a
-    /// one-sided GRAZE of a curved face (the plane tangent to a
-    /// cylinder's wall, whose contact closes a polygon of its own). A
-    /// plane tangent along a convex edge does not reach it: rule (b)
-    /// classifies that edge with its material, and the contact mints
-    /// nothing. Since M3 PR 6a (D7) the public
+    /// concave GRAZE of a curved face (the plane tangent to a hole's
+    /// wall from inside, whose contact closes a polygon of its own). A
+    /// plane tangent along a convex edge or to a convex wall does not
+    /// reach it: rule (b) classifies that entry with its material, and
+    /// the contact mints nothing. Since M3 PR 6a (D7) the public
     /// [`crate::splitting::split`] consumes this refusal as the pinch
     /// trigger and reruns under the mirrored plane — where pinched
     /// fans are ABOVE runs and mint their copies — so a pinch's
@@ -331,7 +318,7 @@ pub enum SplitJoinError {
     },
     /// A completed section polygon of positive area carries a SPUR: its
     /// loop runs out along a straight edge the plane only touches and
-    /// straight back. The spur is a one-sided graze's contact joined
+    /// straight back. The spur is a concave graze's contact joined
     /// into a real section's polygon instead of closing one of its own;
     /// it would leave a zero-width slit in both halves, with two copies
     /// of every vertex along it on one side. Refused, as the graze
@@ -479,6 +466,17 @@ pub enum SplitJoinError {
         /// What failed.
         what: &'static str,
     },
+    /// A ring on a curved face that is not a cylinder wall: the ring
+    /// lane winds an island, and re-homes a ring, on a cylinder wall's
+    /// chart only. Valid input whose lane is not yet built (D2 addendum
+    /// row 2), refused typed; no reachable pose built a sphere island
+    /// when the cylinder reading was written.
+    RingOffCylinderChart {
+        /// The face carrying the ring.
+        face: FaceKey,
+        /// Its surface kind.
+        kind: geom::SurfaceKind,
+    },
     /// The boolean's PLANAR side of a plane×sphere germ pair met a
     /// section tilted against the sphere's chart polar axis
     /// (`split_sphere_section_polar`). That side selects its arc by the
@@ -575,7 +573,7 @@ impl SplitJoinError {
             Self::DegenerateSection { .. } => write!(
                 f,
                 "a section is degenerate: it bounds zero area, where the plane only \
-                 grazes a face (a one-sided tangency) or pinches the solid. Recourse: \
+                 grazes a hole's wall from inside or pinches the solid. Recourse: \
                  {recourse}"
             ),
             Self::SectionSpur { .. } => write!(
@@ -603,6 +601,10 @@ impl SplitJoinError {
                 crate::splitting::PointInLoopError::Uncrossable(u) => write!(
                     f,
                     "which piece holds a hole loop cannot be read: {u}. Recourse: {recourse}"
+                ),
+                crate::splitting::PointInLoopError::OffPlane(o) => write!(
+                    f,
+                    "which piece holds a hole loop cannot be read: {o}. Recourse: {recourse}"
                 ),
             },
             Self::RingHomingAmbiguous { .. } => write!(
@@ -682,6 +684,12 @@ impl SplitJoinError {
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
             }
+            Self::RingOffCylinderChart { kind, .. } => write!(
+                f,
+                "a cut passes through a {kind:?} face without reaching its boundary, leaving \
+                 a ring the join reads only on a cylinder wall. Recourse: move the cut so it \
+                 crosses the face's edge, or divide the face there first"
+            ),
             Self::SectionNotPolar { band, .. } => write!(
                 f,
                 "the planar side of a plane×sphere cut is tilted against the sphere's polar \
@@ -1842,7 +1850,7 @@ fn chord_spec<T: Decide>(
     band: Band,
     lane: JoinLane<'_, T>,
     face: FaceKey,
-    run: &[HalfEdgeKey],
+    run: ChordRun<'_>,
     u1: VertexKey,
     u2: VertexKey,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
@@ -2003,7 +2011,7 @@ fn chord_spec<T: Decide>(
     // co-bounds it with. A run with no charted edge leaves the face
     // without a window: refused typed, never guessed.
     let (carrier, t_start, t_end) = if conic.azimuth_monotone {
-        let Some(window) = run_azimuth_window(body, &cyl_s, face, run, band)? else {
+        let Some(window) = run_azimuth_window(body, &cyl_s, face, run.halves(), band)? else {
             return Err(SplitJoinError::SectionArcWindow {
                 face,
                 case: ArcWindowCase::NoChartedRun,
@@ -2023,7 +2031,14 @@ fn chord_spec<T: Decide>(
         };
         select_arc(face, band, &chart, &conic, window, p1, p2)?
     } else {
-        select_arc_by_run_side(body, band, face, &conic, run, p1, p2)?
+        // The run-side rule reads the run the chord CLOSES; a face
+        // window co-bounds nothing, so it hands the rule no run and the
+        // rule refuses `NoCertifiedRun`.
+        let co_bounded = match run {
+            ChordRun::CoBounded(halves) => halves,
+            ChordRun::FaceWindow(_) => &[],
+        };
+        select_arc_by_run_side(body, band, face, &conic, co_bounded, p1, p2)?
     };
     // The aux plane surface (honest u_ref: the section's major
     // direction, ⊥ normal by construction), minted once per split.
@@ -2508,7 +2523,7 @@ fn run_azimuth_window<T: Decide>(
 /// run walk pinned: the azimuth where the walk ENTERS it and where it
 /// EXITS it (the half-edge's own start and end), and the hull
 /// [`run_azimuth_window`] folds.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct AzimuthImage<T: geom_core::Real> {
     /// The half-edge.
     pub(crate) he: HalfEdgeKey,
@@ -2520,6 +2535,12 @@ pub(crate) struct AzimuthImage<T: geom_core::Real> {
     pub(crate) range: (T, T),
     /// The chart's second coordinate at its start and end vertices.
     pub(crate) v: (T, T),
+    /// The carrier parameter at its start and end vertices.
+    pub(crate) t: (T, T),
+    /// The half-edge's chart image when it is harmonic (a closed form,
+    /// read by [`chart_v_du`] and evaluated directly); `None` for a
+    /// fitted image.
+    pub(crate) harmonic: Option<Pcurve<T>>,
 }
 
 /// Every charted half-edge of `face`'s outer loop, in loop order, with
@@ -2881,10 +2902,276 @@ fn run_azimuth_images<T: Decide>(
             exit,
             range: (lo, hi),
             v: (pcurve.eval(entry_t).y, pcurve.eval(exit_t).y),
+            t: (entry_t, exit_t),
+            harmonic: matches!(pcurve, Pcurve::Harmonic { .. }).then(|| pcurve.clone()),
         });
         prev_exit = Some(exit);
     }
     Ok(images)
+}
+
+/// What a curved chord's arc side is read from ([`chord_spec`]).
+#[derive(Clone, Copy)]
+enum ChordRun<'a> {
+    /// The run the chord co-bounds the divided face with (a same-loop
+    /// join): both arc rules read it.
+    CoBounded(&'a [HalfEdgeKey]),
+    /// A cross-loop join co-bounds no run, so it hands the divided
+    /// face's outer cycle ([`cross_loop_window_cycle`]): a window for the
+    /// containment rule only. The run-side rule reads the run a chord
+    /// closes, and gets none.
+    FaceWindow(&'a [HalfEdgeKey]),
+}
+
+impl<'a> ChordRun<'a> {
+    /// The halves, for the containment rule's window.
+    fn halves(self) -> &'a [HalfEdgeKey] {
+        match self {
+            Self::CoBounded(h) | Self::FaceWindow(h) => h,
+        }
+    }
+}
+
+/// The cycle a **cross-loop** chord reads its azimuth window from:
+/// `face`'s outer cycle.
+///
+/// A cross-loop join co-bounds no run — `mekr` divides nothing — so the
+/// chord's arc is selected by containment in the divided FACE's window,
+/// the statement [`bool_planar_chord_spec`] asks of the mate's face. A
+/// ring's own cycle is no window: a pierce ring carries only null
+/// scaffolding (no window at all) or the section edges already joined
+/// into it — on a wall, a ruling and its mate, one azimuth wide. So a
+/// face whose outer loop is not a cycle hands the window reader NO run,
+/// and a curved face refuses there typed
+/// ([`ArcWindowCase::NoChartedRun`]); a plane reads no window.
+fn cross_loop_window_cycle<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
+    Ok(outer_cycle(body, face)?.unwrap_or_default())
+}
+
+/// `∫ (v − anchor) du` of a harmonic chart image from `t0` to `t1`, and
+/// an upper bound on `∫ |dv|` there; `None` for an image that is not
+/// harmonic. The anchor is subtracted from the constant term before
+/// integrating, so a short island far along the axis does not cancel
+/// `v·Δu` against `v·Δu` (the precision note at `geom_brep::props`'
+/// cylinder Green form, which this shares).
+///
+/// Read for a cylinder chart, whose every harmonic image
+/// [`chart_pcurve`] writes with a LINEAR azimuth channel (`pa.x = pb.x
+/// = 0`, `u = p0.x + pl.x·t`): `v` is then
+/// `p0.y + pa.y·cos t + pb.y·sin t + pl.y·t` and integrates term by
+/// term. The precondition is decided, not assumed
+/// (`split_chart_azimuth_linear`, the harmonic azimuth amplitude
+/// levered by the radius): an image that breaks it is the chart
+/// writer's invariant broken, and refuses.
+///
+/// # Errors
+///
+/// [`SplitJoinError::SectionInvariant`] for a harmonic azimuth term;
+/// [`SplitJoinError::Escalated`] when that decision escalates.
+fn chart_v_du<T: Decide>(
+    face: FaceKey,
+    p: &Pcurve<T>,
+    (t0, t1): (T, T),
+    anchor: T,
+    radius: T,
+    band: Band,
+) -> Result<Option<(T, T)>, SplitJoinError> {
+    let Pcurve::Harmonic { p0, pa, pb, pl } = *p else {
+        return Ok(None);
+    };
+    match decide(
+        "split_chart_azimuth_linear",
+        Margin::levered(pa.x.abs() + pb.x.abs(), radius),
+        band,
+    )
+    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+    {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "a cylinder chart image carries a harmonic azimuth term (the chart \
+                       writes the azimuth linear in the carrier parameter)",
+            });
+        }
+    }
+    let v_var = (pa.y.abs() + pb.y.abs() + pl.y.abs()) * (t1 - t0).abs();
+    let half = T::from_f64(0.5);
+    let dt = t1 - t0;
+    let integral = (p0.y - anchor) * dt + pa.y * (t1.sin() - t0.sin())
+        - pb.y * (t1.cos() - t0.cos())
+        + pl.y * (t1 + t0) * dt * half;
+    Ok(Some((pl.x * integral, v_var)))
+}
+
+/// A cylinder face's chart frame: the one destructure the wall-chart
+/// readers below share.
+#[derive(Clone, Copy)]
+struct WallChart<T: geom_core::Real> {
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+}
+
+/// The cylinder frame [`WallChart`] of `surface`; `None` for any other
+/// kind.
+fn wall_chart<T: Real>(surface: &geom::Surface<T>) -> Option<WallChart<T>> {
+    match *surface {
+        geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Some(WallChart {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        }),
+        _ => None,
+    }
+}
+
+/// The refusal of a ring-lane reading on a curved face that is not a
+/// cylinder wall ([`SplitJoinError::RingOffCylinderChart`]).
+fn no_wall_chart<T: Real>(face: FaceKey, surface: &geom::Surface<T>) -> SplitJoinError {
+    SplitJoinError::RingOffCylinderChart {
+        face,
+        kind: surface.kind(),
+    }
+}
+
+/// **The winding of a ring-lane island on a cylinder wall's chart**,
+/// as a decided sign about the face's OUTWARD normal: the open run
+/// `h1 → h2` (`next` order, through `h2`) closed by the chord from
+/// `h2`'s end back to `h1`'s start, which lies in the section plane
+/// `closure`.
+///
+/// The planar ring lane's statement ([`crate::loop_winding`]) asked on
+/// the face's own chart, where the region's signed area is the chart
+/// Green form `A = −∮ v du` (its home, and the chart's orientation
+/// premise, are `geom_brep::props`' cylinder arm and
+/// [`geom::Surface::Cylinder`]; this reads the same form off the run's
+/// chart images rather than off rim carriers):
+///
+/// - each run edge contributes its exact `∫ v du` ([`chart_v_du`]); the
+///   walk pins every image on one branch, so a junction is a chart
+///   point and the straight term between images is the walk's own
+///   junction gap;
+/// - the closing chord is the section of the face by `closure`:
+///   `v(u) = (n·(o − c) − R·n·r̂(u)) / (n·â)`, integrated in closed
+///   form, or a ruling (`n·â = 0`, no `du`). **The exact closure is
+///   load-bearing**: a straight chart segment differs by the lens
+///   between the sinusoid and its chord, and on a thin bar turned about
+///   two axes that lens outweighs the island and reverses its sign
+///   (38 of 658 islands in the delta review's scan, −13.4× to 35×;
+///   pinned by `verbs_germarms::a_thin_bar_turned_about_two_axes_gets_through_the_join`).
+///
+/// Every `v` is read against an anchor on the island (its first entry):
+/// the island is closed, so `Σ du = 0` and the anchor drops out in
+/// exact arithmetic, and the sum keeps the conditioning of the island's
+/// own height rather than its distance along the axis.
+///
+/// The chart sign is the winding about `+r̂`, and the face's sense bit
+/// turns it into the winding about the outward normal.
+///
+/// The margin is the planar arm's mean width `2A/P` (F4): `A` in m²
+/// (`R·A_chart`) and `P` an upper bound on the boundary length in
+/// metres (`R·|Δu|` plus the axial variation, per piece).
+///
+/// A sphere face, or any other curved kind, refuses typed
+/// ([`no_wall_chart`]).
+pub(crate) fn chart_island_winding<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+    closure: (Point3<T>, UnitVec3<T>),
+    band: Band,
+) -> Result<Result<Sign, Indeterminate>, SplitJoinError> {
+    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+    let sense = face_data.sense;
+    let surface = body
+        .get_surface(face_data.surface)
+        .cloned()
+        .ok_or_else(|| corrupt_face(face))?;
+    let WallChart {
+        origin: centre,
+        axis,
+        radius,
+        u_ref,
+    } = wall_chart(&surface).ok_or_else(|| no_wall_chart(face, &surface))?;
+    let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
+    let end = cycle
+        .iter()
+        .position(|&he| he == h2)
+        .ok_or_else(|| corrupt_he(h2))?;
+    let images = run_azimuth_images(body, &surface, face, &cycle[..=end], band)?;
+    let (Some(first), Some(last)) = (images.first(), images.last()) else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a ring-lane island carries no charted edge",
+        });
+    };
+    let half = T::from_f64(0.5);
+    let anchor = first.v.0;
+    let mut area = T::zero();
+    let mut length = T::zero();
+    for (i, image) in images.iter().enumerate() {
+        let harmonic = match image.harmonic.as_ref() {
+            Some(p) => chart_v_du(face, p, image.t, anchor, radius, band)?,
+            None => None,
+        };
+        let (v_du, v_var) = harmonic.ok_or(SplitJoinError::SectionInvariant {
+            face,
+            what: "a ring-lane island edge's chart image is fitted — the chart winding \
+                       reads a linear azimuth channel",
+        })?;
+        area = area - v_du;
+        length = length + radius * (image.exit - image.entry).abs() + v_var;
+        if let Some(next) = images.get(i + 1) {
+            let du = next.entry - image.exit;
+            area = area - ((image.v.1 - anchor) + (next.v.0 - anchor)) * half * du;
+            length = length + radius * du.abs() + (next.v.0 - image.v.1).abs();
+        }
+    }
+    let (from, to) = ((last.exit, last.v.1), (first.entry, first.v.0));
+    let (origin, normal) = closure;
+    let n = normal.get();
+    let n_a = n.dot(axis);
+    match decide(
+        "split_ring_closure_ruling",
+        Margin::levered(n_a, radius),
+        band,
+    )
+    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+    {
+        // A ruling: no azimuth travel, so no `v du`.
+        Sign::Zero => length = length + (to.1 - from.1).abs(),
+        Sign::Positive | Sign::Negative => {
+            let n_u = n.dot(u_ref);
+            let n_v = n.dot(axis.cross(u_ref));
+            let k = n.dot(origin - centre) / n_a - anchor;
+            let lever = radius / n_a;
+            let du = to.0 - from.0;
+            // `∫ (v − anchor) du` along the section, as differences.
+            let g = k * du
+                - lever * (n_u * (to.0.sin() - from.0.sin()) - n_v * (to.0.cos() - from.0.cos()));
+            area = area - g;
+            length = length
+                + radius * du.abs()
+                + lever.abs() * (n_u.powi(2) + n_v.powi(2)).sqrt() * du.abs();
+        }
+    }
+    let wound = crate::validate::decide_reported(
+        crate::loop_winding::WINDING_PREDICATE,
+        Margin::over_lever(area * radius * T::from_f64(2.0), length),
+        band,
+    );
+    Ok(wound.map(|d| if sense { d.sign } else { d.sign.flip() }))
 }
 
 /// **The chord of a section segment that is an edge of BOTH solids**
@@ -3112,9 +3399,15 @@ impl ChordJoiner {
                 let (u1, u2) = (start_of(body, h1)?, start_of(body, outside)?);
                 let spec = match along_edge_spec(body, &lane, segment, oldf, u1, u2)? {
                     Some(spec) => Some(spec),
-                    None => {
-                        chord_spec(body, self.band, lane.reborrow(), oldf, &run_halves, u1, u2)?
-                    }
+                    None => chord_spec(
+                        body,
+                        self.band,
+                        lane.reborrow(),
+                        oldf,
+                        ChordRun::CoBounded(&run_halves),
+                        u1,
+                        u2,
+                    )?,
                 };
                 // Both arms hand `mef` the parent's surface, so the
                 // fragment takes `oldf`'s bit (`Body::resolve_face_surface`).
@@ -3140,12 +3433,7 @@ impl ChordJoiner {
                 (h1, next(body, h2)?)
             };
             let site = MekrSite::Cycles { target, ring };
-            // Cross-loop joins have no single co-bounded run; the
-            // window comes from the target's whole cycle (unreached by
-            // any curved fixture in this PR — typed doors downstream,
-            // and a cycle that wraps the chart refuses `BothContained`
-            // rather than guessing).
-            let target_cycle = body.loop_cycle(target).ok_or_else(|| corrupt_he(target))?;
+            let face_cycle = cross_loop_window_cycle(body, oldf)?;
             let (u1, u2) = (start_of(body, target)?, start_of(body, ring)?);
             let spec = match along_edge_spec(body, &lane, segment, oldf, u1, u2)? {
                 Some(spec) => Some(spec),
@@ -3154,7 +3442,7 @@ impl ChordJoiner {
                     self.band,
                     lane.reborrow(),
                     oldf,
-                    &target_cycle,
+                    ChordRun::FaceWindow(&face_cycle),
                     u1,
                     u2,
                 )?,
@@ -3198,17 +3486,24 @@ impl ChordJoiner {
             // spans the same interval as the first chord (the two null
             // edges are zero-length, so it is that chord reversed) and
             // takes the same run.
-            let run2: Vec<HalfEdgeKey> = if adjacent2 {
-                vec![next(body, h1)?]
+            let (run2, co_bounded): (Vec<HalfEdgeKey>, bool) = if adjacent2 {
+                (vec![next(body, h1)?], true)
             } else if prev_adjacent {
-                vec![prev(body, h1)?]
+                (vec![prev(body, h1)?], true)
+            } else if l1 == l2 {
+                (run_halves.clone(), true)
             } else {
-                run_halves.clone()
+                (cross_loop_window_cycle(body, owner)?, false)
             };
             let (u1, u2) = (start_of(body, h2)?, start_of(body, next(body, h1)?)?);
+            let run2 = if co_bounded {
+                ChordRun::CoBounded(&run2)
+            } else {
+                ChordRun::FaceWindow(&run2)
+            };
             let spec = match along_edge_spec(body, &lane, segment, owner, u1, u2)? {
                 Some(spec) => Some(spec),
-                None => chord_spec(body, self.band, lane, owner, &run2, u1, u2)?,
+                None => chord_spec(body, self.band, lane, owner, run2, u1, u2)?,
             };
             let created = match spec {
                 None => body.mef_chord(site, tol)?,
@@ -3242,7 +3537,7 @@ impl ChordJoiner {
 
     /// `laringmv(oldf, newf)`: move every bystander ring of `oldf`
     /// enclosed by the mef run (`newf`'s outer) into `newf` — decided
-    /// on the run's own edge carriers ([`point_in_carrier_loop`]),
+    /// on the run's own edge carriers ([`point_in_loop`]),
     /// since a run bearing an arc does not bound the polygon through
     /// its vertices.
     ///
@@ -3271,12 +3566,29 @@ impl ChordJoiner {
             return Ok(());
         }
         let run = body.get_face(newf).ok_or_else(|| corrupt_face(newf))?.outer;
-        let normal = face_plane_normal(body, oldf)?;
+        let surface = body
+            .get_face(oldf)
+            .and_then(|f| body.get_surface(f.surface))
+            .cloned()
+            .ok_or_else(|| corrupt_face(oldf))?;
+        let chart = matches!(
+            surface,
+            geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
+        );
+        let normal = if chart {
+            None
+        } else {
+            Some(face_plane_normal(body, oldf)?)
+        };
         for ring in rings {
             if ring == remainder {
                 continue;
             }
-            match ring_side(body, ring, run, normal, self.band)? {
+            let side = match normal {
+                Some(normal) => ring_side(body, ring, run, normal, self.band)?,
+                None => chart_ring_side(body, &surface, newf, ring, self.band)?,
+            };
+            match side {
                 LoopContainment::In => body.ring_move(ring, newf)?,
                 LoopContainment::Out => {}
                 LoopContainment::OnBoundary => {
@@ -3348,16 +3660,16 @@ impl ChordJoiner {
 /// The face's **chart** plane normal (F5-gated: always a `Plane`),
 /// deliberately without the face's sense folded in.
 ///
-/// Its one consumer is [`point_in_carrier_loop`], which reads the
-/// normal only to recover the loop's PLANE and the in-plane side axis
-/// `n̂ × d` of each ray; only the straight edges' crossing rows read
-/// that axis, and their verdict is exactly invariant under `n̂ ↦ −n̂`.
-/// **That derivation lives at
-/// [`point_in_loop`](crate::splitting::containment::point_in_loop)**,
-/// under the function whose property it is rather than under the
-/// five-line producer that relies on it; the consequence here is that
-/// ring re-homing cannot move a ring on the sense bit, and
-/// `tests/review_m3_pr3_pil.rs` pins it for the straight rows.
+/// Its one consumer is [`point_in_loop`], which reads the normal only
+/// to recover the loop's PLANE, and whose verdict is exactly invariant
+/// under `n̂ ↦ −n̂` over lines and conics alike. **That derivation lives
+/// at [`point_in_loop`]**, under the function whose property it is
+/// rather than under the five-line producer that relies on it; the
+/// consequence here is that ring re-homing cannot move a ring on the
+/// sense bit. `tests/review_m3_pr3_pil.rs` pins it for the straight
+/// rows and `validate.rs`'s
+/// `point_in_loop_is_blind_to_the_normals_sign_on_an_arc_bearing_loop`
+/// for the conic rows.
 ///
 /// The contrast with [`crate::boolean::solid_contain`]'s `face_plane`,
 /// which multiplies although its own consumer is equally sign-blind,
@@ -3410,10 +3722,139 @@ fn ring_side<T: Decide>(
     };
     for v in vertices {
         let p = vertex_point(body, v)?;
-        match point_in_carrier_loop(body, run, normal, p, band)? {
+        match point_in_loop(body, run, normal, p, band)? {
             LoopContainment::OnBoundary => {}
             side => return Ok(side),
         }
+    }
+    Ok(LoopContainment::OnBoundary)
+}
+
+/// [`ring_side`] on a cylinder wall's chart: which side of
+/// `newf`'s outer loop (the run a `mef` just walled off) `ring` lies on,
+/// by the parity of a ray from each ring vertex toward `+v` at constant
+/// azimuth.
+///
+/// Exact on the chart: every run edge's azimuth channel is linear in its
+/// carrier parameter ([`chart_v_du`]), so the ray meets an edge at most
+/// once, where its azimuth reaches the ray's, and the edge's own `v`
+/// there is read from its harmonic form; the straight chart rows between
+/// images (the walk's junction gaps) are segments. A ring vertex is placed
+/// on the run's branch, which is one branch because the run's window is
+/// decided under a period. Each comparison is a named trilean metered in
+/// metres; a ring vertex on the ray's degenerate rows (the run passes
+/// through its azimuth at a vertex, or along it) says nothing and the
+/// next vertex is asked, as [`ring_side`] does for a vertex on the run.
+/// A sphere face refuses typed ([`no_wall_chart`]).
+///
+/// This is the third point-in-region routine beside [`ring_side`] (on a
+/// plane) and `solid_contain`'s wall outline (a point against a whole
+/// wall face's outline, inside the containment gate): a known split,
+/// each reading the region it is handed in its own chart.
+fn chart_ring_side<T: Decide>(
+    body: &Body<T>,
+    surface: &geom::Surface<T>,
+    newf: FaceKey,
+    ring: LoopKey,
+    band: Band,
+) -> Result<LoopContainment, SplitJoinError> {
+    let WallChart {
+        origin: centre,
+        axis,
+        radius,
+        u_ref,
+    } = wall_chart(surface).ok_or_else(|| no_wall_chart(newf, surface))?;
+    let tau = T::tau();
+    let invariant = |what| SplitJoinError::SectionInvariant { face: newf, what };
+    let images = face_azimuth_images(body, surface, newf, band)?.ok_or(invariant(
+        "ring re-homing on a chart: the run is not a cycle",
+    ))?;
+    let (lo, hi) = azimuth_hull(&images).ok_or(invariant(
+        "ring re-homing on a chart: the run carries no charted edge",
+    ))?;
+    let decide_m = |name, margin| {
+        decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face: newf, diag })
+    };
+    if decide_m(
+        "split_ring_chart_window",
+        Margin::levered(tau - (hi - lo), radius),
+    )? != Sign::Positive
+    {
+        return Err(invariant(
+            "ring re-homing on a chart: the run's azimuth window spans a full period, so a \
+             ring vertex has no single branch on it",
+        ));
+    }
+    let mid = (lo + hi) * T::from_f64(0.5);
+    let vertices = match body
+        .get_loop(ring)
+        .ok_or_else(|| corrupt_loop(ring))?
+        .boundary
+    {
+        LoopBoundary::Cycle { first } => body
+            .loop_cycle(first)
+            .ok_or_else(|| corrupt_he(first))?
+            .into_iter()
+            .map(|he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start))
+            .collect::<Result<Vec<_>, SplitJoinError>>()?,
+        LoopBoundary::Empty { vertex } => vec![vertex],
+    };
+    // The chart segments of the run: each edge (`Some(image)`), then the
+    // straight row to the next image's entry.
+    let n = images.len();
+    'vertex: for v in vertices {
+        let w = vertex_point(body, v)? - centre;
+        let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
+        let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
+        let v_p = w.dot(axis);
+        let mut crossings = 0usize;
+        for (i, image) in images.iter().enumerate() {
+            let next = &images[(i + 1) % n];
+            let rows = [
+                (image.entry, image.exit, Some(image)),
+                (image.exit, next.entry, None),
+            ];
+            for (u0, u1, edge) in rows {
+                let s0 = decide_m(
+                    "split_ring_chart_ray_azimuth",
+                    Margin::levered(u_p - u0, radius),
+                )?;
+                let s1 = decide_m(
+                    "split_ring_chart_ray_azimuth",
+                    Margin::levered(u_p - u1, radius),
+                )?;
+                if s0 == Sign::Zero || s1 == Sign::Zero {
+                    continue 'vertex;
+                }
+                if s0 == s1 {
+                    continue;
+                }
+                let f = (u_p - u0) / (u1 - u0);
+                let v_x = match edge {
+                    Some(image) => {
+                        image
+                            .harmonic
+                            .as_ref()
+                            .ok_or(invariant(
+                                "ring re-homing on a chart: a run edge's chart image is fitted",
+                            ))?
+                            .eval(image.t.0 + f * (image.t.1 - image.t.0))
+                            .y
+                    }
+                    None => image.v.1 + f * (next.v.0 - image.v.1),
+                };
+                match decide_m("split_ring_chart_ray_height", Margin::of(v_x - v_p))? {
+                    Sign::Positive => crossings += 1,
+                    Sign::Negative => {}
+                    Sign::Zero => continue 'vertex,
+                }
+            }
+        }
+        return Ok(if crossings % 2 == 1 {
+            LoopContainment::In
+        } else {
+            LoopContainment::Out
+        });
     }
     Ok(LoopContainment::OnBoundary)
 }
@@ -3615,7 +4056,7 @@ mod tests {
             band,
             JoinLane::Split(&mut ctx),
             face,
-            &run,
+            ChordRun::CoBounded(&run),
             u1,
             u2,
         )
@@ -3724,7 +4165,16 @@ mod tests {
         let (mut body, face, u1, u2, _) = cyl_fixture();
         let run = vec![rim_run(&mut body, -0.2, core::f64::consts::FRAC_PI_2 + 0.2)];
         let lane = JoinLane::Planar;
-        let err = chord_spec(&mut body, band, lane, face, &run, u1, u2).unwrap_err();
+        let err = chord_spec(
+            &mut body,
+            band,
+            lane,
+            face,
+            ChordRun::CoBounded(&run),
+            u1,
+            u2,
+        )
+        .unwrap_err();
         assert!(
             matches!(err, SplitJoinError::SectionInvariant { .. }),
             "{err:?}"

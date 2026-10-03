@@ -1,12 +1,12 @@
 ---
 id: fillet-meridian-radius-term-is-registered-only
 kind: issue
-title: check 4's radius incidence on a fillet cylinder's meridian strut holds only by registration, which the quotient spelling cannot reach, so the bracket and the pad refuse at the envelope
-status: open
+title: the profile fillet lowers through chord and bulge, so its extruded cylinder's Frame, Radius and FidelityU envelope terms do not close and M10-9's bracket and pad refuse at pcurve_envelope
+status: parked
 opened: 2026-10-02
 priority: P0
 cost: M
-design: true
+blocked_on: [store-constructed-carriers]
 ---
 
 
@@ -84,3 +84,25 @@ Gram–Schmidt twin, `EnvelopeTerm::Frame`, bounded in the frame's
 invariants), the bracket still refuses at `3.87e2·ε` on the envelope's
 sum (`[0, 2.9e-9]` at ε = 1e-9), no single term over the band on its
 own; the pad still refuses at `pcurve_envelope`.
+
+## Weighed by a designer pair (2026-10-03): not a fork, parked on PATHS 5b
+
+Two designers, briefed on the problem only, from main at 63aabc993. They converged on their first reports, and both measured on the bracket. **Premise corrections:**
+
+- **The fillet is a sketch fillet** (`ProgramStep::Fillet`, lowered in `crates/profile`), extruded. `sweep::blend` is not involved. The sample carrier above (radius 0.25 mm at x = 2.2 mm) is `bore_b`'s seam, not a fillet strut.
+- **Nothing registers the identity.** `m10_9_per_predicate_split_at_the_nominal` reads 16 theorems and 4 numeric for `pcurve_envelope`, the same with the registry shut or open.
+- **Three terms stand, not one.** The four rows are the fillet cylinder's two rims and two struts. On each, three terms are numeric:
+  - Frame, about 7.9e-10;
+  - Radius, about 3.4e-10;
+  - FidelityU, about 7.7e-10.
+
+  Each is under the band alone; their sum is over it. Every standing atom is the fillet's chord-and-bulge spelling: `|L(1+b²)/4b|`, `tan(π/8)` through `sqrt 2`, `copysign`/`abs` for the turn. The boss's literal-bulge arcs, through the same extrude and certificate, are theorems 12 of 12.
+- **Not a regression from main.** Before 3759, extrude minted no rows, so main never asked the question.
+
+**The answer is already ratified.** D1, as answered on PR 3453: each arc mode lowers in its own algebra, the radius as authored, registrations only for what the algebra cannot close. That is PATHS unit 5b, `work/paths/store-constructed-carriers`. Both designers rejected two other homes:
+- asking the registry in the registrant's spelling: the wrong node and the wrong quantity, and a discharge rather than C4's theorem;
+- minting strut origins from the radius in the sweep.
+
+Both add one line to 5b's fillet arm: spell the tangent points from the centre and the authored radius (`t = centre ± r·n̂`), with the turn as a decided literal sign. Then `r² − q·q` and the rim frame's `u_ref·u_ref − 1` are zero forms. Whether FidelityU also closes is likely but not measured; if it still bounds the ceiling, it becomes PCERT's next row. The pad is unmeasured (same construction, claimed by analogy). `work/paths/copysign-stands-in-for-the-turn-side-and-hulls-at-a-decidable-tie` is the same defect class.
+
+Parked on `store-constructed-carriers`, with a seam note in `work/paths/log.md` asking PATHS to rank 5b for this P0 loss. Check after 5b lands: re-run the per-term probe (`m10_9_evidence_interval`'s split row plus `explain_depth`) on the bracket and the pad. This row closes when `m10_9_no_registrant_lies_on_any_measured_document` no longer asserts their `pcurve_envelope` refusals.
