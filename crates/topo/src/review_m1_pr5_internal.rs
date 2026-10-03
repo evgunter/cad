@@ -241,6 +241,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "insert_void",
         "calls `insert_voids` with the one destination as a slice — same body, same assertion",
     ),
+    (
+        "insert_voids",
+        "refuses a hollow cavity before any mutation, then calls `insert_hollow_voids` — same \
+         body, same assertion",
+    ),
     // ---- Pipelines composed of asserting operators. ----
     (
         "merge_coplanar_faces",

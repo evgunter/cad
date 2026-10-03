@@ -517,7 +517,7 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
     let band = Band::linear(tol)?;
-    let (a, b) = (one_solid(a), one_solid(b));
+    let (a, b) = (one_solid(a)?, one_solid(b)?);
     let mut result = boolean_op_recut(op, &a, &b, decls, strategy, true, tol)?;
     if let BooleanResult::Body(r) = &mut result {
         crate::pieces::sort_into_pieces(&mut r.body, band, tol, T::quad_lane())
@@ -529,14 +529,13 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// `body` as the pipeline reads an operand: as is when it holds at most
 /// one solid, else a clone with every shell under one solid (module
 /// docs, "Bodies in, bodies out").
-fn one_solid<T: Decide>(body: &Body<T>) -> std::borrow::Cow<'_, Body<T>> {
+fn one_solid<T: Decide>(body: &Body<T>) -> Result<std::borrow::Cow<'_, Body<T>>, BooleanError> {
     if body.solids().nth(1).is_none() {
-        std::borrow::Cow::Borrowed(body)
-    } else {
-        let mut flat = body.clone();
-        flat.merge_all_solids();
-        std::borrow::Cow::Owned(flat)
+        return Ok(std::borrow::Cow::Borrowed(body));
     }
+    let mut flat = body.clone();
+    flat.merge_all_solids().map_err(BooleanError::Euler)?;
+    Ok(std::borrow::Cow::Owned(flat))
 }
 
 /// The pipeline behind the front door, parameterized on whether the
@@ -3433,7 +3432,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                         .map(|&s| (s, voids::VoidContainment::Probed(SolidContainment::In)))
                         .collect(),
                 };
-                voids::insert_void(&mut body, solid, b_body, &evidence)
+                voids::insert_hollow_voids(&mut body, &[solid], b_body, &evidence)
                     .map_err(|e| match e {
                         voids::VoidInsertError::Revert(r) => BooleanError::Revert(r),
                         voids::VoidInsertError::Corrupt { what } => {
@@ -3442,7 +3441,8 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                         voids::VoidInsertError::MissingEvidence { .. }
                         | voids::VoidInsertError::NotStrictlyContained { .. }
                         | voids::VoidInsertError::ForeignShell { .. }
-                        | voids::VoidInsertError::DuplicateEvidence { .. } => {
+                        | voids::VoidInsertError::DuplicateEvidence { .. }
+                        | voids::VoidInsertError::HollowCavity { .. } => {
                             desync("void evidence desynced from the kept B shells")
                         }
                     })?

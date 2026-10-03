@@ -2,7 +2,8 @@
 id: a-boolean-result-with-an-island-cannot-be-a-boolean-operand
 kind: issue
 title: A boolean result with an island is two solids, and a boolean refuses a multi-solid operand as JoinDesync rather than typed
-status: open
+status: closed
+closed: 2026-10-03
 opened: 2026-10-02
 priority: P0
 cost: H
@@ -46,3 +47,14 @@ the instance side. (2) The capability itself: a boolean over a
 multi-solid operand, solid by solid, or a typed refusal that names the
 missing door. Which of the two the next cut takes is the design
 question (`design: true`).
+
+## Closed (PR 3891)
+
+Ev ruled (PR 3901) that booleans, `shell` and `split` take bodies. A
+multi-solid operand now enters each pipeline as one multi-shell solid
+and its result is sorted back into pieces, so the two-solid result is
+the next boolean's operand:
+`crates/topo/tests/hollow_island.rs::the_two_solid_result_is_the_next_booleans_operand`
+cuts it far from the island (the containment fallback) and through A's
+wall (the seamed path), and both build. `SplitFinishError::NotSingleSolid`
+is gone; the boolean's internal single-solid checks are now desyncs.

@@ -88,10 +88,16 @@ Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and i
 Ev ruled (PR 3901) that a solid is one piece and that booleans take
 bodies, so the pair boolean no longer refuses a multi-solid operand —
 step 2's reason above no longer holds at the kernel. The fence holds in
-the editor instead: a boolean (and the n-ary union) refuses a PRODUCT
-operand, a value its document gathered from several parts
-(`NodeErrorKind::ProductOperand`, in `wire_boolean`'s and
-`wire_union`'s `boolean_operand`), and an instance carrying a
-declaration is such a product. The acceptance row
-`no_carried_declaration_can_reach_a_boolean_operand` now pins that
-refusal. This row stays unreachable for as long as products refuse.
+the editor instead. A value's part count (`NodeValue::parts`) is a
+product's number of gathered parts: an instantiation counts the
+referenced document's root outputs at their own counts (so a
+sub-assembly counts through), and the placers (`Transform`, `Pattern`)
+and `Part` carry it. Every op that takes one body — the pair boolean,
+the n-ary union, a placed union's prototype and the rest of
+`body_operand`'s callers — refuses a product
+(`NodeErrorKind::ProductOperand`). An instance carrying a declaration
+is such a product. The acceptance rows in
+`crates/editor-core/tests/docm6_seam_declarations.rs`
+(`no_carried_declaration_can_reach_a_boolean_operand` and the nested,
+transformed and placed-union rows beside it) pin the refusal. This row
+stays unreachable for as long as products refuse.

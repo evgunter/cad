@@ -2,7 +2,8 @@
 id: island-filing-is-silent-where-every-vertex-touches
 kind: issue
 title: Island filing leaves a solid as the graft filed it when some shell has no vertex clear of the solid's other shells
-status: open
+status: closed
+closed: 2026-10-03
 opened: 2026-10-02
 priority: P3
 cost: E
@@ -22,3 +23,15 @@ face (`crates/topo/src/boolean/shell_witness.rs` already mints one for
 planar faces, `face_interior_point`), tried after the vertices run
 out. Until then the silence is the false-refusal direction, documented
 in the module docs.
+
+## Closed (PR 3891)
+
+The island filing this row described is gone: the result sort
+(`crates/topo/src/pieces.rs`) REFUSES a shell every vertex of which
+touches another, typed (`PieceSortError::WitnessTouching`, pinned by
+`pieces::tests::a_shell_touching_at_every_corner_refuses_witness_touching`),
+rather than leaving the solid as grafted. What remains is check 10's
+own silence on such a shell (restfront's
+`check-10-is-silent-where-point-in-solid-refuses`) and a witness that
+is not a vertex, which `work/fuse/one-home-for-where-a-shell-stands.md`
+carries.

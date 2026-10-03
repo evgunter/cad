@@ -540,12 +540,18 @@ pub struct NodeValue<T: Decide> {
     /// descendant map. Rides the value, so memo reuse transfers mate
     /// identity with the geometry it is keyed into.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
-    /// How many parts a document's product gathered into this value
-    /// (`crates/editor-core/ASSEMBLY.md`, A2): one for every op but an
-    /// instantiation, where it is the referenced document's distinct
-    /// root outputs. More than one makes the value a PRODUCT, which a
-    /// boolean refuses ([`NodeErrorKind::ProductOperand`]).
-    pub gathered: usize,
+    /// How many parts each of this value's output bodies is
+    /// (`crates/editor-core/ASSEMBLY.md`, A2 and A10): a document's
+    /// product is its roots, so an instantiation's bodies are as many
+    /// parts as the referenced document's root outputs, each counted at
+    /// its own `parts` — a sub-assembly's parts count through. Two root
+    /// outputs that are a split's two halves are two parts. The placers
+    /// (`Transform`, `Pattern`) and `Part` carry the count through; every
+    /// other op builds a body of its own and counts 1, an explicit union
+    /// (the fuse) included. More than one makes the value a PRODUCT,
+    /// which every door taking a single body operand refuses
+    /// ([`NodeErrorKind::ProductOperand`]).
+    pub parts: usize,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -1448,11 +1454,12 @@ pub enum NodeErrorKind {
         /// The empty input node.
         input: RecipeNodeId,
     },
-    /// A boolean's operand is a PRODUCT — several parts its document
-    /// gathered (`crates/editor-core/ASSEMBLY.md`, A2) — which no
-    /// boolean takes (`docs/DESIGN.md`, "A solid is one piece of
-    /// material"): which solids are one part is recipe structure, and
-    /// an explicit union is what makes the parts one body.
+    /// A body operand is a PRODUCT — several parts a document gathered
+    /// ([`NodeValue::parts`]; `crates/editor-core/ASSEMBLY.md`, A2) —
+    /// which no op that takes one body accepts (`docs/DESIGN.md`, "A
+    /// solid is one piece of material"): which solids are one part is
+    /// recipe structure, and an explicit union is what makes the parts
+    /// one body. The placers carry a product through instead.
     ProductOperand {
         /// The operand node.
         input: RecipeNodeId,
@@ -2340,7 +2347,7 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::ProductOperand { input, parts } => write!(
                 f,
-                "{} gathers {parts} parts, and a boolean takes one body. Recourse: union the \
+                "{} gathers {parts} parts, and this op takes one body. Recourse: union the \
                  parts explicitly in their document and use that union",
                 by.node_as(*input, "input")
             ),
@@ -4276,7 +4283,7 @@ where
                 fragment_groups: out.groups,
                 contacts: out.contacts,
                 carried: out.carried,
-                gathered: out.gathered,
+                parts: out.parts,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},

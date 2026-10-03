@@ -475,24 +475,32 @@ fn a_declared_seat_with_a_keel_is_probed() {
     }
 }
 
-/// **Two crossing shells under one solid refuse before the census.**
-/// Solid A is two slabs crossed in a plus, `[0, 3] × [1, 2] × [0, 1]`
-/// and `[1, 2] × [0, 3] × [0, 1]`, as two shells of ONE solid: their
-/// edges cross each other in the planes `z = 0` and `z = 1`. A block B
-/// rests on A's first slab end, face to face. Two `Outer` shells under
-/// one solid are two pieces' worth, which check 10 refuses by count, so
-/// the census never reads the crossing.
+/// **One solid's boundary crossing itself blocks its pairs.** Solid A
+/// is a plate `[0, 3] × [0, 3] × [0, 1]` with a cavity
+/// `[2, 4] × [1, 2] × [0.25, 0.75]` filed under it that pokes out through
+/// its `x = 3` wall: one `Outer` and one `Void`, whose first witnesses
+/// wind as check 10 wants, and whose edges pierce that wall. A block B
+/// rests on A's `x = 0` wall, face to face. Every finding between A and B is a rest,
+/// but A's own edge crossings say its boundary crosses itself, and no
+/// placement can be read against such a material.
 #[test]
-fn a_solid_of_two_crossing_shells_refuses_by_count() {
-    let mut body = block((0.0, 3.0), (1.0, 2.0), (0.0, 1.0));
-    topo::graft_disjoint(&mut body, &block((1.0, 2.0), (0.0, 3.0), (0.0, 1.0))).unwrap();
+fn a_solid_whose_cavity_crosses_its_wall_blocks_its_pair() {
+    let mut body = block((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
+    let cavity = block((2.0, 4.0), (1.0, 2.0), (0.25, 0.75))
+        .revert()
+        .unwrap();
+    topo::graft_disjoint(&mut body, &cavity).unwrap();
     let mut body = body.with_solids_merged_for_tests();
-    let a = body.solids().next().unwrap().0;
     topo::graft_disjoint(&mut body, &block((-1.0, 0.0), (1.0, 2.0), (0.0, 1.0))).unwrap();
-    assert_eq!(
-        errors_of(&body),
-        vec![ValidationError::SolidOuterShells { solid: a, outer: 2 }]
+    let errors = errors_of(&body);
+    assert!(
+        !errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::ShellWinding { .. })),
+        "the premise: check 10 passes the crossing cavity: {errors:?}"
     );
+    assert!(pierces(&errors) > 0, "{errors:?}");
+    assert_eq!(refusals(&errors), [CROSSING], "{errors:?}");
 }
 
 /// A block `outer` with the block `void` cut out of it as a cavity: one
@@ -658,7 +666,7 @@ fn a_void_shell_does_not_open_the_gate() {
 /// in the channel's floor at `[4, 6] × [−0.8, −0.2] × [4, 6]` it
 /// refuses: its corners are inside the channel.
 #[test]
-fn a_two_lump_solid_seated_declared() {
+fn a_two_lump_body_seated_declared() {
     let tol = Tol::witness();
     let seated = [(0.0, 2.0), (0.0, 1.0), (0.0, 2.0)];
     for (sibling, inside) in [

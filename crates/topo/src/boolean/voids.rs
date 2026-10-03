@@ -159,6 +159,17 @@ pub enum VoidInsertError {
         /// The unresolvable shell key.
         shell: ShellKey,
     },
+    /// A solid of the cavity holds more than one shell. Reverted, a
+    /// hollow cavity's voids face outward — pieces of material under the
+    /// destination solid — so this public door takes single-shell
+    /// cavity solids only: it adds cavities and never a piece
+    /// (`docs/DESIGN.md`, "A solid is one piece of material"). The verbs that do insert a hollow cavity (the
+    /// boolean's containment fallback, `shell`) sort or re-home the
+    /// pieces themselves.
+    HollowCavity {
+        /// The cavity solid with several shells.
+        solid: SolidKey,
+    },
     /// The evidence carries two certificates for one shell — a caller
     /// desync, refused rather than resolved by list order (the door
     /// never picks between conflicting claims).
@@ -196,6 +207,11 @@ impl core::fmt::Display for VoidInsertError {
                 f,
                 "evidence names shell {shell:?}, which the \
                  cavity body does not hold (caller desync)"
+            ),
+            Self::HollowCavity { .. } => write!(
+                f,
+                "the cavity is hollow, and the void door inserts a cavity of one shell per \
+                 solid; insert each shell's cavity on its own (caller error)"
             ),
             Self::DuplicateEvidence { shell } => write!(
                 f,
@@ -250,18 +266,13 @@ impl VoidInserted {
 /// `dst` (module docs: the contract, the evidence discipline, and
 /// what the door does not run).
 ///
-/// `cavity` is a **positively oriented** single-solid closed body —
-/// the material that is being removed, exactly as a subtraction's B
-/// operand — consumed by value; the door reverses it and transplants
-/// its shells. `evidence` must certify every shell of `cavity`
-/// strictly inside `dst_solid`'s material. A hollow cavity's voids
-/// face outward once reverted, so every shell landing under one solid
-/// is its callers' transient, never their result: the shell verb hands
-/// [`insert_voids`] the whole moved clone of its operand and re-homes
-/// each transplanted void twin with the operand void it pairs with
-/// ([`crate::shell`](mod@crate::shell)'s thin-solid step, paired off
-/// the graft map), and every boolean result is sorted into pieces at
-/// its exit ([`crate::pieces`]).
+/// `cavity` is a **positively oriented** single-solid closed body of
+/// one shell — the material that is being removed, exactly as a
+/// subtraction's B operand — consumed by value; the door reverses it
+/// and transplants its shell. `evidence` must certify every shell of
+/// `cavity` strictly inside `dst_solid`'s material. A hollow cavity
+/// refuses ([`VoidInsertError::HollowCavity`]): its voids would face
+/// outward once reverted, pieces of material under one solid.
 ///
 /// # Errors
 ///
@@ -298,6 +309,30 @@ pub fn insert_void<T: Decide>(
 /// [`VoidInsertError::Corrupt`], the graft's own arity refusal
 /// verbatim; revert and graft refusals verbatim.
 pub fn insert_voids<T: Decide>(
+    dst: &mut Body<T>,
+    dst_solids: &[SolidKey],
+    cavity: Body<T>,
+    evidence: &VoidEvidence,
+) -> Result<VoidInserted, VoidInsertError> {
+    if let Some((solid, _)) = cavity.solids().find(|(_, s)| s.shells.len() > 1) {
+        return Err(VoidInsertError::HollowCavity { solid });
+    }
+    insert_hollow_voids(dst, dst_solids, cavity, evidence)
+}
+
+/// [`insert_voids`] admitting a hollow cavity, for the verbs that file
+/// its pieces themselves: a hollow cavity's voids face outward once
+/// reverted, so every shell landing under one solid is the caller's
+/// transient, never its result. The shell verb re-homes each
+/// transplanted void twin with the operand void it pairs with
+/// ([`crate::shell`](mod@crate::shell)'s thin-solid step, paired off
+/// the graft map), and every boolean result is sorted into pieces at
+/// its exit ([`crate::pieces`]).
+///
+/// # Errors
+///
+/// As [`insert_voids`], less [`VoidInsertError::HollowCavity`].
+pub(crate) fn insert_hollow_voids<T: Decide>(
     dst: &mut Body<T>,
     dst_solids: &[SolidKey],
     cavity: Body<T>,

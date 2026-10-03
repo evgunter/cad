@@ -269,7 +269,7 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
 /// merge door) is ONE solid with THREE shells that classify to two
 /// `Outer` and one `Void`. The verb takes bodies and sorts its operand
 /// into pieces first, so the island is thickened as a solid of its
-/// own: four solids come back, one per operand shell's wall. The
+/// own: three solids come back, one per operand shell's wall. The
 /// boolean's own product, `subtract(box 6³, shell(box 2³, 0.25))`,
 /// arrives already sorted and shells the same way.
 #[test]
@@ -311,7 +311,12 @@ fn r2_an_island_under_its_walls_solid_is_sorted_then_shelled() {
         2,
         "the island is a solid of its own"
     );
-    topo::shell(&cut_body, 0.05, tol).expect("each solid shells");
+    let shelled = topo::shell(&cut_body, 0.05, tol).expect("each solid shells");
+    assert_eq!(
+        shelled.body.solids().count(),
+        3,
+        "the hollow wall's two thin solids and the island's one"
+    );
 }
 
 // ---------------------------------------------------------------------

@@ -46,6 +46,12 @@ impl<T: Decide> Body<T> {
     /// connected shell returns `vec![shell]` with the body untouched
     /// (deterministic no-op, like `ring_move`'s).
     ///
+    /// The minted shells stay under the one solid, so a shell that falls
+    /// apart into separate pieces of material leaves construction state:
+    /// several `Outer` shells under one solid, which tier 3's check 10
+    /// refuses until the verb that cut it sorts its result
+    /// ([`crate::pieces`]).
+    ///
     /// **Determinism (D9)**: components are seeded in the shell's
     /// face-list order; the worklist expands loops in (outer, rings)
     /// list order and cycles in `next` order; each new shell's face
@@ -400,54 +406,94 @@ impl<T: Decide> Body<T> {
         Ok(new_solid)
     }
 
-    /// Refiles every shell of the body under its first solid (in arena
-    /// order) and removes the others — [`Body::move_shells_to_new_solid`]
-    /// run backwards, over the whole body. Returns the keeper, or `None`
-    /// for a body with no solid.
+    /// Refiles every shell of `donor` under `keeper` — appended to
+    /// `keeper`'s shell list in `donor`'s order, each back-pointer moved —
+    /// and removes `donor`: [`Body::move_shells_to_new_solid`] run
+    /// backwards, and the one home of "these shells are one solid's".
+    /// Not an Euler operator; ownership moves and nothing else, every
+    /// shell keeping its key and faces. The emptied donor is REMOVED, not
+    /// left standing (a shell-less solid is `SolidWithoutShells`), and
+    /// its arena removal is paired with its provenance removal the way
+    /// `kvfs` pairs them (a removal that leaves the record behind is
+    /// `LeakedProvenance`). Folding a solid into itself changes nothing.
     ///
-    /// A multi-shell solid is the shape the boolean's pipeline reads an
-    /// operand in: it classifies, keeps and grafts SHELLS, and the
-    /// result sort ([`crate::pieces`]) files them back into pieces at the
-    /// exit. Ownership moves and nothing else: the keeper's shell list
-    /// gains the others' in arena order, every shell keeps its key and
-    /// faces, and each removed solid's provenance record goes with it.
-    pub(crate) fn merge_all_solids(&mut self) -> Option<SolidKey> {
+    /// The result is construction state: several pieces of material
+    /// under one solid, which tier 3's check 10 refuses until the verb
+    /// that made it sorts it ([`crate::pieces`]).
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] if `donor`, `keeper` or a shell
+    /// `donor` lists does not resolve. All checks precede any mutation
+    /// (atomic).
+    pub(crate) fn fold_solid_into(
+        &mut self,
+        donor: SolidKey,
+        keeper: SolidKey,
+    ) -> Result<(), EulerOpError> {
+        let stale = |key| EulerOpError::StaleKey { key };
+        let moved = self
+            .shells_of_solid(donor)
+            .ok_or(stale(EntityId::Solid(donor)))?
+            .to_vec();
+        if self.get_solid(keeper).is_none() {
+            return Err(stale(EntityId::Solid(keeper)));
+        }
+        if donor == keeper {
+            return Ok(());
+        }
+        if let Some(&shell) = moved.iter().find(|&&s| self.get_shell(s).is_none()) {
+            return Err(stale(EntityId::Shell(shell)));
+        }
+
+        // ---- Mutation (infallible from here on). ----
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let solids: Vec<SolidKey> = self.solids().map(|(k, _)| k).collect();
-        let (&keeper, donors) = solids.split_first()?;
-        for &donor in donors {
-            let moved = self
-                .solids
-                .remove(donor)
-                .map(|s| s.shells)
-                .unwrap_or_default();
-            self.solid_provenance.remove(donor);
-            for &shell in &moved {
-                if let Some(data) = self.get_shell_mut(shell) {
-                    data.solid = keeper;
-                }
-            }
-            if let Some(k) = self.get_solid_mut(keeper) {
-                k.shells.extend(moved);
-            }
+        for &shell in &moved {
+            let Some(data) = self.get_shell_mut(shell) else {
+                unreachable!("fold_solid_into: every moved shell resolved in the plan phase")
+            };
+            data.solid = keeper;
         }
+        let Some(k) = self.get_solid_mut(keeper) else {
+            unreachable!("fold_solid_into: `keeper` resolved in the plan phase")
+        };
+        k.shells.extend(moved);
+        self.solids.remove(donor);
+        self.solid_provenance.remove(donor);
         #[cfg(debug_assertions)]
-        {
-            // Lossless: an arena length that overflows isize is
-            // unrepresentable long before.
-            #[allow(clippy::cast_possible_wrap)]
-            let solids = -(donors.len() as isize);
-            self.assert_euler_postcondition(
-                before,
-                ArenaDelta {
-                    solids,
-                    ..ArenaDelta::ZERO
-                },
-                "merge_all_solids",
-            );
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                solids: -1,
+                ..ArenaDelta::ZERO
+            },
+            "fold_solid_into",
+        );
+        Ok(())
+    }
+
+    /// Folds every solid of the body into its first (in arena order)
+    /// ([`Body::fold_solid_into`]) and returns the keeper, or `None` for
+    /// a body with no solid.
+    ///
+    /// A multi-shell solid is the shape the boolean's and the split's
+    /// pipelines read an operand in: they classify, keep and graft
+    /// SHELLS, and the result sort ([`crate::pieces`]) files them back
+    /// into pieces at the exit.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::fold_solid_into`]'s.
+    pub(crate) fn merge_all_solids(&mut self) -> Result<Option<SolidKey>, EulerOpError> {
+        let solids: Vec<SolidKey> = self.solids().map(|(k, _)| k).collect();
+        let Some((&keeper, donors)) = solids.split_first() else {
+            return Ok(None);
+        };
+        for &donor in donors {
+            self.fold_solid_into(donor, keeper)?;
         }
-        Some(keeper)
+        Ok(Some(keeper))
     }
 
     /// **Failure-injection door** (`sweep-testing` only): a clone of
@@ -462,7 +508,9 @@ impl<T: Decide> Body<T> {
     #[must_use]
     pub fn with_solids_merged_for_tests(&self) -> Self {
         let mut out = self.clone();
-        out.merge_all_solids();
+        if let Err(e) = out.merge_all_solids() {
+            unreachable!("a body's own solid and shell keys resolve: {e:?}")
+        }
         out
     }
 }

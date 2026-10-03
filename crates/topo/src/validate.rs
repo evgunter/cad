@@ -4528,7 +4528,8 @@ fn shell_winding_errors<T: Decide>(
             continue;
         };
         for (i, read) in reads.iter().enumerate() {
-            let Insides::Read(inside) = witness_insides(body, i, &reads, band, tol) else {
+            let Insides::Read(inside) = witness_insides(body, i, &reads, &|_| true, band, tol)
+            else {
                 continue;
             };
             let winding: i32 = reads
@@ -4583,7 +4584,11 @@ impl ShellRead {
     ) -> Option<Self> {
         let sel = crate::boolean::solid_contain::SolidFaces::of_shell(body, shell).ok()?;
         let role = shell_role(body, sel.faces(), band, tol, quad)?;
-        Some(Self { shell, role, sel })
+        Some(Self {
+            shell,
+            role,
+            sel: sel.with_role(role),
+        })
     }
 }
 
@@ -4613,10 +4618,16 @@ pub(crate) enum Insides {
 /// cavity's complement and `Out` is inside. An `OnBoundary` answer
 /// means the witness lies where two shells TOUCH, which says nothing
 /// about nesting, so the next vertex is tried.
+///
+/// `may_enclose` is the caller's screen: a shell it rules out is read
+/// as not enclosing this one and is not probed. It must be sound — a
+/// shell that could enclose must pass — so only a certificate of
+/// disjointness rules one out (the result sort's padded boxes).
 pub(crate) fn witness_insides<T: Decide>(
     body: &Body<T>,
     i: usize,
     reads: &[ShellRead],
+    may_enclose: &dyn Fn(usize) -> bool,
     band: Band,
     tol: Tol,
 ) -> Insides {
@@ -4627,7 +4638,7 @@ pub(crate) fn witness_insides<T: Decide>(
     'witness: for witness in shell_vertices(body, reads[i].shell) {
         let mut inside = vec![false; reads.len()];
         for (t, other) in reads.iter().enumerate() {
-            if t == i {
+            if t == i || !may_enclose(t) {
                 continue;
             }
             inside[t] = match point_in_solid_faces(body, &other.sel, witness, band, tol) {

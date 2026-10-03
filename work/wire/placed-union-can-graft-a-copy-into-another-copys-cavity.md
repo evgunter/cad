@@ -2,7 +2,8 @@
 id: placed-union-can-graft-a-copy-into-another-copys-cavity
 kind: issue
 title: Placed union grafts every copy onto the prototype's solids, so a copy inside another copy's cavity lands as an island under one solid (unmeasured)
-status: open
+status: closed
+closed: 2026-10-03
 opened: 2026-10-02
 priority: P3
 cost: M
@@ -27,3 +28,10 @@ boolean now files as a solid of its own
 First a row: build that prototype and placement and read the grouping.
 If it lands as predicted, the placed union wants the same filing (or a
 refusal), and the choice is the owner's.
+
+## Closed (PR 3891)
+
+Retired by the same PR that filed it: `graft_disjoint_all_onto_keyed`
+is gone, and the placed union mints one solid per copy
+(`crates/editor-core/src/eval/wire.rs`, `wire_placed_union`), so no
+copy lands under another copy's solid.

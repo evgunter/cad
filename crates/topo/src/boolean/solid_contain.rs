@@ -3598,6 +3598,10 @@ pub fn point_in_solid_of<T: Decide>(
 pub struct SolidFaces {
     faces: Vec<FaceKey>,
     charts: ChartGroups,
+    /// The side a ray that crosses nothing reads, when the selection's
+    /// role is already decided ([`SolidFaces::with_role`]); `None`
+    /// reads it off the selection's closed-form signed volume.
+    at_infinity: Option<SolidContainment>,
 }
 
 impl SolidFaces {
@@ -3643,7 +3647,29 @@ impl SolidFaces {
     fn select<T: Decide>(body: &Body<T>, faces: Vec<FaceKey>) -> Result<Self, PointInSolidError> {
         let charts = ChartGroups::within(body, faces.iter().copied())
             .map_err(|face| PointInSolidError::CorruptFace { face })?;
-        Ok(Self { faces, charts })
+        Ok(Self {
+            faces,
+            charts,
+            at_infinity: None,
+        })
+    }
+
+    /// This selection with its role already decided — an `Outer`
+    /// boundary leaves infinity outside its material, a `Void` inside —
+    /// so a ray that crosses nothing reads that side instead of
+    /// re-deriving it from the closed-form signed volume, which an
+    /// obliquely trimmed curved face does not certify. The role is the
+    /// same fact either way; a reader that decided it through the
+    /// quadrature lane (`crate::validate::ShellRead`) hands it over.
+    pub(crate) fn with_role(self, role: crate::props::ShellRole) -> Self {
+        let side = match role {
+            crate::props::ShellRole::Outer => SolidContainment::Out,
+            crate::props::ShellRole::Void => SolidContainment::In,
+        };
+        Self {
+            at_infinity: Some(side),
+            ..self
+        }
     }
 
     /// The selected faces, in face-arena order.
@@ -5341,7 +5367,10 @@ fn cast_ray<T: Decide>(
         Some((_, Sign::Positive)) => Ok(Some(SolidContainment::In)),
         Some((_, _)) => Ok(Some(SolidContainment::Out)),
         // No crossing: q is on the at-infinity side (module docs).
-        None => Ok(Some(at_infinity_side(body, faces, band, tol)?)),
+        None => match sel.at_infinity {
+            Some(side) => Ok(Some(side)),
+            None => Ok(Some(at_infinity_side(body, faces, band, tol)?)),
+        },
     }
 }
 
@@ -5365,29 +5394,6 @@ fn at_infinity_side<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
-    // An `Outer` boundary leaves infinity outside its material, a `Void`
-    // one inside.
-    Ok(match selection_role(body, faces, band, tol)? {
-        crate::props::ShellRole::Outer => SolidContainment::Out,
-        crate::props::ShellRole::Void => SolidContainment::In,
-    })
-}
-
-/// The role of the closed boundary `faces` select, read off the one
-/// closed-form signed volume [`point_in_solid_faces`] falls back to when
-/// no ray crosses: `Outer` where it is definitely positive, `Void` where
-/// definitely negative, [`PointInSolidError::ZeroVolumeBody`] where the
-/// sign is undecided.
-///
-/// # Errors
-///
-/// [`PointInSolidError`] — the at-infinity read's refusals.
-pub(crate) fn selection_role<T: Decide>(
-    body: &Body<T>,
-    faces: &[FaceKey],
-    band: Band,
-    tol: Tol,
-) -> Result<crate::props::ShellRole, PointInSolidError> {
     // Closed-form lane: this door is `T: Decide` and holds no
     // quadrature lane, so an obliquely trimmed face refuses here
     // (`work/contact/at-infinity-probe-measures-in-closed-form-only`).
@@ -5439,11 +5445,17 @@ pub(crate) fn selection_role<T: Decide>(
             diag,
         }
     })?;
-    // The closed form carries no pad: one sign, read at both ends.
+    // The closed form carries no pad: one sign, read at both ends. An
+    // `Outer` boundary leaves infinity outside its material, a `Void`
+    // one inside.
     use crate::props::{BracketEnd, ShellRole};
-    ShellRole::decided_at(BracketEnd::Low, sign)
+    match ShellRole::decided_at(BracketEnd::Low, sign)
         .or_else(|| ShellRole::decided_at(BracketEnd::High, sign))
-        .ok_or(PointInSolidError::ZeroVolumeBody)
+    {
+        Some(ShellRole::Outer) => Ok(SolidContainment::Out),
+        Some(ShellRole::Void) => Ok(SolidContainment::In),
+        None => Err(PointInSolidError::ZeroVolumeBody),
+    }
 }
 
 #[cfg(test)]

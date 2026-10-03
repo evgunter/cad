@@ -39,7 +39,7 @@ fn profile<T: geom_core::Decide>(lp: ProfileLoop<T>) -> profile::ValidatedProfil
 
 /// The generic corpus: name, body. Valid bodies first, then their
 /// reverted (NegativeVolume) twins.
-pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
+pub fn corpus<T: topo::AtRestPolicy + geom_core::Bounds>() -> Vec<(String, Body<T>)> {
     let tol = Tol::witness();
     let mut out: Vec<(String, Body<T>)> = Vec::new();
     // L-prism (planar, closed form).

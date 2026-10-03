@@ -283,7 +283,7 @@ fn one_node_eval(
             fragment_groups: Arc::new(groups),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
-            gathered: 1,
+            parts: 1,
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
             placement: None,

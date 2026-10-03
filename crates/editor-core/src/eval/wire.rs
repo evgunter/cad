@@ -91,9 +91,8 @@ pub(crate) struct OpOut<T: Decide> {
     /// the documents below could not be minted at all; same arena, same
     /// one op.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
-    /// How many parts a document's product gathered into this value
-    /// (`NodeValue::gathered`): one for every op but instantiate.
-    pub gathered: usize,
+    /// How many parts each output body is (`NodeValue::parts`).
+    pub parts: usize,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -105,8 +104,14 @@ impl<T: Decide> OpOut<T> {
             groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
-            gathered: 1,
+            parts: 1,
         }
+    }
+
+    /// This output, each body of it `parts` parts: a placer's or a
+    /// projection's output carries its input's count through.
+    fn carrying(self, parts: usize) -> Self {
+        Self { parts, ..self }
     }
 }
 
@@ -513,7 +518,7 @@ where
         groups: Arc::default(),
         contacts: Arc::clone(&part.contacts),
         carried: Arc::new(carried),
-        gathered: part.members,
+        parts: part.parts,
     })
 }
 
@@ -819,27 +824,20 @@ fn wrong_operand<T: Decide>(
 /// through (a datum's face frame, a blend, a shell, a split's target,
 /// a boolean's and a union's members, a placed union's prototype):
 /// [`placeable_operand`]'s `Body` arm, refusing the other in its own
-/// one-body word.
-/// A boolean's body operand: [`body_operand`], refusing a PRODUCT — a
-/// value its document gathered from several parts
-/// ([`NodeErrorKind::ProductOperand`]). The pair boolean and the n-ary
-/// union both take their operands here.
-fn boolean_operand<T: Decide>(
-    results: &Results<T>,
-    input: RecipeNodeId,
-) -> Result<Arc<Body<T>>, NodeErrorKind> {
-    let parts = value_of(results, input)?.gathered;
-    if parts > 1 {
-        return Err(NodeErrorKind::ProductOperand { input, parts });
-    }
-    body_operand(results, input)
-}
-
+/// one-body word, and refusing a PRODUCT — a body of several parts
+/// ([`NodeErrorKind::ProductOperand`]; `NodeValue::parts`). The placers
+/// read [`placeable_operand`] instead and carry a product through.
 fn body_operand<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
 ) -> Result<Arc<Body<T>>, NodeErrorKind> {
     let v = value_of(results, input)?;
+    if v.parts > 1 {
+        return Err(NodeErrorKind::ProductOperand {
+            input,
+            parts: v.parts,
+        });
+    }
     match placeable_operand(v, input) {
         Ok(Placeable::Body(b)) => Ok(b),
         Ok(Placeable::Instances(_)) | Err(NodeErrorKind::WrongOperand { .. }) => {
@@ -2763,7 +2761,7 @@ fn wire_part<T: Decide>(
         .project(index)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)))
+    Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)).carrying(value.parts))
 }
 
 // `Bounds` rides along for the boolean lane only: the sweep's BVH
@@ -2801,8 +2799,8 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         let sided = side_by_operand(declare, a, b, doc)?;
         resolve_declarations(&sided, doc, &a_table, &b_table)?
     };
-    let body_a = boolean_operand(results, a)?;
-    let body_b = boolean_operand(results, b)?;
+    let body_a = body_operand(results, a)?;
+    let body_b = body_operand(results, b)?;
     match (verb.build)(op, kernel_decls)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
         .map_err(|err| refusal_menu((a, &a_table), (b, &b_table), err))?
@@ -2911,7 +2909,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .iter()
         .map(|&m| {
             Ok((
-                boolean_operand(results, m)?,
+                body_operand(results, m)?,
                 Arc::new(
                     names::member_view(id, m, &value_of(results, m)?.name_table)
                         .map_err(NodeErrorKind::Naming)?,
@@ -4197,7 +4195,7 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     let per = placeable.bodies().len();
     let payload =
         placeable.map(|body, i| place(body, Some(&map), Placing::of(id, 0, per, i)?, tol))?;
-    Ok(OpOut::plain(payload, Arc::clone(&value.name_table)))
+    Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
 }
 
 /// The resolved operands of a stepped placement rule: what the rule's
@@ -4341,7 +4339,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     }
     let table =
         names::name_pattern(id, &value.name_table, n, master.len(), &instances).map_err(naming)?;
-    Ok(OpOut::plain(ValuePayload::Instances(instances), table))
+    Ok(OpOut::plain(ValuePayload::Instances(instances), table).carrying(value.parts))
 }
 
 /// The group boolean (GROUP-BOOLEAN-DESIGN, ratified A′): one

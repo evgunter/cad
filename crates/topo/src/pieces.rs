@@ -9,29 +9,36 @@
 //!
 //! # The reading
 //!
-//! A solid with one shell, or with at most one decided `Outer`, is
-//! left as it is, and nothing is probed (one sign walk per shell
-//! decides the count). A shell whose role stays undecided is silent
-//! there, as check 10 leaves it uncounted: with at most one decided
-//! `Outer` it cannot make a second piece that the count would see. A solid whose shells are all `Outer` is split one solid per
-//! shell with no probe at all: touching pieces are distinct solids, so
-//! nothing about where they stand matters. Otherwise each `Void` is
-//! read where it stands ([`witness_insides`], check 10's own witness
-//! loop): the shells whose closed surface it lies inside nest, so the
-//! innermost of them is the one inside all the others, and that shell
-//! is the `Void`'s owner. An encloser's own enclosers are read only
-//! when a `Void` has more than one, so a shell nothing asks about is
-//! never probed.
+//! Each shell's role is read off its own sign walk ([`shell_role`]
+//! through [`ShellRead`], the reader check 10 uses). A solid with one
+//! shell, or with at most one decided `Outer`, is left as it is and
+//! nothing is probed. A shell whose role stays undecided is silent
+//! there, as check 10 leaves it uncounted: beside at most one decided
+//! `Outer` it cannot make a second piece that the count would see.
+//!
+//! In a solid with two or more decided `Outer`s, every shell is read
+//! where it stands ([`witness_insides`], check 10's own witness loop).
+//! The shells whose closed surface a shell lies inside nest, so the
+//! innermost of them is the one inside all the others:
+//!
+//! - a `Void`'s innermost encloser is its owner, and must be an `Outer`;
+//! - an `Outer`'s innermost encloser, if any, must be a `Void`: an
+//!   island stands in a cavity. An `Outer` straight inside another
+//!   `Outer` is overlapping material, which no piece is bounded by.
+//!
+//! An encloser's own enclosers are read only when a shell has more than
+//! one, so a shell nothing asks about is probed once. Two shells whose
+//! padded boxes are certified apart cannot nest and are never probed
+//! against each other (`Screen`), so pieces side by side cost no probe
+//! and record no decision. A probe reads a ray that crosses nothing off
+//! the shell's role, already decided ([`ShellRead`]), rather than off a
+//! closed-form volume a curved face may not certify.
 //!
 //! # Refusals
 //!
 //! Where ownership cannot be read the sort refuses ([`PieceSortError`])
-//! naming the shell, before any shell moves: a role the sign walk does
-//! not decide in a solid with two decided `Outer`s (where its owner
-//! matters), a witness the walk refuses or one every vertex of which
-//! touches another shell, enclosers that do not nest (two at one depth:
-//! shells that cross), and a `Void` whose innermost encloser is not an
-//! `Outer` or that nothing encloses (no piece surrounds it).
+//! naming the shell, and no shell of the body moves: every solid's
+//! pieces are read before the first move.
 //!
 //! # The move
 //!
@@ -40,8 +47,10 @@
 //! ([`Body::move_shells_to_new_solid`]) with its voids, outer shell
 //! first. Ownership moves and nothing else: every face, edge and vertex
 //! keeps its key, so contact and lineage records keyed by them stand.
+//!
+//! [`shell_role`]: crate::validate::shell_role
 
-use geom_core::{Band, Decide, Tol};
+use geom_core::{Band, Bounds, Decide, Tol};
 
 use crate::body::Body;
 use crate::boolean::PointInSolidError;
@@ -50,7 +59,8 @@ use crate::props::{QuadLane, ShellRole};
 use crate::validate::{Insides, ShellRead, witness_insides};
 
 /// Why the sort could not read which piece a shell belongs to
-/// (closed enum, D4 ¶3). Every arm refuses before any shell moves.
+/// (closed enum, D4 ¶3). Every arm refuses before any shell of the body
+/// moves.
 #[derive(Clone, Debug)]
 pub enum PieceSortError {
     /// The shell's role (`Outer` or `Void`) is not decided — its sign
@@ -67,7 +77,9 @@ pub enum PieceSortError {
         /// The shell.
         shell: ShellKey,
     },
-    /// The point-in-solid walk refused at a witness of the shell.
+    /// The point-in-solid walk refused at a witness of the shell. No
+    /// row reaches it: on the shells a verb builds today, a walk that
+    /// refuses here has refused that verb earlier, in its own probes.
     Probe {
         /// The shell.
         shell: ShellKey,
@@ -86,6 +98,13 @@ pub enum PieceSortError {
         /// The cavity.
         shell: ShellKey,
     },
+    /// This `Outer` stands straight inside another `Outer`, with no
+    /// cavity between: overlapping material, which no piece is bounded
+    /// by.
+    Overlapping {
+        /// The inner `Outer`.
+        shell: ShellKey,
+    },
     /// The move refused (a desync: every precondition it checks holds
     /// by construction here).
     Move(crate::euler::EulerOpError),
@@ -94,38 +113,50 @@ pub enum PieceSortError {
 // The shell rides in `Debug`; the message names it in words. The sort
 // reads operands as well as results (`shell` sorts the body it is
 // handed), so a shape no verb builds may have been read from a file.
+// Every arm is one sentence and then its one ending.
 impl core::fmt::Display for PieceSortError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::RoleUnread { .. } => write!(
-                f,
+        let (what, ending) = match self {
+            Self::RoleUnread { .. } => (
                 "whether a shell of the body bounds material or a cavity could not be \
-                 decided, so the piece it belongs to is unknown. {}",
-                geom_core::KERNEL_LIMIT_RECOURSE
+                 decided, so the piece it belongs to is unknown"
+                    .to_owned(),
+                geom_core::KERNEL_LIMIT_RECOURSE,
             ),
-            Self::WitnessTouching { .. } => write!(
-                f,
-                "every corner of a shell of the body touches another shell, so the piece it \
-                 belongs to could not be read. {}",
-                geom_core::NOT_YET_ENDING
+            Self::WitnessTouching { .. } => (
+                "every corner of a shell of the body touches another shell, so the piece \
+                 it belongs to could not be read"
+                    .to_owned(),
+                geom_core::NOT_YET_ENDING,
             ),
-            Self::Probe { source, .. } => write!(
-                f,
-                "the piece a shell of the body belongs to could not be read: {source}"
-            ),
-            Self::Crossing { .. } => write!(
-                f,
+            Self::Probe { source, .. } => {
+                return write!(
+                    f,
+                    "the piece a shell of the body belongs to could not be read: {source}"
+                );
+            }
+            Self::Crossing { .. } => (
                 "two shells of the body cross, and no piece of material is bounded by \
-                 crossing shells. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                 crossing shells"
+                    .to_owned(),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ),
-            Self::NoOwner { .. } => write!(
-                f,
-                "no piece of material surrounds a cavity of the body. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            Self::NoOwner { .. } => (
+                "no piece of material surrounds a cavity of the body".to_owned(),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ),
-            Self::Move(e) => write!(f, "moving a piece into its own solid failed: {e}"),
-        }
+            Self::Overlapping { .. } => (
+                "a shell of the body stands inside another piece's material with no cavity \
+                 between, so their material overlaps"
+                    .to_owned(),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            Self::Move(e) => (
+                format!("moving a piece into its own solid failed: {e}"),
+                geom_core::KERNEL_DEFECT_ENDING,
+            ),
+        };
+        write!(f, "{what}. {ending}")
     }
 }
 
@@ -136,26 +167,28 @@ impl std::error::Error for PieceSortError {}
 ///
 /// # Errors
 ///
-/// [`PieceSortError`], before any shell of the refusing solid moves.
-pub(crate) fn sort_into_pieces<T: Decide>(
+/// [`PieceSortError`], before any shell of the body moves.
+pub(crate) fn sort_into_pieces<T: Decide + Bounds>(
     body: &mut Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<QuadLane<T>>,
 ) -> Result<(), PieceSortError> {
     let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
+    let mut moves = Vec::new();
     for solid in solids {
-        for piece in pieces_of(body, solid, band, tol, quad)? {
-            body.move_shells_to_new_solid(&piece)
-                .map_err(PieceSortError::Move)?;
-        }
+        moves.extend(pieces_of(body, solid, band, tol, quad)?);
+    }
+    for piece in moves {
+        body.move_shells_to_new_solid(&piece)
+            .map_err(PieceSortError::Move)?;
     }
     Ok(())
 }
 
 /// The pieces of `solid` that leave it, each as the shell list its new
 /// solid takes (outer shell first, then its voids in the solid's order).
-fn pieces_of<T: Decide>(
+fn pieces_of<T: Decide + Bounds>(
     body: &Body<T>,
     solid: SolidKey,
     band: Band,
@@ -185,51 +218,27 @@ fn pieces_of<T: Decide>(
         .zip(shells)
         .map(|(r, &shell)| r.ok_or(PieceSortError::RoleUnread { shell }))
         .collect::<Result<Vec<_>, _>>()?;
-    let outers: Vec<usize> = (0..reads.len())
-        .filter(|&i| reads[i].role == ShellRole::Outer)
-        .collect();
 
-    // Owner of each void, read lazily (module docs).
+    let screen = Screen::of(body, &reads, band);
     let mut enclosers: Vec<Option<Vec<usize>>> = vec![None; reads.len()];
     let mut owner: Vec<Option<usize>> = vec![None; reads.len()];
-    for v in (0..reads.len()).filter(|&i| reads[i].role == ShellRole::Void) {
-        let around = read_enclosers(body, v, &reads, &mut enclosers, band, tol)?;
-        let innermost = match around[..] {
-            [] => {
-                return Err(PieceSortError::NoOwner {
-                    shell: reads[v].shell,
-                });
+    for i in 0..reads.len() {
+        let shell = reads[i].shell;
+        let inner = innermost(body, i, &reads, &screen, &mut enclosers, band, tol)?;
+        match (reads[i].role, inner.map(|t| reads[t].role)) {
+            (ShellRole::Void, Some(ShellRole::Outer)) => owner[i] = inner,
+            (ShellRole::Void, _) => return Err(PieceSortError::NoOwner { shell }),
+            (ShellRole::Outer, Some(ShellRole::Outer)) => {
+                return Err(PieceSortError::Overlapping { shell });
             }
-            [only] => only,
-            _ => {
-                // Nesting: the innermost encloser lies inside every other
-                // one, so it has exactly `around.len() - 1` of them among
-                // `around`, and each depth occurs once.
-                let mut depths = Vec::with_capacity(around.len());
-                for &t in &around {
-                    let theirs = read_enclosers(body, t, &reads, &mut enclosers, band, tol)?;
-                    depths.push((theirs.iter().filter(|u| around.contains(u)).count(), t));
-                }
-                depths.sort_unstable();
-                if depths.iter().enumerate().any(|(d, &(depth, _))| depth != d) {
-                    return Err(PieceSortError::Crossing {
-                        shell: reads[v].shell,
-                    });
-                }
-                depths[depths.len() - 1].1
-            }
-        };
-        if reads[innermost].role != ShellRole::Outer {
-            return Err(PieceSortError::NoOwner {
-                shell: reads[v].shell,
-            });
+            (ShellRole::Outer, _) => {}
         }
-        owner[v] = Some(innermost);
     }
 
-    Ok(outers[1..]
-        .iter()
-        .map(|&o| {
+    Ok((0..reads.len())
+        .filter(|&i| reads[i].role == ShellRole::Outer)
+        .skip(1)
+        .map(|o| {
             core::iter::once(reads[o].shell)
                 .chain(
                     (0..reads.len())
@@ -241,12 +250,47 @@ fn pieces_of<T: Decide>(
         .collect())
 }
 
+/// The innermost of the shells `reads[i]` lies inside, or `None` when it
+/// lies inside none. The enclosers of a shell nest, so the innermost has
+/// exactly `around.len() - 1` of them among `around`, and each depth
+/// occurs once; two at one depth are shells that cross.
+fn innermost<T: Decide>(
+    body: &Body<T>,
+    i: usize,
+    reads: &[ShellRead],
+    screen: &Screen,
+    memo: &mut [Option<Vec<usize>>],
+    band: Band,
+    tol: Tol,
+) -> Result<Option<usize>, PieceSortError> {
+    let around = read_enclosers(body, i, reads, screen, memo, band, tol)?;
+    match around[..] {
+        [] => Ok(None),
+        [only] => Ok(Some(only)),
+        _ => {
+            let mut depths = Vec::with_capacity(around.len());
+            for &t in &around {
+                let theirs = read_enclosers(body, t, reads, screen, memo, band, tol)?;
+                depths.push((theirs.iter().filter(|u| around.contains(u)).count(), t));
+            }
+            depths.sort_unstable();
+            if depths.iter().enumerate().any(|(d, &(depth, _))| depth != d) {
+                return Err(PieceSortError::Crossing {
+                    shell: reads[i].shell,
+                });
+            }
+            Ok(depths.last().map(|&(_, t)| t))
+        }
+    }
+}
+
 /// The shells whose closed surface `reads[i]` lies inside, memoised in
 /// `memo`.
 fn read_enclosers<T: Decide>(
     body: &Body<T>,
     i: usize,
     reads: &[ShellRead],
+    screen: &Screen,
     memo: &mut [Option<Vec<usize>>],
     band: Band,
     tol: Tol,
@@ -255,13 +299,46 @@ fn read_enclosers<T: Decide>(
         return Ok(known.clone());
     }
     let shell = reads[i].shell;
-    let around: Vec<usize> = match witness_insides(body, i, reads, band, tol) {
+    let around: Vec<usize> = match witness_insides(body, i, reads, &|t| screen.may_meet(i, t), band, tol) {
         Insides::Read(inside) => (0..reads.len()).filter(|&t| inside[t]).collect(),
         Insides::Touching => return Err(PieceSortError::WitnessTouching { shell }),
         Insides::Refused(source) => return Err(PieceSortError::Probe { shell, source }),
     };
     memo[i] = Some(around.clone());
     Ok(around)
+}
+
+/// Each shell's padded box — the hull of its faces' boxes, the boxes
+/// the boolean's sweep certifies with ([`crate::boolean::boxes`]) — so
+/// two shells whose boxes are certified apart are never probed against
+/// each other: one cannot lie inside the other. A shell whose box does
+/// not build is screened out of nothing.
+struct Screen(Vec<Option<bvh::Aabb>>);
+
+impl Screen {
+    fn of<T: Decide + Bounds>(body: &Body<T>, reads: &[ShellRead], band: Band) -> Self {
+        let pad = crate::boolean::boxes::sweep_pad(band);
+        Self(
+            reads
+                .iter()
+                .map(|r| {
+                    r.sel.faces().iter().try_fold(None, |hull: Option<bvh::Aabb>, &f| {
+                        let b = crate::boolean::boxes::face_box(body, f, pad, band).ok()?;
+                        Some(Some(hull.map_or(b, |h| h.hull(&b))))
+                    })?
+                })
+                .collect(),
+        )
+    }
+
+    /// Whether shells `i` and `t` may meet: `false` only for two boxes
+    /// certified apart.
+    fn may_meet(&self, i: usize, t: usize) -> bool {
+        match (&self.0[i], &self.0[t]) {
+            (Some(a), Some(b)) => a.overlaps(b),
+            _ => true,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -285,7 +362,7 @@ mod tests {
             let b = if inside_out { b.revert().unwrap() } else { b };
             crate::graft_disjoint_all_keyed(&mut body, &b).unwrap();
         }
-        body.merge_all_solids();
+        body.merge_all_solids().unwrap();
         body
     }
 
@@ -327,8 +404,8 @@ mod tests {
         assert_eq!(body.solids().count(), 1, "nothing moved");
     }
 
-    /// **Side by side needs no probe**: three cubes and no cavity split
-    /// one solid per cube, the first keeping the original solid.
+    /// **Side by side**: three cubes and no cavity split one solid per
+    /// cube, the first keeping the original solid.
     #[test]
     fn outers_alone_split_one_solid_each() {
         let mut body = one_solid(&[
@@ -343,5 +420,56 @@ mod tests {
         let mut filed: Vec<_> = body.solids().map(|(_, s)| s.shells.clone()).collect();
         filed.sort();
         assert_eq!(filed, order.iter().map(|&s| vec![s]).collect::<Vec<_>>());
+    }
+
+    /// **An `Outer` straight inside an `Outer` is overlapping material**:
+    /// two pieces' worth of shells, one inside the other with no cavity
+    /// between, refuse rather than split into two solids that overlap.
+    #[test]
+    fn an_outer_inside_an_outer_refuses_as_overlapping() {
+        let mut body = one_solid(&[
+            ([(0.0, 6.0), (0.0, 6.0), (0.0, 6.0)], false),
+            ([(2.0, 4.0), (2.0, 4.0), (2.0, 4.0)], false),
+        ]);
+        let inner = body.shells().nth(1).unwrap().0;
+        assert!(matches!(
+            sort(&mut body),
+            Err(PieceSortError::Overlapping { shell }) if shell == inner
+        ));
+        assert_eq!(body.solids().count(), 1, "nothing moved");
+    }
+
+    /// **An undecided role beside two decided `Outer`s refuses**: a
+    /// sheet `(1 + K)·ε` thick, whose signed volume stays in band.
+    #[test]
+    fn an_in_band_shell_beside_two_pieces_refuses_role_unread() {
+        let tol = Tol::witness();
+        let t = (1.0 + tol.k()) * tol.eps();
+        let mut body = one_solid(&[
+            ([(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], false),
+            ([(3.0, 4.0), (0.0, 1.0), (0.0, 1.0)], false),
+            ([(6.0, 7.0), (0.0, 1.0), (0.0, t)], false),
+        ]);
+        let sheet = body.shells().nth(2).unwrap().0;
+        assert!(matches!(
+            sort(&mut body),
+            Err(PieceSortError::RoleUnread { shell }) if shell == sheet
+        ));
+    }
+
+    /// **A shell every corner of which touches another refuses**: a
+    /// cavity whose corners all lie on the outer cube around it, beside
+    /// a second cube.
+    #[test]
+    fn a_shell_touching_at_every_corner_refuses_witness_touching() {
+        let mut body = one_solid(&[
+            ([(0.0, 2.0), (0.0, 2.0), (0.0, 2.0)], false),
+            ([(5.0, 6.0), (0.0, 1.0), (0.0, 1.0)], false),
+            ([(0.0, 2.0), (0.0, 2.0), (0.0, 1.0)], true),
+        ]);
+        assert!(matches!(
+            sort(&mut body),
+            Err(PieceSortError::WitnessTouching { .. })
+        ));
     }
 }

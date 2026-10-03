@@ -370,3 +370,60 @@ fn a_seamed_subtract_files_the_island_inside_the_merged_cavity() {
         "seamed",
     );
 }
+
+/// A cube, a bar through it (neither's corners inside the other) and a
+/// cavity inside both, filed under one solid (the `sweep-testing` merge
+/// door): the cavity's two enclosers stand at one depth, so the shells
+/// cross and no verb can tell which piece the cavity belongs to.
+fn crossing_body() -> Body<f64> {
+    let mut body = cube(0.0, 2.0);
+    topo::graft_disjoint_all_keyed(
+        &mut body,
+        &brick((0.5, 1.5), (-1.0, 3.0), (0.5, 1.5), tol()),
+    )
+    .unwrap();
+    topo::graft_disjoint_all_keyed(&mut body, &cube(0.8, 1.2).revert().unwrap()).unwrap();
+    body.with_solids_merged_for_tests()
+}
+
+/// **Each verb surfaces the sort's refusal typed**: the boolean (a far
+/// cut, so the result is A's material), the split (a plane missing the
+/// body, so one side is all of it) and `shell` (which sorts its
+/// operand first) each refuse `Pieces(Crossing)`.
+#[test]
+fn every_verb_refuses_a_body_whose_pieces_cannot_be_read() {
+    let body = crossing_body();
+    match topo::subtract(&body, &cube(10.0, 11.0), tol()) {
+        Err(topo::BooleanError::Pieces(topo::PieceSortError::Crossing { .. })) => {}
+        other => panic!("the boolean: {:?}", other.map(|_| ())),
+    }
+    let plane = topo::test_support::split_plane(
+        geom_core::Point3::new(0.0, 0.0, 10.0),
+        geom_core::Vec3::new(0.0, 0.0, 1.0),
+        tol(),
+    );
+    match topo::split(&body, &plane, tol()) {
+        Err(topo::SplitError::Pieces(topo::PieceSortError::Crossing { .. })) => {}
+        other => panic!("the split: {:?}", other.map(|_| ())),
+    }
+    match topo::shell(&body, 0.05, tol()) {
+        Err(topo::ShellError::Pieces {
+            error: topo::PieceSortError::Crossing { .. },
+        }) => {}
+        other => panic!("the shell: {:?}", other.map(|_| ())),
+    }
+}
+
+/// **Overlapping material refuses rather than splitting into two solids
+/// that overlap**: a cube filed straight inside another cube's solid, no
+/// cavity between, through a far cut.
+#[test]
+fn a_cube_inside_a_cube_under_one_solid_refuses_as_overlapping() {
+    let mut body = cube(0.0, 6.0);
+    topo::graft_disjoint_all_keyed(&mut body, &cube(2.0, 4.0)).unwrap();
+    let body = body.with_solids_merged_for_tests();
+    match topo::subtract(&body, &cube(10.0, 11.0), tol()) {
+        Err(topo::BooleanError::Pieces(topo::PieceSortError::Overlapping { .. })) => {}
+        other => panic!("{:?}", other.map(|_| ())),
+    }
+}

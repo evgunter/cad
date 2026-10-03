@@ -154,12 +154,13 @@ nodes share the rule vocabulary and slot map.
   touching-box but genuinely disjoint arrangement refuses typed
   (`NodeErrorKind::PlacementsUncertified`, the first pair in index order). The
   certificate runs before any body is placed.
-- **Lowering.** In placement order (D9): placement 0 goes through
-  `graft_disjoint_all_keyed`, minting the destination solids; each later
-  placement grafts onto those solids through `graft_disjoint_all_onto_keyed`,
-  so the result is the one-solid, N-shell union the pairwise `Boolean(Union)`
-  chain produces — the only shape the seamed boolean path accepts as an
-  operand. No new kernel op or naming record; `BooleanNaming` stays two-operand.
+- **Lowering.** In placement order (D9): each placement goes through
+  `graft_disjoint_all_keyed`, minting its own solids, so the result is a body
+  of one solid per copy — the body the pairwise `Boolean(Union)` chain
+  produces, since a solid is one piece of material (`docs/DESIGN.md`), and a
+  boolean operand like any other, since booleans take bodies. A product
+  prototype refuses (`NodeErrorKind::ProductOperand`). No new kernel op or
+  naming record; `BooleanNaming` stays two-operand.
 
 ## The profile-parameter lift (PP1–PP6)
 
