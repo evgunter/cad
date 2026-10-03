@@ -102,7 +102,7 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{
-    CircleRoots, HalfAngleFrame, HalfAngleRows, Harmonics, SubdivisionRows,
+    CircleRoots, HalfAngleFrame, HalfAngleRows, SubdivisionFrame, SubdivisionRows, TrigPoly,
     constant_residual_roots, half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
@@ -268,26 +268,23 @@ pub(super) fn circle_torus_roots<T: Decide>(
     );
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
-    let harmonics = Harmonics {
-        c0: h.cos[0],
-        c1: h.cos[1],
-        s1: h.sin[1],
-        c2: h.cos[2],
-        s2: h.sin[2],
-    };
+    let harmonics = TrigPoly::second(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
     // The lever (module docs, "The lever").
     let lever = (two * radius).min(major_radius + minor_radius);
     half_angle_roots(
         &harmonics,
         |theta| geom_brep::implicit_residual(torus, point_at(theta)),
         HalfAngleFrame {
-            t0,
-            t1,
+            walk: SubdivisionFrame {
+                t0,
+                t1,
+                speed_hi: radius,
+                noise: rounding_charge(h.terms) + dropped,
+                f_per_metre: h.f_per_metre_lo,
+                f_per_metre_hi: h.f_per_metre_hi,
+            },
             speed_lo: radius,
-            speed_hi: radius,
             lever,
-            noise: rounding_charge(h.terms) + dropped,
-            f_per_metre: h.f_per_metre_lo,
         },
         &CIRCLE_TORUS_ROWS,
         band,

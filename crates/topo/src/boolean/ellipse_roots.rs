@@ -77,9 +77,9 @@
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::circle_roots::{
-    CircleRoots, FirstHarmonic, FirstHarmonicRows, HalfAngleFrame, HalfAngleRows, Harmonics,
-    MAX_DEGREE, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
-    first_harmonic_roots, half_angle_roots, rounding_charge,
+    CircleRoots, FirstHarmonic, FirstHarmonicRows, HalfAngleFrame, HalfAngleRows, RootSlack,
+    SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision, first_harmonic_roots,
+    half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -219,22 +219,19 @@ pub(super) fn ellipse_roots<T: Decide>(
         );
     }
     half_angle_roots(
-        &Harmonics {
-            c0: h.c0,
-            c1: h.c1,
-            s1: h.s1,
-            c2: h.c2,
-            s2: h.s2,
-        },
+        &TrigPoly::second(h.c0, h.c1, h.s1, h.c2, h.s2),
         |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
         HalfAngleFrame {
-            t0,
-            t1,
+            walk: SubdivisionFrame {
+                t0,
+                t1,
+                speed_hi: conic.speed_hi(),
+                noise,
+                f_per_metre: T::one(),
+                f_per_metre_hi: T::one(),
+            },
             speed_lo: conic.speed_lo(),
-            speed_hi: conic.speed_hi(),
             lever: two * conic.speed_lo(),
-            noise,
-            f_per_metre: T::one(),
         },
         &ladder_rows(decision),
         band,
@@ -251,21 +248,47 @@ fn torus_roots<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<CircleRoots<T>, BooleanError> {
+    torus_walk(
+        conic,
+        torus,
+        (t0, t1),
+        surface,
+        Some(TORUS_ROOT_SLACK),
+        band,
+    )
+}
+
+/// The torus arm's root-slack row.
+const TORUS_ROOT_SLACK: &str = "bool_ellipse_torus_root_slack";
+
+/// [`torus_roots`]' walk, its root-slack meter under `slack` (`None`
+/// only in this module's rows, which show the meter is what decides).
+/// The meter's ceiling on `|F| / |res|` is the smaller of the carrier's
+/// and the surface's ([`geom_brep::ConicTorusHarmonics`]): a root it
+/// meters reads ON the surface.
+fn torus_walk<T: Decide>(
+    conic: &geom_brep::Conic<T>,
+    torus: (geom_core::Point3<T>, geom_core::Vec3<T>, T, T),
+    (t0, t1): (T, T),
+    surface: &geom::Surface<T>,
+    slack: Option<&'static str>,
+    band: Band,
+) -> Result<CircleRoots<T>, BooleanError> {
     let (center, axis, major_radius, minor_radius) = torus;
     let h = geom_brep::conic_torus_harmonics(conic, center, axis, major_radius, minor_radius);
     let placed = |theta: T| {
         geom_brep::conic_torus_residual(conic, center, axis, major_radius, minor_radius, theta)
     };
-    let meter = RootSlack {
-        row: "bool_ellipse_torus_root_slack",
+    let meter = slack.map(|row| RootSlack {
+        row,
         residual: &placed,
-        f_per_metre_hi: h.f_per_metre_hi,
-    };
+        f_per_metre_hi: h.f_per_metre_hi.min(h.f_per_metre_surface),
+    });
     certified_subdivision(
         &TrigPoly {
             cos: h.cos,
             sin: h.sin,
-            degree: MAX_DEGREE,
+            degree: 4,
         },
         &|theta| geom_brep::implicit_residual(surface, conic.point(theta)),
         &SubdivisionFrame {
@@ -274,9 +297,10 @@ fn torus_roots<T: Decide>(
             speed_hi: conic.speed_hi(),
             noise: rounding_charge(h.terms),
             f_per_metre: h.f_per_metre_lo,
+            f_per_metre_hi: h.f_per_metre_hi,
         },
         &TORUS_ROWS,
-        Some(&meter),
+        meter.as_ref(),
         band,
     )
 }

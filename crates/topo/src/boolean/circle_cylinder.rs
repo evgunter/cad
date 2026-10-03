@@ -45,8 +45,8 @@
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::circle_roots::{
-    CircleRoots, FirstHarmonic, FirstHarmonicRows, HalfAngleFrame, HalfAngleRows, Harmonics,
-    SubdivisionRows, first_harmonic_roots, half_angle_roots, rounding_charge,
+    CircleRoots, FirstHarmonic, FirstHarmonicRows, HalfAngleFrame, HalfAngleRows, SubdivisionFrame,
+    SubdivisionRows, TrigPoly, first_harmonic_roots, half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -160,28 +160,25 @@ pub(super) fn circle_cylinder_roots<T: Decide>(
         center + u_ref * (radius * c) + v_ref * (radius * s)
     };
     half_angle_roots(
-        &Harmonics {
-            c0: h.c0,
-            c1: h.c1,
-            s1: h.s1,
-            c2: h.c2,
-            s2: h.s2,
-        },
+        &TrigPoly::second(h.c0, h.c1, h.s1, h.c2, h.s2),
         |theta| geom_brep::implicit_residual(wall, point_at(theta)),
         HalfAngleFrame {
-            t0,
-            t1,
+            walk: SubdivisionFrame {
+                t0,
+                t1,
+                speed_hi: radius,
+                noise,
+                // `h` is the residual itself, already divided by `2r`.
+                f_per_metre: T::one(),
+                f_per_metre_hi: T::one(),
+            },
             speed_lo: radius,
-            speed_hi: radius,
             // Not clamped by the wall's size, as the torus door clamps
             // by its extent: the wall is unbounded along its axis, and a
             // circle in a plane through that axis meets it at points a
             // whole diameter apart whatever `r` is, so `2ρ` is the
             // spread the roots can have.
             lever: two * radius,
-            noise,
-            // `h` is the residual itself, already divided by `2r`.
-            f_per_metre: T::one(),
         },
         &CIRCLE_CYLINDER_LADDER_ROWS,
         band,
