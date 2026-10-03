@@ -3999,14 +3999,16 @@ fn a_rational_walls_corner_and_side_in_band_answer_a_region_only_where_coinciden
 }
 
 /// Whether `e` is the certificate's own limit on a fitted branch: a limb
-/// refused or too close to call, or the fit's sample budget spent.
+/// refused or too close to call, the fit's sample budget spent, or such
+/// a refusal that refinement could not answer.
 fn certificate_limit(e: &SsiError) -> bool {
-    matches!(
-        e,
+    match e {
         SsiError::CertificateLimb { .. }
-            | SsiError::CertificateEscalated { .. }
-            | SsiError::FitSampleBudget { .. }
-    )
+        | SsiError::CertificateEscalated { .. }
+        | SsiError::FitSampleBudget { .. } => true,
+        SsiError::RefinementExhausted { refusal, .. } => certificate_limit(refusal),
+        _ => false,
+    }
 }
 
 /// **A rational wall's plane three ε off its edge traces the edge-long
@@ -4768,7 +4770,7 @@ fn a_loop_whose_seeds_newton_carries_into_its_tube_is_found_once() {
 #[test]
 fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
     use geom_brep::recourse::Reading;
-    use geom_brep::ssi::StepBound;
+    use geom_brep::ssi::{StepBound, StepCap};
     let s = 1000.0;
     let sphere = Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -4809,14 +4811,14 @@ fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
     let close = |gap: f64| {
         ssi::plane_nurbs_ssi(
             &close_crossings_plane(),
-            &close_crossings_wall(gap),
+            &close_crossings_wall(gap, 1.0),
             close_crossings_domain(),
             band_at(1e-9),
         )
     };
     match close(1.0e-4) {
         Err(ref err @ SsiError::StepBudget { bound, .. }) => {
-            assert_eq!(bound, StepBound::Cap, "{err}");
+            assert_eq!(bound, StepBound::Cap(StepCap::Crossing), "{err}");
             let shown = err.render(Reading::Build);
             assert!(
                 shown.contains("held short by the nearest crossing's distance")
@@ -4836,8 +4838,8 @@ fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
 
 /// A wall whose plane `y = 0` cut is two straight branches up `z`, at
 /// `x = ½ ∓ gap/2`: quadratic in `u`, `y = (u − a)(u − 1 + a)` with
-/// `a = ½ − gap/2`, and linear in `v`, one metre tall.
-fn close_crossings_wall(gap: f64) -> NurbsSurface<f64> {
+/// `a = ½ − gap/2`, and linear in `v`, `height` tall.
+fn close_crossings_wall(gap: f64, height: f64) -> NurbsSurface<f64> {
     let a = 0.5 - gap / 2.0;
     let ab = a * (1.0 - a);
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
@@ -4845,7 +4847,7 @@ fn close_crossings_wall(gap: f64) -> NurbsSurface<f64> {
     let mut control = Vec::with_capacity(6);
     for (x, y) in [(0.0, ab), (0.5, ab - 0.5), (1.0, ab)] {
         control.push(Point3::new(x, y, 0.0));
-        control.push(Point3::new(x, y, 1.0));
+        control.push(Point3::new(x, y, height));
     }
     NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
 }
@@ -4894,27 +4896,174 @@ fn a_straight_branch_takes_only_the_samples_its_fit_needs() {
 }
 
 /// **A branch whose last marched state lands a hair inside the wall
-/// certifies.** The plane `x = 0.5` across the flat wall of height
-/// `31/32 + δ`: marched from the bottom edge's crossing in fifths of the
-/// crossings' distance, the branch's fifth state lands within rounding
-/// of the top edge, inside or out by the bits of δ. The march ends at
-/// the crossing the boundary pass certified there, and a last state
-/// nearer that crossing than half its own step gives way to it, so the
-/// fit never reads a final chord far shorter than the steps before it.
-/// Every δ from 1e-11 m to 1e-3 m certifies, at every ε
+/// certifies.** A march ends at the crossing the boundary pass
+/// certified, and a last state nearer that crossing than half its own
+/// step gives way to it (`close_at`), so the fit never reads a final
+/// chord far shorter than the steps before it
 /// (`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
+///
+/// - On every straight crossing-to-crossing branch the step is a fifth
+///   of the crossings' distance, so the fifth state lands on the far
+///   edge within rounding, a hair inside or out. The plane `x = 0.5`
+///   across the flat wall of height `31/32 + δ` is such a branch at
+///   every δ.
+/// - The δ-short regime, a last state short of the edge by a length the
+///   step does not divide, is a branch stepped by another branch's
+///   crossing: the close-crossings wall's branches meet the bottom side
+///   0.2 m apart, so the first is cut into steps of 0.04 m, and at a
+///   height of `0.96 + δ` its 24th state lands δ short of the top.
+///
+/// Every δ from 1e-11 m to 1e-3 m certifies, at every ε.
 #[test]
 fn a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies() {
     let across = edge_plane(0.5);
     for delta in [1e-11, 2e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-4, 1e-3] {
-        let h = 31.0 / 32.0 + delta;
         let at = format!("δ = {delta:e} at ε {:e}", band().zero());
+        let h = 31.0 / 32.0 + delta;
         let out = ssi::plane_nurbs_ssi(&across, &flat_wall(1.0, h), wall_box(1.0, 1.0), band())
-            .unwrap_or_else(|e| panic!("{at}: {e}"));
+            .unwrap_or_else(|e| panic!("flat wall, {at}: {e}"));
         let [b] = out.branches.as_slice() else {
-            panic!("{at}: expected one branch, got {}", out.branches.len());
+            panic!(
+                "flat wall, {at}: expected one branch, got {}",
+                out.branches.len()
+            );
         };
         let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
-        assert!((span - h).abs() < 1.0e-6, "{at}: spans {span:e} of {h:e}");
+        assert!(
+            (span - h).abs() < 1.0e-6,
+            "flat wall, {at}: spans {span:e} of {h:e}"
+        );
+
+        let h = 0.96 + delta;
+        let out = ssi::plane_nurbs_ssi(
+            &close_crossings_plane(),
+            &close_crossings_wall(0.2, h),
+            close_crossings_domain(),
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("close crossings, {at}: {e}"));
+        assert_eq!(out.branches.len(), 2, "close crossings, {at}");
+        for b in &out.branches {
+            let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+            assert!(
+                (span - h).abs() < 1.0e-6,
+                "close crossings, {at}: spans {span:e} of {h:e}"
+            );
+        }
     }
+}
+
+/// **The idealized stepper's spent budget names the extent.** The
+/// idealized step is a thousandth of the caller's feature extent, so at
+/// an extent of 0.015 m the threaded cylinder's north loop, about 0.5 m
+/// round, takes some 33 000 steps of 15 µm, which clear the band at
+/// every ε and spend the step budget, held by that step
+/// (`StepCap::Idealized`); the ending names the extent. At the slab's
+/// own 2 m extent the step is 2 mm and the loop is traced.
+#[test]
+fn the_idealized_steppers_spent_budget_names_the_extent() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::ssi::{StepBound, StepCap};
+    let (s, c) = (sphere(), threaded_cylinder());
+    let seed = Point3::new(0.11, 0.0, 0.994);
+    let dom = SsiDomain {
+        extent: 0.015,
+        ..slab()
+    };
+    match ssi::idealized_trace_r3(&c, &s, seed, dom, band()) {
+        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
+            assert_eq!(bound, StepBound::Cap(StepCap::Idealized), "{err}");
+            let shown = err.render(Reading::Build);
+            assert!(
+                shown.contains("held short by the idealized step")
+                    && shown.contains("Recourse: name a feature extent near the size")
+                    && !shown.contains("crossing"),
+                "{shown}"
+            );
+        }
+        other => panic!("extent 0.015: expected the step budget, got {other:?}"),
+    }
+    let (points, end) = ssi::idealized_trace_r3(&c, &s, seed, slab(), band())
+        .unwrap_or_else(|e| panic!("the slab's extent: {e}"));
+    assert_eq!(end, BranchEnd::Closed, "the north loop closes");
+    assert!(points.len() > 100, "{} points", points.len());
+}
+
+/// **A branch cut short by its domain names a domain holding more of
+/// it.** The threaded cylinder's north loop cut to a cube of side `L`
+/// about `(0.11, 0, √(1 − 0.11²))`: the arc inside is about `L` long,
+/// re-marched in fifths of it. At `L` = 30 µm and ε 1e-6 the step,
+/// 6 µm, is too close to the band to call, and the ending names a
+/// domain holding more of the intersection; the same arc in a 0.3 mm
+/// cube certifies. The domain's diagonal only ever shortens a step, so
+/// a domain near the feature's size is no lever, and the extent sizes
+/// no realized step
+/// (`work/ssi/ssi-step-scale-recourse-cannot-help-a-re-marched-short-branch.md`).
+#[test]
+fn a_branch_cut_short_by_its_domain_names_a_domain_holding_more_of_it() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::ssi::TraceDecision;
+    let (s, c) = (sphere(), threaded_cylinder());
+    let at = Point3::new(0.11, 0.0, (1.0f64 - 0.11 * 0.11).sqrt());
+    let cube = |l: f64| SsiDomain {
+        center: at,
+        half_extent: l / 2.0,
+        extent: 0.2,
+        floor_scale: 1.0,
+    };
+    let b = band_at(1e-6);
+    match ssi::cylinder_sphere_ssi(&c, &s, cube(3e-5), b) {
+        Err(
+            ref err @ SsiError::Escalated {
+                decision: TraceDecision::StepProgress,
+                ..
+            },
+        ) => {
+            let shown = err.render(Reading::Build);
+            assert!(
+                shown.contains("name a domain that holds more of the intersection")
+                    && !shown.contains("feature extent"),
+                "{shown}"
+            );
+        }
+        other => panic!("a 30 µm cube: expected the step escalated, got {other:?}"),
+    }
+    let out = ssi::cylinder_sphere_ssi(&c, &s, cube(3e-4), b)
+        .unwrap_or_else(|e| panic!("a 0.3 mm cube: {e}"));
+    assert_eq!(out.branches.len(), 1, "a 0.3 mm cube: {out:?}");
+}
+
+/// **A marched door reaches an empty tube ladder.** The ladder's widest
+/// rung is an eighth of the feature extent and its floor 8ε, so it is
+/// empty below an extent of 64ε, and the extent sizes no realized step:
+/// a branch whose steps clear the band still reaches the certificate.
+/// The plane `x = w/2` across a flat wall `w` = 0.2 µm square, at
+/// ε 1e-9 and an extent of 5e-8 m, refuses `TubeLadderEmpty`; at 1e-7 m
+/// the ladder has rungs and the branch certifies. (The seeding floor is
+/// an extent's sixty-fourth too, so a branch many extents long spends
+/// the cell budget before it is marched.)
+#[test]
+fn a_marched_door_reaches_an_empty_tube_ladder() {
+    let w = 2e-7;
+    let plane = edge_plane(w / 2.0);
+    let dom = |extent: f64| SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0 * w,
+        extent,
+        floor_scale: 1.0,
+    };
+    let b = band_at(1e-9);
+    match ssi::plane_nurbs_ssi(&plane, &flat_wall(w, w), dom(5e-8), b) {
+        Err(SsiError::TubeLadderEmpty { extent, floor }) => {
+            assert_eq!(extent, 5e-8);
+            assert!(
+                floor > extent / 8.0,
+                "floor {floor:e} above the widest rung"
+            );
+        }
+        other => panic!("extent 5e-8: expected the empty ladder, got {other:?}"),
+    }
+    let out = ssi::plane_nurbs_ssi(&plane, &flat_wall(w, w), dom(1e-7), b)
+        .unwrap_or_else(|e| panic!("extent 1e-7: {e}"));
+    assert_eq!(out.branches.len(), 1, "extent 1e-7: {out:?}");
 }
