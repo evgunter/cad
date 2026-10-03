@@ -1,0 +1,8 @@
+        FAIL [   0.112s] (6891/7014) topo::all rigid_map_near_eps_plane_nurbs::the_certificate_re_derives_within_rounding_under_the_map
+        FAIL [   4.580s] (4801/7014) sweep::all tcost_k3_certificate::the_gates_certificate_is_the_measurement_and_costs_one_quadrature
+        FAIL [   4.909s] (2900/7014) step-import::all tcost_k3_import_certificate::the_readers_gate_runs_one_certificate_and_hands_it_back
+        FAIL [   7.797s] (4552/7014) sweep::all tcost_k3_certificate::a_multi_solid_certificate_reads_each_face_once
+        FAIL [   8.646s] (4560/7014) sweep::all tcost_k3_certificate::a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement
+        FAIL [  17.307s] (3841/7014) sweep::all mass_props_are_thread_count_invariant::the_walk_matches_the_serial_golden_at_four_threads
+        FAIL [  22.665s] (4553/7014) sweep::all sign_walk_plus_v::the_gate_certifies_a_sign_and_the_continuation_certifies_the_number
+     Summary [ 213.438s] 7014 tests run: 7007 passed, 7 failed, 264 skipped

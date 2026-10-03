@@ -19,6 +19,7 @@ import sys
 
 
 def load(d):
+    load_crate_map(d)
     rows = []
     for p in glob.glob(os.path.join(d, "*.jsonl")):
         if p.endswith(".declared.jsonl"):
@@ -46,12 +47,30 @@ def load_declared(d):
     return out
 
 
+_MOD_CRATE = {}
+
+
+def load_crate_map(d):
+    """Test module -> crate, read off the run's nextest log."""
+    import re
+    p = os.path.join(d, "nextest.log")
+    if not os.path.exists(p):
+        return
+    with open(p) as f:
+        for line in f:
+            m = re.search(r"\) ([\w-]+)::(\w+) (\w+)::", line)
+            if m:
+                _MOD_CRATE[m.group(3)] = m.group(1)
+
+
 def suite_of(origin):
-    if origin.startswith("tour::"):
+    if origin.startswith("tour"):
         return "tour"
     head, _, rest = origin.partition("::")
     crate = head.split("-")[0]
     mod = rest.split("::")[0] if rest else "?"
+    if crate == "all":
+        crate = _MOD_CRATE.get(mod, "all")
     return f"{crate}::{mod}"
 
 
