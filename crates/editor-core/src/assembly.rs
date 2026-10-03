@@ -315,8 +315,8 @@ pub struct Assembly<T: Decide> {
 /// root list decide.
 ///
 /// `Vanished` and `Ambiguous` are the silence and the tie every name
-/// lookup refuses with (`ResolveError` spells them for a `Declare`
-/// node's names). The subject here is the assembly's product table
+/// lookup refuses with (`ResolveError` spells them for a boolean's
+/// declared names). The subject here is the assembly's product table
 /// and the operand's, not a boolean operand's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefusedRef {

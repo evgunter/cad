@@ -606,3 +606,24 @@ Built by a wave-one cloud implementer.
 - **Filed.** Evidence for CLEAVE's steep tube cut at ε 1e-6 (red on main),
   folded into `steep-tube-split-refuses-trim-containment-at-eps-1e-6`.
 — (REACH orchestrator)
+
+## 2026-10-03 — the finished-body contract ratified (PR 3870)
+
+Ev approved the designers' recommendation and folded tier 3′ into the
+bar. A finished body (`AtRestBody`) passes tier 3′ against its own
+declared contacts, which is an empty list for most bodies. Every door
+that returns or consumes one pays that gate once. Euler operators hand
+back construction state.
+
+A measurement lane settled the fold over 2,572 contact-free bodies:
+- the census costs a median 0.09× tier 3;
+- it catches 8 real defects;
+- it cannot yet decide 26 multi-solid shell results. That is filed on
+  CONTACT, and shell's adoption waits on it.
+
+The build is `boolean-door-adopts-the-finished-body-type` (P1), with its
+sequencing.
+- The fork-log row is 50. It was renumbered because other programs
+  took 46 to 49.
+- Ev's answer matches the recommendation, refined by his fold.
+— (REACH orchestrator)

@@ -72,6 +72,9 @@ impl From<PointInLoopError> for ContainError {
             PointInLoopError::RayExhausted { .. } => Self::RayExhausted,
             PointInLoopError::CorruptLoop { .. } => Self::Corrupt,
             PointInLoopError::Uncrossable(u) => Self::Uncrossable(u),
+            PointInLoopError::OffPlane(_) => {
+                unreachable!("contfp reads loops through carrier_loop, which certifies no plane")
+            }
         }
     }
 }
@@ -401,7 +404,6 @@ const ROWS: BoundaryRows = BoundaryRows {
         clear: "bool_contact_spiric_clear",
         on: "bool_contact_spiric",
         leaf: "bool_contact_spiric_leaf",
-        depth: "bool_contact_spiric_depth",
     },
 };
 

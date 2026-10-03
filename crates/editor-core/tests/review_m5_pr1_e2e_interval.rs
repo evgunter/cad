@@ -100,7 +100,7 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
             op: BooleanOp::Subtract,
             a: cube,
             b: placed,
-            declare: None,
+            declare: Vec::new(),
         },
     );
 

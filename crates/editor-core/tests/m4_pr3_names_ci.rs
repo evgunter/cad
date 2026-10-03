@@ -88,14 +88,15 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// the loop backwards, and its walls, rims, struts and cap vertices are
 /// now named by the pieces at their CANONICAL positions (they were
 /// named by the swept positions, each wall by another piece); and node
-/// ids are digests of the document's mint chain, and the die's
-/// `Declare` node spells its pairs as continuations, so every id
-/// downstream of it moved.
-const DIE_TABLE_DIGEST: u64 = 0x5357_3a07_25c8_58e0;
+/// ids are digests of the document's mint chain, and the die's pip
+/// subtracts carry their declared pairs as their own payload, so every
+/// subtract's id, and every id minted after one, is the chain's
+/// without a declaration node in it.
+const DIE_TABLE_DIGEST: u64 = 0xa2b2_a066_44d5_b41a;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
-const DIE_NAMES_DIGEST: u64 = 0xc671_2d5a_b235_bba4;
+const DIE_NAMES_DIGEST: u64 = 0xf15a_1a58_3b21_53e4;
 
 #[test]
 fn die_name_tables_are_golden() {

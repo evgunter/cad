@@ -1909,7 +1909,7 @@ let (next, solid) = insert(&doc, Node::Boolean {
     op: BooleanOp::Union,
     a: plate,
     b: tab,
-    declare: None,
+    declare: Vec::new(),
 });
 doc = next;
 

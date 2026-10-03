@@ -2,11 +2,13 @@
 id: split-refuses-a-convex-graze-of-a-curved-wall
 kind: issue
 title: a plane grazing a cylinder's wall from outside refuses DegenerateSection where an answer exists
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+pr: 3892
 branch: cleave/convex-graze
+closed: 2026-10-03
 ---
 
 
@@ -54,3 +56,15 @@ accepts a refusal and only fails on a wrong answer.
 ## Found by
 
 PR 3726's review.
+
+## Measured (cleave/convex-graze)
+
+The four repros refuse `Join(DegenerateSection)` on main, as stated.
+The flip's stated failure did not reproduce. With the two arms
+flipped on main, the concave graze answers every orientation with the
+TRUE volumes, 6.0 / 9.2146. What it gets wrong is the knife edge: the
+hole's piece meets the cut face tangentially, which the split cannot
+declare, and
+`wedge_end_doors::a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint`
+goes red (`Ok` where `SectionCusp` is pinned). The constraint stands,
+with that as its reason.

@@ -6172,12 +6172,13 @@ mod tests {
             },
         )
         .unwrap();
-        let part = quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol);
-        // Lift the part off the floor: z ∈ [1.2, 1.8].
-        let mut part = part;
-        for (_, p) in part.points.iter_mut() {
-            p.z += 1.2;
-        }
+        // The part lifted off the floor: z ∈ [1.2, 1.8].
+        let part = crate::transform_rigid(
+            &quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol),
+            &geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.2)),
+            tol,
+        )
+        .unwrap();
         crate::instance::graft_disjoint(&mut body, &part).unwrap();
         let errors = census_and_certify(
             &body,
@@ -7658,7 +7659,7 @@ mod tests {
         let (start, end) = (spiric.eval(v0), spiric.eval(v1));
         let tangent = (spiric.eval(v1 + 1e-6) - spiric.eval(v1 - 1e-6)).normalize();
         let mid = spiric.eval(0.5 * (v0 + v1));
-        let reach = 9.0 / (81.0f64 - 25.0).sqrt() * 0.1;
+        let reach = geom::spiric_rate_bounds(1.0, 5.0, (9.0, 11.0), 1.0).0 * 0.1;
         let q = end + tangent * 0.003;
         let chord = end - start;
         assert!(

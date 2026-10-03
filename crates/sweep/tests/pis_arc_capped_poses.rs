@@ -617,7 +617,8 @@ fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
     // The ball the arc lies in: about its midpoint, its speed bound times
     // half its window.
     let centre = carrier.eval(0.5 * (t0 + t1));
-    let reach = r * (big - r) / ((big - r).powi(2) - offset.powi(2)).sqrt() * 0.5 * (t1 - t0).abs();
+    let (speed, _) = geom::spiric_rate_bounds(r, offset, (big - r, big + r), 1.0);
+    let reach = speed * 0.5 * (t1 - t0).abs();
     let planar = |p: Point3<f64>| ((p - centre).dot(across), (p - centre).dot(up));
     let segments: Vec<_> = segments
         .into_iter()
@@ -697,18 +698,18 @@ fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
     );
 }
 
-fn body_surface(body: &Body<f64>, s: topo::SurfaceKey) -> Option<geom::Surface<f64>> {
+pub(crate) fn body_surface(body: &Body<f64>, s: topo::SurfaceKey) -> Option<geom::Surface<f64>> {
     body.get_surface(s).cloned()
 }
 
-fn loop_half_edges(body: &Body<f64>, lk: topo::LoopKey) -> Vec<topo::HalfEdgeKey> {
+pub(crate) fn loop_half_edges(body: &Body<f64>, lk: topo::LoopKey) -> Vec<topo::HalfEdgeKey> {
     let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).expect("loop").boundary else {
         panic!("a cycle");
     };
     body.loop_cycle(first).expect("cycle")
 }
 
-fn loop_carriers(body: &Body<f64>, lk: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
+pub(crate) fn loop_carriers(body: &Body<f64>, lk: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
     loop_half_edges(body, lk)
         .into_iter()
         .filter_map(|he| {
@@ -718,7 +719,7 @@ fn loop_carriers(body: &Body<f64>, lk: topo::LoopKey) -> Vec<geom::Curve3<f64>> 
         .collect()
 }
 
-fn loop_vertex(body: &Body<f64>, lk: topo::LoopKey) -> Point3<f64> {
+pub(crate) fn loop_vertex(body: &Body<f64>, lk: topo::LoopKey) -> Point3<f64> {
     let he = loop_half_edges(body, lk)[0];
     let v = body.get_half_edge(he).expect("half edge").start;
     *body

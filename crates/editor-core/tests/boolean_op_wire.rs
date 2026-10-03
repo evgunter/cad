@@ -37,7 +37,7 @@ fn boolean(op: BooleanOp) -> Node<ProfileProgram> {
         op,
         a: RecipeNodeId(1),
         b: RecipeNodeId(2),
-        declare: None,
+        declare: Vec::new(),
     }
 }
 
@@ -52,9 +52,9 @@ fn the_operation_rides_the_wire_as_its_variant_name() {
     // given a spelling — the one tie the compiler can carry.
     let expected = |op: BooleanOp| -> &'static str {
         match op {
-            BooleanOp::Union => r#"{"Boolean":{"op":"Union","a":1,"b":2,"declare":null}}"#,
-            BooleanOp::Intersect => r#"{"Boolean":{"op":"Intersect","a":1,"b":2,"declare":null}}"#,
-            BooleanOp::Subtract => r#"{"Boolean":{"op":"Subtract","a":1,"b":2,"declare":null}}"#,
+            BooleanOp::Union => r#"{"Boolean":{"op":"Union","a":1,"b":2,"declare":[]}}"#,
+            BooleanOp::Intersect => r#"{"Boolean":{"op":"Intersect","a":1,"b":2,"declare":[]}}"#,
+            BooleanOp::Subtract => r#"{"Boolean":{"op":"Subtract","a":1,"b":2,"declare":[]}}"#,
         }
     };
     for &op in BooleanOp::ALL {
@@ -78,7 +78,7 @@ fn every_operation_round_trips() {
 /// reading as some other operation.
 #[test]
 fn an_unknown_operation_spelling_refuses() {
-    let text = r#"{"Boolean":{"op":"Xor","a":1,"b":2,"declare":null}}"#;
+    let text = r#"{"Boolean":{"op":"Xor","a":1,"b":2,"declare":[]}}"#;
     let err = serde_json::from_str::<Node<ProfileProgram>>(text)
         .expect_err("an unknown operation spelling must refuse");
     assert!(
@@ -94,7 +94,7 @@ fn an_unknown_operation_spelling_refuses() {
 /// fix" from undoing it unnoticed.
 #[test]
 fn the_map_form_of_a_variant_is_refused() {
-    let text = r#"{"Boolean":{"op":{"Union":null},"a":1,"b":2,"declare":null}}"#;
+    let text = r#"{"Boolean":{"op":{"Union":null},"a":1,"b":2,"declare":[]}}"#;
     serde_json::from_str::<Node<ProfileProgram>>(text)
         .expect_err("the operation rides the wire as a string, never as a one-key map");
 }
