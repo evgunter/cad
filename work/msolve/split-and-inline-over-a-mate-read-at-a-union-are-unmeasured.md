@@ -2,11 +2,12 @@
 id: split-and-inline-over-a-mate-read-at-a-union-are-unmeasured
 kind: issue
 title: Split and inline over a mate head read at a union are unmeasured since the member walk descends unions
-status: open
+status: parked
 priority: P3
 cost: M
 parent: MSOLVE-13
 opened: 2026-10-03
+blocked_on: [3990]
 ---
 
 

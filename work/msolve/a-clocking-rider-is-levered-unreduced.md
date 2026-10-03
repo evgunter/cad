@@ -2,10 +2,11 @@
 id: a-clocking-rider-is-levered-unreduced
 kind: issue
 title: A coincidence's clocking rider is levered as authored: a full turn refuses as contradictory, and a huge one quotes an infinite deviation
-status: open
+status: parked
 opened: 2026-10-01
 priority: P3
 cost: E
+blocked_on: [3990]
 ---
 
 

@@ -410,6 +410,26 @@ pub(crate) fn classify<T: Decide>(
     })
 }
 
+/// [`classify`] gated on a definitely positive margin
+/// ([`geom_core::k_stats::decide_positive`]): a decided non-positive
+/// margin escalates at `site` as `decision`, carrying the margin it was
+/// decided on, on the frame's log beside the verdict.
+pub(crate) fn classify_positive<T: Decide>(
+    site: BlendSite,
+    decision: BlendDecision,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), BlendError> {
+    let name = decision.predicate();
+    geom_core::k_stats::decide_positive(name, margin, band).map_err(|source| {
+        BlendError::Escalated {
+            site,
+            decision,
+            source,
+        }
+    })
+}
+
 /// A margin one of the battery's `fillet3_*` predicates classified
 /// **definitely**, carried with what the classifier saw, the band it
 /// was judged against, and the sign it decided.

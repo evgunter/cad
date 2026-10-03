@@ -2,10 +2,11 @@
 id: a-far-meeting-point-fails-membership-by-its-own-rounding
 kind: issue
 title: A near-parallel pair's far meeting point fails its own membership by the rounding of its coordinates — a Contradictory or an escalation for a pair that meets
-status: open
+status: parked
 opened: 2026-10-01
 priority: P2
 cost: M
+blocked_on: [3990]
 ---
 
 

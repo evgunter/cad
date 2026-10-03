@@ -514,7 +514,10 @@ fn rest(
     origin: [f64; 3],
     axis: [f64; 3],
 ) -> Node<editor_core::ProfileProgram> {
-    let side = |o| MateFrame::authored(o, axis, [0.0, 1e152, 0.0]);
+    let side = |o| {
+        MateFrame::authored(o, axis, [0.0, 1e152, 0.0], geom_core::Tol::witness())
+            .expect("a definite frame")
+    };
     Node::Mate {
         a: fixture::head(in_part(ids[0], body, CapEnd::Start)),
         b: fixture::head(in_part(ids[1], body, CapEnd::Start)),
