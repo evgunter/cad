@@ -2,7 +2,7 @@
 id: MSOLVE-14
 kind: unit
 title: The mate solve runs at the evaluation's own scalar: frames, coset fold and solved poses generic over T; the structure read at the nominal; Unpinned loses its producer
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P1
 cost: H

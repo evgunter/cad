@@ -12,7 +12,7 @@ It answers two rows:
 
 Read both rows, and the two designers' reports on #3679 (in the PR body), in full.
 
-**Track:** a large mechanical generification with a correctness core. **Review:** dual, under `docs/DUAL-REVIEW-PROTOCOL.md`. The unit changes how every analysis run reads an assembly, the memo key's inputs, and a public payload (`Unpinned`'s producer goes). **Dispatches after MSOLVE-13 merges**, because both touch `mate/member.rs` and `mate/solve.rs`.
+**Track:** a large mechanical generification with a correctness core. **Review:** dual, under `docs/DUAL-REVIEW-PROTOCOL.md`. The unit changes how every analysis run reads an assembly, the memo key's inputs, and a public payload (`Unpinned`'s producer goes). MSOLVE-13 merged on 2026-10-03, and this unit builds on its operand-first resolution and placement-keyed members.
 
 ## What the tree says now
 
