@@ -3738,7 +3738,7 @@ fn one_branch(
 #[test]
 fn a_walls_weights_move_no_answer() {
     let (eps, k_eps) = (band().zero(), band().escalate());
-    let cap = ssi::SSI_REGION_REACH_MAX * k_eps;
+    let cap = 5.0 * k_eps;
     let nets: [(&str, [f64; 4]); 6] = [
         ("weights ¼", [0.25; 4]),
         ("weights 2", [2.0; 4]),
@@ -3837,7 +3837,7 @@ fn plane_off(at: Point3<f64>, n: Vec3<f64>, off: f64) -> Surface<f64> {
 #[test]
 fn a_region_is_reported_only_within_its_reach_cap() {
     let k_eps = band().escalate();
-    let cap = ssi::SSI_REGION_REACH_MAX * k_eps;
+    let cap = 5.0 * k_eps;
     let wall = flat_wall(1.0, 1.0);
     let origin = Point3::new(0.0, 0.0, 0.0);
     let run = |plane: &Surface<f64>| ssi::plane_nurbs_ssi(plane, &wall, wall_box(1.0, 1.0), band());
@@ -3892,7 +3892,7 @@ fn a_region_is_reported_only_within_its_reach_cap() {
     let what = "normal (0.02, 1, 0), 0.3Kε off the u = 0 side";
     let n = Vec3::new(0.02, 1.0, 0.0);
     let r = run(&plane_off(Point3::new(0.0, 0.0, 0.5), n, 0.3 * k_eps));
-    let Err(SsiError::RegionUnbounded { side, reach, limit }) = r else {
+    let Err(SsiError::RegionUnbounded { side, reach }) = r else {
         panic!("{what}: expected the unbounded region, got {r:?}");
     };
     assert_eq!(
@@ -3904,8 +3904,8 @@ fn a_region_is_reported_only_within_its_reach_cap() {
         "{what}"
     );
     assert!(
-        reach > limit && limit == cap,
-        "{what}: reach {reach:e}, limit {limit:e}"
+        reach > cap,
+        "{what}: reach {reach:e}"
     );
 }
 
@@ -3942,7 +3942,7 @@ fn rational_biquad(b: f64, weights: [f64; 9]) -> NurbsSurface<f64> {
 #[test]
 fn a_rational_walls_corner_and_side_in_band_answer_a_region_or_nothing() {
     let (eps, k_eps) = (band().zero(), band().escalate());
-    let cap = ssi::SSI_REGION_REACH_MAX * k_eps;
+    let cap = 5.0 * k_eps;
     let knots = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let twisted = NurbsSurface::new(
         knots(),
@@ -4028,7 +4028,7 @@ fn a_short_clip_takes_the_hermite_candidate_and_certifies() {
     let mut regions = 0;
     let mut hermites = 0;
     for i in 0..=24 {
-        let length = s2 * k_eps + (ssi::SSI_SHORT_CLIP - s2) * k_eps * f64::from(i) / 25.0;
+        let length = s2 * k_eps + (5.0 - s2) * k_eps * f64::from(i) / 25.0;
         let d = length / s2;
         let at = format!("|AB| = {:.3} Kε at ε {eps:e}", length / k_eps);
         let r = ssi::plane_nurbs_ssi(
@@ -4494,4 +4494,49 @@ fn a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies() {
         let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
         assert!((span - h).abs() < 1.0e-6, "{at}: spans {span:e} of {h:e}");
     }
+}
+
+fn ssibnd_probe_kind(r: &Result<geom_brep::SsiOutcome, SsiError>) -> String {
+    match r {
+        Ok(o) => {
+            let spans: Vec<String> = o
+                .branches
+                .iter()
+                .map(|b| format!("{:.3e}", (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm()))
+                .collect();
+            let regs: Vec<String> = o.boundary.iter().map(|c| match c {
+                SsiBoundaryContact::Side { side, reach } => format!("Side({side}, {reach:.2e})"),
+                SsiBoundaryContact::Corner { reach, .. } => format!("Corner({reach:.2e})"),
+            }).collect();
+            format!("branches {spans:?} regions {regs:?}")
+        }
+        Err(e) => format!("ERR {}", e.to_string().chars().take(160).collect::<String>()),
+    }
+}
+
+#[test]
+#[ignore]
+fn ssibnd_probe() {
+    let (eps, k) = (band().zero(), band().escalate());
+    let wall = flat_wall(1.0, 1.0);
+    let run = |p: &Surface<f64>| ssi::plane_nurbs_ssi(p, &wall, wall_box(1.0, 1.0), band());
+    println!("eps {eps:e} Keps {k:e}");
+    let bottom = Surface::Plane { origin: Point3::new(0.7, 0.0, 0.0), normal: Vec3::new(0.0, 0.0, 1.0), u_ref: Vec3::new(1.0, 0.0, 0.0) };
+    println!("flush bottom: {}", ssibnd_probe_kind(&run(&bottom)));
+    for off in [0.0, 0.3 * eps, 0.9 * eps, 3.0 * eps, 0.8 * k, -0.5 * eps] {
+        println!("edge_plane {:.2}eps: {}", off / eps, ssibnd_probe_kind(&run(&edge_plane(off))));
+    }
+    for d in [0.0, 0.5 * eps, 3.0 * eps, 0.8 * k, 1.0 * k, 2.0 * k, 3.0 * k] {
+        println!("corner_clip {:.2}eps: {}", d / eps, ssibnd_probe_kind(&run(&corner_clip(d))));
+    }
+    for off in [5.0, 6.0, 8.0] {
+        let t = 0.1;
+        let n = Vec3::new(t, 1.0, 0.0);
+        let p = plane_off(Point3::new(off * k, 0.0, 0.5), n, 0.0);
+        println!("line {off}Keps sine 0.1: {}", ssibnd_probe_kind(&run(&p)));
+    }
+    let n = Vec3::new(1.0, 0.0, 0.2);
+    println!("(1,0,0.2) 0.3K: {}", ssibnd_probe_kind(&run(&plane_off(Point3::new(0.0,0.0,0.0), n, 0.3 * k))));
+    let n = Vec3::new(0.02, 1.0, 0.0);
+    println!("(0.02,1,0) 0.3K: {}", ssibnd_probe_kind(&run(&plane_off(Point3::new(0.0, 0.0, 0.5), n, 0.3 * k))));
 }

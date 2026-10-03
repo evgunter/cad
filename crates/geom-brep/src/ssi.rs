@@ -137,11 +137,8 @@ use crate::recourse::{
     Reading, Refused, RefusedArm, SizedDecision, StoredDefinite, Unsized, defect_ending,
 };
 
-pub use boundary::{
-    BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SSI_REGION_REACH_MAX, SsiBoundaryContact,
-};
+pub use boundary::{BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SsiBoundaryContact};
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb, SsiTube};
-pub use ends::SSI_SHORT_CLIP;
 pub use exhaust::{
     ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal,
     SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
@@ -549,31 +546,29 @@ pub enum SsiError {
         /// traced through an interior seed.
         from: Option<BoundaryPoint>,
     },
-    /// A side or corner of the wall lies within the band of the plane,
-    /// and no rung of the ladder bounds the region the intersection may
-    /// occupy there by [`boundary::SSI_REGION_REACH_MAX`]`·Kε`: the
-    /// certified bound on how far it may run from `side` is `reach`.
-    /// The intersection may run nearly along the wall's edge, which the
-    /// kernel neither reports as a region nor traces; refused toward
-    /// the C7 regime.
+    /// A side of the wall lies within the band of the plane, no rung of
+    /// the ladder holds the intersection's zero set inside a strip beside
+    /// it (the smallest certified bound on how far it may run from
+    /// `side` is `reach`), and the boundary pass found no crossing of
+    /// the wall's boundary to trace a branch from. The intersection may
+    /// run nearly along the wall's edge, which the kernel neither
+    /// reports as a region nor traces; refused toward the C7 regime.
     RegionUnbounded {
         /// The side the intersection may run along.
         side: ChartSide,
         /// The smallest certified reach any rung gave, in metres.
         reach: f64,
-        /// The largest reach a region may claim, in metres.
-        limit: f64,
     },
-    /// A branch whose ends lie less than [`SSI_SHORT_CLIP`]`·Kε` apart
-    /// took the Hermite candidate through them, and the certificate
-    /// refused it.
+    /// A branch the march could not progress along, its step in the
+    /// band, took the Hermite candidate through its two ends, and the
+    /// certificate refused it.
     ShortBranchUncertified {
         /// The distance between the branch's ends, in metres.
         length: f64,
         /// The certificate's refusal.
         limb: Box<SsiError>,
-        /// The verdict on the step it would be marched at,
-        /// `length / SSI_SHORT_CLIP`.
+        /// The verdict on the step it would be marched at, `length`
+        /// over the march's step count for a branch between known ends.
         verdict: BandVerdict,
     },
     /// The plane's chart window does not hold the wall's image, so it
@@ -912,11 +907,12 @@ impl core::fmt::Display for SsiError {
                     " found no crossing of the wall's boundary to end at: the march lost the branch"
                 )
             }
-            Self::RegionUnbounded { side, reach, limit } => write!(
+            Self::RegionUnbounded { side, reach } => write!(
                 f,
-                "ssi: the plane lies within the tolerance of the wall near {side}, and the \
-                 intersection there is bounded only to within {reach:e} m of it, beyond the \
-                 {limit:e} m a boundary region may claim: it may run nearly along that edge"
+                "ssi: the plane lies within the tolerance of the wall near {side}, the \
+                 intersection there is bounded only to within {reach:e} m of it, which no \
+                 strip beside the side holds, and no crossing of the wall's boundary gives a \
+                 branch to trace: it may run nearly along that edge"
             ),
             Self::ShortBranchUncertified { length, limb, .. } => {
                 let refused = match **limb {
@@ -2331,7 +2327,11 @@ pub fn plane_nurbs_ssi(
 
     // ---- the open branches, between the crossings ----
     let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, &domain, band);
-    let mut branches = ends.branches(&pass.crossings)?;
+    let ends::Resolved {
+        mut branches,
+        contacts,
+        regions,
+    } = ends.branches(&pass.crossings, &pass.candidates)?;
     let mut tubes: Vec<UvRect> = branches.iter().flat_map(branch_chart_tubes).collect();
 
     // ---- the closed loops, from the subdivision's seeds ----
@@ -2351,7 +2351,7 @@ pub fn plane_nurbs_ssi(
         let state = [pu, pv, *u, *v];
         // Dedup against where the seed lands, as the ℝ³ lane does.
         let landed = march::newton_refine(&sys, state, tol).unwrap_or(state);
-        if tubes.iter().chain(&pass.regions).any(|r| holds(r, &landed)) {
+        if tubes.iter().chain(&regions).any(|r| holds(r, &landed)) {
             continue;
         }
         let trace = match march(
@@ -2395,13 +2395,13 @@ pub fn plane_nurbs_ssi(
         p0,
         normal,
         &tubes,
-        &pass.regions,
+        &regions,
         &pass.clear,
         account_floor,
     )?;
     Ok(SsiOutcome {
         branches,
-        boundary: pass.contacts,
+        boundary: contacts,
         exhaustiveness,
         seeds: seed_count,
     })
@@ -3432,7 +3432,6 @@ mod ending_tests {
                 SsiError::RegionUnbounded {
                     side: bottom,
                     reach: 5e-3,
-                    limit: 5e-8,
                 },
             ),
             (
