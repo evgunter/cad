@@ -231,16 +231,6 @@ def frame_at(x, y, z):
                      reference=(1.0, 0.0, 0.0))
 
 
-def part_cap(part, side):
-    """A cap face of a PART, by the part's own name: selected on the
-    part document's own evaluation, with no instance wrapped round it
-    — what a mate frame that names a face stores."""
-    cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(side))
-    found = evaluate(part).select(part.roots[0], Selector.of(cap))
-    assert len(found) == 1, f"expected one face, got {found}"
-    return found[0]
-
-
 store = Workspace(tempfile.mkdtemp())
 post = prism("bench-post", POST_SECTION, POST_SECTION, POST_HEIGHT)
 shelf = prism("bench-shelf", SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS)
@@ -271,8 +261,9 @@ b_top = instance_cap(ev, post_b, CapEnd.End)
 shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 
 # Where each post's top meets the shelf's underside, each written in
-# its OWN part's coordinates. The post's seat IS its top cap face, by
-# the post's own name: the solve reads the cap's pose off the post's
+# its OWN part's coordinates. The post's seat IS its top cap face —
+# the face the post side's reference already names, so the frame
+# takes nothing: the solve reads the cap's pose off the post's
 # evaluation every time, so a post whose height changes moves the
 # seat with it. The shelf's seats are authored numbers: both posts
 # meet ONE face of the shelf, its underside, and a face frame is that
@@ -280,7 +271,7 @@ shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 # spelled as the face would land on the same point. The posts sit
 # flush with the shelf's two ends, which is the obvious way to draw a
 # bench.
-post_seat = MateFrame.from_face(part_cap(post, CapEnd.End))
+post_seat = MateFrame.from_face()
 seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 seat_b = frame_at(SHELF_LENGTH - POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 
@@ -292,7 +283,7 @@ def seat(a, b):
 
 # Each mate names the part it MOVES first: "mate the shelf to the
 # post" places the shelf's group on the post's. The insert asks the
-# solve's own admission of each mate, and a side that names a face is
+# solve's own admission of each mate, and a side framed on its face is
 # resolved there — through the store, since the face is the part's.
 mate_a = stand.insert(
     Node.mate(
@@ -351,15 +342,16 @@ assert stand.roots[:3] == [shelf_i, post_a, post_b]
 
 Two things in that block are worth pausing on.
 
-**A mate frame is a face of the part, or three authored vectors.**
-`MateFrame.from_face(name)` names a face in the PART's own spelling
-and the solve resolves it from the part's own evaluation at every
-evaluation — its origin, its chart axis and the carrier's own roll
-reference — so nothing is stored twice and the mate follows the face
-when the part is edited; a face with no canonical frame (a NURBS
-carrier) refuses typed and keeps taking authored vectors. The name is
-the whole frame: a face frame's roll is the carrier's, and its origin
-is the face's canonical one. Authored vectors are the spelling for a
+**A mate frame is the side's own face, or three authored vectors.**
+`MateFrame.from_face()` takes nothing: the side's frame is the face
+its reference names, and the solve resolves it from the part's own
+evaluation at every evaluation — its origin, its chart axis and the
+carrier's own roll reference — so nothing is stored twice and the
+mate follows the face when the part is edited, when the reference is
+rebound, and across a split or an inline; a face with no canonical
+frame (a NURBS carrier) refuses typed and keeps taking authored
+vectors. The face is the whole frame: a face frame's roll is the
+carrier's, and its origin is the face's canonical one. Authored vectors are the spelling for a
 point that is not a face's origin (the shelf's two seats above, both
 on its one underside), and for a roll the carrier does not give. A
 face frame also resolves at the NOMINAL value only: under an analysis
@@ -386,7 +378,7 @@ against the mate whenever it reads the datum. So `Doc.insert` asks
 the solve's own per-mate admission and raises `EditError` with
 variant `mate_refused`, `fault` carrying the solve's `MateFault`
 whole. The rider on a coincidence is decided over the mated parts'
-extent, and a side that names a face is resolved from the part's own
+extent, and a side framed on its face is resolved from the part's own
 evaluation, so those two need `resolver=` at the insert; everything
 else is decided on the datum alone. The doors decide edits and the solve
 decides states: a verdict about a *pair* — under-determined, two

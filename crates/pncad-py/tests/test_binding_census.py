@@ -2878,6 +2878,11 @@ NOT_BOUND = {
     "face_name": INTERIOR,
     # The predicate; `Member` above carries the argument for both.
     "member_of": INTERIOR,
+    # The strip a face frame reads its head's face by, over a `Member`:
+    # a Python author never spells the face (`MateFrame.from_face()`
+    # takes nothing), and the face a refusal is about crosses already
+    # stripped, as `MateFault.face`.
+    "head_face": INTERIOR,
     # The coset table's static gaps (a clocking rider on a planar rest,
     # a standalone clocking), the one home the coset table and the
     # viewer's mate tool read. A Python caller meets the same sentence

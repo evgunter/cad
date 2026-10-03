@@ -469,6 +469,8 @@ mod names_verbatim_edge_evaluator;
 mod node_labels;
 #[path = "node_standing.rs"]
 mod node_standing;
+#[path = "p2_face.rs"]
+mod p2_face;
 #[path = "p2_gauge_offsets_and_spaces.rs"]
 mod p2_gauge_offsets_and_spaces;
 #[path = "p2_gauge_poses_and_doors.rs"]
