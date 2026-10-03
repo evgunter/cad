@@ -401,7 +401,12 @@ fn field_of<T: Real>(role: FieldRole, carrier: &Surface<T>) -> Option<SurfaceFie
 /// The faces a role family's rows name in a blend birth record.
 fn family_faces(family: RoleFamily, rec: &BlendNaming) -> Vec<FaceKey> {
     match family {
-        RoleFamily::Blends => rec.blends.iter().map(|&(f, _)| f).collect(),
+        RoleFamily::Blends => rec
+            .blends
+            .iter()
+            .map(|&(f, _)| f)
+            .chain(rec.joined_blends.iter().map(|(f, _)| *f))
+            .collect(),
         RoleFamily::Corners => rec.corners.iter().map(|&(f, _)| f).collect(),
         RoleFamily::Bands => rec.bands.iter().map(|(f, _)| *f).collect(),
         // A blend record has no swept walls — that family's rows live

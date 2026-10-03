@@ -38,6 +38,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use corpus::{documents, eval, failures};
 use editor_core::{
@@ -137,6 +138,7 @@ fn torus_on_cylinder() -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: disc,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -157,6 +159,7 @@ fn boss_on_plate() -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: plate,
         distance: len(0.8),
+        side: ExtrudeSide::Along,
     });
     let boss_plane = r.insert(frame([0.0, 0.0, 0.8], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss = r.insert(Node::Profile(ProfileProgram {
@@ -167,6 +170,7 @@ fn boss_on_plate() -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: boss,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -185,6 +189,7 @@ fn tangent_cylinders() -> ProfileDoc {
         r.insert(Node::Extrude {
             profile: disc,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         });
     }
     r.doc
@@ -220,6 +225,7 @@ fn loft_with_brick() -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: brick,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -249,6 +255,7 @@ fn grazing_notch() -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: l,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let brick_plane = r.insert(frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let brick = r.insert(Node::Profile(ProfileProgram {
@@ -261,6 +268,7 @@ fn grazing_notch() -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: brick,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }

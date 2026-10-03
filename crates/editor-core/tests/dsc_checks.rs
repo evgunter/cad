@@ -18,6 +18,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
+use test_utils::refusal::tagged;
 
 use std::collections::BTreeMap;
 
@@ -55,6 +57,7 @@ fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, Reci
         Node::Extrude {
             profile,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -71,7 +74,7 @@ fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -88,7 +91,7 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -224,7 +227,7 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Intersect,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -356,7 +359,7 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, c) = slab(doc, 0.0, 0.8, 0.5, 1.5 - t);
@@ -366,7 +369,7 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             op: BooleanOp::Union,
             a: hollow,
             b: c,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let report = checks(&doc, &ChecksConfig::default());
@@ -429,7 +432,7 @@ fn a_findings_attribution_resolves_to_its_subject() {
     assert_eq!(body.shells().count(), 2);
     // The subject's DECLARATIONS travel with it, so the tier-3′ gate
     // reached through an attribution asks about the same body the
-    // producer minted. This union declares nothing (`declare: None`,
+    // producer minted. This union declares nothing (`declare: Vec::new()`,
     // and its operands are three metres apart), so the honest claim
     // here is that the empty set is what arrived — not that the pair
     // is populated. The case where a non-empty set is the difference
@@ -494,8 +497,14 @@ fn overlapping_roots_are_one_finding_naming_both() {
     // never has to consult the attribution separately to know what it
     // is about.
     let rendered = report.findings[0].to_string();
-    assert!(rendered.contains(&format!("root {}", a.0)), "{rendered}");
-    assert!(rendered.contains(&format!("root {}", b.0)), "{rendered}");
+    assert!(
+        rendered.contains(&format!("root {}", test_utils::refusal::tag(a.0))),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains(&format!("root {}", test_utils::refusal::tag(b.0))),
+        "{rendered}"
+    );
     // And it denies the CERTIFICATE — it never claims the two overlap,
     // which the boxes do not decide.
     assert!(rendered.contains("not certifiably disjoint"), "{rendered}");
@@ -615,6 +624,7 @@ fn separation_off_is_visibly_skipped_and_independent() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let moved = |doc, dx: f64| {
@@ -875,9 +885,10 @@ fn chart_coherence_off_is_a_skipped_check_and_nothing_else() {
 #[test]
 fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
     let could_not_look = ChecksReport {
+        document: editor_core::DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::ChartCoherence,
-            root: RecipeNodeId(3),
+            root: RecipeNodeId(tagged(3)),
             output_ix: 0,
             evidence: CheckEvidence::ChartCoherenceUnexamined {
                 unexamined: topo::Unexamined {
@@ -892,6 +903,7 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
         skipped: Vec::new(),
     };
     let chose_not_to = ChecksReport {
+        document: editor_core::DocumentId(1),
         findings: Vec::new(),
         skipped: vec![CheckId::ChartCoherence],
     };
@@ -924,7 +936,7 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
 fn a_coherence_measurement_renders_its_length_and_its_band() {
     let finding = CheckFinding {
         check: CheckId::ChartCoherence,
-        root: RecipeNodeId(4),
+        root: RecipeNodeId(tagged(4)),
         output_ix: 1,
         evidence: CheckEvidence::ChartCoherence {
             finding: topo::CoherenceFinding {
@@ -943,7 +955,7 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
     };
     let rendered = finding.to_string();
     assert!(
-        rendered.contains("check chart-coherence: root 4 output 1"),
+        rendered.contains("check chart-coherence: root 000000000004 output 1"),
         "{rendered}"
     );
     assert!(

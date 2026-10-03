@@ -176,13 +176,21 @@ class TestCup(unittest.TestCase):
         ev = evaluate(doc)
         faces = NamePat.of_kind(EntityKind.Face)
         names = ev.select(hollow, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))
-        # The same recipe at the bumped height and wall: node ids and
-        # therefore name text coincide, and every name still resolves.
+        # The same recipe authored afresh at the bumped height and wall:
+        # its inserts state other values, so they mint other ids, and a
+        # name from the first document answers nothing here. It
+        # publishes as many names of its own. Keeping names across new
+        # values is the slot edits' road (the row above).
         bumped = Doc()
         _box2, hollow2 = cup(bumped, L, H_BUMPED, T_BUMPED)
         ev2 = evaluate(bumped)
+        names2 = ev2.select(hollow2, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))
+        self.assertEqual(len(names2), len(names))
         for name in names:
-            self.assertEqual(ev2.resolve(name).status, "resolved", name)
+            verdict = ev2.resolve(name)
+            self.assertEqual(
+                (verdict.status, verdict.variant), ("failed", "node_gone"), name
+            )
         props = ev2.value(hollow2).body().mass_properties()
         want_v, want_a = closed_forms(L, H_BUMPED, T_BUMPED)
         self.assertEqual(props.volume, want_v)
@@ -254,9 +262,9 @@ class TestRefusals(unittest.TestCase):
                 NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(CapEnd.Start))
             ),
         )[0]
-        forward = Doc(label="shell-order")
-        backward = Doc(label="shell-order")
-        doubled = Doc(label="shell-order")
+        forward = Doc(seed="shell-order")
+        backward = Doc(seed="shell-order")
+        doubled = Doc(seed="shell-order")
         for target, order in (
             (forward, [top, bottom]),
             (backward, [bottom, top]),

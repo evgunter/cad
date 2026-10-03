@@ -125,7 +125,16 @@ fn plane_nurbs_limbs_image_lands_on_the_carriers_own_domain() {
         band(),
     )
     .expect("the door answers on a carrier whose domain is not [0, 1]");
-    assert!(limbs.hull_sup.is_finite() && limbs.tube_radius.is_finite());
+    let geom_brep::SsiTube::Chart { rung, pad_u, pad_v } = limbs.tube else {
+        panic!(
+            "the plane × NURBS lane proves a chart tube: {:?}",
+            limbs.tube
+        );
+    };
+    assert!(
+        limbs.hull_sup.is_finite() && [rung, pad_u, pad_v].iter().all(|x| x.is_finite()),
+        "{limbs:?}"
+    );
 
     // The door does not hand back the image, so the domain claim is
     // re-derived here on the same pipeline the door runs: an image

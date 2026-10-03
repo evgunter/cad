@@ -33,12 +33,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::{EdgeDescription, SurfaceKind};
+use geom::SurfaceKind;
+use geom_brep::EdgeDescription;
 use geom_core::{Band, ErrorTextReading, Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::Revolution;
 use sweep::blend::{
-    BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
+    BlendDecision, BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted,
+    fillet_edges,
 };
 use sweep::test_support::{revolved_about_y, rod_upper_crease, rod_with_flat_at};
 use sweep::{Extrusion, extrude};
@@ -67,6 +70,7 @@ fn contact_in_band_margin(result: Result<Filleted<f64>, BlendRefusal>, what: &st
         Err(BlendRefusal { error, .. }) => {
             let BlendError::Escalated {
                 site: BlendSite::Link { .. },
+                decision: BlendDecision::ContactSecondOrder,
                 source,
             } = &error
             else {
@@ -256,9 +260,16 @@ fn block_with_d_bore(big_r: f64, flat: f64, len: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![block, hole])
         .validate(tol())
         .expect("the D-bore profile validates");
-    extrude(&profile, Extrusion::Distance(len), tol())
-        .expect("the D-bore extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: len,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the D-bore extrudes")
+    .body
 }
 
 /// **The D-bore's concave crease carves in its caps' RINGS**, requested
@@ -355,9 +366,16 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
     let profile = Profile::new(SketchPlane::<Probe>::xy(), vec![square])
         .validate(tol())
         .expect("the die's profile validates");
-    let die: Body<Probe> = extrude(&profile, Extrusion::Distance(Probe(1.0)), tol())
-        .expect("the die extrudes")
-        .body;
+    let die: Body<Probe> = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: Probe(1.0),
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the die extrudes")
+    .body;
     let edges = query::all_edges(&die);
     k_stats::start_recording();
     let out = fillet_edges(&die, &edges, Probe(0.15), tol())

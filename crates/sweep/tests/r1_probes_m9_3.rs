@@ -10,6 +10,7 @@
 use crate::common::operands::{plate6, plate6_cyl};
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{
@@ -76,7 +77,8 @@ fn declarations(
     skip_second: bool,
     cross_wire: bool,
 ) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
+    // The plates' flush outer walls and peg ends are continuations.
+    let mut decls = crate::mate2_common::continuations(p, q);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(p, 1.0, true),
         plane_face(q, 1.0, false),
@@ -267,7 +269,7 @@ fn probe_partial_engagement_never_silent() {
     };
     let vp = mass_properties(&p, Tol::witness()).unwrap().volume;
     let vq = mass_properties(&q, Tol::witness()).unwrap().volume;
-    let mut decls = BooleanDeclarations::none();
+    let mut decls = crate::mate2_common::continuations(&p, &q);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&p, 1.0, true),
         plane_face(&q, 1.0, false),
@@ -350,7 +352,8 @@ fn holed_plate(z0: f64, z1: f64, holes: &[(f64, f64)]) -> Body<f64> {
 }
 
 fn flush_rest_decls(bot: &Body<f64>, top: &Body<f64>, z: f64) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
+    // The plates' flush outer walls and hole walls are continuations.
+    let mut decls = crate::mate2_common::continuations(bot, top);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(bot, z, true),
         plane_face(top, z, false),
@@ -441,9 +444,16 @@ fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) 
     )
     .validate(Tol::witness())
     .unwrap();
-    extrude(&profile, Extrusion::Distance(4.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 fn quarter_round_below() -> Body<f64> {
@@ -498,7 +508,7 @@ fn probe_tube_chain_additivity_error_measured() {
     let b = quarter_round_above();
     let va = mass_properties(&a, Tol::witness()).unwrap().volume;
     let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
-    let mut decls = BooleanDeclarations::none();
+    let mut decls = crate::mate2_common::continuations(&a, &b);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&a, 1.0, true),
         plane_face(&b, 1.0, false),
@@ -535,7 +545,7 @@ fn probe_tube_chain_additivity_error_measured() {
 fn probe_rim_wall_pair_undeclared_refuses_typed() {
     let a = quarter_round_below();
     let b = quarter_round_above();
-    let mut decls = BooleanDeclarations::none();
+    let mut decls = crate::mate2_common::continuations(&a, &b);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&a, 1.0, true),
         plane_face(&b, 1.0, false),

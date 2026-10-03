@@ -82,7 +82,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 ///
 /// Two more rows are worth a reader's second look, and neither is a bug.
 ///
-/// `die` is `0xfdf3_d13d_4782_a4e5` — the same number
+/// `die` is the same number
 /// `m4_pr3_names_ci::DIE_TABLE_DIGEST` carries, because it is the same
 /// digest of the same tables. The two pins agreeing is a cross-check,
 /// not a duplication: that one covers the die FIXTURE through its own
@@ -109,74 +109,69 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// and fails if any of the three numbers drifts. Read the claim here,
 /// believe it there.
 ///
-/// `die_fillet` and `die_chamfer` are IDENTICAL, and that is what
-/// RECIPE-DOORS D3 says should happen. The two documents are the same
-/// three-node recipe with the blend swapped, so the blend mints under
-/// the same node id (2) and — D3 having ruled the role vocabulary
-/// shared — composes the same `RoleSeg`s off the same upstream names.
-/// The names are therefore equal, which costs nothing: a `StableName`
-/// is scoped to its own document, and WITHIN either document every
-/// name is still unique. What distinguishes a chamfer's blend from a
-/// fillet's is the minting node, and here the two nodes live in
-/// different documents. `emit_fillet.rs`'s tie probe asserts the
-/// within-one-document case, where the two nodes differ and the names
-/// must be disjoint.
+/// `die_fillet` and `die_chamfer` differ in their blend's minting node
+/// and nothing else, and that is what RECIPE-DOORS D3 says should
+/// happen. The two documents are the same three-node recipe with the
+/// blend swapped, so D3 having ruled the role vocabulary shared, the
+/// blend composes the same `RoleSeg`s off the same upstream names. Its
+/// node id is minted from the node itself (N1), so a fillet and a
+/// chamfer mint two ids and their names differ in `node` alone.
+/// `emit_fillet.rs`'s tie probe asserts the within-one-document case,
+/// where the two nodes differ and the names must be disjoint.
+///
+/// **`part_select` moved at JOIN-1's fix pass** (PR 3790), alone. Its
+/// union of the two split halves now builds through the chord join: the
+/// halves' side faces meet along edges of both solids, coplanar on the
+/// far side, which the join used to refuse and the declared-REST zip
+/// then built. The table is the box's — one body, six faces (the four
+/// sides each a `Merged` of the two halves' fragments), sixteen edges
+/// and twelve vertices, every name a `FromA`/`FromB` lineage — and
+/// the persisted text did not move (`perf2_name_keying_differential`'s
+/// second column).
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x134d_6ccf_1829_e20f),
-    ("corner_table", 0xcf0b_8633_9766_69e4),
-    ("heat_sink", 0x0b8a_ff8e_b9aa_b96c),
-    ("crossing_slots", 0x0961_23ac_d8e4_74f9),
-    ("nested_islands_105", 0xb519_4e98_978a_0ff0),
-    ("nested_islands_106_depth1", 0x5931_1f11_3836_8421),
-    ("nested_islands_106_depth2", 0x2678_ebbf_0f9d_7520),
-    ("declared_tangency", 0x72e5_2fe4_003b_8699),
-    // Moved by the in-plane revolve axis, and the ONLY row that did.
-    // `kitchen_sink` shared one `Datum::Axis` between a circular
-    // pattern and a revolve; those are two node kinds now — a pattern
-    // turns a body about a world line, a revolve turns a sketch about a
-    // line in its own plane — so the document authors both and every
-    // node after the new one is renumbered.
-    //
-    // The three die documents mint their axis in the same edit as
-    // before, one position later (after the frame it names), and a
-    // datum mints no names, so the swap moves no id that any name
-    // holds: their rows are byte-identical. That is what this
-    // per-document instrument is for.
-    ("kitchen_sink", 0xb139_4620_3f0e_f671),
-    ("cut_cylinder", 0xe802_de89_1fc3_c787),
-    ("measured_web", 0xdb17_4fa0_630c_75d0),
-    ("boss_union", 0xd5f0_4d0d_fa67_0efc),
-    ("die_fillet", 0xf789_f381_c5ef_3084),
-    ("die_chamfer", 0xf789_f381_c5ef_3084),
-    ("die_pips", 0x6e0c_3441_6e86_f97f),
-    ("heat_sink_fins", 0x3970_cdc2_4198_c114),
-    ("die_tool", 0xc917_c2bc_df32_18f6),
-    ("face_sketch", 0x822b_70cb_014f_85ed),
+    ("die", 0x06e4_606e_3b5a_4deb),
+    ("corner_table", 0xe29a_7605_d42b_6b99),
+    ("heat_sink", 0x3aaa_91e3_47ef_c27a),
+    ("crossing_slots", 0xa504_5ebd_fc02_2177),
+    ("nested_islands_105", 0xacc7_1b27_90de_1ff6),
+    ("nested_islands_106_depth1", 0xa5ef_f96f_7c11_f8a8),
+    ("nested_islands_106_depth2", 0xd1fb_7c2e_0b16_cbe9),
+    ("declared_tangency", 0x9669_c317_71c9_2a49),
+    ("kitchen_sink", 0xd732_ebb4_45f9_d932),
+    ("cut_cylinder", 0x41db_1192_9026_3bed),
+    ("measured_web", 0x1721_fe2f_f026_bf22),
+    ("boss_union", 0x2c43_ee7d_87cb_6d6d),
+    ("die_fillet", 0xf37b_a47b_ed71_31d2),
+    ("die_chamfer", 0x33f7_333d_4be4_662e),
+    ("die_pips", 0xa8a6_77b2_ab17_e12e),
+    ("heat_sink_fins", 0xd244_b58c_02dc_3b3f),
+    ("die_tool", 0x2376_5b8f_0b08_085c),
+    ("face_sketch", 0xe17f_467e_cf2c_0119),
     // DOCM-2. Two `Part`s of one split and one of a pattern: the
     // projection mints nothing, so every name in the document is the
     // split's, the pattern's, or the union's over them, and the row's
     // arrival moved no other row.
-    ("part_select", 0x2363_22b8_8f2e_5594),
-    ("loft_prism", 0xbc10_7d29_7f51_e5df),
-    ("die_composed", 0x1af5_b0dd_8809_70ec),
-    ("die_composed_tour", 0x46fc_1982_1eb4_308f),
-    ("plate_param", 0x8864_5739_bfc2_04af),
-    ("kiss_carry", 0x6863_3b0e_1061_152e),
+    ("part_select", 0xe1c4_b5f0_17f3_eb7f),
+    ("loft_prism", 0x74db_6889_4c07_172b),
+    ("die_composed", 0x9708_fe3b_47e9_4d63),
+    ("die_composed_tour", 0x1e94_e904_622c_8027),
+    ("plate_param", 0x826c_231e_04ba_1ab7),
+    ("kiss_carry", 0xd74f_677f_841f_f8b1),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the
     // tube doors return `Revolved<T>` and the emitter reads only
     // its maps — so these two rows are the revolve role vocabulary
     // over a body no revolve node built. Their arrival moved no
     // other row, which is the property this table exists to make
     // readable.
-    ("tube_ring", 0x9645_9ea8_218a_67b0),
-    ("tube_arc", 0x0038_04f3_79bf_1170),
-    ("hollow_tube_elbow", 0xc99f_7c47_4c95_e211),
-    ("hollow_tube_ring", 0x7dbe_cbe0_b0b0_f794),
+    ("tube_ring", 0xa71b_e28f_0bf1_a321),
+    ("tube_arc", 0x2af8_6e46_0e5f_188b),
+    ("hollow_tube_elbow", 0xafb7_1088_9300_f596),
+    ("hollow_tube_ring", 0x7842_e8a7_35aa_eb8d),
     // EDIT-PROGRAM: the one document whose log reshapes a profile
     // under a fillet. Its table is minted over the crease name the
     // door REBOUND, which is the fact this row makes golden; its
     // arrival moved no other row.
-    ("reshaped_rod", 0xe7bf_5ca8_538a_7ff3),
+    ("reshaped_rod", 0x8379_4d89_2ebf_929a),
 ];
 
 #[test]

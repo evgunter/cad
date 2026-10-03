@@ -34,7 +34,11 @@
 //!   `extrusion_normal_component` (margin in meters — it *is* the
 //!   displacement): definitely positive or negative proceeds; zero
 //!   (in-plane, or a sliver-thin extrusion) is
-//!   [`ExtrudeError::DegenerateExtrusion`]; in-band escalates.
+//!   [`ExtrudeError::DegenerateExtrusion`]; in-band escalates. The
+//!   `Distance` door decides its depth through the same predicate and
+//!   takes the sign from its [`ExtrudeSide`] alone: a depth is a size,
+//!   so a definitely negative one is
+//!   [`ExtrudeError::NegativeDepth`].
 //! - **Which cap carries the profile winding.** The **bottom cap lies
 //!   on the sketch plane**, the top cap on the plane translated by `w`.
 //!   Under the ratified interior-left rule (outer loops
@@ -84,7 +88,9 @@
 //!   [`ExtrudeError::SliverJoin`] (escalate-never-guess). The revolve's
 //!   latitude joins and the blend's CONTACT edges — a band's tangent
 //!   contact with its support, the corner ball's with its band — are
-//!   the rule's other two callers, each refusing typed at its own door.
+//!   the rule's callers in the other two verbs, each refusing typed at
+//!   its own door; extrude's cap rims (below) are its second caller
+//!   here.
 //! - **Cap–wall rims upgrade too** (the ratified rim decision — Ev,
 //!   M2-LOG 2026-07-19): after both cap planes are set, every rim edge
 //!   (bottom and top, outer and ring loops) re-describes as
@@ -99,10 +105,9 @@
 //!   run's K rather than a geometric identity, because the wedge's
 //!   lever is the rim CHORD: below `K = √φ ≈ 1.272` a chord the
 //!   profile door admits, times a tilt the direction gates admit,
-//!   reads under ε. A definitely-smooth rim then keeps the
-//!   conventional description — an image at rest in the wall's chart —
-//!   and the body reaches the at-rest gate, which refuses it as
-//!   `SliverDihedral`. Indeterminate is [`ExtrudeError::SliverRim`].
+//!   reads under ε. What a definitely-smooth rim stores, and which
+//!   rims reach that arm, is `extrude`'s (its module docs, step 6);
+//!   such a body is refused at rest as `SliverDihedral`.
 //! - **Cosurface sharing**: smooth joins whose side faces lie on the
 //!   identical-by-construction surface — collinear line segments (one
 //!   plane), tangent arcs on one carrier circle (one cylinder) — share
@@ -156,27 +161,33 @@ mod swept;
 #[doc(hidden)]
 pub mod test_support;
 
-pub use extrude::{ExtrudeError, Extruded, Extrusion, extrude};
+pub use extrude::{ExtrudeError, ExtrudeSide, Extruded, Extrusion, SideWall, extrude};
 pub use loft::{LoftError, Lofted, loft_body, sweep_body};
 pub use revolve::tube::{TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 pub use revolve::{
-    Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, WedgeCapsError, WedgeFrames,
-    revolve, revolved_caps,
+    BandWall, Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, WedgeCapsError,
+    WedgeFrames, revolve, revolved_caps,
 };
 // `SketchSegment` is re-exported for `segment_curve`, the retained
 // 2-D-segment → 3-D-curve door (step-export builds exact arc path
 // legs through it — the LIB-U4 exact-path territory): a caller must
 // be able to spell its input without depending on `geom-brep`
 // directly. Loft/sweep SECTIONS no longer speak it (LIB-U3): they
-// are `Section`s — `profile::ProfileLoop` lists, re-exported here so
+// are `Section`s — lists of `profile::ProfileLoop` tables or of the
+// path lattice's `profile::ConstructedLoop`s, re-exported here so
 // section authors need not depend on `profile` directly.
 pub use geom_brep::SketchSegment;
-pub use profile::ProfileLoop;
+pub use profile::{ConstructedLoop, ProfileLoop};
 pub use skin::{
-    LoftGeometry, Section, SkinError, loft_geometry, loft_parameters, make_compatible,
+    LoftGeometry, Section, SectionLoop, SkinError, loft_geometry, loft_parameters, make_compatible,
     segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
 };
 
 pub mod blend;
 pub mod chamfer;
 pub mod fillet;
+
+// The sphere cases of `topo`'s executed-offer census, whose raises need
+// this crate's balls.
+#[cfg(test)]
+mod offer_rows;

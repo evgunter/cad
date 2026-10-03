@@ -26,6 +26,7 @@
 //! move with it (the payload-expression channel), which is exactly the
 //! property the incremental probe is there to exercise.
 
+use editor_core::ExtrudeSide;
 use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, Dimension, DocEdit, DocParam, Expr, LoopProgram, MeasureExpr, MeasurePrimitive,
@@ -73,6 +74,7 @@ pub fn document() -> CorpusDoc {
     let plate = r.insert(Node::Extrude {
         profile: plate_profile,
         distance: len(0.1),
+        side: ExtrudeSide::Along,
     });
 
     let hole = |cx: f64| {
@@ -89,11 +91,13 @@ pub fn document() -> CorpusDoc {
     let hole_a = r.insert(Node::Extrude {
         profile: pa,
         distance: len(0.1),
+        side: ExtrudeSide::Along,
     });
     let pb = r.insert(hole(HOLE_X));
     let hole_b = r.insert(Node::Extrude {
         profile: pb,
         distance: len(0.1),
+        side: ExtrudeSide::Along,
     });
 
     // The wall names come from the SELECTION door, the way a user gets
@@ -120,7 +124,7 @@ pub fn document() -> CorpusDoc {
                 editor_core::EntityKind::Face,
             )),
             &[editor_core::GeomPred::SurfaceKind(
-                editor_core::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
+                editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
             )],
             &r.doc.param_env::<f64>(),
             Tol::witness(),

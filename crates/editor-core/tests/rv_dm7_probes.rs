@@ -122,7 +122,7 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let part = ProfileDoc::empty_derived("rv_operand_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let doc_ref = store.insert(part, Tol::witness());
-    // The delete moves the pair's gauge and the solve levers the
+    // The delete moves the pair's root and the solve levers the
     // parts, so both go through the store's reach.
     let opts = fixture::resolver::with_resolver(store);
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
@@ -183,81 +183,6 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         matches!(&fault, editor_core::MateFault::DanglingHead { head, .. } if *head == placed),
         "typed, naming the node the walk stopped at, not silence: {fault:?}"
     );
-}
-
-/// **A sited declaration strands nothing inside a cascade**, so the
-/// door's count and a pre-click count built from the survivors agree.
-///
-/// The class this row measured has MOVED rather than vanished, and
-/// where it moved to is worth stating. Noise needs a DOOMED carrier
-/// that names a node the same cascade deletes BEFORE it. A cascade
-/// deletes dependents first, and a payload name points at a producer
-/// upstream of its carrier, so a doomed carrier is always deleted
-/// before the node it names — with one exception, which was this
-/// row's: a `Declare` naming entities in its own CONSUMER's space.
-/// The consumer is a dependent, so it went first, and the door
-/// reported eight strands about a `Declare` it deleted next. A sited
-/// pair names entities that exist BEFORE the consumer, so no payload
-/// points downstream any more and the exception is closed by type.
-///
-/// No carrier in the vocabulary reopens it: a blend's selection names
-/// its own target, a mate head's name is read at an operand, an
-/// appearance key names an upstream row — every one of them upstream
-/// of the carrier. The door still reports a REAL strand, on a carrier
-/// that survives its subject; that half is
-/// `dm7_delete_strands::deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing`.
-#[test]
-fn rv_a_sited_declaration_strands_nothing_inside_a_cascade() {
-    use crate::docm7_union_declare::{declared_union, flush_pairs};
-    use editor_core::cascade_delete_order;
-
-    let doc = ProfileDoc::empty_derived("rv_cascade_noise", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
-
-    let order = cascade_delete_order(&doc, decl);
-    assert_eq!(order, vec![union, decl], "the union consumes the declare");
-
-    // What a pre-click count built from the SURVIVORS would say: the
-    // doomed set mints nothing any survivor carries.
-    let doomed: Vec<RecipeNodeId> = order.clone();
-    let mut survivor_carried = 0usize;
-    for &id in doc.order() {
-        if doomed.contains(&id) {
-            continue;
-        }
-        let Some(node) = doc.node(id) else { continue };
-        survivor_carried += node
-            .payload_names()
-            .iter()
-            .filter(|n| doomed.contains(&n.node))
-            .count();
-    }
-    assert_eq!(survivor_carried, 0, "no survivor carries a doomed name");
-
-    let mut doc = doc;
-    let mut reported = 0usize;
-    for id in order {
-        let applied = delete(&doc, id);
-        reported += applied
-            .maintenance
-            .iter()
-            .filter(|row| matches!(row, Maintenance::Strand { .. }))
-            .count();
-        doc = applied.doc;
-    }
-    // RE-BASELINED with the sited payload: the count used to be eight.
-    // A sited pair names entities in the MEMBERS, which this cascade
-    // does not touch, so the doomed set strands nothing and the
-    // door's count agrees with the survivors'.
-    assert_eq!(
-        reported, survivor_carried,
-        "a sited declaration names entities outside the doomed set, so the door's \
-         count and a pre-click count built from the survivors agree"
-    );
-    assert_eq!(reported, 0);
 }
 
 /// **A reported key survives the save/load boundary as a stranded
@@ -327,7 +252,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::StrandedAppearance {
-            name: painted.clone()
+            name: doc.spoken_name(&painted)
         }],
         "the door named the key"
     );

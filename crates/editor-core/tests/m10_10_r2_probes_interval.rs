@@ -14,6 +14,7 @@
 //! ```
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{
@@ -328,6 +329,7 @@ pub(crate) fn d_tab_at(
     let tab = r.insert(Node::Extrude {
         profile,
         distance: thickness.clone(),
+        side: ExtrudeSide::Along,
     });
     let hole_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -343,6 +345,7 @@ pub(crate) fn d_tab_at(
     let hole = r.insert(Node::Extrude {
         profile: hole_profile,
         distance: thickness,
+        side: ExtrudeSide::Along,
     });
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
@@ -359,7 +362,7 @@ pub(crate) fn d_tab_at(
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,

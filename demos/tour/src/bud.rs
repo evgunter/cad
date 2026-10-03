@@ -91,10 +91,10 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
-use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Tol, Vec2};
+use pncad::prelude::SurfaceKind;
 use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
 
@@ -145,7 +145,7 @@ const ROLL: f64 = 0.05;
 /// it to share this function would move the K baseline for a
 /// refactoring's sake. The two stay separate until something else asks
 /// for the shape.
-fn meridian(tol: Tol) -> ProfileLoop<f64> {
+fn meridian(tol: Tol) -> ConstructedLoop<f64> {
     Open.at(Point2::new(BORE, 0.0))
         .line_to(Point2::new(GLOBE, 0.0), tol)
         .expect("the base annulus")

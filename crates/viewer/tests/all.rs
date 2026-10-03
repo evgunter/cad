@@ -104,6 +104,8 @@ mod focus_highlight;
 mod frame_labels;
 #[path = "frame_policy.rs"]
 mod frame_policy;
+#[path = "gauge_door_and_badge.rs"]
+mod gauge_door_and_badge;
 #[path = "gesture_table.rs"]
 mod gesture_table;
 #[path = "index_memo.rs"]
@@ -123,6 +125,8 @@ mod msolve3_placer_refused;
 mod msolve4_blame_rows;
 #[path = "msolve5_read_below_a_root.rs"]
 mod msolve5_read_below_a_root;
+#[path = "node_labels.rs"]
+mod node_labels;
 #[path = "panel_display.rs"]
 mod panel_display;
 #[path = "panel_edits.rs"]

@@ -66,7 +66,7 @@ let rect: ClosedLoop<f64> = Open
     .line_to(p2(mm(0.0), mm(40.0)), tol)?
     .line_to(Start, tol)?;
 let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?;
-let plate = extrude(&profile, Extrusion::Distance(real(mm(8.0))), tol)?.body;
+let plate = extrude(&profile, Extrusion::Distance { depth: real(mm(8.0)), side: ExtrudeSide::Along }, tol)?.body;
 validate_closed(&plate).expect("a closed solid");
 let props = mass_properties(&plate, tol)?;
 assert!((props.volume - 2.56e-5).abs() < 1e-18);
@@ -548,7 +548,7 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
         .line_to(Start, tol)?;
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![rect.into()], tol)?;
-    Ok(extrude(&profile, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+    Ok(extrude(&profile, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 }
 
 let mm = |v: f64| (v * MM).meters();
@@ -591,7 +591,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -602,7 +602,7 @@ use pncad::prelude::*;
 let body = &result.body;
 
 validate(body).expect("tier 1: structural integrity");
-validate_closed(body).expect("tier 2: a closed, connected solid");
+validate_closed(body).expect("tier 2: closed, each shell connected");
 validate_pseudomanifold(body, &result.contacts, tol)
     .expect("tier 3′: geometry, with this operation's declared contacts");
 # Ok::<(), E>(())
@@ -646,7 +646,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -675,7 +675,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -748,7 +748,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -788,7 +788,7 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -838,7 +838,7 @@ use pncad::step_import::StepImport;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -1495,9 +1495,10 @@ merge onto it and the rim's name is that face's), so name first the
 face you want to carry the rim's identity. An empty list is the
 SEALED hollow — a closed thin solid with a cavity and no rim — which
 is legal and not a refusal. And a face is designated together with
-every face on its chart: a full revolve's cap is two half-faces on
-one plane, and naming one of them refuses (`shell`, the kernel's
-partial-chart gate) rather than silently opening both.
+every face on its chart: where two faces share one plane, naming one
+of them refuses (`shell`, the kernel's partial-chart gate) rather than
+silently opening both. (A full revolve's planar cap is ONE face — it
+sweeps a planar wall whole.)
 
 ```python
 from pncad import (
@@ -1569,8 +1570,10 @@ is a name you would have to hand-write — the serialized form, field by
 field, with no compiler and no door checking any of it.
 
 So a revolve's roles have MINTING doors, the same five `pncad::select`
-gives Rust: `band(node, piece)` and `band_pi(node, piece)` are the two
-halves of the face swept from a meridian piece, `band_rim(node, piece)`
+gives Rust: `band(node, piece)` is the face swept from a meridian
+piece and `band_pi(node, piece)` its `[pi, 2pi)` half where a full
+revolve splits a CURVED wall in two (a planar wall is one face, its
+`band`), `band_rim(node, piece)`
 is the latitude rim standing at the vertex the piece starts at,
 `meridian_vertex(end, node, piece)` is that vertex itself, and
 `carried(node, inner)` is the name a survivor of `node` wears one op
@@ -1696,7 +1699,7 @@ let hole = LoopProgram::Circle {
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1721,7 +1724,7 @@ let (next, profile) = insert(
     }),
 );
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
+let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5), side: ExtrudeSide::Along });
 doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
@@ -1754,7 +1757,7 @@ use pncad::prelude::*;
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
 # let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
-#     let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("applies");
+#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
 # let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
@@ -1762,7 +1765,7 @@ use pncad::prelude::*;
 # doc = next;
 # let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame, loops: vec![outline, hole], ids: Vec::new() }));
 # doc = next;
-# let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
+# let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5), side: ExtrudeSide::Along });
 # doc = next;
 # let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 // Make the plate twice as thick.
@@ -1857,7 +1860,7 @@ doc = apply(&doc, &DocEdit::SetDocParam {
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1880,7 +1883,7 @@ let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
     ids: Vec::new(),
 }));
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile, distance: lit(0.5) });
+let (next, plate) = insert(&doc, Node::Extrude { profile, distance: lit(0.5), side: ExtrudeSide::Along });
 doc = next;
 
 // A plain tab on its own branch — parametrically inert, there so the
@@ -1900,13 +1903,13 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
     ids: Vec::new(),
 }));
 doc = next;
-let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p, distance: lit(0.25) });
+let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p, distance: lit(0.25), side: ExtrudeSide::Along });
 doc = next;
 let (next, solid) = insert(&doc, Node::Boolean {
     op: BooleanOp::Union,
     a: plate,
     b: tab,
-    declare: None,
+    declare: Vec::new(),
 });
 doc = next;
 

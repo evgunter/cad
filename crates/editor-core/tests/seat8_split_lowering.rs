@@ -38,6 +38,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -150,13 +151,23 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// itself. They are goldens in the ordinary sense — when one moves the
 /// question is whether the new behaviour is right, never how to restore
 /// the old number.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xfeb1_3678_fb55_ee2e_u64),
-        ("part_select", 0x8eba_0145_3648_429a),
-        ("kitchen_sink", 0xe25b_5291_3116_16b2),
+        ("cut_cylinder", 0x1676_4144_da9e_6975u64),
+        ("part_select", 0xf3bf_580c_ea92_21c3),
+        ("kitchen_sink", 0x0973_ecf8_520a_08a7),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -211,6 +222,7 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(z)],
@@ -233,6 +245,16 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// empty side into a phantom body — moves this number. The constant
 /// reproduces on the extracted merge base (the empty path predates the
 /// migration), so it is a differential pin, not a self-agreement.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -253,7 +275,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x4473_a7bf_5660_d102,
+        got, 0xb71f_3b0d_97ba_2ab3,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

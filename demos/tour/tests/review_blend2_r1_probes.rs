@@ -10,9 +10,8 @@
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
-use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Tol, Vec2};
-use pncad::prelude::{ArcSweep, BlendError, Center, Open, ProfileLoop, SketchPlane, Start};
+use pncad::prelude::{ArcSweep, BlendError, Center, ConstructedLoop, Open, SketchPlane, Start};
 use pncad::prelude::{fillet_edges, mass_properties, subtract, validate_geometric};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
@@ -31,7 +30,7 @@ fn tol() -> Tol {
 /// link longer than the PR's lantern triple.
 fn vase() -> Body<f64> {
     let t = tol();
-    let meridian: ProfileLoop<f64> = Open
+    let meridian: ConstructedLoop<f64> = Open
         .at(Point2::new(0.25, 0.0))
         .line_to(Point2::new(0.8, 0.0), t)
         .expect("base annulus")
@@ -65,7 +64,7 @@ fn vase() -> Body<f64> {
 /// pole-touching revolve (its equator is two half-walls).
 fn ball(x: f64, y: f64, rad: f64) -> Body<f64> {
     let t = tol();
-    let meridian: ProfileLoop<f64> = Open
+    let meridian: ConstructedLoop<f64> = Open
         .at(Point2::new(0.0, -rad))
         .arc_to(
             Center {
@@ -121,7 +120,7 @@ fn face_shapes(body: &Body<f64>) -> Vec<String> {
             Some(Surface::Cylinder { radius, .. }) => format!("cyl {radius:.17e}"),
             Some(Surface::Cone { half_angle, .. }) => format!("cone {half_angle:.17e}"),
             Some(Surface::Plane { .. }) => "plane".to_string(),
-            other => format!("{:?}", other.map(SurfaceKind::of)),
+            other => format!("{:?}", other.map(Surface::kind)),
         })
         .collect();
     out.sort();
@@ -303,7 +302,7 @@ fn p4_no_public_door_builds_a_mixed_ladder_and_annulus_support() {
 /// each other well before either band is geometrically impossible.
 fn pinched_vase() -> Body<f64> {
     let t = tol();
-    let meridian: ProfileLoop<f64> = Open
+    let meridian: ConstructedLoop<f64> = Open
         .at(Point2::new(0.25, 0.0))
         .line_to(Point2::new(1.0, 0.0), t)
         .expect("base annulus")

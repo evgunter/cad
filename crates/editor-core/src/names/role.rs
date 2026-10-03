@@ -12,7 +12,7 @@
 //! # Kind tagging (spec D1, reported choice)
 //!
 //! A RUNTIME kind tag ([`EntityKind`] field), not phantom typing:
-//! `Declare` pairs, table keys, and (PR 4) hit-test returns all need
+//! declared pairs, table keys, and (PR 4) hit-test returns all need
 //! kind-heterogeneous collections, and the F3 serialization story
 //! wants one concrete type. Kind agreement is enforced at emission
 //! (the table refuses a name whose kind disagrees with its entity).
@@ -464,7 +464,7 @@ impl FaceName {
     /// **The part-local face a placed name wraps** — the row of the
     /// part's own table under the one `InPart` qualifier `instance`
     /// put round it, read INSIDE the part where no instance exists:
-    /// what a `FromFace` mate frame stores. `None` when `name` is not
+    /// the last step of [`crate::mate::head_face`]. `None` when `name` is not
     /// of that shape (headed elsewhere, qualified otherwise, or not a
     /// face); [`FaceName::in_part`] is its inverse.
     pub fn part_local(name: &StableName, instance: RecipeNodeId) -> Option<FaceName> {
@@ -572,12 +572,7 @@ pub struct StableName {
 // re-spelling it.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{} name minted by node {}",
-            self.kind.noun(),
-            self.node.0
-        )
+        write!(f, "{} name minted by node {}", self.kind.noun(), self.node)
     }
 }
 
@@ -586,7 +581,7 @@ impl core::fmt::Display for StableName {
 pub type RolePath = Vec<RoleSeg>;
 
 /// Which end of the sweep vector a cap face closes. The sweep vector
-/// is the signed extrusion (or the stacking from first section to
+/// is the extrusion vector (or the stacking from first section to
 /// last), so both variants hold whichever way it points; the derived
 /// `Ord` is the name table's key order and the declaration order is
 /// that key order alone.
@@ -669,6 +664,129 @@ pub enum ProfileEdgeRef {
         #[serde(with = "PieceRoleWire")]
         role: PieceRole,
     },
+}
+
+/// **The profile pieces one swept wall holds** (`names/README.md`, N1
+/// "Swept walls over a run"): the run of pieces an extrude or a revolve
+/// built one wall over, their locators in authored order, never empty.
+///
+/// A one-piece run is spelled as that one locator, on the wire and in
+/// words, so a name minted before runs existed reads back unchanged; a
+/// run of several is spelled as the list.
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PieceRun(Vec<ProfileEdgeRef>);
+
+impl core::fmt::Debug for PieceRun {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.single() {
+            Some(one) => one.fmt(f),
+            None => f.debug_list().entries(&self.0).finish(),
+        }
+    }
+}
+
+impl PieceRun {
+    /// The run of `pieces`, or `None` when there are none.
+    #[must_use]
+    pub fn new(pieces: Vec<ProfileEdgeRef>) -> Option<Self> {
+        (!pieces.is_empty()).then_some(Self(pieces))
+    }
+
+    /// The run of one piece.
+    #[must_use]
+    pub fn one(piece: ProfileEdgeRef) -> Self {
+        Self(vec![piece])
+    }
+
+    /// The pieces, in authored order.
+    #[must_use]
+    pub fn pieces(&self) -> &[ProfileEdgeRef] {
+        &self.0
+    }
+
+    /// The piece of a one-piece run.
+    #[must_use]
+    pub fn single(&self) -> Option<ProfileEdgeRef> {
+        match self.0.as_slice() {
+            [one] => Some(*one),
+            _ => None,
+        }
+    }
+
+    /// Whether `piece` is one of the run's.
+    #[must_use]
+    pub fn holds(&self, piece: &ProfileEdgeRef) -> bool {
+        self.0.contains(piece)
+    }
+
+    /// The run with each piece passed through `f`.
+    ///
+    /// # Errors
+    ///
+    /// The first error `f` returns.
+    pub fn try_map<E>(
+        &self,
+        mut f: impl FnMut(ProfileEdgeRef) -> Result<ProfileEdgeRef, E>,
+    ) -> Result<Self, E> {
+        Ok(Self(
+            self.0.iter().map(|e| f(*e)).collect::<Result<_, _>>()?,
+        ))
+    }
+}
+
+impl From<ProfileEdgeRef> for PieceRun {
+    fn from(piece: ProfileEdgeRef) -> Self {
+        Self::one(piece)
+    }
+}
+
+/// [`PieceRun`]'s wire spelling: the bare locator for one piece (a JSON
+/// object, `ProfileEdgeRef`'s externally tagged form), the list for
+/// several (a JSON array). The reader dispatches ONCE on the token it
+/// meets — an object or an array — and never tries one arm and falls
+/// back to the other, so a refusal inside a locator is the refusal that
+/// decided the read (`persist::refusal`'s premise,
+/// `scripts/gates/persist-no-backtracking.sh`).
+impl serde::Serialize for PieceRun {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self.single() {
+            Some(one) => one.serialize(s),
+            None => self.0.serialize(s),
+        }
+    }
+}
+
+/// The one-dispatch reader behind [`PieceRun`]'s `Deserialize`.
+struct PieceRunVisitor;
+
+impl<'de> serde::de::Visitor<'de> for PieceRunVisitor {
+    type Value = PieceRun;
+
+    fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("a profile piece locator, or a non-empty list of them")
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, map: A) -> Result<PieceRun, A::Error> {
+        let one = <ProfileEdgeRef as serde::Deserialize>::deserialize(
+            serde::de::value::MapAccessDeserializer::new(map),
+        )?;
+        Ok(PieceRun::one(one))
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<PieceRun, A::Error> {
+        let mut pieces = Vec::new();
+        while let Some(piece) = seq.next_element::<ProfileEdgeRef>()? {
+            pieces.push(piece);
+        }
+        PieceRun::new(pieces)
+            .ok_or_else(|| serde::de::Error::custom("a run of profile pieces holds at least one"))
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for PieceRun {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(PieceRunVisitor)
+    }
 }
 
 /// **A profile vertex by what made it**: the vertex where the piece of
@@ -907,8 +1025,9 @@ pub enum RoleSeg {
     // ---- Extrude ----
     /// A cap face.
     Cap(CapEnd),
-    /// A side-wall face swept from a profile segment.
-    Lateral(ProfileEdgeRef),
+    /// A side-wall face swept from a run of profile pieces on one
+    /// carrier (N1, "Swept walls over a run").
+    Lateral(PieceRun),
     /// A cap–wall rim edge (cap end × profile segment).
     RimEdge(CapEnd, ProfileEdgeRef),
     /// A strut (join) edge swept from a profile vertex.
@@ -927,17 +1046,20 @@ pub enum RoleSeg {
     LoftSeam(Vec<ProfileVertexRef>),
 
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
-    /// A wall (band) face swept from a profile segment.
-    Band(ProfileEdgeRef),
+    /// A wall (band) face swept from a run of profile pieces on one
+    /// carrier (N1, "Swept walls over a run").
+    Band(PieceRun),
     /// A latitude (rim) edge at a profile vertex (partial: wedge
     /// arcs; full: full-period rims).
     BandRim(ProfileVertexRef),
     /// Full, wire case: the π…2π band's latitude half-rim.
     BandRimPi(ProfileVertexRef),
-    /// Full, wire case: the π…2π band's wall face.
-    BandPi(ProfileEdgeRef),
-    /// A meridian edge (per profile segment, per meridian).
-    Meridian(MeridianEnd, ProfileEdgeRef),
+    /// Full, wire case: a CURVED wall's π…2π band face. A plane wall is
+    /// built whole and named by [`RoleSeg::Band`] alone.
+    BandPi(PieceRun),
+    /// A meridian edge (per meridian, per wall run: a partial revolve's
+    /// stations split its meridian chains, so there it is per piece).
+    Meridian(MeridianEnd, PieceRun),
     /// A meridian vertex: the copy of a profile vertex on a wedge
     /// cap plane (partial) or the surviving meridian vertex (full).
     MeridianVertex(MeridianEnd, ProfileVertexRef),
@@ -1171,10 +1293,16 @@ pub enum RoleSeg {
         /// The source edge whose blend the arc bounds.
         edge: NameRef,
     },
-    /// The torus band face rounding a CLOSED chain (argument: the
-    /// chain's source edges as a sorted set — a rim is a cycle with no
-    /// distinguished first edge, so the SET is the covariant identity;
-    /// the N3 [`RoleSeg::Merged`] precedent, same canonical order).
+    /// The one blend face a chain of several source edges is carved
+    /// into — a CLOSED chain's torus band, or an open fillet's cylinder
+    /// or chamfer's flat strip carved across joints where consecutive
+    /// links lie on the same two faces
+    /// (argument: the chain's source edges as a sorted set — a rim is a
+    /// cycle with no distinguished first edge, and an open chain's walk
+    /// order depends on which link seeded it, so the SET is the
+    /// covariant identity; the N3 [`RoleSeg::Merged`] precedent, same
+    /// canonical order). A one-link open band is a
+    /// [`RoleSeg::BlendFace`].
     BandFace(Vec<StableName>),
     /// A band trimline on one support (a rim edge yields one per
     /// side).
@@ -1279,8 +1407,9 @@ pub enum RoleSeg {
     },
 }
 
-/// **The `[0, π)` band face swept from the profile piece `piece`** on
-/// the revolve at `node` — [`RoleSeg::Band`].
+/// **The band face swept from the profile piece `piece`** on the
+/// revolve at `node` (in a full revolve's wire case, a curved wall's
+/// `[0, π)` half) — [`RoleSeg::Band`] over the one-piece run.
 ///
 /// This and its three siblings are the MINTING direction of the
 /// vocabulary [`SegPat::tag`](crate::SegPat::tag) matches in. A
@@ -1296,20 +1425,20 @@ pub fn band(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::Band(piece)],
+        path: vec![RoleSeg::Band(piece.into())],
     }
 }
 
 /// **The `[π, 2π)` band face swept from the profile piece `piece`** —
-/// [`band`]'s twin in the wire case, where a full revolve emits every
-/// profile segment as two faces ([`RoleSeg::BandPi`]).
+/// [`band`]'s twin in the wire case, where a full revolve emits a
+/// curved wall as two faces ([`RoleSeg::BandPi`]); a plane wall is one.
 /// [`EntityKind::Face`], as [`band`] is.
 #[must_use]
 pub fn band_pi(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::BandPi(piece)],
+        path: vec![RoleSeg::BandPi(piece.into())],
     }
 }
 
@@ -1368,7 +1497,7 @@ pub fn carried(node: RecipeNodeId, inner: StableName) -> StableName {
 /// It matters because such an id is a LOCAL node reference like the
 /// minting one — it must be re-mapped when a subgraph is copied into
 /// another document, fed to the naming key, and held to the document's
-/// mint counter when a file is read — and a walk that only visits
+/// mint log when a file is read — and a walk that only visits
 /// embedded NAMES cannot see it.
 ///
 /// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
@@ -1478,8 +1607,8 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Union { .. }
         | Node::Pattern { .. }
         | Node::PlacedUnion { .. }
-        | Node::Declare { .. }
         | Node::InstantiatePart { .. }
+        | Node::Gauge { .. }
         | Node::Mate { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
@@ -1816,7 +1945,7 @@ impl RoleSeg {
             // Neither a locator nor a name: verbatim.
             inert_seg!() => self.clone(),
             // The locators.
-            R::Lateral(e) => R::Lateral(w.edge(*e)?),
+            R::Lateral(run) => R::Lateral(run.try_map(|e| w.edge(e))?),
             R::RimEdge(c, e) => R::RimEdge(*c, w.edge(*e)?),
             R::LateralEdge(v) => R::LateralEdge(w.vertex(*v)?),
             R::CapVertex(c, v) => R::CapVertex(*c, w.vertex(*v)?),
@@ -1826,11 +1955,11 @@ impl RoleSeg {
             R::LoftSeam(vs) => {
                 R::LoftSeam(vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?)
             }
-            R::Band(e) => R::Band(w.edge(*e)?),
+            R::Band(run) => R::Band(run.try_map(|e| w.edge(e))?),
             R::BandRim(v) => R::BandRim(w.vertex(*v)?),
             R::BandRimPi(v) => R::BandRimPi(w.vertex(*v)?),
-            R::BandPi(e) => R::BandPi(w.edge(*e)?),
-            R::Meridian(m, e) => R::Meridian(*m, w.edge(*e)?),
+            R::BandPi(run) => R::BandPi(run.try_map(|e| w.edge(e))?),
+            R::Meridian(m, run) => R::Meridian(*m, run.try_map(|e| w.edge(e))?),
             R::MeridianVertex(m, v) => R::MeridianVertex(*m, w.vertex(*v)?),
             R::Pole(v) => R::Pole(w.vertex(*v)?),
             R::AxisEdge(e) => R::AxisEdge(w.edge(*e)?),
@@ -1985,26 +2114,47 @@ impl StableName {
     /// so a name that spells it is a name on that step's pieces,
     /// whichever node minted the name.
     pub(crate) fn piece_steps(&self) -> std::collections::BTreeSet<StepId> {
-        let mut steps = PieceSteps(std::collections::BTreeSet::new());
-        let Ok(_) = self.clone().rewrite_path(&mut steps);
-        steps.0
+        self.step_pieces()
+            .iter()
+            .filter_map(ProfileEdgeRef::step)
+            .collect()
+    }
+
+    /// **Every authored step's piece this name spells**, over the same
+    /// walk as [`Self::piece_steps`]: an edge locator as itself, a
+    /// vertex locator as the piece that starts there (N1: a vertex is
+    /// named by the piece of the same spelling), a kernel-built
+    /// section's not at all.
+    ///
+    /// What a `SetProgram` that keeps a step asks of each name the
+    /// document holds (DM7): whether the new program still draws the
+    /// piece the name spells.
+    pub(crate) fn step_pieces(&self) -> std::collections::BTreeSet<ProfileEdgeRef> {
+        let mut pieces = StepPieces(std::collections::BTreeSet::new());
+        let Ok(_) = self.clone().rewrite_path(&mut pieces);
+        pieces.0
     }
 }
 
-/// [`StableName::piece_steps`]'s walk: every locator's step collected,
-/// every carried name descended, nothing rewritten.
-struct PieceSteps(std::collections::BTreeSet<StepId>);
+/// [`StableName::step_pieces`]'s walk: every step locator collected
+/// as the piece it names, every carried name descended, nothing
+/// rewritten.
+struct StepPieces(std::collections::BTreeSet<ProfileEdgeRef>);
 
-impl SegRewrite for PieceSteps {
+impl SegRewrite for StepPieces {
     type Error = core::convert::Infallible;
 
     fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
-        self.0.extend(e.step());
+        if let ProfileEdgeRef::Piece { .. } = e {
+            self.0.insert(e);
+        }
         Ok(e)
     }
 
     fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
-        self.0.extend(v.step());
+        if let ProfileVertexRef::Piece { step, role } = v {
+            self.0.insert(ProfileEdgeRef::Piece { step, role });
+        }
         Ok(v)
     }
 
@@ -2130,7 +2280,7 @@ mod tests {
                 StableName {
                     kind: EntityKind::Face,
                     node: N,
-                    path: vec![RoleSeg::Band(e)],
+                    path: vec![RoleSeg::Band(e.into())],
                 }
             );
         }
@@ -2144,7 +2294,7 @@ mod tests {
                 StableName {
                     kind: EntityKind::Face,
                     node: N,
-                    path: vec![RoleSeg::BandPi(e)],
+                    path: vec![RoleSeg::BandPi(e.into())],
                 }
             );
         }
@@ -2211,10 +2361,13 @@ mod tests {
         let wall = |node: u64, step: u64| StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(node),
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: StepId(step),
-                role: PieceRole::Leg,
-            })],
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: StepId(step),
+                    role: PieceRole::Leg,
+                }
+                .into(),
+            )],
         };
         let carried_wall = carried(RecipeNodeId(9), wall(1, 4));
         assert_eq!(

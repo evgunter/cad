@@ -525,7 +525,7 @@ fn cap_rims<T: Decide>(
 /// dies here: it is the remnant the cap's `kev` folds away with the
 /// sliver.
 #[allow(clippy::too_many_arguments)]
-fn split_rim<T: Decide + Bounds>(
+fn split_rim<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     rim: EdgeKey,
     crease: EdgeKey,
@@ -536,7 +536,7 @@ fn split_rim<T: Decide + Bounds>(
     tol: Tol,
 ) -> Result<SplitFragments, BlendError> {
     let t = seam_split_param(body, rim, crease, foot)?;
-    let frag = split_fragment(body, rim, vertex, t, rec, "cap rim split", tol)?;
+    let frag = split_fragment(body, rim, vertex, t, None, rec, "cap rim split", tol)?;
     rec.feet.push((frag.vertex, vertex, support));
     retire_fragment(rec, frag.near, frag.source);
     Ok(frag)
@@ -552,7 +552,7 @@ fn split_rim<T: Decide + Bounds>(
 /// from the split parameter (a foot off its rim's span, an uncertified
 /// rim); [`BlendError::BodyNotIntact`] where a cycle read disagrees
 /// with the plan.
-pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
+pub(in crate::blend) fn ruled_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     plan: &RuledPlan<'_, T>,
     sources: &SourceFaces,

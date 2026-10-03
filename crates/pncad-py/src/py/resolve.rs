@@ -146,7 +146,10 @@ impl Resolution {
     fn __repr__(&self) -> String {
         match (self.node, self.body) {
             (Some(node), Some(body)) => {
-                format!("Resolution(resolved at node={}, body={body})", node.0.0)
+                format!(
+                    "Resolution(resolved at node={}, body={body})",
+                    node.0.full()
+                )
             }
             _ => format!("Resolution({})", self.status),
         }
@@ -160,7 +163,14 @@ impl Resolution {
 /// unprojected state. So are the two the tag maps run over, one rung
 /// down, which is what makes `variant` a closed vocabulary rather
 /// than a best effort.
-pub(crate) fn resolution(py: Python<'_>, verdict: &s::Resolution) -> PyResult<Resolution> {
+///
+/// `doc` is the document the verdict's run is of: `detail` speaks its
+/// nodes from it.
+pub(crate) fn resolution(
+    py: Python<'_>,
+    verdict: &s::Resolution,
+    doc: &pncad::document::ProfileDoc,
+) -> PyResult<Resolution> {
     let status = resolution_status_tag(verdict);
     match verdict {
         s::Resolution::Resolved(found) => Ok(Resolution {
@@ -178,7 +188,7 @@ pub(crate) fn resolution(py: Python<'_>, verdict: &s::Resolution) -> PyResult<Re
             node: None,
             body: None,
             kind: None,
-            detail: Some(failure.error.to_string()),
+            detail: Some(failure.error.spoken(doc)),
             offers: Some(
                 failure
                     .offers
@@ -193,7 +203,7 @@ pub(crate) fn resolution(py: Python<'_>, verdict: &s::Resolution) -> PyResult<Re
             node: None,
             body: None,
             kind: None,
-            detail: Some(cause.to_string()),
+            detail: Some(cause.spoken(doc)),
             offers: None,
         }),
     }

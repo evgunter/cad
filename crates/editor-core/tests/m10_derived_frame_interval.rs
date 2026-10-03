@@ -36,6 +36,7 @@
 //! `work/sym/interval-test-preamble-is-copied-across-the-m10-files`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::fixture::{self, Recorder, ang, len, scl};
@@ -154,6 +155,7 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
     let cube = r.insert(Node::Extrude {
         profile: p,
         distance: Expr::param(ParamName::from_static("h"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         at: cube,
@@ -167,6 +169,7 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
     let boss = r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     (r.doc, boss_p, boss)
 }
@@ -194,6 +197,7 @@ pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNo
     let boss = r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     (r.doc, boss)
 }
@@ -213,6 +217,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     let cube = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let lifted = r.insert(Node::transform(
         cube,
@@ -238,6 +243,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -580,15 +586,27 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
     );
 }
 
-/// **The freeze population is not what refuses.** With the exact
-/// constant fold alone (`const_fold`, rule A0, REPLACING the plain
-/// form's constant atoms — the early walk off) the derived-frame
-/// document freezes NOTHING and still refuses at `5e-2` with the same
-/// clause-1 margin; with every rule off it freezes 12 and refuses at
-/// EVERY width on `carrier_endpoint_start`. So A0 is what carries this
-/// document, the 1,253 degree freezes the shipped set makes in its
-/// early walk cost it no decision, and no rule of the atom algebra
-/// stands between the derived frame and its authored twin.
+/// **The freeze population is not what refuses.** With every rule off
+/// the derived-frame document still freezes, and what refuses at
+/// `5e-2` is NOT one of the freezes: on the sign-hull construction the
+/// gate's residual is a plain THEOREM — the opaque `Select` atoms of an
+/// axis-aligned frame cancel as `X − X` — so the document goes on to
+/// the boss's side plane, where the value channel's
+/// `newell_plane_residual` is `Invalid` and no tier is asked at all
+/// (`Decide for Sym<T>` turns a domain violation into no symbolic
+/// question). Neither the plain tier nor A0 alone freezes ANYTHING
+/// getting there, so what refuses is not a freeze either way, and no
+/// rule of the atom algebra stands between the derived frame and its
+/// authored twin. The ten forms that used to freeze at A0's rung sat
+/// under `1/max(1, min(1, max(0, 1))/4)` — a `max`/`min` of two
+/// CONSTANTS — and A0 decides those exactly now
+/// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
+///
+/// The rung that used to read `carrier_endpoint_start` under `none`
+/// was a golden of the plain form's first refusal on the construction
+/// `props/sign-hull` replaced, and it cannot be met by any dial:
+/// `work/decide/the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`
+/// carries the measurement.
 #[test]
 fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
@@ -601,12 +619,15 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
         "plain form alone refuses: {plain_fails:?}"
     );
     assert!(
-        plain_fails[0].contains("carrier_endpoint_start"),
-        "with no rule the refusal is an identity the tier cannot see: {plain_fails:?}"
+        plain_fails[0].contains("newell_plane_residual")
+            && plain_fails[0].contains("margin is invalid"),
+        "with no rule the gate is still a theorem and what refuses is clause 1's, on the \
+         boss's side plane: {plain_fails:?}"
     );
-    assert!(
-        plain_counts.frozen > 0,
-        "the plain form freezes: {plain_counts:?}"
+    assert_eq!(
+        plain_counts.frozen, 0,
+        "and it freezes NOTHING getting there, so the refusal cannot be a freeze: \
+         {plain_counts:?}"
     );
 
     let a0 = SymRules {
@@ -616,12 +637,15 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let (a0_fails, a0_counts) = sym_failures_under(&derived, ProfileLift::Pinned, a0);
     assert_eq!(
         a0_counts.frozen, 0,
-        "A0 alone freezes nothing on this document: {a0_counts:?}"
+        "A0 alone freezes NOTHING: the products that used to freeze sat under \
+         `1/max(1, min(1, max(0, 1))/4)`, a `max`/`min` of two CONSTANTS, and A0 decides \
+         those exactly now: {a0_counts:?}"
     );
     assert_eq!(a0_fails.len(), 1, "and still refuses once: {a0_fails:?}");
     assert!(
         a0_fails[0].contains("newell_plane_residual") && a0_fails[0].contains("margin is invalid"),
-        "with no freeze left the refusal is clause 1's: {a0_fails:?}"
+        "with no freeze left the refusal is clause 1's, the same one the plain tier \
+         reaches: {a0_fails:?}"
     );
 }
 
@@ -692,6 +716,91 @@ fn sym5_phase1_the_newell_refusal_at_5e_2() {
         );
         for f in &fails {
             println!("  {}", head(f, 400));
+        }
+    }
+}
+
+/// **SYM-10 Phase 1.2 — the derived-frame row's refusal under `none`
+/// and under A0, rendered.** `boss_on_widened_box(5e-2)` under
+/// `Pinned` at the two rungs `m10_the_derived_frames_refusal_is_not_a_freeze`
+/// asserts: counts, the per-predicate split, every refusal, and the
+/// blocked residual's plain form with its atom census (no early walk
+/// runs at either rung, so the plain form is the whole of what the
+/// tier held). What it showed on the sign-hull construction: under
+/// `none` the attachment gate's `carrier_endpoint_start` is 32
+/// THEOREMS and the first refusal is the boss's side plane's
+/// `newell_plane_residual`, a clause-1 `Invalid` the tier is never
+/// asked about; under A0 (replacing) the gate's residual freezes
+/// (`sqrt` over three frozen kids, frozen 10) and refuses numerically,
+/// because A0 folds `sqrt`/`abs` of a constant and not `max`/`min` of
+/// two constants, which the folded frame is made of
+/// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
+#[test]
+#[ignore = "evidence-only: SYM-10 Phase 1.2, the derived-frame row's refusal rendered"]
+fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
+    use geom_core::sym::report::{ShapeOutcome, name_param, start_shape_report, take_shape_report};
+    let (derived, _, _) = boss_on_widened_box(5.0e-2);
+    let analyzed = analyzed_box(&derived, &AnalysisPolicy::default());
+    let box_ = ParamBox::of(&analyzed);
+    for name in box_.axes().keys() {
+        name_param(name.as_str());
+    }
+    let n = SymRules::none();
+    for (label, rules) in [
+        ("none", n),
+        (
+            "A0",
+            SymRules {
+                const_fold: true,
+                ..n
+            },
+        ),
+    ] {
+        let opts = EvalOptions {
+            param_box: Some(Arc::new(box_.clone())),
+            profile_lift: ProfileLift::Pinned,
+            ..EvalOptions::default()
+        };
+        start_shape_report();
+        let (fails, counts) = geom_core::sym::with_session_rules(budget(), rules, || {
+            let ev: Evaluation<geom_core::Sym<Interval>> =
+                evaluate(&derived, None, &CancelToken::new(), &opts, Tol::witness());
+            failures(&ev)
+        });
+        let shapes = take_shape_report();
+        println!("=== derived-frame 5e-2 Pinned {label}");
+        println!("    counts {counts:?}");
+        for (pred, row) in crate::m10_8_harness::split(&shapes) {
+            println!("    split {pred:<36} {row:?}");
+        }
+        println!("    refusals {}", fails.len());
+        for f in &fails {
+            println!("      {}", head(f, 400));
+        }
+        let mut seen: std::collections::BTreeSet<&str> = Default::default();
+        for s in &shapes {
+            if matches!(
+                s.outcome,
+                ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
+            ) && seen.insert(s.predicate)
+            {
+                println!("--- blocked {} {:?}", s.predicate, s.outcome);
+                println!("    enclosure {:?} sizes {:?}", s.enclosure, s.sizes);
+                if let Some(f) = &s.form {
+                    let c = |needle: &str| f.matches(needle).count();
+                    println!(
+                        "    plain census select {} | max {} | min {} | abs {} | sqrt {} | copysign {} | terms(top) {}",
+                        c("select("),
+                        c("max("),
+                        c("min("),
+                        c("abs("),
+                        c("sqrt("),
+                        c("copysign("),
+                        f.split(" + ").count()
+                    );
+                    println!("    plain  {}", head(f, 1500));
+                }
+            }
         }
     }
 }

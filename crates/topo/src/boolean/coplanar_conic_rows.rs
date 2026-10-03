@@ -15,8 +15,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::{ContactAcc, SweepKnobs, SweepStrategy, sweep_direction};
-use crate::boolean::{BooleanError, ContactRecords, DeclaredPairs, Operand, VfContact};
+use super::{ContactAcc, SweepKnobs, SweepStrategy, sweep_and_settle};
+use crate::boolean::{BooleanError, ContactRecords, DeclaredPairs, VfContact};
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
 use crate::{Body, FaceKey, VertexKey};
 use geom::Curve3;
@@ -27,7 +27,7 @@ fn band() -> Band {
 }
 
 /// The sheet with its top rim split, and the valence-2 vertex.
-fn split_sheet() -> (Body<f64>, VertexKey) {
+pub(in crate::boolean) fn split_sheet() -> (Body<f64>, VertexKey) {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     cyl_wall_sheet(
@@ -80,7 +80,7 @@ fn split_sheet() -> (Body<f64>, VertexKey) {
 
 /// A brick over `x ∈ [−0.3, 0.3]`, `y ∈ [0.7, 1.3]`, `z ∈ [0, top]`, and
 /// its top face.
-fn brick_under(top: f64) -> (Body<f64>, FaceKey) {
+pub(in crate::boolean) fn brick_under(top: f64) -> (Body<f64>, FaceKey) {
     let b: Body<f64> = brick((-0.3, 0.3), (0.7, 1.3), (0.0, top), Tol::witness());
     let g = b
         .faces()
@@ -93,19 +93,22 @@ fn brick_under(top: f64) -> (Body<f64>, FaceKey) {
     (b, g)
 }
 
-fn sweep(x: &Body<f64>, y: &Body<f64>) -> Result<ContactRecords, BooleanError> {
+pub(in crate::boolean) fn sweep(
+    x: &Body<f64>,
+    y: &Body<f64>,
+) -> Result<ContactRecords, BooleanError> {
     let (mut x, mut y) = (x.clone(), y.clone());
     let mut acc = ContactAcc::default();
-    sweep_direction(
+    let declared = DeclaredPairs::default();
+    sweep_and_settle(
         &mut x,
         &mut y,
-        Operand::A,
-        &DeclaredPairs::default(),
+        &declared,
         &mut acc,
         band(),
         SweepStrategy::Realized,
-        &SweepKnobs::default(),
-        None,
+        [&SweepKnobs::default(); 2],
+        [None, None],
         Tol::witness(),
     )?;
     Ok(acc.finish())

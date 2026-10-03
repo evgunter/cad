@@ -35,7 +35,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId, Said, Say, Speaker};
 
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{BooleanTool, DuplicateTool, PartTool, PatternTool, SplitTool, TransformTool};
@@ -194,7 +194,10 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         // whichever selector authored it.
         SessionOp::AddPart { .. } => Some(ToolKind::Part),
         SessionOp::Duplicate { .. } => Some(ToolKind::Duplicate),
-        SessionOp::AddMate { .. }
+        // A labelled creation is its creation's commit, labelled.
+        SessionOp::CreateLabelled { creation, .. } => committed_by(creation.op()),
+        SessionOp::SetLabel { .. }
+        | SessionOp::AddMate { .. }
         | SessionOp::Select(_)
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
@@ -256,14 +259,33 @@ pub enum ToolNotice {
     },
 }
 
-impl core::fmt::Display for ToolNotice {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// The mate and seated arms say the node their event snapshotted when
+/// the pick was held (`SpokenNode`), so the speaker reaches the blend
+/// arm alone, whose event holds bare ids.
+impl Say for ToolNotice {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let said = match self {
             Self::Mate(event) => ToolKind::Mate.says(event),
-            Self::Blend(event) => ToolKind::Blend.says(event),
+            Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
         };
         f.write_str(&said)
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for ToolNotice {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
+impl ToolNotice {
+    /// **The sentence the line shows**: each bare id said from
+    /// `landed`, the landed document the tool's picks and loads were
+    /// read off, and by its tag with nothing landed.
+    pub fn said(&self, landed: Option<&Doc<ProfileProgram>>) -> String {
+        Said(self, landed.map_or(Speaker::TAG, Speaker::of)).to_string()
     }
 }
 
@@ -392,7 +414,7 @@ impl Tools {
     /// The open revolve tool.
     pub fn revolve(&self) -> Option<RevolveTool> {
         match &self.open {
-            Some(OpenTool::Revolve(tool)) => Some(*tool),
+            Some(OpenTool::Revolve(tool)) => Some(tool.clone()),
             _ => None,
         }
     }
@@ -400,7 +422,7 @@ impl Tools {
     /// The open boolean tool.
     pub fn boolean(&self) -> Option<BooleanTool> {
         match &self.open {
-            Some(OpenTool::Boolean(tool)) => Some(*tool),
+            Some(OpenTool::Boolean(tool)) => Some(tool.clone()),
             _ => None,
         }
     }
@@ -408,7 +430,7 @@ impl Tools {
     /// The open split tool.
     pub fn split(&self) -> Option<SplitTool> {
         match &self.open {
-            Some(OpenTool::Split(tool)) => Some(*tool),
+            Some(OpenTool::Split(tool)) => Some(tool.clone()),
             _ => None,
         }
     }
@@ -416,7 +438,7 @@ impl Tools {
     /// The open transform tool.
     pub fn transform(&self) -> Option<TransformTool> {
         match &self.open {
-            Some(OpenTool::Transform(tool)) => Some(*tool),
+            Some(OpenTool::Transform(tool)) => Some(tool.clone()),
             _ => None,
         }
     }
@@ -424,7 +446,7 @@ impl Tools {
     /// The open pattern tool.
     pub fn pattern(&self) -> Option<PatternTool> {
         match &self.open {
-            Some(OpenTool::Pattern(tool)) => Some(*tool),
+            Some(OpenTool::Pattern(tool)) => Some(tool.clone()),
             _ => None,
         }
     }
@@ -432,7 +454,7 @@ impl Tools {
     /// The open part tool.
     pub fn part(&self) -> Option<PartTool> {
         match &self.open {
-            Some(OpenTool::Part(tool)) => Some(*tool),
+            Some(OpenTool::Part(tool)) => Some(tool.clone()),
             _ => None,
         }
     }
@@ -440,7 +462,7 @@ impl Tools {
     /// The open duplicate tool.
     pub fn duplicate(&self) -> Option<DuplicateTool> {
         match &self.open {
-            Some(OpenTool::Duplicate(tool)) => Some(*tool),
+            Some(OpenTool::Duplicate(tool)) => Some(tool.clone()),
             _ => None,
         }
     }
@@ -518,12 +540,12 @@ impl Tools {
                 None => {}
                 Some(OpenTool::Mate(tool)) => {
                     if let Some(face) = selection.face() {
-                        tool.pick(face.clone());
+                        tool.pick(doc, face.clone());
                     }
                 }
                 Some(OpenTool::Blend(tool)) => {
                     if let Some(edge) = selection.edge() {
-                        notices.extend(tool.pick(edge).map(ToolNotice::Blend));
+                        notices.extend(tool.pick(doc, edge).map(ToolNotice::Blend));
                     }
                 }
                 Some(OpenTool::Revolve(tool)) => {

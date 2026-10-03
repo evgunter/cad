@@ -161,7 +161,7 @@ impl Separation {
         let pad = sweep_pad(band);
         let mut boxes = Vec::new();
         for (f, _) in proto.faces() {
-            boxes.push(face_box(proto, f, pad)?);
+            boxes.push(face_box(proto, f, pad, band)?);
         }
         // A face-less prototype encloses nothing; the hull of nothing is
         // the poison box, which overlaps everything — so a face-less
@@ -247,23 +247,11 @@ fn relative<T: Decide>(mi: &Affine3<T>, mj: &Affine3<T>) -> Affine3<T> {
 /// yields the poison box, which overlaps everything.
 fn image<T: Decide + Bounds>(b: &Aabb, m: &Affine3<T>) -> Aabb {
     let br = |v: T| (v.lo(), v.hi());
-    let cols = [m.linear.c0, m.linear.c1, m.linear.c2];
-    // Row r of the linear part, bracketed: column j's r-th component.
-    let row = |r: usize| {
-        [0usize, 1, 2].map(|j| {
-            let c = cols[j];
-            br(match r {
-                0 => c.x,
-                1 => c.y,
-                _ => c.z,
-            })
-        })
-    };
-    let trans = [
-        br(m.translation.x),
-        br(m.translation.y),
-        br(m.translation.z),
-    ];
+    // The linear part's columns, bracketed entry by entry.
+    let cols = m.linear.cols().map(|c| c.to_array().map(br));
+    // Row r of the linear part: column j's r-th component.
+    let row = |r: usize| cols.map(|c| c[r]);
+    let trans = m.translation.to_array().map(br);
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
     let xs = [b.min_x, b.max_x];
@@ -425,7 +413,7 @@ impl SolidSeparation {
                             what: "solid separation: a solid names a shell the body lost",
                         })?;
                 for &face in &shell.faces {
-                    boxes.push(face_box(body, face, pad)?);
+                    boxes.push(face_box(body, face, pad, band)?);
                 }
             }
             // A face-less solid encloses nothing, and the hull of

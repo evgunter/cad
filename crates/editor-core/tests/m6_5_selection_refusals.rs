@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use editor_core::resolve::{Diagnosis, RecipeEditRef, ResolveError};
@@ -59,12 +60,13 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let applied = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(body, len(0.125), selection(&doc)),
+            node: Box::new(Node::fillet(body, len(0.125), selection(&doc))),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -84,7 +86,9 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
         let a = apply(
             doc,
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
@@ -105,6 +109,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: bp,
             distance: len(4.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (d, up) = on_frame(
@@ -128,6 +133,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: up,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (d, us) = insert(
@@ -136,7 +142,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: ua,
             b: ub,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     doc = d;
@@ -178,7 +184,7 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(
+            node: Box::new(Node::fillet(
                 body(&doc),
                 len(0.125),
                 vec![{
@@ -186,13 +192,13 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
                     elsewhere.node = RecipeNodeId(99);
                     elsewhere
                 }],
-            ),
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => {
-            assert_eq!(name.node, RecipeNodeId(99));
+            assert_eq!(name.name().node, RecipeNodeId(99));
         }
         other => panic!("a typo id must refuse at the edit door, got {other:?}"),
     }
@@ -211,10 +217,11 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     let spare = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: doc.order()[1],
                 distance: len(2.0),
-            },
+                side: ExtrudeSide::Along,
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -224,7 +231,11 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     let with_fillet = apply(
         &spare.doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(body(&doc), len(0.125), vec![rim(&spare.doc, spare_id, 0)]),
+            node: Box::new(Node::fillet(
+                body(&doc),
+                len(0.125),
+                vec![rim(&spare.doc, spare_id, 0)],
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -325,7 +336,7 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
     let applied = editor_core::apply(
         &doc,
         &editor_core::DocEdit::InsertNode {
-            node: Node::fillet(us, len(0.125), vec![tied.clone()]),
+            node: Box::new(Node::fillet(us, len(0.125), vec![tied.clone()])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

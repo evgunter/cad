@@ -16,12 +16,12 @@
 //!
 //! A mate's alignment frames are in each member's own part
 //! coordinates, and this tool authors each one AS THE PICKED FACE
-//! (`MateFrame::FromFace`): the face's PART-LOCAL name — the head's
-//! name with the walk's qualification stripped, which is the row of
-//! the part's own table the instance placed — with no authored
-//! reference, so the solve resolves the frame from the face's own
-//! canonical pose at every evaluation, in the part's coordinates
-//! (`ASSEMBLY.md` A11 rule 5). Nothing is stored twice and no
+//! (`MateFrame::FromFace`), which names nothing: the side's frame is
+//! its own head's face — the head's name with the walk's
+//! qualification stripped (`head_face`), the row of the part's own
+//! table the instance placed — so the solve resolves the frame from
+//! the face's own canonical pose at every evaluation, in the part's
+//! coordinates (`ASSEMBLY.md` A11 rule 5). Nothing is stored twice and no
 //! arithmetic happens here: a part edit that moves the face moves the
 //! mate with it. What the tool still reads at authoring time is the
 //! picked face's pose through `names::interrogate::face_frame`, as a
@@ -40,11 +40,12 @@
 //! transformed instance, and a pick on a pattern copy authors an
 //! `Instance(i)`-headed reference at the pattern. Everything the walk
 //! cannot stand a member on is
-//! [`MateToolError::NotAnInstancePick`]. One private door carries the
-//! rest of that rule, including why a copy's frame is read at its
-//! MASTER: an alignment is authored in the member's part coordinates,
-//! every placed body is a rigid image of the same part, and the
-//! composed static offset is the solve's to apply.
+//! [`MateToolError::NotAnInstancePick`]. A copy's frame is read at
+//! its MASTER (the member walk takes off one `Instance(i)` per pattern
+//! level, `member_reading`):
+//! an alignment is in the member's part coordinates, every placed body
+//! is a rigid image of the same part, and the composed static offset
+//! is the solve's to apply.
 //!
 //! # What the picked frames admit
 //!
@@ -93,14 +94,12 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, MateFrame,
-    MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace,
-    class_admission, member_of, table_gap,
+    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, HeldNodes, MateFrame,
+    MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram, Said, SitedFace, Speaker,
+    SpokenNode, class_admission, held_by, member_reading, table_gap,
 };
 use pncad::prelude::StableName;
-use pncad::select::{
-    ContactClass, InterrogateError, Resolution, RoleSeg, RunCtx, face_frame, resolve,
-};
+use pncad::select::{ContactClass, InterrogateError, Resolution, RunCtx, face_frame, resolve};
 
 use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
@@ -142,16 +141,12 @@ pub fn admitted_classes() -> Vec<MateAdmission> {
         .collect()
 }
 
-/// **The reference a pick authors, the member it resolves to, and
-/// which name to read its face pose at**: the pick's own operand —
-/// the node the ray met — paired with the picked name, the kernel's
-/// member for that pair, and the entity name the face is interrogated
-/// by, headed at the member's instance.
-///
-/// The node the FACE is read at is not returned because it is not a
-/// second fact: the returned name is the MEMBER's instance's, and the
-/// part-local name the frame stores is that name's own row
-/// (`FaceName::part_local`).
+/// **The reference a pick authors, the member it resolves to, and the
+/// name its face reads at**: the pick's own operand — the node the ray
+/// met — paired with the picked name, the kernel's member for that
+/// pair, and the name the member walk reached at the member's instance
+/// ([`pncad::document::member_reading`]; a copy reaches its MASTER's
+/// name).
 ///
 /// The admission rule is A11's member vocabulary READ, not restated
 /// ([`pncad::document::member_of`]): the walk from the operand down to
@@ -160,15 +155,6 @@ pub fn admitted_classes() -> Vec<MateAdmission> {
 /// `InstantiatePart`. The walk refuses a fused body's node because a
 /// boolean is not a pass-through: it mints its own geometry and its
 /// own names, and no member stands on it.
-///
-/// **A pattern copy's face is read at the MASTER**, on the innermost
-/// pattern's input instance. A frame names a face of the member's
-/// PART, every copy at every level is a rigid image of that part, and
-/// the static offset that separates the placed body from its master —
-/// the copy maps of the patterns the walk consumed, a transform's map,
-/// or all of them composed — is the SOLVE's, applied onto the frame
-/// there. A name read at the placed copy would carry that copy's own
-/// qualifier, which is not a row of the part's table.
 ///
 /// # Errors
 ///
@@ -180,13 +166,6 @@ fn picked_member(
     side: MateSide,
     pick: &FaceSelection,
 ) -> Result<(SitedFace, Member, StableName), MateToolError> {
-    let refused = || MateToolError::NotAnInstancePick {
-        side,
-        node: pick.node,
-    };
-    // The pick's own operand: the node the ray met, which is the node
-    // whose body was drawn and therefore the geometry the author is
-    // pointing at.
     // A head is a `FaceName`, and this is the boundary that makes one
     // out of a selection. The picking door refuses
     // `SelectionRefusal::NotAFace` before a selection exists, so a
@@ -199,36 +178,17 @@ fn picked_member(
     // the mistake is exactly what the constructor said.
     let name = editor_core::FaceName::new(pick.name.clone())
         .map_err(|refusal| MateToolError::PickIsNotAFace { side, refusal })?;
+    // The pick's own operand: the node the ray met, which is the node
+    // whose body was drawn and therefore the geometry the author is
+    // pointing at.
     let reference = SitedFace::new(pick.node, name);
-    let member = member_of(doc, &reference).ok_or_else(refused)?;
-    // A copy reads its MASTER's entity: the name inside the
-    // `Instance(i)` qualifier, one qualifier per pattern level the
-    // walk consumed, so a nested copy descends to the INNERMOST name
-    // — the one headed at the instance the member stands on. A plain
-    // member consumes no level and keeps its own name.
-    //
-    // `member_of` admits a copy only on a name carrying that
-    // qualifier at each level, so the refusal below cannot fire — it
-    // stands where a panic otherwise would, for an invariant this
-    // crate reads rather than owns.
-    let mut read = pick.name.clone();
-    for _ in 0..member.copy.len() {
-        let Some(RoleSeg::Instance { of, .. }) = read.path.first() else {
-            return Err(refused());
-        };
-        read = (**of).clone();
-    }
-    Ok((reference, member, read))
-}
-
-/// **The part-local name a member's face name wraps** — the kernel's
-/// own unwrap (`FaceName::part_local`) at the member's instance. `read`
-/// is the name headed there ([`picked_member`]'s third answer), so
-/// exactly one qualifier stands between it and the part's row; `None`
-/// when the name is not of that shape, which the member walk excludes
-/// and this door still names rather than assumes.
-fn part_local(member: &Member, read: &StableName) -> Option<editor_core::FaceName> {
-    editor_core::FaceName::part_local(read, member.instance)
+    let (member, placed) =
+        member_reading(doc, &reference).ok_or_else(|| MateToolError::NotAnInstancePick {
+            side,
+            node: doc.spoken(pick.node),
+        })?;
+    let placed = placed.clone();
+    Ok((reference, member, placed))
 }
 
 /// A typed mate-tool refusal (closed enum, D4 ¶3).
@@ -263,16 +223,16 @@ pub enum MateToolError {
     NotAnInstancePick {
         /// Which pick.
         side: MateSide,
-        /// The node the pick's body belongs to.
-        node: RecipeNodeId,
+        /// The node the pick's body belongs to, as the document held it.
+        node: SpokenNode,
     },
     /// Both picks name ONE member of A11's vocabulary. A mate relates
     /// a pair; the tool refuses here rather than authoring the edit
     /// the solve would refuse as a self-mate. Two COPIES of one
     /// pattern are two members and are not this refusal.
     SamePick {
-        /// The head node both picks name.
-        head: RecipeNodeId,
+        /// The head node both picks name, as the document held it.
+        head: SpokenNode,
     },
     /// A picked face's frame could not be derived — the interrogation
     /// door's own refusal (an unresolved name, an N2 tie, a NURBS
@@ -288,6 +248,9 @@ pub enum MateToolError {
         side: MateSide,
         /// The door's refusal.
         error: InterrogateError,
+        /// The nodes `error` names, as the document held them
+        /// ([`held_by`]).
+        held: HeldNodes,
     },
     /// The chosen class is outside the vocabulary
     /// ([`ClassAdmission::NotAdmitted`]): refused HERE, before any
@@ -322,19 +285,18 @@ impl core::fmt::Display for MateToolError {
             ),
             Self::NotAnInstancePick { side, node } => write!(
                 f,
-                "pick {} is on {}, which is not a part instance or a copy of one",
-                side.name(),
-                crate::tree::node_number(*node)
+                "pick {} is on {node}, which is not a part instance or a copy of one",
+                side.name()
             ),
             Self::SamePick { head } => write!(
                 f,
-                "both picks name the same member (head: {}); a mate relates a pair",
-                crate::tree::node_number(*head)
+                "both picks name the same member (head: {head}); a mate relates a pair"
             ),
-            Self::Frame { side, error } => write!(
+            Self::Frame { side, error, held } => write!(
                 f,
-                "pick {}'s face frame cannot be derived: {error}",
-                side.name()
+                "pick {}'s face frame cannot be derived: {}",
+                side.name(),
+                Said(error, Speaker::held(held))
             ),
             Self::ClassRefused { class } => {
                 write!(
@@ -351,6 +313,34 @@ impl core::fmt::Display for MateToolError {
 }
 
 impl core::error::Error for MateToolError {}
+
+impl MateToolError {
+    /// This refusal with its nodes spoken from `doc`, a later version of
+    /// the document the tool read ([`crate::session::Refusal::respoken`]):
+    /// the panel's line ([`MateToolState::line`]) speaks the session's
+    /// document, and a refusal drawn beside it speaks the same one.
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        match self {
+            Self::NotAnInstancePick { side, node } => Self::NotAnInstancePick {
+                side,
+                node: node.respoken(doc),
+            },
+            Self::SamePick { head } => Self::SamePick {
+                head: head.respoken(doc),
+            },
+            Self::Frame { side, error, held } => Self::Frame {
+                side,
+                error,
+                held: held.respoken(doc),
+            },
+            unspoken @ (Self::NotTwoPicks
+            | Self::PickIsNotAFace { .. }
+            | Self::ClassRefused { .. }
+            | Self::TableRefused { .. }) => unspoken,
+        }
+    }
+}
 
 /// What the tool holds: none, one, or two picks — the two sequential
 /// picks of the ruling, as a value.
@@ -390,26 +380,28 @@ impl MateToolState {
     /// neither the state nor the survival rule is shared), but the
     /// line is the same sentence about the same thing — a role and
     /// what fills it — so it is composed by the same door.
-    pub fn line(&self) -> String {
+    pub fn line(&self, doc: &Doc<ProfileProgram>) -> String {
         let [a, b] = self.picks();
-        crate::seats::picks_line(
-            [(MateSide::A, a), (MateSide::B, b)]
-                .map(|(side, pick)| (format!("pick {}", side.name()), pick.map(face_of))),
-        )
+        crate::seats::picks_line([(MateSide::A, a), (MateSide::B, b)].map(|(side, pick)| {
+            (
+                format!("pick {}", side.name()),
+                pick.map(|pick| face_of(&doc.spoken(pick.node))),
+            )
+        }))
     }
 }
 
-/// **What this tool calls a held pick**: `face of feature 3` — the
-/// face of the feature whose body the pick was taken on, the node
-/// spelled [`crate::tree::node_number`]'s way.
+/// **What this tool calls a held pick**: `face of Extrude 000000000003`
+/// — the face of the node whose body the pick was taken on, as the
+/// document speaks it.
 ///
 /// The panel item ([`MateToolState::line`]) and the drop notice
 /// ([`MateToolEvent`]) both say it, about the same pick on the same
 /// frame, so they read it here rather than each spelling it: two
 /// copies of one phrase is how a panel and its notice come to call
 /// one pick two things.
-fn face_of(pick: &FaceSelection) -> String {
-    format!("face of {}", crate::tree::node_number(pick.node))
+fn face_of(node: &SpokenNode) -> String {
+    format!("face of {node}")
 }
 
 /// A typed tool event the chrome renders — every state change that
@@ -423,6 +415,9 @@ pub enum MateToolEvent {
         side: MateSide,
         /// The pick that was held.
         pick: FaceSelection,
+        /// The pick's node as the document spoke it when the pick was
+        /// dropped.
+        node: SpokenNode,
         /// The resolution machinery's own verdict, read as the feature
         /// tree reads it ([`crate::tree::resolution_as_drawn`]); boxed
         /// for the same width reason `Standing` boxes it.
@@ -439,11 +434,11 @@ impl core::fmt::Display for MateToolEvent {
     /// full in the value; this is what a person reads.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { side, pick, .. } => write!(
+            Self::PickLost { side, node, .. } => write!(
                 f,
                 "pick {} (a {}) no longer resolves; the tool dropped it",
                 side.name(),
-                face_of(pick)
+                face_of(node)
             ),
         }
     }
@@ -500,6 +495,11 @@ impl MateProposal {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct MateTool {
     state: MateToolState,
+    /// Each held pick's node as the document spoke it when the pick was
+    /// taken, side `a` then side `b` — the words the panel showed, which
+    /// a drop notice repeats even once the document no longer holds the
+    /// node.
+    said: [Option<SpokenNode>; 2],
 }
 
 impl MateTool {
@@ -517,10 +517,15 @@ impl MateTool {
     /// into tool state. The first pick fills `a`, the second `b`; a
     /// third REPLACES `b` (the choice step is still open, and
     /// re-picking the second face is how a user corrects it).
-    pub fn pick(&mut self, face: FaceSelection) {
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
+        let said = Some(doc.spoken(face.node));
         self.state = match std::mem::take(&mut self.state) {
-            MateToolState::Idle => MateToolState::One(face),
+            MateToolState::Idle => {
+                self.said = [said, None];
+                MateToolState::One(face)
+            }
             MateToolState::One(a) | MateToolState::Two { a, .. } => {
+                self.said[1] = said;
                 MateToolState::Two { a, b: face }
             }
         };
@@ -535,6 +540,7 @@ impl MateTool {
         eval: &Evaluation<f64>,
     ) -> Vec<MateToolEvent> {
         let mut events = Vec::new();
+        let [said_a, said_b] = std::mem::take(&mut self.said);
         let mut lost = |side: MateSide, pick: &FaceSelection| -> bool {
             let verdict =
                 crate::tree::resolution_as_drawn(resolve(RunCtx { doc, eval }, &pick.name), eval);
@@ -543,36 +549,41 @@ impl MateTool {
             } else {
                 events.push(MateToolEvent::PickLost {
                     side,
+                    node: match side {
+                        MateSide::A => said_a.clone(),
+                        MateSide::B => said_b.clone(),
+                    }
+                    .unwrap_or_else(|| doc.spoken(pick.node)),
                     pick: pick.clone(),
                     resolution: Box::new(verdict),
                 });
                 true
             }
         };
-        self.state = match std::mem::take(&mut self.state) {
-            MateToolState::Idle => MateToolState::Idle,
+        (self.state, self.said) = match std::mem::take(&mut self.state) {
+            MateToolState::Idle => (MateToolState::Idle, [None, None]),
             MateToolState::One(a) => {
                 if lost(MateSide::A, &a) {
-                    MateToolState::Idle
+                    (MateToolState::Idle, [None, None])
                 } else {
-                    MateToolState::One(a)
+                    (MateToolState::One(a), [said_a, None])
                 }
             }
             MateToolState::Two { a, b } => match (lost(MateSide::A, &a), lost(MateSide::B, &b)) {
-                (false, false) => MateToolState::Two { a, b },
-                (false, true) => MateToolState::One(a),
-                (true, false) => MateToolState::One(b),
-                (true, true) => MateToolState::Idle,
+                (false, false) => (MateToolState::Two { a, b }, [said_a, said_b]),
+                (false, true) => (MateToolState::One(a), [said_a, None]),
+                (true, false) => (MateToolState::One(b), [said_b, None]),
+                (true, true) => (MateToolState::Idle, [None, None]),
             },
         };
         events
     }
 
     /// Derive the committed edit from the two held picks and the
-    /// user's choice: each pick's member, and its face as the side's
-    /// frame (`MateFrame::FromFace`, the part-local name), after the
-    /// face's pose has been read once through the shipped
-    /// interrogation door as a pre-check that stores nothing.
+    /// user's choice: each pick's member, and its head's face as the
+    /// side's frame (`MateFrame::FromFace`), after the face's pose has
+    /// been read once through the shipped interrogation door as a
+    /// pre-check that stores nothing.
     ///
     /// **`doc` and `eval` must be the LANDED PAIR** (the session's
     /// `landed_pair()`): the members are walked on `doc` and the
@@ -618,35 +629,38 @@ impl MateTool {
         if let Some(what) = table_gap(choice.primitive, choice.clocking) {
             return Err(MateToolError::TableRefused { what });
         }
-        let (ref_a, member_a, read_a) = picked_member(doc, MateSide::A, a)?;
-        let (ref_b, member_b, read_b) = picked_member(doc, MateSide::B, b)?;
+        let (ref_a, member_a, placed_a) = picked_member(doc, MateSide::A, a)?;
+        let (ref_b, member_b, placed_b) = picked_member(doc, MateSide::B, b)?;
         // MEMBERS, not nodes: two copies of one pattern are two
         // members over one instance, and a mate between them is a
         // legal (loop-closing) declaration the solve places. What a
         // mate cannot relate is a member to itself.
         if member_a == member_b {
-            return Err(MateToolError::SamePick { head: a.node });
+            return Err(MateToolError::SamePick {
+                head: doc.spoken(a.node),
+            });
         }
+        // The pre-check: the face's pose as the solve will read it, by
+        // the name the walk reached at the member's instance (a copy's
+        // MASTER's), refused here in the door's own words where it has
+        // none. That instance's product holds only its part's rows,
+        // each wrapped in its one `InPart`, so a name it answers is a
+        // face of the part, which the solve reads (`head_face`). The
+        // pose itself is not kept: the frame is the head's face,
+        // resolved by the solve.
         let frame_of = |side: MateSide,
                         member: &Member,
-                        read: &StableName|
+                        placed: &StableName|
          -> Result<MateFrame, MateToolError> {
-            // The pre-check: the face's pose as the solve will read
-            // it, refused here in the door's own words where it has
-            // none. The pose itself is not kept — the frame is the
-            // NAME, resolved by the solve.
-            face_frame(eval, member.instance, read).map_err(|error| MateToolError::Frame {
-                side,
-                error: crate::tree::interrogation_as_drawn(error, eval),
+            face_frame(eval, member.instance, placed).map_err(|error| {
+                let error = crate::tree::interrogation_as_drawn(error, eval);
+                let held = held_by(&error, doc);
+                MateToolError::Frame { side, error, held }
             })?;
-            let local = part_local(member, read).ok_or(MateToolError::NotAnInstancePick {
-                side,
-                node: member.instance,
-            })?;
-            Ok(MateFrame::from_face(local))
+            Ok(MateFrame::FromFace)
         };
-        let frame_a = frame_of(MateSide::A, &member_a, &read_a)?;
-        let frame_b = frame_of(MateSide::B, &member_b, &read_b)?;
+        let frame_a = frame_of(MateSide::A, &member_a, &placed_a)?;
+        let frame_b = frame_of(MateSide::B, &member_b, &placed_b)?;
         Ok(MateProposal {
             a: ref_a,
             b: ref_b,

@@ -17,9 +17,10 @@
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::Body;
-use topo::splitting::{SplitPlane, split};
+use topo::splitting::split;
 
 fn disc_cylinder() -> Body<f64> {
     let lp = bulge_loop(vec![
@@ -29,9 +30,16 @@ fn disc_cylinder() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Cylinder wall faces of `body`.
@@ -52,10 +60,11 @@ fn sub_period_wall_pieces_remerge_structurally() {
     // below part's wall is TWO same-key fragments meeting across one
     // original meridian strut (the C12.5 through-cut shape).
     let body = disc_cylinder();
-    let plane = SplitPlane {
-        origin: Point3::new(0.2, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.2, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let parts = split(&body, &plane, Tol::witness()).expect("the tilted-cut lane splits it");
     let mut part = parts.below.body().expect("a below part exists").clone();
     assert_eq!(wall_count(&part), 2, "two same-key wall fragments");
@@ -124,9 +133,16 @@ fn distinct_key_curved_neighbors_stay_unmerged() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let mut body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let mut body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let out = body
         .merge_coplanar_faces(Tol::witness())
         .expect("no-op merge");

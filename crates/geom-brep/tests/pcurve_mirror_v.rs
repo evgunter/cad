@@ -137,6 +137,19 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
             -0.4,
             0.9,
         ),
+        (
+            "ConeSection",
+            Pcurve::ConeSection {
+                u0: 0.7,
+                v0: 2.5,
+                va: -0.75,
+                vb: 0.125,
+                beta: 0.3,
+                sense: -1.0,
+            },
+            -0.4,
+            0.9,
+        ),
     ]
 }
 
@@ -159,7 +172,7 @@ fn reflects(p: &Pcurve<f64>) -> bool {
 /// the hand-written `kinds()` above could not be on its own.
 #[test]
 fn every_variant_appears_in_the_kinds_census() {
-    let mut seen = [false; 6];
+    let mut seen = [false; 7];
     for (_, p, _, _) in kinds() {
         let slot = match p {
             Pcurve::Harmonic { .. } => 0,
@@ -168,6 +181,7 @@ fn every_variant_appears_in_the_kinds_census() {
             Pcurve::IsoLine { .. } => 3,
             Pcurve::IsoArc { .. } => 4,
             Pcurve::Spiric { .. } => 5,
+            Pcurve::ConeSection { .. } => 6,
         };
         seen[slot] = true;
     }

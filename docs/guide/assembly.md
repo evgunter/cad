@@ -23,7 +23,9 @@ Everything below runs. The Python blocks are executed by
 `crates/pncad-py/tests/test_workspace.py`,
 `test_assembly_eval.py` and `test_assembly_author.py` (which build
 one scene, `crates/pncad-py/tests/bench_scene.py`), and the same scene
-in Rust is `demos/tour/src/assembly.rs`.
+in Rust is `demos/tour/src/assembly.rs`, which goes one step further:
+it stands the stand on a turntable gauge a `swing` parameter turns,
+and sets a crate on the shelf through a gauge nested on it.
 
 The scene is the tour's bench: two square posts, one shelf resting on
 them. Two part documents, and two assemblies built from those — a
@@ -72,9 +74,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -98,7 +100,7 @@ assert store.resolve(shelf_ref).id == shelf.id
 
 # The shelf legitimately changes: same part, new content, new pin.
 thicker = prism("bench-shelf", 0.9, 0.30, 0.08)
-assert thicker.id == shelf.id, "same label, same part"
+assert thicker.id == shelf.id, "same seed, same part"
 assert content_pin(thicker) != content_pin(shelf)
 store.resave(thicker)
 
@@ -131,19 +133,22 @@ meant yesterday" a fact rather than a hope.
 
 ## 2. Authoring an assembly
 
-Three doors — and one property, *placement lives on the cluster*,
-that explains the second of them.
+Three doors — and one property, *placement lives on a gauge*, that
+explains the second of them.
 
 `Node.instantiate_part(reference)` is an instance: a **leaf** whose
-material crosses the document seam. It takes no frame.
+material crosses the document seam. It is inserted on the world at the
+empty offset — at the origin.
 
-`DocEdit.set_placement(node, frame)` is where the frame goes — and it
-places the instance's **cluster**, not the instance. Instances coupled
-by mates share one recorded frame, held by the earliest of them in
-document order (their **gauge**); every other member's pose is
-*solved*. That is why a document can carry three instances and one
-frame, and why zero-anchor and multi-anchor states are
-unrepresentable here rather than merely refused.
+`DocEdit.set_offset(node, placement)` moves it: an instance names a
+**gauge** (the world by default; `Node.gauge` makes one, and
+`DocEdit.set_gauge` puts an instance on it) and may carry an
+**offset** in it. Instances coupled by placing mates form a **group**,
+rooted at its earliest member that carries an offset; the group's
+frame is its gauge composed with that offset, and every other member's
+pose is *solved*. A mate places only between instances on one gauge,
+and "mate `a` to `b`" places `a`'s group on `b`'s: the insert clears
+the offset of `a`'s root, so the group keeps one.
 
 `Node.mate(a_at, a, b_at, b, class_, alignment)` is one node carrying
 both halves of "these two parts meet here": the placement constraint
@@ -180,14 +185,15 @@ from pncad import (
     MatePrimitive,
     NamePat,
     Node,
+    Placement,
     SegPat,
     SegTag,
     Selector,
     Workspace,
-    clusters,
+    groups,
     content_pin,
     evaluate,
-    gauge_of,
+    root_of,
     m,
     reading_edges,
 )
@@ -196,9 +202,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -225,16 +231,6 @@ def frame_at(x, y, z):
                      reference=(1.0, 0.0, 0.0))
 
 
-def part_cap(part, side):
-    """A cap face of a PART, by the part's own name: selected on the
-    part document's own evaluation, with no instance wrapped round it
-    — what a mate frame that names a face stores."""
-    cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(side))
-    found = evaluate(part).select(part.roots[0], Selector.of(cap))
-    assert len(found) == 1, f"expected one face, got {found}"
-    return found[0]
-
-
 store = Workspace(tempfile.mkdtemp())
 post = prism("bench-post", POST_SECTION, POST_SECTION, POST_HEIGHT)
 shelf = prism("bench-shelf", SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS)
@@ -245,11 +241,13 @@ shelf_ref = DocRef(shelf.id, content_pin(shelf))
 
 stand = Doc("bench-stand")
 post_a = stand.insert(Node.instantiate_part(post_ref))
-# Only the gauge is placed by hand. The other two poses are solved.
+# Only the root is placed by hand. The other two poses are solved.
 stand.apply(
-    DocEdit.set_placement(
+    DocEdit.set_offset(
         post_a,
-        Frame.translation((0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m)),
+        Placement.literal(
+            Frame.translation((0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m))
+        ),
     )
 )
 shelf_i = stand.insert(Node.instantiate_part(shelf_ref))
@@ -263,8 +261,10 @@ b_top = instance_cap(ev, post_b, CapEnd.End)
 shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 
 # Where each post's top meets the shelf's underside, each written in
-# its OWN part's coordinates. The post's seat IS its top cap face, by
-# the post's own name: the solve reads the cap's pose off the post's
+# its OWN part's coordinates. The post's seat IS its top cap face —
+# the face the post side's reference already names, so the frame
+# takes nothing, and one `own_face` serves every side framed on its
+# own head: the solve reads the cap's pose off the post's
 # evaluation every time, so a post whose height changes moves the
 # seat with it. The shelf's seats are authored numbers: both posts
 # meet ONE face of the shelf, its underside, and a face frame is that
@@ -272,7 +272,7 @@ shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 # spelled as the face would land on the same point. The posts sit
 # flush with the shelf's two ends, which is the obvious way to draw a
 # bench.
-post_seat = MateFrame.from_face(part_cap(post, CapEnd.End))
+own_face = MateFrame.from_face()
 seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 seat_b = frame_at(SHELF_LENGTH - POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 
@@ -282,32 +282,34 @@ def seat(a, b):
     return Alignment(a, b, MatePrimitive.frame_coincidence(), AxisSense.Aligned)
 
 
-# The insert asks the solve's own admission of each mate, and a side
-# that names a face is resolved there — through the store, since the
-# face is the part's.
+# Each mate names the part it MOVES first: "mate the shelf to the
+# post" places the shelf's group on the post's. The insert asks the
+# solve's own admission of each mate, and a side framed on its face is
+# resolved there — through the store, since the face is the part's.
 mate_a = stand.insert(
     Node.mate(
-        post_a, a_top, shelf_i, shelf_underside, ContactClass.Rest,
-        seat(post_seat, seat_a),
+        shelf_i, shelf_underside, post_a, a_top, ContactClass.Rest,
+        seat(seat_a, own_face),
     ),
     resolver=store,
 )
 mate_b = stand.insert(
     Node.mate(
-        shelf_i, shelf_underside, post_b, b_top, ContactClass.Rest,
-        seat(seat_b, post_seat),
+        post_b, b_top, shelf_i, shelf_underside, ContactClass.Rest,
+        seat(own_face, seat_b),
     ),
     resolver=store,
 )
 
-# The two mates couple all three instances into ONE cluster, gauged
-# by the earliest of them.
-assert clusters(stand) == [[post_a, shelf_i, post_b]]
-assert all(gauge_of(stand, n) == post_a for n in (post_a, shelf_i, post_b))
+# The two mates couple all three instances into ONE group, rooted at
+# its earliest member carrying an offset — the post placed by hand.
+assert groups(stand) == [[post_a, shelf_i, post_b]]
+assert all(root_of(stand, n) == post_a for n in (post_a, shelf_i, post_b))
 
-# ...so exactly one instance carries an authored frame. The other two
-# never will.
-assert list(stand.placements()) == [post_a]
+# ...because each mate cleared the offset of the part it moved:
+# exactly one instance still carries one.
+assert stand.offset(shelf_i) is None and stand.offset(post_b) is None
+assert stand.offset(post_a) is not None
 
 # A mate's references are NOT recipe edges — inserting one transfers
 # no root. What couples the graph is the reading edges, recomputed
@@ -341,17 +343,19 @@ assert stand.roots[:3] == [shelf_i, post_a, post_b]
 
 Two things in that block are worth pausing on.
 
-**A mate frame is a face of the part, or three authored vectors.**
-`MateFrame.from_face(name)` names a face in the PART's own spelling
-and the solve resolves it from the part's own evaluation at every
-evaluation — its origin, its chart axis and the carrier's own roll
-reference — so nothing is stored twice and the mate follows the face
-when the part is edited; a face with no canonical frame (a NURBS
-carrier) refuses typed and keeps taking authored vectors. The name is
-the whole frame: a face frame's roll is the carrier's, and its origin
-is the face's canonical one. Authored vectors are the spelling for a
-point that is not a face's origin (the shelf's two seats above, both
-on its one underside), and for a roll the carrier does not give. A
+**A mate frame is the side's own face, or three authored vectors.**
+`MateFrame.from_face()` takes nothing: the side's frame is the face
+its reference names, and the solve resolves it from the part's own
+evaluation at every evaluation — its origin, its chart axis and the
+carrier's own roll reference — so nothing is stored twice and the
+mate follows the face when the part is edited, when the reference is
+rebound, and across a split or an inline; a face with no canonical
+frame (a NURBS carrier) refuses typed and keeps taking authored
+vectors. The face is the whole frame: a face frame's roll is the
+carrier's, and its origin is the face's canonical one. Authored
+vectors are the spelling for a point that is not a face's origin (the
+shelf's two seats above, both on its one underside), and for a roll
+the carrier does not give. A
 face frame also resolves at the NOMINAL value only: under an analysis
 lane — `stackup.sensitivities`' dual passes, a certified `clearance`'s
 interval leaf — the part's product pins no single number, the face
@@ -376,7 +380,7 @@ against the mate whenever it reads the datum. So `Doc.insert` asks
 the solve's own per-mate admission and raises `EditError` with
 variant `mate_refused`, `fault` carrying the solve's `MateFault`
 whole. The rider on a coincidence is decided over the mated parts'
-extent, and a side that names a face is resolved from the part's own
+extent, and a side framed on its face is resolved from the part's own
 evaluation, so those two need `resolver=` at the insert; everything
 else is decided on the datum alone. The doors decide edits and the solve
 decides states: a verdict about a *pair* — under-determined, two
@@ -434,6 +438,7 @@ from pncad import (
     Expr,
     Frame,
     Node,
+    Placement,
     Workspace,
     content_pin,
     evaluate,
@@ -445,9 +450,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -461,12 +466,16 @@ store.create(post)
 store.create(shelf)
 
 # The flat-pack layout: a post and the shelf beside it, nothing
-# touching. No mates, so each instance is its own cluster and each
-# carries its own frame.
+# touching. No mates, so each instance is its own group and each
+# carries its own offset.
 layout = Doc("bench-layout")
 post_i = layout.insert(Node.instantiate_part(DocRef(post.id, content_pin(post))))
 shelf_i = layout.insert(Node.instantiate_part(DocRef(shelf.id, content_pin(shelf))))
-layout.apply(DocEdit.set_placement(shelf_i, Frame.translation((0 * m, 0.5 * m, 0 * m))))
+layout.apply(
+    DocEdit.set_offset(
+        shelf_i, Placement.literal(Frame.translation((0 * m, 0.5 * m, 0 * m)))
+    )
+)
 
 # With no resolver there is nowhere to look, and the node says so.
 # Evaluation is TOTAL — it did not raise; reading the value does.
@@ -535,9 +544,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -596,8 +605,8 @@ Two doors, and they check different things.
 
 `solve_document(doc, resolver=store)` folds the mates: per-pair
 cosets along a deterministic spanning tree, producing each instance's
-pose relative to its cluster gauge. It is **total** — a refusing
-cluster must not fail an unrelated one, so refusals are read back per
+pose relative to its group root. It is **total** — a refusing
+group must not fail an unrelated one, so refusals are read back per
 node through `SolvedPoses.fault` rather than raised. It inspects no
 geometry except each mated part's own extent — an upper bound taken
 from its evaluated body, which is why it crosses the same `resolver=`
@@ -635,6 +644,7 @@ from pncad import (
     MateRole,
     NamePat,
     Node,
+    Placement,
     SegPat,
     SegTag,
     Selector,
@@ -651,9 +661,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -686,8 +696,11 @@ def bench(primitive=None, class_=ContactClass.Rest):
     doc = Doc("bench-stand")
     a = doc.insert(Node.instantiate_part(post_ref))
     doc.apply(
-        DocEdit.set_placement(
-            a, Frame.translation((0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m))
+        DocEdit.set_offset(
+            a,
+            Placement.literal(
+                Frame.translation((0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m))
+            ),
         )
     )
     s = doc.insert(Node.instantiate_part(shelf_ref))
@@ -701,15 +714,16 @@ def bench(primitive=None, class_=ContactClass.Rest):
     def align(x, y):
         return Alignment(x, y, fold, AxisSense.Aligned)
 
+    # Each mate names the part it moves first.
     m_a = doc.insert(
-        Node.mate(a, instance_cap(ev, a, CapEnd.End),
-                  s, instance_cap(ev, s, CapEnd.Start),
-                  class_, align(post_seat, seat_a))
+        Node.mate(s, instance_cap(ev, s, CapEnd.Start),
+                  a, instance_cap(ev, a, CapEnd.End),
+                  class_, align(seat_a, post_seat))
     )
     m_b = doc.insert(
-        Node.mate(s, instance_cap(ev, s, CapEnd.Start),
-                  b, instance_cap(ev, b, CapEnd.End),
-                  class_, align(seat_b, post_seat))
+        Node.mate(b, instance_cap(ev, b, CapEnd.End),
+                  s, instance_cap(ev, s, CapEnd.Start),
+                  class_, align(post_seat, seat_b))
     )
     return doc, (a, s, b), (m_a, m_b)
 
@@ -723,9 +737,11 @@ assert all(solved.fault(n) is None for n in (post_a, shelf_i, post_b, *mates))
 # contact declaration is `Declaring`.
 assert [solved.role(mate) for mate in mates] == [MateRole.Determining] * 2
 
-# The gauge's relative pose is the identity, bit-exactly, so its
-# world placement is its recorded frame verbatim...
-assert solved.placement(stand, post_a).origin == stand.placement(post_a).origin
+# The root's relative pose is the identity, bit-exactly, so its
+# world placement is its offset's frame verbatim...
+assert solved.placement(stand, post_a).origin == (
+    0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m,
+)
 # ...and the other two are composed outward along the mate tree,
 # never stored. The shelf sits on top of the posts.
 assert abs(solved.placement(stand, shelf_i).origin[2].meters - POST_HEIGHT) < 1e-12
@@ -800,9 +816,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -836,8 +852,10 @@ seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 def two_instances():
     doc = Doc("bench-refusals")
     a = doc.insert(Node.instantiate_part(post_ref))
-    doc.apply(DocEdit.set_placement(a, Frame.translation((0 * m, 0 * m, 0 * m))))
     s = doc.insert(Node.instantiate_part(shelf_ref))
+    # The shelf sits where its mates put it, so the post roots the
+    # pair however the mates below read.
+    doc.apply(DocEdit.set_offset(s, None))
     return doc, a, s
 
 
@@ -987,6 +1005,7 @@ from pncad import (
     Frame,
     InlineError,
     Node,
+    Placement,
     SplitError,
     Workspace,
     content_pin,
@@ -999,9 +1018,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -1017,7 +1036,11 @@ store.create(shelf)
 layout = Doc("bench-layout")
 post_i = layout.insert(Node.instantiate_part(DocRef(post.id, content_pin(post))))
 shelf_i = layout.insert(Node.instantiate_part(DocRef(shelf.id, content_pin(shelf))))
-layout.apply(DocEdit.set_placement(shelf_i, Frame.translation((0 * m, 0.5 * m, 0 * m))))
+layout.apply(
+    DocEdit.set_offset(
+        shelf_i, Placement.literal(Frame.translation((0 * m, 0.5 * m, 0 * m)))
+    )
+)
 
 
 def volume(doc):
@@ -1115,9 +1138,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))

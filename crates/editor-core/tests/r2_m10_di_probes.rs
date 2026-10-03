@@ -38,6 +38,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::xy_frame;
 use corpus::{documents, eval, failures};
@@ -317,7 +318,12 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                             for (v, s) in lp.vertices().iter().zip(lp.segments()) {
                                 d.s(v.x);
                                 d.s(v.y);
-                                d.s(s.bulge);
+                                if let profile::SegmentKind::Arc { arc, .. } = s.kind {
+                                    d.s(arc.centre.x);
+                                    d.s(arc.centre.y);
+                                    d.s(arc.radius);
+                                    d.s(arc.sweep);
+                                }
                             }
                         }
                     }
@@ -349,11 +355,8 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                             d.body(b);
                         }
                     }
-                    ValuePayload::Declarations(pairs) => {
-                        d.u64(19);
-                        d.u64(pairs.len() as u64);
-                    }
                     ValuePayload::Mate(_) => d.u64(20),
+                    ValuePayload::Gauge => d.u64(25),
                     // The measured quantity IS a lane value, so it is
                     // digested through the same value-channel bracket
                     // every coordinate takes.
@@ -547,6 +550,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let puck = r.insert(Node::Extrude {
         profile,
         distance: fixture::len(0.5),
+        side: ExtrudeSide::Along,
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [fixture::len(0.1), fixture::len(0.0), fixture::len(0.25)],

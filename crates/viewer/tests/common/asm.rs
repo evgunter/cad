@@ -16,12 +16,13 @@
 // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::expect_used)]
 
+use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use pncad::document::{
-    CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
-    RecipeNodeId, content_pin, evaluate,
+    CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, Placement,
+    ProfileDoc, RecipeNodeId, content_pin, evaluate,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::prelude::StableName;
@@ -50,7 +51,7 @@ pub struct Bench {
     pub dir: PathBuf,
     /// The assembly document's save file inside it.
     pub asm_path: PathBuf,
-    /// The gauge post instance (identity placement).
+    /// The root post instance (identity placement).
     pub post_a: RecipeNodeId,
     /// The shelf instance (explicit frame).
     pub shelf_i: RecipeNodeId,
@@ -80,6 +81,7 @@ fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> Profi
         Node::Extrude {
             profile,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -132,18 +134,18 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
     let shelf_i = insert_into(&mut asm, Node::instantiate_part(shelf_ref), tol);
     edit_into(
         &mut asm,
-        DocEdit::SetPlacement {
-            node: shelf_i,
-            frame: Frame::translation(SHELF_AT),
+        DocEdit::SetOffset {
+            instance: shelf_i,
+            offset: Some(Placement::literal(&Frame::translation(SHELF_AT))),
         },
         tol,
     );
     let post_b = insert_into(&mut asm, Node::instantiate_part(post_ref), tol);
     edit_into(
         &mut asm,
-        DocEdit::SetPlacement {
-            node: post_b,
-            frame: Frame::translation(POST_B_AT),
+        DocEdit::SetOffset {
+            instance: post_b,
+            offset: Some(Placement::literal(&Frame::translation(POST_B_AT))),
         },
         tol,
     );
@@ -175,8 +177,8 @@ pub fn open_bench(bench: &Bench, tol: Tol) -> DocSession {
 
 /// The instance-qualified spelling of a part-local face (the GQ4
 /// wrapper), for rows that author a mate directly — the kernel's own
-/// wrapper (`FaceName::in_part`), the inverse of the unwrap the mate
-/// tool stores a face frame's name by.
+/// wrapper (`FaceName::in_part`), the inverse of the strip a face
+/// frame reads its head's face by.
 pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
     pncad::document::FaceName::new(local.clone())
         .expect("a mate head is a face")
@@ -184,14 +186,21 @@ pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
         .into_name()
 }
 
-/// **The frame the mate tool authors for a picked face**: the face's
-/// PART-LOCAL name, resolved by the solve at every evaluation — the
-/// whole of the frame. What every tool row compares a proposal's
-/// side against.
-pub fn from_face(local: &StableName) -> pncad::document::MateFrame {
-    pncad::document::MateFrame::from_face(
-        pncad::document::FaceName::new(local.clone()).expect("a cap is a face"),
-    )
+/// **The face a proposal's side takes its frame from**: the frame the
+/// mate tool authors is the bare `FromFace`, whose face is its head's
+/// in the member's part (`head_face`, the kernel's one strip) —
+/// `None` for an authored frame or a head outside the member
+/// vocabulary. What every tool row compares a proposal's side
+/// against, by the PART-LOCAL name.
+pub fn face_side(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    frame: &pncad::document::MateFrame,
+    head: &pncad::document::SitedFace,
+) -> Option<StableName> {
+    if *frame != pncad::document::MateFrame::FromFace {
+        return None;
+    }
+    pncad::document::head_face(doc, head).map(pncad::document::FaceName::into_name)
 }
 
 /// **A world pose pulled back through a placement into part
@@ -209,11 +218,7 @@ pub fn authored_from_world(
     let origin = inverse.transform_point(pose.origin);
     let axis = inverse.transform_vec(pose.axis);
     let reference = inverse.transform_vec(reference);
-    pncad::document::MateFrame::authored(
-        [origin.x, origin.y, origin.z],
-        [axis.x, axis.y, axis.z],
-        [reference.x, reference.y, reference.z],
-    )
+    pncad::document::MateFrame::authored(origin.to_array(), axis.to_array(), reference.to_array())
 }
 
 // The assembly suites say `asm::down_at` / `asm::up_at`; both name the
@@ -235,7 +240,7 @@ pub fn seat_choice() -> viewer::matetool::MateChoice {
 /// **The seat as a planar REST alone**, at `b_x` along the shelf: one
 /// planar rest fixes the seating plane and nothing else, so the pair
 /// may still slide and spin in it and the solve refuses UNDER, naming
-/// the one mate. The refusal the badge rows build a refused cluster
+/// the one mate. The refusal the badge rows build a refused group
 /// from — a verdict about the PAIR, which the edit door admits and the
 /// solve decides (a mate the table refuses on its own datum is
 /// refused at the insert).
@@ -253,7 +258,7 @@ pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
 /// rider.
 ///
 /// One home because it is one geometric fact about this fixture — the
-/// two suites that build refused clusters differ only in where along
+/// two suites that build refused groups differ only in where along
 /// the shelf a post lands and whether a rider rides, and a per-suite
 /// copy of the ladder could only drift from the bench it addresses.
 /// (`seat` above is the mate TOOL's choice for the same seat; this is
@@ -316,12 +321,53 @@ pub fn seat_op_under(
     class: pncad::select::ContactClass,
     alignment: pncad::document::Alignment,
 ) -> SessionOp {
+    let (post_top, shelf_bottom) = seat_faces(bench, post, shelf);
     SessionOp::AddMate {
-        a: super::head(in_part(post, &bench.post_top)),
-        b: super::head(in_part(shelf, &bench.shelf_bottom)),
+        a: post_top,
+        b: shelf_bottom,
         class,
         alignment,
     }
+}
+
+/// **[`seat_op_under`] with its operands swapped**: the same seat,
+/// `shelf` named first. The mate door clears the FIRST operand's root
+/// offset, so this is the seat that places a shelf on a post rather
+/// than a post under a shelf. `alignment` is written as
+/// [`seat_alignment`] writes it, post first; its two frames trade
+/// sides with the faces, and its primitive, sense and rider carry over
+/// as written.
+pub fn shelf_on_post_op(
+    bench: &Bench,
+    shelf: RecipeNodeId,
+    post: RecipeNodeId,
+    class: pncad::select::ContactClass,
+    alignment: pncad::document::Alignment,
+) -> SessionOp {
+    let (post_top, shelf_bottom) = seat_faces(bench, post, shelf);
+    SessionOp::AddMate {
+        a: shelf_bottom,
+        b: post_top,
+        class,
+        alignment: pncad::document::Alignment {
+            a: alignment.b,
+            b: alignment.a,
+            ..alignment
+        },
+    }
+}
+
+/// The two faces a seat names: `post`'s top cap and `shelf`'s
+/// underside, each as its instance holds it.
+fn seat_faces(
+    bench: &Bench,
+    post: RecipeNodeId,
+    shelf: RecipeNodeId,
+) -> (pncad::document::SitedFace, pncad::document::SitedFace) {
+    (
+        super::head(in_part(post, &bench.post_top)),
+        super::head(in_part(shelf, &bench.shelf_bottom)),
+    )
 }
 
 /// A `BTreeMap` from a small list — the shape a few rows want for

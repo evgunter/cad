@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocRef,
@@ -52,6 +53,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -161,11 +163,11 @@ fn stand(
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 seat,
-            ),
+            )),
         },
     );
     (doc, ids, mate.expect("the mate mints"))
@@ -189,9 +191,11 @@ fn row_of(
             let dx = spacing * i as f64;
             let (next, _) = step(
                 doc,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(&Frame::translation([
+                        dx, 0.0, 0.0,
+                    ]))),
                 },
             );
             doc = next;
@@ -396,11 +400,11 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part_in_part(ids[0], subs[1], body, CapEnd::End),
                 in_part_in_part(ids[1], subs[0], body, CapEnd::Start),
                 2.5,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the outer mate mints");
@@ -496,21 +500,21 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 1.0,
-            ),
+            )),
         },
     );
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[1], body, CapEnd::End),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
-            ),
+            )),
         },
     );
 
@@ -554,7 +558,12 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
     }
     // Replace the stand's Rest mate with a Tangent one by authoring a
     // second document holding only the tangent declaration.
-    let (doc, tangent) = step(doc, DocEdit::InsertNode { node });
+    let (doc, tangent) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+    );
     let tangent = tangent.expect("the tangent mate mints");
 
     let ev = run(&doc, &with_resolver(store));
@@ -608,18 +617,22 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     let (doc, bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(dangling(ids[0]), in_part(ids[1], body, CapEnd::Start), 1.0),
+            node: Box::new(rest_mate(
+                dangling(ids[0]),
+                in_part(ids[1], body, CapEnd::Start),
+                1.0,
+            )),
         },
     );
     let bad = bad.expect("the dangling mate is still a node");
     let (doc, good) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[1], body, CapEnd::End),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
-            ),
+            )),
         },
     );
     let good = good.expect("the good mate mints");
@@ -665,23 +678,23 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
     let (doc, bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: classed_mate(
+            node: Box::new(classed_mate(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 1.5,
                 ContactClass::Tangent,
-            ),
+            )),
         },
     );
     let bad = bad.expect("the tangent mate is still a node");
     let (doc, good) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[1], body, CapEnd::End),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
-            ),
+            )),
         },
     );
     let good = good.expect("the good mate mints");
@@ -725,30 +738,34 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
     let (doc, first_bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: classed_mate(
+            node: Box::new(classed_mate(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 1.5,
                 ContactClass::Tangent,
-            ),
+            )),
         },
     );
     let first_bad = first_bad.expect("the tangent mate is a node");
     let (doc, good) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[1], body, CapEnd::End),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
-            ),
+            )),
         },
     );
     let good = good.expect("the good mate mints");
     let (doc, second_bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(dangling(ids[2]), in_part(ids[0], body, CapEnd::Start), 1.0),
+            node: Box::new(rest_mate(
+                dangling(ids[2]),
+                in_part(ids[0], body, CapEnd::Start),
+                1.0,
+            )),
         },
     );
     let second_bad = second_bad.expect("the dangling mate is a node");
@@ -793,8 +810,9 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
             );
             let rendered = AssemblyError::Mint { refusals }.to_string();
             assert!(
-                rendered.contains(&format!("mate {}", first_bad.0))
-                    && rendered.contains(&format!("mate {}", second_bad.0)),
+                rendered.contains(&format!("mate {}", test_utils::refusal::tag(first_bad.0)))
+                    && rendered
+                        .contains(&format!("mate {}", test_utils::refusal::tag(second_bad.0))),
                 "and both are in the one message: {rendered:?}"
             );
         }

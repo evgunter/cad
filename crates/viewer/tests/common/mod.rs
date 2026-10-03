@@ -37,6 +37,7 @@ pub mod asm;
 pub mod corpus_pick;
 
 use bvh::Aabb;
+use editor_core::ExtrudeSide;
 use pncad::document::{SolvedPoses, mate_reach, solve_document};
 use pncad::geom_core::Point3;
 use viewer::camera::Camera;
@@ -165,6 +166,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
             // exists for.
             distance: Expr::div(Expr::param(thickness_param(), Dimension::Length), scl(2.0))
                 .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -186,6 +188,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
         Node::Extrude {
             profile,
             distance: Expr::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -320,7 +323,7 @@ pub fn instance_in(session: &mut DocSession, id: pncad::document::DocumentId) ->
 ///
 /// A pattern node, a `Part` node or an instance is NOT such a key:
 /// `SolvedPoses::fault` maps refusing MATES and the instances of a
-/// cluster that consequently has no pose, so `fault(pattern)` answers
+/// group that consequently has no pose, so `fault(pattern)` answers
 /// `None` for every document ever written and asserts nothing. The
 /// kind check is what keeps a row's `fault(mate).is_none()` from
 /// passing on an id it could never fail on.
@@ -387,17 +390,20 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
     box_in(session, plane, size).1
 }
 
-/// One node's row status out of a tree render — the lookup five
-/// suites had written out by hand.
+/// **One node's row out of a tree render.**
 ///
 /// Panics rather than answering `None`: every id these rows pass is
 /// one the document holds, so a missing row is the failure, not a
 /// case to handle.
-pub fn status_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> viewer::tree::RowStatus {
+pub fn row_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> &viewer::tree::TreeRow {
     rows.iter()
         .find(|row| row.id == id)
-        .map(|row| row.status.clone())
         .unwrap_or_else(|| panic!("node {id:?} has a row"))
+}
+
+/// One node's row status out of a tree render ([`row_of`]).
+pub fn status_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> viewer::tree::RowStatus {
+    row_of(rows, id).status.clone()
 }
 
 /// `got` and `want` agree to one part in 10⁹, relatively.

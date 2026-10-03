@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -68,7 +69,9 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     });
     let applied = editor_core::apply(
         &r.doc,
-        &DocEdit::InsertNode { node: profile },
+        &DocEdit::InsertNode {
+            node: Box::new(profile),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -79,6 +82,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     Ok(r.doc)
 }

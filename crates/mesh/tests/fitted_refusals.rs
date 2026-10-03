@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
@@ -28,7 +29,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::loft_prism;
 use sweep::{Extrusion, extrude};
 use test_utils::vacuity;
-use topo::splitting::{SplitPart, SplitPlane, split};
+use topo::splitting::{SplitPart, split};
 use topo::{Body, HalfEdgeKey};
 
 use crate::common;
@@ -172,13 +173,21 @@ fn split_cylinder_half() -> Body<f64> {
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&disc, Extrusion::Distance(2.0), Tol::witness())
-        .unwrap()
-        .body;
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
-    };
+    let cylinder = extrude(
+        &disc,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(ref below) = result.below else {
         panic!("the lower side carries material");

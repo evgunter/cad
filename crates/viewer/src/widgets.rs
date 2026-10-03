@@ -3578,6 +3578,7 @@ mod value_field_tests {
                     profile,
                     distance: Expr::written_length(WrittenLength::canonical_in(canonical, MM))
                         .expect("a finite written length"),
+                    side: pncad::document::ExtrudeSide::Along,
                 },
                 tol,
             );

@@ -110,7 +110,7 @@ pub(super) fn probe_bounds(
     // different memo state.
     let baseline = bounds::Verdict::of(&evaluate_beside(base, prior, resolver, tol));
     // A probe's edit is a slot value on one node — it never moves a
-    // cluster's gauge — but the door is the session's, so it levers
+    // group's root — but the door is the session's, so it levers
     // through the session's own seam like every other edit.
     let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
     let result = bounds::probe(
@@ -187,7 +187,7 @@ fn probe_scale(
                 .and_then(|row| Some((row.value.ok()?, row.dimension, row.unit)));
             let Some((value, dimension, unit)) = found else {
                 return Err(Refusal::NoSuchSlot {
-                    node: *node,
+                    node: doc.spoken(*node),
                     slot: *slot,
                 });
             };

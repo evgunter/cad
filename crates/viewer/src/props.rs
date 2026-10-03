@@ -133,8 +133,8 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node,
-    ParamName, ProfileProgram, RecipeNodeId, SlotId, UnitSym, VectorSlot, eval, eval_count,
-    unparse,
+    ParamName, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, UnitSym, VectorSlot, eval,
+    eval_count, unparse,
 };
 use pncad::prelude::{M, PI, RAD};
 use pncad::quantity::{
@@ -1274,16 +1274,22 @@ pub fn slot_literal(
     node: RecipeNodeId,
     slot: SlotId,
 ) -> Result<f64, SlotUnitFault> {
-    let expr = doc
-        .node(node)
-        .and_then(|n| n.expr(slot))
-        .ok_or(SlotUnitFault::NoExpression { node, slot })?;
+    let expr =
+        doc.node(node)
+            .and_then(|n| n.expr(slot))
+            .ok_or_else(|| SlotUnitFault::NoExpression {
+                node: doc.spoken(node),
+                slot,
+            })?;
     // A display unit belongs to a LITERAL. An expression's value is
     // computed, so there is no authored notation to change — refused
     // rather than silently flattened to the computed number, which is
     // the same direction `SlotDriver` refuses a numeric edit in.
     expr.literal_value()
-        .ok_or(SlotUnitFault::NotALiteral { node, slot })
+        .ok_or_else(|| SlotUnitFault::NotALiteral {
+            node: doc.spoken(node),
+            slot,
+        })
 }
 
 /// Why a display-unit change was refused.
@@ -1291,16 +1297,16 @@ pub fn slot_literal(
 pub enum SlotUnitFault {
     /// The node carries no expression in that slot.
     NoExpression {
-        /// The node named.
-        node: RecipeNodeId,
+        /// The node named, as the document held it.
+        node: SpokenNode,
         /// The slot named.
         slot: SlotId,
     },
     /// The slot's expression is computed, so it has no authored
     /// notation to rewrite.
     NotALiteral {
-        /// The node.
-        node: RecipeNodeId,
+        /// The node, as the document held it.
+        node: SpokenNode,
         /// The slot.
         slot: SlotId,
     },
@@ -1319,17 +1325,15 @@ impl core::fmt::Display for SlotUnitFault {
             Self::NoExpression { node, slot } => {
                 write!(
                     f,
-                    "node {} carries no expression in its {} slot",
-                    node.0,
+                    "{node} carries no expression in its {} slot",
                     slot.label()
                 )
             }
             Self::NotALiteral { node, slot } => write!(
                 f,
-                "the {} slot on node {} is computed, so it has no written unit to change — \
-                 set an expression to change what it says",
-                slot.label(),
-                node.0
+                "the {} slot on {node} is computed, so it has no written unit to change — set \
+                 an expression to change what it says",
+                slot.label()
             ),
             Self::Dimension { slot, source } => {
                 write!(
@@ -1343,6 +1347,26 @@ impl core::fmt::Display for SlotUnitFault {
 }
 
 impl core::error::Error for SlotUnitFault {}
+
+impl SlotUnitFault {
+    /// This fault with its node spoken from `doc`, a later version of
+    /// the document it was raised in
+    /// ([`crate::session::Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        match self {
+            Self::NoExpression { node, slot } => Self::NoExpression {
+                node: node.respoken(doc),
+                slot,
+            },
+            Self::NotALiteral { node, slot } => Self::NotALiteral {
+                node: node.respoken(doc),
+                slot,
+            },
+            unspoken @ Self::Dimension { .. } => unspoken,
+        }
+    }
+}
 
 #[cfg(test)]
 mod written_tests {

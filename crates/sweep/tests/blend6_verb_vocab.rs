@@ -18,6 +18,7 @@
 
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
@@ -304,8 +305,7 @@ fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
 fn a_chamfer_on_a_two_solid_body_refuses_the_body_frontier_as_the_chamfer() {
     let mut body = cube(L, Tol::witness());
     let other = cube(L, Tol::witness());
-    topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness())
-        .expect("a disjoint graft");
+    topo::instance::graft_disjoint_all(&mut body, &other).expect("a disjoint graft");
     let edges = query::all_edges(&body);
     let err = chamfer_edges(&body, &edges[..1], D, Tol::witness())
         .expect_err("the in-place surgery is built for one solid");
@@ -423,9 +423,16 @@ fn l_bracket() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("an L is a valid profile");
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .expect("an L-bracket extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("an L-bracket extrudes")
+    .body
 }
 
 /// The bracket's one concave edge: both supports planes, the dihedral

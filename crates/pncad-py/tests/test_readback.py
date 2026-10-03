@@ -8,7 +8,7 @@ it sat. These are the door-level rows for the four that now do —
 the vocabulary they answer in.
 
 `test_assembly_author.py::TestBenchLayout` is the scene-scale row: the
-audit's row 47, where an instance's cap frame is read on the layout
+audit's row 44, where an instance's cap frame is read on the layout
 evaluation and checked against the placement arithmetic. What is here
 is the behavior of the doors themselves, and above all their
 REFUSALS: a read-back that cannot answer says which invariant broke,

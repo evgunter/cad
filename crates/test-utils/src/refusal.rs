@@ -83,9 +83,9 @@ const SENTENCE_WORDS: &[&str] = &[
 /// `the_bare_recourses_are_geom_cores_constants` holds the copy equal
 /// to the constants.
 pub const BARE_RECOURSES: &[&str] = &[
-    "declare the coincidence, move the geometry, or lower the tolerance",
-    "move the split plane or the geometry, or lower the tolerance",
-    "move the geometry, or lower the tolerance",
+    "declare the coincidence, or move the geometry",
+    "move the split plane or the geometry",
+    "move the geometry",
 ];
 
 /// The verbs a wrapper states a refusal with. A clause that opens with
@@ -339,6 +339,11 @@ pub fn arena_key(text: &str) -> bool {
 /// neither reads as the first shape; the second reads a bare integer of
 /// exactly an id's length as one, which a refusal has no other reason
 /// to print.
+///
+/// **A word of exactly [`NODE_TAG_DIGITS`] digits counts only after
+/// `@`**, where a `DocRef` prints its pin prefix: twelve hex digits
+/// standing alone are a node's or a step's tag (`editor_core::spoken`),
+/// the spelling a sentence names a node by on purpose.
 #[must_use]
 pub fn hex_ids(text: &str) -> Vec<&str> {
     let mut found = Vec::new();
@@ -356,7 +361,9 @@ pub fn hex_ids(text: &str) -> Vec<&str> {
         let mixed = hex && !digits && word.chars().any(|c| c.is_ascii_digit());
         let decimal_part = before == Some('.')
             || (after.starts_with('.') && after[1..].starts_with(|c: char| c.is_ascii_digit()));
+        let tag = word.len() == NODE_TAG_DIGITS && before != Some('@');
         if !decimal_part
+            && !tag
             && ((mixed && word.len() >= HEX_ID_MIN)
                 || (digits && HEX_ID_LENGTHS.contains(&word.len())))
         {
@@ -371,6 +378,31 @@ pub fn hex_ids(text: &str) -> Vec<&str> {
 /// The shortest run of hex digits [`arena_key`] reads as a document id:
 /// a `DocRef`'s pin prefix, the shorter of its two halves.
 pub const HEX_ID_MIN: usize = 12;
+
+/// The length of a node's or a step's tag — `editor_core::spoken`'s
+/// `TAG_DIGITS`, mirrored because this crate sits below that one. It
+/// equals [`HEX_ID_MIN`] by coincidence of the two choices, and the
+/// shape rule above reads it, not that.
+pub const NODE_TAG_DIGITS: usize = 12;
+
+/// **The tag a sentence names a node or a step by**, from the id's
+/// bits: `editor_core::spoken`'s `write_tag`, mirrored because this
+/// crate sits below that one. An expected text spells a tag through
+/// this, from the id the row built, never from the text under test.
+#[must_use]
+pub fn tag(bits: u64) -> String {
+    let digits = format!("{bits:016x}");
+    digits[..NODE_TAG_DIGITS].to_owned()
+}
+
+/// **A hand-built id whose tag reads `n`**: `n` in the tag's last
+/// digits, and below them the four hex digits a tag never shows. A
+/// fixture that forges ids takes them from here, so its sentences name
+/// each id apart.
+#[must_use]
+pub const fn tagged(n: u64) -> u64 {
+    n << (64 - 4 * NODE_TAG_DIGITS as u32)
+}
 
 /// The lengths a hex id is printed at: a `DocRef`'s pin prefix, a
 /// `DocumentId`, and a whole pin.
@@ -515,6 +547,15 @@ pub fn problems(name: &str, text: &str, allowed: &[&str], keyed: bool) -> Vec<St
 mod tests {
     use super::*;
 
+    /// A tag is the first twelve of the id's sixteen zero-padded hex
+    /// digits, the bits `editor_core::spoken` shows.
+    #[test]
+    fn a_tag_is_the_ids_twelve_leading_digits() {
+        assert_eq!(tag(0x0123_4567_89ab_cdef), "0123456789ab");
+        assert_eq!(tag(0x2a_0000), "00000000002a");
+        assert_eq!(tag(tagged(0x2a)), "00000000002a");
+    }
+
     /// Each check reads the shape, so each goes red on a prefix, struct
     /// or key it was never told about, and stays quiet on prose.
     #[test]
@@ -556,8 +597,14 @@ mod tests {
         ));
         assert!(!arena_key("the offset is 0.30000000000000004 mm"));
         assert!(!arena_key("a deadbeef-like word, and 12345678901 items"));
-        // A pin prefix whose twelve hex digits are all decimal.
-        assert!(arena_key("the part pinned at 951583145512 is gone"));
+        // A pin prefix whose twelve hex digits are all decimal, where a
+        // `DocRef` prints it: after `@`.
+        assert!(arena_key("the part pinned @951583145512 is gone"));
+        // Twelve hex digits standing alone are a node's tag, which a
+        // sentence prints on purpose.
+        assert!(!arena_key("node 000000000003 failed"));
+        assert!(!arena_key("node 00000000000b failed"));
+        assert!(!arena_key("the part pinned at 951583145512 is gone"));
         assert!(!arena_key("the offset is 0.300000000000 mm"));
         assert!(!arena_key("the offset is 123456789012.5 mm"));
         assert!(!arena_key("i64::MAX is 9223372036854775807"));

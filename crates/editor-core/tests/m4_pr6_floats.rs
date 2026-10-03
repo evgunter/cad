@@ -68,24 +68,28 @@ fn round_trip(value: f64) -> ProfileDoc {
     doc = push(
         &doc,
         DocEdit::InsertNode {
-            node: fixture::frame([value, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-        },
-    );
-    doc = push(
-        &doc,
-        DocEdit::InsertNode {
-            node: Node::Profile(desc(
-                doc.order()[0],
-                vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
+            node: Box::new(fixture::frame(
+                [value, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
             )),
         },
     );
     doc = push(
         &doc,
         DocEdit::InsertNode {
-            node: Node::Datum(editor_core::Datum::Point {
+            node: Box::new(Node::Profile(desc(
+                doc.order()[0],
+                vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
+            ))),
+        },
+    );
+    doc = push(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Datum(editor_core::Datum::Point {
                 position: [len(value), len(0.0), len(-0.0)],
-            }),
+            })),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("save");
@@ -190,7 +194,7 @@ fn metadata_floats_round_trip_bit_exactly() {
         let mut m = std::collections::BTreeMap::new();
         m.insert("v".to_owned(), MetaValue::Int(1));
         m.insert("x".to_owned(), MetaValue::Float(v));
-        let value = MetaValue::Map(m);
+        let value = MetaValue::map(m).expect("a shallow value");
         // Bit-eq PartialEq (D7): equality on the canonical tree IS
         // bit equality, so assert_eq pins the bits.
         let json = serde_json::to_string(&value).expect("ser");

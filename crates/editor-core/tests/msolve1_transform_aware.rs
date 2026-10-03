@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId,
@@ -47,6 +48,7 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -66,6 +68,7 @@ fn block(label: &str, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -162,16 +165,16 @@ fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, a_at) = chain(doc, base, on_base);
     let (doc, b_at) = chain(doc, top, on_top);
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 crate::fixture::head_at(a_at, in_part(base, base_body, CapEnd::End)),
                 crate::fixture::head_at(b_at, in_part(top, top_body, CapEnd::Start)),
-            ),
+            )),
         },
     );
     Scene {
@@ -384,7 +387,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3a"), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-        let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+        let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
         let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
         let (doc, pattern) = insert(
             doc,
@@ -406,10 +409,10 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let (doc, mate) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat(
+                node: Box::new(seat(
                     crate::fixture::head(a.clone()),
                     crate::fixture::head_at(pattern, b.clone()),
-                ),
+                )),
             },
         );
         let mate = mate.unwrap();
@@ -447,7 +450,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3b"), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-        let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+        let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
@@ -473,10 +476,10 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let (doc, mate) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat(
+                node: Box::new(seat(
                     crate::fixture::head(a.clone()),
                     crate::fixture::head_at(xf, b.clone()),
-                ),
+                )),
             },
         );
         let mate = mate.unwrap();
@@ -508,11 +511,11 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
 
 // ---- A4: which side, and how many ----
 
-/// **A4.** A transform over the GAUGE side, over both sides, chains
+/// **A4.** A transform over the ROOT side, over both sides, chains
 /// of two on either side, and — the row the rest do not reach —
 /// chains whose two maps DO NOT COMMUTE.
 ///
-/// The gauge is the document-order-first instance, so a transform
+/// The root is the document-order-first instance, so a transform
 /// over `base` is the case where the solve must un-wind the map on
 /// the side it is measuring FROM. The non-commuting chains are what
 /// exercise the fold's ORDER: a lift along z and a spin about z
@@ -527,7 +530,7 @@ fn a4_the_offset_holds_on_either_side_and_through_a_chain() {
     let spin = |a: f64| ([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], a);
     let tip = |a: f64| ([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], a);
     for (what, on_base, on_top) in [
-        ("gauge side only", vec![lift(4.0)], vec![]),
+        ("root side only", vec![lift(4.0)], vec![]),
         ("both sides", vec![lift(4.0)], vec![lift(10.0)]),
         (
             "a chain of two on the mated side",
@@ -540,7 +543,7 @@ fn a4_the_offset_holds_on_either_side_and_through_a_chain() {
             vec![spin(std::f64::consts::FRAC_PI_3), lift(10.0)],
         ),
         (
-            "a chain on the gauge and one on the mate",
+            "a chain on the root and one on the mate",
             vec![spin(std::f64::consts::FRAC_PI_6), lift(2.0)],
             vec![lift(10.0)],
         ),
@@ -556,9 +559,9 @@ fn a4_the_offset_holds_on_either_side_and_through_a_chain() {
             vec![],
             vec![lift(10.0), tip(std::f64::consts::FRAC_PI_3)],
         ),
-        // ...and on the GAUGE side, where the map is un-wound.
+        // ...and on the ROOT side, where the map is un-wound.
         (
-            "a non-commuting chain on the gauge side",
+            "a non-commuting chain on the root side",
             vec![tip(-std::f64::consts::FRAC_PI_4), lift(5.0)],
             vec![],
         ),
@@ -609,13 +612,13 @@ fn a4_the_two_non_commuting_orders_place_different_geometry() {
     );
 }
 
-/// **A4″ — a non-identity recorded frame on the gauge's cluster**,
+/// **A4″ — a non-identity recorded frame on the root's group**,
 /// with transforms on both sides. The pair's static factor is
-/// conjugated through the cluster frame (`pair_left_factor`), so a
-/// document whose gauge carries an authored placement is the case
+/// conjugated through the group frame (`pair_left_factor`), so a
+/// document whose root carries an authored placement is the case
 /// where that conjugation has to be right as well as the composition.
 #[test]
-fn a4_a_placed_gauge_cluster_seats_through_both_chains() {
+fn a4_a_placed_root_group_seats_through_both_chains() {
     let seat = control_seat("msolve1-a4-placed");
     let s = scene(
         "msolve1-a4-placed-frame",
@@ -624,19 +627,21 @@ fn a4_a_placed_gauge_cluster_seats_through_both_chains() {
     );
     let (doc, _) = step(
         s.doc.clone(),
-        DocEdit::SetPlacement {
-            node: s.base,
-            frame: editor_core::Frame::rotate_then_translate(
-                [0.3, -0.2, 0.9],
-                0.8,
-                [2.0, -1.0, 3.0],
-                fixture::band(),
-            )
-            .expect("a literal axis has a definite direction"),
+        DocEdit::SetOffset {
+            instance: s.base,
+            offset: Some(editor_core::Placement::literal(
+                &editor_core::Frame::rotate_then_translate(
+                    [0.3, -0.2, 0.9],
+                    0.8,
+                    [2.0, -1.0, 3.0],
+                    fixture::band(),
+                )
+                .expect("a literal axis has a definite direction"),
+            )),
         },
     );
     let placed = Scene { doc, ..s };
-    placed.assert_green_and_seated(&seat, "A4 placed gauge cluster");
+    placed.assert_green_and_seated(&seat, "A4 placed root group");
 }
 
 // ---- A5: two operands, one instance ----
@@ -662,7 +667,7 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, x1) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, x2) = insert(doc, xform(x1, second.0, second.1, second.2));
     let a = in_part(base, base_body, CapEnd::End);
@@ -670,16 +675,19 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(x1, b.clone()),
-            ),
+            )),
         },
     );
     let (doc, m2) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(crate::fixture::head(a), crate::fixture::head_at(x2, b)),
+            node: Box::new(seat(
+                crate::fixture::head(a),
+                crate::fixture::head_at(x2, b),
+            )),
         },
     );
     (doc, opts, [m1.unwrap(), m2.unwrap()])
@@ -783,7 +791,7 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
             store.insert_part(block(&format!("{label}-top"), 3.0), Tol::witness());
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-        let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+        let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
         let (doc, at) = if lift {
             insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0))
         } else {
@@ -792,12 +800,12 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
         let (doc, mate) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat_with(
+                node: Box::new(seat_with(
                     crate::fixture::head(in_part(base, base_body, CapEnd::End)),
                     crate::fixture::head_at(at, in_part(top, top_body, CapEnd::Start)),
                     MatePrimitive::Coaxial,
                     Some(0.0),
-                ),
+                )),
             },
         );
         let o = EvalOptions {
@@ -880,7 +888,7 @@ fn a7_a_document_with_no_placer_solves_bit_for_bit() {
     assert_eq!(
         poses.relative(s.base).map(|g| g.columns),
         Some(editor_core::Frame::IDENTITY.columns),
-        "the gauge's own relative pose is the identity"
+        "the root's own relative pose is the identity"
     );
 }
 
@@ -896,17 +904,17 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
         .doc
         .apply(
             &DocEdit::InsertNode {
-                node: seat(
+                node: Box::new(seat(
                     crate::fixture::head_at(ghost, in_part(s.base, s.base_body, CapEnd::End)),
                     crate::fixture::head(in_part(s.top, s.top_body, CapEnd::Start)),
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .expect_err("a never-existed operand is a typo");
     assert!(
-        matches!(err, EditError::ReadSiteMissingNode { at } if at == ghost),
+        matches!(&err, EditError::ReadSiteMissingNode { at } if at.id() == ghost),
         "expected ReadSiteMissingNode, got {err:?}"
     );
 }
@@ -917,7 +925,7 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
 #[test]
 fn a8b_deleting_the_operand_leaves_a_dangling_head() {
     let s = scene("msolve1-a8b", &[], &[LIFT]);
-    // Deleting the operand splits the cluster: the store's reach.
+    // Deleting the operand splits the group: the store's reach.
     let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
     let (doc, _) = step_with(s.doc, DocEdit::DeleteNode { id: s.b_at }, &reach);
     let poses = solve(&doc, &s.opts, Tol::witness());
@@ -962,18 +970,18 @@ fn a8c_the_content_key_separates_two_operands() {
         let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-        let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+        let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
         let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
         let (doc, mate) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat(
+                node: Box::new(seat(
                     crate::fixture::head(in_part(base, base_body, CapEnd::End)),
                     crate::fixture::head_at(
                         if at_transform { xf } else { top },
                         in_part(top, top_body, CapEnd::Start),
                     ),
-                ),
+                )),
             },
         );
         let ev = run(&doc, &opts);
@@ -1046,7 +1054,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a10"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // Spaced so that every copy but the mated one clears the slab —
     // a sibling resting on the base uninvited is an undeclared contact
     // the gate is right to refuse. Inner along x, outer along y.
@@ -1080,10 +1088,10 @@ fn a10_a_nested_pattern_head_is_a_member() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, nested.clone()),
-            ),
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -1151,8 +1159,8 @@ fn a10_a_nested_pattern_head_is_a_member() {
 
 /// **A8(e).** A cut that would sever a mate from its operand is
 /// refused, and it is refused EARLY: the mate welds its two members
-/// into one placement cluster, and the split's precondition accepts
-/// only cuts that are unions of whole clusters, so `TornCluster`
+/// into one placement group, and the split's precondition accepts
+/// only cuts that are unions of whole groups, so `TornGroup`
 /// fires before the remap is reached.
 ///
 /// The remap arm behind it — `at` through the id door, the name
@@ -1179,8 +1187,8 @@ fn a8e_a_cut_that_would_sever_the_operand_refuses_at_the_precondition() {
     )
     .expect_err("the cut severs the mate's operand");
     assert!(
-        matches!(err, editor_core::SplitError::TornCluster { .. }),
-        "expected the whole-cluster precondition, got {err:?}"
+        matches!(err, editor_core::SplitError::TornGroup { .. }),
+        "expected the whole-group precondition, got {err:?}"
     );
 }
 
@@ -1210,23 +1218,24 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 crate::fixture::head(in_part(base, base_body, CapEnd::End)),
                 crate::fixture::head_at(xf, in_part(top, top_body, CapEnd::Start)),
-            ),
+            )),
         },
     );
     let mate = mate.unwrap();
     // Cut the LOCAL block out into its own part: it touches no
-    // cluster, so the precondition accepts.
+    // group, so the precondition accepts.
     let cut = [profile, local, doc.order()[0]]
         .into_iter()
         .collect::<std::collections::BTreeSet<_>>();
@@ -1283,7 +1292,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
 
 /// **A8(g) — a KEPT mate whose operand is inside the cut refuses.**
 /// The mate welds nothing (its `b` reference names local geometry, so
-/// it resolves to no member and `TornCluster` has nothing to say), and
+/// it resolves to no member and `TornGroup` has nothing to say), and
 /// its operand is a transform the cut takes. Before the reading edge
 /// had a closure rule of its own the split ACCEPTED this: the remap
 /// runs over cut nodes only, so the remainder kept an operand naming a
@@ -1302,17 +1311,33 @@ fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
     .expect_err("a kept mate cannot keep an operand the cut took");
     assert!(
         matches!(
-            err,
+            &err,
             editor_core::SplitError::OperandSeveredFromMate {
                 mate: m,
                 side: MateSide::A,
                 operand,
                 mate_is_cut: false,
-            } if m == mate && operand == xf
+            } if *m == doc.spoken(mate) && *operand == doc.spoken(xf)
         ),
         "expected the operand-severed refusal naming the mate, the side \
          and the operand, got {err:?}"
     );
+    let text = err.to_string();
+    assert!(
+        text.contains(&format!(
+            "severs the a-side reference of {} from {}, the node it is read at. The mate is kept \
+             and that node is cut. Recourse:",
+            doc.spoken(mate),
+            doc.spoken(xf)
+        )),
+        "{text}"
+    );
+    for id in [mate, xf] {
+        assert!(
+            !text.contains(&id.0.to_string()),
+            "{id:?} in decimal: {text}"
+        );
+    }
 }
 
 /// **A8(h) — and the other direction.** A CUT mate whose operand stays
@@ -1332,13 +1357,13 @@ fn a8h_a_cut_mate_whose_operand_is_kept_refuses_with_the_same_variant() {
     .expect_err("a cut mate cannot carry an operand the part does not have");
     assert!(
         matches!(
-            err,
+            &err,
             editor_core::SplitError::OperandSeveredFromMate {
                 mate: m,
                 side: MateSide::A,
                 operand,
                 mate_is_cut: true,
-            } if m == mate && operand == xf
+            } if *m == doc.spoken(mate) && *operand == doc.spoken(xf)
         ),
         "expected the operand-severed refusal, got {err:?}"
     );
@@ -1350,7 +1375,7 @@ fn a8h_a_cut_mate_whose_operand_is_kept_refuses_with_the_same_variant() {
 /// which side of the cut the mate itself lands on.
 ///
 /// Welding nothing is what makes the row about THIS rule: a mate that
-/// welded a cluster would meet the whole-cluster precondition first.
+/// welded a group would meet the whole-group precondition first.
 fn severed_operand_scene(
     label: &str,
     mate_in_cut: bool,
@@ -1365,7 +1390,7 @@ fn severed_operand_scene(
         store.insert_part(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
     let _ = &store;
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, profile) = on_frame(
         doc,
@@ -1379,6 +1404,7 @@ fn severed_operand_scene(
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let local_face = StableName {
@@ -1427,7 +1453,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a11"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let rule = |dir: [f64; 3], s: f64| PatternKind::Linear {
         direction: dir.map(scl),
         spacing: len(s),
@@ -1459,10 +1485,10 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, nested.clone()),
-            ),
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -1529,7 +1555,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(&label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let rule = |dir: [f64; 3]| PatternKind::Linear {
         direction: dir.map(scl),
         spacing: len(5.0),
@@ -1577,7 +1603,9 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     // alone, so the edit door refuses it where the mate is authored
     // with the solve's own fault; a seating one enters and solves.
     let inserted = doc.apply(
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     );

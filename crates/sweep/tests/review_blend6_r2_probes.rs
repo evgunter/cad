@@ -30,6 +30,7 @@
 
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendKind, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
@@ -267,9 +268,16 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a circle is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a circular prism")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a circular prism")
+    .body
 }
 
 /// Every refusal the shipped fixtures reach through EITHER door, each
@@ -356,7 +364,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
 
     let mut two = cube(L, Tol::witness());
     let other = cube(L, Tol::witness());
-    topo::instance::graft_disjoint_all(&mut two, &other, Tol::witness()).expect("a disjoint graft");
+    topo::instance::graft_disjoint_all(&mut two, &other).expect("a disjoint graft");
     let two_edges = query::all_edges(&two);
     out.push((
         "two-solid body",
@@ -410,9 +418,16 @@ fn l_bracket() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("an L is a valid profile");
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .expect("an L-bracket extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("an L-bracket extrudes")
+    .body
 }
 
 /// The bracket's one concave edge — the vertical through (0.5, 0.5).

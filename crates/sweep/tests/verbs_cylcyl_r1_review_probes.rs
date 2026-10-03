@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane};
@@ -22,9 +23,16 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
@@ -222,17 +230,21 @@ fn off_carrier_points_are_out_at_every_probed_radius() {
 }
 
 /// The iso-bounded class gate from a DIFFERENT pose than the unit's
-/// own pin: a steeper tilt, cutting the other way, on a wider post.
+/// own pin: a steeper tilt, cutting the other way, on a wider post. The
+/// ellipse-bounded wall is read by its outline, not its vertex
+/// rectangle: a point on the carrier below the cut is `In` exactly one
+/// wall face, one above it none.
 #[test]
-fn a_steeply_tilted_cut_wall_still_answers_none() {
+fn a_steeply_tilted_cut_wall_is_read_by_its_outline() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let post = cyl(0.0, 0.0, 2.0, 0.0, 6.0);
     let phi = 0.9_f64;
-    let plane = topo::splitting::SplitPlane {
-        origin: Point3::new(0.0, 0.0, 3.0),
-        normal: Vec3::new(-phi.sin(), 0.0, phi.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 3.0),
+        Vec3::new(-phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = topo::splitting::split(&post, &plane, tol).unwrap();
     let topo::splitting::SplitPart::Body(below) = &result.below else {
         panic!("material below the tilted cut");
@@ -248,14 +260,19 @@ fn a_steeply_tilted_cut_wall_still_answers_none() {
         .map(|(k, _)| k)
         .collect();
     assert!(!walls.is_empty());
-    let q = Point3::new(2.0 * 0.5_f64.cos(), 2.0 * 0.5_f64.sin(), 0.5);
-    for &f in &walls {
-        assert!(
-            topo::curved_face_containment(below, f, q, band)
-                .unwrap()
-                .is_none(),
-            "an ellipse-bounded wall must answer None"
-        );
+    // The cut is at `z = 3 + x·tan φ`: 5.21 over θ = 0.5.
+    for (h, inside) in [(0.5, true), (5.0, true), (5.5, false)] {
+        let q = Point3::new(2.0 * 0.5_f64.cos(), 2.0 * 0.5_f64.sin(), h);
+        let ins = walls
+            .iter()
+            .map(|&f| {
+                topo::curved_face_containment(below, f, q, band)
+                    .unwrap()
+                    .unwrap_or_else(|| panic!("h = {h}: a verdict on {f:?}"))
+            })
+            .filter(|v| matches!(v, topo::FaceContainment::In))
+            .count();
+        assert_eq!(ins, usize::from(inside), "h = {h}");
     }
 }
 
@@ -470,9 +487,16 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     let prof = Profile::new(plane, vec![outline.into()])
         .validate(tol)
         .unwrap();
-    extrude(&prof, Extrusion::Distance(thick), tol)
-        .unwrap()
-        .body
+    extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: thick,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// The D5 trap stays closed through the PUBLIC boolean door: the

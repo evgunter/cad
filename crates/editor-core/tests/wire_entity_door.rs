@@ -39,6 +39,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::measure::{MeasureExpr, MeasurePrimitive};
 use editor_core::{
@@ -75,6 +76,7 @@ fn solid() -> (ProfileDoc, RecipeNodeId, StableName, StableName, StableName) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let face = fname(body, wall(&doc, body, 2));
@@ -129,7 +131,7 @@ fn a_shell_designation_of_another_kind_refuses_naming_what_it_found() {
         );
         assert_eq!(
             got.to_string(),
-            want.replace("{n}", &body.0.to_string()),
+            want.replace("{n}", &test_utils::refusal::tag(body.0)),
             "{what}"
         );
     }
@@ -161,7 +163,7 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
         );
         assert_eq!(
             got.to_string(),
-            want.replace("{n}", &body.0.to_string()),
+            want.replace("{n}", &test_utils::refusal::tag(body.0)),
             "{what}"
         );
     }
@@ -190,7 +192,7 @@ fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
         got.to_string(),
         format!(
             "the derived frame's name minted by node {} denotes an edge, not a face",
-            body.0
+            test_utils::refusal::tag(body.0)
         )
     );
 }

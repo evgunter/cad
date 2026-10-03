@@ -92,9 +92,9 @@
 //! one vocabulary, and splitting them across two homes to save the
 //! library a few functions costs every reader the question of which
 //! half is where. So a family goes whole, to the floor of its widest
-//! member. That is the rule the Euler-op family follows: three of its
-//! items — `geometric_cube`, `describe_as_intersections` and
-//! `face_surface_of_he` — are named from `src/`, and the rest of the
+//! member. That is the rule the Euler-op family follows: two of its
+//! items — `geometric_cube` and `describe_as_intersections` — are
+//! named from `src/`, and the rest of the
 //! family sits beside them rather than in `tests/`.
 
 use geom_core::Real;

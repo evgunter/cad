@@ -15,11 +15,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
     Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, assemble, clusters,
+    RoleSeg, StableName, assemble, groups,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -51,6 +52,7 @@ fn block_part(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -121,16 +123,16 @@ fn four_legs(
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, i, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 sense,
-            ),
+            )),
         },
     );
     (doc, leg, pattern, top, mate.expect("the mate mints"), store)
@@ -161,23 +163,23 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
 
     // The reading edges: the pattern-member mate reads through the
     // pattern's INPUT instance — the vertex that joins the top into
-    // the pattern's cluster.
+    // the pattern's group.
     assert_eq!(
         editor_core::reading_edges(&doc),
         vec![(mate, leg), (mate, top)],
         "a pattern-placed head contributes the reading edge at the pattern's input instance"
     );
     assert_eq!(
-        clusters(&doc),
+        groups(&doc),
         vec![vec![leg, top]],
-        "the mate joins the top into the pattern's cluster; the gauge is the leg (document-first)"
+        "the mate joins the top into the pattern's group; the root is the leg (document-first)"
     );
 
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the mate solves — no fault");
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
-    assert_eq!(poses.gauge(top), Some(leg));
+    assert_eq!(poses.root(top), Some(leg));
 
     // Hand-composed: copy 2 sits at `translation(spacing·2 · x̂)` (the
     // pattern's own parameters, nothing read back from the solve); the
@@ -242,16 +244,16 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.5, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -318,27 +320,27 @@ fn two_seats(
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     (
@@ -510,7 +512,7 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let seat = |origin| {
         seat_mate(
             in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
@@ -522,13 +524,13 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat([0.0, 0.0, 1.0]),
+            node: Box::new(seat([0.0, 0.0, 1.0])),
         },
     );
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat([0.5, 0.0, 1.0]),
+            node: Box::new(seat([0.5, 0.0, 1.0])),
         },
     );
     let m0 = m0.expect("mate 0 mints");
@@ -575,17 +577,17 @@ fn the_master_name_spelling_refuses_read_below_a_root() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // The master's own name — the spelling the pattern consumed.
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_part(leg, leg_body, CapEnd::End),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -640,7 +642,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // Copy 5 of a count-2 pattern: no such member. A head that
     // resolves to no member is a fact about the mate alone, so the
     // edit door refuses it where it is authored, with the solve's own
@@ -733,12 +735,12 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
     let (doc, declared) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let declared = declared.expect("the mate mints");

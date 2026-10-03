@@ -32,6 +32,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
 use geom_core::Tol;
@@ -270,15 +271,21 @@ fn the_die_pips_shape_stops_typed_at_its_tilted_section() {
         Point2::new(2.0, 2.0),
         Point2::new(-2.0, 2.0),
     ])]);
-    let a = sweep::extrude(&slab, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let a = sweep::extrude(
+        &slab,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let b = ball();
     let err = topo::boolean::subtract(&a, &b, Tol::witness()).unwrap_err();
-    let topo::BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. }) = &err else {
+    let topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. }) = &err else {
         panic!("expected the join's tilted-section frontier, got {err:?}");
     };
-    assert!(what.contains("tilted"), "{what}");
     // The retired claims must be GONE from the surfaced text: revert is
     // wired, the gate is not wholesale, and the sphere class is no
     // longer refused as a class.

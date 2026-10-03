@@ -15,8 +15,8 @@ use crate::common;
 use common::{brick, flush_declarations};
 use geom_core::Tol;
 use topo::{
-    Body, BooleanError, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
-    union_with,
+    Body, BooleanCoincidence, BooleanError, BooleanResult, ContactClass, FacePairDeclaration,
+    mass_properties, union_with,
 };
 
 /// A flush stack: two bricks meeting on z = 1, independently authored.
@@ -44,7 +44,7 @@ fn declared_rest_unions_and_replays_records_bit_identically() {
         decls
             .coincident_faces
             .iter()
-            .all(|d| d.class == ContactClass::Rest),
+            .all(|d| d.class == BooleanCoincidence::REST),
         "a flush cap is the conformal class, spelled out"
     );
 

@@ -41,8 +41,8 @@ use pncad::geom_core::k_stats::{self, Probe, SampleOutcome};
 use pncad::topo::{Body, ContactRecords};
 
 use crate::{
-    az, bodies, bool_bodies, bossplate, crosslap, curvedcut, cutaway, heatsink, letterforms, lily,
-    projectbox, rocker,
+    az, bodies, bool_bodies, bossplate, bracket, crosslap, curvedcut, cutaway, heatsink,
+    letterforms, lily, projectbox, rocker,
 };
 use pncad::geom_core::Tol;
 
@@ -129,7 +129,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         t,
         u,
         "bracket",
-        || vec![plain("bracket", bodies::bracket(tol))],
+        || vec![plain("bracket", bracket::probe_body(tol))],
         tol,
     );
     // The chamfer verb's own K row. What this scene actually meters is
@@ -180,28 +180,29 @@ pub fn run(out: Option<String>, tol: Tol) {
         || vec![plain("chute", bodies::chute(tol).0)],
         tol,
     );
-    // The fillet gates are reified K-funnel predicates (S2's seven),
-    // so the rocker's six filleted corners get their own sweep group.
+    // The fillet gates are reified K-funnel predicates (S2's seven, and
+    // the 3-D blend battery), so the rocker's profile corners and its
+    // keyhole creases get their own sweep group.
     sweep(
         s,
         t,
         u,
         "rocker",
-        || vec![plain("rocker", rocker::rocker(tol))],
+        || vec![plain("rocker", rocker::build(tol).1)],
         tol,
     );
-    // The PR 11 flip: the tilted cut joined the standard ladder, so
-    // its quadrature-lane predicates (props_quad_*) record here too.
+    // The tilted cut's quadrature-lane predicates (props_quad_*)
+    // record here too.
     sweep(
         s,
         t,
         u,
         "tiltedcut",
         || {
-            let (above, below) = curvedcut::build::<Probe>(tol);
+            let cut = curvedcut::build::<Probe>(tol);
             vec![
-                plain("tiltedcut_above", above),
-                plain("tiltedcut_below", below),
+                plain("tiltedcut_above", cut.above),
+                plain("tiltedcut_below", cut.below),
             ]
         },
         tol,
@@ -212,13 +213,9 @@ pub fn run(out: Option<String>, tol: Tol) {
         u,
         "bossplate",
         || {
-            // Contact-free transverse curved boolean: plain tier 3 (the 3′
-            // census is exact-on-planar; see the stop's routing note).
+            // Routed the way the stop routes it (`crate::declares_no_contacts`).
             let bb = bossplate::build::<Probe>(tol);
-            let contact_free = bb.contacts.vv.is_empty()
-                && bb.contacts.a_on_b.is_empty()
-                && bb.contacts.b_on_a.is_empty();
-            vec![if contact_free {
+            vec![if crate::declares_no_contacts(&bb.contacts) {
                 plain("bossplate", bb.body)
             } else {
                 seamed("bossplate", bb)
@@ -256,7 +253,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         u,
         "letterforms",
         || {
-            let (two, three) = letterforms::build(tol);
+            let (two, three, _) = letterforms::build(tol);
             vec![seamed("silhouette", two), seamed("silhouette3", three)]
         },
         tol,
@@ -336,7 +333,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         || {
             lily::plant::<Probe>(tol)
                 .into_iter()
-                .map(|piece| plain(piece.name, piece.body))
+                .map(|piece| (piece.name.to_string(), piece.body, piece.contacts))
                 .collect()
         },
         tol,
@@ -355,7 +352,9 @@ pub fn run(out: Option<String>, tol: Tol) {
         tol,
     );
     // Refusal-path samples again (the M2 K report's standing gap): the
-    // lily's seven walls all refuse, and their margins record here.
+    // lily's walls, run at the probe scalar, and their margins record
+    // here — wall 7's carve builds and its drawing is what refuses, so
+    // that wall records the decisions of a whole tilted sphere cut.
     sweep(
         s,
         t,

@@ -2,7 +2,7 @@
 //!
 //! `decide`, `decide_reported`, `decide_flagged` and `decide_invariant`
 //! share a private `classify` (`decide_reported` hands back the verdict
-//! whole, its reporting margin beside the sign), and the gate doors (`decide_positive`, `decide_nonzero`,
+//! whole, its reporting margin beside the sign), and the gate doors (`decide_positive`, `decide_negative`, `decide_nonzero`,
 //! `gate_measured`) share the one write to the escalation channel with
 //! it, so the predicate-name channel and both verdict channels are
 //! written in one place. These suites pin the observable consequence:
@@ -41,7 +41,8 @@
 use geom_core::Tol;
 use geom_core::k_stats::{
     Bracket, Escalation, NonzeroSign, Verdict, decide, decide_flagged, decide_invariant,
-    decide_nonzero, decide_positive, decide_reported, gate_measured,
+    decide_negative, decide_nonzero, decide_nonzero_reported, decide_positive, decide_reported,
+    gate_measured,
 };
 use geom_core::{Band, Decided, Margin, MarginDiag, Sign};
 
@@ -170,7 +171,11 @@ fn a_rejected_gate_records_both_channels_under_its_own_name() {
         Ok(NonzeroSign::Negative)
     );
     let zeroed = decide_nonzero("gate_d", Margin::of(0.0f64), b).unwrap_err();
+    assert_eq!(decide_negative("gate_e", Margin::of(-1.0f64), b), Ok(()));
+    let unsigned = decide_negative("gate_f", Margin::of(1.0f64), b).unwrap_err();
     let recorded = bracket.finish();
+    assert_eq!(unsigned.margin, MarginDiag::INVALID);
+    assert_eq!(unsigned.predicate, Some("gate_f"));
 
     assert_eq!(rejected.margin, MarginDiag::INVALID);
     assert_eq!(rejected.predicate, Some("gate_b"));
@@ -195,6 +200,14 @@ fn a_rejected_gate_records_both_channels_under_its_own_name() {
                 predicate: "gate_d",
                 sign: Sign::Zero,
             },
+            Verdict {
+                predicate: "gate_e",
+                sign: Sign::Negative,
+            },
+            Verdict {
+                predicate: "gate_f",
+                sign: Sign::Positive,
+            },
         ],
         "gating leaves the verdict channel exactly as `decide` left it"
     );
@@ -203,8 +216,47 @@ fn a_rejected_gate_records_both_channels_under_its_own_name() {
         [
             Escalation { source: rejected },
             Escalation { source: zeroed },
+            Escalation { source: unsigned },
         ]
     );
+}
+
+/// **A band-decided zero keeps its margin through the nonzero gate**:
+/// `decide_nonzero_reported` passes either definite side, and its
+/// decided zero escalates with the margin the funnel decided (not
+/// `Invalid`), on the frame's escalation log beside the `Zero` verdict,
+/// as `decide_nonzero`'s rejection is.
+#[test]
+fn a_reported_nonzero_gate_escalates_its_decided_zero_with_its_margin() {
+    let b = band();
+    let small = 0.5 * b.zero();
+    let bracket = Bracket::open();
+    assert_eq!(
+        decide_nonzero_reported("gate_e", Margin::of(-1.0f64), b),
+        Ok(NonzeroSign::Negative)
+    );
+    let zeroed = decide_nonzero_reported("gate_f", Margin::of(small), b).unwrap_err();
+    let recorded = bracket.finish();
+    assert_eq!(
+        zeroed.margin,
+        MarginDiag::value(small),
+        "the decided margin"
+    );
+    assert_eq!(zeroed.predicate, Some("gate_f"));
+    assert_eq!(
+        recorded.verdicts,
+        [
+            Verdict {
+                predicate: "gate_e",
+                sign: Sign::Negative,
+            },
+            Verdict {
+                predicate: "gate_f",
+                sign: Sign::Zero,
+            },
+        ]
+    );
+    assert_eq!(recorded.escalations, [Escalation { source: zeroed }]);
 }
 
 /// An IN-BAND margin escalates through `classify` itself, and the gate

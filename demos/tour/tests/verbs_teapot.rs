@@ -92,10 +92,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p2, validated};
+use pncad::document::ExtrudeSide;
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 #[path = "common/census.rs"]
 mod census;
@@ -105,7 +106,7 @@ use pncad::topo::{Body, ReplaceFaceError, ShellError};
 /// Every fixture's mouth plane.
 const TOP: f64 = 8.0 / 64.0;
 
-fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
+fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
     revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the meridian validates"),
         RevolveAxis {
@@ -119,10 +120,13 @@ fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
     .body
 }
 
-fn extruded(lp: ProfileLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
+fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     extrude(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the footprint validates"),
-        Extrusion::Distance(h),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("the footprint extrudes")
@@ -372,12 +376,9 @@ fn triangular_prism(tol: Tol) -> Body<f64> {
 fn scaffold_descriptions(body: &Body<f64>) -> usize {
     body.edges()
         .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(pncad::topo::CurveGeom::certified)
-                    .map(pncad::topo::EdgeCurve::description),
-                Some(&pncad::topo::EdgeDescription::Scaffold(_))
-            )
+            body.get_curve_geom(e.curve)
+                .and_then(pncad::topo::CurveGeom::certified)
+                .is_some_and(|c| c.description().is_scaffold())
         })
         .count()
 }
@@ -692,6 +693,11 @@ fn the_opened_rim_is_right_on_a_box() {
 /// face's outer loop — and `verbs_shell::a_ring_standing_on_its_outer_
 /// loop_refuses_at_tier_3` builds the old body through the same public
 /// doors to show that net firing.
+///
+/// Since BAND's "one wall per run" a full revolve no longer cuts a
+/// planar cap at its seam at all, so every case here now arrives as a
+/// one-face chart; the seam-removal arm stays for any chart that does
+/// carry one.
 #[test]
 fn the_opened_rim_is_an_annulus_on_every_revolve() {
     let tol = Tol::witness();
@@ -725,8 +731,8 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
         let chart = plane_chart_at(&body, TOP);
         assert_eq!(
             chart.len(),
-            2,
-            "{what}: a full revolve's cap is two half-discs"
+            1,
+            "{what}: a full revolve sweeps its planar cap whole"
         );
         let cup = pncad::topo::shell_open(&body, t, &chart, tol)
             .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}"))
@@ -736,15 +742,22 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
             Ok(()),
             "{what}: tier 3, which now also carries the ring-vs-outer invariant"
         );
+        // Rings counted ON THE MOUTH PLANE: the stepped meridian's
+        // latitude annuli are swept whole, so they carry rings of their
+        // own elsewhere on the body.
+        let mouth_rings: usize = plane_chart_at(&cup, TOP)
+            .iter()
+            .map(|&k| cup.get_face(k).map_or(0, |f| f.rings.len()))
+            .sum();
         assert_eq!(
-            (rings(&cup), genus(&cup)),
+            (mouth_rings, genus(&cup)),
             (1, 0),
             "{what}: ONE rim annulus with one ring, and a cup is genus 0"
         );
         assert_eq!(
             plane_chart_at(&cup, TOP).len(),
             1,
-            "{what}: the two half-discs became one rim face"
+            "{what}: the rim is one face"
         );
         for delta in [1e-2, 1e-3, 2e-4] {
             pncad::mesh::tessellate(&cup, delta, tol)

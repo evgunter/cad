@@ -123,6 +123,7 @@ fn close3(got: Vec3<f64>, want: Vec3<f64>, what: &str) {
 /// asserting it is display state and never a document edit.
 fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
     let history_len = session.history().len();
+    let before = session.doc().node(instance).cloned();
     for op in [
         SessionOp::BeginFreeMove { instance },
         SessionOp::PreviewFreeMove {
@@ -141,9 +142,10 @@ fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
         history_len,
         "the probe leaves no history state"
     );
-    assert!(
-        session.doc().placements().get(&instance).is_none(),
-        "the probe authors no placement"
+    assert_eq!(
+        session.doc().node(instance).cloned(),
+        before,
+        "the probe leaves the instance's offset where it stood"
     );
 }
 
@@ -286,7 +288,7 @@ fn the_windmill_story() {
     let rows = session.tree_rows();
     assert_eq!(rows.len(), 2);
     for row in &rows {
-        assert_eq!(row.kind, "InstantiatePart");
+        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
 
@@ -441,8 +443,8 @@ fn the_windmill_story() {
     let tower_top = common::displayed_face_at(&session, &index, &asm::down_at(0.0, 0.0));
     assert_eq!(tower_top.node, tower_i);
     let mut tool = MateTool::new();
-    tool.pick(hub_bottom.clone());
-    tool.pick(tower_top);
+    tool.pick(session.doc(), hub_bottom.clone());
+    tool.pick(session.doc(), tower_top);
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
     let seat_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
@@ -466,7 +468,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == hub_i && !mates.is_empty()
+                if instance.id() == hub_i && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -504,7 +506,10 @@ fn the_windmill_story() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     assert!(
-        session.tree_rows().iter().any(|row| row.kind == "Mate"),
+        session
+            .tree_rows()
+            .iter()
+            .any(|row| row.spoken.kind() == Some("Mate")),
         "the mate has a row"
     );
     assert_eq!(
@@ -521,8 +526,11 @@ fn the_windmill_story() {
             instance,
             mates,
         }))) => {
-            assert_eq!(instance, hub_i);
-            assert!(mates.contains(&seat_mate), "the refusal names the mate");
+            assert_eq!(instance.id(), hub_i);
+            assert!(
+                mates.iter().any(|mate| mate.id() == seat_mate),
+                "the refusal names the mate"
+            );
         }
         other => panic!("expected the mate-constrained refusal, got {other:?}"),
     }
@@ -587,8 +595,8 @@ fn the_windmill_story() {
     assert_ne!(front_wall.name, back_wall.name, "two distinct walls");
 
     let mut tool = MateTool::new();
-    tool.pick(sail_a_bottom.clone());
-    tool.pick(front_wall.clone());
+    tool.pick(session.doc(), sail_a_bottom.clone());
+    tool.pick(session.doc(), front_wall.clone());
     let sail_a_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         tool.proposal(doc, eval, asm::seat_choice())
@@ -611,7 +619,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == sail_a && !mates.is_empty()
+                if instance.id() == sail_a && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -635,8 +643,8 @@ fn the_windmill_story() {
     };
 
     let mut tool = MateTool::new();
-    tool.pick(sail_b_bottom.clone());
-    tool.pick(back_wall.clone());
+    tool.pick(session.doc(), sail_b_bottom.clone());
+    tool.pick(session.doc(), back_wall.clone());
     let sail_b_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         let base = tool
@@ -692,7 +700,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == sail_b && !mates.is_empty()
+                if instance.id() == sail_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \

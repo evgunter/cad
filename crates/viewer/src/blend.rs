@@ -65,7 +65,10 @@
 
 use std::collections::BTreeSet;
 
-use pncad::document::{Doc, Evaluation, Expr, NodeStanding, ProfileProgram, RecipeNodeId};
+use pncad::document::{
+    Doc, Evaluation, Expr, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker,
+    SpokenNode,
+};
 use pncad::prelude::StableName;
 
 use crate::pickindex::EdgeNamesRefused;
@@ -144,14 +147,17 @@ impl BlendTarget {
 /// sentence is how the refusal names it: a target that grew a third
 /// component while the sentence still named two would name the wrong
 /// scope.
+impl Say for BlendTarget {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        let Self { node, body } = self;
+        write!(f, "{} body {body}", by.node(*node))
+    }
+}
+
+/// The sentence where no document is at hand: the node by its tag.
 impl core::fmt::Display for BlendTarget {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self { node, body } = self;
-        // The NODE half through the crate's one spelling of it
-        // ([`crate::tree::node_number`]), so a blend refusal and a
-        // picker entry call the same feature the same thing. The body
-        // half is this scope's own and has no other home.
-        write!(f, "{} body {body}", crate::tree::node_number(*node))
+        self.say(f, Speaker::TAG)
     }
 }
 
@@ -268,6 +274,9 @@ pub enum BlendEvent {
     TargetLost {
         /// The body the set was about.
         target: BlendTarget,
+        /// The target's node as the document spoke it when the target
+        /// was fixed: the node is gone, so no later document says it.
+        node: SpokenNode,
         /// How many edges went with it.
         edges: usize,
     },
@@ -287,26 +296,37 @@ pub enum BlendEvent {
     },
 }
 
-impl core::fmt::Display for BlendEvent {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Say for BlendEvent {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::OtherTarget { held, picked } => write!(
                 f,
-                "the held edges are on {held}, so the edge on {picked} was not taken; \
-                 cancel to start on another body"
+                "the held edges are on {}, so the edge on {} was not taken; cancel to start on \
+                 another body",
+                Said(held, by),
+                Said(picked, by)
             ),
             Self::NoEdgesOnTarget { target } => {
-                write!(f, "{target} has no edges to select")
+                write!(f, "{} has no edges to select", Said(target, by))
             }
             Self::EdgesUnnamed { refused } => {
-                write!(f, "the tool loaded no edges: {refused}")
+                write!(f, "the tool loaded no edges: {}", Said(refused, by))
             }
-            Self::TargetHasNoValue { target, standing } => {
-                write!(f, "{target} has no edges to select: {standing}")
-            }
-            Self::TargetLost { target, edges } => write!(
+            Self::TargetHasNoValue { target, standing } => write!(
                 f,
-                "{target} is no longer in the document; the tool dropped all {edges} picked edges"
+                "{} has no edges to select: {}",
+                Said(target, by),
+                Said(standing, by.about(target.node))
+            ),
+            Self::TargetLost {
+                target,
+                node,
+                edges,
+            } => write!(
+                f,
+                "{node} body {} is no longer in the document; the tool dropped all {edges} \
+                 picked edges",
+                target.body
             ),
             Self::EdgesLost {
                 target,
@@ -314,11 +334,19 @@ impl core::fmt::Display for BlendEvent {
                 kept,
             } => write!(
                 f,
-                "an edit removed {} of the picked edges from {target}; the tool dropped them and \
+                "an edit removed {} of the picked edges from {}; the tool dropped them and \
                  still holds {kept}",
-                names.len()
+                names.len(),
+                Said(target, by)
             ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for BlendEvent {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
     }
 }
 
@@ -347,8 +375,17 @@ impl core::fmt::Display for BlendEvent {
 /// [`BlendError::NoEdges`]'s one sentence true of the one state.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BlendTool {
-    target: Option<BlendTarget>,
+    target: Option<HeldTarget>,
     edges: BTreeSet<StableName>,
+}
+
+/// The body the held edges are on, and its node as the document spoke
+/// it when the target was fixed: what [`BlendEvent::TargetLost`] names
+/// it by once the node is gone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct HeldTarget {
+    at: BlendTarget,
+    node: SpokenNode,
 }
 
 impl BlendTool {
@@ -359,7 +396,7 @@ impl BlendTool {
 
     /// The body the held edges are on, once a pick has fixed it.
     pub fn target(&self) -> Option<BlendTarget> {
-        self.target
+        self.target.as_ref().map(|held| held.at)
     }
 
     /// How many edges are held — the panel's live count.
@@ -389,7 +426,7 @@ impl BlendTool {
     /// per-frame mark reads, and `a_held_set_marks_exactly_the_edges_it_names`
     /// asserts the two agree so they cannot drift.
     pub fn marks(&self) -> Vec<EdgeSelection> {
-        let Some(target) = self.target else {
+        let Some(target) = self.target() else {
             return Vec::new();
         };
         self.edges
@@ -405,7 +442,7 @@ impl BlendTool {
     /// **The held set as the marks read it** — its body and its
     /// names, `None` while nothing is held (the struct's invariant).
     pub fn held_edges(&self) -> Option<crate::marks::HeldEdges<'_>> {
-        self.target.map(|target| crate::marks::HeldEdges {
+        self.target().map(|target| crate::marks::HeldEdges {
             node: target.node,
             body: target.body,
             names: &self.edges,
@@ -418,15 +455,15 @@ impl BlendTool {
     /// The first pick fixes the target; un-picking the last edge
     /// releases it again (the struct's invariant). A pick on another
     /// body is refused ([`BlendEvent::OtherTarget`]) and changes
-    /// nothing.
-    pub fn pick(&mut self, edge: &EdgeSelection) -> Option<BlendEvent> {
+    /// nothing. `doc` says the target's node when the pick fixes it.
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, edge: &EdgeSelection) -> Option<BlendEvent> {
         let picked = BlendTarget::of(edge);
-        match self.target {
+        match self.target() {
             Some(held) if held != picked => {
                 return Some(BlendEvent::OtherTarget { held, picked });
             }
             Some(_) => {}
-            None => self.target = Some(picked),
+            None => self.fix(doc, picked),
         }
         if !self.edges.remove(&edge.name) {
             self.edges.insert(edge.name.clone());
@@ -486,6 +523,7 @@ impl BlendTool {
     pub fn load_all_edges(
         &mut self,
         target: BlendTarget,
+        doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
         index: &crate::pickindex::PickIndex,
     ) -> Option<BlendEvent> {
@@ -512,9 +550,17 @@ impl BlendTool {
         if edges.is_empty() {
             return Some(BlendEvent::NoEdgesOnTarget { target });
         }
-        self.target = Some(target);
+        self.fix(doc, target);
         self.edges = edges;
         None
+    }
+
+    /// Fix the target, with its node as `doc` says it.
+    fn fix(&mut self, doc: &Doc<ProfileProgram>, target: BlendTarget) {
+        self.target = Some(HeldTarget {
+            at: target,
+            node: doc.spoken(target.node),
+        });
     }
 
     /// Drop every pick — the panel's `Clear picks` button, and what
@@ -581,13 +627,17 @@ impl BlendTool {
         doc: &Doc<ProfileProgram>,
         landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
     ) -> Vec<BlendEvent> {
-        let Some(target) = self.target else {
+        let Some(HeldTarget { at: target, node }) = self.target.clone() else {
             return Vec::new();
         };
         if doc.node(target.node).is_none() {
             let edges = self.edges.len();
             self.clear();
-            return vec![BlendEvent::TargetLost { target, edges }];
+            return vec![BlendEvent::TargetLost {
+                target,
+                node,
+                edges,
+            }];
         }
         let Some((_, eval)) = landed else {
             return Vec::new();
@@ -668,7 +718,7 @@ impl BlendTool {
             !self.edges.is_empty(),
             "a target is held exactly while an edge is"
         );
-        match self.target {
+        match self.target() {
             Some(target) => Ok(target.node),
             None => Err(BlendError::NoEdges),
         }
@@ -684,7 +734,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used, clippy::panic)]
 
-    use super::{BlendEvent, BlendTarget, BlendTool};
+    use super::{BlendEvent, BlendTarget, BlendTool, Said, Speaker};
     use crate::pickindex::{EdgeId, EdgeNameFault, EdgeNamesRefused};
     use crate::session::EdgeSelection;
     use crate::test_support::plate_indexed;
@@ -696,6 +746,8 @@ mod tests {
     #[test]
     fn a_target_whose_edges_the_index_cannot_name_refuses_the_load_in_its_words() {
         let (eval, mut index, extrude) = plate_indexed(pncad::geom_core::Tol::witness());
+        let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
+            .expect("the plate authors");
         let target = BlendTarget {
             node: extrude,
             body: 0,
@@ -707,7 +759,7 @@ mod tests {
             node: extrude,
             body: 0,
         };
-        assert_eq!(tool.pick(&held), None);
+        assert_eq!(tool.pick(&doc, &held), None);
         let before = tool.clone();
 
         let first = index.unname_edge(drawn[2]);
@@ -719,7 +771,7 @@ mod tests {
             refused: 1,
         };
         let partly = tool
-            .load_all_edges(target, &eval, &index)
+            .load_all_edges(target, &doc, &eval, &index)
             .expect("a refused load says so");
         assert_eq!(
             partly,
@@ -731,7 +783,9 @@ mod tests {
         let said = partly.to_string();
         assert!(
             said.contains(&refused.to_string())
-                && said.contains(&EdgeNameFault::Unnamed(first).to_string()),
+                && said.contains(
+                    &Said(&EdgeNameFault::Unnamed(first), Speaker::TAG.about(extrude)).to_string()
+                ),
             "the index's own words, through its Display: {said}"
         );
         assert!(
@@ -744,7 +798,7 @@ mod tests {
         }
         index.unname_edge(drawn[0]);
         index.unname_edge(drawn[1]);
-        match tool.load_all_edges(target, &eval, &index) {
+        match tool.load_all_edges(target, &doc, &eval, &index) {
             Some(BlendEvent::EdgesUnnamed { refused }) => {
                 assert_eq!(
                     (refused.named, refused.refused),
@@ -764,6 +818,8 @@ mod tests {
     #[test]
     fn a_target_the_index_does_not_draw_is_not_a_naming_refusal() {
         let (eval, index, extrude) = plate_indexed(pncad::geom_core::Tol::witness());
+        let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
+            .expect("the plate authors");
         let target = BlendTarget {
             node: extrude,
             body: 7,
@@ -777,7 +833,7 @@ mod tests {
             Err(EdgeNameFault::NotDrawn { .. })
         ));
         assert_eq!(
-            BlendTool::new().load_all_edges(target, &eval, &index),
+            BlendTool::new().load_all_edges(target, &doc, &eval, &index),
             Some(BlendEvent::NoEdgesOnTarget { target })
         );
     }

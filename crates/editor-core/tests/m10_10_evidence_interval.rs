@@ -22,8 +22,37 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
 
-use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{distinct_atoms, nominal_box};
+
+/// The retry ladder the env-driven rows run: `CAD_M10_10_RETRY=default`
+/// is the drive's shipped ladder (`editor_core::drive::DEFAULT_SYM_RETRY`),
+/// `ring_512` one retry at a 512-bit ring, unset or `none` is one attempt
+/// per rung (`SymRetry::none()`).
+fn retry_from_env() -> geom_core::SymRetry {
+    match std::env::var("CAD_M10_10_RETRY").as_deref() {
+        Err(_) | Ok("none") => geom_core::SymRetry::none(),
+        Ok("default") => editor_core::drive::DEFAULT_SYM_RETRY,
+        // One retry at a wider ring and nothing else: whether a decision
+        // the first attempt leaves numeric on a `Coefficient` freeze is
+        // the ring's width and not a missing rule.
+        Ok("ring_512") => geom_core::SymRetry {
+            bits: Some(512),
+            ..geom_core::SymRetry::none()
+        },
+        Ok(other) => panic!("unknown retry {other:?}: none | default | ring_512"),
+    }
+}
+
+/// One replay at `Sym<Interval>` under `rules` and the ladder
+/// [`retry_from_env`] names.
+fn replay(
+    doc: &ProfileDoc,
+    box_: &ParamBox,
+    rules: SymRules,
+    tol: Tol,
+) -> (Vec<DecisionShape>, Option<String>, geom_core::SymCounts) {
+    crate::m10_8_arc_family_interval::replay_retried(doc, box_, rules, retry_from_env(), tol)
+}
 
 /// A named study: a document as a function of the SCALE of its real
 /// study, so a ceiling is a multiple of the study a user would ask for.
@@ -166,9 +195,96 @@ fn m10_10_the_four_residuals_rendered_at_the_nominal() {
     let (name, at) = document_from_env(tol);
     let doc = at(1.0);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    // `CAD_M10_10_PROFILE`: the tier's cost profile around the replay,
+    // and its freezes by (cause, op) printed after the split — the
+    // cause (`Terms` / `Degree` / `Coefficient`) of every freeze a
+    // numeric residual stands on.
+    let profiled = std::env::var("CAD_M10_10_PROFILE").is_ok();
+    if profiled {
+        geom_core::sym::profile::start_profile();
+    }
     let (shapes, refusal, counts) = replay(&doc, &nominal_box(&analyzed), rules, tol);
-    println!("== {name} at the nominal, rules {rules:?}: {counts:?}; refusal {refusal:?}");
+    // Per decision the tier was asked, the freeze causes its own walks
+    // made (`DecisionRecord::causes`: a node is charged to the decision
+    // that first built it, so a later decision on a node already frozen
+    // reads none).
+    let mut causes: Vec<Option<String>> = vec![None; shapes.len()];
+    if profiled {
+        let p = geom_core::sym::profile::take_profile();
+        let records: Vec<_> = p
+            .decisions
+            .iter()
+            .filter(|d| d.origin == geom_core::sym::profile::Origin::Decision)
+            .collect();
+        let asked: Vec<usize> = (0..shapes.len())
+            .filter(|&i| {
+                !matches!(
+                    shapes[i].outcome,
+                    ShapeOutcome::Definite(_) | ShapeOutcome::Invalid
+                )
+            })
+            .collect();
+        assert_eq!(
+            records.len(),
+            asked.len(),
+            "one decision record per decision the tier was asked"
+        );
+        for (&i, d) in asked.iter().zip(&records) {
+            causes[i] = Some(format!("{:?} {:?}", d.answered, d.causes));
+        }
+        println!("-- freezes by (cause, op), every walk and origin:");
+        for ((cause, op), f) in p.freezes_by_cause() {
+            println!(
+                "   {cause:?} {op}: {} (kid terms {:?}, kid degree {:?})",
+                f.count, f.terms_range, f.degree_range
+            );
+        }
+        print!("{}", p.rung_table());
+    }
+    println!(
+        "== {name} at the nominal, rules {rules:?}, retry {:?}: {counts:?}; refusal {refusal:?}",
+        retry_from_env()
+    );
     print_split(&shapes);
+    // `CAD_M10_10_DUMP=<path>`: every decision the tier was ASKED and
+    // left numeric, one JSON line each (predicate, its index in the
+    // predicate's evaluation order, outcome, plain and early forms,
+    // explanation) — the per-decision record a cause table is read off.
+    if let Ok(path) = std::env::var("CAD_M10_10_DUMP") {
+        use std::io::Write as _;
+        let mut out = std::io::BufWriter::new(std::fs::File::create(&path).expect("dump file"));
+        let mut index: BTreeMap<&str, usize> = BTreeMap::new();
+        for (k, s) in shapes.iter().enumerate() {
+            let i = index.entry(s.predicate).or_default();
+            let at = *i;
+            *i += 1;
+            // `Invalid` is a domain violation the tier is never asked
+            // about, and `Definite` a sign the numeric channel settled.
+            // `CAD_M10_10_DUMP_ASKED`: every decision the tier was asked,
+            // whatever it answered — a theorem's line carries no form (the
+            // report renders none) but carries its causes, so a decision
+            // that moves between two trees is read on both.
+            let asked = !matches!(s.outcome, ShapeOutcome::Definite(_) | ShapeOutcome::Invalid);
+            let numeric = matches!(
+                s.outcome,
+                ShapeOutcome::NumericZero | ShapeOutcome::Indeterminate
+            );
+            if !(numeric || asked && std::env::var("CAD_M10_10_DUMP_ASKED").is_ok()) {
+                continue;
+            }
+            let line = serde_json::json!({
+                "predicate": s.predicate,
+                "index": at,
+                "outcome": format!("{:?}", s.outcome),
+                "plain": s.form,
+                "early": s.early_form,
+                "explain": s.explain,
+                "enclosure": s.enclosure,
+                "causes": causes[k],
+            });
+            writeln!(out, "{line}").expect("dump write");
+        }
+    }
     let show = std::env::var("CAD_M10_10_SHOW")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
@@ -276,8 +392,23 @@ fn rules_named(name: &str) -> SymRules {
         // for bit.
         "no_e" => SymRules::without_rule_e(),
         // SYM-8's differential: the shipped set with rule F (the
-        // manifest sign) SHUT, which is SYM-5's tier bit for bit.
+        // manifest sign, both arms) SHUT and nothing else.
         "no_f" => SymRules::without_rule_f(),
+        // SYM-5's tier bit for bit: rules F, G and the decision read
+        // shut together.
+        "sym5" => SymRules::without_rules_f_g_and_the_read(),
+        // DECIDE-3's differential for the decision read: the shipped set
+        // with the read shut and rule G on.
+        "no_reads" => SymRules::without_the_reads(),
+        // DECIDE-4's differential: the shipped set with rule G's exact
+        // quotient shut, which is SYM-9's tier bit for bit.
+        "no_q" => SymRules::without_root_quotient(),
+        // The kept-atom ladder's FIRST attempt on the shipped set as a
+        // rule set of its own (`SymRetry::kept_atom`'s rule-G mask, which
+        // a session intersects with its own rules: rule G and its
+        // conjunct dials shut), so a decision the ladder answers on that
+        // attempt is rendered where this set leaves it numeric.
+        "no_g" => SymRules::without_canonical_root(),
         // The cost breakdown: rule D alone, and rules A/B per node alone.
         "d_only" => SymRules {
             trig_of_atan: true,
@@ -312,8 +443,8 @@ fn rules_named(name: &str) -> SymRules {
             ..SymRules::without_the_algebra()
         },
         other => panic!(
-            "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | no_f \
-             | d_only | ab_only | top_only | d_top_only"
+            "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | no_f | sym5 \
+             | no_reads | no_q | d_only | ab_only | top_only | d_top_only"
         ),
     }
 }
@@ -345,8 +476,17 @@ fn m10_10_ceilings_and_the_over_band_set() {
         if !wanted {
             continue;
         }
-        let (lo, hi, per) =
-            crate::m10_8_harness::ceiling(&*at, rules, tol, 1.0e-1 * eps, 1.0e1, 16);
+        let (lo, hi, per) = crate::m10_8_harness::ceiling_with(
+            &*at,
+            editor_core::drive::SymbolicDials {
+                retry: retry_from_env(),
+                ..crate::m10_8_harness::dials(rules)
+            },
+            tol,
+            1.0e-1 * eps,
+            1.0e1,
+            16,
+        );
         println!(
             "   {name:<20}: certifies x{lo:e}, refuses x{hi:e} ({per:.2}s/probe) \
              [= {:.4e}·eps .. {:.4e}·eps]",
@@ -442,7 +582,7 @@ fn m10_10_what_stands_rendered() {
 #[test]
 #[ignore = "evidence-only: the stackup hulls with the algebra on and off"]
 fn m10_10_the_stackup_hulls_under_both_rule_sets() {
-    use editor_core::drive::{DriveConfig, SymbolicDials, drive};
+    use editor_core::drive::{DriveConfig, drive};
     use editor_core::stackup::stackup;
 
     let tol = Tol::witness();
@@ -470,10 +610,7 @@ fn m10_10_the_stackup_hulls_under_both_rule_sets() {
                 &analyzed,
                 &DriveConfig {
                     max_leaves: 1024,
-                    symbolic: SymbolicDials {
-                        rules,
-                        ..SymbolicDials::default()
-                    },
+                    symbolic: crate::m10_8_harness::dials(rules),
                     ..DriveConfig::default()
                 },
                 tol,
@@ -619,7 +756,7 @@ fn m10_10_the_plates_real_study_driven_whole() {
     }
     println!("{}", verdict.render(&analyzed));
     match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
-        Ok(report) => println!("   stackup OK:\n{}", report.render(&analyzed)),
+        Ok(report) => println!("   stackup OK:\n{}", report.render(&doc, &analyzed)),
         Err(e) => println!("   stackup refused: {e}"),
     }
 }
@@ -637,13 +774,14 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
     let only = std::env::var("CAD_M10_10_DOCS")
         .ok()
         .filter(|s| !s.trim().is_empty());
-    let scales: [(&str, f64); 6] = [
+    let scales: [(&str, f64); 7] = [
         ("two_hole_plate", 1.0e2 * eps),
         ("two_hole_plate", 1.0),
         ("r2_filleted_bracket", 1.0e1 * eps),
         ("r1_annulus", 1.0e1 * eps),
         ("r2_rounded_pad", 1.0e2 * eps),
         ("r2_link", 1.0e1 * eps),
+        ("r1_segment_boss", 1.0e2 * eps),
     ];
     let docs = documents(tol);
     for (name, scale) in scales {
@@ -660,16 +798,111 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
             .1;
         let doc = at(scale);
         // The "on" column is `CAD_M10_10_RULES` (the shipped set unset),
-        // so the cost of each rule alone is one env var away.
-        for (label, rules) in [
-            ("algebra OFF (M10-9)", SymRules::without_the_algebra()),
-            ("algebra ON  (rules) ", rules_from_env()),
+        // so the cost of each rule alone is one env var away. The two
+        // rules columns run one attempt per rung (`m10_8_harness::dials`,
+        // `SymRetry::none()`); the LADDER columns run the "on" rules with
+        // the measured retry ladder (`SymRetry::kept_atom`) and with
+        // its two masks in the other order, so what the ladder costs a
+        // leaf is its own differential. `CAD_M10_10_TAKES` (default 1)
+        // times each column that many times and prints the fastest.
+        let takes: usize = std::env::var("CAD_M10_10_TAKES")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1);
+        let ladder = geom_core::SymRetry::kept_atom();
+        let reversed = geom_core::SymRetry {
+            without: [ladder.without[1], ladder.without[0]],
+            ..ladder
+        };
+        let on = rules_from_env();
+        for (label, dials) in [
+            (
+                "algebra OFF (M10-9)",
+                crate::m10_8_harness::dials(SymRules::without_the_algebra()),
+            ),
+            ("algebra ON  (rules) ", crate::m10_8_harness::dials(on)),
+            (
+                "ON + the ladder     ",
+                editor_core::drive::SymbolicDials {
+                    retry: ladder,
+                    ..crate::m10_8_harness::dials(on)
+                },
+            ),
+            (
+                "ON + ladder reversed",
+                editor_core::drive::SymbolicDials {
+                    retry: reversed,
+                    ..crate::m10_8_harness::dials(on)
+                },
+            ),
+            (
+                "ON + rule-G mask only",
+                editor_core::drive::SymbolicDials {
+                    retry: geom_core::SymRetry {
+                        without: [ladder.without[0], None],
+                        ..ladder
+                    },
+                    ..crate::m10_8_harness::dials(on)
+                },
+            ),
+            (
+                "ON + rule-A mask only",
+                editor_core::drive::SymbolicDials {
+                    retry: geom_core::SymRetry {
+                        without: [ladder.without[1], None],
+                        ..ladder
+                    },
+                    ..crate::m10_8_harness::dials(on)
+                },
+            ),
         ] {
-            let t = std::time::Instant::now();
-            let ok = crate::m10_8_harness::certifies_whole(&doc, rules, tol);
+            // `CAD_M10_10_COLUMNS=a,b,…` keeps the columns whose label
+            // contains one of the words (`OFF`, `rules`, `the ladder`, …),
+            // so one rule set's cost on the pad is not six pad replays.
+            if let Ok(cols) = std::env::var("CAD_M10_10_COLUMNS")
+                && !cols.split(',').any(|c| label.contains(c.trim()))
+            {
+                continue;
+            }
+            // `CAD_M10_10_PROFILE` installs the tier's cost profile
+            // around each take and prints what the retry memos held
+            // (`SymProfile::retry_forms`) beside the DAG — the growth
+            // guard's measurement. Its hooks cost time, so a timing
+            // table is taken with it unset.
+            let profiled = std::env::var("CAD_M10_10_PROFILE").is_ok();
+            let mut best = f64::INFINITY;
+            let mut leaf = (false, geom_core::SymCounts::default());
+            let mut held = (Vec::new(), 0);
+            let mut tables = String::new();
+            for _ in 0..takes.max(1) {
+                if profiled {
+                    geom_core::sym::profile::start_profile();
+                }
+                let t = std::time::Instant::now();
+                leaf = crate::m10_8_harness::whole_box_leaf(&doc, dials, tol);
+                best = best.min(t.elapsed().as_secs_f64());
+                if profiled {
+                    let p = geom_core::sym::profile::take_profile();
+                    held = (p.retry_forms.clone(), p.nodes / p.sessions.max(1));
+                    // The decision read's own table (`ReadProfile`), the
+                    // measurement `decide_6_read_cost_interval` takes in
+                    // dev; rule G's (`RootProfile`) and the walks' times,
+                    // the one `decide_7_rule_g_cost_interval` takes.
+                    tables = p.read.render() + &p.root.render() + &p.render();
+                }
+            }
+            if profiled {
+                println!(
+                    "   {name:<20} {label}: retry memos {:?} (DAG {} nodes a session)",
+                    held.0, held.1
+                );
+                print!("{tables}");
+            }
+            let d = leaf.1;
             println!(
-                "   {name:<20} x{scale:<10.3e} {label}: certifies_whole={ok} in {:.3}s",
-                t.elapsed().as_secs_f64()
+                "   {name:<20} x{scale:<10.3e} {label}: certifies_whole={} in {best:.3}s \
+                 [{}, {}, {}, {}] retried {}",
+                leaf.0, d.symbolic_zero, d.sign_gated, d.registered, d.numeric, d.retried
             );
         }
     }
@@ -830,7 +1063,7 @@ fn sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents() {
 fn m10_10_splits_at_the_nominal_under_a_rule_set() {
     let tol = Tol::witness();
     let rules = rules_from_env();
-    println!("== rules {rules:?}");
+    println!("== rules {rules:?}, retry {:?}", retry_from_env());
     let only = std::env::var("CAD_M10_10_DOCS")
         .ok()
         .filter(|s| !s.trim().is_empty());
@@ -844,7 +1077,12 @@ fn m10_10_splits_at_the_nominal_under_a_rule_set() {
             continue;
         }
         let t = std::time::Instant::now();
-        let table = crate::m10_8_harness::split_at_the_nominal(&at(1.0), rules, tol);
+        let table = crate::m10_8_harness::split_at_the_nominal_retried(
+            &at(1.0),
+            rules,
+            retry_from_env(),
+            tol,
+        );
         println!("   {name} ({:.2}s)", t.elapsed().as_secs_f64());
         for (pred, row) in table {
             println!("      {pred:<36} {row:?}");

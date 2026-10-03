@@ -1,7 +1,7 @@
 //! **The declaration class on the wire** (M9-1 spec PR-2;
 //! CONTACT-DESIGN C4, ratified #178).
 //!
-//! `Node::Declare`'s pairs each carry the contact class they assert.
+//! A boolean's declared pairs each carry the contact class they assert.
 //! The class is persisted per pair as a stable spelling, never
 //! defaulted on read: C4's invariant is that no path exists from "the
 //! numbers look equal" to a glued contact without a structural or
@@ -14,7 +14,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{CapEnd, ContactClass, DocEdit, Node, ProfileDoc, RoleSeg, SitedRef, load, save};
+use editor_core::ExtrudeSide;
+use editor_core::{
+    BooleanCoincidence, BooleanOp, CapEnd, DocEdit, Node, ProfileDoc, RoleSeg, SitedRef, load, save,
+};
 use geom_core::Tol;
 
 use crate::fixture;
@@ -23,20 +26,20 @@ use crate::fixture;
 /// intact.
 #[test]
 fn a_declaration_round_trips_carrying_its_class() {
-    let (doc, decl) = declaring_doc();
+    let (doc, union) = declaring_doc();
     let text = save(&doc, &[], Tol::witness()).expect("saves");
 
     let back: ProfileDoc = load(&text, Tol::witness())
         .expect("the saved text loads")
         .doc;
-    let Some(Node::Declare { pairs }) = back.node(decl) else {
-        panic!("the Declare node survives the round trip");
+    let Some(Node::Boolean { declare: pairs, .. }) = back.node(union) else {
+        panic!("the declaring union survives the round trip");
     };
     assert_eq!(pairs.len(), 2);
-    assert_eq!(pairs[0].1, ContactClass::Rest);
+    assert_eq!(pairs[0].1, BooleanCoincidence::REST);
     assert_eq!(
         pairs[1].1,
-        ContactClass::Tangent,
+        BooleanCoincidence::TANGENT,
         "the class is persisted per pair, not defaulted on read"
     );
 }
@@ -60,13 +63,56 @@ fn an_unknown_class_spelling_refuses_typed() {
     // assertion, not message sniffing; the fuller phrase keeps a short
     // word from matching by accident.
     assert!(
-        err.to_string().contains("unknown contact class 'fit'"),
+        err.to_string()
+            .contains("unknown declared coincidence 'fit'"),
         "the refusal names the spelling it could not read: {err}"
     );
 }
 
-/// A document with one `Rest` pair and one `Tangent` pair, plus the
-/// Declare node's id. The classes differ ON PURPOSE: a round trip that
+/// **Every coincidence a boolean node can declare rides the wire**,
+/// the seam and the continuation beside the contacts: one pair per
+/// coincidence, each read back as itself, each under its own spelling.
+#[test]
+fn every_coincidence_round_trips_under_its_own_spelling() {
+    let doc = ProfileDoc::empty_derived("m9_1_declaration_wire_all", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0, 1.0);
+    let cap = |node, end| SitedRef::new(node, fixture::fname(node, RoleSeg::Cap(end)));
+    let pairs: Vec<_> = BooleanCoincidence::ALL
+        .iter()
+        .map(|&class| ((cap(a, CapEnd::End), cap(b, CapEnd::Start)), class))
+        .collect();
+    assert!(pairs.iter().any(|p| p.1 == BooleanCoincidence::Seam));
+    let applied = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: Box::new(Node::<editor_core::ProfileProgram>::Boolean {
+                    op: BooleanOp::Union,
+                    a,
+                    b,
+                    declare: pairs.clone(),
+                }),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the declaring union inserts");
+    let decl = applied.record.minted.expect("an id is minted");
+    let text = save(&applied.doc, &[], Tol::witness()).expect("saves");
+    for spelling in ["\"rest\"", "\"tangent\"", "\"continuation\"", "\"seam\""] {
+        assert!(text.contains(spelling), "{spelling} rides the wire: {text}");
+    }
+    let back: ProfileDoc = load(&text, Tol::witness())
+        .expect("the saved text loads")
+        .doc;
+    let Some(Node::Boolean { declare: read, .. }) = back.node(decl) else {
+        panic!("the declaring union survives the round trip");
+    };
+    assert_eq!(*read, pairs, "each coincidence reads back as itself");
+}
+
+/// A document whose union declares one `Rest` pair and one `Tangent`
+/// pair, plus the union's id. The classes differ ON PURPOSE: a round trip that
 /// only ever saw one class could not tell "persisted" from
 /// "defaulted on read".
 fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
@@ -74,25 +120,30 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0, 1.0);
     let cap = |node, end| SitedRef::new(node, fixture::fname(node, RoleSeg::Cap(end)));
-    let node: Node<editor_core::ProfileProgram> = Node::Declare {
-        pairs: vec![
+    let node: Node<editor_core::ProfileProgram> = Node::Boolean {
+        op: BooleanOp::Union,
+        a,
+        b,
+        declare: vec![
             (
                 (cap(a, CapEnd::End), cap(b, CapEnd::Start)),
-                ContactClass::Rest,
+                BooleanCoincidence::REST,
             ),
             (
                 (cap(a, CapEnd::Start), cap(b, CapEnd::End)),
-                ContactClass::Tangent,
+                BooleanCoincidence::TANGENT,
             ),
         ],
     };
     let applied = doc
         .apply(
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect("the Declare inserts");
+        .expect("the declaring union inserts");
     let id = applied.record.minted.expect("an id is minted");
     (applied.doc, id)
 }
@@ -116,6 +167,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: fixture::len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }

@@ -171,7 +171,7 @@ fn with_profile(loops: &[ProfileShape], notation: Notation) -> (DocSession, Reci
 fn program(session: &DocSession, node: RecipeNodeId) -> &ProfileProgram {
     match session.committed_doc().node(node) {
         Some(Node::Profile(program)) => program,
-        other => panic!("feature {} is not a profile: {other:?}", node.0),
+        other => panic!("node {node} is not a profile: {other:?}"),
     }
 }
 
@@ -181,7 +181,7 @@ fn edit_of(session: &DocSession, node: RecipeNodeId, loops: Vec<LoopProgram>) ->
     let base = program(session, node).clone();
     SessionOp::EditProfile {
         node,
-        ids: sketch::kept_in_place(&base),
+        ids: base.kept_in_place(),
         base,
         loops,
     }
@@ -207,7 +207,7 @@ fn every_authored_profile_round_trips_and_an_untouched_apply_is_a_no_op() {
                 let committed = program(&session, profile);
                 let lowered = lowered(&held, notation);
                 assert!(
-                    sketch::is_committed(committed, &lowered, &sketch::kept_in_place(committed)),
+                    sketch::is_committed(committed, &lowered, &committed.kept_in_place()),
                     "{name}: an untouched load lowers to another program: {lowered:?}"
                 );
             }
@@ -257,11 +257,15 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
             loops: vec![shape(&ProfileShape::Path { steps: vec![step] })],
             ids: Vec::new(),
         };
-        let held = sketch::held_program(node, &program, &ParamEnv::default())
-            .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
+        let held = sketch::held_program(
+            pncad::document::SpokenNode::absent(node),
+            &program,
+            &ParamEnv::default(),
+        )
+        .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
         let back = lowered(&held, MM);
         assert!(
-            sketch::is_committed(&program, &back, &sketch::kept_in_place(&program)),
+            sketch::is_committed(&program, &back, &program.kept_in_place()),
             "{verb}: came back as {back:?}"
         );
     }
@@ -274,7 +278,7 @@ fn committed_expr(session: &DocSession, node: RecipeNodeId, slot: SlotId) -> Exp
         .node(node)
         .and_then(|held| held.expr(slot))
         .cloned()
-        .unwrap_or_else(|| panic!("feature {} has no {}", node.0, slot.label()))
+        .unwrap_or_else(|| panic!("node {node} has no {}", slot.label()))
 }
 
 /// **A moved number is one undoable edit, written in the editor's
@@ -306,7 +310,7 @@ fn a_moved_number_is_one_edit_and_undoes() {
     held[0][1] = Step::LineTo(Target::Point(Point2::new(0.015, 0.0)));
     let out = session.perform(edit_of(&session, profile, lowered(&held, MM)));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    let kept = sketch::kept_in_place(original_program(&original, profile));
+    let kept = original_program(&original, profile).kept_in_place();
     assert!(
         matches!(
             out.committed.as_slice(),
@@ -346,7 +350,7 @@ fn a_moved_number_is_one_edit_and_undoes() {
 fn original_program(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> &ProfileProgram {
     match doc.node(node) {
         Some(Node::Profile(program)) => program,
-        other => panic!("feature {} is not a profile: {other:?}", node.0),
+        other => panic!("node {node} is not a profile: {other:?}"),
     }
 }
 
@@ -365,7 +369,7 @@ fn a_reshaped_program_lands_as_one_edit_and_its_names_follow() {
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let before = session.committed_doc().clone();
     let base = program(&session, profile).clone();
-    let kept = sketch::kept_in_place(&base);
+    let kept = base.kept_in_place();
     let held = sketch::held_loops(session.committed_doc(), profile).expect("held");
     let mut longer = (held.clone(), kept.clone());
     longer.0[0].insert(4, Step::LineTo(Target::Point(Point2::new(-0.005, 0.005))));
@@ -531,12 +535,20 @@ fn a_driven_argument_refuses_to_load() {
         text: "side".to_owned(),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.perform(SessionOp::SetLabel {
+        node: profile,
+        label: Some(pncad::document::Label::new("outline").expect("a label")),
+    });
     match sketch::held_loops(session.committed_doc(), profile) {
         Err(refusal @ HeldRefusal::Driven { .. }) => {
+            assert!(
+                refusal.to_string().starts_with("Profile \"outline\" ("),
+                "it names the profile as labelled: {refusal}"
+            );
             let HeldRefusal::Driven { node, slots } = &refusal else {
                 unreachable!("matched above")
             };
-            assert_eq!(*node, profile);
+            assert_eq!(node.id(), profile);
             assert_eq!(slots.as_slice(), &[(slot, "side".to_owned())]);
             let said = refusal.to_string();
             assert!(said.contains("side"), "{said}");
@@ -571,7 +583,7 @@ fn an_invalid_program_refuses_as_itself() {
     ));
     match out.refusal {
         Some(Refusal::Edit(error)) => assert!(
-            matches!(*error, EditError::ProfileProgramRefused { node, .. } if node == profile),
+            matches!(&*error, EditError::ProfileProgramRefused { node, .. } if node.id() == profile),
             "{error:?}"
         ),
         other => panic!("{other:?}"),
@@ -652,7 +664,7 @@ fn editing_a_non_profile_refuses_wrong_kind() {
         ids: Vec::new(),
     });
     assert!(
-        matches!(out.refusal, Some(Refusal::WrongNodeKind { node, .. }) if node == plane),
+        matches!(&out.refusal, Some(Refusal::WrongNodeKind { node, .. }) if node.id() == plane),
         "{:?}",
         out.refusal
     );
@@ -670,6 +682,10 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
         }],
         Notation::CANONICAL,
     );
+    session.perform(SessionOp::SetLabel {
+        node: profile,
+        label: Some(pncad::document::Label::new("outline").expect("a label")),
+    });
     let loaded = program(&session, profile).clone();
     let mut held = sketch::held_loops(session.committed_doc(), profile).expect("held");
     // Something else moves corner 2 first.
@@ -688,12 +704,13 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
     held[0][1] = Step::LineTo(Target::Point(Point2::new(0.015, 0.0)));
     let out = session.perform(SessionOp::EditProfile {
         node: profile,
-        ids: sketch::kept_in_place(&loaded),
+        ids: loaded.kept_in_place(),
         base: loaded,
         loops: lowered(&held, Notation::CANONICAL),
     });
     assert!(
-        matches!(out.refusal, Some(Refusal::ProfileEditStale { node }) if node == profile),
+        matches!(&out.refusal, Some(Refusal::ProfileEditStale { node }) if node.id() == profile
+            && node.to_string().starts_with("Profile \"outline\" (")),
         "{:?}",
         out.refusal
     );

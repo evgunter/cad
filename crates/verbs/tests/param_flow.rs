@@ -33,6 +33,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Vec3};
 use sweep::Revolution;
@@ -128,7 +129,7 @@ fn no_flow_row_repeats_a_field() {
 /// Which role families a record actually filled.
 fn minted(rec: &BlendNaming) -> BTreeSet<RoleFamily> {
     let mut out = BTreeSet::new();
-    if !rec.blends.is_empty() {
+    if !rec.blends.is_empty() || !rec.joined_blends.is_empty() {
         out.insert(RoleFamily::Blends);
     }
     if !rec.corners.is_empty() {
@@ -384,14 +385,17 @@ fn only_profile_operand_verbs_declare_a_profile_edge_source() {
 /// the only thing a per-edge source can be attached through.
 #[test]
 fn the_sweeps_flow_names_the_wall_family_their_records_mint() {
-    let extruded = Verb::Extrude { distance: 1.0 }
-        .run_profile(&disc(0.5), tol())
-        .expect("the disc extrudes");
+    let extruded = Verb::Extrude {
+        distance: 1.0,
+        side: ExtrudeSide::Along,
+    }
+    .run_profile(&disc(0.5), tol())
+    .expect("the disc extrudes");
     let VerbRecord::Extrude(built) = extruded else {
         panic!("an extrude run produced another family's record");
     };
     assert!(
-        built.side_faces.iter().any(|loop_| !loop_.is_empty()),
+        built.side_faces().iter().any(|loop_| !loop_.is_empty()),
         "the extruded disc minted no side walls"
     );
 
@@ -405,7 +409,7 @@ fn the_sweeps_flow_names_the_wall_family_their_records_mint() {
         panic!("a revolve run produced another family's record");
     };
     assert!(
-        built.walls.iter().flatten().any(Option::is_some),
+        built.walls().iter().flatten().any(Option::is_some),
         "the revolved disc minted no walls"
     );
 

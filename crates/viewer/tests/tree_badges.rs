@@ -9,7 +9,7 @@
 //! must say where the failure is and must NOT recite what it was —
 //! the defect that reading gives is four instance rows carrying the
 //! same paragraph of refusal prose — and the row it points at must be
-//! one this same tree badges FAILED, or "upstream failure at feature 5"
+//! one this same tree badges FAILED, or "upstream failure at Mate 000000000005"
 //! sends the user somewhere there is nothing to read.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -17,6 +17,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
@@ -34,10 +35,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
     let rows = session.tree_rows();
     assert!(tree::has_faults(&rows));
 
-    let failed = rows
-        .iter()
-        .find(|row| row.id == extrude)
-        .expect("the extrude has a row");
+    let failed = common::row_of(&rows, extrude);
     let RowStatus::Failed { message, .. } = &failed.status else {
         panic!("expected Failed, got {:?}", failed.status);
     };
@@ -50,26 +48,23 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
     let Some(NodeResult::Failed(error)) = evaluation.result(extrude) else {
         panic!("the evaluation should report the extrude as failed");
     };
-    assert_eq!(message, &error.to_string());
+    assert_eq!(message, &error.spoken(session.committed_doc()));
 
-    let poisoned = rows
-        .iter()
-        .find(|row| row.id == moved)
-        .expect("the transform has a row");
+    let poisoned = common::row_of(&rows, moved);
     match &poisoned.status {
         RowStatus::Poisoned { through, message } => {
             assert_eq!(*through, extrude, "poison names the failure it came from");
             assert_eq!(
                 message.as_deref(),
-                Some(tree::downstream_wording(extrude).as_str()),
-                "a poisoned row POINTS at the cause's row; it does not recite it"
-            );
-            // It names that row by `tree::node_number`, the chrome's one
-            // spelling of a node's number.
-            let pointer = message.as_deref().unwrap_or_default();
-            assert!(
-                pointer.contains(&tree::node_number(extrude)),
-                "the pointer spells its row as `tree::node_number` does: {pointer}"
+                Some(
+                    format!(
+                        "upstream failure at Extrude {} — that row carries the cause",
+                        test_utils::refusal::tag(extrude.0)
+                    )
+                    .as_str()
+                ),
+                "a poisoned row POINTS at the cause's row, spoken by its kind and tag; it \
+                 does not recite it"
             );
         }
         other => panic!("expected Poisoned, got {other:?}"),
@@ -130,6 +125,7 @@ fn an_independent_subgraph_completes_beside_a_failure() {
         pncad::document::Node::Extrude {
             profile: other_profile,
             distance: common::len(0.005),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -155,12 +151,7 @@ fn rows_before_the_first_result_read_as_unevaluated_rather_than_ok() {
         !tree::has_faults(&rows),
         "unevaluated is not a fault; it is an absence of measurement"
     );
-    assert_eq!(
-        rows.iter()
-            .find(|row| row.id == extrude)
-            .map(|row| row.status.badge()),
-        Some("—")
-    );
+    assert_eq!(common::row_of(&rows, extrude).status.badge(), "—");
 }
 
 #[test]
@@ -199,9 +190,7 @@ fn the_tree_marks_the_documents_product_roots() {
         "the extrude is the product; the profile it consumes is not"
     );
     assert_eq!(
-        rows.iter()
-            .find(|row| row.id == profile)
-            .map(|row| row.kind),
+        common::row_of(&rows, profile).spoken.kind(),
         Some("Profile")
     );
 }
@@ -209,21 +198,21 @@ fn the_tree_marks_the_documents_product_roots() {
 /// **A refused mate solve badges the MATE as the cause and everything
 /// else it reached as downstream.**
 ///
-/// The kernel records one cluster refusal against every instance in
-/// the cluster and every mate holding it together, each as that node's
+/// The kernel records one group refusal against every instance in
+/// the group and every mate holding it together, each as that node's
 /// own `Failed` — mates and instances are DAG leaves, so the placement
 /// solve poisons across a graph the result DAG has no edges for. The
 /// tree must not read that verbatim: the fault names the mate it is
 /// about, so that mate's row is the cause and every other row it
 /// reached — including instances the mate does not touch, and the
-/// other mate in the cluster — reads as downstream of it.
+/// other mate in the group — reads as downstream of it.
 #[test]
 fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     let tol = Tol::witness();
     let bench = common::asm::bench("badge-refusal", tol);
     let mut session = common::asm::open_bench(&bench, tol);
 
-    // Two seat mates joining all three instances into ONE cluster:
+    // Two seat mates joining all three instances into ONE group:
     // post_a under the shelf's middle, post_b under its quarter point.
     // The second is a planar rest alone, which leaves its pair free
     // to slide and spin, so the solve refuses UNDER naming that mate
@@ -249,12 +238,12 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     );
     // ONE evaluation over both mates. Pumping between them would give
     // the same rows: a mate's key carries the solve's answer, so the
-    // sound mate re-runs when the cluster breaks around it. What this
+    // sound mate re-runs when the group breaks around it. What this
     // row pins is the attribution, not that.
     session.pump();
 
     let rows = session.tree_rows();
-    assert!(tree::has_faults(&rows), "the cluster refused: {rows:?}");
+    assert!(tree::has_faults(&rows), "the group refused: {rows:?}");
     let status_of = |id| common::status_of(&rows, id);
 
     // The offending mate is the cause, and the only row that is.
@@ -290,15 +279,15 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
             "an instance the offending mate does not touch",
         ),
         (bench.post_b, "an instance the offending mate does touch"),
-        (bench.shelf_i, "the shelf the cluster hangs from"),
-        (sound, "the sound mate in the refused cluster"),
+        (bench.shelf_i, "the shelf the group hangs from"),
+        (sound, "the sound mate in the refused group"),
     ] {
         match status_of(id) {
             RowStatus::Poisoned { through, message } => {
                 assert_eq!(through, offender, "{what} points at the offending mate");
                 assert_eq!(
                     message,
-                    Some(tree::downstream_wording(offender)),
+                    Some(downstream_at_mate(offender)),
                     "{what} points at the cause's row"
                 );
                 assert!(
@@ -396,14 +385,14 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
                 );
                 assert_eq!(
                     message,
-                    Some(tree::downstream_wording(through)),
+                    Some(downstream_at_mate(through)),
                     "the message points at that mate's row"
                 );
             }
             other => panic!("a mated instance must read as downstream, got {other:?}"),
         }
     }
-    // post_b is in no cluster with them: an independent subgraph
+    // post_b is in no group with them: an independent subgraph
     // completes, exactly as GQ2 says.
     assert_eq!(status_of(bench.post_b), RowStatus::Ok);
 
@@ -413,7 +402,7 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
 /// **A row poisoned through a row that is ITSELF downstream points at
 /// the terminal cause, not at a POISONED row.**
 ///
-/// The reachable document: a boolean over two instances of a cluster
+/// The reachable document: a boolean over two instances of a group
 /// that then refuses. The kernel poisons the boolean through its first
 /// blocking input — an instance — and reports that instance as its own
 /// `Failed`; the tree redraws the instance as downstream of the mate.
@@ -421,7 +410,7 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
 /// weak, so the user's walk would be two hops through a row with
 /// nothing to act on.
 #[test]
-fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
+fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
     let tol = Tol::witness();
     let bench = common::asm::bench("badge-two-hop", tol);
     let mut session = common::asm::open_bench(&bench, tol);
@@ -441,7 +430,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
     assert_eq!(
         common::status_of(&session.tree_rows(), boolean),
         RowStatus::Ok,
-        "the boolean builds before the cluster refuses"
+        "the boolean builds before the group refuses"
     );
 
     common::session_insert(
@@ -480,7 +469,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
                 through, offender,
                 "the boolean points past the instance at the mate that refused"
             );
-            assert_eq!(message, Some(tree::downstream_wording(offender)));
+            assert_eq!(message, Some(downstream_at_mate(offender)));
         }
         other => panic!("the boolean reads as downstream, got {other:?}"),
     }
@@ -503,7 +492,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
 }
 
 /// **Every surface that says why a node has no value names the row the
-/// tree names** — over one cluster refusal, the node the kernel reports
+/// tree names** — over one group refusal, the node the kernel reports
 /// as its own `Failed` and the node it poisons through it.
 ///
 /// The kernel's standing for `post_a` is `Failed` and for the boolean
@@ -515,7 +504,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
 /// them: the tree badges the refused root at its row, and the at-rest
 /// badge takes no verdict on a product that did not gather.
 #[test]
-fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
+fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     use pncad::document::{NodeStanding, ProductError};
     use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
     use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
@@ -547,11 +536,11 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
         session.standing().live(),
-        "the premise: the picked face resolves before the cluster refuses: {:?}",
+        "the premise: the picked face resolves before the group refuses: {:?}",
         session.standing()
     );
     let mut mate_tool = MateTool::new();
-    mate_tool.pick(face.clone());
+    mate_tool.pick(session.doc(), face.clone());
     let index = common::asm::index_of(&session);
 
     common::session_insert(
@@ -581,7 +570,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
     assert_eq!(
         ev.usable(bench.post_a).err(),
         Some(NodeStanding::Failed { node: bench.post_a }),
-        "the kernel reports the cluster-refused instance as its own failure"
+        "the kernel reports the group-refused instance as its own failure"
     );
     assert_eq!(
         ev.usable(boolean).err(),
@@ -629,20 +618,33 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
         ),
         other => panic!("the mate tool drops its one pick, got {other:?}"),
     }
-    match viewer::session::face_frame_seat(Some((doc, ev)), Some(&face)) {
-        Err(FaceFrameFault::Unresolved {
-            error: InterrogateError::Standing(standing),
-        }) => assert_eq!(standing, post_a, "the sketch-on-face seat"),
+    // Each refusal carrying the standing whole says its nodes as the
+    // document holds them: post_a by its kind, never `node <tag>`.
+    let post_a_said = doc.spoken(bench.post_a).to_string();
+    let seat = viewer::session::face_frame_seat(Some((doc, ev)), Some(&face));
+    match &seat {
+        Err(
+            fault @ FaceFrameFault::Unresolved {
+                error: InterrogateError::Standing(standing),
+                ..
+            },
+        ) => {
+            assert_eq!(*standing, post_a, "the sketch-on-face seat");
+            assert!(
+                fault.to_string().contains(&post_a_said),
+                "the seat's refusal speaks post_a: {fault}"
+            );
+        }
         other => panic!("the seat refuses on the standing, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(ev, bench.post_a, tol) {
-        Err(DuplicateFault::NoValue(standing)) => {
+    match viewer::combine::duplicate_step(doc, ev, bench.post_a, tol) {
+        Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the duplicate door, post_a");
         }
         other => panic!("the duplicate door refuses post_a, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(ev, boolean, tol) {
-        Err(DuplicateFault::NoValue(standing)) => {
+    match viewer::combine::duplicate_step(doc, ev, boolean, tol) {
+        Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, two_hop, "the duplicate door, the boolean");
         }
         other => panic!("the duplicate door refuses the boolean, got {other:?}"),
@@ -651,7 +653,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
         node: bench.post_a,
         body: 0,
     };
-    match BlendTool::new().load_all_edges(target, ev, &index) {
+    match BlendTool::new().load_all_edges(target, doc, ev, &index) {
         Some(BlendEvent::TargetHasNoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the blend loader");
         }
@@ -659,17 +661,28 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
     }
     // The mate tool's frame read, on a pick of post_a and one of post_b.
     let mut both = MateTool::new();
-    both.pick(face.clone());
-    both.pick(FaceSelection {
-        name: common::asm::in_part(bench.post_b, &bench.post_top),
-        node: bench.post_b,
-        body: 0,
-    });
-    match both.proposal(doc, ev, common::asm::seat_choice()) {
-        Err(MateToolError::Frame {
-            error: InterrogateError::Standing(standing),
-            ..
-        }) => assert_eq!(standing, post_a, "the mate tool's frame read"),
+    both.pick(session.doc(), face.clone());
+    both.pick(
+        session.doc(),
+        FaceSelection {
+            name: common::asm::in_part(bench.post_b, &bench.post_top),
+            node: bench.post_b,
+            body: 0,
+        },
+    );
+    match &both.proposal(doc, ev, common::asm::seat_choice()) {
+        Err(
+            refused @ MateToolError::Frame {
+                error: InterrogateError::Standing(standing),
+                ..
+            },
+        ) => {
+            assert_eq!(*standing, post_a, "the mate tool's frame read");
+            assert!(
+                refused.to_string().contains(&post_a_said),
+                "the mate tool's refusal speaks post_a: {refused}"
+            );
+        }
         other => panic!("the mate tool refuses the frame read, got {other:?}"),
     }
 
@@ -678,12 +691,16 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
     let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
         panic!("the index does not build over a root with no value");
     };
-    let badge = viewer::frame::index_badge(Some(&refusal), Some(ev)).expect("a refusal badges");
+    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
+        .expect("a refusal badges");
     let detail = badge
         .detail()
         .expect("the badge defers its words to the tooltip");
     assert!(
-        detail.contains(&format!("failure at node {}", offender.0)) && !detail.contains("ancestor"),
+        detail.contains(&format!(
+            "failure at {}",
+            session.landed_pair().expect("landed").0.spoken(offender)
+        )) && !detail.contains("ancestor"),
         "the pick index's tooltip names the offending mate: {detail}"
     );
 
@@ -945,9 +962,9 @@ const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 /// for on rows a user can actually meet. What this row pins is what
 /// that costs and what it must not buy back:
 ///
-/// - the refusal is the RUN's, not a cluster's — every instance is
-///   reached, each a singleton cluster of its own, which is why a
-///   badge wording scoped to "this cluster" would name the wrong set;
+/// - the refusal is the RUN's, not a group's — every instance is
+///   reached, each a singleton group of its own, which is why a
+///   badge wording scoped to "this group" would name the wrong set;
 /// - every reached row keeps the payload's own words, byte-identical,
 ///   so nothing here composes a sentence onto a failing row;
 /// - and NO row is drawn downstream of another, because the fault
@@ -1000,8 +1017,8 @@ fn child_band_refusal_rows() {
     let a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
     let b = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
     // A third instance, which no mate could touch: every instance is
-    // its own singleton cluster here, and the row that decides whether
-    // this refusal is a cluster's or the run's is that ALL of them
+    // its own singleton group here, and the row that decides whether
+    // this refusal is a group's or the run's is that ALL of them
     // refuse.
     let lone = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
     let face_of = |instance| {
@@ -1020,7 +1037,7 @@ fn child_band_refusal_rows() {
     let refused = apply(
         &asm,
         &DocEdit::InsertNode {
-            node: Node::Mate {
+            node: Box::new(Node::Mate {
                 a: face_of(a),
                 b: face_of(b),
                 class: ContactClass::Rest,
@@ -1031,7 +1048,7 @@ fn child_band_refusal_rows() {
                     sense: AxisSense::Opposed,
                     clocking: None,
                 },
-            },
+            }),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -1079,8 +1096,8 @@ fn child_band_refusal_rows() {
     assert_eq!(
         reached,
         vec![a, b, lone],
-        "the band refusal reaches every instance, each a cluster of its own — it is the \
-         RUN's refusal, not one cluster's"
+        "the band refusal reaches every instance, each a group of its own — it is the \
+         RUN's refusal, not one group's"
     );
 
     // Every reached row draws its own FAILED, carrying the payload's
@@ -1094,7 +1111,7 @@ fn child_band_refusal_rows() {
         };
         assert_eq!(
             status.message(),
-            Some(error.to_string().as_str()),
+            Some(error.spoken(&asm).as_str()),
             "{id:?} must carry the payload's own rendering, not a sentence this crate wrote"
         );
     }
@@ -1180,10 +1197,11 @@ fn a_band_refusal_reaches_the_whole_document_and_blames_no_row() {
 #[test]
 fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
     use pncad::document::RecipeNodeId;
+    use viewer::test_support::spoken;
 
     let row = |id: u64, status: RowStatus| tree::TreeRow {
         id: RecipeNodeId(id),
-        kind: "Transform",
+        spoken: spoken(RecipeNodeId(id), Some("Transform")),
         pose: None,
         depth: 0,
         root: false,
@@ -1266,22 +1284,30 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
     );
 
     let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
-    let row = |id| {
-        rows.iter()
-            .find(|row| row.id == id)
-            .expect("every node has a row")
-    };
-    assert!(matches!(row(frame).status, RowStatus::Ok), "{rows:?}");
     assert!(
-        matches!(row(profile).status, RowStatus::Failed { .. }),
+        matches!(common::row_of(&rows, frame).status, RowStatus::Ok),
+        "{rows:?}"
+    );
+    assert!(
+        matches!(
+            common::row_of(&rows, profile).status,
+            RowStatus::Failed { .. }
+        ),
         "{rows:?}"
     );
     assert_eq!(
-        row(profile).repair_at,
+        common::row_of(&rows, profile)
+            .repair_at
+            .as_ref()
+            .map(|at| at.id()),
         Some(frame),
         "the profile's row links to the frame whose slot refused"
     );
-    assert_eq!(row(frame).repair_at, None, "an `Ok` row links nowhere");
+    assert_eq!(
+        common::row_of(&rows, frame).repair_at,
+        None,
+        "an `Ok` row links nowhere"
+    );
 }
 
 /// **An empty value says so on its own row, and the node that refuses
@@ -1303,19 +1329,13 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         RecipeNodeId, SplitSide, ValuePayload,
     };
     use pncad::select::SplitHalf;
-    use viewer::tree::{Emptiness, Readout, TreeRow};
+    use viewer::tree::{Emptiness, Readout};
 
     let tol = Tol::witness();
     let run = |doc: &Doc<ProfileProgram>| {
         let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
         let rows = tree::rows(doc, Some(&ev), &viewer::parts::PartFiles::default());
         (ev, rows)
-    };
-    let row = |rows: &[TreeRow], id: RecipeNodeId| -> TreeRow {
-        rows.iter()
-            .find(|row| row.id == id)
-            .cloned()
-            .expect("every node has a row")
     };
 
     let doc: Doc<ProfileProgram> = Doc::empty_derived("tree-empty-readout", tol);
@@ -1328,6 +1348,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             Node::Extrude {
                 profile,
                 distance: common::len(0.02),
+                side: ExtrudeSide::Along,
             },
             tol,
         )
@@ -1340,7 +1361,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             op: BooleanOp::Intersect,
             a: near,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -1356,7 +1377,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         "the fixture's blocks do not meet: {:?}",
         ev.result(apart)
     );
-    let root = row(&rows, apart);
+    let root = common::row_of(&rows, apart);
     assert!(root.root, "the premise: the intersect is the product");
     assert!(matches!(root.status, RowStatus::Ok), "{root:?}");
     assert_eq!(
@@ -1370,7 +1391,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         "the phrase a reader sees"
     );
     assert_eq!(
-        row(&rows, near).readout,
+        common::row_of(&rows, near).readout,
         None,
         "a body's `Ok` says everything its value does"
     );
@@ -1417,7 +1438,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             op: BooleanOp::Subtract,
             a: near,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -1501,7 +1522,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         ev.result(split)
     );
     assert_eq!(
-        row(&rows, split).readout,
+        common::row_of(&rows, split).readout,
         Some(Readout::Empty(Emptiness::Half(SplitHalf::Above))),
         "a split with an empty side says which"
     );
@@ -1530,12 +1551,12 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         );
     }
     assert_eq!(
-        row(&rows, apart).readout,
+        common::row_of(&rows, apart).readout,
         Some(Readout::Empty(Emptiness::Whole)),
         "the intersect still says so once it is no longer the root"
     );
     assert_eq!(
-        row(&rows, pattern).readout,
+        common::row_of(&rows, pattern).readout,
         None,
         "a pattern's count is authored, and the refusal's words state it"
     );
@@ -1548,7 +1569,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         ev.result(kept)
     );
     assert_eq!(
-        row(&rows, kept).readout,
+        common::row_of(&rows, kept).readout,
         None,
         "a boolean with a body says everything its value does"
     );
@@ -1564,7 +1585,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         ev.result(halved)
     );
     assert_eq!(
-        row(&rows, halved).readout,
+        common::row_of(&rows, halved).readout,
         None,
         "a split with two bodies says everything its value does"
     );
@@ -1590,7 +1611,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             "the fixture raises {arm}: {:?}",
             ev.result(id)
         );
-        let failed = row(&rows, id);
+        let failed = common::row_of(&rows, id);
         assert!(
             matches!(failed.status, RowStatus::Failed { .. }),
             "{arm}: {failed:?}"
@@ -1600,4 +1621,83 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             "{arm}: the input it names refused nothing, so the row links nowhere"
         );
     }
+}
+
+/// **A mate's row says whether it placed its child or only declares**,
+/// carrying the solve's own role for that mate.
+///
+/// A second shelf seated on the bench's two posts exactly where the
+/// first one is — coincident with it, which is what keeps the loop
+/// consistent. The bench shelf is the group's root, the posts hang off
+/// it, and the second shelf hangs off one post, so its seat on the
+/// other post closes the loop and the solve reads that seat as a
+/// declaration. The row of every mate reads the role the solve
+/// recorded for it; both roles are on the rows.
+///
+/// The fixture is NOT at rest: the two shelves interfere, so it is no
+/// fixture for an at-rest row.
+#[test]
+fn a_mate_row_reads_whether_it_placed_its_child() {
+    use pncad::document::{Alignment, MateRole};
+    use viewer::tree::Readout;
+
+    let tol = Tol::witness();
+    let bench = common::asm::bench("auth16-role", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let middle = common::asm::middle_seat_alignment;
+    let quarter = || common::asm::seat_alignment(common::asm::SHELF_LENGTH / 4.0, None);
+    let seat = |session: &mut DocSession, post, shelf, alignment: Alignment| {
+        common::commit_mate(
+            session,
+            common::asm::seat_op_under(&bench, post, shelf, ContactClass::Rest, alignment),
+        )
+    };
+    let a_under_shelf = seat(&mut session, bench.post_a, bench.shelf_i, middle());
+    let b_under_shelf = seat(&mut session, bench.post_b, bench.shelf_i, quarter());
+    // The second shelf is the mate's FIRST operand, so the door clears
+    // the offset its insert authored and the bench shelf stays the root.
+    let upper = common::instance_in(&mut session, bench.shelf.id);
+    let upper_on_a = common::commit_mate(
+        &mut session,
+        common::asm::shelf_on_post_op(&bench, upper, bench.post_a, ContactClass::Rest, middle()),
+    );
+    let b_under_upper = seat(&mut session, bench.post_b, upper, quarter());
+
+    let doc = session.committed_doc().clone();
+    let poses = common::solve(&session, &doc, tol);
+    let rows = session.tree_rows();
+    let mut roles = Vec::new();
+    for mate in [a_under_shelf, b_under_shelf, upper_on_a, b_under_upper] {
+        let role: MateRole = poses
+            .role(mate)
+            .unwrap_or_else(|| panic!("the premise: the solve gave {mate:?} a role"));
+        let row = common::row_of(&rows, mate);
+        assert_eq!(
+            row.status,
+            RowStatus::Ok,
+            "{mate:?}: the loop is consistent"
+        );
+        assert_eq!(
+            row.readout,
+            Some(Readout::Role(role)),
+            "{mate:?}: the row reads the role the solve recorded"
+        );
+        roles.push(role);
+    }
+    let count = |want: MateRole| roles.iter().filter(|&&role| role == want).count();
+    assert_eq!(
+        (count(MateRole::Determining), count(MateRole::Declaring)),
+        (3, 1),
+        "the premise: three seats place a child and one closes the loop: {roles:?}"
+    );
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
+
+/// What a row downstream of a refused mate says, spelled from the
+/// mate's id alone: the mate as the document speaks it.
+fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {
+    format!(
+        "upstream failure at Mate {} — that row carries the cause",
+        test_utils::refusal::tag(mate.0)
+    )
 }

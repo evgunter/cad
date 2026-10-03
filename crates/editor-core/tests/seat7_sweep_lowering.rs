@@ -50,6 +50,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use editor_core::ExtrudeSide;
 
 use crate::corpus;
 use crate::fixture;
@@ -126,6 +127,7 @@ fn cylinder(doc: ProfileDoc, radius: Expr) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(2.0 * H),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -159,7 +161,7 @@ fn spin(
 struct BothSweeps {
     snapshot: ProfileDoc,
     doc: ProfileDoc,
-    edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     sweeps: [RecipeNodeId; 2],
 }
 
@@ -179,6 +181,7 @@ fn both_sweeps() -> BothSweeps {
     let extruded = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // The revolve's own profile: a square clear of the axis, drawn on
     // its own frame, spun about an axis written in that same frame.
@@ -276,14 +279,24 @@ fn both_sweeps_evaluate_in_one_document() {
 /// They are goldens in the ordinary sense — when one moves the question
 /// is whether the new behaviour is right, never how to restore the old
 /// number.
+///
+/// RE-BLESSED for the orthonormal basis's world-axis comparison: the
+/// digest feeds each surface's `Debug`, and every planar carrier's
+/// stored `u_ref` is now `normalize(e_z × n)` or `normalize(e_y × n)`
+/// by `|n.z| ≤ max(|n.x|, |n.y|)/2`. The plane's LOCUS did not move —
+/// origin and normal are bit-identical, which the STEP fixtures'
+/// record-level diff shows directly — and the id-free body rows
+/// (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`'s
+/// realized-vs-idealized bit equality) were green across the change
+/// untouched.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x3de1_781a_083b_96ef),
-        ("corner_table", 0x91f4_ec17_0926_27d1),
-        ("cut_cylinder", 0xfeb1_3678_fb55_ee2e),
-        ("boss_union", 0xf4a9_9741_63ed_705f),
-        ("kitchen_sink", 0xe25b_5291_3116_16b2),
+        ("die", 0xb23f_de75_dcfd_65e9),
+        ("corner_table", 0x246c_30e8_519e_c23f),
+        ("cut_cylinder", 0x1676_4144_da9e_6975),
+        ("boss_union", 0x9149_8127_2c43_ed66),
+        ("kitchen_sink", 0x0973_ecf8_520a_08a7),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -444,6 +457,7 @@ fn a_polygon_profile_attaches_nothing() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = eval::<f64>(&doc);
@@ -570,9 +584,10 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
         bad.join("\n")
     );
     // The fixture's own premise: FOUR segments, and one of them minted
-    // no wall. A full revolution splits each wall at its seam, so the
-    // three that did mint one are six faces; a fourth wall — a
-    // degenerate one from the on-axis edge — would be eight.
+    // no wall. A full revolution splits each CURVED wall at its seam and
+    // builds the plane disc whole, so the three that did mint one are
+    // five faces; a fourth wall — a degenerate one from the on-axis edge
+    // — would be more.
     let editor_core::ValuePayload::Profile(pv) =
         &ev.value(profile).expect("the profile evaluates").payload
     else {
@@ -586,8 +601,8 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
     let body = body_of(&ev, solid);
     assert_eq!(
         topo::query::all_faces(body).len(),
-        6,
-        "three of the four segments minted a wall, each split at the seam"
+        5,
+        "three of the four segments minted a wall, each curved one split at the seam"
     );
     let mut tori = 0;
     for face in topo::query::all_faces(body) {
@@ -682,6 +697,7 @@ fn extruded(
         Node::Extrude {
             profile,
             distance: len(2.0 * H),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, body)
@@ -1252,9 +1268,16 @@ fn raw_cylinder(r: f64, h: f64) -> Body<f64> {
     let sketch = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol())
         .unwrap();
-    sweep::extrude(&sketch, sweep::Extrusion::Distance(2.0 * h), tol())
-        .unwrap()
-        .body
+    sweep::extrude(
+        &sketch,
+        sweep::Extrusion::Distance {
+            depth: 2.0 * h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 /// A kernel-direct rigid spin, for the twin.
@@ -1310,7 +1333,7 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
             op: editor_core::BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = eval::<f64>(&doc);

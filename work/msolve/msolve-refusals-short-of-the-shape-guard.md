@@ -2,11 +2,12 @@
 id: msolve-refusals-short-of-the-shape-guard
 kind: issue
 title: msolve: refusals the viewer draws that state no recourse, by the shape guard's census
-status: open
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: M
 parent: MSOLVE-11
+closed: 2026-10-01
 ---
 
 (CHROME `refusal-residue`, from the shape guard's zero-recourse check.)
@@ -21,15 +22,19 @@ standard (`work/chrome/error-and-check-text-overflows-its-region.md`,
 part never to drop, and where there is no way through the sentence
 says so.
 
-These rows, raised through `MateFault` (`crates/editor-core/src/mate.rs`), in the feature tree and through `EditError::MateRefused` / `MaintenanceRefused` on the status line, render with none. Each is admitted
+These rows, raised through `MateFault` (`crates/editor-core/src/mate.rs`), in the feature tree and through `EditError::MateRefused` on the status line, render with none. Each is admitted
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
   11 feature-tree rows.
 - `crates/viewer/tests/refusal_concision_edits.rs`, `FILED_NO_RECOURSE`:
-  22 status-line rows.
+  12 status-line rows.
 
-Families: `Edit/MaintenanceRefused`, `Edit/MateRefused`, `Mate`.
+Families: `Edit/MateRefused`, `Mate`. (`Edit/MaintenanceRefused` and
+its eleven forwarded rows left the list with the arm, which EDIT's
+placement unit P2 deleted: no edit records a frame. The two
+`MateFault` arms P2 added, `OffsetDisagrees` and `OffsetUnchecked`,
+state their recourse from birth and are not admitted.)
 
 ## Repair shape
 
@@ -61,3 +66,41 @@ counts none. Admitted by exact row
 (`Carried/PlacerRefused/level-0`) in
 `refusal_concision_chains.rs` `every_carried_refusal_draws_within_the_budget_at_every_line`,
 with a must-fire check.
+
+## Closed — every mate refusal ends on its recourse (PR 3680)
+
+Each arm was rewritten at its source after reading its raise site:
+
+| Arm | Ending |
+|---|---|
+| `ClassNotAdmitted` | declare a Rest, or delete the mate |
+| `TableLacks` | carry the clocking on a coaxial mate |
+| `Indeterminate` | move the geometry, or lower the tolerance |
+| `Contradictory`, `Under` | `Recourse:` before their existing constants |
+| `DanglingHead` | rebind, or delete |
+| `PlacerRefused` | repair node N, labelled |
+| `PartSelectsAnotherCopy` | set the index, or rebind |
+| `SelfMate` | rebind, or delete |
+| `PosesOfAnotherDocument` | solve the document asked for |
+
+The reach refusals each end on their own recourse, or on
+`KERNEL_DEFECT_ENDING` where no door reaches the arm.
+`MaintenanceRefused` with no fault ends on the kernel-defect ending.
+
+Every `Mate/…` entry is gone from `refusal_concision_chains.rs`'s
+`FILED_NO_RECOURSE`. Every `Edit/MateRefused…` and
+`Edit/MaintenanceRefused…` entry is gone from
+`refusal_concision_edits.rs`'s. The carried `PlacerRefused` admission
+is gone too.
+
+The concision corpus gains a `Mate/FaceUnresolved` row.
+
+The predicate's name is out of the sentence. `Contradictory` says what
+the predicate found in words (`mate.rs`, `refuted`), and the name
+rides the payload.
+
+Rows:
+
+- `refusal_concision_chains::every_node_refusal_renders_within_the_budget`
+- `refusal_concision_chains::every_carried_refusal_draws_within_the_budget_at_every_line`
+- `viewer` `refusal_concision_edits::every_edit_refusal_renders_within_the_budget`

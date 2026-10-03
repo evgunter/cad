@@ -139,7 +139,7 @@ fn the_census_sees_a_brick_standing_in_the_lune() {
     let mut body = filleted_bored_d_rod();
     let brick =
         sweep::test_support::brick((-0.35, -0.25), (-0.05, 0.05), (ROD_L, ROD_L + 0.5), tol());
-    topo::graft_disjoint(&mut body, &brick, tol()).expect("two disjoint solids in one body");
+    topo::graft_disjoint(&mut body, &brick).expect("two disjoint solids in one body");
     let (cap, _) = cap_at(&body, ROD_L);
     let errors = topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol())
         .expect_err("a brick standing on the cap touches it");
@@ -388,7 +388,7 @@ fn the_census_reads_a_corner_on_an_ellipse_edge_without_a_minted_margin() {
     // (0, 1, 1.25) is on the ellipse; the brick reaches away from the
     // cylinder in x and y and below the cut in z.
     let brick = sweep::test_support::brick((0.0, 0.3), (1.0, 1.3), (0.95, 1.25), tol());
-    topo::graft_disjoint(&mut body, &brick, tol()).expect("two solids meeting at a point");
+    topo::graft_disjoint(&mut body, &brick).expect("two solids meeting at a point");
     let errors = topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol())
         .expect_err("a corner on the section's edge is a contact");
     for e in &errors {
@@ -406,14 +406,15 @@ fn the_census_reads_a_corner_on_an_ellipse_edge_without_a_minted_margin() {
 /// tilt` (14.1 at 1.5 rad, 19.7 at 1.52) and their ends at the MINOR
 /// vertices, where the edge's speed is `a`.
 fn steep_cut(tilt: f64) -> Body<f64> {
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     let h = 2.0 * tilt.tan() + 20.0;
     let tall =
         sweep::test_support::prism(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 1.0)], h, tol());
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, h / 2.0),
-        normal: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, h / 2.0),
+        Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = split(&tall, &plane, tol()).expect("the plane cuts the prism");
     let SplitPart::Body(above) = result.above else {
         panic!("the part above the cut is a body");
@@ -545,7 +546,7 @@ fn the_census_reads_a_corner_near_a_steep_ellipses_end() {
     let q = corner.expect("a corner on the x > 0 side");
     let brick =
         sweep::test_support::brick((q.x, q.x + 0.3), (q.y, q.y + 0.3), (q.z - 0.3, q.z), tol());
-    topo::graft_disjoint(&mut body, &brick, tol()).expect("two solids meeting at a point");
+    topo::graft_disjoint(&mut body, &brick).expect("two solids meeting at a point");
     let errors = topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol())
         .expect_err("a corner on the section's edge is a contact");
     assert!(
@@ -642,11 +643,11 @@ fn the_steep_face_sweeps_clean_from_the_band_out() {
     );
 }
 
-/// **An in-band clearance from an uncrossable edge's ball skips the ray,
-/// it does not escalate the walk.** Points just outside the ball a
-/// vessel cavity's spiric arc is held in, and 0.3 m or 1 m back from it
-/// along the face's plane, are outside the face: some rays graze the
-/// ball within the band and are abandoned, and the rest answer.
+/// **An in-band reading on a ray skips the ray, it does not escalate
+/// the walk.** Points just outside the ball a vessel cavity's spiric arc
+/// lies in, and 0.3 m or 1 m back from it along the face's plane, are
+/// outside the face: a ray whose crossing of a piece of the arc lands in
+/// the band is abandoned, and the rest answer.
 #[test]
 fn an_in_band_ball_clearance_skips_the_ray() {
     let (_, cavity) = crate::common::torus_walls::vessel_cavity(1.0 / 128.0);
@@ -674,7 +675,7 @@ fn an_in_band_ball_clearance_skips_the_ray() {
             };
             let (t0, t1) = c.params();
             let inner = rr - r;
-            let speed = r * inner / (inner * inner - offset * offset).sqrt();
+            let (speed, _) = geom::spiric_rate_bounds(r, offset, (inner, rr + r), 1.0);
             let center = c.carrier().eval(0.5 * (t0 + t1));
             let reach = speed * (t1 - t0).abs() * 0.5;
             let rv = Vec3::new(1.0, 0.0, 0.0);

@@ -230,6 +230,9 @@ impl MassBudget {
 /// to infer it from a doc comment they are not reading.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LeafHistogram {
+    /// The document this was taken of, the one document its human
+    /// form speaks from. Outside the goldening form and its content key.
+    pub document: crate::DocumentId,
     /// The measure the rows are about.
     pub measurement: crate::node::RecipeNodeId,
     /// One row per certified leaf, in the drive's own leaf order.
@@ -260,7 +263,7 @@ impl LeafHistogram {
         let _ = writeln!(
             s,
             "histogram measure={} rows={}",
-            self.measurement.0,
+            self.measurement.full(),
             self.rows.len()
         );
         let _ = writeln!(s, "basis {}", self.basis.word());
@@ -285,25 +288,32 @@ impl LeafHistogram {
 
     /// The human form. The advisory label is the first line, and the
     /// uncovered mass is the last: a reader meets both without looking
-    /// for them.
-    pub fn render(&self) -> String {
+    /// for them. The measure is spoken from `doc`, the document the
+    /// histogram was taken of.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the histogram was taken of.
+    pub fn render<P>(&self, doc: &crate::doc::Doc<P>) -> String {
         use core::fmt::Write as _;
+        crate::spoken::assert_taken_of("this leaf histogram", self.document, doc);
         let mut s = String::new();
         let _ = writeln!(
             s,
-            "ADVISORY leaf-mass histogram of node {} — leaf mass against the measure's \
+            "ADVISORY leaf-mass histogram of {} — leaf mass against the measure's \
              certified enclosure over that leaf. Not a density: a true output density is v2 \
              (E11.6), and nothing here claims one.",
-            self.measurement.0
+            doc.spoken(self.measurement)
         );
         let _ = writeln!(s, "{}", self.basis);
         for row in &self.rows {
+            let (lo, hi) = row.enclosure;
             let _ = writeln!(
                 s,
                 "  {:>8} of mass in [{}, {}]   {}",
                 percent(&row.mass),
-                row.enclosure.0,
-                row.enclosure.1,
+                lo,
+                hi,
                 row.leaf
             );
         }
@@ -405,6 +415,7 @@ pub fn leaf_histogram(
         (Err(e), _) | (_, Err(e)) => Err(e),
     };
     LeafHistogram {
+        document: doc.id(),
         measurement,
         rows,
         uncovered,

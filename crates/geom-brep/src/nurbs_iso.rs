@@ -660,8 +660,15 @@ mod tests {
                 text.contains(advice),
                 "{kind}: the margin kind keeps its own advice: {text}"
             );
+            // The door's one lever, labelled (the marker count above
+            // reads the label) and — on a band-decided arm whose margin
+            // gives one — followed by the tolerance below which a
+            // smaller one decides it. An unreadable margin puts the
+            // input check in front of the lever, so the lever is read by
+            // `contains` rather than by position. Never a declaration:
+            // this door takes none.
             assert!(
-                text.ends_with(NO_DECLARATION_RECOURSE) && !text.contains("declare"),
+                text.contains(NO_DECLARATION_RECOURSE) && !text.contains("declare"),
                 "{kind}: no declaration is offered where none is taken: {text}"
             );
         }

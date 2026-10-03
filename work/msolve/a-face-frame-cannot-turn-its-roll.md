@@ -68,3 +68,15 @@ Corrections to this row, which both designers found:
 - No edit rewrites a committed mate's datum
   (`DocEdit::writes_a_mates_datum` is true only for `InsertNode`).
 
+## Re-weighed (2026-10-03, round 3)
+
+Ev approved the turn on the primitives on 2026-10-01. On 2026-10-03
+Ev ruled PLACE's row 53: each mate side is a base composed with an
+offset `Placement`, which may be any rigid motion. That offset already
+turns a side about its axis. Given row 53, both designers now
+recommend dropping the turn: the sides' offsets carry the roll, and
+`Coaxial { roll: Free | Pinned }` says only whether the roll is
+pinned. They also lean towards retiring `PlanarRest`'s standoff the
+same way. The rider deletions stand. `ASSEMBLY.md` A3 states the
+revised question, and the PR asks again.
+

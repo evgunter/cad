@@ -39,7 +39,7 @@ fn parallelepiped(p: [f64; 3], a: [f64; 3], b: [f64; 3], c: [f64; 3]) -> Body<f6
 fn assembly(parts: &[Body<f64>]) -> Body<f64> {
     let mut out = parts[0].clone();
     for part in &parts[1..] {
-        topo::graft_disjoint(&mut out, part, Tol::witness()).unwrap();
+        topo::graft_disjoint_all(&mut out, part).unwrap();
     }
     out
 }
@@ -313,8 +313,8 @@ fn the_interference(errors: &[ValidationError]) -> (SolidKey, SolidKey) {
     }
 }
 
-/// **A two-lump solid with one lump inside the other instance.** A
-/// union of two disjoint cubes is ONE solid with two outer shells.
+/// **A two-lump body with one lump inside the other instance.** A
+/// union of two disjoint cubes is two solids, one per lump.
 /// Lump 1, `[0, 1]³`, lies strictly inside `B = [−1, 10] × [−1, 2]²`;
 /// lump 2 sits at `x ∈ [10, 11]`, face to face with B, or far off at
 /// `x ∈ [20, 21]`. The solid's whole hull sticks out of B's box either
@@ -329,7 +329,7 @@ fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
         let union =
             topo::boolean::union(&block(unit, unit, unit), &block(lump2, unit, unit), tol).unwrap();
         let a = union.body().unwrap().body.clone();
-        assert_eq!((a.solids().count(), a.shells().count()), (1, 2));
+        assert_eq!((a.solids().count(), a.shells().count()), (2, 2));
         let body = assembly(&[a, block((-1.0, 10.0), (-1.0, 2.0), (-1.0, 2.0))]);
         let lumps = body.solids().next().unwrap().0;
         let errors = errors_of(&body);
@@ -442,7 +442,7 @@ fn a_declared_seat_with_a_keel_is_probed() {
         let part: common::Prism<f64> = common::prism_z(&prof, 0.0, 3.0, Tol::witness());
         let mut body = base.body;
         let top = base.side_faces[2];
-        let keys = topo::graft_disjoint_all_keyed(&mut body, &part.body, Tol::witness()).unwrap();
+        let keys = topo::graft_disjoint_all_keyed(&mut body, &part.body).unwrap();
         let under = |i: usize| keys.face(part.side_faces[i]).unwrap();
         let records = ContactRecords {
             patches: vec![
@@ -476,31 +476,30 @@ fn a_declared_seat_with_a_keel_is_probed() {
 }
 
 /// **One solid's boundary crossing itself blocks its pairs.** Solid A
-/// is two slabs crossed in a plus, `[0, 3] × [1, 2] × [0, 1]` and
-/// `[1, 2] × [0, 3] × [0, 1]`, as two shells of ONE solid: their edges
-/// cross each other in the planes `z = 0` and `z = 1`. A block B rests
-/// on A's first slab end, face to face. Every finding between A and B
-/// is a rest, but A's own edge crosses say its boundary crosses itself,
-/// and no placement can be read against such a material.
+/// is a plate `[0, 3] × [0, 3] × [0, 1]` with a cavity
+/// `[2, 4] × [1, 2] × [0.25, 0.75]` filed under it that pokes out through
+/// its `x = 3` wall: one `Outer` and one `Void`, whose first witnesses
+/// wind as check 10 wants, and whose edges pierce that wall. A block B
+/// rests on A's `x = 0` wall, face to face. Every finding between A and B is a rest,
+/// but A's own edge crossings say its boundary crosses itself, and no
+/// placement can be read against such a material.
 #[test]
-fn a_solid_crossing_itself_blocks_its_pair() {
-    let mut body = block((0.0, 3.0), (1.0, 2.0), (0.0, 1.0));
-    let a = body.solids().next().unwrap().0;
-    topo::graft_disjoint_all_onto_keyed(
-        &mut body,
-        &[a],
-        &block((1.0, 2.0), (0.0, 3.0), (0.0, 1.0)),
-        Tol::witness(),
-    )
-    .unwrap();
-    topo::graft_disjoint(
-        &mut body,
-        &block((-1.0, 0.0), (1.0, 2.0), (0.0, 1.0)),
-        Tol::witness(),
-    )
-    .unwrap();
+fn a_solid_whose_cavity_crosses_its_wall_blocks_its_pair() {
+    let mut body = block((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
+    let cavity = block((2.0, 4.0), (1.0, 2.0), (0.25, 0.75))
+        .revert()
+        .unwrap();
+    topo::graft_disjoint(&mut body, &cavity).unwrap();
+    let mut body = body.with_solids_merged_for_tests();
+    topo::graft_disjoint(&mut body, &block((-1.0, 0.0), (1.0, 2.0), (0.0, 1.0))).unwrap();
     let errors = errors_of(&body);
-    assert!(crosses(&errors) > 0, "{errors:?}");
+    assert!(
+        !errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::ShellWinding { .. })),
+        "the premise: check 10 passes the crossing cavity: {errors:?}"
+    );
+    assert!(pierces(&errors) > 0, "{errors:?}");
     assert_eq!(refusals(&errors), [CROSSING], "{errors:?}");
 }
 
@@ -516,7 +515,7 @@ fn hollow(outer: [(f64, f64); 3], void: [(f64, f64); 3]) -> Body<f64> {
             .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
             .collect(),
     };
-    insert_void(&mut body, solid, hole, &evidence, Tol::witness()).unwrap();
+    insert_void(&mut body, solid, hole, &evidence).unwrap();
     body
 }
 
@@ -533,7 +532,7 @@ fn rest_patches(body: &Body<f64>) -> Vec<PatchContact> {
             let p = body
                 .get_point(body.get_vertex(he.start).unwrap().point)
                 .unwrap();
-            for (i, c) in [p.x, p.y, p.z].into_iter().enumerate() {
+            for (i, c) in p.to_array().into_iter().enumerate() {
                 b.0[i] = b.0[i].min(c);
                 b.1[i] = b.1[i].max(c);
             }
@@ -659,7 +658,7 @@ fn a_void_shell_does_not_open_the_gate() {
     );
 }
 
-/// **A two-lump solid seated declared.** One lump `[0, 2] × [0, 1] ×
+/// **A two-lump body seated declared.** One lump `[0, 2] × [0, 1] ×
 /// [0, 2]` rests on the U channel's floor, declared as a patch record.
 /// Its sibling floats far off, or floats between the channel's walls
 /// touching nothing — its hull inside the channel's reach, so the pair
@@ -667,7 +666,7 @@ fn a_void_shell_does_not_open_the_gate() {
 /// in the channel's floor at `[4, 6] × [−0.8, −0.2] × [4, 6]` it
 /// refuses: its corners are inside the channel.
 #[test]
-fn a_two_lump_solid_seated_declared() {
+fn a_two_lump_body_seated_declared() {
     let tol = Tol::witness();
     let seated = [(0.0, 2.0), (0.0, 1.0), (0.0, 2.0)];
     for (sibling, inside) in [
@@ -693,8 +692,8 @@ fn a_two_lump_solid_seated_declared() {
             let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
             assert_eq!(
                 the_interference(&errors),
-                (solids[0], solids[1]),
-                "{errors:?}"
+                (solids[0], solids[2]),
+                "the sunk sibling is a solid of its own: {errors:?}"
             );
         } else {
             assert_eq!(result, Ok(()), "{sibling:?}");

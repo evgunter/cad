@@ -14,6 +14,7 @@
 
 use geom_core::{Affine3, Point2, Tol};
 use profile::{Profile, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::Body;
@@ -51,9 +52,16 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     let prof = Profile::new(plane, vec![outline.into()])
         .validate(tol)
         .unwrap();
-    extrude(&prof, Extrusion::Distance(thick), tol)
-        .unwrap()
-        .body
+    extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: thick,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// **The boundary just past the pin.** The unit pins r in {3, 4, 5, 6};

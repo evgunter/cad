@@ -100,25 +100,40 @@ impl core::fmt::Display for KnotAlgebraError {
             KnotAlgebraError::Structure(e) => write!(f, "the knot edit refused: {e}"),
             KnotAlgebraError::ParameterOutsideDomain { u } => write!(
                 f,
-                "knot parameter {} is not strictly inside the domain",
+                "knot parameter {} is not strictly inside the domain. Recourse: ask for a \
+                 finite parameter strictly between the clamped ends, whose multiplicity is \
+                 already degree + 1",
                 Readable(*u)
             ),
             KnotAlgebraError::MultiplicityOverflow { u, have, budget } => write!(
                 f,
-                "inserting knot {} (multiplicity {have}) exceeds the interior budget {budget}",
+                "inserting knot {} (multiplicity {have}) exceeds the interior budget {budget}. \
+                 Recourse: ask for at most {left} more cop{plural} of it, or raise the degree",
+                Readable(*u),
+                left = budget.saturating_sub(*have),
+                plural = if budget.saturating_sub(*have) == 1 {
+                    "y"
+                } else {
+                    "ies"
+                },
+            ),
+            KnotAlgebraError::KnotNotPresent { u } => write!(
+                f,
+                "{} is not an interior knot. Recourse: ask for a value the knot vector \
+                 carries — a clamped vector's end values are not removable",
                 Readable(*u)
             ),
-            KnotAlgebraError::KnotNotPresent { u } => {
-                write!(f, "{} is not an interior knot", Readable(*u))
-            }
             KnotAlgebraError::RemovalExceedsMultiplicity { u, have, requested } => write!(
                 f,
-                "removing knot {} {requested} times exceeds its multiplicity {have}",
+                "removing knot {} {requested} times exceeds its multiplicity {have}. \
+                 Recourse: ask for at most {have} removals of it",
                 Readable(*u)
             ),
             KnotAlgebraError::WeightCollapse { index } => write!(
                 f,
-                "removing a knot collapsed weight {index} out of the positive regime"
+                "removing a knot collapsed weight {index} out of the positive regime. \
+                 Recourse: drop this removal — the curve the chain would leave is not a \
+                 valid rational one, so keep the knot"
             ),
         }
     }
@@ -250,15 +265,65 @@ impl CurvePlan {
     /// arithmetics".
     ///
     /// Homogeneous is what makes this a plain affine combination:
-    /// insertion on `(w·P, w)` is
-    /// `Q_j = C_{j−1} + (C_j − C_{j−1})·α_j` with the Boehm ratio
-    /// itself, where the PROJECTIVE applier above needs
+    /// insertion on `(w·P, w)` is `Q_j = C_{j−1}·β_j + C_j·α_j` with the
+    /// Boehm ratios themselves, where the PROJECTIVE applier above needs
     /// [`CurvePlan::weights`]' quotient `λ` to combine de-homogenized
     /// points. So no weight is read here, and the result is an
     /// enclosure of the refined homogeneous net of the DESCRIBED
-    /// curve: `α` is a ring quotient of knot enclosures, outward
-    /// rounded, and every coefficient the caller handed in is widened
-    /// by it rather than re-rounded to `f64`.
+    /// curve: `α` and `β` are ring quotients of knot enclosures,
+    /// outward rounded, and every coefficient the caller handed in is
+    /// widened by them rather than re-rounded to `f64`.
+    ///
+    /// # The convex form, and why `β` comes from the knots
+    ///
+    /// **This section is the ONE home of that argument in this crate.**
+    /// `compose`'s `insert_once_ring` combines the same way and cites
+    /// this method rather than restating it — a change whose subject is
+    /// duplicated width has no business shipping a duplicated argument.
+    ///
+    /// With `Δ = U_{j+p} − U_j`, positive by the insertion precondition
+    /// (`insert_once`'s band comment, so the quotients never refuse on a
+    /// valid plan):
+    ///
+    /// ```text
+    /// α = (u − U_j)/Δ        β = (U_{j+p} − u)/Δ
+    /// ```
+    ///
+    /// **`β` is derived from the knots, NOT as `1 − α`, and the two are
+    /// not required to sum to exactly one.** Each encloses its own true
+    /// ratio by outward rounding, which is the whole of what the
+    /// enclosure needs: with `λ` the exact real ratio, `α ∋ λ` and
+    /// `β ∋ 1 − λ`, and interval `*` and `+` are inclusion-monotone, so
+    /// the combination contains `(1 − λ)·x + λ·y` for every `x`, `y` in
+    /// the input enclosures. `1 − α` would inherit `α`'s rounding and
+    /// add its own, and route the argument through a subtraction rather
+    /// than through the knots.
+    ///
+    /// **The convex form reads each coefficient ONCE, and that is
+    /// WIDTH.** `x + (y − x)·α` reads `x` TWICE, so an interval `x`
+    /// enters the width with coefficient `1 + α` and a fold of
+    /// insertions multiplies its dust up step by step. Read once each,
+    /// the width grows only by the ratios' own rounding — measured at 16
+    /// ulps of the coefficient scale over 30 insertions against 355 for
+    /// the lerp form on this applier, and at 4.7 against 473.7 over 80
+    /// insertions on `insert_once_ring`'s fold
+    /// (`compose`'s `the_convex_form_does_not_inflate_the_fold`).
+    ///
+    /// **The step is met with the hull of its two sources**, so a
+    /// constant column stays its point; why that meet is sound is
+    /// `convex_step`'s docs (private, so a name and not a link).
+    ///
+    /// **Two width allowances, one claim.** This module's
+    /// `the_ring_applier_stays_in_step_with_the_point_applier`
+    /// allows `8.0·(plans.len() + 1)` ulps where `compose`'s row allows
+    /// `2 + 0.5·insertions` — a 16x difference in slope over the same
+    /// quantity. Neither is a derived bound; both are ceilings set so
+    /// that a form which multiplies its width per step cannot meet them
+    /// while the convex form can, and they were set against different
+    /// fixtures (equal-split plan chains here, full-multiplicity
+    /// decomposition there). The looser one is this module's, and it is
+    /// the one to tighten first if either is ever asked to catch a
+    /// small regression.
     ///
     /// **Total, and NaI is the refusal** (D4): a plan step with no
     /// insertion ratio — degree elevation, knot removal — refuses its
@@ -291,44 +356,7 @@ impl CurvePlan {
                     if target < n_new {
                         new[target] = match (fetch(&new, x), fetch(&new, y), ratio) {
                             (Some(cx), Some(cy), Some(r)) => {
-                                // BOTH barycentric coefficients, each from
-                                // its own knots: `β = (U_{j+p} − u)/Δ` and
-                                // `α = (u − U_j)/Δ` with `Δ = U_{j+p} − U_j`,
-                                // positive by the insertion precondition
-                                // (`insert_once`'s band comment), so the
-                                // quotients never refuse on a valid plan.
-                                //
-                                // **The convex form, not the lerp form, and
-                                // the difference is WIDTH.** `x + (y − x)·α`
-                                // reads `x` TWICE, so an interval `x` enters
-                                // the width with coefficient `1 + α` and a
-                                // fold of insertions multiplies its dust up
-                                // step by step. Read once each with
-                                // coefficients that sum to 1 in ℝ, the
-                                // width grows only by the ratios' own
-                                // rounding — measured at 16 ulps of the
-                                // coefficient scale over 30 insertions
-                                // against 355 for the lerp form.
-                                //
-                                // It does NOT make the step stay inside the
-                                // hull of its two sources. `α` and `β` are
-                                // rounded outward INDEPENDENTLY, so
-                                // `α_hi + β_hi > 1` and the combination
-                                // reaches a little past both: a constant
-                                // column, whose source hull is a point,
-                                // comes out as a bracket around it (the
-                                // excursion is pinned by
-                                // `the_convex_form_bulges_by_the_ratios_own_rounding`).
-                                // That is outward and therefore sound; what
-                                // it is not is variation-diminishing in the
-                                // exact sense the reals give.
-                                // Fixed association (D9): `β·x + α·y`.
-                                let (lo, hi) = (Interval::point(r.lo), Interval::point(r.hi));
-                                let u = Interval::point(r.inserted);
-                                let span = hi - lo;
-                                let alpha = (u - lo) / span;
-                                let beta = (hi - u) / span;
-                                Some(cx * beta + cy * alpha)
+                                Some(convex_step(cx, cy, r.lo, r.hi, r.inserted))
                             }
                             _ => None,
                         };
@@ -340,6 +368,44 @@ impl CurvePlan {
             .map(|slot| slot.unwrap_or_else(Interval::refused))
             .collect()
     }
+}
+
+/// One Boehm combination in the certification ring, shared by
+/// [`CurvePlan::apply_certified`] and `compose`'s `insert_once_ring`:
+/// `β·x + α·y` with `Δ = hi − lo`, `α = (u − lo)/Δ` and
+/// `β = (hi − u)/Δ`, BOTH ring quotients of the knots (fixed
+/// association, D9), met with the hull of `x` and `y`. Why the convex
+/// form and why `β` comes from the knots is
+/// [`CurvePlan::apply_certified`]'s docs.
+///
+/// **Precondition: `lo`, `u` and `hi` are exact `f64` knots with
+/// `lo < u < hi`.** Both callers insert `u` strictly inside the span
+/// `[U_j, U_{j+p}]` of the vector they plan against (`insert_once`'s
+/// band, `insert_once_ring`'s window), so `Δ > 0` and neither quotient
+/// refuses.
+///
+/// **Why the hull meet is sound.** `α` and `β` round outward
+/// INDEPENDENTLY, so `α_hi + β_hi > 1` and `β·x + α·y` alone reaches a
+/// little past both sources: a constant column, whose source hull is a
+/// point, would come out as a bracket around it. But the knots are
+/// exact, so the true ratio `λ = (u − lo)/(hi − lo)` is a real number
+/// in `[0, 1]` by the precondition, and `(1 − λ)·x + λ·y` lies between
+/// `x` and `y` for every `x ∈ X`, `y ∈ Y`. The hull of `X` and `Y` is
+/// therefore a second enclosure of the same value, by an argument that
+/// never reads `α` or `β`, and two sound enclosures of one value meet
+/// ([`Certification::meet`]). The result is variation-diminishing in
+/// the sense the reals give: a constant column stays its point, so an
+/// exactly-represented weight channel (a polynomial curve's `w ≡ 1`)
+/// stays exact through any fold. `the_convex_form_holds_a_constant_column_exactly`
+/// pins that; `compose`'s `the_ring_fold_encloses_the_exact_refined_net`
+/// pins containment against exact rationals (both `#[cfg(test)]`).
+pub(super) fn convex_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
+    let (lo, hi) = (Interval::point(lo), Interval::point(hi));
+    let u = Interval::point(u);
+    let span = hi - lo;
+    let alpha = (u - lo) / span;
+    let beta = (hi - u) / span;
+    (x * beta + y * alpha).meet(Interval::hull(x, y))
 }
 
 /// Validates weights against a knot vector: count, positivity,
@@ -425,14 +491,16 @@ pub fn insert_knot_plan(
 /// on the ground that it "folds `Interval` coefficients with an
 /// outward-rounding quotient and has no weights to form `λ` from" —
 /// which is a description of [`CurvePlan::apply_certified`], so the argument
-/// no longer separates them. What still does is the SHAPE of the
-/// schedule each needs: that one inserts to full interior multiplicity
-/// over a raw knot list, deliberately never rebuilding a [`KnotVector`]
-/// per step, where a plan chain rebuilds one per insertion; and it
-/// combines in the lerp form, which a unification would have to change
-/// (and which would move every composite bound). Filed on PROPS'
-/// `f64-refinement-inside-an-enclosure-has-five-more-sites`, with that
-/// width measurement; not done here.
+/// no longer separates them, and neither does the coefficient
+/// arithmetic any more: both combine in the convex form with `α` and
+/// `β` re-derived from their knots, and
+/// [`CurvePlan::apply_certified`]'s docs are the one home of that
+/// argument. What still separates them is the SHAPE of the schedule
+/// each needs: that one inserts to full interior multiplicity over a
+/// raw knot list, deliberately never rebuilding a [`KnotVector`] per
+/// step, where a plan chain rebuilds one per insertion. Filed on PROPS'
+/// `f64-refinement-inside-an-enclosure-has-five-more-sites`; not done
+/// here.
 fn insert_once(kv: &KnotVector, weights: &[f64], u: f64) -> CurvePlan {
     let p = kv.degree();
     let knots = kv.knots();
@@ -1244,7 +1312,7 @@ mod tests {
     }
 
     /// **The two arithmetics stay in step, and the interval one stays where
-    /// the described coefficients are.** The interval applier reads the SAME
+    /// the point one lands.** The interval applier reads the SAME
     /// [`Step`] list as the point applier, so "same targets, same
     /// sources" is structural rather than tested; what a row can break
     /// is the arithmetic that hangs off it, and these four claims are
@@ -1255,17 +1323,15 @@ mod tests {
     /// 2. **A carry is the coefficient itself**, bitwise: nothing is
     ///    combined, so nothing rounds, and an enclosure wider than a
     ///    point would mean interval arithmetic applier had touched a carry.
-    /// 3. **No slot leaves the described hull by more than the ratios'
-    ///    own rounding.** In ℝ a refined coefficient is a convex
-    ///    combination of the described ones, so it lies in their hull;
-    ///    in certification arithmetic the two ratios round outward independently and
-    ///    `α_hi + β_hi` exceeds 1, so a slot reaches a little past that
-    ///    hull. The excursion is bounded by the same width claim 4
-    ///    bounds, and it is that allowance — not a fresh tolerance —
-    ///    that this claim is stated against. Its SIZE is pinned
-    ///    separately by
-    ///    [`the_convex_form_bulges_by_the_ratios_own_rounding`]; a sign
-    ///    error in a ratio puts a slot far outside and reds here.
+    /// 3. **Each slot sits where the point applier lands.** Both
+    ///    appliers compute the same refined coefficient, the point one
+    ///    to a few ulps per insertion, so every `f64` answer lies within
+    ///    claim 4's allowance of its interval slot. A ratio of the wrong
+    ///    sign or a swapped association moves the slot by the
+    ///    coefficients' own scale (they alternate in sign), which this
+    ///    sees and a hull test does not: the step's meet with its
+    ///    sources' hull keeps every slot inside the described hull by
+    ///    construction.
     /// 4. **The fold does not inflate.** With point inputs, the widths
     ///    the whole chain accumulates come only from the ratios' own
     ///    rounding, so they stay at the scale of the coefficients times
@@ -1275,7 +1341,7 @@ mod tests {
     ///    **this is the claim the lerp form reds on** (355 ulps against
     ///    the 248 this allows, at `p=2`, 30 insertions), not claim 3.
     #[test]
-    fn the_ring_applier_stays_in_step_and_near_the_described_hull() {
+    fn the_ring_applier_stays_in_step_with_the_point_applier() {
         let cases: &[(usize, &[f64])] = &[
             (1, &[]),
             (2, &[1.0]),
@@ -1284,6 +1350,7 @@ mod tests {
             (4, &[1.0, 2.0, 2.0, 3.0]),
         ];
         let mut worst_width_ulps = 0.0f64;
+        let mut worst_gap_ulps = 0.0f64;
         for &(p, interior) in cases {
             let mut knots = vec![0.0; p + 1];
             knots.extend_from_slice(interior);
@@ -1298,11 +1365,6 @@ mod tests {
                 .map(|i| if i % 2 == 0 { i as f64 } else { -(i as f64) })
                 .collect();
             let input: Vec<Interval> = coeffs.iter().copied().map(Interval::point).collect();
-            let input_hull = input
-                .iter()
-                .copied()
-                .reduce(Interval::hull)
-                .expect("a clamped vector has control points");
             let scale = coeffs.iter().fold(0.0f64, |m, c| m.max(c.abs())).max(1.0);
             for splits in [2usize, 3, 8, 16] {
                 let plans = equal_split_plan(&kv, splits).unwrap();
@@ -1313,24 +1375,22 @@ mod tests {
                 }
                 let tag = format!("p={p} interior={interior:?} splits={splits}");
                 assert_eq!(ring_out.len(), f64_out.len(), "{tag}: extent");
-                // ONE allowance, shared by claims 3 and 4: the width a
-                // non-inflating fold may accumulate over `plans.len()`
-                // insertions (one plan per insertion), in ulps of the
-                // coefficient scale.
+                // Claims 3 and 4's allowance: the width a non-inflating fold
+                // may accumulate over `plans.len()` insertions (one plan
+                // per insertion), in ulps of the coefficient scale.
                 #[allow(clippy::cast_precision_loss)]
                 let ceiling_ulps = 8.0 * (plans.len() + 1) as f64;
-                let slack = ceiling_ulps * scale * f64::EPSILON;
                 for (i, r) in ring_out.iter().enumerate() {
                     assert!(r.is_certified(), "{tag}: slot {i} refused");
+                    let f = f64_out[i];
+                    let gap = (r.lo() - f).max(f - r.hi()).max(0.0) / (scale * f64::EPSILON);
+                    worst_gap_ulps = worst_gap_ulps.max(gap);
                     assert!(
-                        r.lo() >= input_hull.lo() - slack && r.hi() <= input_hull.hi() + slack,
-                        "{tag}: slot {i} = [{:.17e}, {:.17e}] is outside the described hull \
-                         [{:.17e}, {:.17e}] by more than the {ceiling_ulps:.0}-ulp width \
-                         {slack:.3e} the fold may accumulate",
+                        gap <= ceiling_ulps,
+                        "{tag}: slot {i} = [{:.17e}, {:.17e}] is {gap:.1} ulps of scale from \
+                         the point applier's {f:.17e}, above {ceiling_ulps:.0}",
                         r.lo(),
                         r.hi(),
-                        input_hull.lo(),
-                        input_hull.hi()
                     );
                     worst_width_ulps = worst_width_ulps.max(r.width() / (scale * f64::EPSILON));
                 }
@@ -1355,30 +1415,32 @@ mod tests {
                 );
             }
         }
-        println!("ring refinement: widest coefficient {worst_width_ulps:.2} ulps of scale");
+        println!(
+            "ring refinement: widest coefficient {worst_width_ulps:.2} ulps of scale, \
+             farthest point answer {worst_gap_ulps:.2}"
+        );
     }
 
-    /// **The bulge, measured.** A refined coefficient is a convex
-    /// combination of two described ones, so in ℝ it lies between them
-    /// — and with EQUAL adjacent coefficients it equals them. Interval arithmetic
-    /// applier cannot say that: `α` and `β` are outward-rounded
-    /// independently, so `α_hi + β_hi` exceeds 1 and `β·c + α·c`
-    /// comes out as a bracket straddling `c` rather than the point `c`.
+    /// **A constant column stays its point.** A refined coefficient is a
+    /// convex combination of two described ones, so in ℝ it lies between
+    /// them, and with EQUAL adjacent coefficients it equals them. `α` and
+    /// `β` round outward independently, so `β·c + α·c` alone is a
+    /// bracket straddling `c`; the step's meet with its sources' hull is
+    /// what brings it back to `c`, and a constant column is the one
+    /// input where any width at all is visible as an excursion.
     ///
-    /// A constant coefficient sequence is the sharpest possible witness,
-    /// because its hull is a single point and any width at all is an
-    /// excursion. This row pins how big that excursion gets rather than
-    /// asserting it away: the enclosure is still OUTWARD, so nothing is
-    /// unsound, and the size is what a consumer reading an exact sign
-    /// off a refined net has to know.
+    /// That exactness is load-bearing downstream: a polynomial curve's
+    /// weight channel is `w ≡ 1`, and the tensor composite's residual
+    /// `N_d·W_C − A_d·N_w` cancels against it. A `W` that came out of
+    /// the fold as a bracket loosened the plane × NURBS envelope by
+    /// 0.5% at a 1e-12 m residual.
     ///
     /// Both shapes are here for a reason. The degree-1, 15-insertion
-    /// column is the deep fold, where a per-step growth factor would
-    /// show; the degree-2, 2-insertion one is the shallow fold at three
-    /// coefficient magnitudes, including a negative, where a sign error
-    /// in either ratio would show instead.
+    /// column is the deep fold; the degree-2, 2-insertion one is the
+    /// shallow fold at three coefficient magnitudes, including a
+    /// negative, where a sign error in either ratio would show instead.
     #[test]
-    fn the_convex_form_bulges_by_the_ratios_own_rounding() {
+    fn the_convex_form_holds_a_constant_column_exactly() {
         // (degree, interior knots, splits, coefficient)
         let cases: &[(usize, &[f64], usize, f64)] = &[
             (1, &[], 16, 0.5),
@@ -1387,7 +1449,6 @@ mod tests {
             (2, &[], 3, -3.0),
             (3, &[0.5], 4, 7.25),
         ];
-        let mut worst_ulps = 0.0f64;
         for &(p, interior, splits, c) in cases {
             let mut knots = vec![0.0; p + 1];
             knots.extend_from_slice(interior);
@@ -1398,45 +1459,18 @@ mod tests {
             for plan in &plans {
                 out = plan.apply_certified(&out);
             }
-            let mut outside = 0usize;
-            let mut worst = 0.0f64;
-            for r in &out {
-                assert!(r.is_certified(), "p={p} c={c}: refused slot");
-                let excursion = (r.hi() - c).max(c - r.lo());
-                if excursion > 0.0 {
-                    outside += 1;
-                    worst = worst.max(excursion);
-                }
+            for (i, r) in out.iter().enumerate() {
+                assert!(r.is_certified(), "p={p} c={c}: refused slot {i}");
+                assert!(
+                    r.lo() == c && r.hi() == c,
+                    "p={p} c={c}, {} insertions: slot {i} is [{:e}, {:e}], not the point \
+                     {c} — the step reached past the hull of its two sources",
+                    plans.len(),
+                    r.lo(),
+                    r.hi()
+                );
             }
-            let ulps = worst / (c.abs() * f64::EPSILON);
-            worst_ulps = worst_ulps.max(ulps);
-            println!(
-                "constant {c} at p={p}, {} insertions: {outside} of {} slots outside the \
-                 degenerate hull, worst excursion {worst:.3e} ({ulps:.2} ulps of the \
-                 coefficient)",
-                plans.len(),
-                out.len()
-            );
-            // The finding, asserted in the direction it is true in. An
-            // implementation that DID hold the point exactly would be
-            // reporting a tighter enclosure than its own rounding
-            // licenses, which is the interesting failure here.
-            assert!(
-                outside > 0,
-                "p={p} c={c}: every slot held the constant exactly, so either the \
-                 ratios stopped rounding outward or something clamped the result"
-            );
         }
-        // The excursion is the ratios' rounding, so it is ulps of the
-        // coefficient and single digits of them — not a figure that grows
-        // with the fold's depth the way a per-step inflation would.
-        assert!(
-            worst_ulps < 64.0,
-            "the bulge is {worst_ulps:.1} ulps of the coefficient, far above the \
-             ratios' own rounding: the excursion is no longer explained by α and β \
-             rounding outward once each"
-        );
-        println!("worst bulge over every case: {worst_ulps:.2} ulps of the coefficient");
     }
 
     #[test]
@@ -1476,10 +1510,13 @@ mod tests {
         );
         // The refusal names the parameter as a number a reader can
         // see: at the ceiling of the range that is `1e308`, not the
-        // 309-digit positional expansion.
+        // 309-digit positional expansion. The repair rides with it
+        // (`every_knot_algebra_error_arm_names_a_recourse`).
         assert_eq!(
             insert_knot_plan(&kv, &w, 1e308, 1).unwrap_err().to_string(),
-            "knot parameter 1e308 is not strictly inside the domain"
+            "knot parameter 1e308 is not strictly inside the domain. Recourse: ask for a \
+             finite parameter strictly between the clamped ends, whose multiplicity is \
+             already degree + 1"
         );
         assert_eq!(
             insert_knot_plan(&kv, &w, 1.0, 2).unwrap_err(),
@@ -1598,5 +1635,57 @@ mod tests {
             bits(p2.last().unwrap().weights())
         );
         assert_eq!(p1.last().unwrap().knots(), p2.last().unwrap().knots());
+    }
+
+    /// **`KnotAlgebraError`'s recourse claim, made enforceable**: every
+    /// arm names the lever the caller turns, exactly once and labelled.
+    ///
+    /// `Structure` is asserted TRANSITIVELY, because `SplineError` has
+    /// an enforcement row of its own
+    /// (`every_spline_error_arm_names_a_recourse`, in `super::knots`);
+    /// this arm renders that carrier whole and adds four words of its
+    /// own, so the labelled repair the reader sees is the carrier's.
+    ///
+    /// The algebra is reached from the public fit door through
+    /// `geom::FitError::KnotAlgebra`, which renders this carrier whole,
+    /// and this row is what lets
+    /// `every_fit_error_arm_names_a_recourse` read that delegation
+    /// transitively.
+    #[test]
+    fn every_knot_algebra_error_arm_names_a_recourse() {
+        const RECOURSE_WORDS: &[&str] = &["supply", "ask", "drop", "raise", "keep"];
+        let arms = [
+            KnotAlgebraError::Structure(SplineError::ControlCountMismatch {
+                control: 3,
+                expected: 4,
+            }),
+            KnotAlgebraError::ParameterOutsideDomain { u: 1.5 },
+            KnotAlgebraError::MultiplicityOverflow {
+                u: 0.5,
+                have: 3,
+                budget: 3,
+            },
+            KnotAlgebraError::KnotNotPresent { u: 0.25 },
+            KnotAlgebraError::RemovalExceedsMultiplicity {
+                u: 0.5,
+                have: 1,
+                requested: 2,
+            },
+            KnotAlgebraError::WeightCollapse { index: 2 },
+        ];
+        assert_eq!(arms.len(), 6, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&msg),
+                1,
+                "not exactly one labelled repair: {msg}"
+            );
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
+                "no recourse in: {msg}"
+            );
+        }
     }
 }

@@ -13,12 +13,17 @@
 //! # Which scenes are here, and which are not
 //!
 //! The document-authored scenes are the ones that build a `Doc` and
-//! evaluate it: **checks, ring, diefillet, heatsink, teapot**, plus
-//! **assembly**, whose documents are a workspace of several files and
-//! are written by that scene's own store. The rest of the tour drives
-//! the kernel API directly and has no document to save; they join the
-//! gallery as they are re-authored, which is per-scene library work
-//! and independent of the GUI.
+//! evaluate it: **bracket, checks, ring, diefillet, heatsink, teapot,
+//! impeller, plate, chain**, plus **assembly**, whose documents are a
+//! workspace of several files and are written by that scene's own
+//! store. `plate` is the document the tolerance and plate-density
+//! cells share, and `chain` the one the chain-density and certified
+//! chain cells share, at its four links. Saving is not denoting: the
+//! denotation table below says which of these have no product, or a
+//! product other than the part their scene is about, and why. The
+//! rest of the tour drives the kernel API directly and has no document
+//! to save; they join the gallery as they are re-authored, which is
+//! per-scene library work and independent of the GUI.
 //!
 //! Everything here goes through the public doors: author, then
 //! `pncad::document::save`, whose own validation is what decides
@@ -39,11 +44,15 @@ pub fn run(dir: Option<String>, tol: Tol) {
     println!("demo-document gallery → {}", dir.display());
     let mut written = 0usize;
     for (name, doc) in [
+        ("bracket", crate::bracket::gallery_document(tol)),
         ("checks", crate::checks::gallery_document(tol)),
         ("ring", crate::ring::gallery_document(tol)),
         ("diefillet", crate::diefillet::gallery_document(tol)),
         ("heatsink", crate::heatsink::gallery_document(tol)),
         ("teapot", crate::teapot::gallery_document(tol)),
+        ("impeller", crate::impeller::gallery_document(tol)),
+        ("plate", crate::plate::gallery_document(tol)),
+        ("chain", crate::chain::gallery_document(tol)),
     ] {
         write_one(&dir, name, &doc, tol);
         written += 1;
@@ -112,14 +121,13 @@ fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
 /// someone opens the file and wonders what they are looking at.
 ///
 /// A count, never a verdict: the registry reports, it does not gate
-/// (`editor_core::checks`), and the one scene that legitimately
-/// reports today — the heatsink, whose fins are unioned into its base
-/// in this demo's own `solidify()` and never in the recipe — is a
-/// scene-authoring gap, not a reason to refuse to write its file.
+/// (`editor_core::checks`), and the scenes that report today —
+/// `checks`, whose finding is its subject, and the teapot, four solids
+/// the operand gate cannot join — are no reason to refuse their files.
 fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
     let evaluation = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
     match run_checks(doc, &evaluation, &ChecksConfig::default(), tol) {
-        Err(error) => format!(" — the check registry refused: {error}"),
+        Err(error) => format!(" — the check registry refused: {}", error.spoken(doc)),
         Ok(report) if report.findings.is_empty() => String::new(),
         Ok(report) => {
             let separation = report
@@ -139,6 +147,7 @@ fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use pncad::document::{ChecksError, ProductErrorKind};
     use pncad::topo::mass_properties;
 
     /// What one gallery scene is expected to PRODUCE.
@@ -147,9 +156,31 @@ mod tests {
         doc: ProfileDoc,
         /// Product roots. One, unless the scene has a reason.
         roots: usize,
-        /// Separation findings, and why any of them are there.
-        separation: usize,
+        /// What the advisory registry answers, and why.
+        report: Report,
+        /// The product's shape, where a row's `why` makes a claim
+        /// about it: pinned so the claim goes red when the document
+        /// changes under it.
+        product: Option<Product>,
         why: &'static str,
+    }
+
+    /// The gathered product's solid and face counts.
+    struct Product {
+        solids: usize,
+        faces: usize,
+    }
+
+    /// The registry's answer over one gallery document.
+    enum Report {
+        /// It ran, with this many separation findings.
+        Separation(usize),
+        /// The product gather refused, so no resident that reads the
+        /// product ran. The viewer still draws each root's own body
+        /// (its pick index tessellates per root, not the gather), under
+        /// the product-fault badge; what is missing is the product that
+        /// checks, mass properties and export read.
+        ProductRefused(ProductErrorKind),
     }
 
     /// **A gallery document must denote what its scene means, or say
@@ -179,10 +210,20 @@ mod tests {
         let tol = Tol::witness();
         let shapes = [
             Shape {
+                name: "bracket",
+                doc: crate::bracket::gallery_document(tol),
+                roots: 1,
+                report: Report::Separation(0),
+                product: None,
+                why: "one extrude, one root: the split and the chamfer live in the scene's wall \
+                      probe, not in the document",
+            },
+            Shape {
                 name: "checks",
                 doc: crate::checks::gallery_document(tol),
                 roots: 1,
-                separation: 0,
+                report: Report::Separation(0),
+                product: None,
                 why: "one root; its connectedness finding is the scene's own subject \
                       and is not a separation one",
             },
@@ -190,14 +231,16 @@ mod tests {
                 name: "ring",
                 doc: crate::ring::gallery_document(tol),
                 roots: 1,
-                separation: 0,
+                report: Report::Separation(0),
+                product: None,
                 why: "one revolve, one root",
             },
             Shape {
                 name: "diefillet",
                 doc: crate::diefillet::gallery_document(tol),
                 roots: 1,
-                separation: 0,
+                report: Report::Separation(0),
+                product: None,
                 why: "the composed die alone — the blank is a narration body and \
                       `gallery_document` deletes it, which is what this row guards",
             },
@@ -205,16 +248,19 @@ mod tests {
                 name: "heatsink",
                 doc: crate::heatsink::gallery_document(tol),
                 roots: 1,
-                separation: 0,
-                why: "one root, and nothing in the document interpenetrates: the fin \
-                      group is a PlacedUnion and a Boolean folds it into the base, so \
-                      the whole part is in the recipe (#1344)",
+                report: Report::Separation(0),
+                product: None,
+                why: "one root, and nothing in the document interpenetrates: the base \
+                      is rounded by a Fillet, the fin group is a PlacedUnion, and a \
+                      Boolean folds the group into the rounded base, so the whole part \
+                      is in the recipe",
             },
             Shape {
                 name: "teapot",
                 doc: crate::teapot::gallery_document(tol),
                 roots: 4,
-                separation: 4,
+                report: Report::Separation(4),
+                product: None,
                 why: concat!(
                     "FOUR roots, because the teapot is four solids and the operand ",
                     "gate has no arm for either join. FOUR findings over the six ",
@@ -227,6 +273,58 @@ mod tests {
                     "nothing about — spout/handle and lid/handle — are the ones the ",
                     "box rule PROVED apart. No mate is authored, so nothing declares ",
                     "the gap the render shows",
+                ),
+            },
+            Shape {
+                name: "impeller",
+                doc: crate::impeller::gallery_document(tol),
+                roots: 1,
+                report: Report::Separation(0),
+                // The 24-gon hub's 26 faces, and each blade's three
+                // outer walls plus its top and bottom.
+                product: Some(Product {
+                    solids: 1,
+                    faces: 26 + 6 * 5,
+                }),
+                why: "the union of the hub and the blade group, at the scene's first count; \
+                      the group is a PlacedUnion, so its six blades are one body",
+            },
+            Shape {
+                name: "plate",
+                doc: crate::plate::gallery_document(tol),
+                roots: 2,
+                report: Report::Separation(0),
+                product: Some(Product {
+                    solids: 1,
+                    faces: 6,
+                }),
+                why: concat!(
+                    "TWO roots, the blank's extrude and the web assertion, and the ",
+                    "product is the BLANK: a six-face slab with no holes. The two ",
+                    "hole extrudes exist only as the web measure's references, and ",
+                    "nothing subtracts them, so the document denotes the study's ",
+                    "numbers and not the two-hole plate it is about. The cut is two ",
+                    "walls: the certified drive certifies no box of the cut plate ",
+                    "(work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-",
+                    "volume-bound.md), and the cut plate has no product at all ",
+                    "(the_cut_plate_has_no_product; ",
+                    "work/recipe/a-measured-part-is-not-a-product-root.md)",
+                ),
+            },
+            Shape {
+                name: "chain",
+                doc: crate::chain::gallery_document(tol),
+                roots: 9,
+                report: Report::ProductRefused(ProductErrorKind::PlacedUnderTwoRoots),
+                product: None,
+                why: concat!(
+                    "NINE roots — four placed bars, five placed pins — and no ",
+                    "product: one bar extrude, placed by each link's joint stack, ",
+                    "is one body under four transform roots, which the gather ",
+                    "refuses because a transform mints no name; its recourse, a ",
+                    "union, would weld a mechanism's links together. The viewer ",
+                    "still draws the nine bodies, under the product-fault badge ",
+                    "(work/wire/one-shape-placed-n-times-has-no-product.md)",
                 ),
             },
         ];
@@ -246,19 +344,93 @@ mod tests {
                 shape.name,
                 shape.why
             );
-            let report = run_checks(&shape.doc, &evaluation, &ChecksConfig::default(), tol)
-                .unwrap_or_else(|error| panic!("{}: the registry refused: {error}", shape.name));
-            let separation = report
-                .findings
-                .iter()
-                .filter(|finding| finding.check == CheckId::Separation)
-                .count();
-            assert_eq!(
-                separation, shape.separation,
-                "{}: separation findings ({}) — {report}",
-                shape.name, shape.why
-            );
+            if let Some(want) = &shape.product {
+                let product = pncad::document::product(&shape.doc, &evaluation, tol)
+                    .unwrap_or_else(|error| {
+                        panic!("{}: the product gathers: {error:?}", shape.name)
+                    });
+                assert_eq!(
+                    (product.solids().count(), product.faces().count()),
+                    (want.solids, want.faces),
+                    "{}: the product's (solids, faces) ({})",
+                    shape.name,
+                    shape.why
+                );
+            }
+            let report = run_checks(&shape.doc, &evaluation, &ChecksConfig::default(), tol);
+            match (&shape.report, report) {
+                (Report::Separation(want), Ok(report)) => {
+                    let separation = report
+                        .findings
+                        .iter()
+                        .filter(|finding| finding.check == CheckId::Separation)
+                        .count();
+                    assert_eq!(
+                        separation,
+                        *want,
+                        "{}: separation findings ({}) — {}",
+                        shape.name,
+                        shape.why,
+                        report.spoken(&shape.doc)
+                    );
+                }
+                (
+                    Report::ProductRefused(want),
+                    Err(ChecksError::Product {
+                        refusal: Some(refusal),
+                    }),
+                ) => assert_eq!(
+                    refusal.kind(),
+                    *want,
+                    "{}: the gather's refusal ({})",
+                    shape.name,
+                    shape.why
+                ),
+                (_, Ok(report)) => panic!(
+                    "{}: the registry ran, but this row expects the gather to refuse ({}) — {}",
+                    shape.name,
+                    shape.why,
+                    report.spoken(&shape.doc)
+                ),
+                (_, Err(error)) => panic!(
+                    "{}: the registry refused: {}",
+                    shape.name,
+                    error.spoken(&shape.doc)
+                ),
+            }
         }
+    }
+
+    /// **The wall: the plate with its holes cut has no product.** The
+    /// web measure reads the cut part's bore walls, a measure's
+    /// references are DAG edges, so the part is not a sink and the
+    /// one root is the assertion, which denotes no body.
+    #[test]
+    fn the_cut_plate_has_no_product() {
+        use crate::plate::{RADIUS_SIGMA, SPACING_HALF_WIDTH, WEB_BOUND, cut_plate};
+        let tol = Tol::witness();
+        let cut = cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
+        assert_eq!(
+            cut.doc.roots(),
+            [cut.assertion],
+            "the cut plate's one root is the web assertion"
+        );
+        let evaluation = evaluate::<f64>(
+            &cut.doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
+        crate::walls::wall(
+            "two-hole plate",
+            2,
+            "the gallery draws the plate with its holes cut",
+            pncad::document::product(&cut.doc, &evaluation, tol),
+            |e| e.kind() == ProductErrorKind::NoBodyRoots,
+            "write the cut plate to the gallery \
+             (work/recipe/a-measured-part-is-not-a-product-root.md)",
+        );
     }
 
     /// The die, by the numbers its own scene already knows.

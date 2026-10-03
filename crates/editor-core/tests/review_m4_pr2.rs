@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::fmt::Write as _;
 
@@ -70,8 +71,7 @@ fn boolean_body(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
 }
 
 /// Two overlapping bricks A ([0,2]³-ish) and B, then one Subtract with
-/// the operands in the given order. Node ids are minted monotonically,
-/// so both docs address the Subtract by the SAME id.
+/// the operands in the given order.
 fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
     let (doc, pa) = on_frame(
@@ -86,6 +86,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: pa,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, pb) = on_frame(
@@ -100,43 +101,46 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: pb,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
-    // M4 PR 5: the flush start caps are declared (sides resolve
-    // per-operand, so ONE Declare serves both operand orders).
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(a, fixture::fname(a, RoleSeg::Cap(CapEnd::Start))),
-            SitedRef::new(b, fixture::fname(b, RoleSeg::Cap(CapEnd::Start))),
-        )]),
-    );
+    // The flush start caps are declared; sides resolve per operand,
+    // so one pair serves both operand orders.
+    let decl = editor_core::declare_continuation(vec![(
+        SitedRef::new(a, fixture::fname(a, RoleSeg::Cap(CapEnd::Start))),
+        SitedRef::new(b, fixture::fname(b, RoleSeg::Cap(CapEnd::Start))),
+    )]);
     let (doc, s) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: x,
             b: y,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     (doc, s)
 }
 
-/// R2: Subtract(A,B)'s memo entry offered as prior to a doc holding
-/// Subtract(B,A) at the SAME node id with the SAME upstream keys in
-/// swapped order — a key collision here silently reuses A−B for B−A.
+/// R2: Subtract(A,B) and Subtract(B,A) over the SAME upstream keys in
+/// swapped order must key apart — a collision would let the memo serve
+/// A−B for B−A wherever the two met under one id. The two subtracts are
+/// two nodes with two ids, so the memo's id lookup alone keeps them
+/// apart here; the keys are compared directly (a content key never
+/// holds the node's own id).
 #[test]
 fn operand_swap_never_reuses_the_prior_subtract() {
     let (d1, s1) = subtract_doc(false);
     let (d2, s2) = subtract_doc(true);
-    assert_eq!(s1, s2, "attack precondition: aligned node ids");
     let e1 = run(&d1, None, false);
     let e2_scratch = run(&d2, None, false);
     let e2 = run(&d2, Some(&e1), false);
-    // The swapped subtract must have been RECOMPUTED (its key differs)
-    // and must bit-match its own scratch result, not the prior's.
+    assert_ne!(
+        e1.value(s1).expect("A-B evaluates").content_key,
+        e2_scratch.value(s2).expect("B-A evaluates").content_key,
+        "Subtract(A,B) and Subtract(B,A) must key apart"
+    );
     assert_eq!(
         fingerprint(boolean_body(&e2, s2)),
         fingerprint(boolean_body(&e2_scratch, s2)),
@@ -147,9 +151,6 @@ fn operand_swap_never_reuses_the_prior_subtract() {
         fingerprint(boolean_body(&e1, s1)),
         "A-B and B-A genuinely differ (attack is live)"
     );
-    // Upstream nodes (identical in both docs) MAY reuse; the subtract
-    // may not.
-    assert!(e2.recomputed >= 1, "the swapped subtract must recompute");
 }
 
 /// R3: delete a node and insert an identical replacement — the fresh
@@ -170,6 +171,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let e0 = run(&doc, None, false);
@@ -183,6 +185,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     assert_ne!(e_old, e_new, "ids are never reused");
@@ -220,6 +223,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         Node::Extrude {
             profile: p,
             distance: bad(),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, fb) = insert(
@@ -227,6 +231,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         Node::Extrude {
             profile: p,
             distance: bad(),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, join) = insert(
@@ -235,7 +240,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
             op: BooleanOp::Union,
             a: fa,
             b: fb,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // One more hop: a transform downstream of the poisoned join.
@@ -364,6 +369,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     // Diamond: two transforms of base, unioned. Decoupled offsets
@@ -389,7 +395,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
             op: BooleanOp::Union,
             a: t1,
             b: t2,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Circular pattern of base about a datum axis (data only).
@@ -455,6 +461,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         Node::Extrude {
             profile: p,
             distance: Expr::div(len(1.0), scl(0.0)).unwrap(),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, poisoned) = insert(
@@ -463,7 +470,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
             op: BooleanOp::Subtract,
             a: u,
             b: bad,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (
@@ -694,6 +701,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             Node::Extrude {
                 profile: cp,
                 distance: len(2.0),
+                side: ExtrudeSide::Along,
             },
         );
         let (doc, pp) = on_frame(
@@ -707,7 +715,8 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             doc,
             Node::Extrude {
                 profile: pp,
-                distance: len(-0.125),
+                distance: len(0.125),
+                side: ExtrudeSide::Against,
             },
         );
         let (doc, tr) = insert(
@@ -737,23 +746,20 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
                 )
             },
         );
-        // M4 PR 5: the pip's outer cap lies ON the cube's top —
+        // The pip's outer cap lies ON the cube's top —
         // declared (the rotational variant maps the SAME names). The
         // B side is read at the TRANSFORM, the subtract's operand.
-        let (doc, decl) = insert(
-            doc,
-            Node::declare_rest(vec![(
-                SitedRef::new(cube, fixture::fname(cube, RoleSeg::Cap(CapEnd::End))),
-                SitedRef::new(tr, fixture::fname(pip, RoleSeg::Cap(CapEnd::Start))),
-            )]),
-        );
+        let decl = editor_core::declare_continuation(vec![(
+            SitedRef::new(cube, fixture::fname(cube, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(tr, fixture::fname(pip, RoleSeg::Cap(CapEnd::Start))),
+        )]);
         let (doc, sub) = insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
                 a: cube,
                 b: tr,
-                declare: Some(decl),
+                declare: decl,
             },
         );
         (doc, sub)
@@ -796,7 +802,7 @@ fn wire_doors_refuse_typed() {
             op: BooleanOp::Union,
             a: u,
             b: pat,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&d, None, false);
@@ -878,32 +884,12 @@ fn wire_doors_refuse_typed() {
         }
         other => panic!("expected Failed, got {other:?}"),
     }
-    // Boolean whose declare input is not a Declare node: refused at
-    // the edit door, so the document never carries the mis-wire.
-    let refused = doc.apply(
-        &editor_core::DocEdit::InsertNode {
-            node: Node::Boolean {
-                op: BooleanOp::Union,
-                a: u,
-                b: base,
-                declare: Some(ax),
-            },
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    assert!(
-        matches!(
-            refused,
-            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input == ax
-        ),
-        "expected the declare edge's kind refusal, got {refused:?}"
-    );
 }
 
 /// R2: same evaluated floats under DIFFERENT op tags must not collide
-/// — a Plane and an Axis datum with identical slot values at the same
-/// node id (parallel docs), prior offered across: no reuse.
+/// — a Plane and an Axis datum with identical slot values must key
+/// apart. The two datums are two nodes with two ids, so the memo's id
+/// lookup alone keeps them apart; the keys are compared directly.
 #[test]
 fn datum_kind_is_key_separated() {
     let build = |axis: bool| {
@@ -923,7 +909,6 @@ fn datum_kind_is_key_separated() {
     };
     let (d1, n1) = build(false);
     let (d2, n2) = build(true);
-    assert_eq!(n1, n2);
     let e1 = run(&d1, None, false);
     let e2 = run(&d2, Some(&e1), false);
     assert_ne!(
@@ -935,7 +920,6 @@ fn datum_kind_is_key_separated() {
         &e2.value(n2).unwrap().payload,
         ValuePayload::Datum(editor_core::DatumValue::Axis { .. })
     ));
-    assert_eq!(e2.reused, 0, "nothing may be reused across the kind flip");
 }
 
 /// R7: the Interval lane's memo — keys built from `repr_bits` must
@@ -1039,5 +1023,5 @@ fn edit_back_restores_bit_identical_bodies() {
     // Reverted transform + final subtract recompute; the rest reuses —
     // the die's seven sketch frames among them, since a slot edit on a
     // transform does not touch a plane.
-    assert_eq!((e2.recomputed, e2.reused), (2, 82));
+    assert_eq!((e2.recomputed, e2.reused), (2, 61));
 }

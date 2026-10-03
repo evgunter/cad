@@ -47,7 +47,7 @@ fn door_inserts_a_certified_cavity() {
     let (solid, _) = dst.solids().next().unwrap();
     let src_shell = cavity.shells().next().unwrap().0;
     let evidence = probed_in(&cavity);
-    let inserted = insert_void(&mut dst, solid, cavity, &evidence, Tol::witness()).unwrap();
+    let inserted = insert_void(&mut dst, solid, cavity, &evidence).unwrap();
 
     assert_eq!(validate(&dst), Ok(()));
     assert_eq!(validate_closed(&dst), Ok(()));
@@ -80,7 +80,7 @@ fn door_accepts_carried_strict_evidence() {
             })
             .collect(),
     };
-    insert_void(&mut dst, solid, cavity, &evidence, Tol::witness()).unwrap();
+    insert_void(&mut dst, solid, cavity, &evidence).unwrap();
     assert_eq!(dst.shells().count(), 2);
     assert_eq!(validate_closed(&dst), Ok(()));
 }
@@ -94,7 +94,7 @@ fn door_agrees_with_the_subtract_fallback() {
     let (a, b) = outer_and_cavity();
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = probed_in(&cavity);
-    insert_void(&mut dst, solid, cavity, &evidence, Tol::witness()).unwrap();
+    insert_void(&mut dst, solid, cavity, &evidence).unwrap();
 
     let r = subtract(&a, &b, Tol::witness()).unwrap();
     let BooleanResult::Body(bb) = r else {
@@ -113,13 +113,11 @@ fn door_agrees_with_the_subtract_fallback() {
 /// and a refused call mutates nothing.
 #[test]
 fn dishonest_evidence_refuses_typed_before_mutation() {
-    let tol = Tol::witness();
-
     // Absent: no certificate for the cavity's shell.
     let (mut dst, cavity) = outer_and_cavity();
     let (solid, _) = dst.solids().next().unwrap();
     let pristine = format!("{dst:?}");
-    let e = insert_void(&mut dst, solid, cavity, &VoidEvidence::default(), tol).unwrap_err();
+    let e = insert_void(&mut dst, solid, cavity, &VoidEvidence::default()).unwrap_err();
     assert!(
         matches!(e, VoidInsertError::MissingEvidence { .. }),
         "{e:?}"
@@ -141,7 +139,7 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
                 .collect(),
         };
         let pristine = format!("{dst:?}");
-        let e = insert_void(&mut dst, solid, cavity, &evidence, tol).unwrap_err();
+        let e = insert_void(&mut dst, solid, cavity, &evidence).unwrap_err();
         assert!(
             matches!(e, VoidInsertError::NotStrictlyContained { .. }),
             "{verdict:?}: {e:?}"
@@ -165,7 +163,7 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
                 .collect(),
         };
         let pristine = format!("{dst:?}");
-        let e = insert_void(&mut dst, solid, cavity, &evidence, tol).unwrap_err();
+        let e = insert_void(&mut dst, solid, cavity, &evidence).unwrap_err();
         assert!(
             matches!(e, VoidInsertError::NotStrictlyContained { .. }),
             "{sign:?}: {e:?}"
@@ -183,7 +181,7 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
     let (mut donor, donor_cavity) = outer_and_cavity();
     let (donor_solid, _) = donor.solids().next().unwrap();
     let donor_evidence = probed_in(&donor_cavity);
-    insert_void(&mut donor, donor_solid, donor_cavity, &donor_evidence, tol).unwrap();
+    insert_void(&mut donor, donor_solid, donor_cavity, &donor_evidence).unwrap();
     let foreign = donor.shells().nth(1).unwrap().0;
 
     let (mut dst, cavity) = outer_and_cavity();
@@ -193,7 +191,7 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
         .shells
         .push((foreign, VoidContainment::Probed(SolidContainment::In)));
     let pristine = format!("{dst:?}");
-    let e = insert_void(&mut dst, solid, cavity, &evidence, tol).unwrap_err();
+    let e = insert_void(&mut dst, solid, cavity, &evidence).unwrap_err();
     assert!(matches!(e, VoidInsertError::ForeignShell { .. }), "{e:?}");
     assert_eq!(
         format!("{dst:?}"),
@@ -211,9 +209,43 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
         .shells
         .push((dup, VoidContainment::Carried { sign: Sign::Zero }));
     let pristine = format!("{dst:?}");
-    let e = insert_void(&mut dst, solid, cavity, &evidence, tol).unwrap_err();
+    let e = insert_void(&mut dst, solid, cavity, &evidence).unwrap_err();
     assert!(
         matches!(e, VoidInsertError::DuplicateEvidence { .. }),
+        "{e:?}"
+    );
+    assert_eq!(
+        format!("{dst:?}"),
+        pristine,
+        "refusal mutated the destination"
+    );
+}
+
+/// **A hollow cavity refuses, typed, and mutates nothing**: reverted,
+/// its cavity would face outward — a piece of material under the
+/// destination solid — so the public door takes one shell per cavity
+/// solid and adds cavities only.
+#[test]
+fn door_refuses_a_hollow_cavity() {
+    let dst_of = || brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), Tol::witness());
+    let hollow = match subtract(
+        &brick((1.0, 5.0), (1.0, 5.0), (1.0, 5.0), Tol::witness()),
+        &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    {
+        BooleanResult::Body(b) => b.body,
+        other => panic!("a hollow cube, got {other:?}"),
+    };
+    let hollow_solid = hollow.solids().next().unwrap().0;
+    let mut dst = dst_of();
+    let (solid, _) = dst.solids().next().unwrap();
+    let evidence = probed_in(&hollow);
+    let pristine = format!("{dst:?}");
+    let e = insert_void(&mut dst, solid, hollow, &evidence).unwrap_err();
+    assert!(
+        matches!(e, VoidInsertError::HollowCavity { solid } if solid == hollow_solid),
         "{e:?}"
     );
     assert_eq!(
@@ -261,9 +293,9 @@ fn one_destination_through_either_door_reads_identically() {
         let (solid, _) = dst.solids().next().unwrap();
         let evidence = probed_in(&cavity);
         if n_ary {
-            topo::insert_voids(&mut dst, &[solid], cavity, &evidence, Tol::witness()).unwrap();
+            topo::insert_voids(&mut dst, &[solid], cavity, &evidence).unwrap();
         } else {
-            insert_void(&mut dst, solid, cavity, &evidence, Tol::witness()).unwrap();
+            insert_void(&mut dst, solid, cavity, &evidence).unwrap();
         }
         dst
     };
@@ -278,19 +310,18 @@ fn one_destination_through_either_door_reads_identically() {
 fn two_destinations_each_take_their_own_cavity() {
     let mut dst = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
     let far = brick((10.0, 13.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
-    topo::graft_disjoint(&mut dst, &far, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut dst, &far).unwrap();
     let dst_solids: Vec<_> = dst.solids().map(|(k, _)| k).collect();
     assert_eq!(dst_solids.len(), 2);
 
     let mut cavity = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let far_cavity = brick((11.0, 12.5), (1.0, 2.0), (1.0, 2.0), Tol::witness());
-    topo::graft_disjoint(&mut cavity, &far_cavity, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut cavity, &far_cavity).unwrap();
     let cavity_shells: Vec<_> = cavity.shells().map(|(k, _)| k).collect();
     assert_eq!(cavity.solids().count(), 2);
 
     let evidence = probed_in(&cavity);
-    let inserted =
-        topo::insert_voids(&mut dst, &dst_solids, cavity, &evidence, Tol::witness()).unwrap();
+    let inserted = topo::insert_voids(&mut dst, &dst_solids, cavity, &evidence).unwrap();
 
     assert_eq!(validate(&dst), Ok(()));
     assert_eq!(validate_closed(&dst), Ok(()));
@@ -327,18 +358,11 @@ fn a_wrong_destination_arity_refuses_typed() {
     let before = reading(&dst);
 
     // Two destinations for one cavity solid.
-    let e = topo::insert_voids(
-        &mut dst,
-        &[solid, solid],
-        cavity.clone(),
-        &evidence,
-        Tol::witness(),
-    )
-    .unwrap_err();
+    let e = topo::insert_voids(&mut dst, &[solid, solid], cavity.clone(), &evidence).unwrap_err();
     assert!(matches!(e, VoidInsertError::Corrupt { .. }), "{e}");
 
     // None at all.
-    let e = topo::insert_voids(&mut dst, &[], cavity, &evidence, Tol::witness()).unwrap_err();
+    let e = topo::insert_voids(&mut dst, &[], cavity, &evidence).unwrap_err();
     assert!(matches!(e, VoidInsertError::Corrupt { .. }), "{e}");
     assert_eq!(reading(&dst), before, "the body is untouched on both");
 }
