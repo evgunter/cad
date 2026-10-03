@@ -870,3 +870,6 @@ mod witness_ladder;
 
 #[path = "join1_delta2_harness.rs"]
 mod join1_delta2_harness;
+
+#[path = "join_reflex_wedge_review_probes.rs"]
+mod join_reflex_wedge_review_probes;
