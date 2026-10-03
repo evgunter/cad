@@ -467,6 +467,38 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
+    #[cfg(feature = "door-tier3-meter")]
+    let door_from = std::time::Instant::now();
+    let result = boolean_door(op, a, b, decls, strategy, tol);
+    #[cfg(feature = "door-tier3-meter")]
+    {
+        let door = door_from.elapsed();
+        let gate = match &result {
+            Ok(BooleanResult::Body(r)) => {
+                let from = std::time::Instant::now();
+                let verdict = T::gate_at_rest_kept(r.body.clone(), tol)
+                    .and_then(|kept| T::gate_at_rest_declared(&kept, &r.contacts, tol));
+                Some(super::door_meter::GateReading::of(
+                    from.elapsed(),
+                    verdict.as_ref().map(|_| ()).map_err(Vec::as_slice),
+                ))
+            }
+            _ => None,
+        };
+        super::door_meter::record(op, &result, door, gate.as_ref());
+    }
+    result
+}
+
+/// [`boolean_op_with`]'s body.
+fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    op: BooleanOp,
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &BooleanDeclarations,
+    strategy: SweepStrategy,
+    tol: Tol,
+) -> Result<BooleanResult<T>, BooleanError> {
     // The curved ∖/∩ front door, per class (C12.1 — retire per class,
     // never wholesale). Both ops route regions through `revert`
     // (A∖B ≡ A∩revert(B), the §15.9 posture), which is kind-generic:
@@ -553,8 +585,6 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     recut: bool,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    #[cfg(feature = "door-tier3-meter")]
-    let metered_from = std::time::Instant::now();
     let band = Band::linear(tol)?;
     let (red, connected, interior_loops) =
         match through_the_join(op, a, b, decls, strategy, recut, tol)? {
@@ -622,12 +652,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     body.sweep_and_close();
     let body = finished;
     gate(&body)?;
-    #[cfg(feature = "door-tier3-meter")]
-    let meter = super::door_meter::Meter::start(metered_from);
-    let backstop = T::gate_volume_backstop(op, a, b, &body, band, tol);
-    #[cfg(feature = "door-tier3-meter")]
-    meter.record(op, a, b, &body, backstop.is_ok(), tol);
-    backstop?;
+    T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     interior_loops?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
     let naming = BooleanNaming {

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Measure tier 3 at the boolean door: what it would cost and refuse.
+"""Measure the boolean door: what each call costs, and what its gate costs and says.
 
-Runs the `topo` and `sweep` suites (the `ci` nextest profile) with
-topo's `door-tier3-meter` feature on, which records one line per result
-the door builds (`crates/topo/src/boolean/door_meter.rs`), and prints
-the table `work/reach/boolean-door-tier-3-waits-on-the-description-gap.md`
-reports.
+Runs the given crates' suites (the `ci` nextest profile) with topo's
+`door-tier3-meter` feature on, which records one line per call through
+`topo::boolean_op_with` (`crates/topo/src/boolean/door_meter.rs`), and
+prints one row per corpus: the door's summed time, the result gate's
+(tier 3, then the census over the result's own contacts), and the
+results the gate refuses.
 
     python3 scripts/door-tier3-meter.py [--crates topo sweep] [--records DIR [--skip-run]]
 
@@ -25,13 +26,10 @@ FIELDS = [
     "op",
     "scalar",
     "faces",
-    "op_us",
-    "tier3_us",
-    "backstop_us",
-    "backstop_ok",
+    "door_us",
+    "gate_us",
+    "outcome",
     "verdict",
-    "a_ok",
-    "b_ok",
 ]
 
 
@@ -67,23 +65,23 @@ def summarize(crate: str, path: str) -> None:
     except FileNotFoundError:
         print(f"{crate}: the meter recorded nothing at {path}", file=sys.stderr)
         sys.exit(1)
-    refused = [r for r in rows if r["verdict"] != "ok"]
-    shipped = [r for r in refused if r["backstop_ok"] == "true"]
-    clean_operands = [r for r in shipped if r["a_ok"] == "true" and r["b_ok"] == "true"]
-    op = sum(int(r["op_us"]) for r in rows)
-    t3 = sum(int(r["tier3_us"]) for r in rows)
-    bs = sum(int(r["backstop_us"]) for r in rows)
-    ratios = sorted(int(r["tier3_us"]) / max(1, int(r["op_us"])) for r in rows)
+    gated = [r for r in rows if r["verdict"] != "-"]
+    refused = [r for r in gated if r["verdict"] != "ok"]
+    door = sum(int(r["door_us"]) for r in rows)
+    gate = sum(int(r["gate_us"]) for r in rows)
+    ratios = sorted(int(r["gate_us"]) / max(1, int(r["door_us"])) for r in gated)
+    outcomes = Counter(r["outcome"] for r in rows)
     print(
-        f"| {crate} | {len(rows)} | {len(refused)} | {len(shipped)} | "
-        f"{len(clean_operands)} | {t3 / op:.0%} | "
+        f"| {crate} | {len(rows)} | {len(gated)} | {door / 1e6:.2f} s | "
+        f"{gate / 1e6:.2f} s | {gate / max(1, door):.0%} | "
         f"{statistics.median(ratios):.0%} / {ratios[int(0.9 * len(ratios))]:.0%} / "
-        f"{ratios[-1]:.0%} | {bs / op:.0%} |"
+        f"{ratios[-1]:.0%} | {len(refused)} |"
     )
-    for (test, op_name), n in Counter(
-        (r["test"], r["op"]) for r in shipped
+    print(f"    outcomes: {dict(outcomes.most_common())}")
+    for (test, op_name, verdict), n in Counter(
+        (r["test"], r["op"], r["verdict"][:120]) for r in refused
     ).most_common():
-        print(f"    shipped, tier 3 refuses: {n} × {test} {op_name}")
+        print(f"    gate refuses: {n} × {test} {op_name}: {verdict}")
 
 
 def main() -> None:
@@ -101,8 +99,8 @@ def main() -> None:
         parser.error("--skip-run reads an earlier run's --records directory")
     out = args.records or tempfile.mkdtemp(prefix="door-tier3-meter-")
     print(
-        "| corpus | results | tier 3 refuses | of those, shipped | shipped with "
-        "tier-3-clean operands | tier 3 / op time | median / p90 / max | backstop / op |"
+        "| corpus | calls | gated results | door time | gate time | gate / door | "
+        "gate / door per result, median / p90 / max | gate refuses |"
     )
     print("|---|---|---|---|---|---|---|---|")
     for crate in args.crates:
