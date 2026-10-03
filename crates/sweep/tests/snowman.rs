@@ -9,12 +9,11 @@
 //! tiers and to its volume against the two spherical caps the radical
 //! plane cuts, computed here from the radii alone.
 //!
-//! **What builds is the COPLANAR-seam pose.** Both balls are revolved
-//! from the same seam, so each seam meridian pierces the other sphere
-//! on the other's seam meridian and every chord runs seam to seam. Spin
-//! one ball about the shared axis and the pierce lands inside a
-//! half-band instead, which is the pierce-ring door — pinned below as
-//! the frontier, not as a body.
+//! **The seams need not be coplanar.** Both balls are revolved from the
+//! same seam, so each seam meridian pierces the other sphere on the
+//! other's seam meridian and every chord runs seam to seam. Spin one
+//! ball about the shared axis and the pierce lands inside a half-band
+//! instead, a pierce ring, which joins: that pose builds too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

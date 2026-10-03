@@ -40,13 +40,35 @@ use topo::{AtRestBody, BooleanError, BooleanResult};
 /// What one op must answer.
 #[derive(Clone, Copy, Debug)]
 enum Want {
-    /// A body of this volume (0 for an empty result).
+    /// A body of this volume (0 for an empty result), at tier 3.
     Volume(f64),
+    /// A body of this volume through tiers 2, 3 and 3′, and a legal
+    /// operand.
+    Sound(f64),
 }
 
 fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
     let tol = Tol::witness();
     match (r, want) {
+        (Ok(r), Want::Sound(v)) => {
+            let got = match r.body() {
+                Some(b) => {
+                    topo::validate_closed(&b.body)
+                        .unwrap_or_else(|e| panic!("{what}: tier 2, got {e:?}"));
+                    topo::validate_geometric(&b.body, tol)
+                        .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+                    topo::validate_pseudomanifold(&b.body, &b.contacts, tol)
+                        .unwrap_or_else(|e| panic!("{what}: tier 3′, got {e:?}"));
+                    sweep::test_support::assert_legal_operand(what, &b.body, tol);
+                    topo::mass_properties(&b.body, tol).unwrap().volume
+                }
+                None => 0.0,
+            };
+            assert!(
+                (got - v).abs() <= 1e-9 * v.abs().max(1e-3),
+                "{what}: volume {got}, closed form {v}"
+            );
+        }
         (Ok(r), Want::Volume(v)) => {
             let got = match r.body() {
                 Some(b) => {
@@ -124,10 +146,10 @@ fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
                 &a,
                 &b,
                 [
-                    Want::Volume(vcyl + vbar - i),
-                    Want::Volume(vcyl - i),
-                    Want::Volume(vbar - i),
-                    Want::Volume(i),
+                    Want::Sound(vcyl + vbar - i),
+                    Want::Sound(vcyl - i),
+                    Want::Sound(vbar - i),
+                    Want::Sound(i),
                 ],
             );
         }

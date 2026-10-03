@@ -156,7 +156,7 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     )
     .unwrap();
 
-    // Lifts both refusals: the degraded fit behind an honest certificate is the row.
+    // Lifts RechartStrandsDescriptions: the degraded fit behind an honest certificate is the row.
     body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
@@ -540,7 +540,7 @@ fn a_degraded_fit_does_not_survive_the_map() {
         good.window(),
         *good.certificate(),
     );
-    // Lifts both refusals: the degraded fit behind an honest certificate is the row.
+    // Lifts RechartStrandsDescriptions: the degraded fit behind an honest certificate is the row.
     body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
@@ -628,7 +628,7 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
         narrowed,
         *good.certificate(),
     );
-    // Lifts both refusals: the narrowed window behind an honest surface is the row.
+    // Lifts RechartStrandsDescriptions: the narrowed window behind an honest surface is the row.
     body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
@@ -704,7 +704,7 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
         good.window(),
         *good.certificate(),
     );
-    // Lifts both refusals: the nudged fit control point is the row.
+    // Lifts RechartStrandsDescriptions: the nudged fit control point is the row.
     body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
@@ -755,7 +755,7 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
         good.window(),
         bogus,
     );
-    // Lifts both refusals: the planted certificate behind a good pair is the row.
+    // Lifts RechartStrandsDescriptions: the planted certificate behind a good pair is the row.
     body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
@@ -854,7 +854,7 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
         })
         .map(|(k, _)| k)
         .expect("the extruded box has a top cap");
-    // Lifts both refusals: the Approx face at a scalar with no fit lane is the row.
+    // Lifts RechartStrandsDescriptions: the Approx face at a scalar with no fit lane is the row.
     body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {

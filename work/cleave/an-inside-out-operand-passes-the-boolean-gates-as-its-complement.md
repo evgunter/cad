@@ -2,10 +2,12 @@
 id: an-inside-out-operand-passes-the-boolean-gates-as-its-complement
 kind: issue
 title: An inside-out operand passes the Boolean's operand gates and is consumed as its complement
-status: open
+status: review
 opened: 2026-10-03
 priority: P1
 cost: M
+branch: cleave/inside-out-gate
+pr: 3963
 ---
 
 
@@ -41,3 +43,27 @@ refuse it at the gate typed (a tier-3 check-7 verdict per operand, or a
 cheaper signed-volume reading), before any classification reads it; if
 so, say what the Boolean means by one. Either way, pin the ∖/∩ answers
 above, which today come back silently.
+
+## Decided by ratified text
+
+Not a legal operand. `docs/DESIGN.md` D1, tier 3: "the
+**positive-volume orientation invariant** (exact-B-rep signed volume
+definitely-negative ⇒ invalid …)", and "A **finished body**
+(`AtRestBody`) passes tier 3 … every door that returns or consumes one
+pays that gate once" (Ev, PR 3870). `boolean::reduce::gate_operand`
+reads check 7 per solid and refuses `BooleanError::InsideOutOperand`;
+the ∖/∩/∪ refusals and a counterclockwise control are pinned in
+`crates/topo/tests/inside_out_operand.rs`.
+
+## 2026-10-03 — the read moves to the finished-body gate (REACH)
+
+`boolean-door-adopts-the-finished-body-type` types the boolean's
+operands (`&AtRestBody`), as this item's measurement anticipated
+("typed operands retire that read"). An inside-out body now refuses
+where it is finished: `AtRestBody::validate` reports tier 3's
+`NegativeVolume` on each inside-out solid, so it never reaches the door,
+and `gate_operand`'s check-7 read and `BooleanError::InsideOutOperand`
+retire with it (unreachable from the door at any scalar).
+`crates/topo/tests/inside_out_operand.rs` pins the refusal at the gate,
+per solid (the inside-out part beside an ordinary one), and keeps the
+counterclockwise control through every op.

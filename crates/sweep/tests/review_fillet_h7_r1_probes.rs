@@ -11,9 +11,9 @@
 //! - the CONCAVE ruled band — a rod sunk into a block, whose two creases
 //!   along the ruling add material: the fold the unit states and pins
 //!   nowhere. Both bodies come through the EXTRUDE door as one profile
-//!   loop; the boolean refuses the groove (`block ∖ cylinder`) and
-//!   builds a SHORTER sunk rod (`block ∪ cylinder`, the rod ending
-//!   inside the block's length), which is pinned beside them;
+//!   loop; the boolean builds the groove (`block ∖ cylinder`) and a
+//!   SHORTER sunk rod (`block ∪ cylinder`, the rod ending inside the
+//!   block's length), which are pinned beside them;
 //! - a cap carrying a RING (the bored D-rod): the plan checks the
 //!   supports for rings, not the cap;
 //! - a SUPPORT carrying a ring (a pocket sunk into the flat): the plan's
@@ -202,43 +202,44 @@ fn cap_above() -> f64 {
 }
 
 /// **What the boolean does with the ruled fixtures on a block** — the
-/// groove (`block ∖ cylinder`) builds through the pierce rings the
-/// block's edges leave in the rod's wall, and is the block less the
-/// rod's section below the top plane over the block's length;
-/// a sunk rod SHORTER than the block (`z ∈ [0.2, 0.8]`) builds, and is
-/// the block plus the rod's segment above the top plane over its
-/// length. The rod's end caps meet the top plane along chords with one
-/// rim arc between their ends, which the plane×plane join lane mints.
+/// groove (`block ∖ cylinder`) builds: the block's edges pierce the
+/// rod's wall, and each pierce ring joins. It is the block less the
+/// rod's segment below the top plane over its length. A sunk rod
+/// SHORTER than the block (`z ∈ [0.2, 0.8]`) builds, and is the block
+/// plus the rod's segment above the top plane over its length. The
+/// rod's end caps meet the top plane along chords with one rim arc
+/// between their ends, which the plane×plane join lane mints. Both hold
+/// tiers 2 and 3′ and the at-rest certificate, and are legal operands.
 /// The full-length fixtures the Phase-1 table carves come through the
 /// extrude door (below).
 #[test]
 fn the_boolean_builds_the_groove_and_a_short_sunk_rod() {
-    let groove = topo::subtract(&block(), &cylinder(-0.5, L + 1.0), tol())
-        .expect("the groove builds")
-        .body()
-        .expect("a body")
-        .body
-        .clone();
-    topo::validate_geometric_certificate(&groove, tol()).expect("the groove certifies at rest");
-    let expect = 2.0 * L - (core::f64::consts::PI * ROD_R * ROD_R - cap_above()) * L;
-    assert!(
-        (volume(&groove) - expect).abs() < 1e-12,
-        "the groove's volume: {} vs {expect}",
-        volume(&groove)
-    );
-    let sunk = topo::union(&block(), &cylinder(0.2, 0.6), tol())
-        .expect("the short sunk rod builds")
-        .body()
-        .expect("a body")
-        .body
-        .clone();
-    topo::validate_geometric_certificate(&sunk, tol()).expect("the sunk rod certifies at rest");
-    let expect = 2.0 * L + cap_above() * 0.6;
-    assert!(
-        (volume(&sunk) - expect).abs() < 1e-9,
-        "the sunk rod's volume: {} vs {expect}",
-        volume(&sunk)
-    );
+    for (what, r, expect) in [
+        (
+            "the groove",
+            topo::subtract(&block(), &cylinder(-0.5, L + 1.0), tol()),
+            2.0 * L - (core::f64::consts::PI * ROD_R * ROD_R - cap_above()) * L,
+        ),
+        (
+            "the short sunk rod",
+            topo::union(&block(), &cylinder(0.2, 0.6), tol()),
+            2.0 * L + cap_above() * 0.6,
+        ),
+    ] {
+        let r = r.unwrap_or_else(|e| panic!("{what} builds: {e:?}"));
+        let bb = r.body().unwrap_or_else(|| panic!("{what}: a body"));
+        topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+            .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
+        topo::validate_geometric_certificate(&bb.body, tol())
+            .unwrap_or_else(|e| panic!("{what}: certificate: {e:?}"));
+        assert!(
+            (volume(&bb.body) - expect).abs() < 1e-9,
+            "{what}: volume {} vs {expect}",
+            volume(&bb.body)
+        );
+        sweep::test_support::assert_legal_operand(what, &bb.body, tol());
+    }
 }
 
 /// **The short sunk rod, checked without trusting the union.** Its

@@ -235,8 +235,9 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
 
 /// **Where a tilted section stops.** An offset with a component off the
 /// seam plane drives the pierce off the seam, into a half-band: the
-/// pierce lands as a ring, whose run carries no certified edge for the
-/// run-side rule to read (`work/tang/pierce-ring-has-no-join-arm.md`). A PLANE
+/// pierce lands as a ring, and the ring's chord is cross-loop, so it
+/// closes no run for the run-side rule to read
+/// (`work/tang/a-tilted-sphere-sections-pierce-ring-has-no-run-side-arm.md`). A PLANE
 /// tilted against the ball's chart — a box face across the ball, and a
 /// pip whose poles land on the cube's top — refuses on the planar side,
 /// which selects its arc by the sphere face's azimuth window and has no

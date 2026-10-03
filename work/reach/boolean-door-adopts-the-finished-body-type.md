@@ -2,11 +2,12 @@
 id: boolean-door-adopts-the-finished-body-type
 kind: issue
 title: The boolean door adopts the finished-body type: AtRestBody operands, the result gated at tier 3' over its own contacts
-status: open
+status: review
 opened: 2026-10-03
 priority: P1
 cost: H
-refs: [boolean-door-tier-3-waits-on-the-description-gap, census-cross-solid-curved-pairs-undecidable-on-shell-results, volume-door-reads-a-tiny-valid-boolean-result-wrong]
+refs: [boolean-door-tier-3-waits-on-the-description-gap, census-cross-solid-curved-pairs-undecidable-on-shell-results, volume-door-reads-a-tiny-valid-boolean-result-wrong, boolean-door-runs-the-census-over-its-result]
+branch: reach/door-finished-body
 ---
 
 
@@ -66,3 +67,42 @@ the mates' declarations are minted.
 FUSE: tier 3 + census at the door is 15–35 % census over tier 3's
 time. REACH's census-fold lane: the census is a median 0.09× tier 3 on
 single solids.
+
+CLEAVE (`an-inside-out-operand-passes-the-boolean-gates-as-its-complement`):
+until the operands are typed, `boolean::reduce::gate_operand` reads
+tier 3's check 7 on each operand to refuse an inside-out one
+(`BooleanError::InsideOutOperand`). Measured in release on
+`review_m3_pr55::d_die*`, `m3_pr5_boolean_ops` and `issue86`: a median
+87 µs per operand against a median 1.45 ms op, 17 % of summed op time
+(the backstop, three bodies to target, 11 %); on sweep's curved
+`m5_s12_curved_ops`, `m5_pr9c` and `reach_volume_backstop`, 7 %. The
+backstop measures the same operands again. Typed operands retire that
+read: an `AtRestBody` carries check 7's verdict from its own door.
+
+## Built (2026-10-03, `reach/door-finished-body`)
+
+What holds:
+- The boolean doors (`union`, `intersect`, `subtract`, their `_with`
+  forms, `boolean_op_with`, `verbs::Verb::run_pair`) take
+  `&AtRestBody<T>`; `BooleanBody.body` is an `AtRestBody`; `pncad`'s
+  prelude exports the type.
+- `ops::gate` is the one result gate, at each of the four sites that
+  build a `BooleanBody` and before the volume backstop: pieces sorted,
+  then `T::gate_at_rest_kept` (tiers 1 and 2 once, as its first act).
+  Present at every certifying scalar, absent at duals.
+- A sub-tier-3 operand refuses where it is finished, naming its own
+  entities. The editor finishes each boolean operand once at the seat
+  (`NodeErrorKind::UnfinishedOperand`); the n-ary union's accumulation
+  stays finished between steps.
+- The stranded-operand invariant retires
+  (`work/hone/a-stranded-operand-reaches-the-classification-invariant.md`,
+  closed), and so does CLEAVE's check-7 operand read and
+  `BooleanError::InsideOutOperand`.
+- Tier 3's predicates at the door have their reasons in editor-core's
+  decision-log census (`WORDLESS`).
+
+What stopped, measured: the census half (`T::gate_at_rest_declared`).
+A census at the door refuses 175 results on main, 38 of them curved
+unions the cross-solid lane cannot decide, which the ratified sequencing
+puts before any door whose results carry several curved solids:
+`work/reach/boolean-door-runs-the-census-over-its-result.md`.

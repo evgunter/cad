@@ -1562,12 +1562,12 @@ pub(super) fn merge_rows(
 /// direction
 /// (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
 ///
-/// Complement operands: a reverted body's flux volume is NEGATIVE
-/// (its true set volume is infinite — the A∖B ≡ A∩revert(B) oracle
-/// route feeds such operands legitimately), so each bound applies
-/// only when its reference operand's volume is certified POSITIVE
-/// (bounded solid); against a complement the set bound is vacuous
-/// and is skipped, never misread as a violation.
+/// Each bound applies only when its reference operand's volume is
+/// certified POSITIVE (a bounded solid). An operand is a finished body,
+/// so check 7 passed on each of its solids, and what reaches here
+/// uncertified is an operand whose sign stayed open in the backstop's
+/// own lane; against it the bound is skipped, never misread as a
+/// violation.
 ///
 /// # Dimension (audit F3, `docs/predicate-dimension-audit.md`)
 ///
