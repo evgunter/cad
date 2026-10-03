@@ -169,12 +169,12 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// the extrude closes with the pcurve mint the wall is the placed rows'
 /// angular comparisons (`pcurve_loop_continuity`,
 /// `pcurve_trim_containment`), an enclosure ESCALATING against the band,
-/// so the fraction is ε-relative: `6.747e-5` at ε = 1e-6 against
-/// `6.751e-8` at the default, measured. Before the mint it was `0.111`,
+/// so the fraction is ε-relative: `1.317e-4` at ε = 1e-6 against
+/// `1.318e-7` at the default, measured. Before the mint it was `0.111`,
 /// bounded by `dihedral_wedge`; the follow-on that restates the
 /// angular comparisons puts that back
 /// (`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`).
-pub const CERTIFIABLE_FRACTION: f64 = 6.751e-8;
+pub const CERTIFIABLE_FRACTION: f64 = 1.318e-7;
 
 /// **The same measurement at 1, 2, 3 and 4 links** — one number in
 /// four spellings.
@@ -184,7 +184,7 @@ pub const CERTIFIABLE_FRACTION: f64 = 6.751e-8;
 /// [`CERTIFIED_TIP_OVER_PIN_RADIUS`] pins it over the pin radius. Since
 /// the extrude closes with the pcurve mint it is set by the placed
 /// rows' angular comparisons, whose enclosure grows with the same tip
-/// box: `3.016e-7` of the pin radius. The one-link row sits a little
+/// box: `5.856e-7` of the pin radius. The one-link row sits a little
 /// under it (its lever sum is the joint's own).
 ///
 /// (Before the mint the wall was `dihedral_wedge` and the number was
@@ -198,21 +198,21 @@ pub const CERTIFIABLE_FRACTION: f64 = 6.751e-8;
 ///
 /// Read only by that cell; the sheet's own [`CERTIFIABLE_FRACTION`] is
 /// the last row of it.
-pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [6.510e-7, 2.216e-7, 1.117e-7, 6.751e-8];
+pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.223e-6, 4.244e-7, 2.169e-7, 1.318e-7];
 
 /// **The tip's certified lateral half-width, over the pin radius** —
 /// the same at every link count whose box the WALL sets, and the
 /// number [`CERTIFIABLE_FRACTION_BY_LINKS`] is four spellings of.
 ///
 /// MEASURED by [`crate::chaintol`] at 2, 3 and 4 links and pinned
-/// there with a paste-ready re-baseline (`2.992e-7 / 3.016e-7 /
-/// 3.038e-7`); it is not derived from the two constants beside it,
+/// there with a paste-ready re-baseline (`5.729e-7 / 5.856e-7 /
+/// 5.931e-7`); it is not derived from the two constants beside it,
 /// because what it asserts is that those two stand in this ratio AT
 /// EVERY LINK COUNT, which neither of them says. It was `4.995e-1`,
 /// half the pin radius, before the extrude closed with the pcurve mint.
 ///
 /// Read only by that cell.
-pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 3.016e-7;
+pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 5.856e-7;
 
 /// **The certified enclosure of each joint pin's centre at that box**
 /// — `(half-width along the chain, half-width across it)`, in metres,
@@ -235,19 +235,19 @@ pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 3.016e-7;
 /// `1 : 2.24 : 3.74 : 5.48`, the quadrature sum. That gap between a
 /// linear sum and a root-sum-square is E11's subject, and on this
 /// document it is visible on the sheet rather than only in a report.
-/// The enclosures are TIGHT, not padded: `2.430e-11` m is exactly
+/// The enclosures are TIGHT, not padded: `4.745e-11` m is exactly
 /// `L · 3σ_c · 1` at the certified box's own σ. Since the extrude
-/// closes with the pcurve mint the box is `6.751e-8` of the study, so
+/// closes with the pcurve mint the box is `1.318e-7` of the study, so
 /// every enclosure is far under a pixel: the sheet draws each side
 /// under `mcchain`'s pixel floor AT that floor, centred on the pin,
 /// says in its legend which sides are floored, and prints the true
 /// half-widths in its table.
 pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
     (0e0, 0e0),
-    (6.938893903907228e-18, 2.430341361328867e-11),
-    (2.42861286636753e-17, 7.291024083986602e-11),
-    (5.551115123125783e-17, 1.4582048167973203e-10),
-    (9.71445146547012e-17, 2.4303413613288677e-10),
+    (6.938893903907228e-18, 4.744763611659675e-11),
+    (2.42861286636753e-17, 1.4234290834979025e-10),
+    (5.551115123125783e-17, 2.846858166995806e-10),
+    (9.71445146547012e-17, 4.744763611659678e-10),
 ];
 
 /// **The pin's axis, read off the body the kernel built** — ONE rule,

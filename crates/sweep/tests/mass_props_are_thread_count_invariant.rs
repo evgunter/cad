@@ -376,6 +376,12 @@ fn digest() -> String {
 /// anchor-free). Only `bulged_extrusion`'s verdict row moves again,
 /// 13 → 18, and its hash; its volume and area bits, and every other
 /// row, are unchanged.
+///
+/// **Re-cut at all three ε when check 5 of the pcurve certificate
+/// decided only an escape's positive part** (`geom_brep::pcurve_cache`'s
+/// `trim_containment`). Only `sym_arc_loft`'s `validate_geometric` row
+/// moves: two of its numeric decisions become theorems (`sz` 54 → 56,
+/// `num` 638 → 636). Every verdict, pad and other row is unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

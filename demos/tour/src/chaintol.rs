@@ -24,10 +24,10 @@
 //!
 //! | links | `Sym<Interval>`, first refusal over the whole study | widest box that certifies whole |
 //! |---|---|---|
-//! | 1 | `pcurve_loop_continuity` | `6.510e-7` of the study |
-//! | 2 | `pcurve_loop_continuity` | `2.216e-7` |
-//! | 3 | `dihedral_arm` (met first; ε-independent, as before) | `1.117e-7` |
-//! | 4 | `dihedral_arm` | `6.751e-8` |
+//! | 1 | `pcurve_loop_continuity` | `1.223e-6` of the study |
+//! | 2 | `pcurve_loop_continuity` | `4.244e-7` |
+//! | 3 | `dihedral_arm` (met first; ε-independent, as before) | `2.169e-7` |
+//! | 4 | `dihedral_arm` | `1.318e-7` |
 //!
 //! ([`crate::chain::CERTIFIABLE_FRACTION_BY_LINKS`], at the default ε.)
 //! Just above each fraction the first refusal is the placed rows'
@@ -399,7 +399,7 @@ pub fn narration(tol: Tol) {
     }
 
     // **Whether that box still certifies HERE.** The fraction moves
-    // with ε — MEASURED, `6.747e-5` at ε = 1e-6 against `6.751e-8` at
+    // with ε — MEASURED, `1.317e-4` at ε = 1e-6 against `1.318e-7` at
     // the default — because the wall is an enclosure escalating against
     // the band (the placed rows' angular comparisons since the extrude
     // closes with the pcurve mint), so the box is ε-relative. Before
@@ -426,7 +426,7 @@ pub fn narration(tol: Tol) {
         );
         println!(
             "   the published box does NOT certify at this run's ε — it is the default ε's \
-             number, and the box moves with ε (6.747e-5 at 1e-6, measured). No enclosure is \
+             number, and the box moves with ε (1.317e-4 at 1e-6, measured). No enclosure is \
              reported here; the cell's CI row measures the fraction at the default ε."
         );
         return;
@@ -871,8 +871,8 @@ mod tests {
     /// any of them is a change in that claim.
     ///
     /// The whole table is at the AMBIENT ε — `ci.yml` runs this row at
-    /// the default — because the fractions move with ε: `6.751e-8` at
-    /// the default against `6.747e-5` at `1e-6`, measured (an
+    /// the default — because the fractions move with ε: `1.318e-7` at
+    /// the default against `1.317e-4` at `1e-6`, measured (an
     /// escalating wall, so ε-relative; before the pcurve mint the wall
     /// was the wedge and the fractions moved a few percent, for the
     /// reason the module header's "What sets the wall"

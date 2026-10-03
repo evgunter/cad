@@ -112,7 +112,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // DECIDE-3: eight more THEOREMS (803 -> 811) out of
             // `numeric` (470 -> 462) — comparisons of two rational
             // constants A0 now decides exactly. `registered` unmoved.
-            symbolic_zero: [947, 947, 947],
+            symbolic_zero: [955, 955, 955],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -150,7 +150,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door now recognises. Measured by restoring the old end
             // samples on a probe, which restores 108.
             registered: 118,
-            symbolic_zero: [681, 681, 681],
+            symbolic_zero: [689, 689, 689],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -266,7 +266,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the tier proves zero rather than measuring them. Every row
             // is up 32 since DECIDE-9, the 32 `dihedral_wedge` margins
             // the note on `registered` names.
-            symbolic_zero: [1012, 1036, 1012],
+            symbolic_zero: [1016, 1040, 1016],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]

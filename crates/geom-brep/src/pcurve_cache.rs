@@ -5739,11 +5739,16 @@ fn trim_containment<T: Decide>(
 ) -> Result<(), PcurveCertifyError> {
     let boxed = pcurve.chart_box(t0, t1);
     let (u_arm, v_arm) = chart_arms_at(surface, &boxed, &window)?;
+    // Containment is one-sided: a box inside the window by any amount
+    // is contained, and the clearance between two conservative boxes
+    // is nothing built. Only an escape's positive part is decided, as
+    // the iso rows' `pcurve_iso_domain` gates do.
+    let escape = |gap: T| gap.max(T::zero());
     let escapes = [
-        Margin::metered_sup(window.u_min - boxed.u_min, u_arm),
-        Margin::metered_sup(boxed.u_max - window.u_max, u_arm),
-        Margin::metered_sup(window.v_min - boxed.v_min, v_arm),
-        Margin::metered_sup(boxed.v_max - window.v_max, v_arm),
+        Margin::metered_sup(escape(window.u_min - boxed.u_min), u_arm),
+        Margin::metered_sup(escape(boxed.u_max - window.u_max), u_arm),
+        Margin::metered_sup(escape(window.v_min - boxed.v_min), v_arm),
+        Margin::metered_sup(escape(boxed.v_max - window.v_max), v_arm),
     ];
     for over in escapes {
         match decide("pcurve_trim_containment", over, band) {

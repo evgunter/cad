@@ -439,14 +439,14 @@ const PLATE_MAX_TERMS: usize = 252;
 ///   Calls and freezes do not move: the twin is the same frame on this
 ///   plate's literal charts, so no decision is added or lost.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1127 forms 16429 frozen 696 digest f0075c185b84ceaa1e6776fef010ba7a\n\
-     Plain/Assertion calls 666 forms 4051 frozen 372 digest 2d8a3120e46d4f5e79adece7f2080b4f\n\
-     Plain/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 416 forms 9188 frozen 8 digest 4a83df50386eccfa36dc691f0258eb7e\n\
-     Early/Assertion calls 666 forms 5015 frozen 0 digest f8fb8acfd73cd5e780d9157d6836fa88\n\
-     Early/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 590 forms 13928 frozen 0 digest ad9c2d1d4a3be10b1f9edb793fc74e67\n\
-     Door/Assertion calls 410 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Plain/Decision calls 1143 forms 16623 frozen 696 digest 564299a4e7f245e5717082b470b50f25\n\
+     Plain/Assertion calls 650 forms 3921 frozen 372 digest 13019e1a84e8d26407b49d2ab3f1ec0e\n\
+     Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 432 forms 9430 frozen 8 digest 919e8d0c8669a3afabecb1956d03c6ee\n\
+     Early/Assertion calls 650 forms 4837 frozen 0 digest 5d5cb64c097e59cec613513a3f057915\n\
+     Early/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Door/Decision calls 582 forms 13610 frozen 0 digest 2840bad2fcb2ea12b632d651d7b1ff97\n\
+     Door/Assertion calls 394 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -609,20 +609,20 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|n| n.parse::<u64>().ok())
     };
     let sets: [(&str, SymRules, u64); 4] = [
-        ("shipped", SymRules::shipped(), 32),
+        ("shipped", SymRules::shipped(), 40),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            40,
+            48,
         ),
-        ("without_the_reads", SymRules::without_the_reads(), 32),
+        ("without_the_reads", SymRules::without_the_reads(), 40),
         (
             "both new dials off",
             SymRules {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            40,
+            48,
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;
