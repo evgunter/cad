@@ -4703,7 +4703,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "boundary_edit_inner_tag",
         values: &[],
-        delegates: &["edit_inner_variant_tag", "placement_rule_inner_tag"],
+        delegates: &["placement_rule_inner_tag"],
     },
     TagEntry {
         function: "boundary_edit_tag",
@@ -4712,11 +4712,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_serialize",
             "param_name_not_an_identifier",
         ],
-        delegates: &[
-            "declare_error_tag",
-            "label_fault_tag",
-            "placement_rule_fault_tag",
-        ],
+        delegates: &["label_fault_tag", "placement_rule_fault_tag"],
     },
     TagEntry {
         function: "census_contact_tag",

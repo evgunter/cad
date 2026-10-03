@@ -771,15 +771,15 @@ impl ValidationRefusal {
 /// the document layer.
 ///
 /// Taken by `crate::py::doc`'s boundary raise instead of a
-/// `&'static str`, so the three refusals this crate decides for itself
-/// are a closed set: a fourth is a variant here, an arm in
+/// `&'static str`, so the refusals this crate decides for itself are a
+/// closed set: another is a variant here, an arm in
 /// `crate::tags::boundary_edit_tag`, and a word the tag inventory sees.
 ///
-/// Two of the three carry the KERNEL VALUE whose word they publish
-/// rather than a word of their own, and that is the rule
+/// Every variant but one carries the KERNEL VALUE whose word it
+/// publishes rather than a word of its own, and that is the rule
 /// `crate::py::doc`'s boundary raise states: where a kernel enum arm
-/// stands behind the refusal, the word is that enum's to spell, so the
-/// two refusals a caller can reach through either door stay one word.
+/// stands behind the refusal, the word is that enum's to spell, so a
+/// refusal a caller can reach through either door stays one word.
 /// Only [`Self::NameSerialize`] mints, because a `serde_json` failure
 /// has no arm anywhere.
 #[derive(Debug, Clone, Copy)]
@@ -789,10 +789,6 @@ pub enum BoundaryEdit<'a> {
     /// serialization and the document layer never refuses a name for
     /// failing to produce it.
     NameSerialize,
-    /// An insert that minted no node id, worded by the declare
-    /// sugar's own map — the same refusal reaches Python through
-    /// `Doc.declare`, and it is the same word there.
-    Declare(&'a pncad::select::DeclareError),
     /// A placement rule spelled through the wrong constructor, worded
     /// by the document layer's own fault map.
     PlacementRule(&'a pncad::document::PlacementRuleFault),

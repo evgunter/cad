@@ -4,17 +4,17 @@
 //! `Applied::maintenance` answers what ONE edit did. An action of
 //! several edits can report a row an edit later in the same action
 //! takes back, and the net is what is true of the document the action
-//! ends at. These rows drive real edits through `apply` and fold each
-//! one's rows against the document it produced, the way a caller that
-//! commits the action does.
+//! ends at. These rows drive real edits through `Recording`, the one
+//! recorder every caller that commits an action of several edits
+//! applies them through.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::docm7_union_declare::{block, declared_union, flush_pairs};
 use crate::fixture::{ang, fname, insert, wall};
 use editor_core::{
-    Applied, Attr, AttrKind, DocEdit, Maintenance, MaintenanceNet, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusingReach, Rgba8, StableName, apply,
+    Applied, Attr, AttrKind, DocEdit, EditError, Maintenance, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, Recorded, Recording, RefusingReach, Rgba8, StableName, apply,
 };
 use geom_core::Tol;
 
@@ -25,22 +25,22 @@ fn applied(
     apply(doc, &edit, Tol::witness(), &RefusingReach).expect("the edit lands")
 }
 
-/// The net of `edits` applied in order from `doc`, and the document
+/// The net of `edits` recorded in order from `doc`, and the document
 /// they end at; each edit's own rows beside it, for the premises.
 fn net_of(
     doc: &ProfileDoc,
     edits: Vec<DocEdit<ProfileProgram>>,
 ) -> (Vec<Maintenance>, Vec<Vec<Maintenance>>, ProfileDoc) {
-    let mut net = MaintenanceNet::new();
+    let mut action = Recording::start(doc, Tol::witness(), &RefusingReach);
     let mut each = Vec::new();
-    let mut at = doc.clone();
     for edit in edits {
-        let step = applied(&at, edit);
-        each.push(step.maintenance.clone());
-        net.push(&step);
-        at = step.doc;
+        each.push(applied(action.doc(), edit.clone()).maintenance);
+        action.apply(edit).expect("the edit lands");
     }
-    (net.finish(&at), each, at)
+    let Recorded {
+        doc, maintenance, ..
+    } = action.finish();
+    (maintenance, each, doc)
 }
 
 /// A derived frame on `at` carrying `face`.
@@ -194,4 +194,76 @@ fn an_orphan_a_later_edit_consumes_or_deletes_is_not_reported() {
         ],
     );
     assert_eq!(cascaded, Vec::new(), "the declaration went with the action");
+}
+
+/// **What a recorded action answers beside its net**: the edits in the
+/// order they applied, what each minted — the typed insert's id among
+/// them — and the document the last one produced, which is the one
+/// `apply` threaded edit by edit produces. A refused edit records
+/// nothing and the action goes on from where it stood; an action that
+/// records nothing answers its start.
+#[test]
+fn a_recording_answers_its_edits_ids_and_document_in_order() {
+    let doc = ProfileDoc::empty_derived("net-record", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
+    let reunion = Node::Union {
+        members: vec![a, b],
+        declare: Some(decl),
+    };
+
+    let mut action = Recording::start(&doc, Tol::witness(), &RefusingReach);
+    let deleted = action.apply(DocEdit::DeleteNode { id: union });
+    assert_eq!(deleted, Ok(None), "a delete mints nothing");
+    let before_refusal = action.doc().clone();
+    let refused = action.apply(DocEdit::DeleteNode { id: union });
+    assert!(
+        matches!(refused, Err(EditError::UnknownNode { .. })),
+        "the node is gone: {refused:?}"
+    );
+    assert!(
+        action.doc().bit_eq(&before_refusal),
+        "a refused edit leaves the action where it stood"
+    );
+    let inserted = action.insert(reunion.clone()).expect("the union lands");
+    assert_eq!(action.minted(), &[None, Some(inserted)]);
+    let recorded = action.finish();
+
+    let delete = DocEdit::DeleteNode { id: union };
+    let insert = DocEdit::InsertNode {
+        node: Box::new(reunion),
+    };
+    let first = applied(&doc, delete.clone());
+    let second = applied(&first.doc, insert.clone());
+    assert_eq!(
+        second.record.minted,
+        Some(inserted),
+        "the typed insert answers the id the door mints"
+    );
+    assert_eq!(
+        recorded,
+        Recorded {
+            doc: second.doc,
+            edits: vec![delete, insert],
+            maintenance: Vec::new(),
+            minted: vec![None, Some(inserted)],
+        },
+        "the edits as applied, the orphan the re-union consumed netted out"
+    );
+    assert_eq!(
+        first.maintenance,
+        vec![Maintenance::OrphanedDeclare {
+            declare: doc.spoken(decl)
+        }],
+        "the premise: the delete alone orphans the declaration"
+    );
+
+    let idle = Recording::start(&doc, Tol::witness(), &RefusingReach).finish();
+    assert!(idle.doc.bit_eq(&doc), "no edit, the start");
+    assert_eq!(
+        (idle.edits, idle.maintenance, idle.minted),
+        (Vec::new(), Vec::new(), Vec::new())
+    );
 }

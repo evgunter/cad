@@ -383,7 +383,6 @@ pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
 pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
     match refusal {
         BoundaryEdit::NameSerialize => "name_serialize",
-        BoundaryEdit::Declare(err) => declare_error_tag(err),
         BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
         BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
         BoundaryEdit::ParamName(_) => "param_name_not_an_identifier",
@@ -397,13 +396,7 @@ pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
 pub fn boundary_edit_inner_tag(refusal: BoundaryEdit<'_>) -> Option<&'static str> {
     match refusal {
         BoundaryEdit::PlacementRule(fault) => placement_rule_inner_tag(fault),
-        BoundaryEdit::Declare(pncad::select::DeclareError::Edit(inner)) => {
-            edit_inner_variant_tag(inner)
-        }
-        BoundaryEdit::Declare(
-            pncad::select::DeclareError::NoFindings | pncad::select::DeclareError::NoMintedId,
-        )
-        | BoundaryEdit::NameSerialize
+        BoundaryEdit::NameSerialize
         | BoundaryEdit::MateHead(_)
         | BoundaryEdit::ParamName(_)
         | BoundaryEdit::Label(_) => None,
@@ -1863,12 +1856,6 @@ pub fn offset_check_tag(cause: &OffsetCheck) -> &'static str {
 /// `Doc.declare`/`Doc.declare_all` doors over
 /// `editor_core::declare_all`). The `Edit` arm carries the document
 /// layer's own tag through rather than flattening it.
-///
-/// `no_minted_id` is published by a SECOND door too: `Doc.insert`
-/// refuses the same contract violation — an insert that applied and
-/// minted nothing — and takes its word from this map rather than
-/// restating it, so the two doors cannot drift into two spellings of
-/// one refusal. A rename here moves both.
 pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
     use pncad::select::DeclareError as E;
     match err {
