@@ -93,6 +93,10 @@ Fixed in the PR that filed this row, in `demos/tour/src/mcchain.rs`:
   at `0.111`. The legend for a non-default ε formats the default-ε
   fraction from the constant as well.
 - The table's certified column prints `{:.3e} m`.
+- The teal legend note was about 1530 px wide on a 1120 px sheet, so
+  its last clause, which described the floor, was never on the sheet.
+  The note is now one clause per line, and the sheet is 936 px tall to
+  fit the extra line.
 - `check_certified` reads the overlay back out of the finished sheet.
   It checks the count of boxes per panel, that each box is centred on
   its pin, and each side as `max(2·half·s, floor)`. It also checks the

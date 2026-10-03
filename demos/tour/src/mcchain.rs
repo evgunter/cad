@@ -129,7 +129,7 @@ const MM: f64 = 1e3;
 // ---- the sheet's geometry, in px --------------------------------
 
 const SHEET_W: f64 = 1120.0;
-const SHEET_H: f64 = 920.0;
+const SHEET_H: f64 = 936.0;
 const WIDE_W: f64 = 1088.0;
 const WIDE_H: f64 = 230.0;
 const ZOOM_W_PX: f64 = 380.0;
@@ -1077,28 +1077,38 @@ fn sheet(
         "bold",
         "dashed orange: the nominal chain, every joint at zero.   dashed green: the target pin and the asserted position band",
     );
-    let (teal_bold, teal_note) = if certified {
+    // One clause per line: a legend line runs off a 1120 px sheet at
+    // about 170 characters, and what runs off is not on the sheet.
+    let (teal_bold, teal_notes) = if certified {
         (
             format!(
                 "teal: the CERTIFIED enclosure per joint \u{2014} exact over a box, and silent outside it. The widest box that certifies THIS chain whole is {:.3e} of the study.",
                 CERTIFIABLE_FRACTION
             ),
-            format!(
-                "\u{2014} across the chain it grows 1 : 3 : 6 : 10, the WORST-CASE lever sum; the advisory \u{03c3} grows 1 : 2.24 : 3.74 : 5.48, the quadrature sum. Any side under {CERTIFIED_MIN_PX} px is drawn at {CERTIFIED_MIN_PX} px about the pin \u{2014} on the whole chain that is {} \u{2014} and the table has the true half-widths.",
-                floored_sides(wide.px_per_m())
-            ),
+            [
+                "\u{2014} across the chain it grows 1 : 3 : 6 : 10, the WORST-CASE lever sum; the advisory \u{03c3} grows 1 : 2.24 : 3.74 : 5.48, the quadrature sum."
+                    .to_string(),
+                format!(
+                    "\u{2014} any side under {CERTIFIED_MIN_PX} px is drawn at {CERTIFIED_MIN_PX} px about its pin (on the whole chain: {}); the table has the true half-widths.",
+                    floored_sides(wide.px_per_m())
+                ),
+            ],
         )
     } else {
         (
             format!(
-                "CERTIFIED: no enclosure is drawn on this sheet. The published box ({:.3e} of the study) is a measurement at the compiled default \u{03b5}, and this run is at \u{03b5} = {:e}.",
+                "CERTIFIED: no enclosure is drawn here. The published box ({:.3e} of the study) is measured at the default \u{03b5}; this run is at \u{03b5} = {:e}.",
                 CERTIFIABLE_FRACTION,
                 Tol::witness().eps()
             ),
-            format!(
-                "\u{2014} the box MOVES with \u{03b5} (6.747e-5 at 1e-6 against {:.3e} at the default, measured), so at another \u{03b5} it is a different box. The tour's chaintol cell (demo-tour certified) declares that frontier at the same \u{03b5}; the sheet says what the cell says.",
-                CERTIFIABLE_FRACTION
-            ),
+            [
+                format!(
+                    "\u{2014} the box MOVES with \u{03b5} (6.747e-5 at 1e-6 against {:.3e} at the default, measured), so at another \u{03b5} it is a different box.",
+                    CERTIFIABLE_FRACTION
+                ),
+                "\u{2014} the tour's chaintol cell (demo-tour certified) declares that frontier at the same \u{03b5}; the sheet says what the cell says."
+                    .to_string(),
+            ],
         )
     };
     text(
@@ -1110,19 +1120,21 @@ fn sheet(
         "bold",
         &teal_bold,
     );
+    for (i, note) in teal_notes.iter().enumerate() {
+        text(
+            &mut out,
+            MARGIN_X,
+            legend_y + 72.0 + i as f64 * 17.0,
+            12.0,
+            "#0f766e",
+            "normal",
+            note,
+        );
+    }
     text(
         &mut out,
         MARGIN_X,
-        legend_y + 72.0,
-        12.0,
-        "#0f766e",
-        "normal",
-        &teal_note,
-    );
-    text(
-        &mut out,
-        MARGIN_X,
-        legend_y + 89.0,
+        legend_y + 72.0 + teal_notes.len() as f64 * 17.0,
         12.0,
         "#1a1a1a",
         "normal",
