@@ -155,7 +155,7 @@ pub(crate) struct LaneEnv<'a, T> {
     /// build path). Consulted by the one place the lift cannot reach:
     /// a C6/D9-pinned section refuses a seed it would otherwise embed
     /// as a constant ([`section_of`]).
-    pub seed: Option<&'a crate::doc::ParamName>,
+    pub seed: Option<&'a crate::doc::VarName>,
 }
 
 impl<T> Clone for LaneEnv<'_, T> {

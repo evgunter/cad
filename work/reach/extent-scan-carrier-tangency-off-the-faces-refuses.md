@@ -2,11 +2,14 @@
 id: extent-scan-carrier-tangency-off-the-faces-refuses
 kind: issue
 title: A carrier tangency on the no-crossings path refuses though the touch point lies off every face
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [ball-inside-a-two-sphere-body-refuses-at-the-extent-scan]
+branch: reach/extent-scan-off-face-tangency
+pr: 3978
+closed: 2026-10-03
 ---
 
 
@@ -63,3 +66,52 @@ search `ops`' extent passes (`sphere_extent_scan`,
 before, or instead of, its face. This row is the one measured instance
 of that shape there. Any sibling found should be added to this row
 rather than filed separately.
+
+## Fixed (branch `reach/extent-scan-off-face-tangency`)
+
+Re-measured on `origin/main` `b14b1ceb0`. Both rows above refuse as
+filed, and three siblings do too, each at a carrier decision: a ball
+outside the lens touching its trimmed unit sphere
+(`Escalated { Sphere(Apart) }`, `bool_sphere_sphere_gap` margin 0), a
+rod whose wall carrier touches a ball before the rod begins, and two
+skew rods whose walls touch past one rod's end
+(`FallbackExtentUnsupported`, the section certificate's R-tan text).
+`review_m6_5_pr2_sweep_probes::x4` pinned a fifth, a filleted die's
+corner spheres touching a far box's plane carriers, as the plane arm's
+tangency refusal.
+
+The section certificate now gives a **touch** where a reach margin
+decides `Zero` on an arm whose tangent pose meets in one point
+(sphere × plane, sphere × sphere outside or inside, sphere × cylinder,
+skew cylinders outside one another): the point `at` at the centre of
+the small loop the carriers share in any crossing pose the margin
+admits. On a pair with no event the touch clears when `at` places `Out`
+of either face: a loop inside both faces would put an edge of one face,
+over the other, within the margin of its carrier between the loop and
+`at`, and the sweep records or refuses that contact (premise S). A pair
+with an event refuses R-tan at a touch. The extent scan asks the faces
+(`sphere_faces_apart`) at a decided zero of `bool_sphere_extent_gap`,
+`bool_sphere_sphere_gap` and `bool_sphere_sphere_nested`, and refuses
+as before only where they are not certified apart; an in-band margin
+asks too and refuses, the certificate reading it undecided. Pinches
+stay R-tan: the sphere × cylinder girdle, the inner skew cylinder
+tangency, coincident walls, undecided margins and every torus arm.
+
+Pinned by `crates/sweep/tests/extent_scan_off_face_tangency.rs`: five
+poses, a plate whose hole holds the touch, and the five again in a
+tilted frame build in both operand orders under every op against closed
+forms, at ε 1e-9, 1e-6 and 1e-12, and the same tangencies on both
+faces keep their refusals. Also `section_cert_rows`
+`a_touch_is_the_centre_of_every_loop_its_margin_admits`,
+`a_touch_clears_only_out_of_a_face_on_a_silent_pair` and
+`pinches_and_undecided_tangencies_are_not_touches`, and the filleted
+die's `x4` row, which now builds.
+
+Residue:
+- `torus-touch-off-the-faces-refuses-at-the-section-pass`;
+- `edge-tangent-to-a-curved-carrier-off-the-face-refuses-at-the-pierce`
+  (the crossing layer, not the extent passes).
+
+## Closed
+
+PR 3978. On the no-crossings path, a carrier tangency now clears only on a pair with no event, and only when its touch point is placed outside a face. A pair with an event still refuses as tangent. The touch-ball guard went as redundant under premise S; an independent verifier showed S by execution.

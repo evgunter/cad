@@ -24,13 +24,13 @@ use crate::fixture::digest::digest;
 
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{
-    Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram, RecipeNodeId,
+    Dimension, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, VarName,
 };
 use geom_core::Tol;
 
-fn p() -> ParamName {
-    ParamName::from_static("p")
+fn p() -> VarName {
+    VarName::from_static("p")
 }
 
 /// `p` a Length parameter at `nominal`; a circle of radius `p` on the
@@ -42,7 +42,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
         .apply(
             &DocEdit::SetDocParam {
                 name: p(),
-                value: DocParam::continuous(Dimension::Length, nominal),
+                value: FreeVar::continuous(Dimension::Length, nominal),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

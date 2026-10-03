@@ -10,8 +10,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    Dimension, Distribution, DistributionFault, DocEdit, DocParam, DocumentId, EditError,
-    ParamName, PersistError, ProfileDoc, load, save,
+    Dimension, Distribution, DistributionFault, DocEdit, DocumentId, EditError, FreeVar,
+    PersistError, ProfileDoc, VarName, load, save,
 };
 use geom_core::Tol;
 
@@ -20,12 +20,8 @@ fn annotated_doc(sigma: f64) -> ProfileDoc {
     editor_core::apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("s"),
-            value: DocParam::continuous_with(
-                Dimension::Length,
-                1.0,
-                Distribution::Normal { sigma },
-            ),
+            name: VarName::from_static("s"),
+            value: FreeVar::continuous_with(Dimension::Length, 1.0, Distribution::Normal { sigma }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -78,8 +74,8 @@ fn a_planted_bounds_corruption_refuses_at_load() {
         editor_core::apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::from_static("b"),
-                value: DocParam::continuous_with(
+                name: VarName::from_static("b"),
+                value: FreeVar::continuous_with(
                     Dimension::Length,
                     1.0,
                     Distribution::Uniform { lo: -0.25, hi: 0.5 },
@@ -113,8 +109,8 @@ fn a_planted_bounds_corruption_refuses_at_load() {
 fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
     let base = ProfileDoc::empty(DocumentId::derive("r1-corrupt-log"), Tol::witness());
     let edit = DocEdit::SetDocParam {
-        name: ParamName::from_static("s"),
-        value: DocParam::continuous_with(
+        name: VarName::from_static("s"),
+        value: FreeVar::continuous_with(
             Dimension::Length,
             1.0,
             Distribution::Normal { sigma: 0.01 },
@@ -130,7 +126,7 @@ fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
             assert_eq!(
                 error,
                 EditError::InvalidDistribution {
-                    name: ParamName::from_static("s"),
+                    name: VarName::from_static("s"),
                     fault: DistributionFault::SigmaNotPositive { sigma: -2.0 },
                 }
             );
@@ -165,8 +161,8 @@ fn unknown_forms_and_stray_fields_refuse_to_parse() {
         editor_core::apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::from_static("n"),
-                value: DocParam::Count { value: 3 },
+                name: VarName::from_static("n"),
+                value: FreeVar::Count { value: 3 },
             },
             Tol::witness(),
             &editor_core::RefusingReach,

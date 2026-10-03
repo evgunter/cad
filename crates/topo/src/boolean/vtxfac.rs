@@ -489,12 +489,15 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     diag,
                 ));
             }
-            Err(PlaneEqError::Undeclared { diag, relation }) => {
-                return Err(BooleanError::UndeclaredCoincidence {
-                    diag,
-                    pair: [(piercing, s.face), (pierced_op, contact.face)],
+            Err(PlaneEqError::Undeclared {
+                coincidence,
+                relation,
+            }) => {
+                return Err(super::undeclared_coincidence(
+                    coincidence,
+                    [(piercing, s.face), (pierced_op, contact.face)],
                     relation,
-                });
+                ));
             }
             Err(PlaneEqError::Contradicted { fact, .. }) => {
                 return Err(BooleanError::DeclarationContradicted { fact });

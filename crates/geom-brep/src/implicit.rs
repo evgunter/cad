@@ -1104,6 +1104,194 @@ pub fn conic_sphere_harmonics<T: Real>(
     quadric_harmonics(conic, s_center, s_radius, |x| x)
 }
 
+/// The torus's implicit `F = (|q|² + R² − r²)² − 4R²(|q|² − (q·â)²)`,
+/// `q = C(θ) − c`, along a [`Conic`] carrier, as a trigonometric
+/// polynomial of degree FOUR in its parameter `θ`:
+/// `Σₖ cos[k]·cos kθ + sin[k]·sin kθ`, `k = 0..=4` (`sin[0]` is zero).
+///
+/// With `C(θ) − C₀ = a·û cos θ + b·v̂ sin θ` and `w = C₀ − c`, `S = |q|²`
+/// is of degree two — its second harmonic `((a²|û|² − b²|v̂|²)/2,
+/// ab·û·v̂)` vanishes only on a circle — and `h = q·â` of degree one, so
+/// `F = (S + R² − r²)² − 4R²S + 4R²h²` is of degree four: an octic in
+/// the tangent half-angle, at most eight crossings per turn. On a
+/// circle the third and fourth harmonics vanish and `F` is the degree-2
+/// polynomial of the circle × torus door. The products are formed
+/// EXACTLY in the harmonic basis (`cos kθ cos mθ = (cos(k+m)θ +
+/// cos(k−m)θ)/2` and its two siblings), so the polynomial describes the
+/// carrier [`Conic::point`] evaluates, frame defects included.
+///
+/// `F = 2r·res·Q` with `res` the torus's [`implicit_residual`] and
+/// `Q = (ρ + R)² + h² − r²` (`ρ` the distance from the axis), so
+/// `|F|` per metre of residual is at least [`Self::f_per_metre_lo`]
+/// everywhere, at most [`Self::f_per_metre_hi`] along the carrier, and at
+/// most [`Self::f_per_metre_surface`] within `r` of the surface.
+#[derive(Debug, Clone, Copy)]
+pub struct ConicTorusHarmonics<T> {
+    /// The cosine coefficients, `cos[k]` of `cos kθ` (`F`'s units, m⁴).
+    pub cos: [T; 5],
+    /// The sine coefficients, `sin[k]` of `sin kθ`; `sin[0]` is zero.
+    pub sin: [T; 5],
+    /// A bound on every magnitude the coefficients are built from (m⁴),
+    /// the scale their rounding is charged against
+    /// ([`rounding_charge`]): `(|S + R² − r²|)² + 4R²(|S| + |h|²)` read
+    /// at the coefficients' magnitudes.
+    pub terms: T,
+    /// A floor on `|F| / |res|`: `2r(R² − r²)`, `Q`'s least value on a
+    /// ring torus.
+    pub f_per_metre_lo: T,
+    /// A ceiling on `|F| / |res|` along the whole carrier:
+    /// `2r(|C₀ − c| + ‖C − C₀‖ + R)²` (`(ρ + R)² + h² ≤ (|q| + R)²`), the
+    /// carrier's reach `‖C − C₀‖` read off the frame AS STORED — the root
+    /// of the larger eigenvalue of the Gram matrix of `a·û` and `b·v̂` —
+    /// so a frame that is not orthonormal is charged its defect, padded by
+    /// a few ulps for the bound's own rounding.
+    pub f_per_metre_hi: T,
+    /// A ceiling on `|F| / |res|` within `r` of the surface, whatever the
+    /// carrier: `2r((2R + 2r)² + 3r²)` (there `ρ ≤ R + 2r` and
+    /// `|h| ≤ 2r`). It is the frame-free bound a point the band reads ON
+    /// the surface is charged at.
+    pub f_per_metre_surface: T,
+}
+
+/// The product of two trigonometric polynomials given by their cosine
+/// and sine coefficients, truncated to degree four (the callers'
+/// factors have degrees summing to at most four).
+fn trig_product<T: Real>(a: ([T; 5], [T; 5]), b: ([T; 5], [T; 5])) -> ([T; 5], [T; 5]) {
+    let half = T::from_f64(0.5);
+    let (mut cos, mut sin) = ([T::zero(); 5], [T::zero(); 5]);
+    for k in 0..5 {
+        for m in 0..5 - k {
+            let (ck, sk, cm, sm) = (a.0[k], a.1[k], b.0[m], b.1[m]);
+            // cos k cos m, sin k sin m, cos k sin m, sin k cos m, each
+            // split over k + m and |k − m|.
+            let (cc, ss) = (ck * cm * half, sk * sm * half);
+            let (cs, sc) = (ck * sm * half, sk * cm * half);
+            let (sum, diff) = (k + m, k.abs_diff(m));
+            cos[sum] = cos[sum] + cc - ss;
+            cos[diff] = cos[diff] + cc + ss;
+            sin[sum] = sin[sum] + cs + sc;
+            // sin(m − k) for cos k sin m, sin(k − m) for sin k cos m.
+            match m.cmp(&k) {
+                core::cmp::Ordering::Greater => sin[diff] = sin[diff] + cs - sc,
+                core::cmp::Ordering::Less => sin[diff] = sin[diff] + sc - cs,
+                core::cmp::Ordering::Equal => {}
+            }
+        }
+    }
+    (cos, sin)
+}
+
+/// [`ConicTorusHarmonics`] of `conic` against the torus
+/// `(t_center, t_axis, major_radius, minor_radius)`. `t_axis` unit,
+/// unchecked; the conic's frame need not be orthonormal (module docs of
+/// the struct). Total arithmetic.
+#[must_use]
+pub fn conic_torus_harmonics<T: Real>(
+    conic: &Conic<T>,
+    t_center: Point3<T>,
+    t_axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+) -> ConicTorusHarmonics<T> {
+    let (two, half) = (T::from_f64(2.0), T::from_f64(0.5));
+    let (a, b) = (conic.major, conic.minor);
+    let (u, v) = (conic.u_ref, conic.v_ref());
+    let w = conic.center - t_center;
+    let (aa, bb) = (a.powi(2) * u.norm_squared(), b.powi(2) * v.norm_squared());
+    let rr = major_radius.powi(2);
+    let k = rr - minor_radius.powi(2);
+    let zero = T::zero();
+    let s = (
+        [
+            w.norm_squared() + (aa + bb) * half,
+            two * a * w.dot(u),
+            (aa - bb) * half,
+            zero,
+            zero,
+        ],
+        [zero, two * b * w.dot(v), a * b * u.dot(v), zero, zero],
+    );
+    let h = (
+        [w.dot(t_axis), a * u.dot(t_axis), zero, zero, zero],
+        [zero, b * v.dot(t_axis), zero, zero, zero],
+    );
+    let mut p = s;
+    p.0[0] = p.0[0] + k;
+    let (pp_c, pp_s) = trig_product(p, p);
+    let (hh_c, hh_s) = trig_product(h, h);
+    let four_rr = T::from_f64(4.0) * rr;
+    let (mut cos, mut sin) = ([zero; 5], [zero; 5]);
+    for j in 0..5 {
+        cos[j] = pp_c[j] - four_rr * (s.0[j] - hh_c[j]);
+        sin[j] = pp_s[j] - four_rr * (s.1[j] - hh_s[j]);
+    }
+    let abs_sum = |c: [T; 5], s: [T; 5]| {
+        c.iter()
+            .chain(s.iter())
+            .fold(T::zero(), |acc, &x| acc + x.abs())
+    };
+    let (s_abs, p_abs, h_abs) = (abs_sum(s.0, s.1), abs_sum(p.0, p.1), abs_sum(h.0, h.1));
+    // `max_θ |a·û cos θ + b·v̂ sin θ|²`: the Gram matrix's larger
+    // eigenvalue, `(A + B)/2 + |((A − B)/2, C)|`.
+    let off = a * b * u.dot(v);
+    let gram = (aa + bb) * half + (((aa - bb) * half).powi(2) + off.powi(2)).sqrt();
+    let pad = T::from_f64(1.0 + 64.0 * geom_core::UNIT_ROUNDOFF);
+    let reach = (w.norm() + gram.sqrt() + major_radius) * pad;
+    let tube = two * (major_radius + minor_radius);
+    ConicTorusHarmonics {
+        cos,
+        sin,
+        terms: p_abs.powi(2) + four_rr * (s_abs + h_abs.powi(2)),
+        f_per_metre_lo: two * minor_radius * k,
+        f_per_metre_hi: two * minor_radius * reach.powi(2),
+        f_per_metre_surface: two
+            * minor_radius
+            * (tube.powi(2) + T::from_f64(3.0) * minor_radius.powi(2))
+            * pad,
+    }
+}
+
+/// The torus's [`implicit_residual`] at the [`Conic`] point of parameter
+/// `theta`, `(d² + h² − r²)/2r` with `d = ρ − R`, carried with a
+/// first-order running bound on its rounding ([`Rounded`]): the point's
+/// own evaluation ([`Conic::point`]'s order, `sin` and `cos` charged an
+/// ulp each), the axial split, the distance from the axis and the
+/// residual. `theta`, the frames and the radii are taken as exact. The
+/// value is bit-identical to [`implicit_residual`] at [`Conic::point`]:
+/// every operation is that chain's, in its order.
+#[must_use]
+pub fn conic_torus_residual<T: Real>(
+    conic: &Conic<T>,
+    t_center: Point3<T>,
+    t_axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+    theta: T,
+) -> Rounded<T> {
+    use geom_core::running::{cross, dot, exact_vec};
+    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
+    let (sin, cos) = theta.sin_cos();
+    let transcendental = |x: T| Rounded {
+        value: x,
+        error: ulp * x.abs(),
+    };
+    let (sin, cos) = (transcendental(sin), transcendental(cos));
+    let (a, b) = (Rounded::exact(conic.major), Rounded::exact(conic.minor));
+    let (n, u) = (exact_vec(conic.axis), exact_vec(conic.u_ref));
+    let v = cross(n, u);
+    let c = exact_vec(Vec3::new(conic.center.x, conic.center.y, conic.center.z));
+    let tc = exact_vec(Vec3::new(t_center.x, t_center.y, t_center.z));
+    let (ac, bs) = (a * cos, b * sin);
+    let q: [Rounded<T>; 3] = core::array::from_fn(|i| c[i] + u[i] * ac + v[i] * bs - tc[i]);
+    let axis = exact_vec(t_axis);
+    let h = dot(q, axis);
+    let w: [Rounded<T>; 3] = core::array::from_fn(|i| q[i] - axis[i] * h);
+    let rho = (w[0].square() + w[1].square() + w[2].square()).sqrt();
+    let d = rho - Rounded::exact(major_radius);
+    let r = Rounded::exact(minor_radius);
+    (d.square() + h.square() - r.square()).div_exact(T::from_f64(2.0) * minor_radius)
+}
+
 /// The sphere's linearized residual along a circle carrier, which is a
 /// pure first harmonic: `c₀ + A₁cos(θ − φ)` with `φ = atan2(e_v, e_u)`.
 ///
@@ -2650,6 +2838,218 @@ mod conic_tests {
     use core::f64::consts::TAU;
 
     use super::*;
+
+    /// **The carrier-wide ceiling charges the frame's defect.** On a
+    /// frame whose `û` is 1.3 long and not square to its axis — the
+    /// struct says a frame need not be orthonormal — the carrier reaches
+    /// past `max(|a|, |b|)`, and `Q = |F|/(2r|res|)` along it reaches
+    /// 1.53 times `(|C₀ − c| + max(|a|, |b|) + R)²`. Read off the Gram
+    /// matrix, the ceiling holds with room (`Q` peaks at 0.97 of it).
+    /// Every point within `r` of the torus, sampled over the tube, stays
+    /// under [`ConicTorusHarmonics::f_per_metre_surface`].
+    #[test]
+    fn the_carrier_ceiling_charges_the_frame_defect() {
+        let conic = Conic {
+            center: Point3::new(0.006_142_65, 0.035_256_44, 0.010_196_55),
+            axis: Vec3::new(0.758_923_11, 0.041_698_83, -0.649_843_76),
+            u_ref: Vec3::new(-0.631_128_01, 0.979_226_32, -0.574_074_24),
+            major: 1.779_300_934_408_354,
+            minor: 0.988_632_635_923_187_6,
+        };
+        let (c, ax) = (
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(-0.441_532_65, -0.871_819_51, -0.212_084_08).normalize(),
+        );
+        let (big, small) = (0.267_368_886_091_117, 0.162_217_785_042_628_35);
+        let h = conic_torus_harmonics(&conic, c, ax, big, small);
+        let q_at = |p: Point3<f64>| {
+            let q = p - c;
+            let along = q.dot(ax);
+            let rho = (q - ax * along).norm();
+            (rho + big).powi(2) + along.powi(2) - small.powi(2)
+        };
+        let q_max = (0..4000)
+            .map(|j| q_at(conic.point(TAU * f64::from(j) / 4000.0)))
+            .fold(0.0, f64::max);
+        let stated = (conic.center - c).norm() + conic.speed_hi() + big;
+        assert!(
+            2.0 * small * q_max > 1.5 * 2.0 * small * stated.powi(2),
+            "the pose reaches past the semi-axes' reach: Q {q_max} against {}",
+            stated.powi(2)
+        );
+        assert!(
+            2.0 * small * q_max <= h.f_per_metre_hi,
+            "2rQ {} over the carrier ceiling {}",
+            2.0 * small * q_max,
+            h.f_per_metre_hi
+        );
+        // Points within `r` of the surface: offsets up to `r` along the
+        // tube's own normal, over the whole tube.
+        let (e1, e2) = {
+            let x = Vec3::new(1.0, 0.0, 0.0);
+            let e1 = (x - ax * x.dot(ax)).normalize();
+            (e1, ax.cross(e1))
+        };
+        for i in 0..90 {
+            for j in 0..45 {
+                for off in [-1.0, -0.5, 0.0, 0.5, 1.0] {
+                    let (su, cu) = (TAU * f64::from(i) / 90.0).sin_cos();
+                    let (sv, cv) = (TAU * f64::from(j) / 45.0).sin_cos();
+                    let radial = e1 * cu + e2 * su;
+                    let normal = radial * cv + ax * sv;
+                    let p = c + radial * big + normal * (small * (1.0 + off));
+                    assert!(
+                        2.0 * small * q_at(p) <= h.f_per_metre_surface,
+                        "2rQ {} past the surface ceiling {}",
+                        2.0 * small * q_at(p),
+                        h.f_per_metre_surface
+                    );
+                }
+            }
+        }
+    }
+
+    /// **The running residual is the plain one, bit for bit.**
+    /// [`conic_torus_residual`]'s value equals [`implicit_residual`] at
+    /// [`Conic::point`] exactly, on every ellipse here, a circle and a
+    /// skewed frame, against two tori, round the turn — so the walk that
+    /// bisects on the one and the meter that bounds the other read the
+    /// same number — and its bound is never negative.
+    #[test]
+    fn the_running_torus_residual_is_the_plain_chain() {
+        let tori = [
+            (
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                0.55,
+                0.2,
+            ),
+            (
+                Point3::new(0.3, -0.1, 0.4),
+                Vec3::new(0.2, 1.0, -0.3).normalize(),
+                1.1,
+                0.35,
+            ),
+        ];
+        let mut conics = ellipses();
+        conics.push(Conic {
+            u_ref: Vec3::new(1.0, 0.3, 0.1),
+            ..conics[2]
+        });
+        for (k, conic) in conics.iter().enumerate() {
+            for &(c, ax, big, small) in &tori {
+                let s = Surface::Torus {
+                    center: c,
+                    axis: ax,
+                    major_radius: big,
+                    minor_radius: small,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                };
+                for j in 0..97 {
+                    let t = TAU * f64::from(j) / 97.0 - 1.3;
+                    let r = conic_torus_residual(conic, c, ax, big, small, t);
+                    let plain = implicit_residual(&s, conic.point(t));
+                    assert_eq!(
+                        r.value.to_bits(),
+                        plain.to_bits(),
+                        "conic {k} at {t}: running {} against plain {plain}",
+                        r.value
+                    );
+                    assert!(r.error >= 0.0, "conic {k} at {t}: bound {}", r.error);
+                }
+            }
+        }
+    }
+
+    /// **The torus implicit along a conic is the degree-4 polynomial the
+    /// harmonics spell.** Against tori in several poses, for every
+    /// ellipse here, a circle, and a frame that is not orthonormal, the
+    /// polynomial read from [`conic_torus_harmonics`] agrees with
+    /// `F = (|q|² + R² − r²)² − 4R²(|q|² − (q·â)²)` evaluated at the
+    /// carrier's own points to within the rounding charged against its
+    /// term bound; on the circle its third and fourth harmonics are
+    /// rounding too. And `F = 2r·res·Q` places `|F| / |res|` between the
+    /// two floors it reports, away from the surface's own zero set.
+    #[test]
+    fn the_torus_harmonics_are_the_implicit_along_the_carrier() {
+        let tori = [
+            (
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                0.55,
+                0.2,
+            ),
+            (
+                Point3::new(0.3, -0.1, 0.4),
+                Vec3::new(0.2, 1.0, -0.3).normalize(),
+                1.1,
+                0.35,
+            ),
+        ];
+        let mut conics = ellipses();
+        conics.push(Conic::circle(
+            Point3::new(0.2, 0.1, -0.1),
+            Vec3::new(0.0, 0.6, 0.8),
+            0.7,
+            Vec3::new(1.0, 0.0, 0.0),
+        ));
+        let skewed = Conic {
+            u_ref: Vec3::new(1.0, 0.003, 0.0),
+            ..conics[0]
+        };
+        conics.push(skewed);
+        for (k, conic) in conics.iter().enumerate() {
+            for &(c, ax, big, small) in &tori {
+                let h = conic_torus_harmonics(conic, c, ax, big, small);
+                let noise = rounding_charge(h.terms);
+                for j in 0..64 {
+                    let t = TAU * f64::from(j) / 64.0;
+                    let q = conic.point(t) - c;
+                    let (s, hh) = (q.norm_squared(), q.dot(ax));
+                    let direct =
+                        (s + big * big - small * small).powi(2) - 4.0 * big * big * (s - hh * hh);
+                    let poly = (0..5).fold(0.0, |acc, m| {
+                        let (sm, cm) = (f64::from(m) * t).sin_cos();
+                        acc + h.cos[m as usize] * cm + h.sin[m as usize] * sm
+                    });
+                    assert!(
+                        (poly - direct).abs() <= noise,
+                        "conic {k}: at {t} the polynomial reads {poly}, the implicit {direct}"
+                    );
+                    let res = implicit_residual(
+                        &Surface::Torus {
+                            center: c,
+                            axis: ax,
+                            major_radius: big,
+                            minor_radius: small,
+                            u_ref: Vec3::new(1.0, 0.0, 0.0),
+                        },
+                        conic.point(t),
+                    );
+                    if res.abs() > 1e-6 {
+                        let ratio = direct.abs() / res.abs();
+                        assert!(
+                            ratio >= h.f_per_metre_lo * (1.0 - 1e-9)
+                                && ratio <= h.f_per_metre_hi * (1.0 + 1e-9),
+                            "conic {k}: |F|/|res| = {ratio} outside [{}, {}]",
+                            h.f_per_metre_lo,
+                            h.f_per_metre_hi
+                        );
+                    }
+                }
+                if k == conics.len() - 2 {
+                    for m in 3..5 {
+                        assert!(
+                            h.cos[m].abs() <= noise && h.sin[m].abs() <= noise,
+                            "the circle's harmonic {m}: {} {}",
+                            h.cos[m],
+                            h.sin[m]
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     /// Unit, orthogonal frames at several tilts and eccentricities, in
     /// every stored order and sign.

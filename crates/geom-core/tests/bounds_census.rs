@@ -415,6 +415,14 @@ const ROSTER: &[Site] = &[
         why: Payload("as `bracket_vector`, over a decided unit direction (`UnitSpanBox`)"),
     },
     Site {
+        path: "crates/topo/src/boolean/ops.rs",
+        subject: "centred_box",
+        why: Payload(
+            "the extent scan's ball box: a centre's and a radius's brackets into an f64 \
+             `bvh::Aabb`, padded, and stop",
+        ),
+    },
+    Site {
         path: "crates/topo/src/chart_region.rs",
         subject: "definite_diag",
         why: Payload("echoes a classified margin's conservative end into a diagnostic"),

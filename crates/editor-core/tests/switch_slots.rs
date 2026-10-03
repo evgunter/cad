@@ -14,11 +14,11 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
-    Datum, Dimension, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Expr,
-    ExprPath, Frame, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
-    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, Placement, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SlotId, SplitHalf, Step, StepArg, TubeWindow, ValuePayload, evaluate,
+    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Expr, ExprPath, Frame,
+    FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
+    SplitHalf, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -245,8 +245,8 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::from_static("r"),
-                value: DocParam::continuous(Dimension::Length, 0.5),
+                name: VarName::from_static("r"),
+                value: FreeVar::continuous(Dimension::Length, 0.5),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -270,7 +270,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                     plane: doc.order()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
-                        radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
+                        radius: Expr::param(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
@@ -284,8 +284,8 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let broken = doc
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::from_static("r"),
-                value: DocParam::continuous(Dimension::Length, 0.0),
+                name: VarName::from_static("r"),
+                value: FreeVar::continuous(Dimension::Length, 0.0),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

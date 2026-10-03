@@ -863,6 +863,59 @@ pub fn plant_ring_face<T: geom_core::Decide + crate::props::AtRestPolicy>(
     }
 }
 
+/// **A disc planted in a plane face**: the circle of `radius` about
+/// `center`, axis `+z`, closed at its one vertex `center + radius·x̂`,
+/// planted as a ring of the face whose loop holds `at` and covered by a
+/// new face on a new key holding a copy of that face's surface, with
+/// its sense. The circle is one closed edge between the host and the
+/// disc: its two ends are one vertex.
+///
+/// A strut from `at`'s start vertex to the circle's vertex, killed by
+/// `kemr` so the vertex is left as an empty ring of the host, then one
+/// `mef` at that lone vertex along the circle. The host face is
+/// horizontal and holds the circle; nothing checks either.
+pub fn plant_disc_face<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    at: HalfEdgeKey,
+    center: Point3<T>,
+    radius: T,
+    tol: Tol,
+) -> MefCreated {
+    let x = Vec3::new(T::one(), T::zero(), T::zero());
+    let host = body
+        .get_face(
+            body.get_loop(body.get_half_edge(at).unwrap().parent_loop)
+                .unwrap()
+                .face,
+        )
+        .unwrap()
+        .clone();
+    let strut = body
+        .mev_line(MevSite::Fan { he1: at, he2: at }, center + x * radius, tol)
+        .unwrap();
+    let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    let carrier = Curve3::Circle {
+        center,
+        axis: Vec3::new(T::zero(), T::zero(), T::one()),
+        radius,
+        u_ref: x,
+    };
+    let spec =
+        EdgeCurveSpec::arc_of_circle(carrier, T::zero(), T::from_f64(core::f64::consts::TAU))
+            .unwrap();
+    let surface = body.get_surface(host.surface).unwrap().clone();
+    body.mef(
+        MefSite::Lone { r#loop: kill.ring },
+        spec,
+        FaceSurface::New {
+            surface,
+            sense: host.sense,
+        },
+        tol,
+    )
+    .unwrap()
+}
+
 /// The operator keys [`drill_hole`] mints, in construction order.
 pub struct HoleOps {
     /// Steps (f)–(i): the rim planted in the entry face and its

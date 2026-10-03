@@ -111,7 +111,7 @@ use geom_core::Tol;
 
 use crate::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use crate::distribution::Distribution;
-use crate::doc::{Doc, DocParam, ParamName};
+use crate::doc::{Doc, FreeVar, VarName};
 use crate::drive::{
     DriveConfig, DriveRefusal, FlipEvidence, ParamBoxVerdict, RefusalReason, drive,
 };
@@ -130,7 +130,7 @@ use crate::spoken::SpokenNode;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RangeField {
     /// A document parameter, boxed directly.
-    Param(ParamName),
+    Param(VarName),
     /// A continuous slot of one node, widened through a synthetic
     /// parameter of the derived document.
     Slot {
@@ -324,7 +324,7 @@ pub struct CertifiedRange {
     field: RangeField,
     nominal: f64,
     seed: RangeSeed,
-    pinned: Vec<ParamName>,
+    pinned: Vec<VarName>,
     lo: RangeSide,
     hi: RangeSide,
 }
@@ -356,7 +356,7 @@ impl CertifiedRange {
     /// the whole certificate, and empty means the document declared no
     /// other spread to drop.
     #[must_use]
-    pub fn pinned(&self) -> &[ParamName] {
+    pub fn pinned(&self) -> &[VarName] {
         &self.pinned
     }
 
@@ -421,7 +421,7 @@ pub enum RangeRefusal {
     /// `Count` — a structural parameter is not a box axis.
     NotAContinuousParam {
         /// The name asked for.
-        param: ParamName,
+        param: VarName,
     },
     /// The document has no such node.
     UnknownNode {
@@ -575,13 +575,13 @@ pub struct DerivedRange {
     /// with the slot rewritten to name it for a slot field.
     pub doc: Doc<ProfileProgram>,
     /// The parameter whose axis IS the seed.
-    pub axis: ParamName,
+    pub axis: VarName,
     /// The field's value in the input document, bit for bit.
     pub nominal: f64,
     /// The parameters whose declared distribution this derivation
     /// CLEARED, in name order — the condition the answer holds under
     /// ([`CertifiedRange::pinned`]).
-    pub pinned: Vec<ParamName>,
+    pub pinned: Vec<VarName>,
 }
 
 /// The synthetic parameter a slot of `node` is widened through: the
@@ -593,7 +593,7 @@ pub struct DerivedRange {
 /// underscores), so the parser reads it back. The slot's label is not
 /// part of it: a label is prose for a person, and what a person is
 /// shown of the answer names the slot ([`CertifiedRange::field`]).
-fn synthetic_name(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> ParamName {
+fn synthetic_name(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> VarName {
     let base = format!("query_certified_range_{}", node.full());
     let mut spelled = base.clone();
     let mut n = 0_usize;
@@ -601,7 +601,7 @@ fn synthetic_name(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> ParamName {
         n += 1;
         spelled = format!("{base}_{n}");
     }
-    match ParamName::new(spelled) {
+    match VarName::new(spelled) {
         Ok(name) => name,
         Err(fault) => unreachable!("a fixed prefix and hex digits are one identifier: {fault}"),
     }
@@ -645,7 +645,7 @@ pub fn derive(
     };
     let (mut derived, axis, nominal) = match field {
         RangeField::Param(name) => {
-            let Some(DocParam::Continuous { value, .. }) = doc.params().get(name) else {
+            let Some(FreeVar::Continuous { value, .. }) = doc.params().get(name) else {
                 return Err(RangeRefusal::NotAContinuousParam {
                     param: name.clone(),
                 });
@@ -692,7 +692,7 @@ pub fn derive(
                 doc,
                 &DocEdit::SetDocParam {
                     name: name.clone(),
-                    value: DocParam::continuous(dim, value),
+                    value: FreeVar::continuous(dim, value),
                 },
                 tol,
             )?;
@@ -711,11 +711,11 @@ pub fn derive(
     // The axis takes the seed; every other continuous parameter is
     // pinned at its nominal, because this query's contract is one
     // field.
-    let annotated: Vec<(ParamName, DocParam)> = derived
+    let annotated: Vec<(VarName, FreeVar)> = derived
         .params()
         .iter()
         .filter_map(|(name, p)| match p {
-            DocParam::Continuous {
+            FreeVar::Continuous {
                 dim: d,
                 value,
                 display_unit,
@@ -725,7 +725,7 @@ pub fn derive(
                 (*distribution != wanted).then(|| {
                     (
                         name.clone(),
-                        DocParam::Continuous {
+                        FreeVar::Continuous {
                             dim: *d,
                             value: *value,
                             display_unit: *display_unit,
@@ -734,14 +734,14 @@ pub fn derive(
                     )
                 })
             }
-            DocParam::Count { .. } => None,
+            FreeVar::Count { .. } => None,
         })
         .collect();
     // What the clearing PINNED: the parameters that had a declared
     // spread and lost it, which is the condition the answer holds
     // under. The axis itself is never in the list — it did not lose a
     // spread, it was given one.
-    let pinned: Vec<ParamName> = annotated
+    let pinned: Vec<VarName> = annotated
         .iter()
         .filter(|(name, value)| *name != axis && value.distribution().is_none())
         .map(|(name, _)| name.clone())
@@ -853,7 +853,7 @@ struct Leaf<'a> {
 /// rather than claiming a guard nothing has shown to work.
 fn walkable_leaves<'a>(
     verdict: &'a ParamBoxVerdict,
-    axis: &ParamName,
+    axis: &VarName,
     seed: RangeSeed,
 ) -> Result<Vec<Leaf<'a>>, RangeRefusal> {
     let span = |box_: &ParamBox| -> Result<(f64, f64), RangeRefusal> {
