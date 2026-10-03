@@ -1,6 +1,6 @@
 # Review of PR #3980, frozen head 5a5c62365b
 
-Lane `reach-dual3980-r1`. Wall clock 2026-10-03 17:09 – 19:10 UTC. **Verdict: APPROVE-WITH-FIXES.** MAJOR 0 · MINOR 2 · NOTE 5.
+Lane `reach-dual3980-r1`. Wall clock 2026-10-03 17:09 – 19:03 UTC. **Verdict: APPROVE-WITH-FIXES.** MAJOR 0 · MINOR 2 · NOTE 5.
 No glimpse: I read the PR body with `pull_request_read get` only, and no other `analysis/reach-dual/*` branch, PR comment or review.
 I did not read the PR's check runs either, since the brief allows `get` only. So the verdict rests on my local runs, not on CI:
 - every topo + sweep + editor-core test (the `ci` fast set and the 105 slow-set rows) passes at ε 1e-9;
