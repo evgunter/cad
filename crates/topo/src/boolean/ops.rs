@@ -2360,6 +2360,19 @@ impl Descendants {
 /// first (graft lineage), then the D5 descendant chase — dropping
 /// records only when the entity is genuinely consumed (module docs).
 ///
+/// **v-v rows are remapped as groups.** Rows that name a common key
+/// on the same side (an A vertex or a B vertex in two rows) are one
+/// group, closed transitively, and every two distinct live vertices
+/// the group's ends map to are recorded, though no single row named
+/// that pair, two A vertices included. Whatever the pair, both its
+/// vertices sit at the point the reduction coincided the shared key
+/// with each of them. The inference reads keys and never positions:
+/// it records what the reduction's own coincidences imply, and no
+/// pair the census sees at one point is blessed for being there. A
+/// group whose ends map to one live vertex records nothing, since a
+/// pair fused into one vertex is structure now. A lone row maps as
+/// its two ends.
+///
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] on cycling absorption rows
@@ -2371,9 +2384,9 @@ pub(super) fn remap_contacts<T: Real>(
     b_view: KeyView<'_>,
     desc: &Descendants,
 ) -> Result<ContactRecords, BooleanError> {
-    // v-v pairs chase through zip fusions (a fused vertex's partner
-    // may still coincide with the survivor); a pair fused into ONE
-    // vertex is consumed (structural now) and drops.
+    // v-v ends chase through zip fusions (a fused vertex's partner
+    // may still coincide with the survivor); the group rule is in the
+    // doc above.
     let vert = |side: (Operand, &KeyView<'_>), v: VertexKey| desc.live_vertex(body, side, v);
     // v-on-f VERTICES deliberately do NOT chase, and any vertex that
     // took part in a zip fusion (either side of a kev) drops its
@@ -2393,11 +2406,9 @@ pub(super) fn remap_contacts<T: Real>(
     let face =
         |view: &KeyView<'_>, f: FaceKey| view.face(f).map_or(Ok(None), |k| desc.live_face(body, k));
     let mut out = ContactRecords::default();
-    // Rows sharing an end sit at one point, and every two of their
-    // ends that are distinct live vertices are a contact the census
-    // asks after: a vertex coincident with two of the other operand's
-    // (that operand's own contact) fuses into one and keeps touching
-    // the other, whose row names the end that fused away.
+    // The groups (doc above): a vertex coincident with two of the
+    // other operand's fuses into one and keeps touching the other,
+    // whose row names the end that fused away.
     let mut group: Vec<usize> = (0..contacts.vv.len()).collect();
     for i in 0..group.len() {
         for j in 0..i {

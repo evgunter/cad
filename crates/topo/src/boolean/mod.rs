@@ -1588,8 +1588,9 @@ pub enum BooleanError {
         operand: Operand,
         /// That vertex.
         vertex: VertexKey,
-        /// The other operand's two vertices at its point, in
-        /// classification order.
+        /// Two of the other operand's vertices at its point that it
+        /// crosses into, in classification order: the first two, when
+        /// it crosses into more.
         partners: [VertexKey; 2],
     },
     /// A classification invariant failed (e.g. a surviving record
@@ -2722,15 +2723,12 @@ impl core::fmt::Display for BooleanError {
                  cyclically adjacent in both neighborhoods (the 15.11 invariant's guarded \
                  refusal)"
             ),
-            Self::SharedVertexCrossings {
-                operand,
-                vertex,
-                partners,
-            } => write!(
+            Self::SharedVertexCrossings { operand, .. } => write!(
                 f,
-                "vertex {vertex:?} of the {} crosses into both of the other solid's \
-                 vertices at its point, {partners:?}: two vertices at one point each \
-                 need the orbit the other's crossing splits",
+                "a corner of the {} solid meets a point where the other solid holds two \
+                 corners that only touch each other, and cuts into both of them; the \
+                 Boolean cannot yet join one corner into two at once. There is no way \
+                 through this in the kernel yet",
                 operand_word(*operand)
             ),
             Self::ClassificationInvariant { what } => {
@@ -3270,7 +3268,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     }
     let crosses: Vec<bool> = classified
         .iter()
-        .map(|(.., records, _)| records.iter().any(|r| r.intersect))
+        .map(|(.., records, _)| records.iter().any(sectors::PairRecord::survives))
         .collect();
     for (i, c) in contacts.vv.iter().enumerate() {
         let shared = |d: &VvContact| d.a == c.a || d.b == c.b;

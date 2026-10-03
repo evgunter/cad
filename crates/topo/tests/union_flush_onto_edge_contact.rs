@@ -151,29 +151,56 @@ fn rest_rows(records: &topo::ContactRecords) -> Vec<CarriedVv> {
 /// **A vertex crossing into both of a pinch's neighbourhoods refuses
 /// typed.** Two bricks touching along the z-axis hold two vertices at
 /// each end of it; a prism whose corner wedge runs from 80° to 190°
-/// sits on the axis with a corner at the pinch, so its corner crosses
-/// both bricks' corners. Each crossing pair would split the shared
-/// corner's orbit the other read, and the insertion handles one: the
-/// refusal names both pairs. Red if the reading-before-insertion pass
-/// lets both through (the second walks a moved orbit and refuses
-/// `CorruptOperand` at the prism's corner).
+/// sits on the axis with a corner at the pinch's lower end, so that
+/// corner crosses into both bricks' corners. Each crossing pair would
+/// split the shared corner's orbit the other read, and the insertion
+/// handles one: the refusal names the prism's corner and the pinch's
+/// two vertices there. Red if the guard lets both through: the second
+/// insertion then splices a fan the first moved, and refuses
+/// `Euler(FanStartMismatch)`.
 #[test]
 fn a_vertex_crossing_both_sides_of_a_pinch_refuses_typed() {
     let tol = Tol::witness();
     let (pinch, _) = pinch(tol);
     let at = |deg: f64| (deg.to_radians().cos(), deg.to_radians().sin());
     let wedge: Body<f64> = common::prism_z(&[(0.0, 0.0), at(190.0), at(80.0)], 0.5, 1.0, tol).body;
+    let corner = geom_core::Point3::new(0.0, 0.0, 0.5);
+    let keys_at = |body: &Body<f64>| -> Vec<topo::VertexKey> {
+        body.vertices()
+            .filter(|(_, v)| {
+                body.get_point(v.point)
+                    .is_some_and(|p| (p.x, p.y, p.z) == (corner.x, corner.y, corner.z))
+            })
+            .map(|(k, _)| k)
+            .collect()
+    };
+    let (wedge_corner, pinch_ends) = (keys_at(&wedge), keys_at(&pinch.body));
+    assert_eq!(
+        (wedge_corner.len(), pinch_ends.len()),
+        (1, 2),
+        "one prism corner and two pinch vertices at {corner:?}"
+    );
     let decls = flush_declarations(&pinch.body, &wedge, tol);
     match union_with(&pinch.body, &wedge, &decls, tol) {
         Err(BooleanError::SharedVertexCrossings {
             operand,
+            vertex,
             partners: [p0, p1],
-            ..
-        }) => assert!(
-            operand == topo::Operand::B && p0 != p1,
-            "the prism's corner is the shared vertex, and its partners are the \
-             pinch's two vertices: {operand:?}, {p0:?}, {p1:?}"
-        ),
+        }) => {
+            assert_eq!(
+                (operand, vertex),
+                (topo::Operand::B, wedge_corner[0]),
+                "the shared vertex is the prism's corner"
+            );
+            let mut partners = vec![p0, p1];
+            partners.sort();
+            let mut want = pinch_ends.clone();
+            want.sort();
+            assert_eq!(
+                partners, want,
+                "its partners are the pinch's two vertices there"
+            );
+        }
         other => panic!("want SharedVertexCrossings, got {:?}", other.map(|_| ())),
     }
 }
@@ -231,4 +258,38 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
         let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
         assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
     }
+}
+
+/// **A remap group of four rows.** Two pinches on one axis in
+/// complementary quadrants, overlapping over z ∈ (1, 1.5): at each end
+/// of the overlap, two vertices of one pinch meet two of the other's
+/// (one end's, and the other's edges split there), so the reduction
+/// holds four v-v rows chained through shared keys. The subtract
+/// builds at the first pinch's volume and, with both pinches' records
+/// carried, passes 3′. Red if the remap records only the pairs a row
+/// names: 3′ refuses the two vertices left at (0,0,1) and the edge
+/// overlaps beside them.
+#[test]
+fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
+    let tol = Tol::witness();
+    let (pinch_a, carried_a) = pinch(tol);
+    let q2: Body<f64> = brick((-1.0, 0.0), (0.0, 1.0), (1.0, 2.0), tol);
+    let q4: Body<f64> = brick((0.0, 1.0), (-1.0, 0.0), (1.0, 2.0), tol);
+    let BooleanResult::Body(pinch_b) =
+        union_with(&q2, &q4, &flush_declarations(&q2, &q4, tol), tol).expect("a pinch builds")
+    else {
+        panic!("a union of two bricks came back empty");
+    };
+    let mut decls = flush_declarations(&pinch_a.body, &pinch_b.body, tol);
+    decls.carried_a.vv = carried_a;
+    decls.carried_b.vv = rest_rows(&pinch_b.contacts);
+    let BooleanResult::Body(out) =
+        subtract_with(&pinch_a.body, &pinch_b.body, &decls, tol).expect("the subtract builds")
+    else {
+        panic!("the subtract of disjoint quadrants came back empty");
+    };
+    let volume = mass_properties(&out.body, tol).expect("mass").volume;
+    assert!((volume - 2.0).abs() < 1e-9, "volume {volume}, want 2.0");
+    let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+    assert!(verdict.is_ok(), "3′ refused {:?}", verdict.err());
 }

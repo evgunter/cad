@@ -4,7 +4,7 @@ kind: issue
 title: A vertex that crosses into both neighbourhoods of an operand's pinch refuses SharedVertexCrossings: the insertion handles one crossing pair per vertex
 status: open
 opened: 2026-10-02
-priority: P2
+priority: P0
 cost: H
 ---
 
@@ -40,7 +40,17 @@ make.
   quadrants.
 
 The state is buildable, since the union is a solid, so the refusal is
-a missing arm, not a ruling.
+a missing arm, not a ruling. **P0** (FUSE orchestrator's ruling,
+2026-10-02, on the parent row's rule): the pinch is itself a boolean
+output (`union_with(q1, q3)`), and the next boolean with a valid
+operand refuses it, so a boolean output is not a legal operand.
+
+A second witness, from the same suite's
+`a_four_row_remap_group_certifies_a_subtract_of_two_pinches` fixture.
+That pinch, ∪ the complementary pinch `brick((-1,0),(0,1),(1,2))` ∪
+`brick((0,1),(-1,0),(1,2))` (the four quadrants around one axis),
+refuses `SharedVertexCrossings` in both operand orders. The subtract
+builds.
 
 ## Owed
 
