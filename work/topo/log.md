@@ -6190,3 +6190,27 @@ The cloud reviewer is session `session_01LgCrvCR6F6EXRiRFyL5SXV`. It is
 asked whether a NaN carrier datum is a kernel defect or malformed input
 with its own lever, and whether the `same_door` test change weakened a
 pin.
+
+## PR 3975 reviewed; PR 3972 delivered (2026-10-03)
+
+- **PR 3975 (EmptyAnchorsCollide).** The cloud review says mergeable.
+  - The witness is red on base, the re-baseline is sound (mutant C), and
+    the docs match the code.
+  - **MINOR:** the filed cycle-walk row missed three sites outside
+    `euler*.rs`: `movefac.rs:162`, `attach.rs:~570` and
+    `merge_faces.rs` `outermost_survivor`. I added them to the row on the
+    branch and closed the unit row there (`4cf9aaf5ad`).
+  - **Not taken:** the doc-wrap style and the Q1 two-check taste.
+  - **NOTE:** the `besides` exclusion is unpinned. It predates this PR.
+  - Merge waits on CI on `4cf9aaf5ad`.
+- **PR 3972 (vertex-orbit).** `orbit_walk` answers `Broken` at a foreign
+  start.
+  - Pass 6 walks the old walk, with identical reports over 1,056,000 torn
+    bodies.
+  - Both plan checks are retired. `mev`'s torn refusal becomes
+    `FanOrbitBroken`.
+  - `shell::valence` is fixed.
+  - Filed: the rho residue (965 of 1,103,470), `null_site` and
+    `strut_anchor` on cleave.
+  - CI run 37139069412 passed. The cloud reviewer is
+    `session_019aQcGAqQrs7aJVZHm9oi7i`.
