@@ -174,7 +174,7 @@ use pncad::geom_core::{Bounds, Interval, Sym, SymBudget, SymCounts, SymRules, To
 
 use crate::chain::{
     CERTIFIABLE_FRACTION_BY_LINKS, CERTIFIED_PIN_BOX, Chain, JOINT_SIGMA, LINK_LENGTH, LINKS,
-    POSITION_BOUND, chain,
+    POSITION_BOUND, chain, study,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -351,7 +351,7 @@ pub fn narration(tol: Tol) {
 
     let mut rows = Vec::new();
     for links in 1..=LINKS {
-        let built: Chain = chain(links, JOINT_SIGMA, POSITION_BOUND, tol);
+        let built: Chain = study(links, tol);
         for row in [
             interval_leaf(links, &built.doc),
             sym_leaf(links, &built.doc),

@@ -120,7 +120,7 @@ use pncad::topo::{Body, LoopBoundary};
 
 use crate::chain::{
     CERTIFIABLE_FRACTION, CERTIFIED_PIN_BOX, Chain, JOINT_SIGMA, LINK_HEIGHT, LINK_LENGTH, LINKS,
-    PIN_RADIUS, POSITION_BOUND, chain, pin_axis,
+    PIN_RADIUS, POSITION_BOUND, pin_axis, study,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -349,7 +349,7 @@ fn spreads(samples: &[Sample]) -> Vec<Spread> {
 ///
 /// Returns the SVG so the caller owns where it lands.
 pub fn narration(tol: Tol) -> String {
-    let base = chain(LINKS, JOINT_SIGMA, POSITION_BOUND, tol);
+    let base = study(LINKS, tol);
     let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
     let config = McConfig {
         samples: DEFAULT_SAMPLES,

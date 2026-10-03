@@ -513,7 +513,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
 
     // The corpus the census is over.
-    assert_eq!(all.len(), 1676, "rows in the committed baseline");
+    assert_eq!(all.len(), 1678, "rows in the committed baseline");
     assert_eq!(sized.len(), 88, "of them sized");
     let sized_scenes = {
         let mut s: Vec<&str> = sized.iter().map(|r| r.scene.as_str()).collect();
@@ -557,8 +557,8 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // what it measures is the size of the hole the sized-row census
     // above sits inside.
     let (all_pairs, _, all_scenes) = census(&all);
-    assert_eq!(all_pairs, 26_513, "pairs across every row");
-    assert_eq!(all_scenes.len(), 84, "scenes carrying one, corpus-wide");
+    assert_eq!(all_pairs, 26_529, "pairs across every row");
+    assert_eq!(all_scenes.len(), 83, "scenes carrying one, corpus-wide");
 }
 
 /// The other half of the paragraph: WHICH identity entries actually
@@ -662,7 +662,7 @@ fn five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows(
 /// census asserts its scene list: a count is the weaker pin, and this
 /// one is already asserted 130 lines up over an identical predicate
 /// over the identical corpus, so a second count here would exercise
-/// nothing. The note count is `84 − 16` by construction — every scene
+/// nothing. The note count is `83 − 16` by construction — every scene
 /// is one or the other — so it is arithmetic and is stated in this
 /// sentence rather than asserted. An assertion no perturbation can
 /// reach is the defect this file exists to keep out of its own
@@ -680,12 +680,12 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
         .into_iter()
         .collect();
 
-    // 84 twice in this file, and NOT one figure asserted twice: this
-    // is every scene of the corpus, where the pair census's 84 is the
+    // 83 twice in this file, and NOT one figure asserted twice: this
+    // is every scene of the corpus, where the pair census's 83 is the
     // scenes carrying an indistinguishable pair among ALL rows. They
     // agree only because every scene currently carries one, and a
     // re-cut can end that without either assertion being wrong.
-    assert_eq!(scenes.len(), 84, "scenes in the committed baseline");
+    assert_eq!(scenes.len(), 83, "scenes in the committed baseline");
     assert_eq!(
         gating,
         [
@@ -707,7 +707,7 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
             "twisted_tube/twisted_tube",
         ],
         "the scenes carrying a sized face, where a re-key is a FINDING; \
-         in every other scene of the 84 it is a NOTE"
+         in every other scene of the 83 it is a NOTE"
     );
 
     // The SCENE-level spelling of "carries a sized face", which cannot
