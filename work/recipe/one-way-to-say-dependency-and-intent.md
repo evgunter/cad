@@ -105,3 +105,8 @@ the evidence becomes or whether it disappears, what the user sees, and
 which ratified clauses change. Name every remaining fork with a
 recommendation. Where the direction above is wrong against the tree,
 say so.
+
+## Ev's words
+
+Ev's messages of the 2026-10-03 conversation, verbatim:
+`git show 5f7a1c71e3:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent.md`.
