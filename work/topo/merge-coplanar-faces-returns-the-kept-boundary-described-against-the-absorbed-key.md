@@ -2,12 +2,13 @@
 id: merge-coplanar-faces-returns-the-kept-boundary-described-against-the-absorbed-key
 kind: issue
 title: merge_coplanar_faces is public and returns a body whose kept face's boundary still names the absorbed face's key; only the boolean's describe_minted_edges repairs it
-status: review
+status: closed
 branch: topo/merge-door-re-describes
 pr: 3702
 opened: 2026-10-01
 priority: P2
 cost: M
+closed: 2026-10-03
 ---
 
 
