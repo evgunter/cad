@@ -3805,6 +3805,10 @@ mod undeclared_rule_rows {
 #[path = "coplanar_conic_rows.rs"]
 pub(super) mod coplanar_conic_rows;
 
+#[cfg(test)]
+#[path = "planar_lane_carrier_rows.rs"]
+mod planar_lane_carrier_rows;
+
 /// **A curved face's escalations read no declaration ahead of them, and
 /// offer none**, on the review's executed raises (its
 /// `probe_wall_roots_in_band_with_and_without_declaration`, adopted
