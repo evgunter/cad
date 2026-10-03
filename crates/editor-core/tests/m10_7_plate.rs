@@ -16,6 +16,7 @@
 #![allow(dead_code)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
@@ -96,6 +97,7 @@ pub(crate) fn plate(
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile,
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
 
     let hole = |r: &mut Recorder, centre: Expr, radius: &'static str| {
@@ -110,6 +112,7 @@ pub(crate) fn plate(
         r.insert(Node::Extrude {
             profile,
             distance: len(1.0e-3),
+            side: ExtrudeSide::Along,
         })
     };
     let hole_a = hole(

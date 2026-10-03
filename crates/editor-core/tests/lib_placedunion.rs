@@ -18,6 +18,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CountMismatch, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult,
@@ -47,6 +48,7 @@ fn fin_only() -> (ProfileDoc, RecipeNodeId) {
     let fin = r.insert(Node::Extrude {
         profile: p,
         distance: len(0.8125),
+        side: ExtrudeSide::Along,
     });
     (r.doc, fin)
 }
@@ -325,6 +327,7 @@ fn boxes_at(frames: Vec<Frame>) -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let group = r.insert(Node::placed_union_at(solid, frames));
     (r.doc, group)
@@ -410,6 +413,7 @@ fn a_circular_group_places_around_a_datum_axis() {
     let solid = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let group = r.insert(
         Node::placed_union(
@@ -840,6 +844,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
         let solid = r.insert(Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         });
         (r.doc, solid)
     };

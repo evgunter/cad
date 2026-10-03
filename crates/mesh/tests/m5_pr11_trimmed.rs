@@ -7,6 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::HashMap;
+use sweep::ExtrudeSide;
 
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
@@ -32,9 +33,16 @@ fn disc() -> ValidatedProfile<f64> {
 }
 
 fn halves() -> (Body<f64>, Body<f64>) {
-    let cylinder = extrude(&disc(), Extrusion::Distance(H), Tol::witness())
-        .unwrap()
-        .body;
+    let cylinder = extrude(
+        &disc(),
+        Extrusion::Distance {
+            depth: H,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, H / 2.0),
         Vec3::new(PHI.sin(), 0.0, PHI.cos()),

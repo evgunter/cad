@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p3, polygon, validated};
+use pncad::document::ExtrudeSide;
 use pncad::profile::SketchPlane;
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanResultKind};
@@ -39,9 +40,16 @@ pub fn slab<S: Scalar>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) ->
     // Raw extrude output IS boolean-consumable since PR 5's
     // extrude-operand description remap (proven by the PR 5.5 review's
     // die e2e).
-    extrude(&profile, Extrusion::Distance(S::from_f64(z.1 - z.0)), tol)
-        .expect("extrude slab")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(z.1 - z.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("extrude slab")
+    .body
 }
 
 // ---------------------------------------------------------------

@@ -18,6 +18,7 @@
 use geom_core::Affine3;
 use geom_core::Tol;
 use profile::RawLoop;
+use sweep::ExtrudeSide;
 use sweep::test_support::{PRISM_Z, loft_prism_sections, stacked_at};
 use sweep::{Section, loft_body};
 
@@ -187,9 +188,16 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
             .validate(geom_core::Tol::witness())
             .unwrap();
-        sweep::extrude(&vp, sweep::Extrusion::Distance(3.0), Tol::witness())
-            .unwrap()
-            .body
+        sweep::extrude(
+            &vp,
+            sweep::Extrusion::Distance {
+                depth: 3.0,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     };
     let out = topo::subtract(&loft, &cutter, Tol::witness());
     let err = match out {

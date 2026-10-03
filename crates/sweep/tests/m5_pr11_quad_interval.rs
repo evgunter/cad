@@ -8,6 +8,7 @@
 use geom_core::Tol;
 use geom_core::{Bounds, Interval};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, split};
 use topo::{Body, validate_geometric};
@@ -23,9 +24,16 @@ fn halves() -> (Body<Interval>, Body<Interval>) {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(iv(H)), Tol::witness())
-        .unwrap()
-        .body;
+    let cylinder = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: iv(H),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let plane = topo::test_support::split_plane(
         p3(0.0, 0.0, H / 2.0),
         v3(PHI.sin(), 0.0, PHI.cos()),

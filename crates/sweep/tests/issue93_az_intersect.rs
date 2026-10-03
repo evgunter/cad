@@ -32,6 +32,7 @@ use geom_core::Tol;
 use geom_core::{Decide, OrthoFrame, Point2, Point3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{
     Body, BooleanBody, BooleanResult, mass_properties, validate, validate_closed,
@@ -107,7 +108,10 @@ fn a_prism<T: Decide + topo::AtRestPolicy>(loops: Vec<ProfileLoop<T>>) -> Body<T
     )));
     extrude(
         &validated(plane, loops),
-        Extrusion::Distance(T::from_f64(2.125)),
+        Extrusion::Distance {
+            depth: T::from_f64(2.125),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude A")
@@ -138,7 +142,10 @@ fn z_prism<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     )));
     extrude(
         &validated(plane, vec![lp(&z_poly)]),
-        Extrusion::Distance(T::from_f64(2.125)),
+        Extrusion::Distance {
+            depth: T::from_f64(2.125),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude Z")
@@ -232,7 +239,10 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(0.0_f64, 0.0, 0.0)));
     let z_flush = extrude(
         &validated(plane, vec![lp(&z_poly_flush)]),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude flush Z")

@@ -14,6 +14,7 @@
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Open, Profile, SketchPlane, Start};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 
 /// The lune: the cross-section of D1's kissing-cylinders figure,
@@ -46,8 +47,15 @@ fn r2_cusp_profile_extrudes_and_passes_at_rest() {
     let validated = Profile::new(plane, loops)
         .validate(tol)
         .expect("the .cusp() profile validates: the joint is DECLARED");
-    let ext =
-        extrude(&validated, Extrusion::Distance(1.0), tol).expect("extrude BUILDS the cusp solid");
+    let ext = extrude(
+        &validated,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("extrude BUILDS the cusp solid");
     let body = &ext.body;
     assert_eq!(topo::validate_closed(body), Ok(()));
     assert_eq!(

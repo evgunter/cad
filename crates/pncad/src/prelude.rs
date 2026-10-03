@@ -383,9 +383,9 @@ pub use sweep::blend::{BlendDecision, BlendSite, CornerConfig, RunOutPolicy};
 // — the one wall per run of pieces each verb builds — so a caller
 // reading those handles can name their element type.
 pub use sweep::{
-    BandWall, ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis,
-    RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude, loft_body,
-    revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
+    BandWall, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError, Lofted, Revolution,
+    RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude,
+    loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------

@@ -31,6 +31,7 @@
 //! D2 bump: the mover's `Distance` (mid-DAG — its cone is that
 //! extrude plus the second union; the kiss chain is reused).
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, CapEnd, DocEdit, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId, StableName,
 };
@@ -68,6 +69,7 @@ pub fn document() -> CorpusDoc {
     let a = r.insert(Node::Extrude {
         profile: a_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // Block b: [1,2]² × [1,2]. Profile (1,1)(2,1)(2,2)(1,2) → vertex 0
     // is (1,1), the kiss corner on the BOTTOM cap.
@@ -80,6 +82,7 @@ pub fn document() -> CorpusDoc {
     let b = r.insert(Node::Extrude {
         profile: b_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // The kiss union: nothing is declared — the v-v kiss at (1,1,1) is
     // DISCOVERED by the op and recorded in the result's contacts.
@@ -100,6 +103,7 @@ pub fn document() -> CorpusDoc {
     let c = r.insert(Node::Extrude {
         profile: c_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
 
     // The carry: the surviving kiss is re-entered BY NAME — both names

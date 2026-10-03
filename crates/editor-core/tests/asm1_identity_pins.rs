@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Attr, CapEnd, Dimension, DocEdit, DocParam, DocRef, DocumentId, EntityKind, MetaValue, Node,
@@ -42,6 +43,7 @@ fn exemplar(
         Node::Extrude {
             profile,
             distance: len(0.5),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = step(

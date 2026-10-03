@@ -18,6 +18,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::{ang, len};
 use editor_core::persist::{load, save};
@@ -57,6 +58,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -668,6 +670,7 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
         Node::Extrude {
             profile,
             distance: len(0.3),
+            side: ExtrudeSide::Along,
         },
     );
     assert!(corpus::failures(&eval(&doc)).is_empty());
