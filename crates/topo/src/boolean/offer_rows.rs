@@ -373,6 +373,10 @@ cases! {
         planar_flank_membership(true, false);
     neighbours_bent_at_the_band: "Neighbours(Parallel)", D, GATE_SITE, Valued =>
         bent_neighbours(D);
+    // A disc bent about a diameter: its one edge is a closed circle,
+    // whose chord is 0, so the angle reads over the circle's extent.
+    neighbours_bent_across_a_circle: "Neighbours(Parallel)", D, GATE_SITE, Valued =>
+        bent_disc(D);
     // The coincfr4 review's bent prism, through a public union: its
     // re-run meets the containment (CONTACT's row).
     neighbours_bent_in_a_union: "Neighbours(Parallel)", D, Public, Valued =>
@@ -1302,6 +1306,40 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
         let up = Vec3::new(0.0, 0.0, 1.0);
         plane_through(p0, along, up * theta.cos() + along.cross(up) * theta.sin())
     });
+    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
+}
+
+/// A brick's top with a disc of radius ½ planted in it, the disc bent
+/// about its diameter along `x` by an angle whose sine over the
+/// circle's extent, its diameter, is `margin`: the operand's
+/// maximal-faces gate.
+fn bent_disc(margin: f64) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+    let prism = prism_z::<f64>(&square, 0.0, 1.0, tol);
+    let mut body = prism.body;
+    let outer = body.get_face(prism.top_face).unwrap().outer;
+    let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the top face's outer loop is a cycle");
+    };
+    let center = Point3::new(1.0, 1.0, 1.0);
+    let disc = crate::test_support_fixtures::plant_disc_face(&mut body, first, center, 0.5, tol);
+    let up = Vec3::new(0.0, 0.0, 1.0);
+    let along = Vec3::new(1.0, 0.0, 0.0);
+    let theta = margin.asin();
+    // Lifts RechartStrandsDescriptions: the bent disc is the gate's input; its circle is not the row.
+    body.set_face_surface_stranding_for_tests(
+        disc.face,
+        crate::euler::FaceSurface::New {
+            surface: plane_through(
+                center,
+                along,
+                up * theta.cos() + along.cross(up) * theta.sin(),
+            ),
+            sense: true,
+        },
+    )
+    .unwrap();
     super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
 }
 
