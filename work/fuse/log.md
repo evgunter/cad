@@ -211,3 +211,21 @@ dual review, dispatched on `fuse/result-gate-at-rest`. The lane measures
 the cost of running the at-rest check before choosing between the full
 check and its structural half. Review tier: single FULL, since the gate
 is every boolean's exit.
+
+## 2026-10-03 — reviews of 3913 and 3914 adjudicated
+
+PR 3914 (`CorruptOperand`, P0 after the lane reproduced it through
+`Node::Union`): FULL review, mergeable, every revert re-taken red. In
+the fix pass, the two-crossing arm the PR filed at P2 rises to P0 under
+the unit row's own rule (a boolean output that is no legal operand of
+the next boolean). The rest is recourse prose, one shared crossing
+predicate, the remap doc's new grouping rule, and a fixture or a row
+for a chain of three or more grouped rows.
+
+PR 3913 (result gate): FULL review, mergeable. The fix pass makes
+`ResultInvalid`'s doc honest about operand-carried scaffolds and adds
+the one-line `BooleanBody` qualifier. It gives `is_scaffold` one
+crate-wide home, closing a duplication the PR had only half-closed,
+and pins the specific scaffold edge in the `contact9` refusals.
+CONTACT's seam-description row rises to P1. The REACH-item append will
+conflict with #3870 at whichever merges second.
