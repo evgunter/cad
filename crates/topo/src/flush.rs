@@ -216,12 +216,20 @@ impl core::fmt::Display for FlushRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Band(error) => write!(f, "flush detection: {error}"),
+            // **No offer to widen the tolerance** (D4 ¶1 (i)): this is
+            // not a kernel approximation limit — the geometry is the
+            // lever, and the escalation carries the margin that values
+            // the one tolerance D4 does allow, a SMALLER one, which
+            // decides the pair either way.
             Self::PairInBand { pair, source } => write!(
                 f,
                 "flush detection: face pair {:?}/{:?} is neither definitely flush nor definitely \
-                 apart ({source}) — a finding is only ever definite, so the pair is named rather \
-                 than reported or dropped; separate the geometry or widen the tolerance",
-                pair.0, pair.1
+                 apart ({}) — a finding is only ever definite, so the pair is named rather \
+                 than reported or dropped. {}",
+                pair.0,
+                pair.1,
+                source.payload(),
+                source.ending("separate the geometry")
             ),
             Self::Distinct(defect) => defect.fmt(f),
         }
