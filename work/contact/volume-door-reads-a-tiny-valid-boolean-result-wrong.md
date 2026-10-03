@@ -2,10 +2,12 @@
 id: volume-door-reads-a-tiny-valid-boolean-result-wrong
 kind: issue
 title: mass_properties misreads a valid boolean result's volume by ~1e-15 m³ on a 10 m-span body, so tier 3 calls a 6e-19 m³ sliver NegativeVolume
-status: open
+status: review
 opened: 2026-09-29
 priority: P3
 cost: M
+pr: 3977
+branch: reach/check7-interval
 ---
 
 
