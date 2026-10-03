@@ -230,28 +230,38 @@ fn tilted_cut_replays_bit_identically() {
     assert_eq!(run(), run());
 }
 
-/// The tangent lane refuses typed (C7): a plane grazing the wall at
-/// exactly one ruling is a tangency, never marched into.
+/// The whole cylinder Below, valid at every tier, and nothing Above:
+/// what a plane tangent to its wall with normal away from it gives.
+fn lands_whole(label: &str, above: &SplitPart<f64>, below: &SplitPart<f64>) {
+    assert!(
+        matches!(above, SplitPart::Empty),
+        "{label}: Above holds a body"
+    );
+    let SplitPart::Body(b) = below else {
+        panic!("{label}: Below holds no body");
+    };
+    assert_eq!(validate(b), Ok(()), "{label}");
+    assert_eq!(validate_closed(b), Ok(()), "{label}");
+    assert_eq!(validate_geometric(b, Tol::witness()), Ok(()), "{label}");
+    let v = topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let want = std::f64::consts::PI / 4.0;
+    assert!((v - want).abs() <= 1e-9, "{label}: volume {v}, want {want}");
+}
+
+/// A plane grazing the wall along the seam ruling (x = 0.5, through the
+/// profile start vertex) is a tangency, never marched into: the seam's
+/// endpoints classify ON and the second-order lane reads the wall
+/// bending into its material, so the whole cylinder lands Below.
 #[test]
-fn tangent_plane_refuses_typed() {
+fn tangent_plane_lands_the_cylinder_below() {
     let body = cylinder_body();
-    // x = 0.5 exactly touches the wall along the (0.5, 0, z) ruling…
-    // but that ruling IS the seam through the profile start vertex, so
-    // the vertex sweep classifies the seam endpoints ON and the sector
-    // machinery refuses on the tangent contact (rule (a)'s curved
-    // lane) or the join's tangency door — either way typed, never a
-    // marched tangency.
     let plane = topo::test_support::split_plane(
         Point3::new(0.5, 0.0, 0.0),
         Vec3::unit_x(),
         geom_core::Tol::witness(),
     );
-    let err = split(&body, &plane, Tol::witness()).unwrap_err();
-    let msg = format!("{err}");
-    assert!(
-        msg.contains("tangent") || msg.contains("Tangen") || msg.contains("degenerate"),
-        "tangency-class refusal expected, got: {msg}"
-    );
+    let r = split(&body, &plane, Tol::witness()).unwrap();
+    lands_whole("seam graze", &r.above, &r.below);
 }
 
 /// The interval lane: the tilted cut replays at `T = Interval` and the
@@ -813,32 +823,16 @@ fn near_graze_escalates_typed() {
 }
 
 /// The exact graze (plane through the rim apexes): the double root
-/// inserts a single ON contact per rim and the pipeline resolves the
-/// one-sided tangency through its established net — a typed refusal,
-/// never a degenerate body.
+/// inserts a single ON contact per rim, and the convex wall puts the
+/// whole cylinder Below — never a degenerate body.
 #[test]
-fn exact_graze_refuses_typed() {
+fn exact_graze_lands_the_cylinder_below() {
     let body = cylinder_body();
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.5, 0.0),
         Vec3::unit_y(),
         geom_core::Tol::witness(),
     );
-    match split(&body, &plane, Tol::witness()) {
-        Ok(r) => panic!(
-            "a tangent graze must not produce a two-sided split: above={:?} below={:?}",
-            matches!(r.above, SplitPart::Body(_)),
-            matches!(r.below, SplitPart::Body(_))
-        ),
-        Err(e) => {
-            let msg = format!("{e}");
-            assert!(
-                matches!(
-                    e,
-                    topo::SplitError::Join(topo::SplitJoinError::DegenerateSection { .. })
-                ) && msg.contains("one-sided tangency"),
-                "the graze refuses as the degenerate section it is: {msg}"
-            );
-        }
-    }
+    let r = split(&body, &plane, Tol::witness()).unwrap();
+    lands_whole("ruling graze", &r.above, &r.below);
 }

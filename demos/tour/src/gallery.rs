@@ -303,8 +303,12 @@ mod tests {
                     "product is the BLANK: a six-face slab with no holes. The two ",
                     "hole extrudes exist only as the web measure's references, and ",
                     "nothing subtracts them, so the document denotes the study's ",
-                    "numbers and not the two-hole plate it is about ",
-                    "(work/show/the-plate-document-never-cuts-its-holes.md)",
+                    "numbers and not the two-hole plate it is about. The cut is two ",
+                    "walls: the certified drive certifies no box of the cut plate ",
+                    "(work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-",
+                    "volume-bound.md), and the cut plate has no product at all ",
+                    "(the_cut_plate_has_no_product; ",
+                    "work/recipe/a-measured-part-is-not-a-product-root.md)",
                 ),
             },
             Shape {
@@ -395,6 +399,38 @@ mod tests {
                 ),
             }
         }
+    }
+
+    /// **The wall: the plate with its holes cut has no product.** The
+    /// web measure reads the cut part's bore walls, a measure's
+    /// references are DAG edges, so the part is not a sink and the
+    /// one root is the assertion, which denotes no body.
+    #[test]
+    fn the_cut_plate_has_no_product() {
+        use crate::plate::{RADIUS_SIGMA, SPACING_HALF_WIDTH, WEB_BOUND, cut_plate};
+        let tol = Tol::witness();
+        let cut = cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
+        assert_eq!(
+            cut.doc.roots(),
+            [cut.assertion],
+            "the cut plate's one root is the web assertion"
+        );
+        let evaluation = evaluate::<f64>(
+            &cut.doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
+        crate::walls::wall(
+            "two-hole plate",
+            2,
+            "the gallery draws the plate with its holes cut",
+            pncad::document::product(&cut.doc, &evaluation, tol),
+            |e| e.kind() == ProductErrorKind::NoBodyRoots,
+            "write the cut plate to the gallery \
+             (work/recipe/a-measured-part-is-not-a-product-root.md)",
+        );
     }
 
     /// The die, by the numbers its own scene already knows.
