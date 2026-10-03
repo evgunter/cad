@@ -417,8 +417,9 @@ pub(super) fn mint_plan<T: Decide>(
 /// round its orbit; a null edge both of whose runs hold another pair's
 /// cut (the pairs' cuts interleave, or tie within one corner, or fall
 /// between a strut's two germs) refuses
-/// [`BooleanError::SharedVertexCrossings`], as do two crossing pairs
-/// that share both their vertices.
+/// [`BooleanError::SharedVertexCrossings`]. Two crossing pairs that
+/// share both their vertices refuse [`BooleanError::NonManifoldResult`]:
+/// the result would hold a shared-entity wedge fan there.
 pub(super) fn reconcile_shared<T: Decide>(
     plans: &mut [NullPlan<T>],
     sectors: &[Orbits<'_, T>],
@@ -427,9 +428,8 @@ pub(super) fn reconcile_shared<T: Decide>(
     band: Band,
 ) -> Result<(), BooleanError> {
     // Two crossing pairs that share both their vertices: each operand
-    // holds two vertices at the point, and the result joins all four.
-    // Both operands' vertices are shared, so the refusal names A's and
-    // the two B vertices it crosses into.
+    // holds two vertices at the point, and the result's would be one
+    // vertex whose orbit passes the pinch line twice.
     let crossing = |j: usize| !plans[j].runs.is_empty();
     for i in (0..plans.len()).filter(|&i| crossing(i)) {
         let c = plans[i].contact;
@@ -437,10 +437,9 @@ pub(super) fn reconcile_shared<T: Decide>(
             (0..plans.len()).find(|&j| j != i && crossing(j) && same(plans[j].contact))
         };
         if let (Some(j), Some(_)) = (other(&|d| d.a == c.a), other(&|d| d.b == c.b)) {
-            return Err(BooleanError::SharedVertexCrossings {
-                operand: Operand::A,
-                vertex: c.a,
-                partners: [c.b, plans[j].contact.b],
+            return Err(BooleanError::NonManifoldResult {
+                a_vertex: c.a,
+                b_vertices: [c.b, plans[j].contact.b],
             });
         }
     }

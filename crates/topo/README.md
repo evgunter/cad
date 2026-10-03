@@ -262,6 +262,9 @@ additive at full engagement. A rim with a determinate G1 jet carries
 structural;
 0/2π ⇒ the declared cusp family, defined but unbuilt,
 `BooleanError::RimCuspArmUnbuilt`) is `docs/MATE-7-TANGENCY-DESIGN.md`.
+A verified `Tangent` union whose ruling runs through a plane face's
+interior is #131's doubled cusp, unbuilt, and refuses
+(`BooleanError::TangentSlitArmUnbuilt`).
 The same substrate is the at-rest door: `validate_pseudomanifold` with
 mate declarations landed in `ContactRecords`, no boolean, no zip.
 

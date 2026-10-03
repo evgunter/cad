@@ -2,6 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::{FRAC_PI_2, PI};
+use sweep::ExtrudeSide;
 
 use geom_core::{Point2, Tol};
 use profile::{Open, Profile, ProfileLoop, SketchPlane, Start};
@@ -39,7 +40,16 @@ fn prism(w: f64, bottom: &[f64], top: &[f64], t: Tol) -> Body<f64> {
     let v = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(t)
         .unwrap();
-    let mut body = extrude(&v, Extrusion::Distance(2.0), t).unwrap().body;
+    let mut body = extrude(
+        &v,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        t,
+    )
+    .unwrap()
+    .body;
     body.merge_coplanar_faces(t).unwrap();
     body
 }

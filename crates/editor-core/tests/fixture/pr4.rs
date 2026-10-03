@@ -7,6 +7,7 @@
 //! diagnosis is a function of both).
 #![allow(dead_code)] // shared across test binaries
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
     ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
@@ -60,6 +61,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -222,6 +224,7 @@ where
         Node::Extrude {
             profile: up,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (docu, us) = insert(

@@ -26,6 +26,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use bvh::Aabb;
@@ -854,6 +855,7 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         Node::Extrude {
             profile: profile_node,
             distance: length(thickness)?,
+            side: ExtrudeSide::Along,
         },
         tol,
     )?;

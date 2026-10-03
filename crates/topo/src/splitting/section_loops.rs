@@ -20,6 +20,7 @@ use super::containment::{LoopContainment, point_in_loop};
 use crate::body::Body;
 use crate::chord_join::ring_representative;
 use crate::entity::{LoopBoundary, LoopKey};
+use crate::validate::definitely_positive as positive;
 use crate::validate::{RingOuterVerdict, ring_outer_contact_about};
 
 /// A traversal of a section loop met a dangling key: the scratch body
@@ -339,14 +340,6 @@ fn line_clears_conic<T: Decide>(
         "split_nest_line_conic",
         m.dot(c.centre - p).abs() - reach,
         band,
-    )
-}
-
-/// `margin` (metres) definitely positive under `band`.
-fn positive<T: Decide>(name: &'static str, margin: T, band: geom_core::Band) -> bool {
-    matches!(
-        crate::validate::decide(name, geom_core::Margin::of(margin), band),
-        Ok(geom_core::Sign::Positive)
     )
 }
 

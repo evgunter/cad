@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
@@ -363,9 +364,16 @@ fn probe_e2e_revolve_union_tessellate() {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let b = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let b = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let out = topo::union(&a, &b, Tol::witness()).expect("the cone-bearing union assembles");
     let result = out.body().expect("non-empty");
     assert_eq!(topo::validate_closed(&result.body), Ok(()));

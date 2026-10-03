@@ -28,6 +28,7 @@
 
 use crate::fixture;
 use crate::wire;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
@@ -58,6 +59,7 @@ fn box_part(label: &str, half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -416,17 +418,10 @@ fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
     let (doc, ids, opts, body) = instances("msolve10-from-face-asks", 2);
     let store_reach = mate_reach::<f64>(&opts, Tol::witness());
     let counting = Counting::over(&store_reach);
-    let cap = |end: CapEnd| editor_core::StableName {
-        kind: editor_core::EntityKind::Face,
-        node: body,
-        path: vec![editor_core::RoleSeg::Cap(end)],
-    };
-    let face =
-        |end: CapEnd| MateFrame::from_face(editor_core::FaceName::new(cap(end)).expect("a face"));
     // One face side, one authored side, no rider: one face ask, no
     // reach ask.
     let one_side = Alignment {
-        a: face(CapEnd::End),
+        a: MateFrame::FromFace,
         ..seat(None)
     };
     at_the_door(&doc, &counting, mate(body, ids[0], ids[1], one_side)).expect("admitted");
@@ -434,8 +429,8 @@ fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
     assert_eq!(counting.0.get(), 0, "no rider, no reach");
     // Two face sides, no rider: two face asks, still no reach ask.
     let both = Alignment {
-        a: face(CapEnd::End),
-        b: face(CapEnd::Start),
+        a: MateFrame::FromFace,
+        b: MateFrame::FromFace,
         ..seat(None)
     };
     at_the_door(&doc, &counting, mate(body, ids[0], ids[1], both)).expect("admitted");
@@ -458,13 +453,8 @@ fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
     let (doc, ids, opts, body) = instances("msolve10-from-face-replay", 2);
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let snapshot = doc.clone();
-    let cap = editor_core::StableName {
-        kind: editor_core::EntityKind::Face,
-        node: body,
-        path: vec![editor_core::RoleSeg::Cap(CapEnd::End)],
-    };
     let alignment = Alignment {
-        a: MateFrame::from_face(editor_core::FaceName::new(cap).expect("a face")),
+        a: MateFrame::FromFace,
         ..seat(Some(0.0))
     };
     let edit = DocEdit::InsertNode {
@@ -1061,6 +1051,7 @@ fn corpus() -> Vec<Row> {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let local_cap = editor_core::StableName {

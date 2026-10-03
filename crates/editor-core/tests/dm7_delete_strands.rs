@@ -43,7 +43,9 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
         .iter()
         .filter_map(|row| match row {
             Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
-            Maintenance::OffsetCleared { .. } | Maintenance::StrandedAppearance { .. } => None,
+            Maintenance::OffsetCleared { .. }
+            | Maintenance::StrandedAppearance { .. }
+            | Maintenance::LabelDropped { .. } => None,
         })
         .collect()
 }
@@ -55,7 +57,9 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
         .iter()
         .filter_map(|row| match row {
             Maintenance::StrandedAppearance { name } => Some(name.name().clone()),
-            Maintenance::Strand { .. } | Maintenance::OffsetCleared { .. } => None,
+            Maintenance::Strand { .. }
+            | Maintenance::OffsetCleared { .. }
+            | Maintenance::LabelDropped { .. } => None,
         })
         .collect()
 }

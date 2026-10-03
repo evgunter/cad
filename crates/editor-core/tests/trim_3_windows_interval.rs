@@ -31,6 +31,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -123,6 +124,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     r.insert(Node::Extrude {
         profile: p,
         distance: len(depth),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -333,6 +335,7 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // The probe: x ∈ [0.9, 1.1], y ∈ [0.62, 0.8] — 0.12 above the
     // scallop's lowest point (1, 0.5) — placed along z by the
@@ -450,6 +453,7 @@ fn split_peg(r: &mut Recorder, n: u32, phase: f64) -> RecipeNodeId {
     r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     })
 }
 

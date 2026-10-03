@@ -13,8 +13,9 @@
 //!   `StepId(n)` the step map holds as its image, and every other field
 //!   is equal. Gauge references, offsets, gauge placements, mate
 //!   alignments and heads, and a profile's step ids are all fields;
-//! - **the root sets agree** through the map, and the parameters,
-//!   labels and ε agree;
+//! - **the root lists agree** through the map, in order — the order is
+//!   the product's solid order, semantic and in the content pin
+//!   (`roots.rs`) — and the parameters, labels and ε agree;
 //! - **each placement group keeps its document order.** Order is
 //!   semantic within a group (its root is its earliest member carrying
 //!   an offset), so the images of each group's members read in the
@@ -216,9 +217,9 @@ pub fn same_up_to_ids(
             problems.push(format!("preimage: {id:?} has none"));
         }
     }
-    let roots_a: BTreeSet<Option<RecipeNodeId>> =
+    let roots_a: Vec<Option<RecipeNodeId>> =
         a.roots().iter().map(|r| map.get(r).copied()).collect();
-    let roots_b: BTreeSet<Option<RecipeNodeId>> = b.roots().iter().map(|&r| Some(r)).collect();
+    let roots_b: Vec<Option<RecipeNodeId>> = b.roots().iter().map(|&r| Some(r)).collect();
     if roots_a != roots_b {
         problems.push(format!("roots: {roots_a:?} vs {roots_b:?}"));
     }

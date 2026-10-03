@@ -17,6 +17,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
@@ -124,6 +125,7 @@ fn an_independent_subgraph_completes_beside_a_failure() {
         pncad::document::Node::Extrude {
             profile: other_profile,
             distance: common::len(0.005),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -1346,6 +1348,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             Node::Extrude {
                 profile,
                 distance: common::len(0.02),
+                side: ExtrudeSide::Along,
             },
             tol,
         )

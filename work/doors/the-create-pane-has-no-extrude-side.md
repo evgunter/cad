@@ -2,11 +2,10 @@
 id: the-create-pane-has-no-extrude-side
 kind: issue
 title: The extrude form has no side control, so a ruled depth-and-side extrude cannot be authored from the GUI
-status: parked
+status: open
 opened: 2026-10-01
 priority: P1
 cost: M
-blocked_on: [extrude-distance-is-a-depth-and-a-side]
 ---
 
 

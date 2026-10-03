@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2, TAU};
 use profile::RawLoop;
@@ -53,7 +54,10 @@ fn l_prism_matches_closed_forms() {
     ]);
     let body = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -78,7 +82,10 @@ fn square_with_two_vertex_hole_matches_closed_forms() {
     ]);
     let body = extrude(
         &validated(vec![outer, hole]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

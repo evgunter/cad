@@ -2,10 +2,11 @@
 id: placement-is-spelled-three-ways-node-registry-and-rule
 kind: issue
 title: Placement is spelled three ways — a DAG node, a document registry row, and a pattern rule — and the three disagree on whether a placement can be parametric
-status: spec
+status: closed
 opened: 2026-09-21
 priority: P0
 cost: H
+closed: 2026-10-03
 ---
 
 Filed by the AUTHOR orchestrator at Ev's direction (in chat,
@@ -297,3 +298,11 @@ The dual review's union, as the orchestrator ruled it. PR 3676's body holds each
 - It merged over one red of main's at ε 1e-6, `sweep reach_volume_backstop::an_open_sign…` (REACH P0), with Ev's leave.
 - The spec's P2 section now records the rulings as built.
 - Next is P2-split (`placement-split-and-inline-at-a-gauge-are-refused-until-p2-split`), an L unit and a concurrent dual under the protocol at `7cb05367e`. P3 goes to the viewer owner's slate.
+
+## Closed (2026-10-03)
+
+P2 has merged in all its parts: P2-core #3676, P2-carry #3885, P2-split #3908, P2-retire #3930 and P2-face #3934. Placement lives on a gauge, the registry and maintenance are gone, and an unplaced group lives in its own space. Split and inline move what was selected, as A4 now states.
+
+P3 (the viewer's group-wide free-move probe and "place where shown") is filed on OFFER's slate as `work/offer/viewer-free-move-and-place-where-shown-over-a-whole-group.md`, as this row's spec said.
+
+`Node::Transform` remains a node. Whether it should become an edited slot was this row's later question; nothing on the slate asks for it, and the two obstacles recorded above still stand.

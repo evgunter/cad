@@ -40,6 +40,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::CapEnd;
@@ -73,6 +74,7 @@ fn with_measure() -> (ProfileDoc, RecipeNodeId) {
     let _ = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let measure = r.insert(Node::Measure {
         expr: MeasureExpr::value(len(1.0)),
@@ -277,6 +279,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }

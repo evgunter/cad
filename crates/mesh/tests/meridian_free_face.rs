@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use sweep::ExtrudeSide;
 
 use common::witness_bodies::one_circle_cut;
 use common::*;
@@ -217,7 +218,10 @@ fn slab_below_y(y0: f64) -> Body<f64> {
     ]);
     let block = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(4.0),
+        Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

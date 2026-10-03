@@ -16,6 +16,7 @@ use geom_brep::{
 };
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
@@ -53,7 +54,15 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the filleted block is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness()).map(|e| e.body)
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body)
 }
 
 /// A ring whose bore cylinder of radius `r_bore` meets a torus of

@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
@@ -56,6 +57,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -248,7 +250,7 @@ fn row1_split_one_group_preserves_structure_and_names() {
     let _ = part_ref;
 }
 
-/// Row 1, the non-hoisted shape — cutting a PLAIN subtree (no group)
+/// Row 1, a PLAIN subtree — cutting one (no group)
 /// moves the recipe verbatim; the remainder instance sits at identity
 /// and the identity still holds.
 #[test]
@@ -265,6 +267,7 @@ fn row1_split_plain_subtree_preserves_structure() {
         Node::Extrude {
             profile: p2,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let opts = EvalOptions::default();
@@ -556,6 +559,7 @@ fn row3_uncut_param_reference_refuses() {
         Node::Extrude {
             profile: p1,
             distance: h(),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, f2) = insert(doc, xy_frame());
@@ -565,6 +569,7 @@ fn row3_uncut_param_reference_refuses() {
         Node::Extrude {
             profile: p2,
             distance: h(),
+            side: ExtrudeSide::Along,
         },
     );
     match split(
@@ -578,7 +583,9 @@ fn row3_uncut_param_reference_refuses() {
             param,
             cut_node,
             kept_node,
+            promote,
         }) => {
+            assert!(!promote, "an extrude's distance is no offset to promote");
             assert_eq!(param, ParamName::from_static("h"));
             assert_eq!(cut_node, doc.spoken(e1));
             assert_eq!(kept_node, doc.spoken(e2));
@@ -723,7 +730,7 @@ fn row3_further_typed_refusals() {
 /// sides, each its own assertion.
 #[test]
 fn row4_roots_and_offsets_land_as_the_rules_say() {
-    // The hoisted single-group cut.
+    // A single-group cut moves as selected.
     let (_, doc, ids) = two_group_assembly("asm4-r4");
     let out = split(
         &doc,
@@ -744,14 +751,14 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
         &[mapped],
         "the part's root is the cut root"
     );
-    assert!(
-        fixture::same_offset(&out.remainder, out.instance, &doc, ids[1]),
-        "the hoisted offset is the root's old offset"
-    );
     assert_eq!(
-        fixture::offset_of(&out.part, mapped),
+        fixture::offset_of(&out.remainder, out.instance),
         Some(editor_core::Placement::IDENTITY),
-        "the hoisted root lands at the empty chain in the part"
+        "the instance sits at the empty chain"
+    );
+    assert!(
+        fixture::same_offset(&out.part, mapped, &doc, ids[1]),
+        "the root keeps its offset in the part"
     );
 
     // The multi-group cut: both offsets MOVE, the remainder instance
@@ -929,6 +936,7 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let mut doc = doc;
@@ -1099,6 +1107,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         Node::Extrude {
             profile: cut_p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let straddler = StableName {
@@ -1124,6 +1133,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         Node::Extrude {
             profile: kept_p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = insert(
@@ -1594,6 +1604,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let (part_doc, _) = insert(
@@ -1678,6 +1689,7 @@ fn reshaped_component(
         Node::Extrude {
             profile: p2,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let program = match doc.node(p2) {

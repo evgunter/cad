@@ -35,6 +35,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -240,6 +241,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     let block = r.insert(Node::Extrude {
         profile,
         distance: param("d", Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let cube_profile = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
@@ -252,6 +254,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     let cube = r.insert(Node::Extrude {
         profile: cube_profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let refs = vec![
         SitedRef::new(block, fname(block, wall(&r.doc, block, 3))),
@@ -301,6 +304,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
     let bore = r.insert(Node::Extrude {
         profile: bore_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
@@ -313,6 +317,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
     let pin = r.insert(Node::Extrude {
         profile: pin_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
@@ -356,6 +361,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
     let a = r.insert(Node::Extrude {
         profile: pa,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let pb = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
@@ -368,6 +374,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
     let b = r.insert(Node::Extrude {
         profile: pb,
         distance: param("h", Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let refs = vec![
         SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),

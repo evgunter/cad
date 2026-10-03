@@ -31,10 +31,11 @@
 //! than an enclosure that could not see through an identity.
 //!
 //! **The ε-scaled boxes below are kept where they are still the
-//! subject.** A planted flip at `20ε ± 40ε` is about the flip, and
-//! sizing it in ε is what puts the flip inside the box; a terminal
-//! sliver is a statement about the band and has no other scale to be
-//! stated at. Only the rows whose subject WAS the widening moved.
+//! subject.** A terminal sliver is a statement about the band and has
+//! no other scale to be stated at; the slab at `20ε ± 40ε` straddles
+//! that band. The planted flip is a profile vertex passing through
+//! collinear ([`notch`]), at the scale of the part. Only the rows whose
+//! subject WAS the widening moved.
 //!
 //! `the_tier_off_reproduces_the_pre_e12_refusal` keeps the old answer
 //! visible: the same document and box with `SymbolicDials::off()` comes
@@ -48,6 +49,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -97,21 +99,11 @@ fn unit_square() -> LoopProgram {
         .expect("finite square corners")
 }
 
-/// **The planted-flip fixture**: a square extruded by a distance that
-/// is a document parameter, over a box that straddles ZERO.
-///
-/// The flip is real and it is not a degeneracy of the analysis: on the
-/// far side the extrusion runs the other way, so
-/// `extrusion_normal_component` and the side planes' cosurface tests
-/// all decide the opposite sign and the body is a perfectly good solid
-/// built on a different branch. That is exactly the no-flips v1 case —
-/// definite, on a different verdict vector, refused as mass rather than
-/// analyzed.
-/// **Crate-visible since M10-6** (R2's MINOR-14): the accounting
-/// golden in `m10_6_ci_rows_interval` is ABOUT this fixture's drive,
-/// and it carried a re-derived copy that could silently stop being the
-/// same document. One home, so the golden cannot golden something
-/// else.
+/// **The slab**: a square extruded by a depth that is a document
+/// parameter. A depth is a size, so over a box that straddles zero the
+/// extrude refuses below its coincidence zone as definitely as inside
+/// it — a half-line the driver prices `Budget` at the floor
+/// (`work/verdict/coincidence-zone-priced-budget-at-the-floor.md`).
 pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
@@ -132,6 +124,60 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: param("depth"),
+        side: ExtrudeSide::Along,
+    });
+    r.doc
+}
+
+/// **The planted-flip fixture**: a unit square whose bottom side has a
+/// vertex at its midpoint, the vertex's height a document parameter,
+/// extruded, over a box that straddles ZERO.
+///
+/// The flip is real and it is not a degeneracy of the analysis: below
+/// zero the vertex is a convex point and above it a notch, so
+/// `path_junction_turn` and the walls' cosurface tests decide the
+/// opposite sign and the body is a perfectly good solid built on a
+/// different branch. That is exactly the no-flips v1 case — definite,
+/// on a different verdict vector, refused as mass rather than
+/// analyzed.
+/// **Crate-visible since M10-6** (R2's MINOR-14): the accounting
+/// golden in `m10_6_ci_rows_interval` is ABOUT this fixture's drive,
+/// and it carried a re-derived copy that could silently stop being the
+/// same document. One home, so the golden cannot golden something
+/// else.
+pub(crate) fn notch(nominal: f64, half: f64) -> ProfileDoc {
+    notch_with(nominal, uniform(half), param("height"))
+}
+
+/// [`notch`] with the parameter's distribution and the vertex's
+/// height expression given.
+pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Expr) -> ProfileDoc {
+    let mut r = Recorder::new();
+    r.push(DocEdit::SetDocParam {
+        name: name("height"),
+        value: DocParam::Continuous {
+            dim: Dimension::Length,
+            value: nominal,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(dist),
+        },
+    });
+    let xy_frame_0 = r.insert(xy_frame());
+    let p = r.insert(Node::Profile(ProfileProgram {
+        plane: xy_frame_0,
+        loops: vec![LoopProgram::polygon_expr([
+            [len(0.0), len(0.0)],
+            [len(0.5), height],
+            [len(1.0), len(0.0)],
+            [len(1.0), len(1.0)],
+            [len(0.0), len(1.0)],
+        ])],
+        ids: Vec::new(),
+    }));
+    r.insert(Node::Extrude {
+        profile: p,
+        distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -180,6 +226,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: param("depth"),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -215,6 +262,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
     let block = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     r.insert(Node::transform(
         block,
@@ -749,9 +797,8 @@ fn the_verdict_is_bit_identical_across_repeats_and_schedules() {
     // Not a vacuous comparison: hundreds of splits and a full frontier
     // of leaves, compared row for row. It is NOT a drive with certified
     // leaves — at 256 leaves this fixture certifies none, because the
-    // sign flip keeps every box indeterminate past the frontier bound
-    // (the planted-flip row above pays 4096 leaves for exactly that
-    // reason). What this row pins is that the same subdivision comes
+    // band and the refusing half-line keep every box indeterminate past
+    // the frontier bound. What this row pins is that the same subdivision comes
     // out identical twice and under both schedules, and refusals are
     // rows like any other.
     assert!(seq.receipt().splits > 8, "{:?}", seq.receipt());
@@ -785,7 +832,7 @@ fn driving_writes_nothing() {
 /// side, with the flipped predicates NAMED from the vector diff.
 #[test]
 fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
-    let doc = slab(20.0 * eps(), 40.0 * eps());
+    let doc = notch(-0.25, 0.3);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).expect("the nominal builds");
     assert!(v.receipt().holds());
@@ -818,11 +865,9 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
         .map(|f| (f.predicate, f.from, f.to))
         .collect();
     assert!(
-        named
-            .iter()
-            .any(|(p, w, l)| *p == "extrusion_normal_component"
-                && *w == geom_core::Sign::Positive
-                && *l == geom_core::Sign::Negative),
+        named.iter().any(|(p, w, l)| *p == "path_junction_turn"
+            && *w == geom_core::Sign::Positive
+            && *l == geom_core::Sign::Negative),
         "the flip was not named: {named:?}"
     );
     // Not vacuous on this fixture: every FlipCrossing here names
@@ -965,11 +1010,12 @@ fn a_terminal_sliver_refuses_naming_its_predicate_and_is_not_refined() {
 /// The band's share of the box is the pin: `2 · (K − 1)ε / 80ε` with
 /// `K = 10` is 22.5%, and the sliver mass has to be that, up to the
 /// leaves straddling the band's four edges. What the depth budget may
-/// still price `Budget` here is the coincidence zone `(−ε, ε)` — 2.5%
-/// of the box — where the depth decides `Zero` and the extrude refuses
-/// `DegenerateExtrusion`: a DEFINITE refusal, not an escalation, which
-/// this driver refines to the floor. That zone is a different class
-/// from this row's and is bounded here, not claimed.
+/// still price `Budget` here is where the extrude refuses DEFINITELY —
+/// the coincidence zone `(−ε, ε)`, `DegenerateExtrusion`, and the
+/// definitely negative depths below it, `NegativeDepth`, together
+/// `[−20ε, ε)`, 26.25% of the box — which this driver refines to the
+/// floor. That region is a different class from this row's and is
+/// bounded here, not claimed.
 #[test]
 fn a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget() {
     let doc = slab(20.0 * eps(), 40.0 * eps());
@@ -1008,11 +1054,11 @@ fn a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget() 
         "the band's share of the box is sliver mass: sliver {sliver_mass}, budget \
          {budget_mass}, band share {band_share}; classes {classes:?}"
     );
-    let coincidence_share = 2.0 * eps() / (80.0 * eps());
+    let refusing_share = 21.0 * eps() / (80.0 * eps());
     assert!(
-        budget_mass <= coincidence_share + 1e-3,
-        "only the coincidence zone and the band's edge leaves may reach the depth floor: \
-         budget mass {budget_mass}, coincidence zone {coincidence_share}"
+        budget_mass <= refusing_share + 1e-3,
+        "only where the depth definitely refuses, and the band's edge leaves, may reach the \
+         depth floor: budget mass {budget_mass}, refusing share {refusing_share}"
     );
 }
 
