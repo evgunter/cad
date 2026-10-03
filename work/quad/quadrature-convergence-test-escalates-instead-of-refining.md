@@ -69,3 +69,14 @@ uses. Two of two levels landing in band at 1e-12 suggests the width
 stalls near the `1024·eps` target on that face rather than landing
 there by coincidence.
 
+
+## Also seen by CLEAVE's `cleave/steep-tube-eps` (2026-10-03)
+
+`sweep`'s `review_cleave_wrongarc::steep_cuts_of_tubes_chord_inside_each_bore_face`,
+pose `tube a 0.4 d 0 turn 1.0682 tilt 1.2 at [0, 0, 0.5] phi 0`, both
+flips, at `CAD_TOLERANCE_EPS=1e-8` (off the gated rows): tier 3 refuses
+`VolumeUncomputable { face: FaceKey(5v1), Escalated { margin
+−4.733e-8, band (1e-8, 1e-7), predicate "props_quad_converged" } }`.
+At the gated rows (default, 1e-6, 1e-12) the same sliver face runs out
+its round budget instead (`QuadratureBudget`), which the row
+tolerates as `volume refused`.

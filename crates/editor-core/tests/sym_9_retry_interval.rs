@@ -452,6 +452,15 @@ fn sym_9_what_each_retry_recovers() {
 /// → `[459, 20, …]` and the bracket `[1235, 59, …]` → `[1259, 35, …]`.
 /// `registered`, `numeric` and `retried` do not move.
 ///
+/// Check 5 deciding only an escape's positive part (PR 3981,
+/// `geom_brep::pcurve_cache::escape`) moves all five up out of
+/// `numeric`, with and without the ladder alike: theorems on the plate
+/// (+8, `[955, 0, 148, 690]`) and the link (+8, `[689, 0, 118, 735]`
+/// without the ladder), `sign_gated` on the annulus (+8, `[440, 32, …]`),
+/// the boss (+6, `[459, 26, …]`) and the bracket (+10, `[1259, 45, …]`).
+/// A row box inside its window reads Zero where its clearance read a
+/// numeric Negative. `registered` and `retried` do not move.
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -471,21 +480,21 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [947, 0, 148, 698], [947, 0, 148, 698], 0),
-        ("r1_annulus", [440, 24, 148, 445], [440, 24, 148, 445], 0),
+        ("two_hole_plate", [955, 0, 148, 690], [955, 0, 148, 690], 0),
+        ("r1_annulus", [440, 32, 148, 437], [440, 32, 148, 437], 0),
         (
             "r1_segment_boss",
-            [459, 20, 102, 410],
-            [459, 20, 102, 410],
+            [459, 26, 102, 404],
+            [459, 26, 102, 404],
             0,
         ),
         (
             "r2_filleted_bracket",
-            [1259, 35, 156, 1078],
-            [1259, 35, 162, 1072],
+            [1259, 45, 156, 1068],
+            [1259, 45, 162, 1062],
             6,
         ),
-        ("r2_link", [681, 0, 118, 743], [683, 0, 130, 729], 14),
+        ("r2_link", [689, 0, 118, 735], [691, 0, 130, 721], 14),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -602,7 +611,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1259, 35, 162, 1072, 6],
+        [1259, 45, 162, 1062, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -622,7 +631,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1259, 35, 156, 1078, 0]
+        [1259, 45, 156, 1068, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

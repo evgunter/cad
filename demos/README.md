@@ -879,7 +879,7 @@ the draws moved.
   each joint's measured lateral range dimensioned on it; the tip panel
   is 48 px/mm on the target pin and the asserted 1 mm position band.
 * **The certified half is on the sheet, unlike the plate's.** The
-  widest box that certifies this chain whole is `6.751e-8` of the study
+  widest box that certifies this chain whole is `1.318e-7` of the study
   since the extrude closes with the pcurve mint (PCERT): the placed
   rows' angular comparisons are the wall. Before the mint it was
   `0.111`, a millimetre-scale enclosure per joint, and the follow-on
@@ -888,13 +888,13 @@ the draws moved.
   across the chain (the worst-case lever sum, every joint at its own
   extreme at once) while the advisory σ grows `1 : 2.24 : 3.74 : 5.48`
   (the quadrature sum). E11's trade, in one picture. Each side of a box
-  under 5 px is drawn at a 5 px floor about its pin (at `6.751e-8`
+  under 5 px is drawn at a 5 px floor about its pin (at `1.318e-7`
   that is both sides, a sub-picometre box); the legend says which
   sides are floored, the table prints the true half-widths, and the
   "times the certified box" ratio is `1 / CERTIFIABLE_FRACTION`.
   `check_certified` reads all of it back out of the sheet.
-* **The teal is drawn only at the ε it was measured at.** `6.751e-8` is a
-  default-ε measurement and the box MOVES with ε (`6.747e-5` at `1e-6`,
+* **The teal is drawn only at the ε it was measured at.** `1.318e-7` is a
+  default-ε measurement and the box MOVES with ε (`1.317e-4` at `1e-6`,
   measured: the wall is an enclosure escalating against the band; before
   the mint it was `0.111` against `0.1083`, for the reason `chaintol`'s
   header, "What sets the wall", gives), so at
