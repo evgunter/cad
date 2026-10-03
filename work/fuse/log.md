@@ -367,3 +367,14 @@ lane, because both edit `remap_contacts`.
     restored.
   - The tie row drops to P3: only the unreached interleave arm remains,
     and it waits on cleave's `PairingMismatch` row.
+
+- 2026-10-03 — Both PR 3950 and PR 3891 have landed. Dispatched two lanes
+  in parallel; they touch different stages:
+  - `two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings`
+    (P0) on `fuse/one-arc-struts`: an order-free holder rule, plus a
+    permutation row across every tied-strut witness.
+  - Step 1 of Ev's PR 3881 build on `fuse/cell-pair-contacts`: cell-pair
+    contact records, including `VeContact`; census certification; one
+    substitution door replacing `remap_contacts`/`remap_carried`; and
+    edge-split lineage. It folds in the P1
+    `a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`.
