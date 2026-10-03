@@ -863,6 +863,8 @@ mod review_ring2_r1_e2e;
 
 #[path = "full_turn_bore_mate.rs"]
 mod full_turn_bore_mate;
+#[path = "rest_mate_every_op.rs"]
+mod rest_mate_every_op;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
 

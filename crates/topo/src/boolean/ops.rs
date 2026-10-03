@@ -130,8 +130,8 @@ use super::voids;
 use super::zip::{SeamCorrespondence, survivor, survivor_checked, zip_seam};
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts,
-    ContactRecords, CurveContact, FacePairDeclaration, Operand, PatchContact, SweepStrategy,
-    VfContact, VvContact,
+    CarrierRelation, ContactRecords, CurveContact, FacePairDeclaration, Operand, PatchContact,
+    SweepStrategy, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
@@ -756,7 +756,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // The curved kinds the extent scan leaves: every torus,
         // cylinder and cone face's pairs, certified per pair by the
         // section certificate or refused typed.
-        section_extent_pass(a, b, band)?;
+        section_extent_pass(a, b, &red.coincident, band)?;
         return fallback(op, &red, a, b, decls, band, tol)
             .map(|result| Joined::Answered(Box::new(result)));
     }
@@ -1260,20 +1260,34 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// component, so each pair the vertex probe could not see into is
 /// either certified or refused here, typed as the fallback's extent
 /// refusal ([`BooleanError::FallbackExtentUnsupported`]) naming the
-/// pair's curved face. Declarations exempt nothing on this path: with
-/// no crossings, a declared coincident pair is exactly what the vertex
-/// probe cannot decide.
+/// pair's curved face.
+///
+/// A pair the coincidence ladder settled one carrier with opposed
+/// senses (`settled`, [`CarrierRelation::SameOpposite`]: a verified
+/// `Rest`, or a shared recipe source) is answered without its section.
+/// Its section lies on the one carrier, where each operand's material
+/// stands on its own side, so every point the two faces share is a
+/// touch of the two boundaries and none is a point of both interiors:
+/// the pair hides no overlap from the vertex probe, whatever its
+/// component count. A continuation (senses aligned) puts both materials
+/// on one side and is classified as any other pair.
 fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
+    settled: &[super::SettledPair],
     band: Band,
 ) -> Result<(), BooleanError> {
+    let touch_only = |fa: FaceKey, fb: FaceKey| {
+        settled
+            .iter()
+            .any(|p| p.a == fa && p.b == fb && p.relation == CarrierRelation::SameOpposite)
+    };
     let pairs = section_pairs(
         a,
         b,
         band,
         SectionPath::Fallback,
-        |_, _| false,
+        touch_only,
         |_, _| false,
         true,
     )?;
@@ -1340,7 +1354,7 @@ pub(crate) fn no_crossings_certificates(
     let band = Band::linear(tol)?;
     let recuts = sphere_extent_scan(a, b, band)?;
     if recuts.is_empty() {
-        section_extent_pass(a, b, band)?;
+        section_extent_pass(a, b, &[], band)?;
     }
     Ok(recuts.len())
 }

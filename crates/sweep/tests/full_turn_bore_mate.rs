@@ -25,7 +25,7 @@
 //!   cross that circle where no other face meets it, and only the
 //!   crossing layer records them.
 //!
-//! Each union runs in both operand orders.
+//! Each op runs in both operand orders.
 //! Every pose of [`crate::common::poses::poses`] moves both operands.
 //! The oracle is closed form: the interiors are disjoint, so the union
 //! is the collar's annulus volume plus the shaft's disc volume, the
@@ -265,40 +265,55 @@ fn a_bore_split_on_its_own_carrier_unions_at_the_seam_azimuth() {
     unions_at(&split_collar(), 0.0, "split bore");
 }
 
-/// **The other three ops refuse typed, never answer wrong.** The
-/// closed forms are `∩` empty and each difference its minuend whole;
-/// what the kernel answers today at azimuths 0°, 60° and 90°, every
-/// span and every pose, is `FallbackExtentUnsupported`
-/// (`work/reach/declared-rest-mate-intersect-and-differences-refuse-at-the-fallback-extent.md`).
-/// A shaft a hair off the bore's seam (1e-7°) answers
-/// `Escalated { Coincidence(Sectors) }` instead; this row does not
-/// cover that pose.
+/// **The other three ops answer the closed form**: `∩` empty in both
+/// operand orders, and each difference its minuend whole, at azimuths
+/// 0°, 60° and 90°, every span and every pose, on the one-face bore and
+/// (at the seam azimuth) the split bore.
 #[test]
-fn intersect_and_differences_refuse_at_the_fallback_extent() {
+fn intersect_and_differences_answer_the_closed_form() {
     let tol = Tol::witness();
     for (pose_name, pose) in crate::common::poses::poses() {
-        let c = placed(&collar(), &pose);
-        for deg in [0.0, 60.0, 90.0] {
-            for (span, y0, h) in SPANS {
-                let p = placed(&shaft(deg, y0, h), &pose);
-                let tag = format!("azimuth {deg}, {span}, pose {pose_name}");
-                let ab = wall_decls(&c, &p);
-                let ba = wall_decls(&p, &c);
-                for (op, a, b, decls) in [
-                    (BooleanOp::Intersect, &c, &p, &ab),
-                    (BooleanOp::Subtract, &c, &p, &ab),
-                    (BooleanOp::Subtract, &p, &c, &ba),
-                ] {
-                    let out =
-                        topo::boolean_op_with(op, a, b, decls, topo::SweepStrategy::Realized, tol);
-                    assert!(
-                        matches!(
-                            out,
-                            Err(topo::BooleanError::FallbackExtentUnsupported { .. })
-                        ),
-                        "{tag}: {op:?}: {:?}",
-                        out.as_ref().err()
-                    );
+        for (bore, collar, degs) in [
+            ("one-face bore", collar(), &[0.0, 60.0, 90.0][..]),
+            ("split bore", split_collar(), &[0.0][..]),
+        ] {
+            let c = placed(&collar, &pose);
+            for &deg in degs {
+                for (span, y0, h) in SPANS {
+                    let p = placed(&shaft(deg, y0, h), &pose);
+                    let tag = format!("{bore}, azimuth {deg}, {span}, pose {pose_name}");
+                    let ab = wall_decls(&c, &p);
+                    let ba = wall_decls(&p, &c);
+                    let run = |op, a, b, decls| {
+                        topo::boolean_op_with(op, a, b, decls, topo::SweepStrategy::Realized, tol)
+                    };
+                    for (order, a, b, decls) in [("c ∩ p", &c, &p, &ab), ("p ∩ c", &p, &c, &ba)]
+                    {
+                        assert!(
+                            matches!(
+                                run(BooleanOp::Intersect, a, b, decls),
+                                Ok(BooleanResult::Empty)
+                            ),
+                            "{tag}: {order} is empty"
+                        );
+                    }
+                    for (order, a, b, decls, want) in [
+                        ("c ∖ p", &c, &p, &ab, collar_volume()),
+                        ("p ∖ c", &p, &c, &ba, shaft_volume(h)),
+                    ] {
+                        let bb = match run(BooleanOp::Subtract, a, b, decls) {
+                            Ok(BooleanResult::Body(bb)) => bb,
+                            other => panic!("{tag}: {order}: {other:?}"),
+                        };
+                        let got = volume(&bb.body);
+                        assert!(agrees(got, want), "{tag}: {order}: volume {got} vs {want}");
+                        assert_eq!(bb.body.shells().count(), 1, "{tag}: {order}: one shell");
+                        assert_eq!(
+                            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+                            Ok(()),
+                            "{tag}: {order}: the census"
+                        );
+                    }
                 }
             }
         }
