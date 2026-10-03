@@ -2,11 +2,12 @@
 id: a-face-base-puts-its-reference-on-local-y
 kind: issue
 title: A face base's in-plane axes put the carrier's reference on local +Y, so an offset along the face's reference is written along y
-status: open
+status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
 design: true
+blocked_on: [3990]
 ---
 
 

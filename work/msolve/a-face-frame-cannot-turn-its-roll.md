@@ -2,11 +2,12 @@
 id: a-face-frame-cannot-turn-its-roll
 kind: issue
 title: A face frame fixes its roll by the carrier's u_ref, so a FromFace mate cannot be turned about its axis
-status: open
+status: parked
 opened: 2026-09-24
 priority: P1
 cost: M
 design: true
+blocked_on: [3990]
 ---
 
 
