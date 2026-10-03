@@ -121,10 +121,19 @@ fn carried_records_certify_every_order_of_the_fold() {
 /// their record carried as `Rest` rows: two vertices at each end of
 /// the touch.
 fn pinch(tol: Tol) -> (BooleanBody<f64>, Vec<CarriedVv>) {
-    let q1: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.5, 1.5), tol);
-    let q3: Body<f64> = brick((-1.0, 0.0), (-1.0, 0.0), (0.5, 1.5), tol);
-    let BooleanResult::Body(pinch) = union_with(&q1, &q3, &flush_declarations(&q1, &q3, tol), tol)
-        .expect("an edge contact builds")
+    quarter_pinch([(0.0, 0.0), (-1.0, -1.0)], (0.5, 1.5), tol)
+}
+
+/// Two unit bricks over `z` whose low corners in x and y are `lows`,
+/// touching along the z-axis, and their record carried as `Rest` rows.
+fn quarter_pinch(
+    lows: [(f64, f64); 2],
+    z: (f64, f64),
+    tol: Tol,
+) -> (BooleanBody<f64>, Vec<CarriedVv>) {
+    let [p, q] = lows.map(|(x, y)| brick((x, x + 1.0), (y, y + 1.0), z, tol));
+    let BooleanResult::Body(pinch) =
+        union_with(&p, &q, &flush_declarations(&p, &q, tol), tol).expect("an edge contact builds")
     else {
         panic!("a union of two bricks came back empty");
     };
@@ -411,29 +420,30 @@ fn four_crossings_at_one_corner_build_in_every_op() {
     );
 }
 
-/// **Two pinches crossing on one line refuse their union typed.** Four
-/// bricks in the four quadrants about the z-axis, paired into two
-/// pinches that overlap over z ∈ (1, 1.5): at each end of the overlap
-/// each pinch holds two vertices and every pair of them crosses, so two
-/// crossing pairs share both their vertices, and the union would join
-/// all four into one. Red if that case reaches the finish: the zip
-/// fuses a vertex onto an edge's other end and refuses
-/// `Euler(SelfLoopEdge)`.
+/// **Two pinches crossing on one line refuse their union typed, and
+/// build the rest.** Four bricks in the four quadrants about the
+/// z-axis, paired into two pinches that overlap over z ∈ (1, 1.5). The
+/// union is a pinch below the overlap and another above it. Below, the
+/// two coincident pinch edges each pair one brick's two faces, which
+/// separates their ends into two vertices at (0,0,0.5), the bricks'
+/// corners; at (0,0,1) each empty corner is bounded by one face of each
+/// brick, so the two edges' ends there lie in one vertex orbit, which
+/// passes the pinch line twice. That shared-entity wedge fan is
+/// unrepresentable under tier 3′, and the reduction refuses it where
+/// two crossing pairs share both their vertices. Red if that case
+/// reaches the finish: the zip fuses a vertex onto an edge's other end
+/// and refuses `Euler(SelfLoopEdge)`. The pinches' interiors are
+/// disjoint, so each difference is its minuend at volume 2 and passes
+/// 3′ with both records carried, and the intersection is empty.
 #[test]
 fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
     let tol = Tol::witness();
     let (pinch_a, carried_a) = pinch(tol);
-    let q2: Body<f64> = brick((-1.0, 0.0), (0.0, 1.0), (1.0, 2.0), tol);
-    let q4: Body<f64> = brick((0.0, 1.0), (-1.0, 0.0), (1.0, 2.0), tol);
-    let BooleanResult::Body(pinch_b) =
-        union_with(&q2, &q4, &flush_declarations(&q2, &q4, tol), tol).expect("a pinch builds")
-    else {
-        panic!("a union of two bricks came back empty");
-    };
-    let carried_b = rest_rows(&pinch_b.contacts);
+    let (pinch_b, carried_b) = quarter_pinch([(-1.0, 0.0), (0.0, -1.0)], (1.0, 2.0), tol);
+    let minuend = 2.0 * 1.0 * 1.0;
     for (name, a, b, ca, cb) in [
-        ("a ∪ b", &pinch_a, &pinch_b, &carried_a, &carried_b),
-        ("b ∪ a", &pinch_b, &pinch_a, &carried_b, &carried_a),
+        ("a, b", &pinch_a, &pinch_b, &carried_a, &carried_b),
+        ("b, a", &pinch_b, &pinch_a, &carried_b, &carried_a),
     ] {
         let mut decls = flush_declarations(&a.body, &b.body, tol);
         decls.carried_a.vv.clone_from(ca);
@@ -454,19 +464,101 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
             }) => {
                 let mut partners = vec![p0, p1];
                 partners.sort();
-                assert_eq!(operand, topo::Operand::A, "{name}: the refusal names A");
-                assert_ne!(p0, p1, "{name}: two distinct partners");
+                assert_eq!(operand, topo::Operand::A, "{name} ∪: the refusal names A");
+                assert_ne!(p0, p1, "{name} ∪: two distinct partners");
                 if b_at.is_empty() {
-                    assert!(a_at.contains(&vertex), "{name}: A's corner at (0,0,1)");
+                    assert!(a_at.contains(&vertex), "{name} ∪: A's corner at (0,0,1)");
                 } else {
-                    assert_eq!(partners, b_at, "{name}: B's two corners at (0,0,1)");
+                    assert_eq!(partners, b_at, "{name} ∪: B's two corners at (0,0,1)");
                 }
             }
             other => panic!(
-                "{name}: want SharedVertexCrossings, got {:?}",
+                "{name} ∪: want SharedVertexCrossings, got {:?}",
                 other.map(|_| ())
             ),
         }
+        let less = subtract_with(&a.body, &b.body, &decls, tol);
+        let BooleanResult::Body(less) = less.unwrap_or_else(|e| panic!("{name} ∖ refused: {e:?}"))
+        else {
+            panic!("{name} ∖ came back empty");
+        };
+        let volume = mass_properties(&less.body, tol)
+            .expect("the difference has mass")
+            .volume;
+        assert!(
+            (volume - minuend).abs() < 1e-9,
+            "{name} ∖: volume {volume}, want {minuend}"
+        );
+        let verdict = validate_pseudomanifold(&less.body, &less.contacts, tol);
+        assert!(verdict.is_ok(), "{name} ∖: 3′ refused {:?}", verdict.err());
+        let common = intersect_with(&a.body, &b.body, &decls, tol);
+        assert!(
+            matches!(common, Ok(BooleanResult::Empty)),
+            "{name} ∩: want empty, got {:?}",
+            common.map(|_| ())
+        );
+    }
+}
+
+/// **Two pinches meeting end to end build in every op.** The pinch in
+/// the first and third quadrants over z ∈ (0.5, 1) and the one in the
+/// second and fourth over z ∈ (1, 2) meet at (0,0,1) alone. Every
+/// brick's corner there stays its own, touching each neighbour along
+/// an edge on the plane z = 1 and its diagonal opposite at the point,
+/// so the union holds four vertices at (0,0,1) and passes 3′ with both
+/// pinches' records carried. Interiors are disjoint: the union is the
+/// sum of 1 and 2, each difference its minuend, the intersection empty.
+#[test]
+fn two_pinches_meeting_end_to_end_build_in_every_op() {
+    let tol = Tol::witness();
+    let (low, low_rows) = quarter_pinch([(0.0, 0.0), (-1.0, -1.0)], (0.5, 1.0), tol);
+    let (high, high_rows) = quarter_pinch([(-1.0, 0.0), (0.0, -1.0)], (1.0, 2.0), tol);
+    let (low_volume, high_volume) = (2.0 * 0.5, 2.0 * 1.0);
+    for (name, a, b, ca, cb, minuend) in [
+        ("low, high", &low, &high, &low_rows, &high_rows, low_volume),
+        ("high, low", &high, &low, &high_rows, &low_rows, high_volume),
+    ] {
+        let mut decls = flush_declarations(&a.body, &b.body, tol);
+        decls.carried_a.vv.clone_from(ca);
+        decls.carried_b.vv.clone_from(cb);
+        let built = |op: &str, got: Result<BooleanResult<f64>, BooleanError>, want: f64| {
+            let BooleanResult::Body(out) =
+                got.unwrap_or_else(|e| panic!("{name} {op} refused: {e:?}"))
+            else {
+                panic!("{name} {op} came back empty");
+            };
+            let volume = mass_properties(&out.body, tol)
+                .expect("the result has mass")
+                .volume;
+            assert!(
+                (volume - want).abs() < 1e-9,
+                "{name} {op}: volume {volume}, want {want}"
+            );
+            let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+            assert!(
+                verdict.is_ok(),
+                "{name} {op}: 3′ refused {:?}",
+                verdict.err()
+            );
+            out
+        };
+        let union = built(
+            "∪",
+            union_with(&a.body, &b.body, &decls, tol),
+            low_volume + high_volume,
+        );
+        assert_eq!(
+            keys_at(&union.body, (0.0, 0.0, 1.0)).len(),
+            4,
+            "{name} ∪: each brick's corner at (0,0,1) is its own vertex"
+        );
+        built("∖", subtract_with(&a.body, &b.body, &decls, tol), minuend);
+        let common = intersect_with(&a.body, &b.body, &decls, tol);
+        assert!(
+            matches!(common, Ok(BooleanResult::Empty)),
+            "{name} ∩: want empty, got {:?}",
+            common.map(|_| ())
+        );
     }
 }
 
