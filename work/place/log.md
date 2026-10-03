@@ -61,3 +61,16 @@ The fix pass:
 - made the re-statement fail loud.
 
 The orchestrator adjudicated the fix pass on its own read.
+
+## 2026-10-03 — P2-split, the answer-independent part (PR 3908, DR-55)
+
+Review tier: dual, a concurrent Opus pair (class H), on frozen head `77a226b0ec`. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, so the tally is 0. Both executed the same defect: a cut holding only gauges was admitted, leaving a remainder that faults `NoBodyRoots`.
+
+The fix pass, run from the union of both reviews:
+- `SplitError::NoMaterial` refuses every cut with no material;
+- the R1 comparator became an oracle independent of `remap_node`, with a negative self-test per check;
+- rows were added for the gauge-chain order, the minted gauge's root slot, a checked identity offset, per-body poses and name resolution;
+- the Python slots were straightened out;
+- `regauge` has one home.
+
+Waiting on `[ev]` #3888: ruling 3 (the gauge hoist) or its retirement, the removal of the group hoist and inline's sugar, and P2-face.
