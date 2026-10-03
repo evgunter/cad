@@ -623,7 +623,7 @@ A measurement lane settled the fold over 2,572 contact-free bodies:
 
 The build is `boolean-door-adopts-the-finished-body-type` (P1), with its
 sequencing.
-- The fork-log row is 47. It was renumbered because another program
-  took 46.
+- The fork-log row is 50. It was renumbered because other programs
+  took 46 to 49.
 - Ev's answer matches the recommendation, refined by his fold.
 — (REACH orchestrator)

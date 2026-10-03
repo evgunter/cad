@@ -71,7 +71,7 @@ With the decision taken, measure again what the corpus ships.
 
 ## Designers (2026-10-02)
 
-Two designers weighed this (`docs/DESIGN-FORK-LOG.md`, row 47). Both
+Two designers weighed this (`docs/DESIGN-FORK-LOG.md`, row 50). Both
 found the description gap closed: M3 PR 6a mints honest seam
 descriptions, and the gate's doc is stale. The open question is the
 door contract.

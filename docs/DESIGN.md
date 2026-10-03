@@ -473,17 +473,31 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   stage cannot glue a planar group it was licensed to merge refuses
   the step with the merge's own typed reason, so every boolean output
   is a legal boolean operand; only a curved group's skip is recorded
-  and shipped. Load-bearing dependency: `merge_coplanar_faces`
-  **never fuses two vertices into one and never removes a vertex from
-  a face's boundary**. The one vertex it deletes is the free end of a
-  seam edge the glue left dangling inside the merged face: that edge
-  encloses no area, so it and its free end go together, at any angle
-  and repeatedly along a seam chain, and the deletion is recorded in
-  `killed_vertices`. Tier 3′'s strict record-drop rule (a contact
-  record whose vertex pair fused into one vertex is consumed and
-  drops) is correct *because* nothing is fused; a record citing a
-  deleted free end drops as consumed. Any future fusing or
-  boundary-vertex elision re-opens the record-carriage class.
+  and shipped. Every op's output also has **maximal edges**: no
+  *joinable* vertex, meaning valence 2 with two distinct edges on one
+  structural carrier between the same two faces. A sweep builds one rim
+  edge per run, as it builds one wall, and a boolean's output stage joins
+  every joinable vertex after the merge, whatever drew it. A body is then
+  the unique complex with maximal faces and maximal edges over its face
+  partition, so a union's body does not depend on its member order, and
+  the form is checked at tier 2 on the result alone, with no history.
+  Load-bearing dependency: `merge_coplanar_faces` **never fuses two
+  vertices into one**. A contact record is a pair of cells, one from each
+  touching shell (vertex, edge or face), whose interiors meet, plus its
+  backing. A vertex resting on an edge's interior is the record
+  (vertex, edge). The output stage deletes a vertex in two shapes, both
+  recorded in `killed_vertices`:
+  - the free end of a seam edge the glue left dangling inside the
+    merged face, which goes together with its edge;
+  - a joinable vertex, whose two edges become one.
+
+  The join carries every record citing the three cells it replaces to
+  the edge it makes, by substitution with its backing unchanged, so
+  records are written by the op that changes their entities and never
+  re-derived at the gate (F1). Tier 3′'s strict record-drop rule (a
+  contact record whose vertex pair fused into one vertex is consumed and
+  drops) is correct *because* nothing is fused. Any future fusing
+  re-opens the record-carriage class.
 
 **The frontier is typed, named and inventoried elsewhere.** Every
 unbuilt case refuses with a message naming its own blocker (D9 row 2),
