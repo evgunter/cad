@@ -139,7 +139,9 @@ use geom_core::Tol;
 /// boolean reads a plane carrier's normal into the section lanes, and
 /// decides its length there because the carrier's unit length is an
 /// at-rest convention no tier certifies. Its comparand is the vector's
-/// norm, a genuine length, through the plain [`Margin::norm3`] door.
+/// norm, a pure number, levered by a lower bound on the reach the
+/// section consumes it over: the joined germ sites' reach from the
+/// plane's origin ([`UnitVec3::levered`]).
 pub(super) const BOOL_GERM_PLANE_NORMAL: &str = "bool_germ_plane_normal";
 
 /// One completed section-polygon **pair**: the 2-loop null face in
@@ -457,11 +459,27 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // cosines, so its length is decided here, at the read: a plane
         // carrier's normal is unit only by the surfaces' at-rest
         // convention, which no tier certifies. A normal with no decided
-        // length is an operand whose plane breaks that convention.
-        let germ_normal = |n: Vec3<T>| {
-            UnitVec3::new(n, BOOL_GERM_PLANE_NORMAL, band).map_err(|_| {
-                desync("a germ plane's normal has no decided length (a broken plane carrier)")
-            })
+        // length is an operand whose plane breaks that convention. The
+        // length is a pure number, levered by a LOWER bound on the reach
+        // it is consumed over: the ball through the two germ sites this
+        // join connects, read from the plane's origin. The lanes consume
+        // the normal along the section between those sites, which can
+        // reach past the ball, and a shorter arm never decides a length
+        // positive that the full reach would not. Read only by the arms
+        // that mint a germ normal, before they mutate the body.
+        let germ_reach = |body: &Body<T>| -> Result<geom_brep::ExtentBall<T>, BooleanError> {
+            let site = |he| {
+                body.half_edge_start_point(he)
+                    .map(geom_brep::ExtentBall::point)
+                    .ok_or(desync("germ site has no point"))
+            };
+            geom_brep::ExtentBall::enclosing(&[site(ea)?, site(ra)?])
+                .ok_or(desync("a join has no germ sites"))
+        };
+        let germ_normal = |reach: geom_brep::ExtentBall<T>, origin: Point3<T>, n: Vec3<T>| {
+            UnitVec3::levered(n, BOOL_GERM_PLANE_NORMAL, band, reach.lever_from(origin)).map_err(
+                |_| desync("a germ plane's normal has no decided length (a broken plane carrier)"),
+            )
         };
         let (ka, ga) = surf_of(&red.a, germ.a_face)?;
         let (kb, gb) = surf_of(&red.b, germ.b_face)?;
@@ -504,6 +522,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 }
                 (Sf::Plane { origin, normal, .. }, Sf::Sphere { .. })
                 | (Sf::Plane { origin, normal, .. }, Sf::Cylinder { .. }) => {
+                    let reach = germ_reach(&red.a)?;
                     let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
                         .map_err(BooleanError::Join)?
                         .ok_or(desync("wall germ face has no charted azimuth window"))?;
@@ -516,7 +535,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                         seg_a,
                         tol,
                     )?;
-                    let plane = (*origin, germ_normal(*normal)?);
+                    let plane = (*origin, germ_normal(reach, *origin, *normal)?);
                     sb.join_split(
                         &mut red.b,
                         (b1, b2),
@@ -528,7 +547,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 }
                 (Sf::Sphere { .. }, Sf::Plane { origin, normal, .. })
                 | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => {
-                    let plane = (*origin, germ_normal(*normal)?);
+                    let plane = (*origin, germ_normal(germ_reach(&red.a)?, *origin, *normal)?);
                     sa.join_split(
                         &mut red.a,
                         (a1, a2),
@@ -567,7 +586,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                             center,
                             axis,
                             ..
-                        })) => (center, germ_normal(axis)?),
+                        })) => (center, germ_normal(germ_reach(&red.a)?, center, axis)?),
                         Ok(_) => {
                             return Err(desync(
                                 "germ pair's sphere×sphere section is not a circle",
@@ -784,15 +803,9 @@ fn partners<T: Decide>(
         return Ok(None);
     }
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
-        let v = red
-            .a
-            .get_half_edge(he)
-            .ok_or(desync("germ half no longer resolves"))?
-            .start;
         red.a
-            .get_vertex(v)
-            .and_then(|vd| red.a.get_point(vd.point).copied())
-            .ok_or(desync("germ vertex has no point"))
+            .half_edge_start_point(he)
+            .ok_or(desync("germ site has no point"))
     };
     let (rec, e) = (&open[cand], &open[entry]);
     let (rga, ega) = (rec.a[cs].0, e.a[es].0);

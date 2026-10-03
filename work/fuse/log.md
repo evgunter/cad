@@ -198,6 +198,11 @@ The merge of main conflicted in `topo/src/lib.rs` re-exports
 (`ShellOrientation` beside PR 3874's `lineage_root` rename); the
 orchestrator resolved it and checked that it compiles.
 
+## 2026-10-03 — the result gate lands (PR 3913)
+
+`a-boolean-result-gate-ships-a-scaffold-at-rest` closed. The fix pass
+gave `is_scaffold` one crate-wide home and made `ResultInvalid` and
+`BooleanBody`'s docs honest about what the gate checks.
 ## 2026-10-03 — the edge-contact CorruptOperand lands (PR 3914)
 
 `a-flush-partner-folded-onto-an-edge-contact-refuses-corrupt-operand`
