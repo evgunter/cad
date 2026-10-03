@@ -1166,18 +1166,18 @@ coincidence, or asserting a bound). Nothing else carries dependency or
 intent.
 
 **Variables.** Every slot that admits more than one value holds a
-variable whose type suits the slot.
-The types are the scalars (`Length`, `Angle`, `Scalar`, `Count`), the
-discrete kinds (a side, a half, a sense), the geometric values
-(`Point`, `Direction`, `Axis`, `Plane`, `Frame`) and the references
-(`Face`, `Edge`, `Body`). A variable is **free** — a value, its written
-unit (D6) and optionally a distribution — or **defined**, by an `Expr`
-over other variables or as an output of an operation. A dimensioned
-literal stands nowhere, neither in a slot nor inside a formula: the
-only constants are dimensionless rationals and rational fractions of a
-turn, which are the shape of a formula rather than a dimension. Typing a value in the GUI
-mints a free variable and offers an existing variable of equal value;
-declining the offer is what makes the two distinct.
+variable whose type suits the slot. The types are the scalars (`Length`,
+`Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
+sense), the geometric values (`Point`, `Direction`, `Axis`, `Plane`,
+`Frame`) and the references (`Face`, `Edge`, `Body`). A variable is
+**free** — a value, its written unit (D6) and optionally a distribution
+— or **defined**, by an `Expr` over other variables or as an output of
+an operation. A dimensioned literal stands nowhere, neither in a slot
+nor inside a formula: the only constants are dimensionless rationals and
+rational fractions of a turn, which are the shape of a formula rather
+than a dimension. Typing a value in the GUI mints a free variable and
+offers an existing variable of equal value; declining the offer is what
+makes the two distinct.
 
 **Operations.** A node is an operation: it reads variables and defines
 one or more. Reading is the only dependency; nothing consumes anything,
