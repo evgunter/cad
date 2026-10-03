@@ -161,3 +161,11 @@ found there: `replace_face.rs` asserts `EdgeDescriptionSpec::iso` is
 the only door minting a chart `IsoLine` description and that it fixes
 `u`; `EdgeDescriptionSpec::chart_image` is a second door and
 `box_with_approx_cap` uses it for two u-moving images.
+
+## The fixture mints, and the pin moved (PCERT, 2026-10-01)
+
+With pcurve rows mandatory at rest (C4), `box_with_approx_cap` ends
+with its closing mint, so legs 2–3 lifting is now what `sweep`'s
+`verbs_offc_consumer::the_walls_a_placed_approx_capped_part_still_meets`
+pins (the placed part weighs at the operand's volume and area, and
+meshes); leg 4's kind refusal is the one wall it still asserts.
