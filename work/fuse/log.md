@@ -229,3 +229,7 @@ crate-wide home, closing a duplication the PR had only half-closed,
 and pins the specific scaffold edge in the `contact9` refusals.
 CONTACT's seam-description row rises to P1. The REACH-item append will
 conflict with #3870 at whichever merges second.
+## 2026-10-03 — the edge-contact CorruptOperand lands (PR 3914)
+
+`a-flush-partner-folded-onto-an-edge-contact-refuses-corrupt-operand`
+closed. Its two-crossing residue is P0 on this slate.
