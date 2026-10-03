@@ -92,5 +92,5 @@ Walls 1 and 2 are now positive asserts: a thicker shelf lifts the crate
 and shorter posts lower it, and the gate certifies both (`update_door`).
 The residue is filed: the face base's local-+Y convention is
 `work/msolve/a-face-base-puts-its-reference-on-local-y.md`, and the
-`PlanarRest` fold is
-`work/msolve/planar-rest-offset-is-a-second-spelling-of-a-frame-offset-step.md`.
+`PlanarRest` standoff's retirement is the build Ev ruled on `[ev]` PR
+3681, tracked in `work/msolve/a-face-frame-cannot-turn-its-roll.md`.
