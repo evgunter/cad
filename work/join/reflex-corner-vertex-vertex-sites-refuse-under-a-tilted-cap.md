@@ -2,10 +2,12 @@
 id: reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap
 kind: issue
 title: A vertex of the other operand on a 315-degree reflex corner under a tilted cap refuses in 326 of 720 probe cases (SeamOrientation, JoinDesync, UnpairedLooseEnds)
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
+closed: 2026-10-03
+pr: 3900
 ---
 
 ## What
@@ -140,3 +142,14 @@ The battery's `b ∖ a` op moves 17 more poses from `SeamOrientation` to
 sound. No pose of any JOIN-1 battery (`join1_r1_battery`, `_seam_`,
 `_declared_`, `_tube_`, `_bored_capsule_`, `_reflex_`; 92 k lines)
 changes otherwise.
+
+## Closed 2026-10-03 — PR 3900
+
+The strut-order group (159 poses) builds sound. Its order is read as
+distances (`bool_strut_side`, `bool_strut_order`, `direction_sense`)
+and refuses where nothing orders the germs. The residue has homes:
+`four-germ-vertex-pairs-run-b-in-a-order` (P0, the 41 other refusals)
+and ZIP's `a-flush-declared-reflex-union-ships-the-wrong-volume` (the
+wrong body). The review's NOTE-2 class is
+`a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-census`
+(P0), and S8 is `edge-edge-membership-reads-a-reflex-dihedral-wedge-as-convex`.
