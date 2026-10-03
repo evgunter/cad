@@ -458,7 +458,11 @@ impl PatternKind {
     /// Instances stepped along `direction`, `spacing` apart.
     ///
     /// The direction's three slots are dimensionless
-    /// (`SlotId::Direction` is `Scalar`); the spacing's is a `Length`.
+    /// (`SlotId::Direction` is `Scalar`); the spacing's is a `Length`,
+    /// and a size: the direction says which way the copies step, so a
+    /// spacing below zero refuses at `evaluate` (`negative_spacing`,
+    /// naming the direction negated) and a zero one too
+    /// (`degenerate_spacing`), wherever a second copy reads it.
     #[staticmethod]
     fn linear(py: Python<'_>, direction: (Expr, Expr, Expr), spacing: &Expr) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Linear {
@@ -469,6 +473,11 @@ impl PatternKind {
 
     /// Instances stepped `step` apart around `axis`, an upstream
     /// `datum_axis` node.
+    ///
+    /// The step is signed by the right-hand rule about the axis and
+    /// lies within a turn: a zero step refuses at `evaluate`
+    /// (`degenerate_step`), and so does one at or past a full turn
+    /// (`full_range_step`), wherever a second copy reads it.
     #[staticmethod]
     fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Expr) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {

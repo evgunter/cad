@@ -2812,6 +2812,13 @@ NOT_BOUND = {
     # as its tag word plus prose, and the guard's prose is its own
     # sentence, so a Python caller reads the site in the message.
     "PairRefusalSite": INTERIOR,
+    # `NodeErrorKind::FullRangeStep`'s `turns`: whether a step of a
+    # turn or more lands every copy on the master or names an angle
+    # within the turn. Carried in Rust so a consumer matching that
+    # variant can name the field's type; interior here because Python
+    # never holds one. The refusal crosses as `full_range_step` plus
+    # its sentence, which names the angle.
+    "StepTurns": INTERIOR,
     # `BooleanError::CoincidentShell`'s orientation: why the settled
     # coincidence pairs did not certify a shell lying on the other
     # operand. Carried in Rust so a consumer matching that variant can
@@ -3415,9 +3422,9 @@ MEMBERS_BOUND_AS = {
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
     # --- a wrapping arm flattened into its payload's words ---------
     # `BooleanCoincidence::Contact(ContactClass)` crosses as the
-    # contact class's own words beside `Continuation`: the Python enum
-    # is flat, `Rest`, `Tangent`, `Continuation`, so the arm is every
-    # contact word.
+    # contact class's own words beside `Continuation` and `Seam`: the
+    # Python enum is flat, `Rest`, `Tangent`, `Continuation`, `Seam`, so
+    # the arm is every contact word.
     "BooleanCoincidence::Contact": ("BooleanCoincidence.Rest", "BooleanCoincidence.Tangent"),
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Space": "AssemblyError.variant",
@@ -3829,6 +3836,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::RingOutsideOuter": "ValidationFinding.variant",
     "ValidationError::RingNestingUndecided": "ValidationFinding.variant",
     "ValidationError::ShellWinding": "ValidationFinding.variant",
+    "ValidationError::SolidOuterShells": "ValidationFinding.variant",
     "ValidationError::UndeclaredContact": "ValidationFinding.variant",
     "ValidationError::StaleContactDeclaration": "ValidationFinding.variant",
     "ValidationError::ContactContradicted": "ValidationFinding.variant",

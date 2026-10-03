@@ -2069,10 +2069,21 @@ class PatternKind:
     @staticmethod
     def linear(
         direction: tuple[Expr, Expr, Expr], spacing: Expr
-    ) -> PatternKind: ...
+    ) -> PatternKind:
+        """Stepped along `direction`, `spacing` apart. The spacing is
+        a size: the direction says which way the copies step, so a
+        spacing below zero raises EvaluationError
+        (`negative_spacing`, naming the direction negated) and a zero
+        one too (`degenerate_spacing`), wherever a second copy reads
+        it."""
+
     @staticmethod
     def circular(axis: NodeId, step: Expr) -> PatternKind:
-        """Stepped around `axis`, an upstream `datum_axis` node."""
+        """Stepped around `axis`, an upstream `datum_axis` node. The
+        step is signed by the right-hand rule about the axis and lies
+        within a turn: zero raises EvaluationError (`degenerate_step`),
+        and so does a full turn or more (`full_range_step`), wherever a
+        second copy reads it."""
 
     @staticmethod
     def explicit(frames: list[Frame]) -> PatternKind:
@@ -4803,14 +4814,17 @@ class ContactClass:
 
 class BooleanCoincidence:
     """What a boolean node may declare about a face pair: a contact
-    (`Rest`, `Tangent`), or a `Continuation` — one carrier with aligned
+    (`Rest`, `Tangent`), a `Continuation` — one carrier with aligned
     senses, as two stacked parts' outer walls are, which the union
-    merges. The flush detector reports `Rest` for an opposed pair and
-    `Continuation` for an aligned one."""
+    merges — or a `Seam` — two carriers joining G1 with aligned senses,
+    as a cap on a tube does. The flush detector reports `Rest` for an
+    opposed pair and `Continuation` for an aligned one; it never reports
+    a seam."""
 
     Rest: Final[BooleanCoincidence]
     Tangent: Final[BooleanCoincidence]
     Continuation: Final[BooleanCoincidence]
+    Seam: Final[BooleanCoincidence]
 
 class FlushRung:
     """Which rung of the verify ladder decided a finding:

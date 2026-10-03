@@ -288,11 +288,13 @@ pub use editor_core::DocParamField;
 // exception `EntityKey` is — and it cannot be CONSTRUCTED from here,
 // which is the point of it: its field is private to the door that
 // mints it.
+// `StepTurns` rides with `NodeErrorKind`: it is `FullRangeStep`'s
+// `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
     DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
+    ProfileLift, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.

@@ -89,7 +89,7 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F10 ×1 — one loop over seven
-rigidity residuals — F13 ×1, F14 ×1, F16 ×1 — 4 shipped sites, tracked as issue #214 and pinned by
+rigidity residuals — F13 ×1, F14 ×2, F16 ×1 — 5 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -404,14 +404,19 @@ which is what actually moves the number.
 | props/quad.rs:453 | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | OK |
 | props/quad.rs:461 | props_quad_face_extent | area/perimeter (mean width) | m | OK |
 | props/quad.rs (`piece_monotone`, asked once per trim piece by `trim_cells`) | props_trim_piece_monotone | `Margin::metered(span, rate)` — `span` is the control polygon's LEAST advance along the unit chord direction, a chart-parameter length (a convexity fact on the Bézier differences, which are the derivative's own coefficients up to the positive `p/h`); `rate` is the chart's metric rate along that same direction, `|S_u·ĉ_u + S_v·ĉ_v|` bounded BELOW over the piece box | m | OK (added with the trimmed-region quadrature, TRIM-2 PR-1. Clause (iii)'s metric door: a parameter-space span crosses to model space through a per-kind rate, and the rate here is the chart's own directional derivative rather than a carrier speed. Both factors round toward REFUSING — the span is the `lo()` of the bracketed dot product, and a derivative hull that straddles zero in every component answers rate `0`, hence margin `0`, hence Zero. Only a definite `Positive` admits the piece; `Zero` and the ambiguity band alike bisect the piece and re-ask, to `TRIM_MONOTONE_DEPTH`, and then refuse `QuadratureUnsupported` naming this row — the lane never pads a piece it cannot certify is a graph over its chord. **The margin carries the ROUND's lever as well as the image's, and a reader of this row has to know it**: `span` is the REFINED block's least advance, so it halves with every uniform cut and every bisection AND scales with the face. Measured (the v6 dual, both arms independently): the same smooth parabolic arc certifies at every round on a 10 µm face, refuses at round 4 on a 1 µm face, and refuses at every round on a 0.1 µm face — that is the lane's resolution speaking, not the image's shape, which is why the refusal names an UNRESOLVED margin rather than a cusp. Nothing on today's corpus is near the band (the fixture's scale is 1e-3 and round 0 is decades clear). An in-band verdict ESCALATES, as it does from every other lane in this file: bisection halves the very span the margin meters, so it cannot resolve one. Pinned by `geom-brep`'s `q5_a_fold_over_its_chord_refuses_typed` (a fold that survives every bisection) and `q5b_a_piece_that_only_looks_folded_resolves_by_bisection` (the curvature artefact the ladder is FOR — a refusal is cheap to get right by refusing everything).) |
-| ssi.rs:645 | ssi_cs_tangency | radius/axis distance differences | m | OK |
-| ssi/certify.rs:366–524 | ssi_on_locus / hull_sup / foot / chart | residuals, /2R linearizations, foot distances | m | OK |
-| ssi/certify.rs:836 | ssi_tube_transversality | sin (unit triple product) × arm | m | OK |
-| ssi/march.rs:295/310 | ssi_transversality_arm / ssi_transversality | arm (m); sin × arm | m | OK |
-| ssi/march.rs:420/447/478 | ssi_step_progress / branch_open_end / closure_return | state × (m/state); scaled domain margins | m | OK |
-| ssi/march.rs:484 | ssi_closure_tangent | cos(unit tangents) × whole-branch arc length | m | FLAG F9 |
-| locus.rs (M9-2 PR-2) | tangent_locus_axis_parallel | sin(axis, plane / axis, axis) × the declared pair's consumed extent read from the foot of its centre on the (second) cylinder's axis, where the gap row is read (`ExtentBall::lever_from`, the extent topo's carrier-pair doors lever their ladder at) | m | FIXED (TANG; was a 1 m `T::one()` arm, which bridged a tilt standing more than Kε off across a face longer than a metre) |
-| locus.rs (M9-2 PR-2) | tangent_locus_gap / tangent_locus_side | axis-to-plane (or axis-to-axis) distance minus radius sum/difference; signed height / radius difference — all metre data of the carriers | m | OK (new in M9-2 PR-2) |
+| ssi.rs (`cylinder_sphere_ssi`) | ssi_cs_tangency | radius/axis distance differences | m | OK |
+| ssi/certify.rs (`analytic_limbs`, `nurbs_limbs`) | ssi_on_locus / hull_sup / foot / chart | residuals, /2R linearizations, foot distances | m | OK |
+| ssi/certify.rs (`tube_transversality`) | ssi_tube_transversality | sin (unit triple product) × arm | m | OK |
+| ssi/march.rs (`march`) | ssi_transversality_arm / ssi_transversality | arm (m); sin × arm | m | OK |
+| ssi/section.rs (`boundary_section`) | ssi_boundary_on_plane | sup over a boundary curve of `|n·(C − p₀)|`, from its control net (the rational hull) | m | OK |
+| ssi/section.rs (`decide_crossing`) | ssi_boundary_crossing | `|dφ/ds|` at a root (a sine: metres of plane distance per metre along the curve) × arm | m | OK |
+| ssi/boundary.rs (`Pass::run`) | ssi_boundary_corner | `|n·(P_corner − p₀)|`, the corner control point's plane distance | m | OK |
+| ssi/boundary.rs (`side_region`) | ssi_boundary_strip | inf of the wall's slope across a side (metres per chart unit) over the sup chart speed (a sine) × arm | m | OK |
+| ssi/ends.rs (`short_refusal`) | ssi_short_branch | a Hermite candidate's length over `SHORT_BRANCH_STEPS`, the step it would be marched at | m | OK |
+| ssi/march.rs (`march`; `SlabExit`, the ℝ³ lane, for the open end) | ssi_step_progress / branch_open_end / closure_return | state × (m/state); scaled domain margins | m | OK |
+| ssi/march.rs (`march`) | ssi_closure_tangent | cos(unit tangents) × whole-branch arc length | m | FLAG F9 |
+| locus.rs (M9-2 PR-2) | pc_axis_plane_parallel / cc_axes_parallel (the witness lane's reads of intersect.rs's rows) | sin(axis, plane / axis, axis) × the declared pair's consumed extent read from the foot of its centre on the (second) cylinder's axis, where the gap row is read (`ExtentBall::lever_from`, the extent topo's carrier-pair doors lever their ladder at) | m | FIXED (TANG; was a 1 m `T::one()` arm, which bridged a tilt standing more than Kε off across a face longer than a metre; the lane's own `tangent_locus_axis_parallel` row retired into the section's) |
+| locus.rs (M9-2 PR-2) | pc_parallel_gap / cc_parallel_gap / tangent_locus_internal_gap / tangent_locus_side | r − axis-to-plane distance at the foot; r1 + r2 − axis-to-axis distance; \|r1 − r2\| − axis-to-axis distance; axis offset / radius difference — all metre data of the carriers | m | OK (the plane×cylinder and external-cylinder gaps are the section classifiers' rows; the internal gap and side rows are the lane's own) |
 
 ## topo
 
@@ -422,7 +427,7 @@ which is what actually moves the number.
 | boolean/contain.rs (`boundary_pre_pass`, through `splitting::containment::LoopEdge::contact`) | bool_contact_arc_span / bool_contact_arc / bool_contact_arc_end / bool_contact_arc_trim | `(τ − w)` levered by the smaller semi-axis. A CIRCLE: the distance from the circle `√(((ρ − 1)·r)² + axial²)` (the quantity `point_on_circle` meters under this name), the unit-circle chord to either end and the chordal-defect sum, each levered by the radius — exact. An ELLIPSE: the distance bounded on both sides, `on` decided on the upper bound (a point of the ellipse one Newton step and a radial snap from `q`) for ON and on the lower bound `2|F|/(g + √(g² + 4|F|/b²))` for OFF; `end` the exact distance from `q` to the end point; `trim` the chordal defect of the foot levered by the LARGER semi-axis, so it bounds the arc length to the nearer end from above | m | OK (CONTACT-4) |
 | boolean/insert.rs (`strut_order`) | bool_strut_side | `n̂·(ĝ × ê)`: the sine of a strut germ's angle from the arrival edge, × min sector arm — its distance at that arm from the arrival edge's line; a decided zero is placed by `bool_dir_same` (`sectors::direction_sense`) | m | OK (JOIN reflex corner) |
 | boolean/insert.rs (`strut_order`) | bool_strut_order | `n̂·(ĝ₀ × ĝ₁)`: the sine of the angle between two strut germs in one half-turn, × min sector arm; a decided zero refuses (`decide_nonzero_reported`) | m | FIXED (JOIN reflex corner: was the cosine difference `(ĝ₀ − ĝ₁)·ê` × arm, second order in the spacing beside 0 and π, with a decided zero read as an order; before that, dimensionless) |
-| boolean/insert.rs (`walks_after`) | bool_shared_cut_order | (unit cut dir × unit cut dir)·(unit sector normal) × sector arm — two crossing pairs' cuts in one corner of a vertex both cut, ordered along the corner; a decided zero (the cuts along one direction) counts the cut as inside the run, which refuses `SharedVertexCrossings` when no direction avoids it, and an in-band reading refuses as a `Coincide::Sectors` coincidence, as `bool_strut_order` does | m | OK |
+| boolean/insert.rs (`walks_after`) | bool_shared_cut_order | (unit cut dir × unit cut dir)·(unit sector normal) × sector arm — two crossing pairs' cuts in one corner of a vertex both cut, ordered along the corner; a decided zero (the cuts along one direction, checked one ray by `bool_dir_same`) is placed by the runs: held only when the other pair's run leaves the direction the same way and is the same arc (`tied_held`), and not when the two runs are struts one of which holds the other whole (`holds_whole`); and an in-band reading refuses as a `Coincide::Sectors` coincidence, as `bool_strut_order` does | m | OK |
 | boolean/insert.rs (`germ_dir`) | bool_germ_line | sin(n̂_a,n̂_b) × min sector arm — the margin `pair_search` read definite before it recorded the pair as a crossing | m | OK |
 | boolean/join.rs:567/803 | bool_join_chord | germ-site chord LENGTH (the degeneracy gate: Zero ⇒ coincident sites, no polygon edge) | m | OK |
 | boolean/join.rs:603/817 | bool_join_nearest | a DIFFERENCE of two chord lengths (nearest-candidate selection) | m | OK |
@@ -847,13 +852,23 @@ Flagged, NOT fixed here (dispositions):
   a vanished row a string. Nothing cites it now: the count above went
   from 8 to 7, and `LEDGER_FLAGGED_SITES` with it.
 - **F14** (added by the clause-(i) migration)
-  `editor-core/eval/wire.rs` `revolve_full_vs_partial`: `|θ| − τ` is
-  **radians** against the linear band — the full-circle coincidence
-  check runs in the editor before the kernel's own metered
-  `revolve_angle`/`revolve_angle_headroom` gates (which lever at the
-  profile's radial extent, correctly). The honest lever lives
-  kernel-side; duplicating it in the editor is a design question, not
-  a same-day fix. Carried as `decide_flagged(.., "F14")`.
+  `editor-core/eval/wire.rs` `turns_off`: `|θ| − k·τ` is **radians**
+  against the linear band. The revolve's full-circle coincidence check
+  (`revolve_full_vs_partial`, at `k = 1`) runs it in the editor before
+  the kernel's own metered `revolve_angle`/`revolve_angle_headroom`
+  gates (which lever at the profile's radial extent, correctly). The
+  honest lever lives kernel-side; duplicating it in the editor is a
+  design question, not a same-day fix. Carried as
+  `decide_flagged(.., "F14")`. The circular pattern's step reads the
+  same helper (`pattern_step_full_turn`: whether the step reaches a
+  turn, and how many whole turns it holds), and one more site of the
+  same comparand, `editor-core/eval/wire/stepped.rs`
+  `SteppedOperands::circular`'s `pattern_step` (the step, radians,
+  against the band: a zero step lands every copy on the master,
+  carried as `decide_flagged_reported(.., "F14")` because a driven
+  step's refusal quotes it). The honest lever is the master's radial
+  extent about the axis, which the mate solve's derived offset (the
+  same constructor) does not have in hand.
 - **F12** (added by the F3+F4 unit, from the #200 review's MIN-3)
   `editor-core/src/expr.rs:656`: the expression evaluator's door-2
   finiteness probe is a shipped raw `sign_within` — its own comment

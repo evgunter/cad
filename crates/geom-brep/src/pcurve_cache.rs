@@ -2731,6 +2731,12 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::SelfCrossingLocus { .. }
         | E::Fit(_)
         | E::TraceUnresolved { .. }
+        | E::BoundaryGraze { .. }
+        | E::BoundaryTangent { .. }
+        | E::EndNotOnLocus { .. }
+        | E::CrossingUnmatched { .. }
+        | E::ShortBranchUncertified { .. }
+        | E::WindowShortOfWall { .. }
         | E::FitSampleBudget { .. }
         | E::DomainUnusable { .. }
         | E::WrongLane { .. }

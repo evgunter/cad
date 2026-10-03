@@ -960,6 +960,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::SeedPinnedSection => "seed_pinned_section",
         C::WrongOperand => "wrong_operand",
         C::EmptyOperand => "empty_operand",
+        C::ProductOperand => "product_operand",
         C::DegenerateDirection => "degenerate_direction",
         C::NonFiniteDirection => "non_finite_direction",
         C::UnderflowedDirection => "underflowed_direction",
@@ -969,6 +970,10 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Escalated => "escalated",
         C::AxisInDifferentPlane => "axis_in_different_plane",
         C::NonPositiveCount => "non_positive_count",
+        C::NegativeSpacing => "negative_spacing",
+        C::DegenerateSpacing => "degenerate_spacing",
+        C::DegenerateStep => "degenerate_step",
+        C::FullRangeStep => "full_range_step",
         C::PlacementsUncertified => "placements_uncertified",
         C::PlacementRuleCountSpelling => "placement_rule_mismatch",
         C::PlacementRuleNoPlacements => "empty_placement_list",
@@ -1141,6 +1146,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::SeedPinnedSection { .. } => None,
         NodeErrorKind::WrongOperand { .. } => None,
         NodeErrorKind::EmptyOperand { .. } => None,
+        NodeErrorKind::ProductOperand { .. } => None,
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
@@ -1157,6 +1163,10 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Escalated { .. } => None,
         NodeErrorKind::AxisInDifferentPlane { .. } => None,
         NodeErrorKind::NonPositiveCount { .. } => None,
+        NodeErrorKind::NegativeSpacing { .. }
+        | NodeErrorKind::DegenerateSpacing
+        | NodeErrorKind::DegenerateStep
+        | NodeErrorKind::FullRangeStep { .. } => None,
         NodeErrorKind::PlacementsUncertified { .. } => None,
         NodeErrorKind::PlacementRule(fault) => placement_rule_inner_tag(fault),
         NodeErrorKind::UnschedulableCycle => None,
@@ -1490,6 +1500,7 @@ pub fn split_op_error_tag(err: &SplitOpError) -> &'static str {
         SplitOpError::Join(_) => "join",
         SplitOpError::Finish(_) => "finish",
         SplitOpError::Pcurves(_) => "pcurves",
+        SplitOpError::Pieces(_) => "pieces",
     }
 }
 
@@ -1571,7 +1582,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
         BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
         BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
-        BooleanErrorKind::RimSeamNotDeclarable => "rim_seam_not_declarable",
+        BooleanErrorKind::SeamContradicted => "seam_contradicted",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::TangentSlitArmUnbuilt => "tangent_slit_arm_unbuilt",
         BooleanErrorKind::InvalidDeclaration => "invalid_declaration",
@@ -1607,6 +1618,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::VolumeUndecided => "volume_undecided",
         BooleanErrorKind::UnrepresentableResult => "unrepresentable_result",
         BooleanErrorKind::GraftRecertify => "graft_recertify",
+        BooleanErrorKind::Pieces => "pieces",
     }
 }
 
@@ -1730,6 +1742,7 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::Thickness { .. } => "thickness",
         ShellError::NoSolid => "no_solid",
         ShellError::Roles { .. } => "roles",
+        ShellError::Pieces { .. } => "pieces",
         ShellError::OperandOuterShells { .. } => "operand_outer_shells",
         ShellError::Partition { .. } => "partition",
         ShellError::WallClearance { .. } => "wall_clearance",
@@ -2982,6 +2995,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::RingOutsideOuter { .. } => "ring_outside_outer",
         ValidationError::RingNestingUndecided { .. } => "ring_nesting_undecided",
         ValidationError::ShellWinding { .. } => "shell_winding",
+        ValidationError::SolidOuterShells { .. } => "solid_outer_shells",
         ValidationError::UndeclaredContact { .. } => "undeclared_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",
         ValidationError::ContactContradicted { .. } => "contact_contradicted",

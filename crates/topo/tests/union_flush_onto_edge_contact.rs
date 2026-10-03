@@ -168,10 +168,16 @@ fn wedge(d0: f64, d1: f64, z: (f64, f64), tol: Tol) -> Body<f64> {
 /// per unit of height above 0.5: its corner stays at the pinch's lower
 /// end and its vertical edge leans off the pinch line.
 fn sheared_wedge(shear: (f64, f64), tol: Tol) -> Body<f64> {
+    sheared(triangle(80.0, 190.0), shear, tol)
+}
+
+/// The prism over `tri` at z ∈ (0.5, 1), sheared by `shear` per unit
+/// of height above 0.5.
+fn sheared(tri: [(f64, f64); 3], shear: (f64, f64), tol: Tol) -> Body<f64> {
     let mut body = Body::<f64>::new();
     common::prism_ops(
         &mut body,
-        &triangle(80.0, 190.0),
+        &tri,
         (0.5, 1.0),
         |x, y, z| geom_core::Point3::new(x + shear.0 * (z - 0.5), y + shear.1 * (z - 0.5), z),
         common::FaceGeometry::Certified,
@@ -334,8 +340,9 @@ fn clip(subject: &[(f64, f64)], window: &[(f64, f64)]) -> Vec<(f64, f64)> {
 /// axis, a pinch with a vertex per wedge at each end. Cut by the wedge
 /// over `cutter` at z ∈ (0.5, 1), which crosses into the outer two and
 /// holds the ones between, every op builds at the volume the wedges'
-/// triangles clipped to the cutter's give.
-fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), tol: Tol) {
+/// triangles clipped to the cutter's give. A nonzero `shear` leans
+/// the cutter by that much per unit of height ([`sheared`]).
+fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64, f64), tol: Tol) {
     let fold = |acc: &BooleanBody<f64>, next: &Body<f64>| {
         let mut decls = flush_declarations(&acc.body, next, tol);
         decls.carried_a.vv = rest_rows(&acc.contacts);
@@ -364,17 +371,22 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), tol: Tol) {
         n * (n - 1),
         "{n} vertices at each end of the pinch line, a row per two"
     );
-    let window = triangle(cutter.0, cutter.1);
+    let cut = triangle(cutter.0, cutter.1);
     let pinch_volume: f64 = spans.iter().map(|&(d0, d1)| area(&triangle(d0, d1))).sum();
-    let cutter_volume = area(&window) * 0.5;
+    let cutter_volume = area(&cut) * 0.5;
     let common: f64 = spans
         .iter()
-        .map(|&(d0, d1)| area(&clip(&triangle(d0, d1), &window)) * 0.5)
+        .map(|&(d0, d1)| swept_common(&cut, shear, &triangle(d0, d1)))
         .sum();
+    let cutter_body = if shear == (0.0, 0.0) {
+        wedge(cutter.0, cutter.1, (0.5, 1.0), tol)
+    } else {
+        sheared(cut, shear, tol)
+    };
     every_op_builds(
         &pinch.body,
         &rest_rows(&pinch.contacts),
-        &wedge(cutter.0, cutter.1, (0.5, 1.0), tol),
+        &cutter_body,
         [
             pinch_volume + cutter_volume - common,
             pinch_volume - common,
@@ -399,6 +411,7 @@ fn three_crossings_at_one_corner_build_in_every_op() {
     crossings_at_one_corner(
         &[(0.0, 60.0), (90.0, 120.0), (150.0, 210.0)],
         (50.0, 160.0),
+        (0.0, 0.0),
         Tol::witness(),
     );
 }
@@ -416,6 +429,7 @@ fn four_crossings_at_one_corner_build_in_every_op() {
     crossings_at_one_corner(
         &[(0.0, 30.0), (60.0, 80.0), (100.0, 120.0), (150.0, 200.0)],
         (20.0, 160.0),
+        (0.0, 0.0),
         Tol::witness(),
     );
 }
@@ -561,84 +575,105 @@ fn two_pinches_meeting_end_to_end_build_in_every_op() {
     }
 }
 
-/// **A pinch line lying flat in the shared corner's face refuses typed.**
-/// The 80°–190° wedge sheared along its 80° face by half a unit per
-/// unit of height, backwards, so the z-axis runs inside that face from
-/// the corner: both pairs' cuts lie along the axis in one corner of the
-/// prism's corner, and no corner reading orders them. Every op, in both
-/// operand orders, refuses `SharedVertexCrossings` naming the prism's
-/// corner and the pinch's two vertices there: pinned as it stands
-/// (`work/fuse/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`),
-/// red when the tie's arm is built.
+/// `∫ area(clip(triangle + shear·(z − 0.5), window)) dz` over
+/// z ∈ (0.5, 1), outside the kernel. The clipped area is quadratic in
+/// z between the heights where a vertex of one polygon crosses an
+/// edge line of the other, so Simpson's rule on each piece is exact.
+fn swept_common(tri: &[(f64, f64)], shear: (f64, f64), window: &[(f64, f64)]) -> f64 {
+    let (z0, z1) = (0.5, 1.0);
+    let mut breaks = vec![z0, z1];
+    let mut push = |num: f64, den: f64| {
+        if den != 0.0 {
+            let z = z0 + num / den;
+            if z > z0 && z < z1 {
+                breaks.push(z);
+            }
+        }
+    };
+    let cross = |u: (f64, f64), v: (f64, f64)| u.0 * v.1 - u.1 * v.0;
+    let sub = |u: (f64, f64), v: (f64, f64)| (u.0 - v.0, u.1 - v.1);
+    // A vertex of the moving triangle on an edge line of the window,
+    // and a window vertex on an edge line of the moving triangle.
+    for (fixed, moving, sign) in [(window, tri, -1.0), (tri, window, 1.0)] {
+        for k in 0..fixed.len() {
+            let (p, q) = (fixed[k], fixed[(k + 1) % fixed.len()]);
+            for &v in moving {
+                push(sign * cross(sub(q, p), sub(v, p)), cross(sub(q, p), shear));
+            }
+        }
+    }
+    breaks.sort_by(f64::total_cmp);
+    let at = |z: f64| {
+        let t = z - z0;
+        let moved: Vec<(f64, f64)> = tri
+            .iter()
+            .map(|&(x, y)| (x + shear.0 * t, y + shear.1 * t))
+            .collect();
+        let got = clip(&moved, window);
+        if got.len() < 3 { 0.0 } else { area(&got) }
+    };
+    breaks
+        .windows(2)
+        .map(|w| (w[1] - w[0]) / 6.0 * (at(w[0]) + 4.0 * at((w[0] + w[1]) / 2.0) + at(w[1])))
+        .sum()
+}
+
+/// **A pinch line lying flat in the shared corner's face, in every
+/// op.** The 80°–190° wedge sheared along its 80° face by half a unit
+/// per unit of height, backwards, so the z-axis runs inside that face
+/// from the corner: both pairs' cuts lie along the axis in one corner
+/// of the prism's corner, the brick in the first quadrant's run on the
+/// face's side toward the 80° bottom edge and the third quadrant's
+/// toward the vertical edge. Each op, in both operand orders, builds
+/// at the volume a polygon clip of the sheared triangle against each
+/// brick's square gives, and passes 3′ with the pinch's records
+/// carried. Red as the first row: the tied cuts each read as held, and
+/// all six refuse `SharedVertexCrossings`.
 #[test]
-fn a_pinch_line_flat_in_the_shared_corners_face_refuses_typed() {
+fn a_pinch_line_flat_in_the_shared_corners_face_builds_in_every_op() {
     let tol = Tol::witness();
     let (pinch, carried) = pinch(tol);
     let (c, s) = (80f64.to_radians().cos(), 80f64.to_radians().sin());
-    let cutter = sheared_wedge((-0.5 * c, -0.5 * s), tol);
-    let corner = (0.0, 0.0, 0.5);
-    let (prism_corner, pinch_ends) = (keys_at(&cutter, corner), keys_at(&pinch.body, corner));
-    assert_eq!(
-        (prism_corner.len(), pinch_ends.len()),
-        (1, 2),
-        "one prism corner and two pinch vertices at {corner:?}"
+    let shear = (-0.5 * c, -0.5 * s);
+    let tri = triangle(80.0, 190.0);
+    let squares = [
+        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        [(-1.0, -1.0), (0.0, -1.0), (0.0, 0.0), (-1.0, 0.0)],
+    ];
+    let common: f64 = squares.iter().map(|q| swept_common(&tri, shear, q)).sum();
+    let cutter_volume = area(&tri) * 0.5;
+    every_op_builds(
+        &pinch.body,
+        &carried,
+        &sheared_wedge(shear, tol),
+        [
+            2.0 + cutter_volume - common,
+            2.0 - common,
+            common,
+            cutter_volume - common,
+        ],
+        tol,
     );
-    let mut ab = flush_declarations(&pinch.body, &cutter, tol);
-    ab.carried_a.vv.clone_from(&carried);
-    let mut ba = flush_declarations(&cutter, &pinch.body, tol);
-    ba.carried_b.vv = carried;
-    for (op, got, prism_side) in [
-        (
-            "pinch ∪ cutter",
-            union_with(&pinch.body, &cutter, &ab, tol),
-            topo::Operand::B,
-        ),
-        (
-            "pinch ∖ cutter",
-            subtract_with(&pinch.body, &cutter, &ab, tol),
-            topo::Operand::B,
-        ),
-        (
-            "pinch ∩ cutter",
-            intersect_with(&pinch.body, &cutter, &ab, tol),
-            topo::Operand::B,
-        ),
-        (
-            "cutter ∪ pinch",
-            union_with(&cutter, &pinch.body, &ba, tol),
-            topo::Operand::A,
-        ),
-        (
-            "cutter ∖ pinch",
-            subtract_with(&cutter, &pinch.body, &ba, tol),
-            topo::Operand::A,
-        ),
-        (
-            "cutter ∩ pinch",
-            intersect_with(&cutter, &pinch.body, &ba, tol),
-            topo::Operand::A,
-        ),
-    ] {
-        match got {
-            Err(BooleanError::SharedVertexCrossings {
-                operand,
-                vertex,
-                partners: [p0, p1],
-            }) => {
-                let mut partners = vec![p0, p1];
-                partners.sort();
-                assert_eq!(
-                    (operand, vertex, partners),
-                    (prism_side, prism_corner[0], pinch_ends.clone()),
-                    "{op}: the prism's corner and the pinch's two vertices"
-                );
-            }
-            other => panic!(
-                "{op}: want SharedVertexCrossings, got {:?}",
-                other.map(|_| ())
-            ),
-        }
-    }
+}
+
+/// **Three pieces, two of whose cuts tie.** Wedges 0°–60°, 90°–120°
+/// and 150°–240° about the z-axis, cut by the wedge from 50° to 160°
+/// sheared backwards along its 50° face, so the pinch line runs flat
+/// in that face: the outer two pieces' cuts lie along it, on its two
+/// sides, and the middle piece hangs a dangling null edge in the
+/// prism's bottom corner. Each op, in both operand orders, builds at
+/// the volume a polygon clip of the sheared triangle against each
+/// wedge's gives, and passes 3′ with the pinch's records carried. Red
+/// as the two-piece tie.
+#[test]
+fn three_pieces_two_of_whose_cuts_tie_build_in_every_op() {
+    let (c, s) = (50f64.to_radians().cos(), 50f64.to_radians().sin());
+    crossings_at_one_corner(
+        &[(0.0, 60.0), (90.0, 120.0), (150.0, 240.0)],
+        (50.0, 160.0),
+        (-0.5 * c, -0.5 * s),
+        Tol::witness(),
+    );
 }
 
 /// **A pinch line crossing a face's interior drops the pinch's records
@@ -835,4 +870,803 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
     assert!((volume - 2.0).abs() < 1e-9, "volume {volume}, want 2.0");
     let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
     assert!(verdict.is_ok(), "3′ refused {:?}", verdict.err());
+}
+
+/// The triangular prism whose corner at the origin spans `rays`
+/// (a right-handed triple), scaled by `scale`: the linear image of the
+/// unit right prism, so its faces stay planar and its corner cone is
+/// the rays' own.
+fn corner_prism(rays: [[f64; 3]; 3], scale: f64, tol: Tol) -> Body<f64> {
+    let mut body = Body::<f64>::new();
+    common::prism_ops(
+        &mut body,
+        &[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+        (0.0, 1.0),
+        |x, y, z| {
+            let p = |k: usize| scale * (x * rays[0][k] + y * rays[1][k] + z * rays[2][k]);
+            geom_core::Point3::new(p(0), p(1), p(2))
+        },
+        common::FaceGeometry::Certified,
+        tol,
+    );
+    common::describe_as_intersections(&mut body, tol);
+    body
+}
+
+/// The unit cube's corner at the origin against `y`'s, every op in
+/// both operand orders, with `carried` as `y`'s records.
+fn against_the_cube(
+    y: &Body<f64>,
+    carried: &[CarriedVv],
+    tol: Tol,
+) -> [(&'static str, BooleanOutcome); 6] {
+    let cube: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let mut ab = flush_declarations(y, &cube, tol);
+    ab.carried_a.vv = carried.to_vec();
+    let mut ba = flush_declarations(&cube, y, tol);
+    ba.carried_b.vv = carried.to_vec();
+    [
+        ("y ∪ cube", union_with(y, &cube, &ab, tol)),
+        ("y ∖ cube", subtract_with(y, &cube, &ab, tol)),
+        ("y ∩ cube", intersect_with(y, &cube, &ab, tol)),
+        ("cube ∪ y", union_with(&cube, y, &ba, tol)),
+        ("cube ∖ y", subtract_with(&cube, y, &ba, tol)),
+        ("cube ∩ y", intersect_with(&cube, y, &ba, tol)),
+    ]
+}
+
+type BooleanOutcome = Result<BooleanResult<f64>, BooleanError>;
+
+/// **Two dangling null edges meeting on the pinch line.** The pinch
+/// against a prism along the diagonal x = y whose face in that plane
+/// has a reflex corner at the pinch's lower end, its notch opening
+/// downward (−40° to 200° from the face's horizontal): the pinch line
+/// lies flat in the face, and each brick meets the face in a quarter
+/// plane between the line and its bottom edge, wholly inside the
+/// face's corner. So each pair's cut is a dangling null edge, the two
+/// meeting along the line from opposite sides. Every op, in both
+/// operand orders, builds at the volume a polygon clip of the prism's
+/// rectangle against each brick's square gives (the prism is that
+/// rectangle at every height of the pinch), and the result passes 3′
+/// with the pinch's records carried, except `pinch ∖ prism`: the
+/// pinch's top end lies inside the prism's face, and that result keeps
+/// both pieces there with no v-v row
+/// (`work/fuse/a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped.md`),
+/// pinned as it stands. Red as the first row: each dangling null edge
+/// read the other's cut along the line as held, and all six refused
+/// `SharedVertexCrossings`. Red with the notch from −20° to 220° if a
+/// dangling null edge splices by the germ its run leaves from rather
+/// than its lower germ: both leave from the line, and all six refuse
+/// the anchor's invariant.
+#[test]
+fn two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op() {
+    for notch in [(-40.0, 200.0), (-20.0, 220.0)] {
+        dangling_null_edges_meeting_on_the_pinch_line(notch, Tol::witness());
+    }
+}
+
+/// The pinch against the diagonal prism whose face's notch runs from
+/// `notch.0` to `notch.1` degrees (doc above).
+fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
+    let (pinch, carried) = pinch(tol);
+    let at = |deg: f64| {
+        let (c, s) = (f64::to_radians(deg).cos(), f64::to_radians(deg).sin());
+        (0.5 * c, 0.5 + 0.5 * s)
+    };
+    let (right, left) = (at(notch.0), at(notch.1));
+    let profile = [
+        (0.0, 0.5),
+        right,
+        (0.8, right.1),
+        (0.8, 1.6),
+        (-0.8, 1.6),
+        (-0.8, left.1),
+        left,
+    ];
+    // Profile (w, z) in the plane x = y, extruded along (1, −1, 0)/√2.
+    let r = std::f64::consts::FRAC_1_SQRT_2;
+    let mut prism = Body::<f64>::new();
+    common::prism_ops(
+        &mut prism,
+        &profile,
+        (0.0, 1.0),
+        |w, z, u| geom_core::Point3::new((w + u) * r, (w - u) * r, z),
+        common::FaceGeometry::Certified,
+        tol,
+    );
+    common::describe_as_intersections(&mut prism, tol);
+    let rect: Vec<(f64, f64)> = [(-0.8, 1.0), (0.8, 1.0), (0.8, 0.0), (-0.8, 0.0)]
+        .iter()
+        .map(|&(w, u)| ((w + u) * r, (w - u) * r))
+        .collect();
+    let squares = [
+        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        [(-1.0, -1.0), (0.0, -1.0), (0.0, 0.0), (-1.0, 0.0)],
+    ];
+    let common: f64 = squares.iter().map(|q| area(&clip(&rect, q))).sum();
+    let prism_volume = area(&profile);
+    let mut ab = flush_declarations(&pinch.body, &prism, tol);
+    ab.carried_a.vv.clone_from(&carried);
+    let mut ba = flush_declarations(&prism, &pinch.body, tol);
+    ba.carried_b.vv = carried;
+    for (op, got, want, drops) in [
+        (
+            "pinch ∪ prism",
+            union_with(&pinch.body, &prism, &ab, tol),
+            2.0 + prism_volume - common,
+            false,
+        ),
+        (
+            "pinch ∖ prism",
+            subtract_with(&pinch.body, &prism, &ab, tol),
+            2.0 - common,
+            true,
+        ),
+        (
+            "pinch ∩ prism",
+            intersect_with(&pinch.body, &prism, &ab, tol),
+            common,
+            false,
+        ),
+        (
+            "prism ∪ pinch",
+            union_with(&prism, &pinch.body, &ba, tol),
+            2.0 + prism_volume - common,
+            false,
+        ),
+        (
+            "prism ∖ pinch",
+            subtract_with(&prism, &pinch.body, &ba, tol),
+            prism_volume - common,
+            false,
+        ),
+        (
+            "prism ∩ pinch",
+            intersect_with(&prism, &pinch.body, &ba, tol),
+            common,
+            false,
+        ),
+    ] {
+        let op = format!("{op} (notch {notch:?})");
+        let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
+            panic!("{op} came back empty");
+        };
+        let volume = mass_properties(&out.body, tol).expect("mass").volume;
+        assert!(
+            (volume - want).abs() < 1e-9,
+            "{op}: volume {volume}, want {want}"
+        );
+        match validate_pseudomanifold(&out.body, &out.contacts, tol) {
+            Ok(_) => assert!(!drops, "{op}: passes 3′; the row's pin flips"),
+            Err(errors) => {
+                assert!(drops, "{op}: 3′ refused {errors:?}");
+                let text = format!("{errors:?}");
+                assert!(
+                    text.contains("VertexVertex") && text.contains("(0.0, 0.0, 1.5)"),
+                    "{op}: the undeclared pair at the pinch's top end: {errors:?}"
+                );
+            }
+        }
+    }
+}
+
+/// The faces of [`corner_prism`]`(rays, scale)` as vertex loops.
+fn prism_faces(rays: [[f64; 3]; 3], scale: f64) -> Vec<Vec<[f64; 3]>> {
+    let at = |u: f64, v: f64, w: f64| {
+        core::array::from_fn(|k| scale * (u * rays[0][k] + v * rays[1][k] + w * rays[2][k]))
+    };
+    let (b, t) = (
+        [at(0.0, 0.0, 0.0), at(1.0, 0.0, 0.0), at(0.0, 1.0, 0.0)],
+        [at(0.0, 0.0, 1.0), at(1.0, 0.0, 1.0), at(0.0, 1.0, 1.0)],
+    );
+    let mut faces = vec![b.to_vec(), t.to_vec()];
+    for k in 0..3 {
+        let l = (k + 1) % 3;
+        faces.push(vec![b[k], b[l], t[l], t[k]]);
+    }
+    faces
+}
+
+/// The half-spaces `n·p ≤ d` of the box `lo ≤ p ≤ hi`.
+fn box_planes(lo: f64, hi: f64) -> Vec<([f64; 3], f64)> {
+    (0..3)
+        .flat_map(|k| {
+            let e: [f64; 3] = core::array::from_fn(|j| if j == k { 1.0 } else { 0.0 });
+            [(e, hi), (e.map(|x| -x), -lo)]
+        })
+        .collect()
+}
+
+/// The volume of the convex polyhedron `faces` cut to `planes`, outside
+/// the kernel: each face loop clipped to each half-space in turn
+/// (Sutherland–Hodgman), the points on the plane closing the cut's cap
+/// in angular order unless a face lies on it, then the pyramids from
+/// the mean vertex summed. "On the plane" is exact equality, so a face
+/// counts as lying on a plane only where its coordinates meet it
+/// exactly, as the boxes' and the lenses' zero coordinates do.
+fn clipped_volume(mut faces: Vec<Vec<[f64; 3]>>, planes: &[([f64; 3], f64)]) -> f64 {
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let cross = |a: [f64; 3], b: [f64; 3]| {
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+    };
+    let area = |f: &[[f64; 3]]| {
+        (1..f.len() - 1)
+            .map(|i| cross(sub(f[i], f[0]), sub(f[i + 1], f[0])))
+            .fold([0.0; 3], |s, a| core::array::from_fn(|k| s[k] + a[k]))
+    };
+    let mean = |ps: &[[f64; 3]]| -> [f64; 3] {
+        core::array::from_fn(|k| ps.iter().map(|p| p[k]).sum::<f64>() / ps.len() as f64)
+    };
+    for &(n, d) in planes {
+        let mut kept = Vec::new();
+        let mut cap = Vec::new();
+        for f in &faces {
+            let mut g = Vec::new();
+            for i in 0..f.len() {
+                let (p, q) = (f[i], f[(i + 1) % f.len()]);
+                let (sp, sq) = (dot(n, p) - d, dot(n, q) - d);
+                if sp <= 0.0 {
+                    g.push(p);
+                }
+                if sp == 0.0 {
+                    cap.push(p);
+                }
+                if sp * sq < 0.0 {
+                    let t = sp / (sp - sq);
+                    let x = core::array::from_fn(|k| p[k] + t * (q[k] - p[k]));
+                    g.push(x);
+                    cap.push(x);
+                }
+            }
+            if g.len() >= 3 {
+                kept.push(g);
+            }
+        }
+        // A face lying on the plane already closes the cut; a sliver
+        // the clip left on it does not.
+        let flat = kept
+            .iter()
+            .any(|g| g.iter().all(|&p| dot(n, p) == d) && dot(area(g), n) != 0.0);
+        if cap.len() >= 3 && !flat {
+            let c = mean(&cap);
+            let u = sub(cap[0], c);
+            let w = cross(n, u);
+            cap.sort_by(|&a, &b| {
+                let ang = |p| f64::atan2(dot(sub(p, c), w), dot(sub(p, c), u));
+                ang(a).total_cmp(&ang(b))
+            });
+            kept.push(cap);
+        }
+        faces = kept;
+    }
+    let c = mean(&faces.concat());
+    faces
+        .iter()
+        .map(|f| dot(area(f), sub(f[0], c)).abs() / 6.0)
+        .sum()
+}
+
+/// The pit's corner: a cone at the origin crossing the cube's bottom
+/// face, scaled out past the block.
+const PIT: [[f64; 3]; 3] = [[1.0, 0.6, -0.3], [0.6, 1.0, -0.3], [1.0, 1.0, 0.5]];
+
+/// **A dangling null edge whose segment holds other pairs' cuts, in
+/// every op.** `y` is the block `[-1, 1]³` with a pyramidal pit whose
+/// apex is the origin ([`PIT`]), and `spikes` in the pit, each
+/// touching the block and each other only there, against the unit
+/// cube's corner: the pit opens across the cube's bottom face, so the
+/// pit's pair crosses that face's corner twice, and its run is a
+/// dangling null edge on the Out side (its other way round is the
+/// whole orbit) whose segment holds each spike's pair's In segment
+/// whole. Each spike's dangling null edge hangs at the pit's tip.
+/// Every op, in both operand orders, builds at the volume clipping
+/// each prism to each box gives ([`clipped_volume`]), and the result
+/// passes 3′ with `y`'s records carried except in the ops `drops` names
+/// ([`a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op`]).
+fn pit_holding_spikes(spikes: &[([[f64; 3]; 3], f64)], drops: &[&str], tol: Tol) {
+    for spike_first in [false, true] {
+        pit_holding_spikes_built(spikes, spike_first, drops, tol);
+    }
+}
+
+/// [`pit_holding_spikes`] with each spike's union taken spike first or
+/// the holed block first.
+fn pit_holding_spikes_built(
+    spikes: &[([[f64; 3]; 3], f64)],
+    spike_first: bool,
+    drops: &[&str],
+    tol: Tol,
+) {
+    let pit = corner_prism(PIT, 3.0, tol);
+    let block: Body<f64> = brick((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol);
+    let BooleanResult::Body(mut y) =
+        subtract_with(&block, &pit, &flush_declarations(&block, &pit, tol), tol)
+            .expect("the pit is cut")
+    else {
+        panic!("the block ∖ pit came back empty");
+    };
+    for &(rays, scale) in spikes {
+        let spike = corner_prism(rays, scale, tol);
+        let got = if spike_first {
+            let mut decls = flush_declarations(&spike, &y.body, tol);
+            decls.carried_b.vv = rest_rows(&y.contacts);
+            union_with(&spike, &y.body, &decls, tol)
+        } else {
+            let mut decls = flush_declarations(&y.body, &spike, tol);
+            decls.carried_a.vv = rest_rows(&y.contacts);
+            union_with(&y.body, &spike, &decls, tol)
+        };
+        let BooleanResult::Body(next) = got.expect("the spike touches the pit's apex") else {
+            panic!("the union came back empty");
+        };
+        y = next;
+    }
+    let (cube, block) = (box_planes(0.0, 1.0), box_planes(-1.0, 1.0));
+    let in_cube: f64 = spikes
+        .iter()
+        .map(|&(r, s)| clipped_volume(prism_faces(r, s), &cube))
+        .sum();
+    let whole: f64 = spikes
+        .iter()
+        .map(|&(r, s)| clipped_volume(prism_faces(r, s), &block))
+        .sum();
+    let common = 1.0 - clipped_volume(prism_faces(PIT, 3.0), &cube) + in_cube;
+    let y_volume = 8.0 - clipped_volume(prism_faces(PIT, 3.0), &block) + whole;
+    let got = mass_properties(&y.body, tol).expect("mass").volume;
+    assert!(
+        (got - y_volume).abs() < 1e-9,
+        "y: volume {got}, want {y_volume}"
+    );
+    assert_eq!(
+        keys_at(&y.body, (0.0, 0.0, 0.0)).len(),
+        1 + spikes.len(),
+        "the pit's apex and each spike's corner"
+    );
+    for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
+        let want = match op {
+            "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
+            "y ∖ cube" => y_volume - common,
+            "cube ∖ y" => 1.0 - common,
+            _ => common,
+        };
+        let dropped = drops.contains(&op);
+        let op = format!("{op} (spike first: {spike_first})");
+        let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
+            panic!("{op} came back empty");
+        };
+        let volume = mass_properties(&out.body, tol).expect("mass").volume;
+        assert!(
+            (volume - want).abs() < 1e-9,
+            "{op}: volume {volume}, want {want}"
+        );
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        assert_eq!(verdict.is_err(), dropped, "{op}: 3′ {:?}", verdict.err());
+    }
+}
+
+/// **One spike in the pit** ([`pit_holding_spikes`]). Its far corners
+/// `0.5·(r₀ + r₂)` and `0.5·(r₁ + r₂)` rest on the cube's faces x = 1
+/// and y = 1, inside the pit, and with the cube first ∖ drops the rest
+/// at (0.9, 1, 0.05) and ∩ declares it on a face that survives only
+/// away from it; a brick that never reaches the origin does the same,
+/// so neither touches the origin's null edges
+/// (`work/fuse/a-vertex-on-face-row-follows-its-face-not-the-part-it-rests-on.md`):
+/// pinned as they stand. Red as the first row: the pit's dangling null
+/// edge held the spike's cuts, and every op refused
+/// `SharedVertexCrossings`. Red if the spike's strut hangs at the cube's
+/// corner beside the pit's: the corner would be the In end of one and
+/// the Out end of the other, an invariant.
+#[test]
+fn a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op() {
+    let spike = [[1.0, 0.8, -0.1], [0.8, 1.0, -0.1], [1.0, 1.0, 0.2]];
+    pit_holding_spikes(&[(spike, 0.5)], &["cube ∖ y", "cube ∩ y"], Tol::witness());
+}
+
+/// **Two spikes in the pit**, side by side ([`pit_holding_spikes`]), in
+/// both orders of union: both struts hang at the pit's tip, the later
+/// minted past the earlier when its lower germ is later. Every op
+/// builds, and every result passes 3′.
+#[test]
+fn a_dangling_null_edge_holding_two_pairs_cuts_builds_in_every_op() {
+    let one = (
+        [[1.0, 0.78, -0.1], [1.0, 0.9, -0.1], [1.0, 0.86, 0.15]],
+        0.4,
+    );
+    let two = (
+        [[0.9, 1.0, -0.1], [0.78, 1.0, -0.1], [0.86, 1.0, 0.15]],
+        0.4,
+    );
+    for spikes in [[one, two], [two, one]] {
+        pit_holding_spikes(&spikes, &[], Tol::witness());
+    }
+}
+
+/// The two prisms of a lens at the origin: the corner prisms over
+/// `(d1, d2, top)` and `(d2, d1, bottom)`, flush along their face
+/// `(d1, d2)`, so the lens's cone holds the plane sector between `d1`
+/// and `d2`.
+fn lens_prisms(
+    (d1, d2): ([f64; 3], [f64; 3]),
+    (top, bottom): ([f64; 3], [f64; 3]),
+) -> [[[f64; 3]; 3]; 2] {
+    [[d1, d2, top], [d2, d1, bottom]]
+}
+
+/// **A strut whose segment holds another whole, sharing its ends'
+/// directions.** `y` is the block `[-1, 1]³` less the lens `outer`
+/// (scaled out past the block), with the lens `inner` (inside `outer`,
+/// its rays along `outer`'s at the ends `inner` names) put back: the
+/// two pieces touch along pinch lines in the cube's bottom face. Against
+/// the unit cube's corner, both pieces' pairs cross that face's corner
+/// twice, so both are dangling null edges: the block's an Out run whose
+/// other way round is the whole orbit, the lens's an In run inside it
+/// that hangs at its tip. `y` is built in both orders of its union, and
+/// every op, in both operand orders, builds at
+/// the volume clipping each prism to each box gives, and passes 3′
+/// with `y`'s records carried except in the ops `drops` names.
+fn lens_in_a_lens(outer: [[[f64; 3]; 3]; 2], inner: [[[f64; 3]; 3]; 2], drops: &[&str], tol: Tol) {
+    for (order, y) in lens_ys(outer, inner, tol) {
+        lens_against_the_cube(
+            &y,
+            (outer, LENS_SCALES.0),
+            (inner, LENS_SCALES.1),
+            order,
+            drops,
+            tol,
+        );
+    }
+}
+
+/// The outer and inner lenses' scales in [`lens_ys`].
+const LENS_SCALES: (f64, f64) = (3.0, 0.5);
+
+/// [`lens_in_a_lens`]'s `y` in both orders of its union.
+fn lens_ys(
+    outer: [[[f64; 3]; 3]; 2],
+    inner: [[[f64; 3]; 3]; 2],
+    tol: Tol,
+) -> [(&'static str, BooleanBody<f64>); 2] {
+    let lens = |rays: [[[f64; 3]; 3]; 2], scale: f64| {
+        let [up, down] = rays.map(|r| corner_prism(r, scale, tol));
+        let BooleanResult::Body(lens) =
+            union_with(&up, &down, &flush_declarations(&up, &down, tol), tol).expect("a lens")
+        else {
+            panic!("the lens came back empty");
+        };
+        lens
+    };
+    let k = lens(outer, LENS_SCALES.0);
+    let block: Body<f64> = brick((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol);
+    let BooleanResult::Body(cut) = subtract_with(
+        &block,
+        &k.body,
+        &flush_declarations(&block, &k.body, tol),
+        tol,
+    )
+    .expect("the lens is cut") else {
+        panic!("the block ∖ lens came back empty");
+    };
+    let piece = lens(inner, LENS_SCALES.1);
+    let mut cut_first = flush_declarations(&cut.body, &piece.body, tol);
+    cut_first.carried_a.vv = rest_rows(&cut.contacts);
+    let mut piece_first = flush_declarations(&piece.body, &cut.body, tol);
+    piece_first.carried_b.vv = rest_rows(&cut.contacts);
+    [
+        (
+            "cut ∪ lens",
+            union_with(&cut.body, &piece.body, &cut_first, tol),
+        ),
+        (
+            "lens ∪ cut",
+            union_with(&piece.body, &cut.body, &piece_first, tol),
+        ),
+    ]
+    .map(|(order, got)| {
+        let BooleanResult::Body(y) = got.unwrap_or_else(|e| panic!("{order} refused: {e:?}"))
+        else {
+            panic!("{order} came back empty");
+        };
+        (order, y)
+    })
+}
+
+/// [`lens_in_a_lens`]'s `y`, built in the `order` named, against the
+/// cube's corner.
+fn lens_against_the_cube(
+    y: &BooleanBody<f64>,
+    (outer, outer_scale): ([[[f64; 3]; 3]; 2], f64),
+    (inner, inner_scale): ([[[f64; 3]; 3]; 2], f64),
+    order: &str,
+    drops: &[&str],
+    tol: Tol,
+) {
+    let (cube, block) = (box_planes(0.0, 1.0), box_planes(-1.0, 1.0));
+    let volume = |rays: [[[f64; 3]; 3]; 2], scale: f64, planes: &[([f64; 3], f64)]| {
+        rays.iter()
+            .map(|&r| clipped_volume(prism_faces(r, scale), planes))
+            .sum::<f64>()
+    };
+    let common = 1.0 - volume(outer, outer_scale, &cube) + volume(inner, inner_scale, &cube);
+    let y_volume = 8.0 - volume(outer, outer_scale, &block) + volume(inner, inner_scale, &block);
+    let got = mass_properties(&y.body, tol).expect("mass").volume;
+    assert!(
+        (got - y_volume).abs() < 1e-9,
+        "y: volume {got}, want {y_volume}"
+    );
+    assert_eq!(
+        keys_at(&y.body, (0.0, 0.0, 0.0)).len(),
+        2,
+        "each piece's corner at the origin"
+    );
+    for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
+        let dropped = drops.contains(&op);
+        let want = match op {
+            "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
+            "y ∖ cube" => y_volume - common,
+            "cube ∖ y" => 1.0 - common,
+            _ => common,
+        };
+        let op = format!("{op} (y = {order})");
+        let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
+            panic!("{op} came back empty");
+        };
+        let volume = mass_properties(&out.body, tol).expect("mass").volume;
+        assert!(
+            (volume - want).abs() < 1e-9,
+            "{op}: volume {volume}, want {want}"
+        );
+        match validate_pseudomanifold(&out.body, &out.contacts, tol) {
+            Ok(_) => assert!(!dropped, "{op}: passes 3′; the row's pin flips"),
+            Err(errors) => {
+                assert!(dropped, "{op}: 3′ refused {errors:?}");
+                assert!(
+                    format!("{errors:?}").contains("VertexVertex"),
+                    "{op}: the undeclared pair at a pinch line's far end: {errors:?}"
+                );
+            }
+        }
+    }
+}
+
+/// The rays the cube's bottom face holds the lenses' pinch lines along.
+const D1: [f64; 3] = [1.0, 0.3, 0.0];
+const D2: [f64; 3] = [0.3, 1.0, 0.0];
+
+/// **Two dangling null edges whose runs are one arc refuse typed**: the
+/// inner lens's rays in the cube's face are the outer's
+/// ([`lens_ys`]), so the two pieces touch along both, and their
+/// pairs' dangling null edges have one segment, whose other way round
+/// is the whole orbit. Neither nests the other (`insert::holds_whole`):
+/// hanging either at the other's tip builds in one order of `y`'s union
+/// and fails the join in the other. So every op, in both operand orders
+/// and with `y` built both ways, refuses `SharedVertexCrossings` naming
+/// the cube's corner and two of `y`'s vertices there. So does the inner
+/// lens with a thinner lens cut out of it between the two rays, whose
+/// pair's four crossings pair the outer two, with or without a third
+/// lens in the notch: pinned as they stand
+/// (`work/fuse/two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings.md`).
+#[test]
+fn two_dangling_null_edges_with_one_segment_refuse_typed() {
+    let tol = Tol::witness();
+    let outer = lens_prisms((D1, D2), ([0.8, 0.8, 0.3], [0.8, 0.8, -0.3]));
+    let inner = lens_prisms((D1, D2), ([0.8, 0.8, 0.15], [0.8, 0.8, -0.15]));
+    let cube_corner = keys_at(
+        &brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        (0.0, 0.0, 0.0),
+    );
+    let [(_, cut_first), lens_first] = lens_ys(outer, inner, tol);
+    let notched = notched(&cut_first, None, tol);
+    let filled = notched_filled(&cut_first, tol);
+    for (order, y) in [
+        ("cut ∪ lens", cut_first),
+        lens_first,
+        ("cut ∪ notched lens", notched),
+        ("cut ∪ notched lens ∪ lens in the notch", filled),
+    ] {
+        let ends = keys_at(&y.body, (0.0, 0.0, 0.0));
+        for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
+            let side = if op.starts_with("cube") {
+                topo::Operand::A
+            } else {
+                topo::Operand::B
+            };
+            match got {
+                Err(BooleanError::SharedVertexCrossings {
+                    operand,
+                    vertex,
+                    partners: [p0, p1],
+                }) => {
+                    assert_eq!(
+                        (operand, vertex),
+                        (side, cube_corner[0]),
+                        "{op} (y = {order}): the cube's corner"
+                    );
+                    assert!(
+                        p0 != p1 && ends.contains(&p0) && ends.contains(&p1),
+                        "{op} (y = {order}): two of y's vertices there, {ends:?}"
+                    );
+                }
+                other => panic!(
+                    "{op} (y = {order}): want SharedVertexCrossings, got {:?}",
+                    other.map(|_| ())
+                ),
+            }
+        }
+    }
+}
+
+/// `cut ∪ lens` ([`lens_ys`]) with the inner lens notched: the lens over
+/// `([1, 0.6, 0], [0.6, 1, 0])`, thinner and scaled past it, taken out
+/// of the inner lens, then `fill` put back if given.
+fn notched(y: &BooleanBody<f64>, fill: Option<&Body<f64>>, tol: Tol) -> BooleanBody<f64> {
+    let lens = |rays: [[[f64; 3]; 3]; 2], scale: f64| {
+        let [up, down] = rays.map(|r| corner_prism(r, scale, tol));
+        let BooleanResult::Body(lens) =
+            union_with(&up, &down, &flush_declarations(&up, &down, tol), tol).expect("a lens")
+        else {
+            panic!("the lens came back empty");
+        };
+        lens
+    };
+    let notch = lens(
+        lens_prisms(
+            ([1.0, 0.6, 0.0], [0.6, 1.0, 0.0]),
+            ([0.8, 0.8, 0.1], [0.8, 0.8, -0.1]),
+        ),
+        3.0,
+    );
+    let mut decls = flush_declarations(&y.body, &notch.body, tol);
+    decls.carried_a.vv = rest_rows(&y.contacts);
+    let BooleanResult::Body(mut y) =
+        subtract_with(&y.body, &notch.body, &decls, tol).expect("the notch is cut")
+    else {
+        panic!("the notched y came back empty");
+    };
+    if let Some(fill) = fill {
+        let mut decls = flush_declarations(&y.body, fill, tol);
+        decls.carried_a.vv = rest_rows(&y.contacts);
+        let BooleanResult::Body(next) =
+            union_with(&y.body, fill, &decls, tol).expect("the fill touches the notch's apex")
+        else {
+            panic!("the filled y came back empty");
+        };
+        y = next;
+    }
+    y
+}
+
+/// [`notched`] with a lens over `([1, 0.75, 0], [0.75, 1, 0])` in the
+/// notch.
+fn notched_filled(y: &BooleanBody<f64>, tol: Tol) -> BooleanBody<f64> {
+    let [up, down] = lens_prisms(
+        ([1.0, 0.75, 0.0], [0.75, 1.0, 0.0]),
+        ([0.8, 0.8, 0.05], [0.8, 0.8, -0.05]),
+    )
+    .map(|r| corner_prism(r, 0.3, tol));
+    let BooleanResult::Body(fill) =
+        union_with(&up, &down, &flush_declarations(&up, &down, tol), tol).expect("a lens")
+    else {
+        panic!("the lens came back empty");
+    };
+    notched(y, Some(&fill.body), tol)
+}
+
+/// **A strut inside another's segment, sharing one end's direction**
+/// ([`lens_in_a_lens`]): the inner lens's rays in the cube's face are
+/// the outer's `D1` and a ray strictly between, so the pieces touch
+/// along one pinch line. `y ∖ cube` drops the carried row at its far
+/// end (`work/fuse/a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped.md`):
+/// pinned as it stands. Red as the first row: the cut strictly
+/// inside the Out run's segment held it, and every op refused
+/// `SharedVertexCrossings`.
+#[test]
+fn a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op() {
+    lens_in_a_lens(
+        lens_prisms((D1, D2), ([0.8, 0.8, 0.3], [0.8, 0.8, -0.3])),
+        lens_prisms((D1, [0.6, 1.0, 0.0]), ([0.8, 0.8, 0.15], [0.8, 0.8, -0.15])),
+        &["y ∖ cube"],
+        Tol::witness(),
+    );
+}
+
+/// **A corner crossing the cube's corner four times refuses
+/// `PairingMismatch`**
+/// (`work/cleave/a-corner-crossing-another-four-times-refuses-pairing-mismatch.md`):
+/// a thin trihedral corner at the origin whose cone holds the cube's
+/// z-edge and crosses its bottom face, so the two corners' boundaries
+/// cross four times, in two section-polygon edges. The record pairing's
+/// B-adjacency guard orders two germs in one B sector by their A
+/// sector rather than round the sector, and refuses every op, in both
+/// operand orders: pinned as it stands.
+#[test]
+fn a_corner_crossing_the_cubes_four_times_refuses_pairing_mismatch() {
+    let tol = Tol::witness();
+    let band = corner_prism(
+        [
+            [0.5948, 0.757, -0.2704],
+            [-0.5774, -0.5774, 0.5774],
+            [0.757, 0.5948, -0.2704],
+        ],
+        0.4,
+        tol,
+    );
+    for (op, got) in against_the_cube(&band, &[], tol) {
+        assert!(
+            matches!(got, Err(BooleanError::PairingMismatch { .. })),
+            "{op}: want PairingMismatch, got {:?}",
+            got.map(|_| ())
+        );
+    }
+}
+
+/// **Three corners alternating round the cube's corner refuse three
+/// ops** (`work/cleave/three-corners-alternating-round-a-corner-refuse-at-the-join.md`):
+/// three trihedral corners touching only at the origin, one a band
+/// that meets the cube's corner's boundary in two dangling segments
+/// and the other two in the gaps between, so the pieces' cuts
+/// alternate round the corner. The shared corner's runs reconcile, and
+/// ∪ and ∖ with `y` first and `cube ∩ y` build at volumes that agree
+/// with each other; `y ∩ cube` and `cube ∪ y` refuse `JoinDesync` and
+/// `cube ∖ y` refuses `Euler(SelfLoopEdge)`: pinned as they stand.
+#[test]
+fn three_corners_alternating_round_the_cube_refuse_three_ops() {
+    let tol = Tol::witness();
+    let rays = [
+        [
+            [0.5325, -0.0249, 0.8461],
+            [-0.0701, 0.6232, -0.7789],
+            [0.2838, 0.2685, 0.9205],
+        ],
+        [
+            [0.6008, -0.1593, 0.7834],
+            [0.9615, -0.182, -0.2061],
+            [0.578, 0.8019, -0.1512],
+        ],
+        [
+            [-0.9791, 0.1382, 0.1493],
+            [0.1722, 0.2407, 0.9552],
+            [0.1469, 0.9677, 0.2049],
+        ],
+    ];
+    let [i, j, k] = rays.map(|r| corner_prism(r, 0.4, tol));
+    let BooleanResult::Body(two) =
+        union_with(&i, &j, &flush_declarations(&i, &j, tol), tol).expect("i ∪ j")
+    else {
+        panic!("i ∪ j came back empty");
+    };
+    let mut decls = flush_declarations(&two.body, &k, tol);
+    decls.carried_a.vv = rest_rows(&two.contacts);
+    let BooleanResult::Body(y) = union_with(&two.body, &k, &decls, tol).expect("∪ k") else {
+        panic!("∪ k came back empty");
+    };
+    let y_volume = mass_properties(&y.body, tol).expect("mass").volume;
+    let mut volumes = std::collections::BTreeMap::new();
+    for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
+        match (op, got) {
+            ("y ∩ cube" | "cube ∪ y", Err(BooleanError::JoinDesync { .. }))
+            | ("cube ∖ y", Err(BooleanError::Euler(_))) => {}
+            ("y ∪ cube" | "y ∖ cube" | "cube ∩ y", Ok(BooleanResult::Body(out))) => {
+                let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+                assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
+                volumes.insert(op, mass_properties(&out.body, tol).expect("mass").volume);
+            }
+            (op, got) => panic!("{op}: the pin moved: {:?}", got.map(|_| ())),
+        }
+    }
+    let (union, less, common) = (
+        volumes["y ∪ cube"],
+        volumes["y ∖ cube"],
+        volumes["cube ∩ y"],
+    );
+    for (what, got, want) in [
+        ("y ∖ cube + ∩", less + common, y_volume),
+        ("∪", union, 1.0 + less),
+    ] {
+        assert!((got - want).abs() < 1e-9, "{what}: {got}, want {want}");
+    }
 }

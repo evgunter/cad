@@ -93,6 +93,8 @@ pub enum NodeErrorClass {
     WrongOperand,
     /// [`NodeErrorKind::EmptyOperand`].
     EmptyOperand,
+    /// [`NodeErrorKind::ProductOperand`].
+    ProductOperand,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
     /// [`NodeErrorKind::InstanceOutOfRange`].
@@ -115,6 +117,14 @@ pub enum NodeErrorClass {
     AxisInDifferentPlane,
     /// [`NodeErrorKind::NonPositiveCount`].
     NonPositiveCount,
+    /// [`NodeErrorKind::NegativeSpacing`].
+    NegativeSpacing,
+    /// [`NodeErrorKind::DegenerateSpacing`].
+    DegenerateSpacing,
+    /// [`NodeErrorKind::DegenerateStep`].
+    DegenerateStep,
+    /// [`NodeErrorKind::FullRangeStep`].
+    FullRangeStep,
     /// [`NodeErrorKind::PlacementsUncertified`].
     PlacementsUncertified,
     /// [`NodeErrorKind::PlacementRule`] carrying
@@ -315,6 +325,7 @@ impl NodeErrorKind {
             Self::SeedPinnedSection { .. } => C::SeedPinnedSection,
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
+            Self::ProductOperand { .. } => C::ProductOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
@@ -326,6 +337,10 @@ impl NodeErrorKind {
             Self::Escalated { .. } => C::Escalated,
             Self::AxisInDifferentPlane { .. } => C::AxisInDifferentPlane,
             Self::NonPositiveCount { .. } => C::NonPositiveCount,
+            Self::NegativeSpacing { .. } => C::NegativeSpacing,
+            Self::DegenerateSpacing => C::DegenerateSpacing,
+            Self::DegenerateStep => C::DegenerateStep,
+            Self::FullRangeStep { .. } => C::FullRangeStep,
             Self::PlacementsUncertified { .. } => C::PlacementsUncertified,
             Self::PlacementRule(fault) => C::of_placement_rule(fault),
             Self::UnschedulableCycle => C::UnschedulableCycle,
@@ -532,6 +547,7 @@ mod tests {
         SeedPinnedSection,
         WrongOperand,
         EmptyOperand,
+        ProductOperand,
         EmptyHalf,
         InstanceOutOfRange,
         DegenerateDirection,
@@ -543,6 +559,10 @@ mod tests {
         Escalated,
         AxisInDifferentPlane,
         NonPositiveCount,
+        NegativeSpacing,
+        DegenerateSpacing,
+        DegenerateStep,
+        FullRangeStep,
         PlacementsUncertified,
         PlacementRuleCountSpelling,
         PlacementRuleNoPlacements,
@@ -778,6 +798,10 @@ mod tests {
                 found: "profile",
             },
             C::EmptyOperand => K::EmptyOperand { input: n(3) },
+            C::ProductOperand => K::ProductOperand {
+                input: n(3),
+                parts: 2,
+            },
             C::EmptyHalf => K::EmptyHalf {
                 input: n(3),
                 half: crate::SplitHalf::Above,
@@ -814,6 +838,17 @@ mod tests {
                 profile_plane: Some(n(2)),
             },
             C::NonPositiveCount => K::NonPositiveCount { count: 0 },
+            C::NegativeSpacing => K::NegativeSpacing {
+                spacing: geom_core::MarginDiag::value(-4.0),
+                reversed: ["-1.0".to_owned(), "0.0".to_owned(), "0.0".to_owned()],
+            },
+            C::DegenerateSpacing => K::DegenerateSpacing,
+            C::DegenerateStep => K::DegenerateStep,
+            C::FullRangeStep => K::FullRangeStep {
+                step: "400 deg".to_owned(),
+                evaluated: None,
+                turns: crate::StepTurns::Within("40 deg".to_owned()),
+            },
             C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },
             C::PlacementRuleCountSpelling => {
                 K::PlacementRule(crate::PlacementRuleFault::CountSpelling {
