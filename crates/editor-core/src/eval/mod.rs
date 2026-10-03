@@ -3430,11 +3430,8 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         false
     }
 
-    fn quoted_residual(
-        g: crate::mate::Subgroup<Self>,
-        band: geom_core::Band,
-    ) -> Result<crate::mate::Subgroup, geom_core::linalg::frame::FrameError> {
-        crate::mate::solve::quoted_residual(g, band)
+    fn quoted_residual(g: crate::mate::Subgroup<Self>) -> crate::mate::Subgroup {
+        crate::mate::solve::quoted_residual(g)
     }
 
     /// Across the negative `x` axis the principal branch's cut widens
@@ -3470,11 +3467,8 @@ where
         false
     }
 
-    fn quoted_residual(
-        g: crate::mate::Subgroup<Self>,
-        band: geom_core::Band,
-    ) -> Result<crate::mate::Subgroup, geom_core::linalg::frame::FrameError> {
-        crate::mate::solve::quoted_residual(g, band)
+    fn quoted_residual(g: crate::mate::Subgroup<Self>) -> crate::mate::Subgroup {
+        crate::mate::solve::quoted_residual(g)
     }
 
     fn solve_atan2(y: Self, x: Self) -> Self {
@@ -3508,11 +3502,8 @@ where
         false
     }
 
-    fn quoted_residual(
-        g: crate::mate::Subgroup<Self>,
-        band: geom_core::Band,
-    ) -> Result<crate::mate::Subgroup, geom_core::linalg::frame::FrameError> {
-        crate::mate::solve::quoted_residual(g, band)
+    fn quoted_residual(g: crate::mate::Subgroup<Self>) -> crate::mate::Subgroup {
+        crate::mate::solve::quoted_residual(g)
     }
 
     fn solve_atan2(y: Self, x: Self) -> Self {

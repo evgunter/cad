@@ -96,13 +96,9 @@ pub trait SolveScalar: Decide {
     /// **The residual an UNDER refusal names, at `f64`**
     /// ([`MateFault::Under`]): the subgroup itself at `f64`, and
     /// elsewhere its parameters quoted ([`Self::quoted`]) and each
-    /// direction re-minted ([`quoted_residual`]).
-    ///
-    /// # Errors
-    ///
-    /// The frame ladder's refusal for a quoted direction of no definite
-    /// length — an enclosure too wide for its midpoint to name one.
-    fn quoted_residual(g: Subgroup<Self>, band: Band) -> Result<Subgroup, FrameError>;
+    /// direction re-minted ([`quoted_residual`]). Total: the quote
+    /// cannot refuse, so every lane's UNDER is an UNDER.
+    fn quoted_residual(g: Subgroup<Self>) -> Subgroup;
 
     /// **The solve's two-argument arctangent** — the angle the coset
     /// fold solves for where two rotation constraints meet, read only
@@ -128,8 +124,8 @@ impl SolveScalar for f64 {
         Frame::from_affine(*map).is_identity_bits()
     }
 
-    fn quoted_residual(g: Subgroup, _band: Band) -> Result<Subgroup, FrameError> {
-        Ok(g)
+    fn quoted_residual(g: Subgroup) -> Subgroup {
+        g
     }
 
     fn solve_atan2(y: f64, x: f64) -> f64 {
@@ -153,8 +149,8 @@ impl SolveScalar for geom_core::Probe {
         false
     }
 
-    fn quoted_residual(g: Subgroup<Self>, band: Band) -> Result<Subgroup, FrameError> {
-        quoted_residual(g, band)
+    fn quoted_residual(g: Subgroup<Self>) -> Subgroup {
+        quoted_residual(g)
     }
 
     fn solve_atan2(y: Self, x: Self) -> Self {
@@ -167,39 +163,48 @@ impl SolveScalar for geom_core::Probe {
 const MATE_RESIDUAL_QUOTE: &str = "mate_residual_quote";
 
 /// **A residual subgroup quoted at `f64`** — every point and direction
-/// through [`SolveScalar::quoted`], each direction re-minted under the
-/// band ([`derived_direction`]): the implementation every analysis
-/// scalar's [`SolveScalar::quoted_residual`] shares.
+/// through [`SolveScalar::quoted`], each direction re-minted: the
+/// implementation every analysis scalar's
+/// [`SolveScalar::quoted_residual`] shares.
 ///
-/// # Errors
-///
-/// [`derived_direction`]'s, for a quoted direction of no definite
-/// length.
-pub(crate) fn quoted_residual<T: SolveScalar>(
-    g: Subgroup<T>,
-    band: Band,
-) -> Result<Subgroup, FrameError> {
-    let dir = |u: UnitVec3<T>| derived_direction(u.get().map(T::quoted), MATE_RESIDUAL_QUOTE, band);
+/// A quote decides nothing — the run decided each direction at its own
+/// scalar — so the mint asks only that the quoted vector have a length,
+/// under the narrowest band the format admits, never the run's (whose
+/// escalate threshold a unit vector meets only where `Kε < 1`). Every
+/// direction a run minted has one: its value channel is a unit vector,
+/// and its enclosure excludes the origin, so some coordinate of the
+/// enclosure has one sign, and the midpoint keeps it.
+pub(crate) fn quoted_residual<T: SolveScalar>(g: Subgroup<T>) -> Subgroup {
+    let band = Band::new(f64::MIN_POSITIVE, 2.0 * f64::MIN_POSITIVE)
+        .unwrap_or_else(|error| unreachable!("the format's narrowest band is a band: {error}"));
+    let dir = |u: UnitVec3<T>| {
+        UnitVec3::new(u.get().map(T::quoted), MATE_RESIDUAL_QUOTE, band).unwrap_or_else(|error| {
+            unreachable!(
+                "a direction minted at the run's scalar quotes to a finite vector with a \
+                 coordinate of one sign, so a length the format holds: {error}"
+            )
+        })
+    };
     let pt = |p: Point3<T>| p.map(T::quoted);
-    Ok(match g {
+    match g {
         Subgroup::Se3 => Subgroup::Se3,
         Subgroup::Trivial => Subgroup::Trivial,
         Subgroup::Empty => Subgroup::Empty,
         Subgroup::Planar { normal } => Subgroup::Planar {
-            normal: dir(normal)?,
+            normal: dir(normal),
         },
         Subgroup::Prismatic { direction } => Subgroup::Prismatic {
-            direction: dir(direction)?,
+            direction: dir(direction),
         },
         Subgroup::Cylindrical { point, direction } => Subgroup::Cylindrical {
             point: pt(point),
-            direction: dir(direction)?,
+            direction: dir(direction),
         },
         Subgroup::Revolute { point, direction } => Subgroup::Revolute {
             point: pt(point),
-            direction: dir(direction)?,
+            direction: dir(direction),
         },
-    })
+    }
 }
 
 /// What a mate did in the solve (A11 rule 4).
@@ -2317,18 +2322,11 @@ fn solve_group<P: crate::ProfilePayload, T: SolveScalar>(
             if !coset.subgroup.is_determined() {
                 // A11 rule 4: a tree edge that does not determine
                 // refuses, naming the residual and its parameters.
-                let residual = T::quoted_residual(coset.subgroup, s.band).map_err(|error| {
-                    Box::new(MateFault::Frame {
-                        mate: first.mate,
-                        side: MateSide::A,
-                        error,
-                    })
-                })?;
                 return Err(Box::new(MateFault::Under {
                     mate: first.mate,
                     parent,
                     child,
-                    residual,
+                    residual: T::quoted_residual(coset.subgroup),
                 }));
             }
             let Pose {

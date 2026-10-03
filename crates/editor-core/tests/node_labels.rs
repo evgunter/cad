@@ -847,7 +847,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         "{unknown_slot}"
     );
 
-    let not_a_measure = sensitivities(&doc, extrude, None, None, false, Tol::witness())
+    let not_a_measure = sensitivities(&doc, extrude, None, None, false, None, Tol::witness())
         .expect_err("an extrude is not a measure");
     assert_eq!(
         not_a_measure.to_string(),

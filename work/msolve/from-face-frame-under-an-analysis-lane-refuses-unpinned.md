@@ -122,7 +122,7 @@ with its Python tag (`unpinned`) and census entry.
   `∂B/∂s = −2` on a seed run, and its pose encloses the `f64` pose at
   both corners of a box.
 - The two doors this row named are open:
-  `stackup::sensitivities_resolved` and `ClearanceQuery::resolver`
+  `stackup::sensitivities`'s `resolver` and `ClearanceQuery::resolver`
   (both doors evaluated with no resolver before, so no assembly with
   parts reached them at all), pinned by
   `msolve14_run_scalar::a5_sensitivities_cross_a_face_framed_mate` and

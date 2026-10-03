@@ -510,7 +510,7 @@ fn r1_e2e_bracket_study() {
                     println!("   whole-box replay: {f}");
                 }
             }
-            match stackup(&doc, measure, &analyzed, &v, None, true, tol) {
+            match stackup(&doc, measure, &analyzed, &v, None, true, None, tol) {
                 Ok(report) => println!("{}", report.render(&doc, &analyzed)),
                 Err(e) => println!("   stackup refused: {e}"),
             }

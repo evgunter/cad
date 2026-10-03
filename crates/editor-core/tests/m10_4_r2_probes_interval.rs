@@ -656,8 +656,8 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
     let m = measured(&par, s.measure);
     assert_eq!(m.deriv.to_bits(), fresh["w"].deriv.to_bits());
     assert_eq!(m.value.to_bits(), fresh["w"].value.to_bits());
-    let seq = sensitivities(&s.doc, s.measure, None, None, false, Tol::witness());
-    let par = sensitivities(&s.doc, s.measure, None, None, true, Tol::witness());
+    let seq = sensitivities(&s.doc, s.measure, None, None, false, None, Tol::witness());
+    let par = sensitivities(&s.doc, s.measure, None, None, true, None, Tol::witness());
     assert_eq!(seq, par);
     let seq = seq.expect("ok");
     assert_eq!(
@@ -695,6 +695,7 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
             Some(&handed),
             None,
             false,
+            None,
             Tol::witness()
         )
         .is_ok()
@@ -710,6 +711,7 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
         Some(&guided_f64),
         None,
         false,
+        None,
         Tol::witness(),
     ) {
         Err(SensitivityRefusal::Pairing(PairingViolation::ContentKey { .. })) => {}
@@ -731,6 +733,7 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
             Some(&parallel),
             None,
             false,
+            None,
             Tol::witness()
         )
         .is_ok()
@@ -749,6 +752,7 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
         Some(&handed),
         None,
         false,
+        None,
         Tol::witness(),
     );
     assert!(
@@ -792,6 +796,7 @@ fn a_stale_chamber_verdict_marks_an_edited_document_certified() {
         None,
         Some(&verdict),
         false,
+        None,
         Tol::witness(),
     );
     match &entries {
@@ -821,6 +826,7 @@ fn a_stale_chamber_verdict_marks_an_edited_document_certified() {
         &verdict,
         None,
         false,
+        None,
         Tol::witness(),
     );
     assert!(
@@ -848,8 +854,16 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
     let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty(), "{:?}", verdict.receipt());
 
-    let entries = sensitivities(&doc, angle, None, Some(&verdict), false, Tol::witness())
-        .expect("never a refusal");
+    let entries = sensitivities(
+        &doc,
+        angle,
+        None,
+        Some(&verdict),
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("never a refusal");
     for n in ["h", "u"] {
         match entry(&entries, n) {
             SensitivityOutcome::TangentDegraded { tangent } => assert!(tangent.is_nan(), "{n}"),
@@ -863,6 +877,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
         &verdict,
         None,
         false,
+        None,
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("E9: {e}"));
@@ -893,7 +908,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
     }
 
     // The max kink: finite +1 at the tie, marked, contributing |1|·Δ.
-    let entries = sensitivities(&doc, abs, None, Some(&verdict), false, Tol::witness())
+    let entries = sensitivities(&doc, abs, None, Some(&verdict), false, None, Tol::witness())
         .expect("never a refusal");
     match entry(&entries, "h") {
         SensitivityOutcome::Derivative { value, chamber } => {
@@ -902,8 +917,17 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
         }
         other => panic!("h: {other:?}"),
     }
-    let report = stackup(&doc, abs, &analyzed, &verdict, None, false, Tol::witness())
-        .unwrap_or_else(|e| panic!("E9: {e}"));
+    let report = stackup(
+        &doc,
+        abs,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("E9: {e}"));
     let row = report
         .per_param
         .iter()
@@ -937,8 +961,17 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
     let doc = r.doc;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(64), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness())
-        .unwrap_or_else(|e| panic!("{e}"));
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         report
             .nominal
@@ -988,6 +1021,7 @@ fn the_shared_prior_does_not_move_the_hull() {
         &verdict,
         None,
         false,
+        None,
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("{e}"));
@@ -1103,8 +1137,17 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(64), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty(), "{:?}", verdict.receipt());
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness())
-        .unwrap_or_else(|e| panic!("{e}"));
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         report
             .nominal
@@ -1150,8 +1193,17 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(64), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness())
-        .unwrap_or_else(|e| panic!("{e}"));
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
     match &report.rss {
         Rss::UnavailableBecause { blockers } => {
             assert_eq!(
@@ -1201,7 +1253,7 @@ fn a_circle_radius_seed_reaches_the_gap_through_the_lifted_carrier() {
         m,
     );
     assert_eq!(pinned.deriv, 0.0, "the pinned lift's silent zero");
-    let entries = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("ok");
+    let entries = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
     match entry(&entries, "r") {
         SensitivityOutcome::Derivative { value, .. } => assert_eq!(*value, -1.0),
         other => panic!("{other:?}"),
@@ -1222,7 +1274,7 @@ fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
     let (doc, m) = loft();
     let f = measured_f64(&eval(&doc), m);
     assert_eq!(f.to_bits(), 2.0f64.to_bits(), "distance {f}");
-    let entries = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("ok");
+    let entries = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
     match entry(&entries, "w") {
         SensitivityOutcome::Derivative { value, .. } => {
             assert_eq!(
@@ -1280,7 +1332,8 @@ fn the_guided_dual_pass_evaluates_the_build_paths_nodes_over_the_corpus() {
 #[test]
 fn without_a_drive_every_mark_is_local_and_there_is_no_report_path() {
     let s = slab(None, None);
-    let entries = sensitivities(&s.doc, s.measure, None, None, false, Tol::witness()).expect("ok");
+    let entries =
+        sensitivities(&s.doc, s.measure, None, None, false, None, Tol::witness()).expect("ok");
     assert!(entries.iter().all(|e| matches!(
         e.outcome,
         SensitivityOutcome::Derivative {

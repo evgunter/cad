@@ -1889,9 +1889,9 @@ fn escalation<T: geom_core::Decide>(
     use editor_core::{MateFault, NodeErrorKind, OffsetCheck};
     match &ev.node_error(id)?.kind {
         NodeErrorKind::Mate(fault) => match &**fault {
-            MateFault::Indeterminate { diag, .. } => Some((**diag).clone()),
+            MateFault::Indeterminate { diag, .. } => Some(**diag),
             MateFault::OffsetUnchecked { cause, .. } => match &**cause {
-                OffsetCheck::Indeterminate(diag) => Some((**diag).clone()),
+                OffsetCheck::Indeterminate(diag) => Some(**diag),
                 _ => None,
             },
             _ => None,
@@ -2032,7 +2032,7 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
 /// the face-framed mate.
 #[test]
 fn a5_sensitivities_cross_a_face_framed_mate() {
-    use editor_core::stackup::{SensitivityOutcome, sensitivities_resolved};
+    use editor_core::stackup::{SensitivityOutcome, SensitivityRefusal, sensitivities};
     use editor_core::{MeasureExpr, MeasurePrimitive, SitedRef};
     let b = bolted("msolve14-a5-stackup", MateFrame::from_face());
     let ev = run_at::<f64>(&b.doc, &b.opts, None);
@@ -2058,7 +2058,7 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
     let fd = -2.0 * d[0] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
     assert!(fd.abs() > 0.1, "the measure moves with the spacing: {fd}");
     let resolver = b.opts.resolver.clone().expect("the store resolves");
-    let entries = sensitivities_resolved(&doc, m, None, None, false, &resolver, Tol::witness())
+    let entries = sensitivities(&doc, m, None, None, false, Some(&resolver), Tol::witness())
         .expect("the driver runs");
     assert_eq!(entries.len(), 1, "one continuous parameter");
     match &entries[0].outcome {
@@ -2068,6 +2068,24 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
         ),
         other => panic!("a derivative across the face frame, not {other:?}"),
     }
+    // A record build over no resolver is not this build: its instances
+    // refuse where the anchor's resolve, and the pairing gate says so.
+    let unresolved = run_at::<f64>(&doc, &EvalOptions::default(), None);
+    assert!(
+        matches!(
+            sensitivities(
+                &doc,
+                m,
+                Some(&unresolved),
+                None,
+                false,
+                Some(&resolver),
+                Tol::witness()
+            ),
+            Err(SensitivityRefusal::Pairing(_))
+        ),
+        "a record build over another resolver fails the pairing gate"
+    );
 }
 
 /// **Certified `clearance` over the face-framed bolt**: the separation

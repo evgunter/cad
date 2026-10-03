@@ -85,7 +85,8 @@ The driver still carries no resolver (`drive::lane_opts`), so this
 row's `Budget` shape is still unreachable:
 `msolve11_mate_log::a_box_run_over_an_escalating_mate_refuses_at_its_witness`
 holds unchanged (`WitnessDoesNotBuild`, the mate `Unleverable` for want
-of a resolver). The two analysis doors that evaluate an assembly
-directly now take one (`stackup::sensitivities_resolved`,
-`ClearanceQuery::resolver`); the driver is the remaining door, and
+of a resolver). The analysis doors that evaluate an assembly directly
+now take one (`stackup::sensitivities` and `stackup::stackup`'s
+`resolver`, `ClearanceQuery::resolver`); the driver is the remaining
+door (`work/flux/the-box-driver-carries-no-part-resolver.md`), and
 closing this row waits on it.
