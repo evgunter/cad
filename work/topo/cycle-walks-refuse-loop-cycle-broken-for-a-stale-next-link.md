@@ -39,6 +39,13 @@ Sites that map the walk's `None` to `LoopCycleBroken`:
 - `Body::mekr`'s two ring-walking sites (`euler_ring.rs`,
   `loop_cycle_live(ring)`).
 
+The same mapping outside the `euler*.rs` files (found by PR 3975's
+review; the receipt's pattern covered only those three files):
+
+- `movefac` (`movefac.rs`, `loop_cycle(first).ok_or_else(broken)`);
+- `attach.rs`'s walk at the re-chart door (~:570);
+- `merge_faces::outermost_survivor` (`merge_faces.rs`).
+
 ## The question
 
 Which variant decides a link that does not resolve during a walk?
