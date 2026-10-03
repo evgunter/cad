@@ -2,10 +2,12 @@
 id: face-surface-test-door-is-named-for-one-of-the-two-refusals-it-lifts
 kind: issue
 title: set_face_surface_stranding_for_tests is named for one of the two refusals it lifts
-status: open
+status: review
 opened: 2026-10-01
 priority: P4
 cost: E
+pr: 4005
+branch: topo/face-surface-test-door-renamed
 refs: [set-face-surface-passes-a-swap-off-the-faces-own-boundary, 3598]
 ---
 
