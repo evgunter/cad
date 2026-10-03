@@ -1,11 +1,12 @@
 ---
 id: shared-vertex-crossings-that-tie-or-interleave-are-unprobed
 kind: issue
-title: "SharedVertexCrossings: a dangling null edge holding another pair's cut is reachable and refuses; the fan-interleave and one-arc arms are reached by no witness"
-status: open
+title: SharedVertexCrossings: a dangling null edge holding another pair's cut is reachable and refuses; the fan-interleave and one-arc arms are reached by no witness
+status: dispatched
 opened: 2026-10-03
 priority: P0
 cost: M
+branch: fuse/strut-holding-a-cut
 ---
 
 
