@@ -1,0 +1,28 @@
+diff --git a/crates/topo/src/props.rs b/crates/topo/src/props.rs
+index 423b67065..fa5b134e3 100644
+--- a/crates/topo/src/props.rs
++++ b/crates/topo/src/props.rs
+@@ -776,7 +776,22 @@ fn rederive<T: Decide>(
+         flux = flux + f;
+         area = area + a;
+     }
+-    Ok((flux / Interval::from_f64(3.0), area))
++    let v = flux / Interval::from_f64(3.0);
++    // PROBE (reach-dual3977-r2): mutants and print, env-switched.
++    let v = {
++        use geom_core::real::Bounds;
++        let (lo, hi) = (v.lo(), v.hi());
++        let (m, h) = ((lo + hi) / 2.0, (hi - lo) / 2.0);
++        if std::env::var("PROBE_PRINT").is_ok() {
++            println!("PROBE_IV [{lo:e}, {hi:e}] mid {m:e} halfwidth {h:e}");
++        }
++        match std::env::var("PROBE_MUTANT").as_deref() {
++            Ok("zero") => Interval::from_bounds(m, m),
++            Ok("double") => Interval::from_bounds(m - 2.0 * h, m + 2.0 * h),
++            _ => v,
++        }
++    };
++    Ok((v, area))
+ }
+ 
+ impl<T: Decide> fmt::Debug for SignCertificate<'_, T> {
