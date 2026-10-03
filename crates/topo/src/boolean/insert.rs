@@ -141,6 +141,8 @@ struct HungStrut<T: geom_core::Real> {
     upper: Cut<T>,
     /// Whether `half` faces `lower`.
     half_faces_lower: bool,
+    /// Its run's side.
+    side: SideCode,
 }
 
 impl<T: geom_core::Real> Default for Hung<T> {
@@ -430,22 +432,49 @@ pub(super) fn mint_plans<T: Decide>(
     Ok(out)
 }
 
-/// Whether `outer` and `inner` are struts of one physical sector and
-/// `inner`'s germs lie strictly between `outer`'s.
+/// Whether `outer` and `inner` are struts and `outer`'s segment holds
+/// `inner`'s whole ([`holds_whole`]).
 fn nests<T: Decide>(
     secs: &[BoolSector<T>],
     outer: SideRun<T>,
     inner: SideRun<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let (lo, hi) = run_ends(secs, outer, band)?;
-    let (ilo, ihi) = run_ends(secs, inner, band)?;
     let strut = |r: SideRun<T>| run_fan(secs, r.from.0, r.to.0).map(|f| f.is_empty());
-    Ok(strut(outer)?
-        && strut(inner)?
+    let segment = |r: SideRun<T>| run_ends(secs, r, band).map(|(lo, hi)| (lo, hi, r.from.1.0));
+    Ok(
+        strut(outer)?
+            && strut(inner)?
+            && holds_whole(secs, segment(outer)?, segment(inner)?, band)?,
+    )
+}
+
+/// A strut's segment: its germs in walk order ([`run_ends`]) and its
+/// run's side.
+type Segment<T> = (Cut<T>, Cut<T>, SideCode);
+
+/// **Whether the strut segment `outer` holds the strut segment `inner`
+/// whole**: both in one physical sector, `inner`'s germs between
+/// `outer`'s or along their directions, `outer` an Out run and `inner`
+/// an In run. Another piece's boundary crosses no piece's In segment,
+/// so a segment strictly inside another is always an In run inside an
+/// Out run; where ends tie, two pieces touch along a pinch line in the
+/// corner's face, and the sides are what decide which holds which (at
+/// both ends, the two runs are one arc). The inner strut hangs at the
+/// outer's tip ([`mint_plans`]), which is the Out end of the one and the
+/// In end's hang vertex of the other: the same end of both.
+fn holds_whole<T: Decide>(
+    secs: &[BoolSector<T>],
+    (lo, hi, side): Segment<T>,
+    (ilo, ihi, iside): Segment<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let not_after = |p: Cut<T>, q: Cut<T>| precedes(secs, p, q, band).map(|o| o != Some(false));
+    Ok(side == SideCode::Out
+        && iside == SideCode::In
         && secs[lo.0].he == secs[ilo.0].he
-        && precedes(secs, lo, ilo, band)? == Some(true)
-        && precedes(secs, ihi, hi, band)? == Some(true))
+        && not_after(lo, ilo)?
+        && not_after(ihi, hi)?)
 }
 
 /// **Several vertex pairs' null edges at one vertex.** An operand
@@ -550,12 +579,14 @@ fn reconcile_pass<T: Decide>(
                 for r in &plans[j].runs {
                     let (lo, hi) = run_ends(secs, r[slot], band)?;
                     let strut = run_fan(secs, r[slot].from.0, r[slot].to.0)?.is_empty();
+                    let side = r[slot].from.1.0;
                     cuts.push(OtherCut {
                         at: lo,
                         mate: hi,
                         leaves: true,
                         owner: j,
                         strut,
+                        side,
                     });
                     cuts.push(OtherCut {
                         at: hi,
@@ -563,6 +594,7 @@ fn reconcile_pass<T: Decide>(
                         leaves: false,
                         owner: j,
                         strut,
+                        side,
                     });
                 }
             }
@@ -612,6 +644,8 @@ struct OtherCut<T: geom_core::Real> {
     owner: usize,
     /// Whether its run is a strut.
     strut: bool,
+    /// Its run's side.
+    side: SideCode,
 }
 
 /// A run's two ends in walk order: a fan's leaving germ then its
@@ -656,7 +690,7 @@ fn held_cut<T: Decide>(
     for &cut in cuts {
         let (j, d) = cut.at;
         let held = if strut {
-            if secs[j].he != secs[lo.0].he {
+            if secs[j].he != secs[lo.0].he || nested(secs, (lo, hi, run.from.1.0), cut, band)? {
                 false
             } else {
                 match (
@@ -666,7 +700,7 @@ fn held_cut<T: Decide>(
                     (Some(false), _) | (_, Some(false)) => false,
                     (None, _) => tied_held(secs, (lo, true), hi, cut, band)?,
                     (_, None) => tied_held(secs, (hi, false), lo, cut, band)?,
-                    (Some(true), Some(true)) => !nested(secs, (lo, hi), cut, band)?,
+                    (Some(true), Some(true)) => true,
                 }
             }
         } else if rel(j) == 0 {
@@ -691,19 +725,22 @@ fn held_cut<T: Decide>(
     Ok(None)
 }
 
-/// Whether `cut`'s run is a strut whose germs both lie strictly inside
-/// the strut segment `(lo, hi)`: it nests there whole, and hangs at the
-/// outer strut's tip ([`mint_plans`]).
+/// Whether `cut`'s run is a strut that the strut segment `own` holds
+/// whole, or that holds `own` whole ([`holds_whole`]): one hangs at
+/// the other's tip, and neither holds the other's cuts.
 fn nested<T: Decide>(
     secs: &[BoolSector<T>],
-    (lo, hi): (Cut<T>, Cut<T>),
+    own: Segment<T>,
     cut: OtherCut<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    Ok(cut.strut
-        && secs[cut.mate.0].he == secs[lo.0].he
-        && precedes(secs, lo, cut.mate, band)? == Some(true)
-        && precedes(secs, cut.mate, hi, band)? == Some(true))
+    let (lo, hi) = if cut.leaves {
+        (cut.at, cut.mate)
+    } else {
+        (cut.mate, cut.at)
+    };
+    let other = (lo, hi, cut.side);
+    Ok(cut.strut && (holds_whole(secs, own, other, band)? || holds_whole(secs, other, own, band)?))
 }
 
 /// **Another pair's cut along one end germ's direction** (a pinch line
@@ -807,12 +844,11 @@ fn mint_directed<T: Decide>(
             .iter()
             .filter(|h| (h.operand, h.root) == (operand, vertex))
         {
-            let holds = sectors[h.lower.0].he == sectors[lo.0].he
-                && precedes(sectors, h.lower, lo, band)? == Some(true)
-                && precedes(sectors, hi, h.upper, band)? == Some(true);
+            let segment = |h: &HungStrut<T>| (h.lower, h.upper, h.side);
+            let holds = holds_whole(sectors, segment(h), (lo, hi, gf.1.0), band)?;
             let inner = match holder {
                 None => true,
-                Some(o) => precedes(sectors, o.lower, h.lower, band)? == Some(true),
+                Some(o) => holds_whole(sectors, segment(o), segment(h), band)?,
             };
             if holds && inner {
                 holder = Some(h);
@@ -935,6 +971,7 @@ fn mint_directed<T: Decide>(
             lower: lo,
             upper: hi,
             half_faces_lower: (rec.germs[0].he == half) == from_is_lo,
+            side: gf.1.0,
         });
     }
     // The join reads a null half's sense off the side its start vertex
