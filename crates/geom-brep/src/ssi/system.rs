@@ -74,6 +74,18 @@ pub(crate) trait LocalSystem<const M: usize, const N: usize> {
     /// state carries two charts and only the carrier-primary one
     /// generates the 3-D curve.
     fn tangent_speed(&self, x: &[f64; N], d: &[f64; N]) -> f64;
+
+    /// The carrier's first three derivatives `[C′, C″, C‴]` along the
+    /// state curve `x + s·d₁ + s²/2·d₂ + s³/6·d₃` at `s = 0`, in metres
+    /// per power of the state parameter: the 3-D curve the march's step
+    /// rungs bound, read through the chart [`LocalSystem::point`] reads.
+    fn carrier_jet(
+        &self,
+        x: &[f64; N],
+        d1: &[f64; N],
+        d2: &[f64; N],
+        d3: &[f64; N],
+    ) -> [Vec3<f64>; 3];
 }
 
 // ---------------------------------------------------------------------
@@ -135,6 +147,16 @@ impl LocalSystem<2, 3> for ImplicitPairR3<'_> {
     fn tangent_speed(&self, _x: &[f64; 3], d: &[f64; 3]) -> f64 {
         // The state IS the point: the speed is the tangent's length.
         Vec3::from_array(*d).norm()
+    }
+
+    fn carrier_jet(
+        &self,
+        _x: &[f64; 3],
+        d1: &[f64; 3],
+        d2: &[f64; 3],
+        d3: &[f64; 3],
+    ) -> [Vec3<f64>; 3] {
+        [*d1, *d2, *d3].map(Vec3::from_array)
     }
 }
 
@@ -326,6 +348,24 @@ impl LocalSystem<3, 4> for ParametricPairR4<'_> {
         // velocity is the one that converts state steps to meters.
         let ja = self.a.jet3(x[0], x[1]);
         (ja.jet.du * d[0] + ja.jet.dv * d[1]).norm()
+    }
+
+    fn carrier_jet(
+        &self,
+        x: &[f64; 4],
+        d1: &[f64; 4],
+        d2: &[f64; 4],
+        d3: &[f64; 4],
+    ) -> [Vec3<f64>; 3] {
+        // Carrier-primary, as `tangent_speed`: only chart A's coordinates
+        // move the 3-D point, so chart B's bending never reaches it.
+        let ja = self.a.jet3(x[0], x[1]);
+        let along = |d: &[f64; 4]| ja.jet.du * d[0] + ja.jet.dv * d[1];
+        [
+            along(d1),
+            along(d2) + chart_d2(&ja, d1[0], d1[1]),
+            along(d3) + chart_d3(&ja, d1[0], d1[1], d2[0], d2[1]),
+        ]
     }
 }
 
