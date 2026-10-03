@@ -572,11 +572,9 @@ fn pair_with_no_live_faces_mints_no_record() {
     );
     assert!(faces_on(&body, pk, pk).is_empty());
     assert_eq!(validate_closed(&body), Ok(()));
-    // The door fills the edges' lazy pcurve caches the first time it
-    // reads them; one call with no pair warms them, so what the row
-    // compares is what a pair naming nothing changes beyond that.
-    body.merge_coplanar_faces_declared(&[], Tol::witness())
-        .unwrap_or_else(|e| panic!("{e:?}"));
+    // At rest: the re-charted walls store their rows again, so the
+    // door's closing mint has nothing to change.
+    topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
     let before = format!("{body:?}");
     let outcome = body
         .merge_coplanar_faces_declared(&[(pk, pk)], Tol::witness())
