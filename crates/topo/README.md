@@ -192,7 +192,11 @@ aligned-sense twin of `Tangent`, as a continuation is of `Rest`, and
 like a continuation it is not a contact: a boolean node declares it
 and a mate cannot. Its verification is the `Tangent` witness lane
 along the same locus with the sense bit reversed; opposed senses
-contradict it. Rim routing by material wedge (C7) then decides the
+contradict it. Wherever the two faces touch along the curve, each must
+END there and the two must leave it on opposite sides: a cusp, a face
+running on through the curve where the other touches it, sides that
+differ along the curve, and a pair touching nowhere each contradict it,
+with the fact named. Rim routing by material wedge (C7) then decides the
 rim, and the zip mints it as the smooth seam carrying
 `TangentIntersection`. A G1 joint authored inside one profile is the
 structural form of the same fact and needs no declaration.

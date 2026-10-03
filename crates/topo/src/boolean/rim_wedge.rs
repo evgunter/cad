@@ -598,7 +598,7 @@ fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool
             let d = p - rim.center;
             let h = d.dot(rim.axis);
             let radial = (d - rim.axis * h).norm() - rim.radius;
-            (h * h + radial * radial).sqrt()
+            (h.powi(2) + radial.powi(2)).sqrt()
         }
     };
     Ok(
@@ -667,9 +667,9 @@ fn crossings<T: Decide>(
                         let (qa, qb, qc) = (
                             w.dot(w),
                             d.dot(w) * T::from_f64(2.0),
-                            d.dot(d) - rim.radius * rim.radius,
+                            d.dot(d) - rim.radius.powi(2),
                         );
-                        let disc = qb * qb - qa * qc * T::from_f64(4.0);
+                        let disc = qb.powi(2) - qa * qc * T::from_f64(4.0);
                         if maybe_not_positive(-disc) {
                             let root = disc.max(T::zero()).sqrt();
                             for sgn in [-1.0, 1.0] {
@@ -686,7 +686,7 @@ fn crossings<T: Decide>(
             let len = w.norm();
             let mut kept = Vec::new();
             for q in candidates {
-                let lambda = (q - p0).dot(w) / (len * len);
+                let lambda = (q - p0).dot(w) / (len.powi(2));
                 if inside(lambda * len)
                     && inside((T::one() - lambda) * len)
                     && on_locus(locus, q, band)?
@@ -725,7 +725,7 @@ fn crossings<T: Decide>(
                         let foot = origin + dir * (ce - origin).dot(dir);
                         let h = (foot - ce).norm();
                         if maybe_not_positive(h - re) {
-                            let half = (re * re - h * h).max(T::zero()).sqrt();
+                            let half = (re.powi(2) - h.powi(2)).max(T::zero()).sqrt();
                             candidates.push(foot - dir * half);
                             candidates.push(foot + dir * half);
                         }
@@ -735,7 +735,7 @@ fn crossings<T: Decide>(
                     // n·(p(φ) − c) = A cos φ + B sin φ + C.
                     let n = rim.axis;
                     let (qa, qb, qc) = (n.dot(e1) * re, n.dot(e2) * re, n.dot(ce - rim.center));
-                    let rr = (qa * qa + qb * qb).sqrt();
+                    let rr = (qa.powi(2) + qb.powi(2)).sqrt();
                     if maybe_nonzero(rr) {
                         let ratio = -qc / rr;
                         if maybe_not_positive(ratio.abs() - T::one()) {
@@ -750,9 +750,9 @@ fn crossings<T: Decide>(
                         let d = rim.center - ce;
                         let dist = d.norm();
                         if maybe_nonzero(dist) {
-                            let x = (dist * dist + re * re - rim.radius * rim.radius)
+                            let x = (dist.powi(2) + re.powi(2) - rim.radius.powi(2))
                                 / (dist * T::from_f64(2.0));
-                            let y2 = re * re - x * x;
+                            let y2 = re.powi(2) - x.powi(2);
                             if maybe_not_positive(-y2) {
                                 let ux = d / dist;
                                 let uy = ae.cross(ux);

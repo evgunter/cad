@@ -1669,17 +1669,13 @@ fn a_line_seam_is_read_only_where_the_faces_touch() {
     ));
     let above = quarter_rod(1.0, tol);
     for (label, body, want) in [("tab", &tab, &no_edge), ("partial", &partial, &no_edge)] {
-        assert_eq!(
-            seam_verdicts(body, &above),
-            vec![want.clone(); 2],
-            "{label}"
-        );
+        assert_eq!(seam_verdicts(body, &above), vec![*want; 2], "{label}");
     }
     for side in [1.0, -1.0] {
         let rod = quarter_rod(side, tol);
         assert_eq!(
             seam_verdicts(&far, &rod),
-            vec![untouched.clone(); 2],
+            vec![untouched; 2],
             "far, rod on {side}"
         );
     }

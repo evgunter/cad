@@ -244,16 +244,16 @@ pub mod revert_ops;
 /// turn. Body authoring, so it routes here.
 pub mod bead;
 
-/// The pairs of two face sets that meet along a curve, kept from a
-/// cross product of seam or `Tangent` declarations. What a suite drives
-/// a door WITH, so it routes here.
-pub mod seam_pairs;
 /// A built body's stored edge certificates against a fresh
 /// re-certification: the check the carrying grafts are pinned with.
 pub mod certificates;
 /// The differential batteries' polygon oracles, per-pose outcome line
 /// and reflex-corner pose.
 pub mod differential;
+/// The pairs of two face sets that meet along a curve, kept from a
+/// cross product of seam or `Tangent` declarations. What a suite drives
+/// a door WITH, so it routes here.
+pub mod seam_pairs;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
