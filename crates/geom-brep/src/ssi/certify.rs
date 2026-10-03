@@ -2274,3 +2274,76 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod probe_side_arm {
+    //! Scratch probe (design fork, lane b): would a band-coincident-side
+    //! arm of `one_arc` certify the m7_8 quarter-cylinder fixture?
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
+    fn probe_side_arm_m7_8() {
+        let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let wall = NurbsSurface::new(
+            kv2,
+            kv1.clone(),
+            vec![
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 1.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(1.0, 1.0, 1.0),
+                Point3::new(0.0, 1.0, 0.0),
+                Point3::new(0.0, 1.0, 1.0),
+            ],
+            vec![1.0, 1.0, w, w, 1.0, 1.0],
+        )
+        .unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for (z0, z1) in [(0.0, 1.0), (0.2, 0.9)] {
+            let carrier = NurbsCurve3::new(
+                kv1.clone(),
+                vec![Point3::new(1.0, 0.0, z0), Point3::new(1.0, 0.0, z1)],
+                vec![1.0, 1.0],
+            )
+            .unwrap();
+            let pcurve = crate::edge_nurbs::chart_image(&carrier, &wall, |_, _| Ok(())).unwrap();
+            let op = super::super::ChartedNurbs::mint(&wall).unwrap();
+            let boxes = NurbsBoxes::new(&wall);
+            let Surface::Plane { origin, normal, .. } = plane else { unreachable!() };
+            let n = [normal.x, normal.y, normal.z].map(Interval::from_certified);
+            let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
+            let domain = UvRect { u: wall.knots_u().domain(), v: wall.knots_v().domain() };
+            for radius in tube_ladder(1.0, band).take(6) {
+                let pad = op.speeds().pad(radius);
+                let windows = chart_tube_windows(&pcurve, pad).unwrap();
+                println!("carrier z {z0}..{z1} rung {radius:e} pad {pad:?} windows {}", windows.len());
+                for wdw in &windows {
+                    let Some(r) = meet(wdw.rect, domain) else { println!("  no meet"); continue };
+                    let bz = boundary_zeros(&boxes, (n, p0), r);
+                    // The side edge u = u0 == domain.u.0?
+                    let on_side = r.u.0 == domain.u.0;
+                    let phi_side = phi_over(&boxes, (n, p0), (r.u.0, r.u.0, r.v.0, r.v.1));
+                    let d = boxes.deriv_box(r.u.0, r.u.1, r.v.0, r.v.1, true);
+                    let across = n[0] * d.x + n[1] * d.y + n[2] * d.z;
+                    let inf = if across.lo() > 0.0 { across.lo() } else if across.hi() < 0.0 { -across.hi() } else { 0.0 };
+                    let speed = boxes.speed_sup(r.u.0, r.u.1, r.v.0, r.v.1, true);
+                    let sup = phi_side.lo().abs().max(phi_side.hi().abs());
+                    println!(
+                        "  rect u {:?} v {:?} boundary_zeros {bz:?} on_side {on_side} |phi_side| <= {sup:e} \
+                         across [{:e},{:e}] inf {inf:e} speed {speed:e} cover_u {:e} (pad_u {:e}) dist_m {:e}",
+                        r.u, r.v, across.lo(), across.hi(), sup / inf, pad.0, sup * speed / inf
+                    );
+                }
+            }
+        }
+    }
+}
