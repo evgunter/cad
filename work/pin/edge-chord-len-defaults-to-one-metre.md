@@ -51,3 +51,19 @@ edge → half-edges → vertices → points and folds every failure into
 ~`:606`) and the `Option`-returning helper itself (~`:653`). The fix
 there can follow the `merge_faces` shape (pass the resolved ends in, or
 return the key that failed) and still owes its scale twin.
+
+## The reduce.rs sites are gone (branch `topo/merge-orientation-rung-levers-at-the-extent`, 2026-10-03)
+
+`boolean/reduce.rs`'s `edge_chord_len` and its `unwrap_or_else(T::one)`
+default are deleted. The maximal-faces gate now levers at the shared
+edge's extent (`readback::edge_extent`, `geom_brep::edge_extent` over
+the edge's certified carrier), and a lookup that fails on the way
+refuses `BooleanError::CorruptOperand` with `Corruption::Edge { edge,
+absence }` naming it; no length stands in. Rows:
+`boolean::reduce::neighbour_extent_rows::a_dangling_curve_refuses_as_a_corrupt_operand`
+(a mutant restoring a `1` default reds it), and the scale twin
+`neighbours_across_a_closed_edge::a_disc_on_its_hosts_plane_refuses_as_coplanar_neighbours`
+(the same pair at 1e-3, 1 and 1e3). The merge's site no longer reads an
+edge length at all: it levers at the pair's reach
+(`boolean::rest::pair_extent`). Nothing of this row remains open that
+this branch knows of; its owner closes it.

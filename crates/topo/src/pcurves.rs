@@ -4638,6 +4638,11 @@ pub(crate) mod staleness_posture {
                 "`mev_line`, `kemr` and `mef_chord`, every one of them already sorted above",
             ),
             (
+                "plant_disc_face",
+                Neither,
+                "`mev_line`, `kemr` and `mef`, every one of them already sorted above",
+            ),
+            (
                 "drill_hole",
                 Neither,
                 "`plant_ring_face`, then `mev_line`, `mef_chord` and `kfmrh`, every one of \

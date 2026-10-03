@@ -523,6 +523,44 @@ pub fn edge_carrier_ref<T: Real>(
     Ok(geom.certified().ok_or(CarrierAbsence::NoCarrier)?.carrier())
 }
 
+/// **An edge's extent** — [`geom_brep::edge_extent`] over the edge's
+/// certified carrier, its parameter span and the chord between its two
+/// ends: a lower bound on the diameter of the point set the edge spans,
+/// and the length a decision levered across the edge reads. A closed
+/// edge's chord is 0; its extent is its carrier's span.
+///
+/// # Errors
+///
+/// The [`CarrierAbsence`] naming whichever lookup came back empty: the
+/// edge, a half or end vertex or point on the way to its ends, or its
+/// curve entry; or the entry's certifying no carrier.
+pub(crate) fn edge_extent<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<T, CarrierAbsence> {
+    let e = body
+        .get_edge(edge)
+        .ok_or(CarrierAbsence::Dangling(DanglingRef::Entity(
+            EntityId::Edge(edge),
+        )))?;
+    let end = |he: HalfEdgeKey| -> Result<Point3<T>, DanglingRef> {
+        let start = body
+            .get_half_edge(he)
+            .ok_or(DanglingRef::Entity(EntityId::HalfEdge(he)))?
+            .start;
+        vertex_point_ref(body, start)
+    };
+    let chord = (end(e.he_minus).map_err(CarrierAbsence::Dangling)?
+        - end(e.he_plus).map_err(CarrierAbsence::Dangling)?)
+    .norm();
+    let curve = body
+        .get_curve_geom(e.curve)
+        .ok_or(CarrierAbsence::Dangling(DanglingRef::Geometry(
+            GeomRef::Curve(e.curve),
+        )))?
+        .certified()
+        .ok_or(CarrierAbsence::NoCarrier)?;
+    let (t0, t1) = curve.params();
+    Ok(geom_brep::edge_extent(curve.carrier(), t0, t1, chord))
+}
+
 /// **An edge's carrier kind** — the [`CurveKind`] tag of the curve the
 /// edge's certified carrier IS, copied out.
 ///

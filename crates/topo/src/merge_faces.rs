@@ -76,7 +76,8 @@ pub struct MergedGroup {
     /// Vertices deleted by the dangling-seam pruning, in kill order:
     /// each the free end of a shared edge the glue left dangling inside
     /// the merged face (the argument that this changes no region is
-    /// stated once, at the pruning in `merge_group`). A contact record
+    /// stated once, at the pruning in `merge_group`), or the vertex of a
+    /// closed shared edge the glue killed. A contact record
     /// citing one is consumed and drops.
     ///
     /// Recorded rather than left implicit because this is the one
@@ -1508,6 +1509,11 @@ impl<T: Decide> Body<T> {
     /// [`MergedGroup::killed_vertices`], whose docs say where the
     /// region argument lives.
     ///
+    /// **A closed shared edge goes with its vertex.** Where the dying
+    /// face's whole outline is one closed edge (a disc in a hole of its
+    /// survivor), `kef` leaves the edge's vertex as a lone-vertex ring of
+    /// the survivor, which `mekr` then `kev` delete.
+    ///
     /// **The kept faces' boundaries are re-described.** An absorbed
     /// face's boundary edges end on its survivor still described
     /// against the absorbed face's surface. Before it returns, the door
@@ -2501,6 +2507,39 @@ impl<T: Decide> Body<T> {
     /// because a curved run told "planar" MERGES where the truthful
     /// call refuses `PeriodClosure`, and nothing downstream of the
     /// surgery would notice.
+    /// Deletes the lone-vertex ring `ring` of `rep` with its vertex:
+    /// `mekr` bridges it to `rep`'s outline and `kev` kills the bridge
+    /// and the vertex.
+    fn delete_lone_ring(
+        &mut self,
+        rep: FaceKey,
+        ring: crate::entity::LoopKey,
+        tol: Tol,
+    ) -> Result<(), MergeCoplanarError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let outline = self
+            .get_face(rep)
+            .ok_or(DanglingRef::Entity(EntityId::Face(rep)))?
+            .outer;
+        let target = match self
+            .get_loop(outline)
+            .ok_or(DanglingRef::Entity(EntityId::Loop(outline)))?
+            .boundary
+        {
+            crate::entity::LoopBoundary::Cycle { first } => first,
+            crate::entity::LoopBoundary::Empty { .. } => {
+                return Err(MergeCoplanarError::Op {
+                    error: EulerOpError::LoopNotCycle { r#loop: outline },
+                });
+            }
+        };
+        let bridge = self.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
+        self.kev(bridge.he_plus)?;
+        Ok(())
+    }
+
     fn merge_group(
         &mut self,
         rep: FaceKey,
@@ -2599,11 +2638,26 @@ impl<T: Decide> Body<T> {
                 "merge_group: {}",
                 EstablishedFact::AbsorbedFaceIsRingFree.what()
             );
+            // The loop the kef leaves on the survivor: across a closed
+            // edge that was the dying face's whole outline, a lone
+            // vertex, which `mekr` then `kev` delete with its ring.
+            let kept_loop = self
+                .edge_mate(dying_he, edge_key)
+                .ok_or(DanglingRef::Entity(EntityId::Edge(edge_key)))?
+                .parent_loop;
             #[cfg(test)]
             tear_before_kef(self, dying_he, edge_key, other);
             self.kef_minting(dying_he, tol)?;
             group.absorbed.push(other);
             group.killed_edges.push(edge_key);
+            if let crate::entity::LoopBoundary::Empty { vertex: lone } = self
+                .get_loop(kept_loop)
+                .ok_or(DanglingRef::Entity(EntityId::Loop(kept_loop)))?
+                .boundary
+            {
+                self.delete_lone_ring(rep, kept_loop, tol)?;
+                group.killed_vertices.push(lone);
+            }
         }
         // Intra-face duplicates: edges now occurring twice within the
         // survivor's loops. On a CURVED survivor (C12.5, M5 PR 9) a
@@ -2698,21 +2752,7 @@ impl<T: Decide> Body<T> {
                 group.killed_edges.push(edge_key);
                 group.killed_vertices.push(free);
                 if let Some(lone) = other {
-                    let target = match self
-                        .get_loop(outline)
-                        .ok_or(DanglingRef::Entity(EntityId::Loop(outline)))?
-                        .boundary
-                    {
-                        crate::entity::LoopBoundary::Cycle { first } => first,
-                        crate::entity::LoopBoundary::Empty { .. } => {
-                            return Err(MergeCoplanarError::Op {
-                                error: EulerOpError::LoopNotCycle { r#loop: outline },
-                            });
-                        }
-                    };
-                    let bridge =
-                        self.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
-                    self.kev(bridge.he_plus)?;
+                    self.delete_lone_ring(rep, ring, tol)?;
                     group.killed_vertices.push(lone);
                 }
                 continue;

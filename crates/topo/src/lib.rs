@@ -288,8 +288,8 @@ pub mod test_support {
         CubeOps, CylFrame, CylKey, FaceGeometry, Prism, PrismOps, RingFaceOps, StraddleSeat,
         assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
         cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, flush_declarations,
-        geometric_cube, holed_block, identity_map, line, mapped_cube, plane, plant_ring_face,
-        prism, prism_ops, prism_z, split_plane, straddle_seat,
+        geometric_cube, holed_block, identity_map, line, mapped_cube, plane, plant_disc_face,
+        plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
 

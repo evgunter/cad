@@ -610,16 +610,23 @@ pub(super) fn face_oriented_source<T: Decide>(
 /// [`super::oriented_plane_eq`]) across any edge ⇒
 /// [`BooleanError::NonMaximalFaces`]. Numeric coplanarity NEVER
 /// triggers the refusal; a near-coplanar dihedral surfaces as the
-/// predicate's own typed escalation instead.
+/// predicate's own typed escalation instead. The ladder is levered at
+/// the shared edge's extent ([`crate::readback::edge_extent`]); an edge
+/// whose sides or extent do not read refuses
+/// [`BooleanError::CorruptOperand`].
 pub(super) fn gate_maximal_faces<T: Decide>(
     body: &Body<T>,
     operand: Operand,
     band: Band,
 ) -> Result<(), BooleanError> {
+    let unreadable = |edge, absence| BooleanError::CorruptOperand {
+        operand,
+        corruption: super::Corruption::Edge { edge, absence },
+    };
     for (edge_key, _) in body.edges() {
-        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
-            continue;
-        };
+        let sides = crate::readback::edge_sides(body, edge_key).map_err(|what| {
+            unreadable(edge_key, crate::readback::CarrierAbsence::Dangling(what))
+        })?;
         let (f1, f2) = sides.faces();
         if f1 == f2 {
             continue; // seam/strut inside one face: not a coplanar PAIR
@@ -647,7 +654,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         let (Some(p1), Some(p2)) = (face_plane(body, f1), face_plane(body, f2)) else {
             continue;
         };
-        let arm = edge_chord_len(body, edge_key).unwrap_or_else(T::one);
+        // The extent, not the chord: a closed edge's ends are one
+        // vertex, and its faces still meet along all of it.
+        let arm = crate::readback::edge_extent(body, edge_key)
+            .map_err(|absence| unreadable(edge_key, absence))?;
         // Same-operand comparison: sources apply (a shared recipe
         // source IS declared coplanarity — the pair should have been
         // merged by the producing op); cross-operand declared pairs
@@ -969,16 +979,6 @@ fn edges_share_a_curve<T: Decide>(
         .iter()
         .enumerate()
         .any(|(i, &p)| shared[i + 1..].iter().any(|&q| !zero((q - p).norm()))))
-}
-
-fn edge_chord_len<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<T> {
-    let e = body.get_edge(edge)?;
-    let pa = *body.get_point(body.get_vertex(body.get_half_edge(e.he_plus)?.start)?.point)?;
-    let pb = *body.get_point(
-        body.get_vertex(body.get_half_edge(e.he_minus)?.start)?
-            .point,
-    )?;
-    Some((pb - pa).norm())
 }
 
 /// One sweep direction: every edge (fragment) of `x` against the faces
@@ -5494,5 +5494,117 @@ mod operand_gate_rows {
         };
         assert_eq!(operand, Operand::B, "the refusal names the torn operand");
         assert_eq!(errors, want, "the payload is tier 1's own verdict");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod neighbour_extent_rows {
+    use super::gate_maximal_faces;
+    use crate::boolean::{BooleanDecision, BooleanError, Corruption, Operand, PlaneRung};
+    use crate::entity::GeomRef;
+    use crate::readback::{CarrierAbsence, DanglingRef};
+    use crate::test_support_fixtures::{plant_disc_face, plant_ring_face, prism_z};
+    use geom_core::{Band, Point3, Tol};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness band")
+    }
+
+    /// The prism `[0, 4]² × [0, 1]`, its top face and the first
+    /// half-edge of that face's outer loop.
+    fn top() -> (crate::Body<f64>, crate::FaceKey, crate::HalfEdgeKey) {
+        let square = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)];
+        let p = prism_z::<f64>(&square, 0.0, 1.0, Tol::witness());
+        let outer = p.body.get_face(p.top_face).expect("the top").outer;
+        let crate::LoopBoundary::Cycle { first } =
+            p.body.get_loop(outer).expect("its loop").boundary
+        else {
+            panic!("the top face's outer loop is a cycle");
+        };
+        (p.body, p.top_face, first)
+    }
+
+    /// **An open edge that spans less than the band leaves the
+    /// orientation undecided** (no over-acceptance): a unit triangle
+    /// planted in the top on a key of its own holding the top's plane,
+    /// its corners then drawn in to sides of 5e-9. No public door builds
+    /// it, since an edge that short does not certify.
+    #[test]
+    fn a_short_open_edge_leaves_the_orientation_undecided() {
+        let tol = Tol::witness();
+        let (mut body, top, at) = top();
+        let unit = [
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(2.0, 1.0, 1.0),
+            Point3::new(1.5, 2.0, 1.0),
+        ];
+        let ring = plant_ring_face(&mut body, at, &unit, tol);
+        let host = body.get_face(top).expect("the top").clone();
+        let plane = body.get_surface(host.surface).expect("its plane").clone();
+        // Lifts RechartStrandsDescriptions: the triangle's sides are the row, not their descriptions.
+        body.set_face_surface_stranding_for_tests(
+            ring.membrane.face,
+            crate::euler::FaceSurface::New {
+                surface: plane,
+                sense: host.sense,
+            },
+        )
+        .expect("the triangle takes a key of its own");
+        let s = 5e-9;
+        let outer = body.faces[ring.membrane.face].outer;
+        let crate::LoopBoundary::Cycle { first } = body.loops[outer].boundary else {
+            panic!("the triangle's loop is a cycle");
+        };
+        let small = [(0.0, 0.0), (s, 0.0), (s / 2.0, s)];
+        for he in body.loop_cycle(first).expect("the triangle's loop walks") {
+            let key = body.vertices[body.half_edges[he].start].point;
+            let i = unit
+                .iter()
+                .position(|&c| (c - body.points[key]).norm() == 0.0)
+                .expect("a corner of the unit triangle");
+            body.points[key] = Point3::new(1.0 + small[i].0, 1.0 + small[i].1, 1.0);
+        }
+        let err = gate_maximal_faces(&body, Operand::A, band())
+            .expect_err("a short edge decides nothing");
+        let BooleanError::Escalated {
+            decision: BooleanDecision::Neighbours(PlaneRung::Orientation),
+            ..
+        } = err
+        else {
+            panic!("the orientation rung is undecided: {err:?}");
+        };
+    }
+
+    /// **A curve lookup that fails is announced, never read as a
+    /// length**: a disc planted in the top, its circle's curve entry
+    /// then removed, refuses as a corrupt operand naming the edge and
+    /// the curve key.
+    #[test]
+    fn a_dangling_curve_refuses_as_a_corrupt_operand() {
+        let (mut body, _, at) = top();
+        let disc = plant_disc_face(
+            &mut body,
+            at,
+            Point3::new(2.0, 2.0, 1.0),
+            1.0,
+            Tol::witness(),
+        );
+        let curve = body.edges[disc.edge].curve;
+        body.curves.remove(curve).expect("the circle's entry");
+        let got = gate_maximal_faces(&body, Operand::A, band());
+        let Err(BooleanError::CorruptOperand {
+            operand: Operand::A,
+            corruption: Corruption::Edge { edge, absence },
+        }) = got
+        else {
+            panic!("the circle's extent does not read: {got:?}");
+        };
+        assert_eq!(edge, disc.edge, "the refusal names the circle");
+        assert_eq!(
+            absence,
+            CarrierAbsence::Dangling(DanglingRef::Geometry(GeomRef::Curve(curve))),
+            "and the curve key that does not resolve"
+        );
     }
 }

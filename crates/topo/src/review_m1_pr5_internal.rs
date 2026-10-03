@@ -317,6 +317,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          itself — every mutation is one of those, each asserting",
     ),
     (
+        "plant_disc_face",
+        "plants a disc face through `mev_line`, `kemr` and `mef` and writes no arena itself — \
+         every mutation is one of those, each asserting",
+    ),
+    (
         "drill_hole",
         "calls `plant_ring_face`, then `mev_line`, `mef_chord` and `kfmrh` (asserting)",
     ),
