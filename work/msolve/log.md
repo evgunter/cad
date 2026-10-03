@@ -1205,3 +1205,93 @@ first. Two things the MSOLVE-12 lane noted:
   on main. Unverified here; it is not this program's file.
 - One merge commit on that branch (`84db7bf21`) lacks the trailers. It
   is merged history now, and merge-only means it stays.
+
+Ev approved the revised roll on #3681 ("the new plan makes sense"),
+and fork-log row 60 carries the decision. The `MateFrame { base,
+offset }` shape from PLACE's row 53 is unbuilt and lives in `mate.rs`,
+so MSOLVE builds it with the roll unit. A note on PLACE's row says so
+and leaves PLACE the crate, the tour gauge and, if it wants it, the
+offset edit.
+
+## 2026-10-03 — MSOLVE-13 handed back; review dispatched
+
+PR 3969 came back green at `3610f0432`, and the head is frozen. None
+of the STOP clause's conditions fired. The `t3` false refutation
+reproduced on main. Every consumer kind classifies without reading a
+slot. The member-identity change, instrumented across the editor-core
+suite, moved one existing tree: `msolve2::a3b`, the two-spellings case
+it was meant to fold. One pinned verdict moved and gets scrutiny:
+`msolve1::a5`'s consistent half used to pass the gate and now refuses
+`MovedAbove`, because its `x2` is a transform of the operand.
+
+Two calls the lane made beyond the spec are with the review: Fillet,
+Chamfer and Shell are classified as carried, and a mixed route mints.
+Filed: `split-and-inline-over-a-mate-read-at-a-union-are-unmeasured`.
+One full review (C1–C5) is dispatched on Opus.
+
+MSOLVE-13 review of `3610f0432`: APPROVE-WITH-FIXES, no MAJOR, C1–C5
+hold. `msolve1::a5`'s move is ruled right, not a regression: its old
+consistent pass was a fixture coincidence. Its `x2` is a quarter turn
+about the block's own centre, a symmetry of the footprint, so the
+contact happened to survive while the seat was rotated in the product.
+The calls the lane made beyond the spec stand: Fillet, Chamfer and
+Shell carried (probed), and mixed routes minting.
+
+Fix pass R1–R10, sent back to the implementer lane:
+- `Vanished { by }` prefers the consumer that lost the face;
+- A5's two overstatements corrected;
+- the recourse worded as "re-pick on {by}";
+- `msolve2::a4b` and `msolve1::a5` re-shaped to keep their subjects;
+- stale identity prose in `node.rs` and `refactor.rs`;
+- `lift` without field rests;
+- small nits.
+
+## 2026-10-03 — MSOLVE-13 fix pass (PR 3969)
+
+A single full review of `3610f0432` came back APPROVE-WITH-FIXES with
+no MAJOR, and claims C1–C5 held. The fix pass is R1–R10:
+- `Vanished { by }` names the consumer that lost the face, not a
+  datum reading beside it.
+- `MovedAbove` gains a `copies` field. Its recourse now reads
+  "re-pick the face on {by}", with ", naming the copy" added for a
+  pattern or placed union.
+- A5's sentences match the code: the lift is the identity through
+  `Part`s and split targets, and a placer refuses only when no route
+  carries the face unmoved.
+- `msolve1::a5` was rebuilt as sibling transforms under a union, so
+  the gate verifies the declaring loop again. `msolve2::a4b` keeps
+  its declaring mate by reading through a transform.
+- `names::lift` spells every field.
+- New lift rows for chamfer, shell and the bystander datum, plus a
+  `Part`-above-a-union backstop row.
+- The `msolve5` test files are renamed to what they pin.
+
+## 2026-10-03 — MSOLVE-13 MERGED (PR 3969)
+
+The at-rest gate now reads a mate's face where the mate says it reads
+it, in the operand's table, and lifts it up to the product (`names::lift`,
+exhaustive over node kinds and seats). A placer on the only route
+refuses `MovedAbove { at, by, copies }`, whose recourse is "re-pick
+the face on `by`". A face a consumer merges or cuts refuses `Vanished`
+naming that consumer. The member walk descends a union, and a member
+is its instance plus the placing nodes passed. The gather's
+`PlacedUnderTwoRoots` recourse branches on whether a body or an
+instance is placed twice.
+
+This closes Ev's defect from #3695 and the false geometric refutation
+of a transform above the operand. One existing tree moved:
+`msolve2::a3b`, the two-spellings case. A5's minting sentence and
+A11 (5)'s walk and identity sentences were rewritten; both were agent
+text, so Ev is told, not asked.
+
+Closes MSOLVE-13 and
+`a-mate-read-at-a-transform-under-a-union-refuses-read-below-a-root`.
+Filed: `split-and-inline-over-a-mate-read-at-a-union-are-unmeasured`.
+The spec is deleted, with a note in `docs/doc-ledger/msolve-13-spec.md`.
+
+MSOLVE-13 merged on PR 3969. Its MERGED entry rode the unit branch.
+MSOLVE-14 (item 19: the solve at the run's scalar) was dispatched on
+Opus, red rows first, with the `f64` bit-fence green on every push. Its
+review tier is dual. One build fits the disk, so if both reviewer arms
+cannot run beside each other the protocol's late-trigger fallback
+applies again.

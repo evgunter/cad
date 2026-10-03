@@ -1,14 +1,14 @@
-//! **The at-rest gate refuses a mate read below a product root in the
+//! **The at-rest gate refuses a mate read below a placer in the
 //! operand's voice.**
 //!
 //! `P(T(top))` with the mate read AT `T`: the solve places it, the
-//! product gathers, and the product's table has no row for the bare
-//! `top/…` spelling — the pattern is the root and its rows wear
-//! `Instance(i)`. The gate then asks the OPERAND's own table, and a
-//! name spelled there at a node the product does not list refuses
-//! `RefusedRef::ReadBelowARoot { at }` naming that node, rather than
-//! calling the name vanished. `Vanished` is only ever a name that
-//! names nothing where the mate reads it.
+//! product gathers, and the gate reads the name in the OPERAND's own
+//! table and carries it up. The pattern above `T` places it again
+//! before the product holds it, so the reference refuses
+//! `RefusedRef::MovedAbove { at: T, by: P }`, naming both, rather than
+//! calling the name vanished. `Vanished` is a name that names nothing
+//! where the mate reads it, or one a consumer merged, cut or dropped
+//! on its way up — naming that consumer.
 //!
 //! Nothing is admitted here that was refused: every row that refused
 //! before refuses still, and the control (the same document read AT
@@ -29,8 +29,8 @@
 //!
 //! The ladder's remaining rungs are the ones that need a PRODUCT, and
 //! they are what this file measures: which entity a head resolves to
-//! (`Vanished`), how many (`Ambiguous`), and where it is rooted
-//! (`ReadBelowARoot`).
+//! (`Vanished`), how many (`Ambiguous`), and whether a placer moves it
+//! before the product holds it (`MovedAbove`).
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -261,10 +261,9 @@ fn reference_refusal(err: &AssemblyError) -> (RecipeNodeId, MateSide, &RefusedRe
 /// **The issue's own document.** The mate is read at `T`, below the
 /// pattern that consumes it. The solve places it (`Determining`), the
 /// product gathers, and the gate refuses — in the operand's voice:
-/// `ReadBelowARoot { at: T }`, whose message names `T` and says it is
-/// not a root of the product.
+/// `MovedAbove { at: T, by: P }`.
 #[test]
-fn the_issues_document_refuses_read_below_a_root_naming_the_transform() {
+fn the_issues_document_refuses_moved_above_naming_the_transform_and_the_pattern() {
     let s = scene("msolve5-a1");
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(s.xf, in_part(s.top, s.top_body, CapEnd::Start));
@@ -283,12 +282,19 @@ fn the_issues_document_refuses_read_below_a_root_naming_the_transform() {
         "the product gathers"
     );
 
-    let err = gate(&doc, &ev).expect_err("the gate refuses a mate read below a root");
+    let err = gate(&doc, &ev).expect_err("the gate refuses a mate read below a placer");
     let (named, side, why) = reference_refusal(&err);
     assert_eq!((named, side), (mate, MateSide::B));
     // The words are pinned once, in `display_contract`; the value is
-    // what says the gate named the operand.
-    assert_eq!(*why, RefusedRef::ReadBelowARoot { at: s.xf });
+    // what says the gate named the operand and the placer.
+    assert_eq!(
+        *why,
+        RefusedRef::MovedAbove {
+            at: s.xf,
+            by: s.pattern,
+            copies: true,
+        }
+    );
 }
 
 // ---- the control: read AT the pattern ----
@@ -386,17 +392,18 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
     let err = gate(&doc, &ev).expect_err("a name nothing answers to refuses");
     let (named, side, why) = reference_refusal(&err);
     assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(*why, RefusedRef::Vanished);
+    assert_eq!(*why, RefusedRef::Vanished { by: None });
 }
 
 // ---- ties: the product decides its own ----
 
-/// A TIED face read at `T` below the pattern refuses `ReadBelowARoot
-/// { at: T }` — a tie below a root is still read below a root. The same tie
-/// read AT the pattern with the instance spelling is the product's own
-/// row, and the product decides its own ties: `Ambiguous { width: 2 }`.
+/// A TIED face read at `T` below the pattern refuses `MovedAbove { at:
+/// T, by: P }` — a tie below a placer is still moved by it. The same
+/// tie read AT the pattern with the instance spelling is the product's
+/// own row, and the product decides its own ties: `Ambiguous { width:
+/// 2 }`.
 #[test]
-fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous() {
+fn a_tied_face_below_a_placer_refuses_moved_above_and_at_the_root_ambiguous() {
     let s = scene_with("msolve5-tied-face", slotted_part("msolve5-tied-face-top"));
     let ev0 = run(&s.doc, &s.opts);
     let (tied, width) = tied_row(&ev0, s.xf, EntityKind::Face);
@@ -411,10 +418,17 @@ fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous(
         product(&doc, &ev, Tol::witness()).is_ok(),
         "the product gathers"
     );
-    let err = gate(&doc, &ev).expect_err("read below a root");
+    let err = gate(&doc, &ev).expect_err("read below a placer");
     let (named, side, why) = reference_refusal(&err);
     assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(*why, RefusedRef::ReadBelowARoot { at: s.xf });
+    assert_eq!(
+        *why,
+        RefusedRef::MovedAbove {
+            at: s.xf,
+            by: s.pattern,
+            copies: true,
+        }
+    );
 
     let b = crate::fixture::head_at(s.pattern, in_copy(s.pattern, 0, tied));
     let (doc, mate) = mated(s.doc, seat(a, b));
@@ -425,16 +439,15 @@ fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous(
     assert_eq!(*why, RefusedRef::Ambiguous { width });
 }
 
-// ---- the claim is about the root list, not about the product's rows ----
+// ---- a consumer that drops the face names itself ----
 
 /// `Intersect(T(top), far)` — a boolean whose result is EMPTY — is
-/// the root over `T`. The product holds no trace of `top`'s face at
-/// all, and the gate still refuses `ReadBelowARoot { at: T }`: the
-/// arm says the operand is not a root and that a reference resolves
-/// against a root's own rows, and nothing more — it does not claim
-/// the product spells the face some other way.
+/// the root over `T`. The boolean would carry `top`'s face as
+/// `FromA`, and its table holds no such row: the face does not reach
+/// the product, and the gate refuses `Vanished { by: the boolean }`,
+/// naming the node that consumed it.
 #[test]
-fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
+fn an_operand_under_an_empty_boolean_root_refuses_vanished_naming_the_boolean() {
     let s = scene_no_pattern("msolve5-empty-root");
     let (doc, far_profile) = on_frame(
         s.doc,
@@ -473,10 +486,10 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
         product(&doc, &ev, Tol::witness()).is_ok(),
         "an empty root contributes nothing and the product gathers"
     );
-    let err = gate(&doc, &ev).expect_err("read below a root");
+    let err = gate(&doc, &ev).expect_err("the boolean consumes the face");
     let (named, side, why) = reference_refusal(&err);
     assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(*why, RefusedRef::ReadBelowARoot { at: s.xf });
+    assert_eq!(*why, RefusedRef::Vanished { by: Some(empty) });
 }
 
 // ---- an operand that is not live never reaches the gate ----
