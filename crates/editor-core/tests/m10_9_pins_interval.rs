@@ -96,6 +96,15 @@ pub(crate) struct Study {
 /// walk's literal branch are the form's to decide, so the certificate
 /// runs on past where a `floor` atom used to stop it.
 ///
+/// **PCERT's chart-angle unit took the retired decisions away, every
+/// column at once**: the loop's angle equalities and check 5 no longer
+/// exist to be registered or proved. `registered`: plate 148 → 140,
+/// annulus 148 → 140, link 118 → 110, bracket 156 → 146, pad
+/// 152 → 148; `symbolic_zero`: plate 947 → 907, annulus 440 → 424,
+/// link 681 → 641, bracket 1283 → 1263, pad 1012 → 988 (1036 → 1012 at
+/// ε = 1e-9). No registrant states anything different; the decisions
+/// it used to discharge are gone.
+///
 /// The scales are M10-9's brackets. The plate, the annulus and the link
 /// certify whole at them. The bracket and the pad refuse at the
 /// extrude's `pcurve_envelope` (`refused_by`, asserted;
@@ -108,11 +117,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 7.811e2,
             refuses_at: 7.814e2,
             refused_by: None,
-            registered: 148,
+            registered: 140,
             // DECIDE-3: eight more THEOREMS (803 -> 811) out of
             // `numeric` (470 -> 462) — comparisons of two rational
             // constants A0 now decides exactly. `registered` unmoved.
-            symbolic_zero: [947, 947, 947],
+            symbolic_zero: [907, 907, 907],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -120,12 +129,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 7.805e2,
             refuses_at: 7.810e2,
             refused_by: None,
-            registered: 148,
+            registered: 140,
             // 432 until DECIDE-9 (a product with an ungated zero factor
             // rests on that factor alone): eight decisions the read
             // answered as `sign_gated` are theorems, `registered` and
             // `numeric` unmoved.
-            symbolic_zero: [440, 440, 440],
+            symbolic_zero: [424, 424, 424],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -149,8 +158,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exactly (`geom_brep::schedule_param`): two end residuals
             // the door now recognises. Measured by restoring the old end
             // samples on a probe, which restores 108.
-            registered: 118,
-            symbolic_zero: [681, 681, 681],
+            registered: 110,
+            symbolic_zero: [641, 641, 641],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -162,7 +171,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // sample `t₁` itself (`geom_brep::schedule_param`) rather
             // than `t₀ + (t₁ − t₀)·1` over the copied arc carriers: two
             // numeric decisions reach the door, verdicts unchanged.
-            registered: 156,
+            registered: 146,
             // DECIDE-3: more theorems from A0's constant fold
             // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
             // and rule G, and decisions the read answers; `registered`
@@ -178,7 +187,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // read settles); the other twelve exist only since the
             // extrude closes with the pcurve mint, and which predicates
             // they are is not read off a split here.
-            symbolic_zero: [1283, 1283, 1283],
+            symbolic_zero: [1263, 1263, 1263],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -260,13 +269,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // and four numeric ones reach the door at the schedule's
             // assigned end sample (`geom_brep::schedule_param`), as the
             // bracket's two above do.
-            registered: 152,
+            registered: 148,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them. Every row
             // is up 32 since DECIDE-9, the 32 `dihedral_wedge` margins
             // the note on `registered` names.
-            symbolic_zero: [1012, 1036, 1012],
+            symbolic_zero: [988, 1012, 988],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
