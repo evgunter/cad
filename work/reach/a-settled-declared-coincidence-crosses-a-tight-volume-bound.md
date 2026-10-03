@@ -2,11 +2,12 @@
 id: a-settled-declared-coincidence-crosses-a-tight-volume-bound
 kind: issue
 title: A declared coincidence the door settles inside the band moves a correct result past a tight volume bound, and the backstop refuses it ResultVolumeImplausible
-status: open
+status: parked
 opened: 2026-10-02
 priority: P2
 cost: H
 design: true
+blocked_on: [3990]
 ---
 
 

@@ -2,10 +2,11 @@
 id: rounded-stack-subtract-and-intersect-refuse-fallback-extent
 kind: issue
 title: The rounded two-plate stack's subtract and intersect refuse FallbackExtentUnsupported with every finding declared
-status: open
+status: parked
 opened: 2026-10-01
 priority: P3
 cost: M
+blocked_on: [3990]
 ---
 
 Found by the review of PR 3657, measured on `d2d5b09076`.

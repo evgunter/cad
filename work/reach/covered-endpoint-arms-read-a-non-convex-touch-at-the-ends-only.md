@@ -2,10 +2,11 @@
 id: covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only
 kind: issue
 title: The covered endpoint arms read a torus line or an arc at its ends only, though either can touch twice
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
+blocked_on: [3990]
 ---
 
 Found by the dual review of PR 3846 (r1 NOTE 3); analysis on that PR's

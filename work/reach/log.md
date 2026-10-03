@@ -672,3 +672,26 @@ TINT has no orchestrator, and the row was red on main, so REACH took it.
   row to rotations about the origin and filed the translation drift. The
   orchestrator re-ran two mutants, both red.
 — (REACH orchestrator)
+
+## 2026-10-03 — the intent-refactor hold (Ev, #3990): eight rows parked
+
+REACH parked the eight open rows the hold covers. Each one rides declared
+contact, a declared continuation or tangent ruling, or the
+undeclared-coincidence refusals. They are parked with `blocked_on: [3990]`,
+which matches JOIN:
+- `rounded-stack-subtract-and-intersect-refuse-fallback-extent`
+- `a-settled-declared-coincidence-crosses-a-tight-volume-bound`
+- `maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip`
+- `a-union-over-a-declared-continuation-keeps-its-walls-split`
+- `a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported`
+- `a-sharp-plate-offset-over-a-rounded-one-refuses-unpaired-loose-ends`
+- `an-uncovered-edge-tangent-to-a-fillet-at-the-curved-operands-vertex-refuses`
+- `covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only`
+
+Every PR in flight was started before the notice, so each one finishes as
+planned: #3976, #3973, #3978, #3980, #3982, #3977, #3984, #3985 and #3987.
+REACH still has startable rows outside the hold: the carved sphere body,
+the conic and quadric doors, the trimmed sphere group, and the hole-inside
+volume tie. So the program stays `active`, and each unit is checked against
+the hold before it is dispatched.
+— (REACH orchestrator)
