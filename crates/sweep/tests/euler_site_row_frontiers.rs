@@ -13,7 +13,7 @@
 //! - a carrier outside an analytic chart's closed-form classes, where
 //!   the op stores nothing on the face — and the minting pass, which
 //!   leaves a face uncovered only for a carrier that can lie on it,
-//!   refuses one that cannot.
+//!   refuses one that cannot, as does tier 3 on the body left at rest.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -99,15 +99,16 @@ fn a_strut_on_a_minted_spline_wall_refuses_with_the_body_untouched() {
     assert_eq!(format!("{body:?}"), before);
 }
 
-/// **An off-chart strut leaves the wall unminted, and the pass names
-/// it.** A quarter revolve of a trapezoid mints a cone wall. A strut
-/// from one of its corners along a circle tilted off the cone's axis
-/// is outside the cone chart's closed-form classes (rims and rulings):
-/// the op returns `Ok` with no row on the wall, and tier 3, which reads
-/// only stored rows, has nothing to say. A circle whose plane is not ⊥
-/// the axis is no plane section of a right circular cone, so the strut
-/// does not lie on its face, and the minting pass, re-run, refuses it
-/// as `CarrierOffChart` rather than leaving the face uncovered.
+/// **An off-chart strut leaves the wall unminted, and tier 3 and the
+/// pass both name it.** A quarter revolve of a trapezoid mints a cone
+/// wall. A strut from one of its corners along a circle tilted off the
+/// cone's axis is outside the cone chart's closed-form classes (rims
+/// and rulings): the op, mid-surgery, returns `Ok` with no row on the
+/// wall. A circle whose plane is not ⊥ the axis is no plane section of
+/// a right circular cone, so the strut does not lie on its face; left
+/// at rest without a closing mint, the wall reads loud at tier 3, which
+/// re-derives a rowless face and reports why it stores nothing, and the
+/// minting pass, re-run, refuses it the same way.
 #[test]
 fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
     let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
@@ -142,11 +143,9 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
         cycle.iter().all(|&he| body.pcurve(he).is_none()),
         "the cone wall kept a row the minting pass would not store"
     );
-    assert_eq!(validate_pcurves(&body, band()), vec![]);
-    let refused = topo::mint_pcurves_of(&mut body, &[cone], tol()).unwrap_err();
-    assert!(
+    let off_chart = |e: &topo::PcurveMintError| {
         matches!(
-            refused,
+            *e,
             topo::PcurveMintError::Certify {
                 half_edge,
                 error: geom_brep::PcurveCertifyError::CarrierOffChart {
@@ -154,8 +153,22 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
                     ..
                 },
             } if half_edge == made.he_plus || half_edge == made.he_minus
-        ),
+        )
+    };
+    let findings = validate_pcurves(&body, band());
+    assert!(
+        matches!(findings.as_slice(), [f] if off_chart(f)),
+        "tier 3 names the strut off the rowless cone wall: {findings:?}"
+    );
+    let refused = topo::mint_pcurves_of(&mut body, &[cone], tol()).unwrap_err();
+    assert!(
+        off_chart(&refused),
         "the strut is not on the cone: {refused:?}"
+    );
+    assert_eq!(
+        findings,
+        vec![refused],
+        "tier 3 reads the mint's own refusal"
     );
     assert!(cycle.iter().all(|&he| body.pcurve(he).is_none()));
 }
@@ -195,7 +208,10 @@ fn a_chord_that_fails_certification_on_a_spline_wall_names_the_certification() {
 /// would mint them, and on a spline chart those rows derive only
 /// through the fitted lane, which `set_edge_curve` does not carry. The
 /// door describes the edge and leaves the rows as found: the two
-/// `MissingCache` findings stand, and no other row moves.
+/// `MissingCache` findings stand, beside the refusal the wall's
+/// re-derivation meets — the circle is no iso of the chart, so the
+/// minting pass could not state those rows either — and no other row
+/// moves.
 #[test]
 fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
     let mut body = lofted_prism();
@@ -212,17 +228,28 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
     body.set_edge_curve(null.edge, EdgeCurveSpec::self_loop_circle_at(p), tol())
         .unwrap();
     assert_eq!(rows(&body), before, "no row moves");
-    let mut missing: Vec<HalfEdgeKey> = validate_pcurves(&body, band())
-        .into_iter()
-        .map(|f| match f {
-            topo::PcurveMintError::MissingCache { half_edge } => half_edge,
-            other => panic!("only missing rows are reported, got {other:?}"),
-        })
-        .collect();
+    let findings = validate_pcurves(&body, band());
+    let mut missing: Vec<HalfEdgeKey> = Vec::new();
+    let mut why = Vec::new();
+    for f in &findings {
+        match *f {
+            topo::PcurveMintError::MissingCache { half_edge } => missing.push(half_edge),
+            topo::PcurveMintError::Certify {
+                half_edge,
+                error: geom_brep::PcurveCertifyError::IsoUnsupported { .. },
+            } => why.push(half_edge),
+            ref other => panic!("only the gaps and why they are gaps, got {other:?}"),
+        }
+    }
     missing.sort();
     let mut want = vec![null.he_plus, null.he_minus];
     want.sort();
     assert_eq!(missing, want);
+    assert!(
+        matches!(why.as_slice(), [he] if want.contains(he)),
+        "the wall's re-derivation refuses the described circle, no iso of the chart: \
+         {findings:?}"
+    );
 }
 
 /// **An operator on a spline wall a null edge holds open leaves it as

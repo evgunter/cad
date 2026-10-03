@@ -57,6 +57,8 @@ mod revolve_common;
 
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "at_rest_pcurve_faces.rs"]
+mod at_rest_pcurve_faces;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
