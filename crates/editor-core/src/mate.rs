@@ -12,7 +12,7 @@
 //! instance-qualified FACE name plus the OPERAND node it is read at,
 //! the kind fixed by the type because a mate is a face-pair contact
 //! — and neither half is a DAG edge (the shipped D3 carve-out, which
-//! `Declare` established, extended to the node half by A12's reading
+//! declared pairs established, extended to the node half by A12's reading
 //! rule). What A12 adds on top is the *reading* edge: the MEMBER
 //! instance each reference's OPERAND resolves through, walking down
 //! to the minting instance past any number of transforms, `Part`

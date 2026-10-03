@@ -37,7 +37,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::PlaneRelation;
 use pncad::select::{
     BooleanCoincidence, EntityKind, GeomPred, NamePat, SegPat, SegTag, Selector, SurfaceKindSet,
-    declare_node, find_flush_candidates, select_where,
+    declared_pairs, find_flush_candidates, select_where,
 };
 
 /// The nominal hole spacing, in metres (3.1 mm).
@@ -281,14 +281,13 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
                     && f.evidence.relation == PlaneRelation::SameOriented),
             "each hole cap continues the blank's: {found:#?}"
         );
-        let declare = insert(doc, declare_node(&found).expect("nonempty findings"), tol);
         insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
                 a,
                 b,
-                declare: Some(declare),
+                declare: declared_pairs(&found),
             },
             tol,
         )

@@ -749,9 +749,10 @@ pub const PXN_IMAGE_DEGREE: usize = 1;
 /// hull and tube limbs run.
 ///
 /// The hull limb's composite is hulled per span, so finer spans tighten
-/// it. The tube's chart derivative boxes (`NurbsBoxes::deriv_box`) cut
-/// each span cell to the tube window and meet that with the whole
-/// cell's box, so they localize below a span on their own. Whether the
+/// it. The tube's chart readings (`NurbsBoxes::speed_sup` and the
+/// transversality margin) cut each span cell to the tube window and
+/// meet that with the whole cell's reading, so they localize below a
+/// span on their own. Whether the
 /// tube still gains anything from this refinement is unmeasured
 /// (`work/iso/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
 /// Knot refinement is exact in ℝ (the surface's locus and

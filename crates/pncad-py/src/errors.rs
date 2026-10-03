@@ -789,10 +789,9 @@ pub enum BoundaryEdit<'a> {
     /// serialization and the document layer never refuses a name for
     /// failing to produce it.
     NameSerialize,
-    /// An insert that minted no node id, worded by the declare
-    /// sugar's own map — the same refusal reaches Python through
-    /// `Doc.declare`, and it is the same word there.
-    Declare(&'a pncad::select::DeclareError),
+    /// An accepted insert that minted no node id — a contract
+    /// violation the kernel has no arm for, so the boundary words it.
+    NoMintedId,
     /// A placement rule spelled through the wrong constructor, worded
     /// by the document layer's own fault map.
     PlacementRule(&'a pncad::document::PlacementRuleFault),

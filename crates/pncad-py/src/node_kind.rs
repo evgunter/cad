@@ -77,7 +77,6 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         Node::Pattern { .. } => "pattern",
         Node::Part { .. } => "part",
         Node::PlacedUnion { .. } => "placed_union",
-        Node::Declare { .. } => "declare",
         Node::InstantiatePart { .. } => "instantiate_part",
         Node::Mate { .. } => "mate",
         Node::Gauge { .. } => "gauge",

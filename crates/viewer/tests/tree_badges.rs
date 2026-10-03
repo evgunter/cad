@@ -1358,7 +1358,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             op: BooleanOp::Intersect,
             a: near,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -1435,7 +1435,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             op: BooleanOp::Subtract,
             a: near,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );

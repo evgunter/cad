@@ -2,9 +2,10 @@
 //! its evidence enums, crossing Rust → Python.
 //!
 //! A finding is a REPORT — `Evaluation.find_flush_candidates` answers
-//! with these values, the caller INSPECTS them, and `Node.declare` /
-//! `Doc.declare` / `Doc.declare_all` turn inspected findings into the
-//! shipped `Declare` vocabulary. The no-fusion boundary is kept
+//! with these values, the caller INSPECTS them, and `Node.boolean` /
+//! `Node.union`'s `declare=`, `Doc.declare` / `Doc.declare_all` and
+//! `DocEdit.set_declare` put inspected findings on a boolean or union
+//! as its declared pairs. The no-fusion boundary is kept
 //! across the language boundary: no door here both detects and
 //! declares. The same value also rides the boolean's
 //! refusal MENU: an `EvaluationError` with `kind ==
@@ -14,8 +15,8 @@
 //! The pair's names cross as the SAME opaque texts every other door
 //! speaks (`doc::name_text`) — the ordinal-28 contract: a name is an
 //! identifier to store and hand back, never parsed. Nothing here
-//! requires reading inside one: the finding itself is what
-//! `Node.declare` consumes, typed.
+//! requires reading inside one: the finding itself is what `declare=`
+//! consumes, typed.
 
 use pyo3::prelude::*;
 
@@ -77,15 +78,16 @@ pub(crate) enum FlushRung {
 }
 
 /// One flush finding: "this face pair would verify as declared" — a
-/// VALUE to inspect and pass to `Node.declare` / `Doc.declare` /
-/// `Doc.declare_all`, never itself a declaration. The detector's reach
+/// VALUE to inspect and pass to a boolean's or union's `declare=`,
+/// `Doc.declare` / `Doc.declare_all` or `DocEdit.set_declare`, never
+/// itself a declaration. The detector's reach
 /// is the carrier ladder's, so the pair may be cosurface on a plane, a
 /// sphere, a cylinder or a torus.
 ///
 /// `a` and `b` are the pair's names as opaque text (`a` from the
 /// query's first node, `b` from its second). Each side also carries
 /// the NODE it was read at, which is what makes a finding declarable
-/// straight back through `Doc.declare` / `Node.declare` — the site is
+/// straight back through `Doc.declare` / `declare=` — the site is
 /// the side, so nothing downstream has to recover it. That site is
 /// not exposed as an attribute: a name here is opaque text, and a
 /// node id beside it would be the one part a caller could act on

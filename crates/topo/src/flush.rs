@@ -422,9 +422,9 @@ pub fn declare(finding: &FacePairFinding) -> BooleanDeclarations {
 /// An empty slice declares nothing and is exactly
 /// [`BooleanDeclarations::none`] — at this seat that is a legal value
 /// with a meaning (the plain two-argument ops pass it), which is what
-/// separates it from the document seat's `Node::Declare`, where an
-/// empty node would record the LOOK of intent with no content and is
-/// refused.
+/// separates it from the document seat's declare sugar, where an
+/// empty declaration would record the LOOK of intent with no content
+/// and is refused.
 #[must_use]
 pub fn declare_all(findings: &[FacePairFinding]) -> BooleanDeclarations {
     BooleanDeclarations {

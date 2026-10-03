@@ -118,6 +118,7 @@ from bench_scene import (
 from pncad import (
     Alignment,
     AxisSense,
+    BooleanOp,
     CapEnd,
     ContactClass,
     Doc,
@@ -527,6 +528,7 @@ class TestBenchStand(BenchWorkspace):
         # is now EMPTY, not the clear still standing from before.
         lower = slab((0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
+        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
         self.assertEqual(doc.last_maintenance, [])
         # `apply`: deleting a mate records no frame, so it reports
         # nothing. Put post_b back at an offset and re-mate it through
@@ -555,11 +557,11 @@ class TestBenchStand(BenchWorkspace):
         # belonged to the edit before it.
         findings = evaluate(doc).find_flush_candidates(lower, upper)
         self.assertEqual(len(findings), 1)
-        doc.declare(findings[0])
+        doc.declare(glued, findings[0])
         self.assertEqual(doc.last_maintenance, [])
         doc.regauge_then_mate(remate, resolver=self.ws)
         self.assertEqual(doc.last_maintenance, [], "one group already: nothing joins")
-        doc.declare_all(findings)
+        doc.declare_all(glued, findings)
         self.assertEqual(doc.last_maintenance, [])
 
     def test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed(

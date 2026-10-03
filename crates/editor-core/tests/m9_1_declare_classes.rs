@@ -1,6 +1,6 @@
 //! **The declaration class, recipe-side** (M9-1 spec PR-2;
 //! CONTACT-DESIGN C4): the class a finding reports is the class the
-//! `Declare` node records is the class the boolean verifies against —
+//! boolean's declared pair records is the class the op verifies against —
 //! one vocabulary end-to-end, as DATA and not only as a type.
 //!
 //! The kernel half (the ladders, the verdicts, the ε rows) is pinned
@@ -59,23 +59,18 @@ fn cap(node: RecipeNodeId, end: CapEnd) -> SitedRef {
 
 /// **The class-preservation row.**
 ///
-/// `declare_node` used to build its pairs from `f.pair.clone()` alone,
-/// so a finding's class reached the door and stopped there. Invisible
-/// while `Rest` was the only class; a silent mis-verification the
-/// moment a second one exists, because the consuming boolean would
-/// re-default what the detector had already decided.
+/// `declared_pairs` carries each finding's class into its pair: a door
+/// that rebuilt the pairs from `f.pair` alone would have the consuming
+/// boolean re-default what the detector had already decided.
 ///
-/// **Why the finding is synthetic.** An earlier version of this row
-/// only fed it real detector output, and the review found that it
-/// passed under a `declare_node` that re-defaults every class to
-/// `Rest` — the detector emits `Rest` today, so `Rest == Rest` proved
-/// nothing about PRESERVATION and only the type system stopped the
-/// literal old code. `FlushFinding`'s fields are public, so the row
-/// now hands the door a `Tangent` finding directly: the assertion
-/// carries the claim, and a re-defaulting implementation goes red on
-/// the class it did not preserve.
+/// **Why the finding is synthetic.** The detector emits `Rest` today,
+/// so real detector output alone cannot tell preserving the class from
+/// re-defaulting it to `Rest`. `FlushFinding`'s fields are public, so
+/// the row hands the door a `Tangent` finding directly, and a
+/// re-defaulting implementation goes red on the class it did not
+/// preserve.
 #[test]
-fn declare_node_preserves_the_findings_class() {
+fn declared_pairs_preserves_the_findings_class() {
     let (doc, a, b) = stacked();
     let ev = evaluate::<f64>(
         &doc,
@@ -94,11 +89,7 @@ fn declare_node_preserves_the_findings_class() {
     tangent.class = BooleanCoincidence::TANGENT;
     let findings = vec![detected[0].clone(), tangent];
 
-    let node: Node<editor_core::ProfileProgram> =
-        editor_core::declare_node(&findings).expect("findings declare");
-    let Node::Declare { pairs } = node else {
-        panic!("declare_node builds a Declare");
-    };
+    let pairs = editor_core::declared_pairs(&findings);
     assert_eq!(pairs.len(), findings.len());
     for (pair, finding) in pairs.iter().zip(&findings) {
         assert_eq!(pair.0, finding.pair, "the pair survives");
@@ -114,20 +105,23 @@ fn declare_node_preserves_the_findings_class() {
     assert_ne!(
         pairs[0].1, pairs[1].1,
         "so the classes are the only thing distinguishing them — a re-defaulting \
-         declare_node collapses these two rows into one meaning"
+         declared_pairs collapses these two rows into one meaning"
     );
     assert_eq!(pairs[1].1, BooleanCoincidence::TANGENT);
 }
 
-/// A hand-authored class is what the node holds: `Declare` is data,
-/// and the class is part of the datum. The mixed node also proves one
-/// node may carry pairs of different classes — the class rides the
-/// pair, not the node.
+/// A hand-authored class is what the boolean holds: a declared pair is
+/// data, and the class is part of the datum. The mixed list also
+/// proves one boolean may declare pairs of different classes — the
+/// class rides the pair, not the node.
 #[test]
 fn an_authored_class_is_what_the_node_holds() {
     let (doc, a, b) = stacked();
-    let node: Node<editor_core::ProfileProgram> = Node::Declare {
-        pairs: vec![
+    let node: Node<editor_core::ProfileProgram> = Node::Boolean {
+        op: BooleanOp::Union,
+        a,
+        b,
+        declare: vec![
             (
                 (cap(a, CapEnd::End), cap(b, CapEnd::Start)),
                 BooleanCoincidence::REST,
@@ -146,10 +140,10 @@ fn an_authored_class_is_what_the_node_holds() {
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect("the Declare inserts");
+        .expect("the declaring union inserts");
     let id = applied.record.minted.unwrap();
-    let Some(Node::Declare { pairs }) = applied.doc.node(id) else {
-        panic!("the node is a Declare");
+    let Some(Node::Boolean { declare: pairs, .. }) = applied.doc.node(id) else {
+        panic!("the node is a Boolean");
     };
     assert_eq!(pairs[0].1, BooleanCoincidence::REST);
     assert_eq!(pairs[1].1, BooleanCoincidence::TANGENT);
@@ -168,11 +162,6 @@ fn an_authored_class_is_what_the_node_holds() {
 #[test]
 fn a_wrong_class_declaration_refuses_at_the_op() {
     let (doc, a, b) = stacked();
-    let declare = |class| -> Node<editor_core::ProfileProgram> {
-        Node::Declare {
-            pairs: vec![((cap(a, CapEnd::End), cap(b, CapEnd::Start)), class)],
-        }
-    };
     // Returns (ran_ok, debug rendering of the failure if any) — the
     // evaluation's NodeResult is not Clone, so the row reads what it
     // needs while the borrow lives.
@@ -180,22 +169,11 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
         let applied = doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: Box::new(declare(class)),
-                },
-                Tol::witness(),
-                &editor_core::RefusingReach,
-            )
-            .expect("the Declare inserts");
-        let d = applied.record.minted.unwrap();
-        let applied = applied
-            .doc
-            .apply(
-                &DocEdit::InsertNode {
                     node: Box::new(Node::Boolean {
                         op: BooleanOp::Union,
                         a,
                         b,
-                        declare: Some(d),
+                        declare: vec![((cap(a, CapEnd::End), cap(b, CapEnd::Start)), class)],
                     }),
                 },
                 Tol::witness(),
