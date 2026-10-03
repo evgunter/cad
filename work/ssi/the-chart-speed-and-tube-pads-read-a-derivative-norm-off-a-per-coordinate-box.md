@@ -77,8 +77,18 @@ The chart speeds, the pads and the transverse stretch read
 the cell's control points `P_j` (`CellNet::derivative_norm_sup`,
 `CellNet::transverse_readings`), with each cell cut to the window and
 met with its whole net. Each term is affine in `S`, so its norm peaks
-at a control point. The old box holds every `t(P_j)`, so the reading
-is never above the box's norm. On the 1.8 / 0.7 wall the `u` speed reads
+at a control point. The old box holds every `t(P_j)`, so per net the
+reading is never above the box's norm in real arithmetic. Over a cut
+window the box meets the cut and whole nets per axis, and the norm of
+that meet can sit below both nets' norms, so there the claim holds
+only up to rounding in practice (the review measured 159 of 15,000
+narrow windows above the box by at most 2.8e-10 relative) and not in
+principle. Taking the minimum with the box's norm would make the
+reading frame-dependent again wherever the box wins, so it is not
+taken. The reading is screened in `f64` and read in certification
+arithmetic only where the screen cannot rule a pair out
+(`pair_norm_sup`), and `φ` is read at the two ends of its scalar
+range. On the 1.8 / 0.7 wall the `u` speed reads
 5.853 in every frame (the box read 5.858 seated and 6.19 to 8.14 over
 32 rotations; true 2.036). Across the SSI suite's mints, 58 of 60
 speeds and 2799 of 2808 stretches read the same to six digits and the

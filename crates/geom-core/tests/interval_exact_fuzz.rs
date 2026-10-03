@@ -732,7 +732,8 @@ fn norm_sup_is_sound_against_exact_arithmetic() {
 /// sides are bit for bit `NurbsBoxes::deriv_box` of `S_u` over the
 /// whole domain of `m5_pr7_ssi.rs`'s `certifiable_wall`. The fold
 /// `√(Σ mag²)` rounded to nearest at every step reads
-/// `1.130884609498246` there, which is BELOW the exact norm. The outward reading is not.
+/// `1.130884609498246` there, which is BELOW the exact norm. The
+/// outward reading is not.
 #[test]
 fn norm_sup_is_above_the_exact_norm_on_a_cell_a_rounded_fold_is_below() {
     use geom_core::interval::norm_sup;
