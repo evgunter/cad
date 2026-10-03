@@ -1,5 +1,5 @@
 //! The wire form of a contact class — the mate node's `class` field
-//! and, through [`pairs`], a [`Node::Declare`](crate::Node) payload's
+//! and, through [`pairs`], a declared-pair list's
 //! coincidences (a contact class, `continuation` or `seam`). ONE vocabulary,
 //! one wire spelling of it, one table (ASM-R2a D-1).
 //!

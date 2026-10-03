@@ -93,7 +93,7 @@ use crate::euler_ring::MekrSite;
 use crate::face_normal;
 use crate::geometry::SurfaceKey;
 use crate::null::CurveGeom;
-use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_carrier_loop};
+use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -309,11 +309,11 @@ pub enum SplitJoinError {
     /// A run reaches it two ways: a below-side PINCH (pieces meeting
     /// at a tip line on the NEGATIVE side of the run's plane normal,
     /// where the ch. 14 insertion mints no vertex copies), and a
-    /// one-sided GRAZE of a curved face (the plane tangent to a
-    /// cylinder's wall, whose contact closes a polygon of its own). A
-    /// plane tangent along a convex edge does not reach it: rule (b)
-    /// classifies that edge with its material, and the contact mints
-    /// nothing. Since M3 PR 6a (D7) the public
+    /// concave GRAZE of a curved face (the plane tangent to a hole's
+    /// wall from inside, whose contact closes a polygon of its own). A
+    /// plane tangent along a convex edge or to a convex wall does not
+    /// reach it: rule (b) classifies that entry with its material, and
+    /// the contact mints nothing. Since M3 PR 6a (D7) the public
     /// [`crate::splitting::split`] consumes this refusal as the pinch
     /// trigger and reruns under the mirrored plane — where pinched
     /// fans are ABOVE runs and mint their copies — so a pinch's
@@ -331,7 +331,7 @@ pub enum SplitJoinError {
     },
     /// A completed section polygon of positive area carries a SPUR: its
     /// loop runs out along a straight edge the plane only touches and
-    /// straight back. The spur is a one-sided graze's contact joined
+    /// straight back. The spur is a concave graze's contact joined
     /// into a real section's polygon instead of closing one of its own;
     /// it would leave a zero-width slit in both halves, with two copies
     /// of every vertex along it on one side. Refused, as the graze
@@ -575,7 +575,7 @@ impl SplitJoinError {
             Self::DegenerateSection { .. } => write!(
                 f,
                 "a section is degenerate: it bounds zero area, where the plane only \
-                 grazes a face (a one-sided tangency) or pinches the solid. Recourse: \
+                 grazes a hole's wall from inside or pinches the solid. Recourse: \
                  {recourse}"
             ),
             Self::SectionSpur { .. } => write!(
@@ -603,6 +603,10 @@ impl SplitJoinError {
                 crate::splitting::PointInLoopError::Uncrossable(u) => write!(
                     f,
                     "which piece holds a hole loop cannot be read: {u}. Recourse: {recourse}"
+                ),
+                crate::splitting::PointInLoopError::OffPlane(o) => write!(
+                    f,
+                    "which piece holds a hole loop cannot be read: {o}. Recourse: {recourse}"
                 ),
             },
             Self::RingHomingAmbiguous { .. } => write!(
@@ -3242,7 +3246,7 @@ impl ChordJoiner {
 
     /// `laringmv(oldf, newf)`: move every bystander ring of `oldf`
     /// enclosed by the mef run (`newf`'s outer) into `newf` — decided
-    /// on the run's own edge carriers ([`point_in_carrier_loop`]),
+    /// on the run's own edge carriers ([`point_in_loop`]),
     /// since a run bearing an arc does not bound the polygon through
     /// its vertices.
     ///
@@ -3348,16 +3352,16 @@ impl ChordJoiner {
 /// The face's **chart** plane normal (F5-gated: always a `Plane`),
 /// deliberately without the face's sense folded in.
 ///
-/// Its one consumer is [`point_in_carrier_loop`], which reads the
-/// normal only to recover the loop's PLANE and the in-plane side axis
-/// `n̂ × d` of each ray; only the straight edges' crossing rows read
-/// that axis, and their verdict is exactly invariant under `n̂ ↦ −n̂`.
-/// **That derivation lives at
-/// [`point_in_loop`](crate::splitting::containment::point_in_loop)**,
-/// under the function whose property it is rather than under the
-/// five-line producer that relies on it; the consequence here is that
-/// ring re-homing cannot move a ring on the sense bit, and
-/// `tests/review_m3_pr3_pil.rs` pins it for the straight rows.
+/// Its one consumer is [`point_in_loop`], which reads the normal only
+/// to recover the loop's PLANE, and whose verdict is exactly invariant
+/// under `n̂ ↦ −n̂` over lines and conics alike. **That derivation lives
+/// at [`point_in_loop`]**, under the function whose property it is
+/// rather than under the five-line producer that relies on it; the
+/// consequence here is that ring re-homing cannot move a ring on the
+/// sense bit. `tests/review_m3_pr3_pil.rs` pins it for the straight
+/// rows and `validate.rs`'s
+/// `point_in_loop_is_blind_to_the_normals_sign_on_an_arc_bearing_loop`
+/// for the conic rows.
 ///
 /// The contrast with [`crate::boolean::solid_contain`]'s `face_plane`,
 /// which multiplies although its own consumer is equally sign-blind,
@@ -3410,7 +3414,7 @@ fn ring_side<T: Decide>(
     };
     for v in vertices {
         let p = vertex_point(body, v)?;
-        match point_in_carrier_loop(body, run, normal, p, band)? {
+        match point_in_loop(body, run, normal, p, band)? {
             LoopContainment::OnBoundary => {}
             side => return Ok(side),
         }

@@ -2,13 +2,12 @@
 id: a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added
 kind: issue
 title: A boolean that becomes flush after it is committed has no recourse but cascade delete and re-add
-status: parked
+status: open
 opened: 2026-09-30
 priority: P2
 cost: M
 design: true
 refs: [no-docedit-splices-a-deleted-node]
-blocked_on: [declared-pairs-are-a-booleans-own-payload]
 ---
 
 
@@ -104,3 +103,5 @@ re-added union builds at the closed-form volume of 7 fins, recomputing
 under a new id. That scene's subject is one edit recomputing only what
 is downstream of it, so it keeps its fins sunk 1/16 into the plate
 instead and waits on `declared-pairs-are-a-booleans-own-payload`.
+
+PR 3902 deleted `Node::Declare` and renamed `declare_node` to `declared_pairs`: the pairs are a boolean's or union's `declare` payload, set on a live node by `DocEdit::SetDeclare`.

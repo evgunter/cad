@@ -332,7 +332,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
                 op: BooleanOp::Union,
                 a: e0,
                 b: e1,
-                declare: None,
+                declare: Vec::new(),
             }),
         },
     )

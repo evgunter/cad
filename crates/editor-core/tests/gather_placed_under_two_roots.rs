@@ -304,7 +304,7 @@ fn legal_placements_still_gather() {
         doc,
         Node::Union {
             members: vec![t1, t2],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(doc.roots(), &[union][..], "the union consumes both moves");
@@ -530,7 +530,7 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
             op: editor_core::BooleanOp::Subtract,
             a,
             b: c,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }

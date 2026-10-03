@@ -87,7 +87,7 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
         op: BooleanOp::Union,
         a: plate,
         b: boss,
-        declare: None,
+        declare: Vec::new(),
     });
     (r.doc, r.edits, union)
 }

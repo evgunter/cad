@@ -638,7 +638,6 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Pattern { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
-        | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Mate { .. }
         | Node::Gauge { .. }
@@ -836,7 +835,6 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Pattern { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
-        | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Gauge { .. }
         | Node::Measure { .. }
@@ -882,7 +880,6 @@ fn readout_of(
         | ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Instances(_)
-        | ValuePayload::Declarations(_)
         | ValuePayload::Gauge => None,
     }
 }
@@ -1176,8 +1173,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // The lane cannot carry what the named nodes hold; neither
         // node is wrong, and the f64 lane builds them.
         NodeErrorKind::SeedPinnedSection { .. } | NodeErrorKind::DerivedFrameSection { .. } => None,
-        // Names the site the declaration chose, and the choice is the
-        // `Declare`'s, which the error does not name.
+        // Names the site the declaration chose, and the declaration is
+        // the erring node's own payload: no other row to go to.
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
