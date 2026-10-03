@@ -311,11 +311,8 @@ enum SideClass {
     Clear { strip: UvRect },
     /// A strip holds the locus's cover, but no rung holds it within ε
     /// of the side: no region, and an arc there ends on the domain's
-    /// sides, where the other sides' roots meet it.
+    /// sides.
     Apart,
-    /// No rung holds the locus's cover inside its strip: the smallest
-    /// certified reach.
-    Unbounded { reach: f64 },
 }
 
 /// What a corner within the band of the plane is.
@@ -451,17 +448,16 @@ impl Pass<'_> {
     /// sides) and whose distance from the side is at most ε; its reach
     /// is that distance plus ε.
     ///
-    /// `Ok(None)` where no rung's slope across the side is one-signed:
-    /// the strip certificate has nothing to stand on, and the side's own
-    /// roots decide it.
+    /// Where a rung's cover lies inside its strip but none within ε of
+    /// the side, the side is [`SideClass::Apart`]. `Ok(None)` where no
+    /// rung's slope across the side is one-signed, or no rung's cover
+    /// lies inside its strip: the strip certificate has nothing to stand
+    /// on, and the side's own roots decide it.
     ///
     /// # Errors
     ///
     /// [`SsiError::BoundaryTangent`] where the slope across the side
-    /// does not clear the band. Where a rung's cover lies inside its
-    /// strip but none within ε of the side, the side is
-    /// [`SideClass::Apart`]; where none lies inside its strip, it is
-    /// [`SideClass::Unbounded`], and its own roots decide it.
+    /// does not clear the band.
     fn side_region(
         &self,
         side: ChartSide,
@@ -480,7 +476,6 @@ impl Pass<'_> {
         let rungs = self.rungs();
         let mut classified = false;
         let mut covered = false;
-        let mut best_reach = f64::INFINITY;
         for pad in rungs {
             let strip = self.strip(side, pad);
             let (pu, pv) = self.partials(strip);
@@ -518,19 +513,16 @@ impl Pass<'_> {
                 ChartAxis::U => pad.0,
                 ChartAxis::V => pad.1,
             };
-            let reach = distance + self.band.zero();
-            best_reach = best_reach.min(reach);
             let inside = depth < pad_across || !cut_inside(across_domain, pad_across);
             if inside && distance <= self.band.zero() {
-                return Ok(Some(SideClass::Region { strip, reach }));
+                return Ok(Some(SideClass::Region {
+                    strip,
+                    reach: distance + self.band.zero(),
+                }));
             }
             covered |= inside;
         }
-        Ok(match (classified, covered) {
-            (false, _) => None,
-            (true, true) => Some(SideClass::Apart),
-            (true, false) => Some(SideClass::Unbounded { reach: best_reach }),
-        })
+        Ok((classified && covered).then_some(SideClass::Apart))
     }
 
     /// How deep in from `side` a zero of `strip` lies, in parameter, and
@@ -757,11 +749,23 @@ impl Pass<'_> {
         let mut regions: Vec<UvRect> = Vec::new();
         let mut clear: Vec<UvRect> = Vec::new();
         let mut sections = Vec::new();
-        // The first side within the band that no region holds, and its
-        // smallest certified reach.
-        let mut unbounded: Option<(ChartSide, f64)> = None;
+        // The roots of the sides within the band whose strips hold the
+        // locus apart from them.
+        let mut apart: Vec<SideSection> = Vec::new();
         for side in SIDES {
             let curve = self.curve(side)?;
+            let own_roots = || {
+                boundary_roots(
+                    &curve,
+                    self.plane.origin,
+                    self.plane.normal,
+                    self.along_speed(side),
+                    self.floor,
+                    self.extent,
+                    self.band,
+                )
+                .map_err(|e| e.on_side(side))
+            };
             let section = boundary_section(
                 &curve,
                 self.plane.origin,
@@ -785,10 +789,23 @@ impl Pass<'_> {
                             section
                         }
                         // The locus lies inside a strip beside the side, so
-                        // an arc there ends on the domain's sides; the side
-                        // itself, within the band along its length, has no
-                        // root to decide, and the corners on it are its.
-                        Some(SideClass::Apart) => section,
+                        // an arc there ends on the domain's sides: at this
+                        // one's interior roots, each decided along it, or
+                        // on another side. The corners on it are its, and a
+                        // root at one is the other side's through it.
+                        Some(SideClass::Apart) => {
+                            if let BoundarySection::Roots { interior, .. } = own_roots()? {
+                                apart.push(SideSection {
+                                    side,
+                                    section: BoundarySection::Roots {
+                                        interior,
+                                        at_start: None,
+                                        at_end: None,
+                                    },
+                                });
+                            }
+                            section
+                        }
                         // The side lies within the band of the plane, and
                         // no strip beside it holds the locus: no rung has
                         // the wall's slope across it one-signed (a side
@@ -797,22 +814,7 @@ impl Pass<'_> {
                         // the strip. The side's own roots decide it; a
                         // plane tangent to the wall along it refuses as
                         // their graze.
-                        class => {
-                            if let (None, Some(SideClass::Unbounded { reach })) = (unbounded, &class)
-                            {
-                                unbounded = Some((side, *reach));
-                            }
-                            boundary_roots(
-                                &curve,
-                                self.plane.origin,
-                                self.plane.normal,
-                                self.along_speed(side),
-                                self.floor,
-                                self.extent,
-                                self.band,
-                            )
-                            .map_err(|e| e.on_side(side))?
-                        }
+                        None => own_roots()?,
                     }
                 }
                 roots => roots,
@@ -838,7 +840,8 @@ impl Pass<'_> {
                 },
             ];
             if through.iter().any(|s| on(*s)) {
-                // A side region covers the corner.
+                // A side whose strip the pass decided holds the corner:
+                // its region, its clear strip, or its cover.
                 continue;
             }
             let phi = self.corner_distance(corner);
@@ -865,7 +868,7 @@ impl Pass<'_> {
         // a corner within the band only where a branch starts there, and
         // once per corner.
         let mut crossings: Vec<Crossing> = Vec::new();
-        for SideSection { side, section } in &sections {
+        for SideSection { side, section } in sections.iter().chain(&apart) {
             let BoundarySection::Roots {
                 interior,
                 at_start,
@@ -924,11 +927,6 @@ impl Pass<'_> {
                 }
                 crossings.push(c);
             }
-        }
-        // A side within the band that no region holds, and no crossing
-        // anywhere to trace from: nothing to trace and nothing to bank.
-        if let (Some((side, reach)), true) = (unbounded, crossings.is_empty()) {
-            return Err(SsiError::RegionUnbounded { side, reach });
         }
         Ok(BoundaryPass {
             contacts,

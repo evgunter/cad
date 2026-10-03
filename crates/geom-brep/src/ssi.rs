@@ -546,19 +546,6 @@ pub enum SsiError {
         /// traced through an interior seed.
         from: Option<BoundaryPoint>,
     },
-    /// A side of the wall lies within the band of the plane, no rung of
-    /// the ladder holds the intersection within ε of it (the smallest
-    /// certified bound on how far it may run from `side` is `reach`), and
-    /// the boundary pass found no crossing of the wall's boundary to
-    /// trace a branch from. The intersection may run nearly along the
-    /// wall's edge, which the kernel neither reports as a region nor
-    /// traces; refused toward the C7 regime.
-    RegionUnbounded {
-        /// The side the intersection may run along.
-        side: ChartSide,
-        /// The smallest certified reach any rung gave, in metres.
-        reach: f64,
-    },
     /// A branch the march could not progress along, its step in the
     /// band, took the Hermite candidate through its two ends, and the
     /// certificate refused it.
@@ -907,13 +894,6 @@ impl core::fmt::Display for SsiError {
                     " found no crossing of the wall's boundary to end at: the march lost the branch"
                 )
             }
-            Self::RegionUnbounded { side, reach } => write!(
-                f,
-                "ssi: the plane lies within the tolerance of the wall near {side}, the \
-                 intersection there is bounded only to within {reach:e} m of it, and no \
-                 crossing of the wall's boundary gives a branch to trace: it may run nearly \
-                 along that edge"
-            ),
             Self::ShortBranchUncertified { length, limb, .. } => {
                 let refused = match **limb {
                     Self::CertificateLimb { limb, .. }
@@ -1120,14 +1100,6 @@ impl SsiError {
             Self::CrossingUnmatched { .. } => {
                 Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
             }
-            // The intersection may run along the wall's edge: the
-            // transversality decision's lever, as the march's own near
-            // tangency.
-            Self::RegionUnbounded { .. } => crate::certify::recourse(
-                CertCheck::Transversality,
-                RefusedArm::SignCertain,
-                reading,
-            ),
             Self::ShortBranchUncertified { verdict, .. } => {
                 SHORT_BRANCH.recourse(verdict.arm(), reading)
             }
@@ -3081,7 +3053,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 38;
+    const ARMS: usize = 37;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3125,7 +3097,6 @@ mod ending_tests {
             SsiError::CrossingUnmatched { .. } => 34,
             SsiError::ShortBranchUncertified { .. } => 35,
             SsiError::WindowShortOfWall { .. } => 36,
-            SsiError::RegionUnbounded { .. } => 37,
         }
     }
 
@@ -3421,13 +3392,6 @@ mod ending_tests {
                     length: 3e-9,
                     limb: Box::new(SsiError::TubeProbeSilent { rungs: 3 }),
                     verdict: BandVerdict::Refused(zero),
-                },
-            ),
-            (
-                "region unbounded",
-                SsiError::RegionUnbounded {
-                    side: bottom,
-                    reach: 5e-3,
                 },
             ),
             (
