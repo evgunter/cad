@@ -184,7 +184,7 @@ pub const CERTIFIABLE_FRACTION: f64 = 1.318e-7;
 /// [`CERTIFIED_TIP_OVER_PIN_RADIUS`] pins it over the pin radius. Since
 /// the extrude closes with the pcurve mint it is set by the placed
 /// rows' angular comparisons, whose enclosure grows with the same tip
-/// box: `5.856e-7` of the pin radius. The one-link row sits a little
+/// box: `5.830e-7` of the pin radius. The one-link row sits a little
 /// under it (its lever sum is the joint's own).
 ///
 /// (Before the mint the wall was `dihedral_wedge` and the number was
@@ -212,7 +212,7 @@ pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.223e-6, 4.244e-7, 2.1
 /// half the pin radius, before the extrude closed with the pcurve mint.
 ///
 /// Read only by that cell.
-pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 5.856e-7;
+pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 5.830e-7;
 
 /// **The certified enclosure of each joint pin's centre at that box**
 /// — `(half-width along the chain, half-width across it)`, in metres,
