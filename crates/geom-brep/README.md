@@ -128,8 +128,17 @@ stepper guards the step where it mints it: no step is longer than the
 march domain's diagonal, and a march speed that is not positive and
 finite, a step that is not finite or does not move the state
 (`SsiError::StepUnusable`), or one that collapses into the band
-(`StepCollapsed`) refuses naming the speed. The longest step is
-`SSI_STEP_MAX` of the caller's feature extent. Before any march, the
+(`StepCollapsed`) refuses naming the speed. The step is the
+curvature's against ε, and no extent caps it. The certificate decides
+how many samples a carrier gets: where limb 1 or 2 refuses the fitted
+carrier, it names the spans it refused, every gap between samples that
+a refused span meets is halved, the new sample settled onto the locus,
+and the carrier is refitted and certified again
+(`march::refine_by_certificate`). A gap is halved only while half of
+it clears the band, and no round hands the fit more than its budget;
+where refinement can go no further, the certificate's refusal stands.
+A straight branch so takes the fewest samples its fit needs, and a
+curved one more only where its certificate refused. Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time
 (`geom_brep::boundary_section`: plane × one boundary curve of the
@@ -192,8 +201,9 @@ way the
 certificate decides; a Hermite candidate it refuses on a branch too
 short for a fifth of it to clear the band is a sized refusal in the
 branch's length (`SsiError::ShortBranchUncertified`), and on a longer
-one the march's refusal stands. The extent keeps its other roles:
-the lever arm's clamp, the seeding floor and the tube ladder.
+one the march's refusal stands. The extent sizes no realized step; it
+is the lever arm's clamp, the seeding floor and the tube ladder's
+widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure, the boundary pass's mean-value enclosure of a strip

@@ -31,8 +31,8 @@ use geom_core::{Band, Margin, Point2, Point3, Real};
 
 use super::boundary::Crossing;
 use super::march::{
-    BranchEnd, MarchContext, RectEnd, RectExit, SHORT_BRANCH_STEPS, SSI_STEP_MAX, StepperMode,
-    TransversalityData, march,
+    BranchEnd, MarchContext, RectEnd, RectExit, SHORT_BRANCH_STEPS, StepperMode,
+    TransversalityData, march, refine_by_certificate,
 };
 use super::section::BandVerdict;
 use super::system::{LocalSystem, ParametricPairR4};
@@ -223,7 +223,7 @@ impl<'a> Ends<'a> {
         crossings: &[Crossing],
         used: &[bool],
     ) -> Result<(usize, Vec<[f64; 4]>, f64), SsiError> {
-        let cap = Real::min(SSI_STEP_MAX * self.extent, near / SHORT_BRANCH_STEPS as f64);
+        let cap = near / SHORT_BRANCH_STEPS as f64;
         let d = Svd::<3, 4>::new(self.sys.jacobian(&a.state)).null_direction();
         let direction = if inwardness(&a.state, &d, &self.ctx) >= 0.0 {
             1.0
@@ -318,7 +318,6 @@ impl<'a> Ends<'a> {
         &self,
         seed: [f64; 4],
         crossings: &[Crossing],
-        cap: f64,
     ) -> Result<(Vec<[f64; 4]>, BranchEnd, f64), SsiError> {
         let run = |direction| {
             march(
@@ -329,7 +328,7 @@ impl<'a> Ends<'a> {
                 StepperMode::Realized,
                 direction,
                 self.band,
-                cap,
+                f64::INFINITY,
             )
         };
         let fwd = run(1.0)?;
@@ -367,7 +366,8 @@ impl<'a> Ends<'a> {
         Ok((states, end, min_t))
     }
 
-    /// Fit, certify and wrap a marched branch.
+    /// Fit, certify and wrap a marched branch, refined where the
+    /// certificate refuses it ([`refine_by_certificate`]).
     pub(crate) fn finish(
         &self,
         states: &[[f64; 4]],
@@ -375,8 +375,20 @@ impl<'a> Ends<'a> {
         min_transversality: f64,
     ) -> Result<SsiBranch, SsiError> {
         let march_tol = seam_tol(self.ctx.tol, self.band)?;
-        let (carrier, pa, pb) = fit_states(self.sys, states)?;
-        self.certified(carrier, pa, pb, end, min_transversality, march_tol)
+        let (carrier, pa, pb, cert) =
+            refine_by_certificate(self.sys, states.to_vec(), &self.ctx, self.band, |states| {
+                let (carrier, pa, pb) = fit_states(self.sys, states)?;
+                let cert = certify::certify_located(
+                    &carrier,
+                    pb.as_ref(),
+                    &SsiOperand::Analytic(self.plane),
+                    self.wall,
+                    TubeScale::uniform(self.extent),
+                    self.band,
+                )?;
+                Ok((carrier, pa, pb, cert))
+            })?;
+        Ok(self.branch(carrier, pa, pb, cert, end, min_transversality, march_tol))
     }
 
     /// The certificate on a fitted triple, and the branch.
@@ -397,11 +409,27 @@ impl<'a> Ends<'a> {
             self.wall,
             TubeScale::uniform(self.extent),
             self.band,
+            &mut Vec::new(),
         )?;
+        Ok(self.branch(carrier, pa, pb, cert, end, min_transversality, march_tol))
+    }
+
+    /// The branch a certified triple is.
+    #[allow(clippy::too_many_arguments)]
+    fn branch(
+        &self,
+        carrier: NurbsCurve3<f64>,
+        pa: Option<NurbsCurve2<f64>>,
+        pb: Option<NurbsCurve2<f64>>,
+        cert: certify::SsiCertificate<f64>,
+        end: BranchEnd,
+        min_transversality: f64,
+        march_tol: f64,
+    ) -> SsiBranch {
         let params = carrier.domain();
         let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
         let witness = carrier.mid_point(params.0, params.1);
-        Ok(SsiBranch {
+        SsiBranch {
             carrier,
             params,
             end,
@@ -411,7 +439,7 @@ impl<'a> Ends<'a> {
             pcurve_b: pb,
             min_transversality,
             march_tol,
-        })
+        }
     }
 
     /// The transversality `sin θ · arm` at a state, as the march reads

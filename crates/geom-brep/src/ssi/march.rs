@@ -136,6 +136,7 @@ use geom_core::{Band, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 use crate::dihedral::{decide, decide_positive, decide_reported};
 use crate::recourse::Refused;
 
+use super::certify::Located;
 use super::enclose::Box3;
 use super::exhaust::{self, ExhaustLane, UvRect};
 use super::system::LocalSystem;
@@ -416,13 +417,6 @@ pub const SSI_STEP_DEVIATION: f64 = 0.02;
 /// what remains.
 pub const SSI_IDEALIZED_STEP: f64 = 1.0e-3;
 
-/// The realized stepper's largest step, as a fraction of the caller's
-/// named extent — a cap so a nearly-straight branch still gets sampled
-/// densely enough for the fit to have data. A branch too short for the
-/// cubic fit at that cap is marched once more with its own length cut
-/// into an odd number of steps (`march_both`).
-pub const SSI_STEP_MAX: f64 = 1.0 / 32.0;
-
 /// Which stepper — the realized third-order approximant or the
 /// idealized tangent-line spec (module docs, PERF-PLAN §4.4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -469,8 +463,9 @@ pub enum StepBound {
     /// the torsion is extreme, and there the tolerance is an
     /// approximate lever. No extent lengthens any of them.
     Curvature,
-    /// The cap: a fraction of the feature extent, or the domain's
-    /// diagonal.
+    /// The cap: the step a branch's known ends set (a fifth of the
+    /// distance to the nearest crossing not yet used, on the plane ×
+    /// NURBS lane), or the domain's diagonal.
     Cap,
     /// Each held at least [`STEP_BOUND_MINORITY`] of the steps.
     Both,
@@ -534,6 +529,8 @@ pub struct Trace<const N: usize, E> {
     pub min_sigma: f64,
     /// Steps consumed.
     pub steps: usize,
+    /// The longest step the march minted, in metres.
+    pub longest_step: f64,
 }
 
 /// How a march ends an open branch: one implementation per lane, so a
@@ -846,6 +843,7 @@ where
     let mut left_start = false;
     let mut steps = 0usize;
     let mut curvature_bound = 0usize;
+    let mut longest_step = 0.0f64;
 
     while steps < ctx.max_steps {
         // ---- 1. the local decomposition ----
@@ -1002,6 +1000,7 @@ where
             }
         };
 
+        longest_step = Real::max(longest_step, h_meters);
         // The stepper must be able to move at this tolerance.
         match decide("ssi_step_progress", Margin::of(h_meters), band) {
             Ok(Sign::Positive) => {}
@@ -1044,6 +1043,7 @@ where
                     min_transversality,
                     min_sigma,
                     steps: steps + 1,
+                    longest_step,
                 });
             }
             return Err(SsiError::StepRefinementFailed {
@@ -1065,6 +1065,7 @@ where
                 min_transversality,
                 min_sigma,
                 steps,
+                longest_step,
             });
         }
 
@@ -1105,6 +1106,7 @@ where
                                 min_transversality,
                                 min_sigma,
                                 steps,
+                                longest_step,
                             });
                         }
                         Ok(Sign::Zero | Sign::Negative) => {
@@ -1363,13 +1365,13 @@ where
 /// seed as the join. A closed forward march needs no second pass: it
 /// already covered the component.
 ///
-/// The first march caps its steps at [`SSI_STEP_MAX`] of the caller's
-/// extent. A trace with fewer samples than the cubic fit needs, and a
-/// positive length, is marched once more with its steps capped at that
-/// length over [`SHORT_BRANCH_STEPS`]. The rule is fixed and taken at
-/// most once (D9). Written for the ℝ³ state alone: the plane × NURBS
-/// lane knows its branches' ends before it marches and never reaches
-/// this.
+/// The first march's steps are the curvature's against ε, no longer
+/// than the domain's diagonal. A trace with fewer samples than the
+/// cubic fit needs, and a positive length, is marched once more with
+/// its steps capped at that length over [`SHORT_BRANCH_STEPS`]. The rule
+/// is fixed and taken at most once (D9). Written for the ℝ³ state alone:
+/// the plane × NURBS lane knows its branches' ends before it marches and
+/// never reaches this.
 ///
 /// # Errors
 ///
@@ -1389,32 +1391,37 @@ pub(crate) fn march_both<S>(
 where
     S: LocalSystem<2, 3> + TransversalityData<3>,
 {
-    let cap = SSI_STEP_MAX * ctx.extent;
-    let first = march_both_at(sys, seed, ctx, mode, band, cap)?;
+    let first = march_both_at(sys, seed, ctx, mode, band, f64::INFINITY)?;
     if first.states.len() > SSI_FIT_DEGREE {
         return Ok(first);
     }
     let length = arc_length(sys, &first.states);
     if length.is_nan() {
         // A non-finite sample: the fit refuses it by name. Finite
-        // samples whose chords overflow read `+∞`, which re-marches at
-        // the extent's cap and refuses below if still short.
+        // samples whose chords overflow read `+∞`, which re-marches
+        // uncapped and refuses below if still short.
         return Ok(first);
     }
     if length <= 0.0 {
         return Err(SsiError::TraceUnresolved {
             samples: first.states.len(),
-            step: cap,
+            step: first.longest_step,
         });
     }
-    let step = Real::min(cap, length / SHORT_BRANCH_STEPS as f64);
-    let again = march_both_at(sys, seed, ctx, mode, band, step)?;
+    let again = march_both_at(
+        sys,
+        seed,
+        ctx,
+        mode,
+        band,
+        length / SHORT_BRANCH_STEPS as f64,
+    )?;
     if again.states.len() > SSI_FIT_DEGREE {
         return Ok(again);
     }
     Err(SsiError::TraceUnresolved {
         samples: again.states.len(),
-        step,
+        step: again.longest_step,
     })
 }
 
@@ -1461,7 +1468,99 @@ where
         min_transversality: fwd.min_transversality.min(bwd.min_transversality),
         min_sigma: fwd.min_sigma.min(bwd.min_sigma),
         steps: fwd.steps + bwd.steps,
+        longest_step: Real::max(fwd.longest_step, bwd.longest_step),
     })
+}
+
+/// **Refinement by certification**: fit and certify `states`; where
+/// limbs 1 and 2 refuse the carrier, put a sample in the middle of each
+/// gap between consecutive states that the refused intervals meet,
+/// and fit and certify again.
+///
+/// The march spaces its samples by the curvature against ε, which is a
+/// design target and not a bound (`SSI_STEP_DEVIATION`), and on a
+/// straight stretch places no more than the fit needs. The certificate
+/// says where that was too few, and only there does the carrier get
+/// more. A new sample is the gap's midpoint settled onto the locus by
+/// [`newton_refine`], kept only where it settles inside the domain, so
+/// it is a candidate like any marched state: the certificate decides
+/// it.
+///
+/// The rule is fixed (D9): every refused gap is halved in one round,
+/// and a gap is halved only while half its chord clears the band
+/// (`ssi_step_progress`, the march's own rule for a step it can take).
+/// Refinement stops where no refused gap can be halved, or the next
+/// round would hand the fit more than [`super::SSI_MAX_FIT_SAMPLES`];
+/// the certificate's last refusal then stands. A refusal the
+/// certificate does not locate (limb 3, a foot point, the fit) is
+/// returned as it is.
+///
+/// # Errors
+///
+/// The certificate's or the fit's refusal of the last candidate.
+pub(crate) fn refine_by_certificate<const M: usize, const N: usize, S, C>(
+    sys: &S,
+    mut states: Vec<[f64; N]>,
+    ctx: &MarchContext<N>,
+    band: Band,
+    mut certify: impl FnMut(&[[f64; N]]) -> Result<C, Located>,
+) -> Result<C, SsiError>
+where
+    S: LocalSystem<M, N>,
+{
+    loop {
+        let refused = match certify(&states) {
+            Ok(certified) => return Ok(certified),
+            Err(refused) => refused,
+        };
+        if refused.at.is_empty() {
+            return Err(refused.error);
+        }
+        let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
+        let Ok(params) = geom::NurbsCurve3::<f64>::chord_parameters(&points) else {
+            return Err(refused.error);
+        };
+        let mut finer = Vec::with_capacity(2 * states.len());
+        for (i, pair) in states.windows(2).enumerate() {
+            finer.push(pair[0]);
+            let (t0, t1) = (params[i], params[i + 1]);
+            if refused.at.iter().any(|r| r.lo <= t1 && r.hi >= t0)
+                && let Some(mid) = settled_midpoint(sys, &pair[0], &pair[1], ctx, band)
+            {
+                finer.push(mid);
+            }
+        }
+        finer.extend(states.last().copied());
+        if finer.len() == states.len() || finer.len() > super::SSI_MAX_FIT_SAMPLES {
+            return Err(refused.error);
+        }
+        states = finer;
+    }
+}
+
+/// The midpoint of the gap from `a` to `b`, settled onto the locus,
+/// where half the gap's chord clears the band and the settled state
+/// lies in the domain and is neither end.
+fn settled_midpoint<const M: usize, const N: usize, S>(
+    sys: &S,
+    a: &[f64; N],
+    b: &[f64; N],
+    ctx: &MarchContext<N>,
+    band: Band,
+) -> Option<[f64; N]>
+where
+    S: LocalSystem<M, N>,
+{
+    let half = 0.5 * (sys.point(b) - sys.point(a)).norm();
+    if !matches!(
+        decide("ssi_step_progress", Margin::of(half), band),
+        Ok(Sign::Positive)
+    ) {
+        return None;
+    }
+    let mid: [f64; N] = core::array::from_fn(|i| 0.5 * (a[i] + b[i]));
+    let settled = newton_refine(sys, mid, ctx.tol)?;
+    (within(&settled, &ctx.domain) && settled != *a && settled != *b).then_some(settled)
 }
 
 #[cfg(test)]
@@ -1469,8 +1568,8 @@ where
 mod tests {
     use super::{
         Box3, LocalSystem, MarchContext, MarchTol, NormalPair, ReachBound, Readout, SSI_NEWTON_TOL,
-        SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_STEP_MAX, SsiError, StepFault, StepperMode,
-        TraceDecision, TransversalityData, march,
+        SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SsiError, StepFault, StepperMode, TraceDecision,
+        TransversalityData, march,
     };
     use crate::ssi::ExhaustLane;
     use geom_core::{Band, Point3, Vec3};
@@ -1600,7 +1699,7 @@ mod tests {
                 StepperMode::Idealized,
                 1.0,
                 band,
-                SSI_STEP_MAX * unit_ctx(band).extent,
+                f64::INFINITY,
             );
             match r {
                 Err(SsiError::StepUnusable {
@@ -1687,7 +1786,7 @@ mod tests {
                 mode,
                 1.0,
                 band,
-                SSI_STEP_MAX * ctx.extent,
+                f64::INFINITY,
             );
             let named = match (fault, &r) {
                 (None, Err(SsiError::StepCollapsed { speed, .. })) => *speed,
@@ -1774,7 +1873,7 @@ mod tests {
                 mode,
                 1.0,
                 band,
-                SSI_STEP_MAX * unit_ctx(band).extent,
+                f64::INFINITY,
             ) {
                 Err(ref e @ SsiError::Escalated { decision, .. }) => {
                     assert_eq!(decision, guard, "the poisoned operand's guard");
@@ -1822,7 +1921,7 @@ mod tests {
                 StepperMode::Realized,
                 1.0,
                 band,
-                SSI_STEP_MAX * unit_ctx(band).extent,
+                f64::INFINITY,
             );
             assert!(
                 !matches!(
@@ -1970,7 +2069,7 @@ mod tests {
                 StepperMode::Idealized,
                 1.0,
                 band,
-                SSI_STEP_MAX,
+                f64::INFINITY,
             )
         };
         match run(0.1) {
@@ -2077,7 +2176,7 @@ mod tests {
             StepperMode::Realized,
             1.0,
             band,
-            SSI_STEP_MAX * ctx.extent,
+            f64::INFINITY,
         )
         .unwrap();
         assert!(
@@ -2104,6 +2203,111 @@ mod tests {
             (1000..1060).contains(&trace.steps),
             "the loop takes {} steps",
             trace.steps
+        );
+    }
+
+    /// The x coordinates of states on the `x` axis.
+    fn xs(states: &[[f64; 3]]) -> Vec<f64> {
+        states.iter().map(|s| s[0]).collect()
+    }
+
+    /// A certificate stand-in over the `x` axis from −0.8 to 0.8, whose
+    /// chord parameter is `(x + 0.8)/1.6`: it refuses `[lo, hi]` in `x`,
+    /// while any gap meeting it is longer than `longest`, and otherwise
+    /// passes the states through.
+    fn refusing(
+        lo: f64,
+        hi: f64,
+        longest: f64,
+    ) -> impl FnMut(&[[f64; 3]]) -> Result<Vec<[f64; 3]>, super::Located> {
+        let t = |x: f64| (x + 0.8) / 1.6;
+        move |states| {
+            let refused = states
+                .windows(2)
+                .any(|g| g[1][0] >= lo && g[0][0] <= hi && g[1][0] - g[0][0] > longest);
+            if refused {
+                Err(super::Located {
+                    error: SsiError::CellBudget { budget: 0 },
+                    at: vec![crate::ssi::certify::RefusedSpan {
+                        lo: t(lo),
+                        hi: t(hi),
+                    }],
+                })
+            } else {
+                Ok(states.to_vec())
+            }
+        }
+    }
+
+    /// Five states 0.4 apart along the `x` axis.
+    fn axis_states() -> Vec<[f64; 3]> {
+        [-0.8, -0.4, 0.0, 0.4, 0.8].map(|x| [x, 0.0, 0.0]).to_vec()
+    }
+
+    /// **Refinement halves only the gaps the certificate refused.** The
+    /// stand-in refuses `|x| ≤ 0.05` until the gaps there are at most
+    /// 0.1 long, so the two gaps about 0 are halved twice, and the gaps
+    /// from ±0.4 out, which the refusal never met, keep their single
+    /// span.
+    #[test]
+    fn refinement_cuts_only_the_gaps_the_certificate_refused() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let ctx = unit_ctx(band);
+        let mut rounds = 0;
+        let mut certify = refusing(-0.05, 0.05, 0.1);
+        let out = super::refine_by_certificate(&sys, axis_states(), &ctx, band, |s| {
+            rounds += 1;
+            certify(s)
+        })
+        .unwrap();
+        let want = [-0.8, -0.4, -0.2, -0.1, 0.0, 0.1, 0.2, 0.4, 0.8];
+        assert_eq!(xs(&out), want, "the refused gaps only, halved twice");
+        assert_eq!(rounds, 3, "two refusals and the pass");
+    }
+
+    /// **Refinement stops where it can no longer help, and the refusal
+    /// stands**: a refusal at `x = 0` that no density answers is halved
+    /// until half a gap would fall in the band, and one over the whole
+    /// branch stops short of the round that would overrun the fit's
+    /// budget.
+    #[test]
+    fn refinement_stops_at_the_band_and_at_the_fit_budget() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let ctx = unit_ctx(band);
+        let r =
+            super::refine_by_certificate(&sys, axis_states(), &ctx, band, refusing(0.0, 0.0, 0.0));
+        assert!(
+            matches!(r, Err(SsiError::CellBudget { budget: 0 })),
+            "the stand-in's refusal stands: {r:?}"
+        );
+
+        let mut seen = 0;
+        let mut finest = f64::INFINITY;
+        let mut certify = refusing(0.0, 0.0, 0.0);
+        let _ = super::refine_by_certificate(&sys, axis_states(), &ctx, band, |s| {
+            seen = seen.max(s.len());
+            for g in s.windows(2) {
+                finest = finest.min(g[1][0] - g[0][0]);
+            }
+            certify(s)
+        });
+        assert!(
+            finest > band.escalate() && finest <= 4.0 * band.escalate(),
+            "the last cut is the band's: {finest:e}"
+        );
+
+        seen = 0;
+        let mut certify = refusing(-0.8, 0.8, 0.0);
+        let r = super::refine_by_certificate(&sys, axis_states(), &ctx, band, |s| {
+            seen = seen.max(s.len());
+            certify(s)
+        });
+        assert!(r.is_err(), "the refusal stands: {r:?}");
+        assert!(
+            seen > 5 && seen <= super::super::SSI_MAX_FIT_SAMPLES,
+            "the fit saw {seen} samples"
         );
     }
 }

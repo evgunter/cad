@@ -1338,48 +1338,22 @@ fn shape_iii_bit_replay() {
     }
 }
 
+/// **An inflected wall is refined where the hull limb refused it.**
+/// PR 7's original wall inflects (κ crosses zero along the section),
+/// where the step rule's fit rung unbinds: the relative rungs price the
+/// step there, and the marched fit pair carries a deviation at the
+/// crossing, measured at ~4.5e-9 m at march-ε = 1e-9
+/// (review_m5_pr7b_ssi.rs `deviation2a`), which limb 2 read in band.
+/// Refined where limb 2 refused, the carrier certifies at every ε the
+/// fit budget affords, its hull bound within ε; the finest ε is
+/// preempted by the budget.
 #[test]
-fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
-    // PR 7's original wall inflects (κ crosses zero along the section),
-    // where the step rule's fit rung unbinds: the relative rungs price
-    // the step there, so the realized fit pair carries a deviation at
-    // the crossing, measured at ~4.5e-9 m at march-ε = 1e-9
-    // (review_m5_pr7b_ssi.rs `deviation2a`). That deviation is
-    // PHASE-DEPENDENT AND NON-MONOTONE in march-ε, not a constant cap:
-    // where samples land relative to the crossing decides. The
-    // shipped configuration's number stands, so the verdict honestly
-    // FORKS on the resolved band: a band whose zero sits well above
-    // the measured deviation certifies (ε = 1e-6), the default band
-    // catches it in-band at the very predicate whose old bound (~1e-2
-    // m, span-width-scaled at every ε) could never say anything this
-    // precise, and the finest ε is preempted by the fit budget.
-    const MEASURED_DEVIATION: f64 = 4.5e-9;
+fn an_inflected_wall_is_refined_where_the_hull_limb_refused() {
     let (p, w) = (cutting_plane(), nurbs_wall());
     match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()) {
         Ok(out) => {
-            assert!(
-                band().zero() > 10.0 * MEASURED_DEVIATION,
-                "certified at a band that should have seen the ~{MEASURED_DEVIATION:e} m deviation"
-            );
+            assert_eq!(out.branches.len(), 1, "{out:?}");
             assert!(out.branches[0].certificate.hull_sup <= eps());
-        }
-        Err(SsiError::CertificateEscalated {
-            limb: SsiLimb::HullSup,
-            ref cause,
-        }) if cause.predicate == Some("ssi_hull_sup_chart") => {
-            assert!(
-                band().zero() <= 10.0 * MEASURED_DEVIATION,
-                "in-band refusal where the band is far above the measured deviation"
-            );
-        }
-        Err(SsiError::CertificateLimb {
-            limb: SsiLimb::HullSup,
-            value,
-        }) => {
-            // Definite refusal is also honest — but only just above
-            // the band; anything at the old bound's scale means the
-            // cancellation was lost.
-            assert!(value <= definitely_positive(), "{value:e}");
         }
         // The finest ε: the march demands more samples than the fit
         // budget affords, pinned by its own row. Same discipline as the
@@ -1394,14 +1368,14 @@ fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
                 eps()
             );
             vacuity::stood_down(
-                &format!("the limb-2 in-band row, eps = {:e}", eps()),
+                &format!("the inflected-wall refinement row, eps = {:e}", eps()),
                 &format!(
                     "the fit budget ({samples} of {budget} samples) refused before limb 2 \
                      was reached, so this run asserts nothing about the composite bound"
                 ),
             );
         }
-        Err(other) => panic!("expected limb 2 in-band, got {other}"),
+        Err(other) => panic!("expected the refined carrier certified, got {other}"),
     }
 }
 
@@ -2888,9 +2862,8 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
 ///
 /// - where that quarter spread is past ε, the locus is coincident with
 ///   neither long side, and the branch is traced and certified end to
-///   end, between the crossings on the two short sides. It is far
-///   shorter than the march's longest step of `SSI_STEP_MAX · 1.5` m,
-///   so the step is cut from the crossings' distance;
+///   end, between the crossings on the two short sides, its step cut
+///   from the crossings' distance;
 /// - where it is within ε, the locus is coincident with both long
 ///   sides, and the answer is the two sides' regions;
 /// - from `1e-200` down, the chart speed's certified sup reads far above
@@ -3404,11 +3377,9 @@ fn a_wall_whose_chart_cannot_settle_the_march_refuses_by_its_chart() {
 
 /// **A short branch traces at the caller's extent.** The collapsed net
 /// at spread `1e-2`, against a plane that meets it, has a branch 3 cm
-/// long. The march's longest step at the domain's 1.5 m extent is
-/// `SSI_STEP_MAX · 1.5` m, about 4.7 cm, longer than the branch. Its two
-/// ends are the boundary pass's crossings, so the march's step is cut
-/// from their distance and the branch certifies without the caller
-/// naming a smaller extent.
+/// long, in a domain of 1.5 m extent. Its two ends are the boundary
+/// pass's crossings, so the march's step is cut from their distance and
+/// the branch certifies without the caller naming a smaller extent.
 #[test]
 fn a_short_branch_traces_at_the_callers_extent() {
     let spread = 1.0e-2;
@@ -4046,8 +4017,11 @@ fn certificate_limit(e: &SsiError) -> bool {
 /// no region is reported and the metre-long branch along the edge is
 /// traced. Each wall's answer there is of the kind the plane `x = 1 mm`
 /// gets mid-wall: the branch, or a refusal by the certificate's limit
-/// on a metre-long rational carrier, never a boundary refusal; the
-/// centre-weight-9 biquadratic refuses at every ε. The remedy is the
+/// on a metre-long rational carrier, never a boundary refusal. The
+/// centre-weight-9 biquadratic's pcurve bends in its chart where its
+/// carrier is nearly straight, so its march takes few samples and the
+/// carrier is refined where limb 2 refuses: it certifies at ε 1e-6 and
+/// 1e-9 and meets the limit at 1e-12, past which the remedy is the
 /// wall's own boundary iso-curve as the carrier
 /// (`work/ssi/ssi-a-near-side-locus-could-take-the-walls-own-iso-curve.md`).
 #[test]
@@ -4067,8 +4041,8 @@ fn a_rational_walls_plane_three_eps_off_its_edge_meets_the_certificate_limit() {
         let at = format!("{name}, the plane 3ε off its edge at ε {eps:e}");
         let edge = run(3.0 * eps);
         let mid = run(1.0e-3);
-        if name.contains("weight 9") {
-            assert!(edge.is_err(), "{at}: the limit is reached: {edge:?}");
+        if name.contains("weight 9") && eps >= 1.0e-9 {
+            assert!(edge.is_ok(), "{at}: refined, it certifies: {edge:?}");
         }
         match (&edge, &mid) {
             (Ok(_), Ok(_)) => {
@@ -4581,20 +4555,16 @@ fn dome_tilt(d: f64) -> (Surface<f64>, SsiDomain) {
 /// branch, and a seed further in marches the branch to the edge.
 ///
 /// What the cut does is pinned by ε:
-/// - at 1e-6 it certifies at d = 1, one branch, and refuses limb 2 at
-///   d = 2;
-/// - at 1e-9 it refuses limb 2, inferred but not traced to be cause 4
-///   of `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`;
+/// - at 1e-6 and 1e-9 it certifies, one branch, refined where limb 2
+///   refused it (cause 4 of
+///   `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`);
 /// - at 1e-12 it refuses the fit budget, that row's cause 2.
 ///
 /// None of them is a carrier off the wall.
 #[test]
 fn a_seed_settled_off_the_walls_chart_is_no_branch() {
     let b = band();
-    for (d, seed, certifies_coarse) in [
-        (1.0, (0.369, 0.00195), true),
-        (2.0, (0.243, 0.00098), false),
-    ] {
+    for (d, seed) in [(1.0, (0.369, 0.00195)), (2.0, (0.243, 0.00098))] {
         let (plane, dom) = dome_tilt(d);
         let wall = dome_wall(d);
         match ssi::trace_plane_nurbs_uncertified(&plane, &wall, seed, dom, b.zero(), b) {
@@ -4616,19 +4586,8 @@ fn a_seed_settled_off_the_walls_chart_is_no_branch() {
         {
             panic!("{at}: a carrier off the wall's chart: {r:?}");
         }
-        let hull = matches!(
-            r,
-            Err(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
-                ..
-            } | SsiError::CertificateEscalated {
-                limb: SsiLimb::HullSup,
-                ..
-            })
-        );
         let pinned = match eps() {
-            1.0e-6 if certifies_coarse => matches!(r, Ok(ref o) if o.branches.len() == 1),
-            1.0e-6 | 1.0e-9 => hull,
+            1.0e-6 | 1.0e-9 => matches!(r, Ok(ref o) if o.branches.len() == 1),
             1.0e-12 => matches!(r, Err(SsiError::FitSampleBudget { .. })),
             _ => {
                 vacuity::stood_down(
@@ -4718,36 +4677,32 @@ fn a_curved_domes_level_loop_fits_the_sample_budget() {
     }
 }
 
-/// **The `z = 0.2` arc across a dome of curvature 4/m meets the hull
-/// limb at ε 1e-9.** The arc certifies at d = 1. At d = 2 limb 2 reads
-/// it in band: the fit rung prices the gap between samples by
-/// `‖C⁗‖ ≈ κ³`, and along this parabola `‖C⁗‖/κ³` runs from 4 at the
-/// centre to 23 at the branch ends, where the worst deviation sits.
-/// Cause 4 of `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`;
-/// this row is the refusal that cause owes an answer to.
+/// **The `z = 0.2` arc across a dome of curvature 4/m is refined where
+/// the hull limb refused it, at ε 1e-9.** The fit rung prices the gap
+/// between samples by `‖C⁗‖ ≈ κ³`, and along this parabola `‖C⁗‖/κ³`
+/// runs from 4 at the centre to 23 at the branch ends. At d = 2 limb 2
+/// read the marched carrier in band at its end; the gap there is
+/// halved, and the arc certifies on about 348 samples, two more than
+/// the march's 346 (cause 4 of
+/// `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`). At
+/// d = 1 the march's samples certify as they stand.
 #[test]
-fn a_curved_domes_open_arc_meets_the_hull_limb_at_its_ends() {
+fn a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused() {
     let b = band_at(1e-9);
-    for d in [1.0, 2.0] {
+    for (d, samples) in [(1.0, 230..250), (2.0, 347..352)] {
         let (_, dom) = dome_tilt(d);
         let zcut = Surface::Plane {
             origin: Point3::new(0.5, -d / 8.0, 0.2),
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, b);
-        let pinned = if d < 1.5 {
-            matches!(r, Ok(ref o) if o.branches.len() == 1)
-        } else {
-            matches!(
-                r,
-                Err(SsiError::CertificateEscalated {
-                    limb: SsiLimb::HullSup,
-                    ..
-                })
-            )
+        let out = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, b)
+            .unwrap_or_else(|e| panic!("d = {d}: the arc does not certify: {e}"));
+        let [branch] = out.branches.as_slice() else {
+            panic!("d = {d}: expected one branch, got {}", out.branches.len());
         };
-        assert!(pinned, "d = {d}: the arc's outcome moved: {r:?}");
+        let n = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+        assert!(samples.contains(&n), "d = {d}: {n} samples");
     }
 }
 
@@ -4800,9 +4755,13 @@ fn a_loop_whose_seeds_newton_carries_into_its_tube_is_found_once() {
 ///   step, which no extent lengthens: it names the domain, which cuts an
 ///   open branch's step count, and the tolerance as the last resort,
 ///   and no extent.
-/// - Cap: the substrate wall traced from its seed with a feature extent
-///   of 1e-4 m, whose `SSI_STEP_MAX` share caps every step far below
-///   the curvature rung at ε = 1e-9. The extent is the lever.
+/// - Cap: [`close_crossings_wall`] with its two branches meeting the
+///   bottom side 1e-4 m apart. Each straight branch's step is a fifth of
+///   the distance to the nearest crossing not yet used, the other
+///   branch's, so a metre takes 50 000 steps. The ending names moving
+///   the geometry so the branches meet the boundary farther apart, and
+///   pulling that lever, 0.2 m apart, certifies both
+///   (`work/ssi/ssi-a-step-capped-by-a-neighbouring-crossing-can-spend-the-step-budget.md`).
 ///
 /// Both run at a band of their own, so the rung under test does not
 /// move with the run's ε.
@@ -4847,100 +4806,102 @@ fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
         other => panic!("the scaled planted fixture: expected the step budget, got {other:?}"),
     }
 
-    let domain = SsiDomain {
-        extent: 1e-4,
-        ..wall_domain()
+    let close = |gap: f64| {
+        ssi::plane_nurbs_ssi(
+            &close_crossings_plane(),
+            &close_crossings_wall(gap),
+            close_crossings_domain(),
+            band_at(1e-9),
+        )
     };
-    let (p, w) = (cutting_plane(), certifiable_wall());
-    match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), domain, 1e-9, band_at(1e-9)) {
+    match close(1.0e-4) {
         Err(ref err @ SsiError::StepBudget { bound, .. }) => {
             assert_eq!(bound, StepBound::Cap, "{err}");
             let shown = err.render(Reading::Build);
             assert!(
-                shown.contains("held short by the feature extent or the domain")
-                    && shown
-                        .contains("Recourse: name a feature extent near the size of the feature"),
+                shown.contains("held short by the nearest crossing's distance")
+                    && shown.contains(
+                        "Recourse: move the plane or the wall so no other branch meets its \
+                         boundary near this one",
+                    )
+                    && !shown.contains("feature extent"),
                 "{shown}"
             );
         }
-        other => panic!("the capped wall trace: expected the step budget, got {other:?}"),
+        other => panic!("crossings 1e-4 m apart: expected the step budget, got {other:?}"),
     }
+    let out = close(0.2).unwrap_or_else(|e| panic!("crossings 0.2 m apart: {e}"));
+    assert_eq!(out.branches.len(), 2, "crossings 0.2 m apart: {out:?}");
 }
 
-/// A zigzag wall: 41 columns 0.05 m apart along `x`, alternating
-/// ±0.15 m in `y`, cubic in `u`, extruded 0.8 m along `z`. Its section's
-/// curvature swings at every column, so a march along it is held short
-/// by the curvature near the turns and by the cap between them.
-fn zigzag_wall() -> NurbsSurface<f64> {
-    const COLUMNS: usize = 41;
-    let degree = 3;
-    let mut knots = vec![0.0; degree + 1];
-    let spans = COLUMNS - degree;
-    #[allow(clippy::cast_precision_loss)]
-    knots.extend((1..spans).map(|i| i as f64 / spans as f64));
-    knots.extend(vec![1.0; degree + 1]);
-    let ku = KnotVector::clamped(knots, degree).unwrap();
+/// A wall whose plane `y = 0` cut is two straight branches up `z`, at
+/// `x = ½ ∓ gap/2`: quadratic in `u`, `y = (u − a)(u − 1 + a)` with
+/// `a = ½ − gap/2`, and linear in `v`, one metre tall.
+fn close_crossings_wall(gap: f64) -> NurbsSurface<f64> {
+    let a = 0.5 - gap / 2.0;
+    let ab = a * (1.0 - a);
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let mut control = Vec::with_capacity(2 * COLUMNS);
-    for i in 0..COLUMNS {
-        #[allow(clippy::cast_precision_loss)]
-        let x = 0.05 * i as f64;
-        let y = if i % 2 == 0 { 0.15 } else { -0.15 };
+    let mut control = Vec::with_capacity(6);
+    for (x, y) in [(0.0, ab), (0.5, ab - 0.5), (1.0, ab)] {
         control.push(Point3::new(x, y, 0.0));
-        control.push(Point3::new(x, y, 0.8));
+        control.push(Point3::new(x, y, 1.0));
     }
-    NurbsSurface::new(ku, kv, control, vec![1.0; 2 * COLUMNS]).unwrap()
+    NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
 }
 
-/// **A branch whose steps both rungs held names both levers.** The
-/// zigzag wall traced from its seed at a feature extent of 3e-3 m and
-/// ε = 1e-12: the cap binds between the turns and the curvature at
-/// them, each for well over a quarter of the steps
-/// (`STEP_BOUND_MINORITY`), so a majority vote would name one lever
-/// and miss the other.
-#[test]
-fn a_step_budget_both_rungs_held_names_both_levers() {
-    use geom_brep::recourse::Reading;
-    use geom_brep::ssi::StepBound;
-    // The plane's window holds the 2 m wall (`WindowShortOfWall`).
-    let domain = SsiDomain {
-        center: Point3::new(1.0, 0.0, 0.4),
-        half_extent: 2.5,
-        extent: 3e-3,
-        floor_scale: 1.0,
-    };
-    let wall = zigzag_wall();
-    match ssi::trace_plane_nurbs_uncertified(
-        &cutting_plane(),
-        &wall,
-        (0.5, 0.5),
-        domain,
-        1e-12,
-        band_at(1e-12),
-    ) {
-        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
-            assert_eq!(bound, StepBound::Both, "{err}");
-            let shown = err.render(Reading::Build);
-            assert!(
-                shown.contains("the curvature against the tolerance and by the feature extent")
-                    && shown.contains("name a feature extent near the size of the feature traced")
-                    && shown.contains("loosen the tolerance"),
-                "{shown}"
-            );
-        }
-        other => panic!("the zigzag wall trace: expected the step budget, got {other:?}"),
+/// The plane `y = 0`, which cuts [`close_crossings_wall`].
+fn close_crossings_plane() -> Surface<f64> {
+    Surface::Plane {
+        origin: Point3::new(0.5, 0.0, 0.5),
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
+}
+
+/// A window around [`close_crossings_wall`].
+fn close_crossings_domain() -> SsiDomain {
+    SsiDomain {
+        center: Point3::new(0.5, 0.0, 0.5),
+        half_extent: 2.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    }
+}
+
+/// **A straight branch takes only the samples its fit needs.** The
+/// plane `x = 0.5` across the flat wall cuts it in a straight metre.
+/// No curvature rung binds, so the march's step is a fifth of the
+/// distance between the branch's two crossings, the fewest odd count of
+/// steps that gives the cubic fit its samples, and the certificate,
+/// asked, refuses none of them: the branch certifies on six samples at
+/// every ε.
+#[test]
+fn a_straight_branch_takes_only_the_samples_its_fit_needs() {
+    let at = format!("ε {:e}", band().zero());
+    let out = ssi::plane_nurbs_ssi(
+        &edge_plane(0.5),
+        &flat_wall(1.0, 1.0),
+        wall_box(1.0, 1.0),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{at}: {e}"));
+    let [b] = out.branches.as_slice() else {
+        panic!("{at}: expected one branch, got {}", out.branches.len());
+    };
+    let n = b.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+    assert_eq!(n, 6, "{at}: the straight metre's samples");
 }
 
 /// **A branch whose last marched state lands a hair inside the wall
 /// certifies.** The plane `x = 0.5` across the flat wall of height
-/// `31/32 + δ`: marched from the bottom edge's crossing in the 1 m
-/// extent's steps of 1/32 m, the branch's 31st state lands `δ` short of
-/// the top edge. The march ends at the crossing
-/// the boundary pass certified there, and a last state nearer that
-/// crossing than half its own step gives way to it, so the fit never
-/// reads a final chord far shorter than the steps before it. Every δ
-/// from 1e-11 m to 1e-3 m certifies, at every ε
+/// `31/32 + δ`: marched from the bottom edge's crossing in fifths of the
+/// crossings' distance, the branch's fifth state lands within rounding
+/// of the top edge, inside or out by the bits of δ. The march ends at
+/// the crossing the boundary pass certified there, and a last state
+/// nearer that crossing than half its own step gives way to it, so the
+/// fit never reads a final chord far shorter than the steps before it.
+/// Every δ from 1e-11 m to 1e-3 m certifies, at every ε
 /// (`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
 #[test]
 fn a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies() {
