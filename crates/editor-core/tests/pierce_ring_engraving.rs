@@ -13,10 +13,9 @@
 //! The pose refused `SectionLoopMixed` while `point_in_solid`'s planar
 //! arm read the arc-bounded cap as the polygon through its vertices; the
 //! rows here hold it to the closed form at every tier. The same tool
-//! slid until it crosses the rim is a different door: the circle ×
-//! cylinder root lane certifies where the rim meets the tool's arc
-//! wall, and the result's notched wall has no volume measurement —
-//! pinned by kind so it reds when that measurement lands.
+//! slid until it crosses the rim cuts too: the circle × cylinder root
+//! lane certifies where the rim meets the tool's arc wall, and the
+//! result's notched wall measures in closed form.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -26,8 +25,8 @@ use editor_core::ExtrudeSide;
 use crate::corpus::{body_of, eval};
 use crate::fixture::{frame, insert, len, len2, scl, xform};
 use editor_core::{
-    BooleanOp, Evaluation, LoopProgram, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    BooleanOp, Evaluation, LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
 };
 use geom_core::Tol;
 
@@ -174,32 +173,38 @@ fn a_blind_pocket_in_a_cylinder_cap_cuts_to_the_closed_form() {
 
 /// Slid to `x = 0.035`, the letter crosses the rim: the cylinder's rim
 /// CIRCLE meets the tool's arc wall, a CYLINDER, and the circle ×
-/// cylinder root lane certifies the crossing. The cut builds as far as
-/// the volume backstop, which cannot measure the result's cylinder
-/// wall: notched by the pocket along rulings and an arc, it is no
-/// iso-rectangle (`work/props/a-notched-cylinder-wall-has-no-volume-measurement.md`).
-/// Pinned by kind and by the props rule that refuses, so it reds when
-/// that wall measures.
+/// cylinder root lane certifies the crossing. The result's wall is
+/// notched by the pocket along rulings and an arc, and measures in
+/// closed form.
+///
+/// The letter covers the whole lens of the disc beyond `x = 0.035`: the
+/// lens spans `|z| ≤ √(R² − 0.035²) ≈ 0.0194`, inside the letter's
+/// `z = −0.02` bottom edge, and the bulge arc's chord `z = 0.02 − 2x`
+/// (local `x`) stays above the circle across it, the arc further out
+/// still. So the cut removes `DEPTH` times that circular segment.
 #[test]
-fn a_pocket_across_the_rim_stops_at_the_notched_walls_volume() {
+fn a_pocket_across_the_rim_cuts_to_the_closed_form() {
+    let tol = Tol::witness();
     let (ev, [_, _, _, cut]) = engrave(letter(), 0.035);
-    let Some(NodeResult::Failed(e)) = ev.nodes.get(&cut) else {
-        panic!("the rim-crossing pocket built; this row's door has moved");
-    };
+    if let Some(NodeResult::Failed(e)) = ev.nodes.get(&cut) {
+        panic!("the rim-crossing pocket refused: {e}");
+    }
+    let body = body_of(&ev, cut);
+    assert_eq!(topo::validate(body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(body), Ok(()), "closed");
+    assert_eq!(
+        topo::validate::validate_geometric(body, tol),
+        Ok(()),
+        "tier 3"
+    );
+    let d = 0.035;
+    let segment = R * R * (d / R).acos() - d * (R * R - d * d).sqrt();
+    let truth = PI * R * R * HEIGHT - segment * DEPTH;
+    let got = topo::mass_properties(body, tol)
+        .expect("mass properties")
+        .volume;
     assert!(
-        matches!(
-            &e.kind,
-            NodeErrorKind::Boolean(topo::BooleanError::VolumeUnmeasured {
-                operand: None,
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::props::PropsError::NotIsoRectangle {
-                        what: "props_rim_level"
-                    },
-                    ..
-                },
-            })
-        ),
-        "expected the result's notched wall to stop the volume backstop: {:?}",
-        e.kind
+        (got - truth).abs() < 1e-15,
+        "notched cylinder {got} against the closed form {truth}"
     );
 }

@@ -687,40 +687,58 @@ fn a_cylinder_chord_passes_the_wall_face_it_does_not_meet() {
     );
 }
 
-/// **The relaxation opens no cylinder body.** The same rod through the
-/// three-face wall, under every op: the chord is no event on the third
-/// face now, and what each op meets next is a typed door, never a body.
-/// Measured: every op stops at the join, where the rod's pierces mint
-/// rings in the wall and a ring has no join arm yet
-/// (`work/tang/pierce-ring-has-no-join-arm`). The rod is asymmetric
-/// about the axis, and the arc-window door it lands on is
-/// `NeitherContained`, the sub-case that unit holds the pairing
-/// question for.
+/// **The relaxation opens the cylinder body it should.** The same rod
+/// through the three-face wall, under every op: the chord is no event on
+/// the third face, the rod's pierces mint rings in the two walls it
+/// meets, the rings join, and every op builds to its closed form. The
+/// rod is a horizontal square bar of half-width `h` whose axis runs
+/// `c = ½` from the cylinder's, so each horizontal offset `w` across it
+/// holds a chord of length `2√(1 − (c + w)²)` at every height.
 #[test]
-fn a_three_face_cylinder_rod_union_reaches_a_typed_door_not_a_body() {
+fn a_three_face_cylinder_rod_builds_under_every_op() {
     let cyl = three_face_cylinder();
     let at = |deg: f64| {
         let t = deg.to_radians();
         Point3::new(t.cos(), t.sin(), 1.0)
     };
     let (p60, p180) = (at(60.0), at(180.0));
-    let rod = framed_bar(p60, p180 - p60, -0.5, 2.2, 0.02);
-    for (what, r) in [
-        ("∪", topo::union(&cyl, &rod, Tol::witness())),
-        ("∩", topo::intersect(&cyl, &rod, Tol::witness())),
-        ("cyl ∖ rod", topo::subtract(&cyl, &rod, Tol::witness())),
-        ("rod ∖ cyl", topo::subtract(&rod, &cyl, Tol::witness())),
+    let (t0, t1, width) = (-0.5, 2.2, 0.02);
+    let rod = framed_bar(p60, p180 - p60, t0, t1, width);
+    let (h, c) = (width / 2.0, 0.5);
+    let chord_integral = |y: f64| y * (1.0 - y * y).sqrt() + y.asin();
+    let shared = 2.0 * h * (chord_integral(c + h) - chord_integral(c - h));
+    let (v_cyl, v_rod) = (2.0 * core::f64::consts::PI, width * width * (t1 - t0));
+    for (what, r, truth) in [
+        (
+            "∪",
+            topo::union(&cyl, &rod, Tol::witness()),
+            v_cyl + v_rod - shared,
+        ),
+        ("∩", topo::intersect(&cyl, &rod, Tol::witness()), shared),
+        (
+            "cyl ∖ rod",
+            topo::subtract(&cyl, &rod, Tol::witness()),
+            v_cyl - shared,
+        ),
+        (
+            "rod ∖ cyl",
+            topo::subtract(&rod, &cyl, Tol::witness()),
+            v_rod - shared,
+        ),
     ] {
-        let err = r.expect_err(what);
+        let out = r.unwrap_or_else(|e| panic!("{what}: refused {e:?}"));
+        let body = &out.body().unwrap_or_else(|| panic!("{what}: empty")).body;
+        assert_eq!(
+            topo::validate_geometric(body, Tol::witness()),
+            Ok(()),
+            "{what}: tier 3"
+        );
+        let v = topo::mass_properties(body, Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: mass properties {e:?}"))
+            .volume;
         assert!(
-            matches!(
-                err,
-                BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                    case: topo::ArcWindowCase::NeitherContained,
-                    ..
-                })
-            ),
-            "{what}: {err:?}"
+            (v - truth).abs() <= 1e-12 * truth.max(1.0),
+            "{what}: volume {v} against the closed form {truth}"
         );
     }
 }
