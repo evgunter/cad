@@ -2,7 +2,7 @@
 //!
 //! # The ValuePayload exposure inventory (a reported FORK)
 //!
-//! `ValuePayload` has seven variants. The bindings project them as:
+//! The bindings project `ValuePayload`'s geometry variants as:
 //!
 //! | variant        | exposure |
 //! |----------------|----------|
@@ -12,21 +12,14 @@
 //! | `Instances`    | full — a list of bodies |
 //! | `Datum`        | full — typed plane / axis / point with `Length` coordinates |
 //! | `Profile`      | KIND ONLY — sketch geometry does not ship to Python before the v2 switch |
-//! | `Declarations` | KIND ONLY — the naming projection is deferred, not blocked |
 //!
-//! The two kind-only rows are SCOPE decisions, not capability limits.
-//! Being precise about which, because the distinction is load-bearing:
-//!
-//! * `ValidatedProfile::plane()`/`loops()` DO exist and `profile` is
-//!   wholesale re-exported — this very module's sibling uses
-//!   `pncad::profile` to build sketches. Projecting a profile back to
-//!   Python is therefore perfectly possible; it is **ruled out**:
-//!   Python never ships the opaque-profile intermediate state.
-//!   Sketch read-back belongs with the v2 program representation.
-//! * `StableName` is likewise prelude-curated with public fields, so
-//!   Declarations is reachable too. It is deferred because the
-//!   naming/selection projection is a design subject of its own, and
-//!   binding a provisional shape here would fork it.
+//! The kind-only row is a SCOPE decision, not a capability limit.
+//! `ValidatedProfile::plane()`/`loops()` DO exist and `profile` is
+//! wholesale re-exported — this very module's sibling uses
+//! `pncad::profile` to build sketches. Projecting a profile back to
+//! Python is therefore perfectly possible; it is **ruled out**: Python
+//! never ships the opaque-profile intermediate state. Sketch read-back
+//! belongs with the v2 program representation.
 
 use std::sync::Arc;
 
@@ -140,7 +133,8 @@ pub(crate) fn refused(
     // refusal carries its candidate declaration as a typed
     // `FlushFinding` on the exception — the same value shape
     // `Evaluation.find_flush_candidates` answers with, ready for
-    // `Node.declare`/`Doc.declare`. `None` on every other kind.
+    // `Node.boolean`'s `declare=` or `Doc.declare`. `None` on every
+    // other kind.
     let finding = match kind {
         d::NodeErrorKind::UndeclaredCoincidence { finding, .. } => {
             match super::flush::FlushFinding((**finding).clone()).into_pyobject(py) {
@@ -1657,9 +1651,9 @@ impl Evaluation {
     /// verify-at-use.
     ///
     /// Findings come back in canonical order and are only ever
-    /// DEFINITE values — inspect them, then `Node.declare` /
-    /// `Doc.declare` / `Doc.declare_all` turn the inspected findings
-    /// into the `Declare` node `Node.boolean`'s `declare=` consumes.
+    /// DEFINITE values — inspect them, then hand the inspected
+    /// findings to `Node.boolean`'s `declare=`, or to `Doc.declare` /
+    /// `Doc.declare_all` on the live boolean or union.
     /// Detection and declaration are separate doors ON PURPOSE (the
     /// ruled no-fusion boundary).
     ///

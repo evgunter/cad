@@ -145,7 +145,7 @@ fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
     let (doc, ids) = document(&[A, B, G], &[0, 1, 2]);
     let (a, b, g) = (ids[0], ids[1], ids[2]);
     let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (docx, union, _) = declared_union(doc, &[a, b, g], pairs);
+    let (docx, union) = declared_union(doc, &[a, b, g], pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let rim = StableName {
@@ -225,7 +225,7 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
         let (doc, ids) = document(&blocks, &creation);
         for order in permutations(&(0..blocks.len()).collect::<Vec<_>>()) {
             let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let (docx, union, _) = declared_union(
+            let (docx, union) = declared_union(
                 doc.clone(),
                 &members,
                 flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1])),

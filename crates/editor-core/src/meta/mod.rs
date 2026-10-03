@@ -24,6 +24,15 @@
 //! compares floats BY BITS — F3 `bit_eq`); floats obey D2 (persisted
 //! Ryu-canonical; NaN/inf refused at the doors, `-0.0` is data);
 //! `BTreeMap` gives canonical key order.
+//!
+//! **A value nests at most [`MAX_NESTING`] levels**, and the bound is
+//! the type's own: a list or a map is built only through
+//! [`MetaValue::list`] and [`MetaValue::map`] (or [`to_value`], or a
+//! deserializer), each of which refuses past it with
+//! [`MetaError::NestedTooDeep`]. So every walk over a value that
+//! recurses once per level, the derived ones and `Drop` included, fits
+//! the smallest stack a door runs on, and the load door reads a body as
+//! deep as a value at the bound saves (`persist::nesting`).
 
 mod de;
 mod ser;
@@ -33,8 +42,155 @@ pub use ser::to_value;
 
 use std::collections::BTreeMap;
 
+/// **How deep a [`MetaValue`] may nest**: the longest chain of values
+/// from the root to a leaf, both ends included (a leaf, or an empty list
+/// or map, is 1). Every door that builds a list or a map refuses past it
+/// ([`MetaError::NestedTooDeep`]).
+///
+/// Equal to the expression bound ([`crate::expr::MAX_NESTING`]), not
+/// tied to it: either may move alone, since the load door reads the
+/// deeper of the two (`persist::nesting::BODY_NESTING`).
+pub const MAX_NESTING: usize = 128;
+
+/// **How deep a producer may nest**, in the nested `serialize` calls
+/// [`to_value`] reads it through or the `deserialize` calls
+/// [`from_value`] answers, the root's included: a list, a map, an
+/// option and a newtype each count one, so a producer wraps each level
+/// of a value in up to three options or newtypes and still reaches
+/// [`MAX_NESTING`]. Past it both refuse
+/// ([`MetaError::ProducerTooDeep`]) before the producer reads deeper,
+/// however little of it the value holds.
+pub const MAX_PRODUCER_NESTING: usize = 4 * MAX_NESTING;
+
+const _: () = assert!(
+    MAX_NESTING <= u8::MAX as usize,
+    "a value's nesting is stored in one byte"
+);
+
+/// The children of a list or a map, with how deep the value holding
+/// them nests. Built only by `Nested::over`, which refuses past
+/// [`MAX_NESTING`] and which [`MetaValue::list`], [`MetaValue::map`] and
+/// the deserializer each build through, so the nesting it carries is
+/// never above the bound. Read the children through `Deref`.
+#[derive(Clone)]
+pub struct Nested<C> {
+    children: C,
+    /// The holding value's nesting, itself included.
+    nesting: u8,
+}
+
+/// A list's items.
+pub type MetaList = Nested<Vec<MetaValue>>;
+
+/// A map's entries.
+pub type MetaMap = Nested<BTreeMap<String, MetaValue>>;
+
+impl<C> Nested<C> {
+    /// `children` one level below their holder, whose deepest child
+    /// nests `below` levels; refused past [`MAX_NESTING`].
+    fn over(children: C, below: usize) -> Result<Self, TooDeep> {
+        match u8::try_from(below + 1) {
+            Ok(nesting) if usize::from(nesting) <= MAX_NESTING => Ok(Self { children, nesting }),
+            _ => Err(TooDeep(MAX_NESTING)),
+        }
+    }
+}
+
+/// The deepest nesting among `values`, 0 when there are none.
+fn deepest<'a>(values: impl Iterator<Item = &'a MetaValue>) -> usize {
+    values.map(MetaValue::nesting).max().unwrap_or(0)
+}
+
+impl<C> core::ops::Deref for Nested<C> {
+    type Target = C;
+    fn deref(&self) -> &C {
+        &self.children
+    }
+}
+
+/// The children alone: the nesting is a function of them.
+impl<C: core::fmt::Debug> core::fmt::Debug for Nested<C> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            children,
+            nesting: _,
+        } = self;
+        children.fmt(f)
+    }
+}
+
+/// The children alone: the nesting is a function of them.
+impl<C: PartialEq> PartialEq for Nested<C> {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            children,
+            nesting: _,
+        } = self;
+        *children == other.children
+    }
+}
+
+impl<C: serde::Serialize> serde::Serialize for Nested<C> {
+    fn serialize<S: serde::Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+        self.children.serialize(ser)
+    }
+}
+
+thread_local! {
+    /// How many lists and maps the reader on this thread is inside.
+    static INSIDE: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+}
+
+/// A list or a map `read` reads, refused before its children are read
+/// when it would sit past [`MAX_NESTING`] (counted by
+/// `persist::nesting::descend`, the expression reader's guard), and
+/// after, when they nest it past. The refusal is the problem alone: the
+/// door reading it states its own recourse.
+///
+/// Unlike the expression reader's, it records no typed refusal
+/// (`persist::refusal`): the load door has an arm to carry a
+/// `DimensionError` and none for a metadata value's, so this one
+/// reaches it as `PersistError::Unreadable` prose.
+fn read_nested<'de, D, C>(
+    de: D,
+    read: impl FnOnce(D) -> Result<C, D::Error>,
+    below: impl FnOnce(&C) -> usize,
+) -> Result<Nested<C>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error as _;
+    let Some(_level) = crate::persist::nesting::descend(&INSIDE, MAX_NESTING) else {
+        return Err(D::Error::custom(TooDeep(MAX_NESTING)));
+    };
+    let children = read(de)?;
+    let below = below(&children);
+    Nested::over(children, below).map_err(D::Error::custom)
+}
+
+impl<'de> serde::Deserialize<'de> for MetaList {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        read_nested(de, Vec::<MetaValue>::deserialize, |items| {
+            deepest(items.iter())
+        })
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for MetaMap {
+    /// Refuses a repeated key (`persist::strict`) as well as the bound.
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        read_nested(
+            de,
+            |de| crate::persist::strict::strict_map(de, "metadata map"),
+            |entries: &BTreeMap<String, MetaValue>| deepest(entries.values()),
+        )
+    }
+}
+
 /// The self-describing metadata value tree (spec D7). See the module
-/// docs for the contract; construct directly or via [`to_value`].
+/// docs for the contract; construct a leaf directly, a list or a map
+/// through [`MetaValue::list`] and [`MetaValue::map`], or the whole
+/// tree via [`to_value`].
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum MetaValue {
     /// Absence-as-data.
@@ -52,10 +208,10 @@ pub enum MetaValue {
     /// Opaque bytes; persists as a hex string.
     Bytes(#[serde(with = "crate::persist::hexbytes")] Vec<u8>),
     /// An ordered list.
-    List(Vec<MetaValue>),
+    List(MetaList),
     /// A string-keyed map (canonical key order by construction;
     /// duplicate keys refuse typed on load — no silent last-wins).
-    Map(#[serde(with = "crate::persist::strict::meta_map")] BTreeMap<String, MetaValue>),
+    Map(MetaMap),
 }
 
 impl PartialEq for MetaValue {
@@ -88,6 +244,49 @@ impl PartialEq for MetaValue {
 impl Eq for MetaValue {}
 
 impl MetaValue {
+    /// A list of `items`.
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError::NestedTooDeep`] when the list would nest past
+    /// [`MAX_NESTING`].
+    pub fn list(items: Vec<MetaValue>) -> Result<Self, MetaError> {
+        let below = deepest(items.iter());
+        Nested::over(items, below)
+            .map(Self::List)
+            .map_err(TooDeep::refusal)
+    }
+
+    /// A map of `entries`.
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError::NestedTooDeep`] when the map would nest past
+    /// [`MAX_NESTING`].
+    pub fn map(entries: BTreeMap<String, MetaValue>) -> Result<Self, MetaError> {
+        let below = deepest(entries.values());
+        Nested::over(entries, below)
+            .map(Self::Map)
+            .map_err(TooDeep::refusal)
+    }
+
+    /// How many levels the value nests, itself included (a leaf is 1);
+    /// never above [`MAX_NESTING`].
+    #[must_use]
+    pub fn nesting(&self) -> usize {
+        match self {
+            Self::List(Nested { nesting, .. }) | Self::Map(Nested { nesting, .. }) => {
+                usize::from(*nesting)
+            }
+            Self::Null
+            | Self::Bool(_)
+            | Self::Int(_)
+            | Self::Float(_)
+            | Self::Str(_)
+            | Self::Bytes(_) => 1,
+        }
+    }
+
     /// The path (dot/index notation from the value root) of the first
     /// non-finite float in the tree, or `None` when every float is
     /// finite — the D2 refusal door's diagnostic.
@@ -167,8 +366,9 @@ impl std::fmt::Display for MetaVersionError {
 
 impl std::error::Error for MetaVersionError {}
 
-/// Typed refusal from the producer boundary ([`to_value`] /
-/// [`from_value`]).
+/// Typed refusal of a door that builds or reads a [`MetaValue`]: the
+/// constructors ([`MetaValue::list`], [`MetaValue::map`]) and the
+/// producer boundary ([`to_value`], [`from_value`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MetaError {
     /// The producer value serialized an integer outside `i64`
@@ -182,6 +382,22 @@ pub enum MetaError {
     /// A producer map serialized the same key twice — refused (the
     /// erased tree is canonical; silent last-wins would drop data).
     DuplicateKey(String),
+    /// The value would nest deeper than a value may
+    /// ([`MAX_NESTING`]).
+    NestedTooDeep {
+        /// The deepest a value may nest, in levels.
+        bound: usize,
+    },
+    /// A producer type's `Serialize` ([`to_value`]) or `Deserialize`
+    /// ([`from_value`]) nests deeper than [`MAX_PRODUCER_NESTING`]
+    /// nested calls, counting its options and newtypes as well as its
+    /// lists and maps, or never ends, however shallow the value it
+    /// writes or reads (a leaf, it may be). [`Self::NestedTooDeep`] is
+    /// the value's own depth.
+    ProducerTooDeep {
+        /// The deepest a producer may nest, in nested calls.
+        bound: usize,
+    },
     /// A serde-reported error (producer `Serialize`/`Deserialize`
     /// impls surface their own messages here).
     Message(String),
@@ -199,12 +415,47 @@ impl std::fmt::Display for MetaError {
                     "duplicate map key {k:?} refused at the metadata boundary"
                 )
             }
+            Self::NestedTooDeep { bound } => write!(
+                f,
+                "{}. Recourse: store it flatter, keeping a deep part as a string or as bytes",
+                TooDeep(*bound)
+            ),
+            Self::ProducerTooDeep { bound } => write!(
+                f,
+                "converting a Rust value to or from metadata took more than {bound} nested \
+                 serde calls (each list, map, option and newtype is one), so its type reads or \
+                 writes itself deeper than that, or without end. Recourse: change the type's \
+                 Serialize or Deserialize impl so it ends sooner, wrapping each level in fewer \
+                 options or newtypes, or keeping a deep part as a string or as bytes"
+            ),
             Self::Message(m) => write!(f, "{m}"),
         }
     }
 }
 
 impl std::error::Error for MetaError {}
+
+/// [`MetaError::NestedTooDeep`]'s problem without its recourse: what the
+/// load door reads, which states a recourse of its own.
+struct TooDeep(usize);
+
+impl TooDeep {
+    /// The refusal a constructor answers with: the problem and its
+    /// recourse.
+    fn refusal(self) -> MetaError {
+        MetaError::NestedTooDeep { bound: self.0 }
+    }
+}
+
+impl std::fmt::Display for TooDeep {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "the metadata value nests deeper than {} levels of lists and maps",
+            self.0
+        )
+    }
+}
 
 impl serde::ser::Error for MetaError {
     fn custom<T: std::fmt::Display>(msg: T) -> Self {
@@ -319,7 +570,8 @@ mod tests {
         );
         assert!(MetaValue::Int(1).require_versioned().is_err());
         assert!(
-            MetaValue::Map([("v".to_owned(), MetaValue::Str("x".into()))].into())
+            MetaValue::map([("v".to_owned(), MetaValue::Str("x".into()))].into())
+                .unwrap()
                 .require_versioned()
                 .is_err()
         );
@@ -350,16 +602,10 @@ mod tests {
 
     #[test]
     fn first_non_finite_names_the_path() {
-        let tree = MetaValue::Map(
-            [(
-                "a".to_owned(),
-                MetaValue::List(vec![
-                    MetaValue::Float(1.0),
-                    MetaValue::Map([("b".to_owned(), MetaValue::Float(f64::INFINITY))].into()),
-                ]),
-            )]
-            .into(),
-        );
+        let inner =
+            MetaValue::map([("b".to_owned(), MetaValue::Float(f64::INFINITY))].into()).unwrap();
+        let list = MetaValue::list(vec![MetaValue::Float(1.0), inner]).unwrap();
+        let tree = MetaValue::map([("a".to_owned(), list)].into()).unwrap();
         assert_eq!(tree.first_non_finite().as_deref(), Some("$.a[1].b"));
         assert_eq!(MetaValue::Float(1.0).first_non_finite(), None);
     }

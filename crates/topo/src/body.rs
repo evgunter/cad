@@ -176,7 +176,11 @@ pub struct Body<T: Real> {
     // row is present only where a cache was minted and certified
     // (`crate::pcurves`); planar faces store nothing (M2's
     // derive-on-demand status, C4 verbatim), so an all-planar body
-    // carries an empty map. Absence is never a claim about geometry.
+    // carries an empty map. On every other chart a row is mandatory at
+    // rest, and the tier-3 pcurve pass reports one that is missing —
+    // except on a face whose rows are not owed (an uncovered class, or
+    // a fitted face at a scalar with no fitted door: C4's exemption,
+    // `crate::pcurves`' `not_owed`), which may store none.
     pub(crate) pcurves: SecondaryMap<HalfEdgeKey, PcurveCache<T>>,
     // Null-face annotations (F9): typed loop-role attributes on null
     // (section-polygon) faces, parallel to the face arena like the
@@ -1396,6 +1400,13 @@ impl<T: Real> Body<T> {
         Some(next.start)
     }
 
+    /// The position of `he`'s start vertex. `None` if `he`, its vertex
+    /// or the vertex's point is stale.
+    pub fn half_edge_start_point(&self, he: HalfEdgeKey) -> Option<Point3<T>> {
+        let vertex = self.get_vertex(self.get_half_edge(he)?.start)?;
+        self.get_point(vertex.point).copied()
+    }
+
     /// The full cycle of `he`'s loop in `next` order, starting at `he`.
     ///
     /// **Bounded** (D9): the walk caps at the half-edge arena length and
@@ -1615,10 +1626,16 @@ impl<T: Real> Body<T> {
     /// All stored pcurve caches (C4 — see [`crate::pcurves`]), in
     /// half-edge-slot order (deterministic per D9).
     ///
-    /// Emptiness is the normal state: planar faces keep M2's
-    /// derive-on-demand status and store nothing, and only the charts
-    /// with a certified closed-form image mint caches at M5, so a
-    /// prism, a box, or any all-planar body yields zero rows here.
+    /// Planar faces keep derive-on-demand status and store nothing, so
+    /// a prism, a box, or any all-planar body yields zero rows here. On
+    /// every other chart the row is mandatory at rest: every half-edge
+    /// of the face stores its certified row once its producer has
+    /// returned, and the tier-3 pcurve pass reports one that does not
+    /// ([`crate::pcurves::validate_pcurves`]). The exemption is a face
+    /// whose rows are not owed — one that meets an uncovered class, or a
+    /// fitted face at a scalar with no fitted door — which may store
+    /// none until its class's route lands (C4's exemption, named in
+    /// [`crate::pcurves::validate_pcurves`]' docs).
     pub fn pcurves(&self) -> impl Iterator<Item = (HalfEdgeKey, &PcurveCache<T>)> {
         self.pcurves.iter()
     }
@@ -1656,8 +1673,8 @@ impl<T: Real> Body<T> {
 
     /// Removes and returns `half_edge`'s stored pcurve cache —
     /// [`Body::attach_pcurve`]'s inverse (same trust posture: the
-    /// tier-3 pcurve pass owns coherence, and a face left HALF-minted
-    /// fails it loudly as `MissingCache`). Consumers of caches refuse
+    /// tier-3 pcurve pass owns coherence, and a curved face left
+    /// missing a row fails it loudly). Consumers of caches refuse
     /// typed on absence; nothing re-derives a branch silently.
     pub fn detach_pcurve(&mut self, half_edge: HalfEdgeKey) -> Option<PcurveCache<T>> {
         self.pcurves.remove(half_edge)

@@ -491,7 +491,7 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Attribute a UNION-minted face name (node = the boolean).
@@ -634,7 +634,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, sub)
@@ -676,7 +676,7 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     // Review A2 (adapted from the reviewer's transform-duplicate
     // probe): a tied name passed through a Transform appears in TWO
     // tables; the loss report stays per-name — exactly ONE Ambiguous
-    // row, `at` = the first carrying node in id order, the rest
+    // row, `at` = the first carrying node in evaluation order, the rest
     // derivable by table lookup.
     let (doc, sub) = tie_fixture();
     let (doc, moved) = insert(
@@ -735,7 +735,7 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));

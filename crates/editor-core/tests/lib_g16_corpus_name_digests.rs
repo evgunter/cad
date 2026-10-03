@@ -82,7 +82,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 ///
 /// Two more rows are worth a reader's second look, and neither is a bug.
 ///
-/// `die` is `0x46ff_fbb3_d481_e812` — the same number
+/// `die` is the same number
 /// `m4_pr3_names_ci::DIE_TABLE_DIGEST` carries, because it is the same
 /// digest of the same tables. The two pins agreeing is a cross-check,
 /// not a duplication: that one covers the die FIXTURE through its own
@@ -118,35 +118,45 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// chamfer mint two ids and their names differ in `node` alone.
 /// `emit_fillet.rs`'s tie probe asserts the within-one-document case,
 /// where the two nodes differ and the names must be disjoint.
+///
+/// **`part_select` moved at JOIN-1's fix pass** (PR 3790), alone. Its
+/// union of the two split halves now builds through the chord join: the
+/// halves' side faces meet along edges of both solids, coplanar on the
+/// far side, which the join used to refuse and the declared-REST zip
+/// then built. The table is the box's — one body, six faces (the four
+/// sides each a `Merged` of the two halves' fragments), sixteen edges
+/// and twelve vertices, every name a `FromA`/`FromB` lineage — and
+/// the persisted text did not move (`perf2_name_keying_differential`'s
+/// second column).
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x5357_3a07_25c8_58e0),
-    ("corner_table", 0x9066_abb5_dca8_4e35),
-    ("heat_sink", 0x9494_f2b0_e239_0d24),
-    ("crossing_slots", 0xe678_8002_978e_e6cf),
-    ("nested_islands_105", 0xbc61_97e6_8d2c_9c5c),
-    ("nested_islands_106_depth1", 0xf8c5_745b_4a9c_153b),
-    ("nested_islands_106_depth2", 0xf6f6_0ffb_4d6a_bad5),
+    ("die", 0xa2b2_a066_44d5_b41a),
+    ("corner_table", 0x3799_5a30_3006_7754),
+    ("heat_sink", 0xc27b_6076_aa92_b048),
+    ("crossing_slots", 0x045a_a35f_7ffb_0917),
+    ("nested_islands_105", 0x78ec_775b_bb90_0ef0),
+    ("nested_islands_106_depth1", 0x95e1_84f1_6732_94ad),
+    ("nested_islands_106_depth2", 0xc372_da0a_3e72_3723),
     ("declared_tangency", 0x10e3_3436_e0dd_f2ca),
-    ("kitchen_sink", 0xe340_c82b_de6b_a18c),
+    ("kitchen_sink", 0xeac0_dc07_2a2b_518d),
     ("cut_cylinder", 0x4fc1_3f27_d303_0751),
     ("measured_web", 0x6a3e_d351_0833_d5e8),
-    ("boss_union", 0xd267_0612_127b_2383),
+    ("boss_union", 0x0c9a_9265_78cb_ccf6),
     ("die_fillet", 0x9604_14fb_3d8d_dbf8),
     ("die_chamfer", 0x6ec4_d463_dbda_f46c),
-    ("die_pips", 0xe6b8_bba4_9fa0_ff34),
+    ("die_pips", 0x0c4b_f7fa_1d64_a3ee),
     ("heat_sink_fins", 0xde1b_5e70_e134_c51f),
-    ("die_tool", 0x76f0_19cf_1dd9_72c9),
+    ("die_tool", 0x3cfd_3326_58c3_914f),
     ("face_sketch", 0x8969_aadc_d370_4777),
     // DOCM-2. Two `Part`s of one split and one of a pattern: the
     // projection mints nothing, so every name in the document is the
     // split's, the pattern's, or the union's over them, and the row's
     // arrival moved no other row.
-    ("part_select", 0x2fb2_7981_dae7_401b),
+    ("part_select", 0x2367_de71_295e_bf33),
     ("loft_prism", 0x74db_6889_4c07_172b),
-    ("die_composed", 0x094d_1539_1355_587e),
-    ("die_composed_tour", 0xbe61_d9d5_9d15_4607),
-    ("plate_param", 0x673d_ea64_7056_a450),
-    ("kiss_carry", 0x30ba_52ea_f908_146c),
+    ("die_composed", 0xab17_b650_d73d_ea22),
+    ("die_composed_tour", 0x4285_e851_34e0_a537),
+    ("plate_param", 0xf4e8_8394_a29a_4348),
+    ("kiss_carry", 0xbfa2_4a45_375c_3a04),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the
     // tube doors return `Revolved<T>` and the emitter reads only
     // its maps — so these two rows are the revolve role vocabulary

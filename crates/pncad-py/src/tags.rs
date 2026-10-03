@@ -131,14 +131,14 @@ use pncad::analysis::{
 use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
-    DimensionError, Distribution, DistributionFault, DistributionField, EditError, EvalError,
-    FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
-    MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError,
-    PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
-    RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError,
-    SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced,
-    UpdateError,
+    CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
+    EvalError, FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal,
+    Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
+    MetaVersionError, MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck,
+    ParseError, PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
+    Subgroup, Unplaced, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -383,11 +383,25 @@ pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
 pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
     match refusal {
         BoundaryEdit::NameSerialize => "name_serialize",
-        BoundaryEdit::Declare(err) => declare_error_tag(err),
+        BoundaryEdit::NoMintedId => "no_minted_id",
         BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
         BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
         BoundaryEdit::ParamName(_) => "param_name_not_an_identifier",
         BoundaryEdit::Label(fault) => label_fault_tag(fault),
+    }
+}
+
+/// The `EditError.inner_variant` of a refusal the boundary built: the
+/// second word the kernel arm behind it publishes at its own door, so a
+/// refusal met through either door reads the same two words.
+pub fn boundary_edit_inner_tag(refusal: BoundaryEdit<'_>) -> Option<&'static str> {
+    match refusal {
+        BoundaryEdit::PlacementRule(fault) => placement_rule_inner_tag(fault),
+        BoundaryEdit::NameSerialize
+        | BoundaryEdit::NoMintedId
+        | BoundaryEdit::MateHead(_)
+        | BoundaryEdit::ParamName(_)
+        | BoundaryEdit::Label(_) => None,
     }
 }
 
@@ -549,6 +563,9 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::RepeatedDesignation { .. } => "repeated_designation",
         EditError::SelectionNotCanonical { .. } => "selection_not_canonical",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::SetDeclareOnNonDeclaring { .. } => "set_declare_on_non_declaring",
+        EditError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
+        EditError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
         EditError::NodeIdCollides { .. } => "node_id_collides",
@@ -566,7 +583,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PayloadDocParamDimension { .. } => "payload_doc_param_dimension",
         EditError::MeasureMalformed { .. } => "measure_malformed",
         EditError::AssertionTarget { .. } => "assertion_target",
-        EditError::DeclareInputNotDeclare { .. } => "declare_input_not_declare",
         EditError::AssertionDimension { .. } => "assertion_dimension",
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
         EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
@@ -760,6 +776,21 @@ pub fn analysis_policy_error_tag(err: &AnalysisPolicyError) -> &'static str {
 /// three doors.
 pub fn placement_rule_fault_tag(fault: &PlacementRuleFault) -> &'static str {
     node_error_tag(NodeErrorClass::of_placement_rule(fault))
+}
+
+/// The second word of a placement-rule fault, beside
+/// [`placement_rule_fault_tag`]'s: which shape a count mismatch takes,
+/// the word `EditError::PlacementRuleMismatch` publishes as its
+/// `inner_variant`, so every carrier of the fault publishes it alike.
+/// No other fault has arms of its own.
+pub fn placement_rule_inner_tag(fault: &PlacementRuleFault) -> Option<&'static str> {
+    match fault {
+        PlacementRuleFault::CountSpelling { shape } => Some(count_mismatch_tag(shape)),
+        PlacementRuleFault::NoPlacements
+        | PlacementRuleFault::NonFiniteFrame { .. }
+        | PlacementRuleFault::ImproperFrame { .. }
+        | PlacementRuleFault::NonRigidFrame { .. } => None,
+    }
 }
 
 /// The stable tag for a frame-construction refusal
@@ -1059,7 +1090,9 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
 ///   worded as [`mate_fault_tag`], [`resolve_fault_tag`] and
 ///   [`placement_rule_fault_tag`] word it, so the fine word is on the
 ///   wire under the carrier's name and moving it here would move a
-///   shipped `kind` value;
+///   shipped `kind` value. `PlacementRule`'s count mismatch is the one
+///   such fault with arms of its own, and its shape is the second word
+///   here ([`placement_rule_inner_tag`]), as the edit door publishes it;
 /// * `WitnessBifurcation`, whose payload is the branch solver's
 ///   telemetry record: the arm is not constructed before the M6
 ///   solver, and the façade curates the record's discriminant
@@ -1117,7 +1150,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::AxisInDifferentPlane { .. } => None,
         NodeErrorKind::NonPositiveCount { .. } => None,
         NodeErrorKind::PlacementsUncertified { .. } => None,
-        NodeErrorKind::PlacementRule(_) => None,
+        NodeErrorKind::PlacementRule(fault) => placement_rule_inner_tag(fault),
         NodeErrorKind::UnschedulableCycle => None,
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
         NodeErrorKind::ParamSourceAttach(inner) => Some(param_attach_error_tag(inner)),
@@ -1201,6 +1234,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::RepeatedDesignation { .. } => None,
         EditError::SelectionNotCanonical { .. } => None,
         EditError::SetMembersOnNonList { .. } => None,
+        EditError::SetDeclareOnNonDeclaring { .. } => None,
+        EditError::DeclaredSiteNotAnOperand { .. } => None,
+        EditError::DeclaredNameNotUpstream { .. } => None,
         EditError::SetProgramOnNonProfile { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
@@ -1215,7 +1251,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::PayloadUnknownDocParam { .. } => None,
         EditError::PayloadDocParamDimension { .. } => None,
         EditError::AssertionTarget { .. } => None,
-        EditError::DeclareInputNotDeclare { .. } => None,
         EditError::AssertionDimension { .. } => None,
         EditError::SlotDocParamDimension { .. } => None,
         EditError::ContinuousParamCannotBeCount { .. } => None,
@@ -1253,7 +1288,8 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::NotAGauge { .. } => None,
         EditError::GaugeCycle { .. } => None,
         EditError::WouldStartPlacing { .. } => None,
-        EditError::PlacementRuleMismatch { .. } => None,
+        // Which answer the rule gives twice is the arm.
+        EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
         EditError::ImproperPlacement { .. } => None,
         EditError::NonFinitePlacement { .. } => None,
@@ -1279,6 +1315,18 @@ pub fn meta_version_error_tag(err: &MetaVersionError) -> &'static str {
         MetaVersionError::NotAMap => "not_a_map",
         MetaVersionError::MissingVersion => "missing_version",
         MetaVersionError::VersionNotInt => "version_not_int",
+    }
+}
+
+/// The stable tag for which answer to "how many placements" a
+/// placement-rule node gives twice — the shape
+/// `EditError::PlacementRuleMismatch` carries, published on
+/// `inner_variant`. Its three shapes are three different repairs.
+pub fn count_mismatch_tag(shape: &CountMismatch) -> &'static str {
+    match shape {
+        CountMismatch::ListedWithCount => "listed_with_count",
+        CountMismatch::SteppedWithoutCount => "stepped_without_count",
+        CountMismatch::ListedOnPattern => "listed_on_pattern",
     }
 }
 
@@ -1356,6 +1404,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
         ExtrudeError::CapPlane { .. } => "cap_plane",
         ExtrudeError::SidePlane { .. } => "side_plane",
         ExtrudeError::Op { .. } => "op",
+        ExtrudeError::Pcurve(_) => "pcurve",
     }
 }
 
@@ -1509,6 +1558,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::InvalidDeclaration => "invalid_declaration",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
+        BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CorruptOperand => "corrupt_operand",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
@@ -1525,6 +1575,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::JoinDesync => "join_desync",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
+        BooleanErrorKind::CoincidentShell => "coincident_shell",
         BooleanErrorKind::Containment => "containment",
         BooleanErrorKind::Revert => "revert",
         BooleanErrorKind::SeamOrientation => "seam_orientation",
@@ -1811,18 +1862,11 @@ pub fn offset_check_tag(cause: &OffsetCheck) -> &'static str {
 /// `Doc.declare`/`Doc.declare_all` doors over
 /// `editor_core::declare_all`). The `Edit` arm carries the document
 /// layer's own tag through rather than flattening it.
-///
-/// `no_minted_id` is published by a SECOND door too: `Doc.insert`
-/// refuses the same contract violation — an insert that applied and
-/// minted nothing — and takes its word from this map rather than
-/// restating it, so the two doors cannot drift into two spellings of
-/// one refusal. A rename here moves both.
 pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
     use pncad::select::DeclareError as E;
     match err {
         E::NoFindings => "no_findings",
         E::Edit(inner) => edit_error_tag(inner),
-        E::NoMintedId => "no_minted_id",
     }
 }
 
@@ -1873,9 +1917,10 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
+        SnapshotError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
+        SnapshotError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         SnapshotError::DanglingInput { .. } => "dangling_input",
         SnapshotError::ForwardInput { .. } => "forward_input",
-        SnapshotError::DeclareInput { .. } => "declare_input",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
         SnapshotError::LabelOnMissingNode { .. } => "label_on_missing_node",
@@ -2394,9 +2439,10 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::SeveredEdge { .. } => "severed_edge",
         SplitError::OperandSeveredFromMate { .. } => "operand_severed_from_mate",
         SplitError::TornGroup { .. } => "torn_group",
-        SplitError::CutHoldsGauge { .. } => "cut_holds_gauge",
+        SplitError::SeveredGauge { .. } => "severed_gauge",
         SplitError::TwoAnchors { .. } => "two_anchors",
         SplitError::DeadGaugeReference { .. } => "dead_gauge_reference",
+        SplitError::NoMaterial { .. } => "no_material",
         SplitError::UnplacedAlone { .. } => "unplaced_alone",
         SplitError::WouldStartPlacing { .. } => "would_start_placing",
         SplitError::PlacingMateLeft { .. } => "placing_mate_left",
@@ -2433,7 +2479,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::UnplaceableFrame { .. } => "unplaceable_frame",
         InlineError::MatePlaced { .. } => "mate_placed",
         InlineError::Unplaced { .. } => "unplaced",
-        InlineError::NeedsAGauge { .. } => "needs_a_gauge",
+        InlineError::MovedMemberOffset { .. } => "moved_member_offset",
         InlineError::PartDeadGauge { .. } => "part_dead_gauge",
         InlineError::MateFrameCrosses { .. } => "mate_frame_crosses",
         InlineError::MateFaceFrameCrosses { .. } => "mate_face_frame_crosses",
@@ -3150,16 +3196,12 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 /// on the second's — and carries that offset, a `strand` the
 /// surviving node and the name whose minting node the edit deleted,
 /// and a `stranded_appearance` that same name with no carrying node,
-/// because the appearance store is what carries it. An
-/// `orphaned_declare` names the declaration the delete left with no
-/// consumer, on `node`, and carries no name at all: nothing is
-/// dangling there, the node is simply no longer read.
+/// because the appearance store is what carries it.
 pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
         Maintenance::OffsetCleared { .. } => "offset_cleared",
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
-        Maintenance::OrphanedDeclare { .. } => "orphaned_declare",
     }
 }
 

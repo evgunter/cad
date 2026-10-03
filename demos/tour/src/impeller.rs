@@ -147,6 +147,12 @@ fn blade_polygon() -> LoopProgram {
     .expect("the blade's corners are finite")
 }
 
+/// This scene's recipe at its first count, as a document the GUI can
+/// open: one `SetDocParamValue` on `blades` is the scene's whole edit.
+pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
+    build_doc(tol).doc
+}
+
 fn build_doc(tol: Tol) -> Recipe {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("impeller", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
@@ -247,7 +253,7 @@ fn build_doc(tol: Tol) -> Recipe {
             op: BooleanOp::Union,
             a: hub_e,
             b: group,
-            declare: None,
+            declare: Vec::new(),
         }),
     );
     Recipe { doc, group, solid }

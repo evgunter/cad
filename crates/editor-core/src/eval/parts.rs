@@ -111,8 +111,9 @@ pub(crate) struct PartValue<T: Decide> {
     /// The same for the refusals it carried up.
     pub carried_unminted: Arc<Vec<crate::assembly::CarriedRefusal>>,
     /// The referenced document's own UNPLACED GROUPS, by root, with
-    /// their causes: material its world product leaves out (A9), which
-    /// the instantiating document must still be able to name.
+    /// their causes, in that document's order: material its world
+    /// product leaves out (A9), which the instantiating document must
+    /// still be able to name.
     pub unplaced: Arc<Vec<(RecipeNodeId, crate::mate::Unplaced)>>,
     /// The same for the unplaced groups it carried up from its parts.
     pub carried_unplaced: Arc<Vec<crate::assembly::CarriedUnplaced>>,
@@ -666,15 +667,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // they cross beside it: its own, and those its parts carried up
         // to it, read off the evaluation rather than the product so a
         // group below an instance no root gathers is named too.
-        let unplaced = Arc::new(
-            evaluation
-                .unplaced
-                .values()
-                .copied()
-                .collect::<BTreeMap<_, _>>()
-                .into_iter()
-                .collect(),
-        );
+        let unplaced = Arc::new(evaluation.unplaced_groups(doc));
         let carried_unplaced = Arc::new(evaluation.all_unplaced_below());
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and

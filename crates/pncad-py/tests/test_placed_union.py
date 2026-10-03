@@ -444,6 +444,7 @@ class TestThePlacementRuleRefuses(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             Node.placed_union(fin, Expr.count(1), rule)
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
+        self.assertEqual(caught.exception.inner_variant, "listed_with_count")
 
     def test_an_empty_placement_list_refuses(self):
         doc = Doc()

@@ -208,6 +208,51 @@ fn wall_declarations(
 // 1. The declaration door: the carrier ladder's torus rung.
 // -------------------------------------------------------------------
 
+/// The peg-in-socket union under `decls`, held to what it promises at
+/// every ε: sound at tiers 2 and 3′ and the at-rest certificate,
+/// additive (the parts only touch), one shell of four faces, six edges
+/// and four vertices, and a legal operand.
+///
+/// At ε up to 2e-7 the chord join builds it (each strut's half beside
+/// a germ's locus edge faces it). From 3e-7 the join's role probe reads
+/// both section loops in band and refuses
+/// `Join(SectionLoopUndecided)`, the curved-face frontier
+/// (`work/join/peg-in-socket-union-refuses-join-desync-at-a-coarse-eps.md`);
+/// the declared-REST zip takes that refusal over and builds the same
+/// census.
+fn peg_in_socket_union_holds(s: &Body<f64>, p: &Body<f64>, decls: &BooleanDeclarations) {
+    let r = topo::union_with(s, p, decls, Tol::witness())
+        .unwrap_or_else(|e| panic!("the peg-in-socket union builds: {e:?}"));
+    let bb = r.body().expect("a union of two solids is not empty");
+    assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+        Ok(()),
+        "tier 3′"
+    );
+    assert!(
+        topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
+        "the at-rest certificate"
+    );
+    let vol = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let (v, want) = (vol(&bb.body), vol(s) + vol(p));
+    assert!(
+        (v - want).abs() < 1e-9 * want.max(1.0),
+        "the parts only touch, so the union is additive: {v} against {want}"
+    );
+    assert_eq!(
+        (
+            bb.body.faces().count(),
+            bb.body.edges().count(),
+            bb.body.vertices().count(),
+            bb.body.shells().count()
+        ),
+        (4, 6, 4, 1),
+        "F, E, V, shells"
+    );
+    sweep::test_support::assert_legal_operand("peg ∪ socket", &bb.body, Tol::witness());
+}
+
 /// **The rung exists.** Before it, a `Rest` declaration on a torus
 /// face was turned away at the front door — the carrier inventory
 /// named plane, sphere and cylinder, so no torus pair could be stated
@@ -215,49 +260,20 @@ fn wall_declarations(
 /// are ONE carrier with opposed material sides, which is what `Rest`
 /// means; the declaration is now admitted and the ladder runs on it.
 ///
-/// The union then builds through the declared-REST zip: the peg and
-/// the socket share no interior, so the body is valid at tier 3 and
-/// holds exactly their two volumes. That volume is the REST lane's by
-/// construction, so the census pins the pairing: the outer torus wall's
-/// two faces, and at each end one disc, the peg's merged into the
-/// socket's annulus.
+/// The union then builds ([`peg_in_socket_union_holds`]): the peg and
+/// the socket share no interior, so the body holds exactly their two
+/// volumes, and the census pins the pairing: the outer torus wall's two
+/// faces, and at each end one disc, the peg's merged into the socket's
+/// annulus.
 #[test]
 fn a_declared_torus_rest_pair_passes_the_declaration_door() {
-    let tol = Tol::witness();
     let (s, p) = (socket(), segment_a());
     let decls = wall_declarations(&s, &p, TUBE, ContactClass::Rest);
     assert!(
         !decls.coincident_faces.is_empty(),
         "the socket's bore and the peg's wall must both be torus faces"
     );
-    let bb = match topo::union_with(&s, &p, &decls, tol) {
-        Ok(BooleanResult::Body(b)) => b,
-        other => panic!("the admitted torus Rest pair's union builds: {other:?}"),
-    };
-    let body = &bb.body;
-    assert_eq!(topo::validate_geometric(body, tol), Ok(()), "tier 3");
-    assert_eq!(
-        topo::validate_pseudomanifold(body, &bb.contacts, tol),
-        Ok(()),
-        "tier 3′"
-    );
-    let volume = |b: &Body<f64>| topo::mass_properties(b, tol).unwrap().volume;
-    let want = volume(&s) + volume(&p);
-    assert!(
-        (volume(body) - want).abs() <= 1e-12 * want,
-        "the peg fills the socket: {} vs {want}",
-        volume(body)
-    );
-    assert_eq!(
-        (
-            body.faces().count(),
-            body.edges().count(),
-            body.vertices().count(),
-            body.shells().count()
-        ),
-        (4, 6, 4, 1),
-        "F, E, V, shells"
-    );
+    peg_in_socket_union_holds(&s, &p, &decls);
 }
 
 /// **The rung DECIDES, it does not merely admit.** A peg whose tube is
@@ -381,18 +397,15 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
 /// nothing but two boxes: the outer wall stands 0.03 m clear of the
 /// peg, and the two faces' windows are one rectangle about one spine
 /// circle, so no sound box separates them. With the torus on the KIND
-/// roster the pair's boxes decide nothing, and the op runs on: never
-/// the gate's refusal (it builds, the row above).
+/// roster the pair's boxes decide nothing, and the op runs on — since
+/// JOIN-1 it builds the union, sound and additive
+/// ([`peg_in_socket_union_holds`]).
 #[test]
 fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
     let (s, p) = (socket(), segment_a());
     let decls = wall_declarations(&s, &p, TUBE, ContactClass::Rest);
-    let r = topo::union_with(&s, &p, &decls, Tol::witness());
-    assert!(
-        !matches!(r, Err(BooleanError::CurvedPairUnsupported { .. })),
-        "the uncovered outer wall must not gate: {:?}",
-        r.err()
-    );
+    // The uncovered outer wall does not gate.
+    peg_in_socket_union_holds(&s, &p, &decls);
 }
 
 /// **Where the lane stops once the gate is past, held still.** Two
@@ -720,7 +733,7 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
                     BooleanError::CurvedPierceUnsupported { .. }
                         | BooleanError::Escalated {
                             diag: geom_core::Indeterminate {
-                                predicate: Some("bool_circle_curved_clearance"),
+                                predicate: Some("bool_conic_curved_clearance"),
                                 ..
                             },
                             ..

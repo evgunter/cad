@@ -57,6 +57,8 @@ mod revolve_common;
 
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "at_rest_pcurve_faces.rs"]
+mod at_rest_pcurve_faces;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
@@ -111,6 +113,8 @@ mod pis_arc_capped_poses;
 mod pis_cut_cavity;
 #[path = "placeholder_chart_boundary.rs"]
 mod placeholder_chart_boundary;
+#[path = "point_in_loop_arc_cap.rs"]
+mod point_in_loop_arc_cap;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
 #[path = "r1_lane0_e2e.rs"]
@@ -214,6 +218,8 @@ mod cert5_offgrid_knot_rational;
 mod cert8_r1_probes;
 #[path = "closed_chain_junctions.rs"]
 mod closed_chain_junctions;
+#[path = "conic_edge_curved_face.rs"]
+mod conic_edge_curved_face;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
 #[path = "contained_flush_cylinder.rs"]
@@ -234,6 +240,10 @@ mod extrude_acceptance;
 mod extrude_interval;
 #[path = "issue93_az_intersect.rs"]
 mod issue93_az_intersect;
+#[path = "join1_r2_probes.rs"]
+mod join1_r2_probes;
+#[path = "join1_r2_rand.rs"]
+mod join1_r2_rand;
 #[path = "join_whole_orbit_cylinder.rs"]
 mod join_whole_orbit_cylinder;
 #[path = "k_report.rs"]
@@ -590,6 +600,16 @@ mod germ_sphere_no_crossings;
 mod germ_torus_doors;
 #[path = "germ_torus_rods.rs"]
 mod germ_torus_rods;
+#[path = "join1_delta_probes.rs"]
+mod join1_delta_probes;
+#[path = "join1_mechanisms.rs"]
+mod join1_mechanisms;
+#[path = "join1_r1_probes.rs"]
+mod join1_r1_probes;
+#[path = "join1_r1_rows.rs"]
+mod join1_r1_rows;
+#[path = "join_rc_probes.rs"]
+mod join_rc_probes;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]
@@ -839,3 +859,6 @@ mod review_ring2_r1_e2e;
 mod full_turn_bore_mate;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
+
+#[path = "join1_delta2_harness.rs"]
+mod join1_delta2_harness;

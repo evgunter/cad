@@ -16,7 +16,7 @@ use crate::common;
 use common::brick;
 use geom_core::Tol;
 use topo::flush::{declare_all, find_flush_candidates};
-use topo::{Body, BooleanError, BooleanResult, Operand, mass_properties, union_with};
+use topo::{Body, BooleanError, BooleanResult, mass_properties, union_with};
 
 /// The union of `a` and `b`, every flush pair the detector finds
 /// declared.
@@ -94,23 +94,16 @@ fn an_uncut_lump_flush_inside_the_other_operand_takes_its_side_from_a_face() {
     assert_valid_with_volume("(a ∪ c) ∪ (b ∪ x)", &all, 2.0 + 0.5 * 0.36);
 }
 
-/// The same body twice: every vertex, edge midpoint and face interior
-/// point of either operand lies on the other's boundary, so the side is
-/// undecided and the refusal names the exhausted witnesses, not rays.
+/// The same body twice, every flush pair declared: every witness of
+/// either operand lies on the other's boundary, and the declarations
+/// settle each face with its twin, so the shell is `On` and one copy is
+/// kept.
 #[test]
-fn one_body_twice_refuses_as_an_exhausted_witness_set() {
+fn one_body_twice_declared_is_one_copy() {
     let [a, _, _] = trio();
-    let err = declared_union(&a, &a).expect_err("one body twice has no decidable side");
-    assert!(
-        matches!(
-            err,
-            BooleanError::ShellWitnessExhausted {
-                operand: Operand::A,
-                ..
-            }
-        ),
-        "the refusal names the witness set that ran out: {err:?}"
-    );
+    let both = declared_union(&a, &a).expect("one body twice, declared, is answered");
+    assert_valid_with_volume("a ∪ a", &both, 1.0);
+    assert_eq!(both.shells().count(), 1, "one copy of the shell is kept");
 }
 
 /// The trio again along z with an L-shaped profile, so `b`'s end faces

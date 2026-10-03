@@ -399,14 +399,54 @@ const PLATE_MAX_TERMS: usize = 252;
 /// changes what is built.
 ///
 /// The door's calls include the lowering's endpoint registrations
-/// (`Arc2::register_endpoints`): 16 decisions and 16 assertions.
+/// (`Arc2::register_endpoints`): 16 decisions and 16 assertions. The
+/// extrude's closing pcurve mint certifies the plate's wall rows, so
+/// the certificate's decisions are walked too, and the residuals it
+/// leaves blocked are rendered by the shape report (the `Report`
+/// lines, which build no form).
+///
+/// **When check 4 was restated as frame, incidence and fidelity, check 3
+/// left the box, and the loop walk's branch became a literal** (PCERT,
+/// PR 3812), every line moved. Against the pin it replaced, in three
+/// steps, each measured on its own head:
+///
+/// | line | base | parts 1 + 2 | literal branch | frame twin |
+/// |---|---|---|---|---|
+/// | `Plain/Decision` calls / forms / frozen | 1255 / 21366 / 1176 | 1141 / 16247 / 696 | 1127 / 16018 / 696 | 1127 / 16429 / 696 |
+/// | `Plain/Assertion` calls / forms | 578 / 3233 | 612 / 3237 | 666 / 3474 | 666 / 4051 |
+/// | `Plain/Report` calls | 176 | 62 | 32 | 32 |
+/// | `Early/Decision` calls / forms | 552 / 14290 | 426 / 9125 | 416 / 8899 | 416 / 9188 |
+/// | `Early/Assertion` calls / forms | 578 / 4144 | 612 / 4166 | 666 / 4404 | 666 / 5015 |
+/// | `Door/Decision` calls / forms | 662 / 19170 | 558 / 13722 | 590 / 13212 | 590 / 13928 |
+/// | `Door/Assertion` calls | 322 | 356 | 410 | 410 |
+///
+/// - **Parts 1 and 2.** Check 3's samples on the wall rows are no longer
+///   decided over the box (they cross-check at the point witness,
+///   unlogged), so the map-residual forms leave every walk, and the
+///   step's forms and `Plain/Decision` freezes fall (1176 → 696; which
+///   share is check 3's and which check 4's was not split). Check 4
+///   re-derives each row's image, so the
+///   derivation's assertions are taken twice (`Assertion` calls up).
+/// - **The literal branch.** The stored azimuths carry no `floor`
+///   node; the walk asks each branch as sign decisions at the
+///   half-period marks (`Assertion` and `Door` calls up). Check 4's
+///   fidelity is a theorem on every walked row, so the blocked
+///   residuals the `Report` lines render halve (62 → 32).
+/// - **The frame twin.** Check 4 derives on the chart's Gram–Schmidt
+///   twin (`n̂ = axis/‖axis‖`, `ê₁` normalised) and adds the `Frame`
+///   term, bounded in the frame's invariants: the twin's
+///   normalisations and the invariants are new forms in every walk.
+///   Calls and freezes do not move: the twin is the same frame on this
+///   plate's literal charts, so no decision is added or lost.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 14653 frozen 672 digest 5f922b2af13058d8b4f4572cf657c77d\n\
-     Plain/Assertion calls 462 forms 2526 frozen 372 digest 6c29633eaf7b7e2c746fddc842754e9a\n\
-     Early/Decision calls 320 forms 7710 frozen 8 digest cc786663ad599318ae48e1ad6a64521d\n\
-     Early/Assertion calls 462 forms 3389 frozen 0 digest c8a22079b42a8cbe472a3f7466cd3bd0\n\
-     Door/Decision calls 346 forms 11732 frozen 0 digest 2184a919171301ac92d6fd3426aa3e03\n\
-     Door/Assertion calls 206 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Plain/Decision calls 1127 forms 16429 frozen 696 digest f0075c185b84ceaa1e6776fef010ba7a\n\
+     Plain/Assertion calls 666 forms 4051 frozen 372 digest 2d8a3120e46d4f5e79adece7f2080b4f\n\
+     Plain/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 416 forms 9188 frozen 8 digest 4a83df50386eccfa36dc691f0258eb7e\n\
+     Early/Assertion calls 666 forms 5015 frozen 0 digest f8fb8acfd73cd5e780d9157d6836fa88\n\
+     Early/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Door/Decision calls 590 forms 13928 frozen 0 digest ad9c2d1d4a3be10b1f9edb793fc74e67\n\
+     Door/Assertion calls 410 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -548,35 +588,60 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
     let tol = Tol::witness();
     let doc = the_plate(tol);
     let (_, nominal) = boxes(&doc).into_iter().next().unwrap();
+    // `Plain/Report` is not a form the plain walk builds: it counts the
+    // residuals rendered because they BLOCKED, and which ones block is
+    // the early walk's rules' to decide. So it is the one plain line a
+    // dial may move, and its count is pinned per dial set instead of
+    // compared across them: a dial that starts moving it moves a pin.
+    let is_report = |l: &str| l.trim_start().starts_with("Plain/Report");
     let plain_lines = |ledger: &str| {
         ledger
             .lines()
-            .filter(|l| l.trim_start().starts_with("Plain/"))
+            .filter(|l| l.trim_start().starts_with("Plain/") && !is_report(l))
             .map(|l| l.trim().to_owned())
             .collect::<Vec<_>>()
     };
-    let sets: [(&str, SymRules); 4] = [
-        ("shipped", SymRules::shipped()),
-        ("without_canonical_root", SymRules::without_canonical_root()),
-        ("without_the_reads", SymRules::without_the_reads()),
+    let report_calls = |ledger: &str| {
+        ledger
+            .lines()
+            .find(|l| is_report(l))
+            .and_then(|l| l.split_whitespace().nth(2))
+            .and_then(|n| n.parse::<u64>().ok())
+    };
+    let sets: [(&str, SymRules, u64); 4] = [
+        ("shipped", SymRules::shipped(), 32),
+        (
+            "without_canonical_root",
+            SymRules::without_canonical_root(),
+            40,
+        ),
+        ("without_the_reads", SymRules::without_the_reads(), 32),
         (
             "both new dials off",
             SymRules {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
+            40,
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;
-    for (name, rules) in sets {
+    for (name, rules, blocked) in sets {
         start_profile();
         let _ = replay(&doc, &nominal, rules, tol);
         let p = take_profile();
         let largest = p.ops.values().map(|o| o.max_terms_out).max().unwrap_or(0);
-        let lines = plain_lines(&p.walk_ledger());
+        let ledger = p.walk_ledger();
+        let lines = plain_lines(&ledger);
         println!(
-            "  {name}: largest form {largest}\n    {}",
+            "  {name}: largest form {largest}, Plain/Report {:?}\n    {}",
+            report_calls(&ledger),
             lines.join("\n    ")
+        );
+        assert_eq!(
+            report_calls(&ledger),
+            Some(blocked),
+            "{name}: the plain walk renders a different number of blocked residuals"
         );
         match &seen {
             None => seen = Some((name, lines)),
