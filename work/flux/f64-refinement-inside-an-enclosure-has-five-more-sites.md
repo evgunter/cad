@@ -2,9 +2,8 @@
 id: f64-refinement-inside-an-enclosure-has-five-more-sites
 kind: issue
 title: An f64 knot refinement (or an f64-rounded insertion ratio) inside an enclosure: five more sites of TESS-2's class
-status: review
+status: open
 opened: 2026-09-22
-pr: 3524
 ---
 
 
