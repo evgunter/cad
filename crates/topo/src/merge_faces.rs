@@ -4520,10 +4520,7 @@ mod winding_arm_tests {
                     he2: e1.he_minus,
                 },
                 arc(-Vec3::unit_z()),
-                FaceSurface::New {
-                    surface: plane(),
-                    sense: true,
-                },
+                FaceSurface::Inherit,
                 tol,
             )
             .unwrap();
@@ -5472,16 +5469,19 @@ mod declared_reach_rows {
                 .clone();
             let he1 = leaving(&body, top, a).expect("A is on the top");
             let he2 = leaving(&body, top, c).expect("C is on the top");
+            // Lifts RechartStrandsDescriptions: the half on a key of its own is the declared pair; its rim's descriptions are not the row.
             let split = body
-                .mef(
-                    MefSite::Chords { he1, he2 },
-                    line(pa, pc),
-                    FaceSurface::New {
-                        surface: flat,
-                        sense: true,
-                    },
-                    tol,
-                )
+                .lifting_rechart_refusals_for_tests(|body| {
+                    body.mef(
+                        MefSite::Chords { he1, he2 },
+                        line(pa, pc),
+                        FaceSurface::New {
+                            surface: flat,
+                            sense: true,
+                        },
+                        tol,
+                    )
+                })
                 .expect("the diagonal splits the top");
             // The half holding B (+y) turns about the x-axis hinge at
             // z = 1; the half holding D stays flat.

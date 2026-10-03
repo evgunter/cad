@@ -459,7 +459,7 @@ fn distinct_keys(
         return (ka, kb);
     }
     let described = body.get_surface(kb).unwrap().clone();
-    // Lifts both refusals: the row's premise is the key the face left, which its descriptions still name.
+    // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
     let fresh = body
         .set_face_surface_stranding_for_tests(
             b,
@@ -563,7 +563,7 @@ fn pair_with_no_live_faces_mints_no_record() {
     for &f in &walls {
         let described = body.get_surface(pk).unwrap().clone();
         fresh.push(
-            // Lifts both refusals: the row's premise is the key the face left, which its descriptions still name.
+            // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
             body.set_face_surface_stranding_for_tests(
                 f,
                 FaceSurface::New {
@@ -1042,7 +1042,7 @@ fn a_curved_run_with_one_rowless_sector_merges_whichever_sector_it_is() {
         let described = body.get_surface(k).unwrap().clone();
         // Walls 0 and 1 are the run; wall 2 goes onto a key of its own.
         let sense = body.get_face(walls[2]).unwrap().sense;
-        // Lifts both refusals: the row's premise is the key the face left, which its descriptions still name.
+        // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
         body.set_face_surface_stranding_for_tests(
             walls[2],
             FaceSurface::New {
@@ -1053,7 +1053,7 @@ fn a_curved_run_with_one_rowless_sector_merges_whichever_sector_it_is() {
         .unwrap();
         topo::mint_pcurves(&mut body, tol).unwrap();
         let sense = body.get_face(walls[i]).unwrap().sense;
-        // Lifts both refusals: the row's premise is the key the face left, which its descriptions still name.
+        // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
         body.set_face_surface_stranding_for_tests(
             walls[i],
             FaceSurface::New {
