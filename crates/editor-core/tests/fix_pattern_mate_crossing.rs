@@ -83,7 +83,13 @@ fn legs_reach() -> EvalOptions {
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A determining `Rest` mate seating `b`'s bottom onto `a`.
