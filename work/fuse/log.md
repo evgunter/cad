@@ -307,3 +307,25 @@ lane, because both edit `remap_contacts`.
   readings only, and either proves the three unreached arms are
   invariants or pins them. The #3891 rework runs in parallel on the
   piece rule.
+
+- 2026-10-03 — PR 3891, dual review of the one-piece rework:
+  - Kernel lane: mergeable with fixes.
+  - Editor/baselines lane: not mergeable. The product fence leaks through
+    a nested sub-assembly, a `Transform`, and `PlacedUnion` (confirmed by
+    execution).
+  - Adjudication, all sent as one fix pass:
+    - the part count becomes a value property that every body-passing op
+      carries;
+    - an `Outer` nested in an `Outer` is overlapping material and refuses
+      typed (not two pieces);
+    - cross-solid overlap passing tier 3 is filed P1 on the validator's
+      owner;
+    - the stale work rows and the editor README are fixed in the PR.
+  - The editor lane re-checks the MAJOR after the fix.
+- 2026-10-03 — PR 3943 (shared-vertex tie): FULL review, mergeable. Its
+  fix pass covers:
+  - angular `leaves` for strut cuts;
+  - the vertex pin;
+  - a red row for the lower-germ splice;
+  - re-checking the face-interior attribution;
+  - `reconcile_shared` to a fixed point or an assert.
