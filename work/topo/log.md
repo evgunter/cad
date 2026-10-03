@@ -6383,3 +6383,25 @@ re-pointed there. PR 3974 and PR 3992 were started before the hold, so
 they still finish. Per D10, coincidence is a margined verdict with no
 declarations, checked by the `unproven-coincidence` lint. Read it before
 any future unit on this ground.
+
+## PR 3974 ready to merge; PR 3992 under review (2026-10-03)
+
+**PR 3974's fix pass is verified.**
+- Finiteness is checked where the measure is built, so NaN and ±∞ are
+  both `Unreadable` through one route, ending as an operand defect.
+- New rows at the tangency screen and the maximal-faces gate.
+- `same_door` matches arm for arm.
+- `## Landed in PR 3974 (TOPO)` is appended to CLEAVE's mints row.
+- Filed: the boolean unreadable norm, and the flush band's poison story.
+- CI run 37148469133 passed. I closed the row on the branch
+  (`683aac41b0`), and the merge waits on CI.
+
+**PR 3992 delivered.**
+- F7 levers at `readback::edge_extent`, a certified lower bound on the
+  edge's diameter. `edge_chord_len` and its 1 m default are gone, and a
+  failed lookup refuses `Corruption::Edge`.
+- The merge door already levered at the pair's reach (CLEAVE
+  `07450b513`). It now also glues across a closed shared edge
+  (`delete_lone_ring`), which goes beyond the brief.
+- The offer is executed (T1). M1–M5 red. CI run 37148625668 passed.
+- Cloud reviewer: `session_01XyjeAwAqxdBgCMmtYYkCav`.
