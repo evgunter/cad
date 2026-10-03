@@ -38,7 +38,7 @@ use geom_core::{Decide, Point2};
 use profile::{ArcSweep, Step, Target};
 use serde::{Deserialize, Serialize};
 
-use crate::doc::ParamName;
+use crate::doc::VarName;
 use crate::eval::{CanonicalSegment, LoopAnchor, ProfileNaming};
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, UnitSym, eval};
 use crate::node::{RecipeNodeId, SlotId, StepArg, StepId, find_row, row_readers};
@@ -517,7 +517,7 @@ pub trait ProfilePayload: serde::Serialize {
     /// Whether any expression of this program reads the document
     /// parameter `name` — over [`ProfilePayload::rows`], so every
     /// payload answers it the one way.
-    fn references(&self, name: &ParamName) -> bool {
+    fn references(&self, name: &VarName) -> bool {
         let mut refs = Vec::new();
         for (_, e) in self.rows() {
             e.param_refs(&mut refs);
@@ -1682,7 +1682,7 @@ impl ProfileProgram {
     /// parameter `name` — the question a C6/D9-pinned consumer of the
     /// program (a loft's or a sweep's section) asks before a seed on
     /// that parameter is silently embedded as a constant.
-    pub fn references(&self, name: &ParamName) -> bool {
+    pub fn references(&self, name: &VarName) -> bool {
         ProfilePayload::references(self, name)
     }
 

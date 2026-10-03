@@ -114,7 +114,7 @@ joined-path composition lane.)
 
 | document | demonstrates | pins |
 |---|---|---|
-| `plate_param` | **The parametric flagship.** A plate whose two hole radii are one shared `DocParam`; the first document where editing a parameter changes a profile's *shape* | Four rows: the volume moves by the right derivative; one parameter drives both holes; `r = 0` refuses at replay naming loop and step; overlapping holes refuse at *validate* — a different door |
+| `plate_param` | **The parametric flagship.** A plate whose two hole radii are one shared `FreeVar`; the first document where editing a parameter changes a profile's *shape* | Four rows: the volume moves by the right derivative; one parameter drives both holes; `r = 0` refuses at replay naming loop and step; overlapping holes refuse at *validate* — a different door |
 | `die` | The M3 exact-oracle die (77 nodes) as a recipe, reused verbatim from the shared fixture so corpus and other suites cannot drift | Exact dyadic volume `7.8359375`, area `26.625`; a minimal-cone bump probe |
 | `table` | Four legs with every flush contact **declared by name**, authored through the detect/declare protocol (`find_flush_candidates` → `declared_pairs`) | The detector also reports coplanar-but-*disjoint* pairs, which are silent no-ops at the op — a real trap, pinned |
 | `heatsink` | Carries **both** shapes of "many fins": a `Pattern` whose payload is `Instances`, and the explicit Transform+Union chain | Why both exist: a Boolean cannot consume an `Instances` payload. Fin bases sit 1/16 inside the base — flush would be an undeclared coincidence |

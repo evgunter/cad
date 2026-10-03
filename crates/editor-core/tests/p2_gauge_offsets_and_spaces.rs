@@ -14,10 +14,10 @@ use std::sync::Arc;
 use crate::fixture;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocParam, DocParamValue,
-    DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, MateFault, MateFrame, MatePrimitive,
-    Node, NodeErrorKind, ParamName, PatternKind, Placement, ProfileDoc, RecipeNodeId, SitedFace,
-    SlotId, StableName, Step, ValuePayload, evaluate, root_of,
+    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId,
+    EvalOptions, Evaluation, Expr, Frame, FreeValue, FreeVar, MateFault, MateFrame, MatePrimitive,
+    Node, NodeErrorKind, PatternKind, Placement, ProfileDoc, RecipeNodeId, SitedFace, SlotId,
+    StableName, Step, ValuePayload, VarName, evaluate, root_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -261,8 +261,8 @@ fn assert_encloses(part: &Body<f64>, lane: &Body<Interval>, m: &M4, what: &str) 
     }
 }
 
-fn lift() -> ParamName {
-    ParamName::from_static("lift")
+fn lift() -> VarName {
+    VarName::from_static("lift")
 }
 
 fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
@@ -270,7 +270,7 @@ fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         DocEdit::SetDocParam {
             name: lift(),
-            value: DocParam::continuous(Dimension::Length, value),
+            value: FreeVar::continuous(Dimension::Length, value),
         },
     )
     .0
@@ -281,7 +281,7 @@ fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         DocEdit::SetDocParamValue {
             name: lift(),
-            value: DocParamValue::Continuous(value),
+            value: FreeValue::Continuous(value),
         },
     )
     .0

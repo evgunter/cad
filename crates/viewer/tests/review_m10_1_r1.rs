@@ -1,7 +1,7 @@
 //! **R1 review probes for M10-1, GUI half**: the carry-forward class.
 //!
 //! `DocEdit::SetDocParam` is create-or-replace, so every GUI door that
-//! rebuilds a `DocParam` from parts is a door that can silently DELETE
+//! rebuilds a `FreeVar` from parts is a door that can silently DELETE
 //! an existing distribution. The PR fixed `props::param_edit` and
 //! reported the fix in prose; nothing in the tree pinned it. These
 //! rows pin BOTH value-edit doors — the panel (`SetParam`) and the
@@ -14,26 +14,26 @@
 
 use crate::common;
 
-use pncad::document::{Dimension, Distribution, DocParam, ParamName};
+use pncad::document::{Dimension, Distribution, FreeVar, VarName};
 use pncad::geom_core::Tol;
 use viewer::props::SlotValue;
 use viewer::session::{DocSession, SessionOp};
 
-fn annotated_session() -> (DocSession, ParamName, Distribution) {
+fn annotated_session() -> (DocSession, VarName, Distribution) {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let name = ParamName::from_static("bore_r");
+    let name = VarName::from_static("bore_r");
     let dist = Distribution::Normal { sigma: 5e-6 };
     let outcome = session.perform(SessionOp::CreateParam {
         name: name.clone(),
-        value: DocParam::continuous_with(Dimension::Length, 0.004, dist),
+        value: FreeVar::continuous_with(Dimension::Length, 0.004, dist),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     (session, name, dist)
 }
 
-fn distribution_of(session: &DocSession, name: &ParamName) -> Option<Distribution> {
+fn distribution_of(session: &DocSession, name: &VarName) -> Option<Distribution> {
     session
         .committed_doc()
         .params()
@@ -67,7 +67,7 @@ fn a_panel_value_edit_keeps_the_distribution() {
         .get(&name)
         .expect("still declared");
     match *param {
-        DocParam::Continuous {
+        FreeVar::Continuous {
             value,
             distribution,
             ..
@@ -76,7 +76,7 @@ fn a_panel_value_edit_keeps_the_distribution() {
             let got = distribution.expect("the annotation SURVIVED the value edit");
             assert!(got.bit_eq(&dist), "and survived bit for bit");
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
 }
 
@@ -103,7 +103,7 @@ fn a_param_drag_gesture_keeps_the_distribution() {
         .get(&name)
         .expect("declared")
     {
-        DocParam::Continuous { value, .. } => assert_eq!(value, 0.006, "the drag landed"),
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Continuous { value, .. } => assert_eq!(value, 0.006, "the drag landed"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
 }

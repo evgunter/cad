@@ -237,7 +237,7 @@ fn p4_thick_wall_bump_refuses_typed_with_numbers() {
 #[test]
 fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
     use editor_core::analysis::{BoxAxis, ParamBox};
-    use editor_core::{Dimension, DocParam, Expr, ParamName, UnitSym};
+    use editor_core::{Dimension, Expr, FreeVar, UnitSym, VarName};
     use geom_core::Interval;
     use std::collections::BTreeMap;
     use std::sync::Arc;
@@ -249,8 +249,8 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
         let doc = apply(
             &d.doc,
             &DocEdit::SetDocParam {
-                name: ParamName::from_static("t"),
-                value: DocParam::Continuous {
+                name: VarName::from_static("t"),
+                value: FreeVar::Continuous {
                     dim: Dimension::Length,
                     value: nominal,
                     display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -266,14 +266,14 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
             doc,
             Node::shell(
                 blank,
-                Expr::param(ParamName::from_static("t"), Dimension::Length),
+                Expr::param(VarName::from_static("t"), Dimension::Length),
                 vec![cup::top(blank)],
             ),
         )
     };
     let widened = || EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes(BTreeMap::from([(
-            ParamName::from_static("t"),
+            VarName::from_static("t"),
             BoxAxis::Varying {
                 lo: -width,
                 hi: width,

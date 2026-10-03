@@ -26,7 +26,7 @@
 use crate::corpus;
 
 use corpus::{documents, eval, failures};
-use editor_core::{DocEdit, DocParam, ParamName, ProfileDoc, apply, assemble, product_recorded};
+use editor_core::{DocEdit, FreeVar, ProfileDoc, VarName, apply, assemble, product_recorded};
 use geom_core::Tol;
 use topo::AtRestPolicy;
 
@@ -63,8 +63,8 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
     apply(
         &entry.doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("fins"),
-            value: DocParam::Count { value: fins },
+            name: VarName::from_static("fins"),
+            value: FreeVar::Count { value: fins },
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -105,8 +105,8 @@ pub fn corners(b: &Aabb) -> Vec<Point3<f64>> {
 // produce.
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileProgram,
-    RecipeNodeId,
+    Dimension, Doc, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileProgram, RecipeNodeId,
+    VarName,
 };
 use pncad::geom_core::Tol;
 use viewer::props::Notation;
@@ -138,8 +138,8 @@ pub fn shape(template: &ProfileShape) -> LoopProgram {
 }
 
 /// The name of the parametric fixture's driving parameter.
-pub fn thickness_param() -> ParamName {
-    ParamName::from_static("thickness")
+pub fn thickness_param() -> VarName {
+    VarName::from_static("thickness")
 }
 
 /// A document whose extrude distance is DRIVEN by a document
@@ -152,7 +152,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
         &doc,
         DocEdit::SetDocParam {
             name: thickness_param(),
-            value: DocParam::continuous(Dimension::Length, 0.008),
+            value: FreeVar::continuous(Dimension::Length, 0.008),
         },
         tol,
     );
