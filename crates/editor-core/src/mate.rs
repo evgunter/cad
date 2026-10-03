@@ -31,15 +31,15 @@
 //!
 //! [`Alignment`] carries two mate frames — one per side, in that
 //! instance's OWN part coordinates — plus the primitive relating
-//! them, the axis sense, and the clocking rider. A frame is either
-//! three authored vectors or the name of a FACE of the part, whose
-//! canonical pose the part's own evaluation answers at solve time
-//! ([`MateFrame`]); the solve's inputs are the document plus its
+//! them, the axis sense, and the clocking rider. A frame is a base —
+//! the part frame, or the side's own head FACE, whose canonical pose
+//! the part's own evaluation answers at solve time — composed with an
+//! offset placement ([`MateFrame`]); the solve's inputs are the document plus its
 //! mated parts' evaluations, and the solve ALGORITHM is a
 //! decided-predicate computation over the resolved frames (A11's
 //! "coset intersection over decided predicates, no numeric fitting",
 //! with the two reads `ASSEMBLY.md` A11 rule 5 states — the lever,
-//! [`reach`], and a `FromFace` frame's pose, [`MateReach::face_pose`]).
+//! [`reach`], and a face base's pose, [`MateReach::face_pose`]).
 //!
 //! Each primitive pins the pair's relative pose to a COSET of an
 //! SE(3) subgroup, and multiple mates on one pair fold by exact coset
@@ -66,9 +66,10 @@
 
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
+use crate::placement::Placement;
 use geom_core::Tol;
 use geom_core::linalg::frame::FrameError;
-use geom_core::linalg::{Affine3, OrthoFrame, Point3, UnitVec3, Vec3};
+use geom_core::linalg::{Point3, Vec3};
 use geom_core::predicate::{BandError, Indeterminate, Margin};
 
 pub mod coset;
@@ -92,7 +93,9 @@ pub use solve::{
 pub use topo::ContactClass;
 
 /// Which side of a mate a diagnostic is about.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum MateSide {
     /// The `a` reference.
@@ -111,235 +114,153 @@ impl MateSide {
     }
 }
 
-/// **Three authored vectors** in the part's own coordinates: an
-/// origin, the primary axis (a planar rest's normal, a coaxial mate's
-/// axis), and the clocking reference that fixes roll — the
-/// [`MateFrame::Authored`] arm, and what a [`MateFrame::FromFace`] arm
-/// RESOLVES to once the face's pose is read, so both arms meet the
-/// same frame witness ([`AuthoredFrame::frame`]). The type therefore
-/// holds a resolved face's numbers as well as an author's: the name
-/// says where the numbers come from on the wire, not in the solve.
-///
-/// The frame is built through [`geom_core::linalg::frame::point_at`]
-/// — U4B's frame family, reused rather than reinvented — so a
-/// degenerate axis or a reference on the axis line refuses through
-/// that ladder's typed voice instead of silently producing a
-/// rank-deficient basis.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct AuthoredFrame {
-    /// The frame's origin (part coordinates).
-    pub origin: [f64; 3],
-    /// The primary axis: a rest plane's normal, a coaxial axis. Need
-    /// not be unit; only its direction is read.
-    pub axis: [f64; 3],
-    /// The clocking reference, fixing roll about `axis`. Need not be
-    /// perpendicular to the axis; only its perpendicular part is read.
-    pub reference: [f64; 3],
+/// **What a mate side's offset is written in** — the base of its
+/// [`MateFrame`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum FrameBase {
+    /// The side's part frame: the coordinates its part is modelled in.
+    Part,
+    /// The side's own head face's canonical pose (see [`MateFrame`]).
+    Face,
 }
 
-impl AuthoredFrame {
-    /// **The frame this datum denotes, as the witness the ladder
-    /// decided**: local +Z is `axis`, local origin is `origin`, roll
-    /// fixed by `reference` (U4B's `point_at` convention, verbatim),
-    /// through `point_at_frame` — so a reader that levers a sine or a
-    /// cosine off the axis takes it as [`OrthoFrame::w`], a
-    /// [`UnitVec3`], holding the fact by type. [`Self::placement`] is
-    /// this frame's `to_affine`, and [`Self::axis`] its `w`; one
-    /// construction, read once per side by the solve.
-    ///
-    /// # Errors
-    ///
-    /// [`FrameError`] when the axis has no definite direction, when
-    /// the reference has no definite perpendicular offset from it, or
-    /// — asked before either sign — when the axis's length or that
-    /// perpendicular offset is not a finite NUMBER
-    /// (`FrameError::NonFiniteLength`, at `Aim` and `RollReference`
-    /// respectively). This is `point_at`'s own list; the three cases
-    /// arrive here unchanged.
-    pub fn frame(&self, tol: Tol) -> Result<OrthoFrame<f64>, FrameError> {
-        let eye = Point3::from_array(self.origin);
-        let axis = Vec3::from_array(self.axis);
-        let reference = Vec3::from_array(self.reference);
-        geom_core::linalg::frame::point_at_frame(eye, eye + axis, reference, tol)
-    }
-
-    /// The rigid placement this frame denotes: [`Self::frame`]'s
-    /// affine, bit for bit.
-    ///
-    /// # Errors
-    ///
-    /// [`Self::frame`]'s.
-    pub fn placement(&self, tol: Tol) -> Result<Affine3<f64>, FrameError> {
-        Ok(self.frame(tol)?.to_affine())
-    }
-
-    /// The axis this frame aims along, as the witness [`Self::frame`]
-    /// decided: its `w`, which is [`Self::placement`]'s third column.
-    ///
-    /// # Errors
-    ///
-    /// [`Self::frame`]'s.
-    pub fn axis(&self, tol: Tol) -> Result<UnitVec3<f64>, FrameError> {
-        Ok(self.frame(tol)?.w())
-    }
-
-    /// Whether every coordinate is a finite number.
-    fn is_finite(&self) -> bool {
-        [self.origin, self.axis, self.reference]
-            .iter()
-            .all(|v| v.iter().all(|x| x.is_finite()))
-    }
-
-    /// The origin's distance from the part's origin — this frame's
-    /// term of the lever ([`Alignment::lever_arm`]).
-    fn origin_norm(&self) -> f64 {
-        let [x, y, z] = self.origin;
-        (x.powi(2) + y.powi(2) + z.powi(2)).sqrt()
+impl FrameBase {
+    /// The base's name, for messages.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Part => "part",
+            Self::Face => "face",
+        }
     }
 }
 
-/// One side's **mate frame**, in that instance's own part coordinates.
+/// One side's **mate frame**: a base composed with an offset, a
+/// [`Placement`] written in the base's frame (`ASSEMBLY.md` A3). The
+/// side's frame is `base ∘ offset`, folded step by step through
+/// [`Placement`]'s one chain fold, at the document's own parameters,
+/// so a parameter can drive where a side sits.
 ///
-/// Two arms, closed. [`Self::Authored`] is three vectors the author
-/// wrote. [`Self::FromFace`] names no face: its frame is the side's
-/// OWN HEAD face's CANONICAL POSE — the head's name with the member
-/// walk's qualifiers stripped ([`head_face`]), read off its surface
+/// [`FrameBase::Part`] is the side's part frame. Three authored
+/// vectors — an origin, an axis, a roll reference — are the part base
+/// with one literal step, the frame [`MateFrame::authored`] builds.
+///
+/// [`FrameBase::Face`] names no face: it is the side's OWN HEAD
+/// face's CANONICAL POSE — the head's name with the member walk's
+/// qualifiers stripped ([`head_face`]), read off its surface
 /// parameters exactly, no tolerance (`topo::readback::face_pose`),
 /// through the mated part's own evaluation in the part's own
 /// coordinates ([`MateReach::face_pose`]): the pose's origin, its
-/// axis, and the carrier's own in-frame reference direction as the
-/// roll reference. Both arms then meet the same witness ladder
-/// ([`AuthoredFrame::frame`]), so a resolved face refuses a degenerate
-/// axis or a reference on the axis line exactly as authored vectors
-/// do. The head is the state and the frame is derived, so whatever
-/// moves or re-spells the head — a part edit, `Rebind`, split, inline
-/// — carries the frame with it.
+/// CHART axis as local +Z, and the carrier's own in-frame reference
+/// direction as the roll reference, through the witness ladder
+/// (`geom_core::linalg::frame::point_at_frame`), which puts the
+/// reference on local +Y and their cross product on local +X. The head is the
+/// state and the frame is derived, so whatever moves or re-spells the
+/// head — a part edit, `Rebind`, split, inline — carries the frame
+/// with it, offset and all. The empty chain is the face's pose
+/// itself ([`MateFrame::from_face`]); an offset slides along the
+/// face, turns about its normal, or sets back from it.
 ///
-/// **A face frame's roll is the carrier's.** The roll reference is
-/// the carrier's `u_ref` and nothing else, so a face frame cannot
-/// turn a mate's roll about its axis: a side that needs a roll of its
-/// own takes authored vectors.
+/// **The offset is any rigid motion; the contact class says which
+/// offsets a mate admits.** A `Rest` side set back from its face
+/// declares a contact that is not there, and the at-rest gate refutes
+/// it.
 ///
 /// **The pose's orientation sense is NOT folded into the axis.** The
-/// resolved axis is the CHART's direction, as the readback documents
-/// it (`Pose::axis`), whether the face's outward normal is `+axis` or
-/// `-axis`; which way the two sides point at each other is the mate's
-/// own [`AxisSense`], authored beside the frames, and folding the bit
-/// in would make one datum answer two questions. An analytic carrier
-/// — plane, cylinder, cone, sphere, torus — resolves; a face with no
-/// canonical frame (a NURBS or approximating carrier) refuses typed
-/// at the mate, the side, the instance and the part
-/// ([`MateFault::FaceUnresolved`]) and keeps taking authored vectors.
+/// face base's axis is the CHART's direction, as the readback
+/// documents it (`Pose::axis`), whether the face's outward normal is
+/// `+axis` or `-axis`; which way the two sides point at each other is
+/// the mate's own [`AxisSense`]. An analytic carrier — plane,
+/// cylinder, cone, sphere, torus — resolves; a face with no canonical
+/// frame (a NURBS or approximating carrier) refuses typed at the mate,
+/// the side, the instance and the part ([`MateFault::FaceUnresolved`])
+/// and keeps taking a part base.
 ///
-/// **A face frame resolves at the nominal value only.** The pose is
+/// **A face base resolves at the nominal value only.** The pose is
 /// read off the part's evaluated product and crosses to the solve as
 /// `f64`; on an analysis lane — the `Dual64` passes of
 /// `stackup::sensitivities`, the `Interval` leaf of a certified
 /// `clearance` — the product's coordinates pin no single number, and
 /// the side refuses [`FacePoseRefusal::Unpinned`] rather than read the
-/// nominal and drop the pose's own sensitivity to the parameters. So
-/// those two doors refuse an assembly that holds a face frame, where
-/// the same mate authored as vectors still solves on every lane.
+/// nominal and drop the pose's own sensitivity to the parameters.
 ///
-/// On the wire the arm is externally tagged — `{"Authored": {…}}`, or
-/// the bare string `"FromFace"`, which carries nothing — and the
-/// authored struct is closed over its own keys: the tag decides the
-/// arm before a field is read, a stray key on the authored arm or
-/// beside its tag refuses, the face arm written as an object refuses
-/// whatever it holds (`null` included), and a frame with no tag
-/// refuses.
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
-pub enum MateFrame {
-    /// Three authored vectors in the part's coordinates.
-    Authored(AuthoredFrame),
-    /// The side's own head face, resolved at evaluation.
-    FromFace,
-}
-
-/// The two tags a frame's wire form can carry.
-#[derive(serde::Deserialize)]
-#[serde(variant_identifier)]
-enum MateFrameTag {
-    Authored,
-    FromFace,
-}
-
-/// The wire reading [`MateFrame`] states: the face arm is only ever the
-/// bare string. A derived reading would take `{"FromFace": null}` as
-/// the unit arm too, so the tagged object is read here, key by key.
-impl<'de> serde::Deserialize<'de> for MateFrame {
-    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-        struct Frame;
-        impl<'de> serde::de::Visitor<'de> for Frame {
-            type Value = MateFrame;
-
-            fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                f.write_str(
-                    "a mate frame: an object tagged \"Authored\", or the bare string \"FromFace\"",
-                )
-            }
-
-            fn visit_str<E: serde::de::Error>(self, tag: &str) -> Result<MateFrame, E> {
-                match tag {
-                    "FromFace" => Ok(MateFrame::FromFace),
-                    "Authored" => Err(E::invalid_type(serde::de::Unexpected::UnitVariant, &self)),
-                    other => Err(E::unknown_variant(other, &["Authored", "FromFace"])),
-                }
-            }
-
-            fn visit_map<A: serde::de::MapAccess<'de>>(
-                self,
-                mut map: A,
-            ) -> Result<MateFrame, A::Error> {
-                use serde::de::Error as _;
-                let frame = match map.next_key::<MateFrameTag>()? {
-                    Some(MateFrameTag::Authored) => MateFrame::Authored(map.next_value()?),
-                    Some(MateFrameTag::FromFace) => {
-                        return Err(A::Error::custom(
-                            "the FromFace arm carries nothing: it is the bare string \"FromFace\"",
-                        ));
-                    }
-                    None => return Err(A::Error::invalid_length(0, &self)),
-                };
-                match map.next_key::<serde::de::IgnoredAny>()? {
-                    Some(_) => Err(A::Error::invalid_length(2, &self)),
-                    None => Ok(frame),
-                }
-            }
-        }
-        de.deserialize_any(Frame)
-    }
+/// **No frame the doors admit is improper.** A rigid step is proper by
+/// construction, and a literal step is held to A6
+/// ([`crate::placement::Frame`]'s admission rule) at every door that
+/// writes a mate and at load, as a gauge's are.
+///
+/// On the wire the frame is `{"base": "Part" | "Face", "offset":
+/// <Placement>}`, closed over its two keys.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MateFrame {
+    /// What the offset is written in.
+    pub base: FrameBase,
+    /// The offset, in the base's frame; the empty chain by default.
+    pub offset: Placement,
 }
 
 impl MateFrame {
-    /// Three authored vectors: `origin`, the primary `axis`, and the
-    /// clocking `reference` ([`AuthoredFrame`]'s fields, in its order).
-    pub fn authored(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> Self {
-        Self::Authored(AuthoredFrame {
-            origin,
-            axis,
-            reference,
-        })
-    }
-
-    /// The authored vectors, where this frame is [`Self::Authored`];
-    /// `None` for a face, which has none until the solve resolves it.
-    pub fn authored_vectors(&self) -> Option<&AuthoredFrame> {
-        match self {
-            Self::Authored(frame) => Some(frame),
-            Self::FromFace => None,
+    /// The part base composed with `offset`.
+    pub fn on_part(offset: impl Into<Placement>) -> Self {
+        Self {
+            base: FrameBase::Part,
+            offset: offset.into(),
         }
     }
 
-    /// Whether every authored coordinate is finite — the vectors of an
-    /// authored frame; a face frame authors no number (the face's pose
-    /// is the part's, read at the solve).
-    fn is_finite(&self) -> bool {
-        match self {
-            Self::Authored(frame) => frame.is_finite(),
-            Self::FromFace => true,
+    /// The side's own head face, with no offset: the face's pose
+    /// itself.
+    pub fn from_face() -> Self {
+        Self::on_face(Placement::IDENTITY)
+    }
+
+    /// The side's own head face composed with `offset`, written in the
+    /// face's frame (origin on the face, +Z along its chart axis, +Y
+    /// along its reference direction).
+    pub fn on_face(offset: impl Into<Placement>) -> Self {
+        Self {
+            base: FrameBase::Face,
+            offset: offset.into(),
         }
+    }
+
+    /// Bit-semantic equality (D7): the same base, and offsets equal by
+    /// [`Placement::bit_eq`], so `0.0` and `-0.0` are different frames.
+    #[must_use]
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        self.base == other.base && self.offset.bit_eq(&other.offset)
+    }
+
+    /// **Three authored vectors as a frame**: the part base with one
+    /// literal step, the frame whose local +Z is `axis`, whose local
+    /// origin is `origin`, and whose roll is fixed by `reference`
+    /// (U4B's `point_at` convention, through the witness ladder). The
+    /// axis need not be unit and the reference need not be
+    /// perpendicular to it: only the axis's direction and the
+    /// reference's perpendicular part are read.
+    ///
+    /// # Errors
+    ///
+    /// The ladder's [`FrameError`]: an axis with no definite
+    /// direction, a reference with no definite perpendicular offset
+    /// from it, or — asked before either sign — a length that is not a
+    /// finite number.
+    pub fn authored(
+        origin: [f64; 3],
+        axis: [f64; 3],
+        reference: [f64; 3],
+        tol: Tol,
+    ) -> Result<Self, FrameError> {
+        let eye = Point3::from_array(origin);
+        let frame = geom_core::linalg::frame::point_at_frame(
+            eye,
+            eye + Vec3::from_array(axis),
+            Vec3::from_array(reference),
+            tol,
+        )?;
+        Ok(Self::on_part(Placement::literal(
+            &crate::placement::Frame::from_affine(frame.to_affine()),
+        )))
     }
 }
 
@@ -476,9 +397,9 @@ impl Alignment {
     /// (ERROR-DESIGN E3's amendment, ratified at revision E12, shipped
     /// whole at this site). This function is the part of that sum the
     /// datum answers over its two RESOLVED frames — `a` and `b` are
-    /// the sides' frames as the solve reads them, the authored vectors
-    /// or the face's pose ([`MateFrame`]), so the term is formed once
-    /// per mate, after resolution, beside the reach read: `R +
+    /// the sides' frame origins as the solve reads them, each its base
+    /// composed with its offset ([`MateFrame`]), so the term is formed
+    /// once per mate, after resolution, beside the reach read: `R +
     /// ‖origin‖` bounds a part's reach from its mate frame by the
     /// triangle inequality, and the authored lengths (a planar rest's
     /// offset) are the separation the datum names between the two
@@ -486,35 +407,49 @@ impl Alignment {
     /// dropped, because over-refusal is the safe direction: a lever
     /// larger than the truth prices a tilt higher and refuses sooner.
     ///
-    /// Pure, and never a refusal: a datum authored at the origin with
-    /// no length contributes nothing, and that is not a degenerate
-    /// case — `Coaxial` on two origin frames is how an axis-to-axis
-    /// mate is ordinarily written. With a real part on each side the
-    /// lever is never zero, so no floor guards this door.
-    ///
-    /// No floor stands under this term: the parts' own reach is the
-    /// scale, at whatever size the author works, and a lever of `L`
-    /// makes the smallest decidable tilt `ε / L`.
-    pub fn lever_arm(&self, a: &AuthoredFrame, b: &AuthoredFrame) -> f64 {
+    /// Pure, and never a refusal: a datum at the origin with no length
+    /// contributes nothing, and that is not a degenerate case —
+    /// `Coaxial` on two origin frames is how an axis-to-axis mate is
+    /// ordinarily written. With a real part on each side the lever is
+    /// never zero, so no floor guards this door.
+    pub fn lever_arm(&self, a: [f64; 3], b: [f64; 3]) -> f64 {
+        let norm = |[x, y, z]: [f64; 3]| (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
         self.primitive
             .authored_lengths()
             .into_iter()
             .flatten()
-            .fold(a.origin_norm() + b.origin_norm(), |lever, length| {
-                lever + length.abs()
-            })
+            .fold(norm(a) + norm(b), |lever, length| lever + length.abs())
     }
 
-    /// Whether every authored coordinate is finite — the edit door's
-    /// admission test, as a placement's (a non-finite alignment could
-    /// never decide anything). A
-    /// `FromFace` side authors no number; its face's pose is the
-    /// part's, read at the solve, and is not a number this door can
-    /// see.
+    /// **Bit-semantic equality** (D7), the one comparator every reader
+    /// of an alignment's equality asks: both frames by
+    /// [`MateFrame::bit_eq`], the primitive's lengths and the rider by
+    /// bits, so `0.0` and `-0.0` are different datums — as the content
+    /// key, which feeds the same fields by bits, already says.
+    #[must_use]
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        let bits = |x: Option<f64>| x.map(f64::to_bits);
+        self.a.bit_eq(&other.a)
+            && self.b.bit_eq(&other.b)
+            && core::mem::discriminant(&self.primitive) == core::mem::discriminant(&other.primitive)
+            && self
+                .primitive
+                .authored_lengths()
+                .into_iter()
+                .zip(other.primitive.authored_lengths())
+                .all(|(x, y)| bits(x) == bits(y))
+            && self.sense == other.sense
+            && bits(self.clocking) == bits(other.clocking)
+    }
+
+    /// Whether every number the alignment holds outside its frames is
+    /// finite — the rider and the primitive's lengths, the edit door's
+    /// admission test (a non-finite alignment could never decide
+    /// anything). A frame's offset is a placement, whose literal steps
+    /// the frame rule holds ([`crate::Node::placement_frame_fault`])
+    /// and whose expressions are slots.
     pub fn is_finite(&self) -> bool {
-        self.a.is_finite()
-            && self.b.is_finite()
-            && self.clocking.is_none_or(f64::is_finite)
+        self.clocking.is_none_or(f64::is_finite)
             && self
                 .primitive
                 .authored_lengths()
@@ -766,7 +701,7 @@ impl core::fmt::Display for LeverRefusal {
     }
 }
 
-/// Why a `FromFace` frame could not be resolved to a pose: what the
+/// Why a face base could not be resolved to a pose: what the
 /// mated part's own evaluation answered about the head's face
 /// ([`MateReach::face_pose`]), named against the instance the solve
 /// was reading, the part it stands on and the face the head names in
@@ -993,8 +928,9 @@ pub enum MateFault {
         /// The document the solve is of.
         found: crate::ident::DocumentId,
     },
-    /// A side's frame — its authored vectors, or the pose a `FromFace`
-    /// frame resolved to — has no definite frame on the witness ladder.
+    /// A side's frame has no definite frame on the witness ladder: the
+    /// pose its face base resolved to, or the axis of the frame its
+    /// offset composes.
     Frame {
         /// The mate whose datum refused.
         mate: RecipeNodeId,
@@ -1242,7 +1178,7 @@ pub enum MateFault {
         /// Why.
         cause: Box<OffsetCheck>,
     },
-    /// **A side's `FromFace` frame did not resolve to a pose**: the
+    /// **A side's face base did not resolve to a pose**: the
     /// mated part's own evaluation answered no pose for the face the
     /// side's head names ([`MateReach::face_pose`]), in the resolver's
     /// or the readback's own voice — the part not in hand, a name the
@@ -1264,6 +1200,27 @@ pub enum MateFault {
         /// refusal names the part, the face and the readback's own
         /// arm, and the fault's every other arm stays the size it is.
         refusal: Box<FaceRefusal>,
+    },
+    /// **A side's frame offset did not evaluate** at the document's
+    /// parameters: a rigid step's rotation axis has no definite
+    /// direction, or one of its expressions refused — the evaluation
+    /// layer's own refusal, its slot named by the mate's own address
+    /// ([`crate::SlotId::MateFrameStep`]). Raised where the solve reads
+    /// the side's frame: at the edit doors that write a mate's datum
+    /// (the insert, and a slot edit at a frame step), and at
+    /// evaluation, where it is what the solve records against the mate
+    /// and its group. An expression that does not evaluate at the
+    /// document's parameters also fails the mate's own slot
+    /// evaluation, so the mate's row states it as its own
+    /// [`crate::NodeErrorKind::Expr`]; an axis of no direction
+    /// evaluates as numbers and is this fault alone.
+    FrameUnevaluated {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side's frame.
+        side: MateSide,
+        /// The evaluation layer's refusal.
+        refusal: Box<NodeRefusal>,
     },
 }
 
@@ -1416,6 +1373,7 @@ impl MateFault {
             | Self::SelfMate { .. }
             | Self::Unleverable { .. }
             | Self::FaceUnresolved { .. }
+            | Self::FrameUnevaluated { .. }
             | Self::OffsetDisagrees { .. } => None,
             Self::OffsetUnchecked { cause, .. } => match &**cause {
                 OffsetCheck::Placement { node, error } => Some((*node, error)),
@@ -1770,6 +1728,18 @@ impl crate::spoken::Say for MateFault {
             } => write!(
                 f,
                 "{}'s {} frame is its head's face, which did not resolve to a pose: {}",
+                mate_(*mate),
+                side.name(),
+                Said(&**refusal, by)
+            ),
+            Self::FrameUnevaluated {
+                mate,
+                side,
+                refusal,
+            } => write!(
+                f,
+                "{}'s {} frame offset does not evaluate at the document's parameters: {}. \
+                 Recourse: repair the offset's expressions or the parameter they read",
                 mate_(*mate),
                 side.name(),
                 Said(&**refusal, by)
