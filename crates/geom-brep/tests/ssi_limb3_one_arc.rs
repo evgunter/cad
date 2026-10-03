@@ -227,3 +227,77 @@ fn probe_fold_declared_carrier_at_rest() {
         println!("PROBE fold beta={scale}eps: {:?}", r.map(|x| (x.hull_sup, x.tube_transversality)));
     }
 }
+
+/// PROBE (design fork): the HALF fold. `h(y) = β(y/L)²`: one arc, from
+/// `(0, 0)` on the low-`v` side to the low-`u` side near `y ≈ 0.93L`.
+/// The declared carrier `(0,0,0) → (0,L,0)` starts on the locus and
+/// ends at `(0, L, 0)`, where `φ = β > 0` and no zero lies within mm.
+#[test]
+fn probe_half_fold_declared_carrier_at_rest() {
+    for scale in [1.0, 0.5, 0.25] {
+        let beta = scale * eps();
+        let c = 800.0 * eps();
+        let a = 0.28 * c * c / beta;
+        let w = beta / c;
+        let l = 1.2 * w;
+        let xr = (-1.5 * w, 1.8 * w);
+        let g = move |x: f64| c * x + a * x * x;
+        let h = move |y: f64| beta * (y / l) * (y / l);
+        let wall = graph_wall(xr, l, (g, c + 2.0 * a * xr.0), (h, 0.0));
+        let ground = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let carrier = crate::shared::fixture::segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, l, 0.0));
+        let r = geom_brep::plane_nurbs_limbs::<f64>(&carrier, &ground, &wall, 1.0, band());
+        println!("PROBE half-fold beta={scale}eps: {:?}", r.map(|x| (x.hull_sup, x.tube, x.tube_boxes)));
+    }
+}
+
+/// PROBE: the tail fold, a = 0.24c²/β: the arc leaves the low-u side at y ≈ 0.98L, inside the last window.
+#[test]
+fn probe_tail_fold_declared_carrier_at_rest() {
+    for scale in [1.0, 0.5, 0.25] {
+        let beta = scale * eps();
+        let c = 800.0 * eps();
+        let a = 0.24 * c * c / beta;
+        let w = beta / c;
+        let l = 1.2 * w;
+        let xr = (-1.5 * w, 1.8 * w);
+        let g = move |x: f64| c * x + a * x * x;
+        let h = move |y: f64| beta * (y / l) * (y / l);
+        let wall = graph_wall(xr, l, (g, c + 2.0 * a * xr.0), (h, 0.0));
+        let ground = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let carrier = crate::shared::fixture::segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, l, 0.0));
+        let r = geom_brep::plane_nurbs_limbs::<f64>(&carrier, &ground, &wall, 1.0, band());
+        println!("PROBE tail-fold beta={scale}eps: {:?}", r.map(|x| (x.hull_sup, x.tube, x.tube_boxes)));
+    }
+}
+
+/// PROBE: a straight locus from (0.5, 0) to (1, 0.7), ending on the
+/// u = 1 side: a rail of its end window when slices run along u.
+#[test]
+fn probe_branch_ending_on_a_rail_side() {
+    let k = 0.5;
+    let g = move |x: f64| k * (x - 0.5);
+    let h = move |y: f64| -k * y / 1.4;
+    let wall = graph_wall((0.0, 1.0), 1.0, (g, k), (h, -k / 1.4));
+    let ground = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let domain = SsiDomain {
+        center: Point3::new(0.5, 0.5, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let out = ssi::plane_nurbs_ssi(&ground, &wall, domain, band());
+    println!("PROBE rail-end: {:?}", out.map(|o| o.branches.iter().map(|b| (b.end, b.certificate.tube)).collect::<Vec<_>>()));
+}

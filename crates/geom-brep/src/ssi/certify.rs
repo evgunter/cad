@@ -1370,6 +1370,53 @@ fn section<T: CertifiedBounds>(
     true
 }
 
+/// PROBE (round 3): the zero count per window (or a flush-side cover
+/// window), linking at the shared knots, AND existence on the chain's
+/// two END slices — a slice holds a zero by a certified sign change, or
+/// its carrier point has |phi| <= tol (a zero within eps along it).
+fn count_and_ends<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    domain: UvRect,
+    pcurve: &NurbsCurve2<T>,
+    windows: &[(ChartWindow, (f64, f64))],
+    tol: f64,
+) -> bool {
+    let at = |t: f64| {
+        let p = pcurve.span_at(t).eval_in_span(T::from_f64(t));
+        (0.5 * (p.x.lo() + p.x.hi()), 0.5 * (p.y.lo() + p.y.hi()))
+    };
+    let near = |q: (f64, f64)| {
+        let i = phi_over(boxes, plane, (q.0, q.0, q.1, q.1));
+        i.is_certified() && i.lo() >= -tol && i.hi() <= tol
+    };
+    let Some(clipped) = windows
+        .iter()
+        .map(|(w, _)| meet(w.rect, domain))
+        .collect::<Option<Vec<UvRect>>>()
+    else {
+        return false;
+    };
+    for (k, (w, e)) in windows.iter().enumerate() {
+        let one = boundary_zeros(boxes, plane, clipped[k]) == Some(2)
+            || section(boxes, plane, domain, &[(*w, *e)], tol);
+        if !one {
+            return false;
+        }
+    }
+    let slice = |t: f64, e: (f64, f64), r: UvRect| {
+        let q = at(t);
+        holds_zero(boxes, plane, q, e, r) || near(q)
+    };
+    let links = windows.windows(2).zip(clipped.windows(2)).all(|(w, r)| {
+        meet(r[0], r[1]).is_some_and(|o| slice(w[0].0.ends.1, w[0].1, o))
+    });
+    let (first, last) = (windows[0], windows[windows.len() - 1]);
+    let ends = slice(first.0.ends.0, first.1, clipped[0])
+        && slice(last.0.ends.1, last.1, clipped[clipped.len() - 1]);
+    links && ends
+}
+
 /// Limb 3's enclosure probe for the **plane × NURBS** arm: the same
 /// criterion in the NURBS chart, where the locus is
 /// `φ(u,v) = n·(S(u,v) − p₀) = 0` and `∇φ = (n·S_u, n·S_v)`. A
@@ -1438,7 +1485,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         return Ok(None);
     }
     let single = worst > 0.0
-        && (!banked || {
+        && (!banked || std::env::var("CAD_COMBINED").is_ok() || {
             let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
             let domain = UvRect {
                 u: surface.knots_u().domain(),
@@ -1446,7 +1493,16 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             };
             one_arc(&boxes, (n, p0), domain, pcurve, &probed)
         })
-        && (banked || std::env::var("CAD_SECTION_AT_REST").is_err() || {
+        && (std::env::var("CAD_COMBINED").is_err() || {
+            let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
+            let domain = UvRect {
+                u: surface.knots_u().domain(),
+                v: surface.knots_v().domain(),
+            };
+            let eps = f64::from_bits(PROBE_EPS.load(std::sync::atomic::Ordering::Relaxed));
+            count_and_ends(&boxes, (n, p0), domain, pcurve, &probed, worst * eps)
+        })
+        && ((banked && std::env::var("CAD_SECTION_ALL").is_err()) || (!banked && std::env::var("CAD_SECTION_AT_REST").is_err()) || {
             let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
             let domain = UvRect {
                 u: surface.knots_u().domain(),
@@ -1599,7 +1655,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 // region (a window's corner can sit farther than the
                 // rung from the carrier).
                 let (pad_u, pad_v) = n.speeds().pad(radius);
-                let banked = !matches!(banked, Banked::No);
+                let banked = !matches!(banked, Banked::No) || std::env::var("CAD_COUNT_AT_REST").is_ok();
                 probe_tube_chart(p, n.surface(), (origin, normal), (pad_u, pad_v), banked)?.map(
                     |c| {
                         let tube = SsiTube::Chart {
