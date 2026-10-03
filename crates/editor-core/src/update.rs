@@ -77,11 +77,11 @@ impl core::error::Error for UpdateError {}
 /// clause 2; ASM-UPD D-2) — in document order, one per site whose pin
 /// actually moves.
 ///
-/// Pure: `doc` is untouched and nothing is applied. The caller applies
-/// the whole list or none of it, and that all-or-nothing is what
-/// "atomically grouped" means at this layer — there is no partially
-/// applied state to roll back from, because applying is the caller's
-/// single step (the ASM-4 precedent).
+/// Pure: `doc` is untouched and nothing is applied. Each edit moves one
+/// site and reads no other edit's result, so the edits apply in any
+/// order, and any subset leaves the mixed-pin state A13 blesses as
+/// authorable. "Update everywhere" is the whole list; a caller that
+/// wants it as one atomic step applies the list as one group.
 ///
 /// A site already pinning `new_pin` contributes NO edit: A13 blesses
 /// mixed-pin state as authorable, so "update everywhere" must stay

@@ -41,3 +41,7 @@ commits through `regauge_then_mate`, which also refuses
 `WouldStartPlacing` typed) or says that the mate will declare, before
 the person commits. Which one to do is a design call for whoever
 owns the viewer's assembly authoring.
+
+The door answers a `RegaugeThenMateOutcome` (the document, the edits it
+applied in order, the maintenance, the mate's id), so such an op
+commits `edits` as one history group, as `record_run` does a staged run.

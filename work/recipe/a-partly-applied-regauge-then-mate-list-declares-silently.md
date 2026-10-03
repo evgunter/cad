@@ -40,8 +40,10 @@ the regauge recourse).
 
 ## Built (2026-10-03, PR 3925)
 
-Option (a): `regauge_then_mate` applies the whole action and answers one
-`Applied` (the mate's id in `record.minted`); the edit list is gone, and a
-`compile_fail` doctest pins that it cannot come back. Python's door and the
-tour's `mate_onto` call it. PR 3925 has the choice, the sweep and the
-filed VSEAM row.
+Option (a): `regauge_then_mate` applies the whole action and answers a
+`RegaugeThenMateOutcome`: the document, the edits it applied in order (a
+record, the shape of `InlineOutcome`), the maintenance netted through
+`MaintenanceNet`, and the mate's id. The caller is handed no list to
+apply, only a record of one already applied, and a refusal at any step
+answers no outcome. Python's door and the tour's `mate_onto` call it.
+PR 3925 has the choice, the sweep and the filed VSEAM row.
