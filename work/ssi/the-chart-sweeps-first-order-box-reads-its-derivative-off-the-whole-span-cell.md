@@ -48,6 +48,16 @@ These were measured with `rect_box` on the cut box, at the default ε:
 So the move changes seeding. That was outside that lane's fence while
 `[ev]` PR 3862 rebuilds the plane × NURBS boundary handling.
 
+## Evidence from PR 3862
+
+The flat 1 m bilinear wall with weights `8, ¼, 1, 4`, against the edge
+plane `x = 0.3ε` (a `Side` region of the boundary pass), refuses the
+200 000-cell budget at ε = 1e-9, 1e-6 and 1e-12. With `cell_deriv_box`
+reading `deriv_hull(.., true)` (the cut box) the same row answers the
+region at every ε, measured 2026-10-03. `a_walls_weights_move_no_answer`
+(`crates/geom-brep/tests/m5_pr7_ssi.rs`) carries the milder net
+`2, ½, 1, 4`; add `8, ¼, 1, 4` to it when this lands.
+
 ## Next
 
 - Call `deriv_box` from `rect_box`, and delete `cell_deriv_box`.
