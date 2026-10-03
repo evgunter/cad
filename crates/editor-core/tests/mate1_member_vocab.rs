@@ -556,17 +556,18 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
 /// so the MASTER-NAME spelling of a seat still REFUSES at the gate —
 /// pinned as a refusal, not fixed. The canonical spelling is the
 /// `Instance(i)` head the other rows use. The refusal's word is the
-/// operand's: the name is spelled at `leg`, which is not a root of
-/// the product (`ReadBelowARoot { at: leg }`), rather than a name
-/// that vanished — the leg's face is there, under the pattern's row.
+/// operand's: the name is spelled at `leg`, and the pattern places it
+/// again before the product holds it (`MovedAbove { at: leg, by:
+/// pattern }`), rather than a name that vanished — the leg's face is
+/// there, under the pattern's row.
 #[test]
-fn the_master_name_spelling_refuses_read_below_a_root() {
+fn the_master_name_spelling_refuses_moved_above() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-pin-master-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(leg_part("mate1-pin-master-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-pin-master"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
-    let (doc, _pattern) = insert(
+    let (doc, pattern) = insert(
         doc,
         Node::Pattern {
             input: leg,
@@ -612,8 +613,11 @@ fn the_master_name_spelling_refuses_read_below_a_root() {
     assert_eq!(*side, editor_core::MateSide::A);
     assert_eq!(
         *why,
-        editor_core::RefusedRef::ReadBelowARoot { at: leg },
-        "the consumed master's face is spelled at a node the product does not list: {why:?}"
+        editor_core::RefusedRef::MovedAbove {
+            at: leg,
+            by: pattern
+        },
+        "the consumed master's face is placed again by the pattern: {why:?}"
     );
 }
 

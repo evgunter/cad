@@ -848,10 +848,11 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
 /// **What the at-rest gate says for a mate read BELOW the outer
 /// pattern** — on a nested document. The SOLVE places such a mate;
 /// the gate refuses it, because the name's row is the `Part`'s own
-/// and the product lists only the outer pattern, whose rows are
-/// `Instance(i)`-qualified. The refusal is in the operand's voice:
-/// `ReadBelowARoot { at: part }`, naming the `Part` the mate reads
-/// at rather than calling the name vanished. Reading the same
+/// and the outer pattern places that body again before the product
+/// holds it. The refusal is in the operand's voice: `MovedAbove { at:
+/// part, by: outer }`, naming the `Part` the mate reads at and the
+/// pattern that moves it, rather than calling the name vanished.
+/// Reading the same
 /// document's mate AT the outer pattern (every other row here) holds,
 /// because there the name is a root's own row.
 #[test]
@@ -905,10 +906,17 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
         panic!("expected one reference refusal, got {refusals:?}");
     };
     assert_eq!((*at, *side), (mate, MateSide::B));
-    // The gate names the operand the mate reads at, not a vanished
-    // name: the `Part`'s row is there, one level below the root. (The
-    // sentence is pinned in `display_contract`.)
-    assert_eq!(*why, RefusedRef::ReadBelowARoot { at: part });
+    // The gate names the operand the mate reads at and the placer
+    // above it, not a vanished name: the `Part`'s row is there, one
+    // level below the root. (The sentence is pinned in
+    // `display_contract`.)
+    assert_eq!(
+        *why,
+        RefusedRef::MovedAbove {
+            at: part,
+            by: outer
+        }
+    );
     // Read AT the outer pattern instead, the same document gathers
     // and the gate holds: the difference is whether the name is a
     // product ROOT's own row.

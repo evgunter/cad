@@ -19,7 +19,8 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
     Expr, MateFrame, MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedFace, StableName, member_of, product,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedFace, StableName,
+    member_of, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, head, head_at, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
@@ -270,10 +271,16 @@ fn a1b_a_transform_above_the_operand_refuses_rather_than_refutes() {
     let AssemblyError::Mint { refusals } = &err else {
         panic!("A1(b): expected the reference to refuse, not a verdict on geometry: {err:?}");
     };
-    let [MintRefusal::Reference { mate: m, side, .. }] = refusals.as_slice() else {
+    let [
+        MintRefusal::Reference {
+            mate: m, side, why, ..
+        },
+    ] = refusals.as_slice()
+    else {
         panic!("A1(b): expected one reference refusal, got {refusals:?}");
     };
     assert_eq!((*m, *side), (mate, MateSide::B));
+    assert_eq!(*why, RefusedRef::MovedAbove { at: t1, by: t3 });
 }
 
 // ---- A1 (c): a pick on the fused body ----

@@ -305,49 +305,54 @@ pub struct Assembly<T: Decide> {
 
 /// Why a mate reference did not resolve to a product face.
 ///
-/// The gate asks two tables in order, and each arm answers one
-/// question. The PRODUCT's table first — the rows of every root,
-/// carried verbatim by the gather: a tie there is `Ambiguous`. When
-/// the product is silent, the OPERAND's own table — the `name_table`
-/// of the node the reference is read at: silent there too is
-/// `Vanished`, and an entry at a node the product does not list is
-/// `ReadBelowARoot`. No consumer is walked; the two tables and the
-/// root list decide.
+/// The gate reads the name where the mate reads it — in the table of
+/// the OPERAND, the node the reference is read at — and carries it up
+/// the operand's consumers to the product's roots, each consumer
+/// spelling it as it carries it (`names::lift`). Each arm is one way
+/// that carry fails to end on exactly one product face.
 ///
 /// `Vanished` and `Ambiguous` are the silence and the tie every name
 /// lookup refuses with (`ResolveError` spells them for a boolean's
-/// declared names). The subject here is the assembly's product table
-/// and the operand's, not a boolean operand's.
+/// declared names). The subject here is the operand's table and the
+/// tables above it, not a boolean operand's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefusedRef {
-    /// No entity answers to the name — not in the product's table,
-    /// and not in the table of the operand the mate reads it at: the
-    /// name names nothing where the mate reads it.
+    /// No single face carries the name to the product.
     ///
-    /// It is also the release answer where a table answered with a
-    /// row whose KEY is not a face under a face name. That is
-    /// `NameTable::insert`'s own rule broken rather than a document
-    /// this gate may refuse, so it is asserted in debug at the site
-    /// and answered here with the silence rather than given a
-    /// vocabulary of its own — the same shape `operand_answer`'s
-    /// third rung takes for a root row the product should have
-    /// carried.
-    Vanished,
-    /// The operand's own table answers to the name with a face, but
-    /// the operand is not a root of the product, and a reference
-    /// resolves against a root's own rows: the product may spell that
-    /// face some other way — under a pattern, as the `Instance(i)` row
-    /// at the pattern node — or not at all. The mate is read at a node
-    /// the product does not list.
-    ReadBelowARoot {
-        /// The operand the mate reads at — a live node whose table
-        /// answers to the name, and which is not a product root.
-        at: RecipeNodeId,
+    /// `by: None` is a name nothing answers to where the mate reads it:
+    /// the operand's own table is silent. `by: Some(node)` is a name
+    /// the operand spells and `node` consumes on its way up: it merges
+    /// or cuts the face, so its table holds no row under the name, or
+    /// it reads the body in a seat that holds no face of it.
+    ///
+    /// It is also the release answer where the product's table holds a
+    /// row whose KEY is not a face under a face name, or holds no row
+    /// for a root's own face. Each is the product's own rule broken
+    /// rather than a document this gate may refuse, so it is asserted
+    /// in debug at the site and answered here with the silence rather
+    /// than given a vocabulary of its own.
+    Vanished {
+        /// The node that consumed the face on its way to the product,
+        /// when the operand spells it.
+        by: Option<RecipeNodeId>,
     },
-    /// Several entities answer to it — a mate declaration must name
-    /// ONE face, and a tie is never broken by picking.
+    /// The operand spells the face, but a node above it PLACES it again
+    /// — a transform, a pattern, a placed union — before the product
+    /// holds it, and no other route carries it to the product
+    /// unmoved. The face the mate speaks about is where `at` holds it;
+    /// the product holds it where `by` put it. Read it at `by`.
+    MovedAbove {
+        /// The operand the mate reads at.
+        at: RecipeNodeId,
+        /// The nearest node above `at` that places the face again.
+        by: RecipeNodeId,
+    },
+    /// Several product faces answer to it — a tie in the product's
+    /// table, or two routes from the operand to two faces. A mate
+    /// declaration must name ONE face, and a tie is never broken by
+    /// picking.
     Ambiguous {
-        /// How many entities the tie holds.
+        /// How many faces answer.
         width: usize,
     },
 }
@@ -794,14 +799,22 @@ impl crate::spoken::Say for RefusedRef {
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
         match self {
-            Self::Vanished => f.write_str(
-                "no entity answers to it, in the product or at the node the mate reads it at",
-            ),
-            Self::ReadBelowARoot { at } => write!(
+            Self::Vanished { by: None } => {
+                f.write_str("no entity answers to it at the node the mate reads it at")
+            }
+            Self::Vanished { by: Some(node) } => write!(
                 f,
-                "it is read at {}, which is not a root of the product, and a reference \
-                 resolves against a root's own rows",
-                by.node(*at)
+                "{} consumes it before the product holds it — it merges or cuts the face, \
+                 or holds no face of it — so no one face carries it to the product",
+                by.node(*node)
+            ),
+            Self::MovedAbove { at, by: placer } => write!(
+                f,
+                "it is read at {}, but {} places it again before the product holds it; \
+                 read it at {}",
+                by.node(*at),
+                by.node(*placer),
+                by.node(*placer)
             ),
             Self::Ambiguous { width } => write!(
                 f,
@@ -1230,14 +1243,39 @@ pub(crate) fn mint<P, T: Decide>(
 /// One mate reference → the product face it names, or the typed
 /// refusal. A tie is never broken by picking a side.
 ///
-/// The product's table is asked first; only when it is silent is the
-/// operand's own table asked, through [`operand_answer`], so a name
-/// the product does answer to is never re-described by the operand.
+/// **The name is read where the mate reads it.** The operand's own
+/// table must spell it, or it refuses [`RefusedRef::Vanished`]. From
+/// there the face is carried up the operand's consumers, each spelling
+/// it as it carries it ([`crate::names::lift`]), to the product's
+/// roots, where the product's table — every root's rows, carried by
+/// the gather — answers with the face. The lift reads the recipe and
+/// each consumer's evaluated table; it evaluates nothing.
 ///
-/// **There is no kind question here, at either table.** A head is a
-/// [`SitedFace`], so the name this resolves denotes a face before the
-/// lookup runs, and the only multiplicity left to decide is a tie
-/// among faces ([`RefusedRef::Ambiguous`]).
+/// - **Exactly one product face** reached: that face.
+/// - Two or more ([`RefusedRef::Ambiguous`]): a tie in the product's
+///   table, or two routes to two faces.
+/// - None, with a PLACER on a route ([`RefusedRef::MovedAbove`]): the
+///   product holds the face where that node moved it, which is not
+///   where the mate reads it — so a route through a placer never
+///   succeeds.
+/// - None, with a consumer that merged, cut or dropped it
+///   ([`RefusedRef::Vanished`] naming it).
+///
+/// Where the operand is a root, or reaches one through verbatim edges
+/// alone, the lift is the identity and the product answers to the
+/// name as the mate spells it.
+///
+/// **There is no kind question here.** A head is a [`SitedFace`], so
+/// the name this resolves denotes a face before the lookup runs, and
+/// the only multiplicity left to decide is a tie among faces.
+///
+/// An operand that is not a live value has no table to answer with,
+/// and the gate never asks it: every live node sits under some root
+/// (A10 coverage), so an operand that failed or was poisoned has a
+/// failed or poisoned root above it, and the gather's first pass
+/// refuses the document (`ProductError::Root`, with the root's
+/// standing) before any mate is read. Such an operand, and a consumer
+/// with no value, answer as silence here rather than unwrapped.
 fn resolve_face<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -1246,90 +1284,82 @@ fn resolve_face<P, T: Decide>(
     side: MateSide,
     reference: &SitedFace,
 ) -> Result<FaceKey, MintRefusal> {
-    let name = &reference.name;
     let refuse = |why| MintRefusal::Reference {
         mate,
         side,
-        name: Box::new((**name).clone()),
+        name: Box::new((*reference.name).clone()),
         why,
     };
-    let Some(entry) = names.lookup(name) else {
-        return Err(refuse(operand_answer(doc, evaluation, reference)));
+    let spells = |at: RecipeNodeId, name: &StableName| {
+        evaluation
+            .value(at)
+            .is_some_and(|value| value.name_table.lookup(name).is_some())
     };
-    // THE KIND IS THE TYPE'S. A head is a `FaceName`, so "is this a
-    // face" is not a question this gate can ask at all — there is no
-    // non-face head to ask it of.
-    match entry {
-        Entry::Unique(ent) => {
-            // A face by the head's type and the table's own rule that
-            // a row's kind is its name's — every `NameTable` door that
-            // seats a row refuses a key whose kind disagrees with the
-            // name's. A key that is not a face here is that rule
-            // broken, which is this crate's bug and not a document:
-            // asserted, and answered with the silence in release.
-            debug_assert!(
-                matches!(ent.key, crate::names::EntityKey::Face(_)),
-                "the product's table holds a non-face under a face name: \
-                 `NameTable::insert` admits a row only at its name's kind"
-            );
-            ent.key.face().ok_or_else(|| refuse(RefusedRef::Vanished))
-        }
-        Entry::Tied(ents) => Err(refuse(RefusedRef::Ambiguous { width: ents.len() })),
-    }
-}
-
-/// **The operand's answer**, asked only once the product's table is
-/// silent on a reference: does the OPERAND the mate reads at spell
-/// the name? Its own table is the `name_table` of `at`'s live value,
-/// read through the one door every node read takes
-/// ([`Evaluation::usable`]). One match, three answers, in this order:
-///
-/// 1. Silent there too → [`RefusedRef::Vanished`]: the name names
-///    nothing where the mate reads it.
-/// 2. An entry — unique or tied — at a node the product does not
-///    list as a root → [`RefusedRef::ReadBelowARoot`]. A tie among
-///    faces below a root is still read below a root; the product
-///    decides ties for its own rows.
-/// 3. An entry at a ROOT with the product silent: `carry_names`
-///    carries every face row of every root at the source's index, so
-///    a hit here is its bug, not a vanished name. `Vanished` in
-///    release, asserted in debug.
-///
-/// **There is no kind rung**, and that is the type's doing rather
-/// than an omission: a head is a [`crate::SitedFace`], so the name
-/// this asks about denotes a face and the question "is it one" has no
-/// answer to give. See `product::carry_names` for why the product is
-/// silent on a root's body row at all.
-///
-/// An operand that is not a live value has no table to answer with,
-/// and the gate never asks it: every live node sits under some root
-/// (A10 coverage), so an operand that failed or was poisoned has a
-/// failed or poisoned root above it, and the gather's first pass
-/// refuses the document (`ProductError::Root`, with the root's
-/// standing) before any mate is read — the mate itself may
-/// well be live and `Determining`. The ladder's other rungs are
-/// answered `Vanished` here rather than unwrapped.
-fn operand_answer<P, T: Decide>(
-    doc: &Doc<P>,
-    evaluation: &Evaluation<T>,
-    reference: &SitedFace,
-) -> RefusedRef {
     let at = reference.at;
-    let rooted = doc.roots().contains(&at);
-    let entry = evaluation
-        .value(at)
-        .and_then(|value| value.name_table.lookup(&reference.name));
-    match entry {
-        None => RefusedRef::Vanished,
-        Some(Entry::Unique(_) | Entry::Tied(_)) if !rooted => RefusedRef::ReadBelowARoot { at },
-        Some(Entry::Unique(_) | Entry::Tied(_)) => {
+    if !spells(at, &reference.name) {
+        return Err(refuse(RefusedRef::Vanished { by: None }));
+    }
+    let mut faces: Vec<FaceKey> = Vec::new();
+    let mut moved: Vec<RecipeNodeId> = Vec::new();
+    let mut consumed: Vec<RecipeNodeId> = Vec::new();
+    let mut seen: Vec<(RecipeNodeId, StableName)> = Vec::new();
+    let mut frontier = std::collections::VecDeque::from([(at, (*reference.name).clone())]);
+    while let Some((node, name)) = frontier.pop_front() {
+        if seen.contains(&(node, name.clone())) {
+            continue;
+        }
+        seen.push((node, name.clone()));
+        if doc.roots().contains(&node) {
+            let row = names.lookup(&name);
             debug_assert!(
-                !rooted,
+                row.is_some(),
                 "a root's face row is absent from the product's table: \
                  `product::carry_names` carries every face row of every root"
             );
-            RefusedRef::Vanished
+            match row {
+                Some(Entry::Unique(ent)) => {
+                    // A face by the head's type and the table's own
+                    // rule that a row's kind is its name's: a key that
+                    // is not a face here is that rule broken, which is
+                    // this crate's bug and not a document.
+                    debug_assert!(
+                        matches!(ent.key, crate::names::EntityKey::Face(_)),
+                        "the product's table holds a non-face under a face name: \
+                         `NameTable::insert` admits a row only at its name's kind"
+                    );
+                    faces.extend(ent.key.face());
+                }
+                Some(Entry::Tied(ents)) => faces.extend(ents.iter().filter_map(|e| e.key.face())),
+                None => {}
+            }
+            continue;
         }
+        for &consumer in doc.order() {
+            let Some(consumer_node) = doc.node(consumer) else {
+                continue;
+            };
+            for step in crate::names::lift(consumer, consumer_node, node, &name) {
+                match step {
+                    crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {
+                        frontier.push_back((consumer, carried));
+                    }
+                    crate::names::Lift::Spelled(_) | crate::names::Lift::Dropped => {
+                        consumed.push(consumer);
+                    }
+                    crate::names::Lift::Moved => moved.push(consumer),
+                }
+            }
+        }
+    }
+    faces.sort_unstable();
+    faces.dedup();
+    match (faces.as_slice(), moved.first(), consumed.first()) {
+        ([face], _, _) => Ok(*face),
+        ([], Some(&by), _) => Err(refuse(RefusedRef::MovedAbove { at, by })),
+        ([], None, by) => Err(refuse(RefusedRef::Vanished { by: by.copied() })),
+        (several, _, _) => Err(refuse(RefusedRef::Ambiguous {
+            width: several.len(),
+        })),
     }
 }
 
