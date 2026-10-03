@@ -355,12 +355,10 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// **The operand gate, pair-scoped** (M5 PR 9, C12.1 — the F5
 /// planar-only gate retires PER C5 TABLE ARM, never wholesale).
 ///
-/// First, each operand is a closed solid at rest, by the validator's
-/// own verdict ([`crate::validate_closed`]): a tier-1 finding refuses
-/// as [`BooleanError::CorruptOperand`], and tier-2 scaffolding — a
-/// strut, an empty loop, a null edge, a split shell — as
-/// [`BooleanError::ScaffoldingOperand`], each carrying the findings.
-/// Then two rules, with different scopes on purpose:
+/// First, each operand passes [`gate_operand`]: a closed solid at rest
+/// by the validator's own verdict, with supported edge carriers, and
+/// no solid inside-out. Then two rules, with different scopes on
+/// purpose:
 ///
 /// - **Faces**: a kind with no wired arm ([`boolean_arm_exists`])
 ///   disqualifies the operation only through a PAIR it could enter
@@ -368,42 +366,22 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 ///   do not cover. A torus wall whose box clears the other operand
 ///   does not gate anything, and neither does one whose contact with
 ///   the face it may meet the author has DECLARED.
-/// - **Edges**: body-scoped. `Line`/`Circle`/`Ellipse` pass (the
-///   crossing lanes handle all three; the both-split point lane still
-///   needs a `Line`, and says so where it refuses); a `Nurbs` operand
-///   edge refuses typed wherever it sits — a rung-3 INPUT operand is
-///   outside the supported envelope, rung-3 edges being what the zip
-///   MINTS rather than what it consumes, and that is a claim about
-///   the operand rather than about a pair.
+/// - **Edges**: body-scoped ([`gate_operand`]).
 ///
 /// # Errors
 ///
-/// [`BooleanError::CorruptOperand`] / [`BooleanError::ScaffoldingOperand`]
-/// for an operand tier 1 / tier 2 refuses; [`BooleanError::CurvedPairUnsupported`] for a germ pair
-/// with no arm; [`BooleanError::CurvedEdgeUnsupported`] per operand;
-/// [`BooleanError::CurvedBooleanUnsupported`] for a face whose
-/// surface key does not resolve.
-pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
+/// [`gate_operand`]'s per operand; [`BooleanError::CurvedPairUnsupported`]
+/// for a germ pair with no arm; [`BooleanError::CurvedBooleanUnsupported`]
+/// for a face whose surface key does not resolve.
+pub(super) fn gate_operand_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     declared: &super::DeclaredPairs<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
-        let (broken, scaffolding) = crate::validate::closed_by_tier(body);
-        if !broken.is_empty() {
-            return Err(BooleanError::CorruptOperand {
-                operand,
-                corruption: super::Corruption::Structure { errors: broken },
-            });
-        }
-        if !scaffolding.is_empty() {
-            return Err(BooleanError::ScaffoldingOperand {
-                operand,
-                errors: scaffolding,
-            });
-        }
-        gate_operand_edges(body, operand)?;
+        gate_operand(body, operand, band, tol)?;
     }
     // A pair is covered by the certificate its consumer reads: the
     // declared descent through the carrier ladder, which runs on a pair
@@ -426,6 +404,58 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     Ok(())
 }
 
+/// **The operand gate's BODY-scoped half**, in order:
+///
+/// 1. a closed solid at rest, by the validator's own verdict
+///    ([`crate::validate_closed`]): a tier-1 finding refuses as
+///    [`BooleanError::CorruptOperand`], and tier-2 scaffolding — a
+///    strut, an empty loop, a null edge, a split shell — as
+///    [`BooleanError::ScaffoldingOperand`], each carrying the findings;
+/// 2. the edge carriers: `Line`/`Circle`/`Ellipse` pass (the crossing
+///    lanes handle all three; the both-split point lane still needs a
+///    `Line`, and says so where it refuses); a `Nurbs` or spiric edge
+///    refuses [`BooleanError::CurvedEdgeUnsupported`] wherever it sits
+///    — a rung-3 INPUT operand is outside the supported envelope,
+///    rung-3 edges being what the zip MINTS rather than what it
+///    consumes;
+/// 3. orientation: tier 3's check 7, per solid, at the scalar's lane
+///    ([`crate::AtRestPolicy::quad_lane`]). A solid it decides
+///    definitely negative refuses [`BooleanError::InsideOutOperand`];
+///    one whose sign it leaves open passes, as check 7 passes it, and
+///    the volume backstop keeps its own refusal of a body it cannot
+///    measure.
+///
+/// The subject of 3 is the solid: a body's total hides a sign, so a
+/// several-solid operand is gated here before it is read as one solid
+/// (`ops::one_solid`).
+pub(super) fn gate_operand<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    operand: Operand,
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let (broken, scaffolding) = crate::validate::closed_by_tier(body);
+    if !broken.is_empty() {
+        return Err(BooleanError::CorruptOperand {
+            operand,
+            corruption: super::Corruption::Structure { errors: broken },
+        });
+    }
+    if !scaffolding.is_empty() {
+        return Err(BooleanError::ScaffoldingOperand {
+            operand,
+            errors: scaffolding,
+        });
+    }
+    gate_operand_edges(body, operand)?;
+    if let Some(&solid) =
+        crate::validate::inside_out_solids(body, band, tol, T::quad_lane()).first()
+    {
+        return Err(BooleanError::InsideOutOperand { operand, solid });
+    }
+    Ok(())
+}
+
 /// A face's resolved surface. An unresolved key is arena corruption
 /// and says so, rather than acquiring a kind label by default —
 /// `Nurbs` was the old default and named a kind nothing had shown the
@@ -440,7 +470,7 @@ fn surface_of<'a, T: Decide>(
         })
 }
 
-/// The BODY-scoped half of [`gate_operand_pairs`]: the edge carriers.
+/// [`gate_operand`]'s edge carriers.
 fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match certified(body.get_curve_geom(edge.curve))?.carrier() {
