@@ -62,7 +62,7 @@ The fix pass:
 
 The orchestrator adjudicated the fix pass on its own read.
 
-## 2026-10-03 — P2-split, the answer-independent part (PR 3908, DR-54)
+## 2026-10-03 — P2-split, the answer-independent part (PR 3908, DR-55)
 
 Review tier: dual, a concurrent Opus pair (class H), on frozen head `77a226b0ec`. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, so the tally is 0. Both executed the same defect: a cut holding only gauges was admitted, leaving a remainder that faults `NoBodyRoots`.
 
