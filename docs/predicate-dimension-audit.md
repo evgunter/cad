@@ -976,6 +976,24 @@ Flagged, NOT fixed here (dispositions):
   row two tables up covers it, and the population grows rather than
   splitting.
 
+- **F20** (added by PCERT's incidence-and-fidelity unit, PR 3812)
+  `geom-brep/src/pcurve_cache.rs` `schedule_residuals` under
+  `Record::CrossCheck`: check 3's samples on a `Harmonic` row,
+  `|S(P(tᵢ)) − C(tᵢ)|` in metres. The comparand is a length, so the
+  `Margin::of` door fits it dimensionally; what keeps it off the logged
+  doors is WHERE it runs. Since C4 (Ev, PR 3781) the envelope is the
+  whole certified statement on a harmonic row, and the schedule is its
+  cross-check, run on the witness lane (`f64`, `Sym<f64>`) and not at an
+  exact-witness scalar, whether a point or a box. The
+  driver replays a leaf at the point witness and at the box scalar and
+  compares the two verdict vectors row for row, so a logged
+  cross-check would put rows in the witness's vector that the leaf's
+  cannot have (measured: every probe refused). **Carried as
+  `k_stats::check_unlogged(.., "F20")`**, the same door as F18; a
+  sample over the band still refuses the certificate, and the witness
+  build with it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES`
+  does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved
