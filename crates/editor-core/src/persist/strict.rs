@@ -3,9 +3,10 @@
 //! JSON object repeats a key — a duplicate-key file is a corrupt
 //! file, and no corrupt file may load silently. Every serde-derived
 //! `BTreeMap` in the format deserializes through one of the
-//! section-labeled modules below (the pair-list appearance store has
-//! the same rule in [`super::pairs`]); the refusal is typed at parse,
-//! naming the key and the section.
+//! section-labeled modules below, or through [`strict_map`] itself
+//! where a type deserializes its own map (`meta::MetaMap`); the
+//! pair-list appearance store has the same rule in [`super::pairs`].
+//! The refusal is typed at parse, naming the key and the section.
 //!
 //! Serialization is untouched (a `BTreeMap` cannot hold duplicates —
 //! the modules forward to the plain impl so `#[serde(with)]` stays
@@ -191,11 +192,6 @@ strict_map_section!(
     /// An appearance record's D7 metadata map.
     record_metadata,
     "appearance metadata"
-);
-strict_map_section!(
-    /// A `MetaValue::Map`'s entries.
-    meta_map,
-    "metadata map"
 );
 strict_map_section!(
     /// A verdict summary's node map (ε-audit interchange).

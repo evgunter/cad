@@ -131,14 +131,14 @@ use pncad::analysis::{
 use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
-    DimensionError, Distribution, DistributionFault, DistributionField, EditError, EvalError,
-    FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
-    MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError,
-    PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
-    RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError,
-    SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced,
-    UpdateError,
+    CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
+    EvalError, FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal,
+    Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
+    MetaVersionError, MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck,
+    ParseError, PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
+    Subgroup, Unplaced, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -388,6 +388,25 @@ pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
         BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
         BoundaryEdit::ParamName(_) => "param_name_not_an_identifier",
         BoundaryEdit::Label(fault) => label_fault_tag(fault),
+    }
+}
+
+/// The `EditError.inner_variant` of a refusal the boundary built: the
+/// second word the kernel arm behind it publishes at its own door, so a
+/// refusal met through either door reads the same two words.
+pub fn boundary_edit_inner_tag(refusal: BoundaryEdit<'_>) -> Option<&'static str> {
+    match refusal {
+        BoundaryEdit::PlacementRule(fault) => placement_rule_inner_tag(fault),
+        BoundaryEdit::Declare(pncad::select::DeclareError::Edit(inner)) => {
+            edit_inner_variant_tag(inner)
+        }
+        BoundaryEdit::Declare(
+            pncad::select::DeclareError::NoFindings | pncad::select::DeclareError::NoMintedId,
+        )
+        | BoundaryEdit::NameSerialize
+        | BoundaryEdit::MateHead(_)
+        | BoundaryEdit::ParamName(_)
+        | BoundaryEdit::Label(_) => None,
     }
 }
 
@@ -762,6 +781,21 @@ pub fn placement_rule_fault_tag(fault: &PlacementRuleFault) -> &'static str {
     node_error_tag(NodeErrorClass::of_placement_rule(fault))
 }
 
+/// The second word of a placement-rule fault, beside
+/// [`placement_rule_fault_tag`]'s: which shape a count mismatch takes,
+/// the word `EditError::PlacementRuleMismatch` publishes as its
+/// `inner_variant`, so every carrier of the fault publishes it alike.
+/// No other fault has arms of its own.
+pub fn placement_rule_inner_tag(fault: &PlacementRuleFault) -> Option<&'static str> {
+    match fault {
+        PlacementRuleFault::CountSpelling { shape } => Some(count_mismatch_tag(shape)),
+        PlacementRuleFault::NoPlacements
+        | PlacementRuleFault::NonFiniteFrame { .. }
+        | PlacementRuleFault::ImproperFrame { .. }
+        | PlacementRuleFault::NonRigidFrame { .. } => None,
+    }
+}
+
 /// The stable tag for a frame-construction refusal
 /// (`geom_core::linalg::frame`'s constructors).
 ///
@@ -1059,7 +1093,9 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
 ///   worded as [`mate_fault_tag`], [`resolve_fault_tag`] and
 ///   [`placement_rule_fault_tag`] word it, so the fine word is on the
 ///   wire under the carrier's name and moving it here would move a
-///   shipped `kind` value;
+///   shipped `kind` value. `PlacementRule`'s count mismatch is the one
+///   such fault with arms of its own, and its shape is the second word
+///   here ([`placement_rule_inner_tag`]), as the edit door publishes it;
 /// * `WitnessBifurcation`, whose payload is the branch solver's
 ///   telemetry record: the arm is not constructed before the M6
 ///   solver, and the façade curates the record's discriminant
@@ -1117,7 +1153,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::AxisInDifferentPlane { .. } => None,
         NodeErrorKind::NonPositiveCount { .. } => None,
         NodeErrorKind::PlacementsUncertified { .. } => None,
-        NodeErrorKind::PlacementRule(_) => None,
+        NodeErrorKind::PlacementRule(fault) => placement_rule_inner_tag(fault),
         NodeErrorKind::UnschedulableCycle => None,
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
         NodeErrorKind::ParamSourceAttach(inner) => Some(param_attach_error_tag(inner)),
@@ -1253,7 +1289,8 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::NotAGauge { .. } => None,
         EditError::GaugeCycle { .. } => None,
         EditError::WouldStartPlacing { .. } => None,
-        EditError::PlacementRuleMismatch { .. } => None,
+        // Which answer the rule gives twice is the arm.
+        EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
         EditError::ImproperPlacement { .. } => None,
         EditError::NonFinitePlacement { .. } => None,
@@ -1279,6 +1316,18 @@ pub fn meta_version_error_tag(err: &MetaVersionError) -> &'static str {
         MetaVersionError::NotAMap => "not_a_map",
         MetaVersionError::MissingVersion => "missing_version",
         MetaVersionError::VersionNotInt => "version_not_int",
+    }
+}
+
+/// The stable tag for which answer to "how many placements" a
+/// placement-rule node gives twice — the shape
+/// `EditError::PlacementRuleMismatch` carries, published on
+/// `inner_variant`. Its three shapes are three different repairs.
+pub fn count_mismatch_tag(shape: &CountMismatch) -> &'static str {
+    match shape {
+        CountMismatch::ListedWithCount => "listed_with_count",
+        CountMismatch::SteppedWithoutCount => "stepped_without_count",
+        CountMismatch::ListedOnPattern => "listed_on_pattern",
     }
 }
 

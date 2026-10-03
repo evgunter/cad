@@ -2,12 +2,13 @@
 id: edit-refusals-short-of-the-shape-guard
 kind: issue
 title: edit: refusals the viewer draws that state no recourse, by the shape guard's census
-status: open
-pr: 3492
-branch: edit/part-refusal-recourse
+status: closed
+pr: 3909
+branch: recipe/meta-bound-and-rule-recourse
 opened: 2026-09-29
 priority: P2
 cost: M
+closed: 2026-10-02
 ---
 
 (CHROME `refusal-residue`, from the shape guard's zero-recourse check.)
@@ -182,3 +183,9 @@ Ruling 10 of `docs/EDIT-PLACEMENT-SPEC.md`'s P2, against the five arms still on 
 `crates/viewer/tests/refusal_concision_edits.rs` renders every new arm, its `FILED_NO_RECOURSE` holds the two rule arms under this row's comment, and its `MaintenanceRefused` admissions are gone. `FrameSite::Registry` went with the registry; a literal step of an offset or a gauge is `FrameSite::Step`.
 
 **What remains on this row:** the two placement-rule arms, `EmptyPlacementList` and `PlacementRuleMismatch`.
+
+## Built (2026-10-02, PR 3909) — the two placement-rule arms; the row closes
+
+`EmptyPlacementList` and `PlacementRuleMismatch` state a recourse, each shape its own; the PR body has the detail.
+
+Nothing remains on this row.

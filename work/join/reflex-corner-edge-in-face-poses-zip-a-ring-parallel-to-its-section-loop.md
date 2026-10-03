@@ -63,3 +63,21 @@ Which side of the pair chose the wrong B face (the B section face
 selection, or a sense bound at the reflex vertex), and whether a
 convex corner under the same tilts zips. The bar for closing:
 `join1_r1_reflex_battery` reports no `SeamOrientation`.
+
+## Traced and fixed (reflex-corner lane, PR 3900)
+
+The B face is wound wrong because a strut's halves face the wrong
+germs. At every one of these poses both germs of the corner's vertex
+pair lie in `a`'s 315° top face, so `insert` mints a dangling strut
+there. `bool_strut_order` picked the half facing each germ by a bare
+cosine against the splice corner's arrival edge `+x`, and the top face
+reaches 315° from it. At `sqQ2` the germs are 270° and 180° in, and
+the cosine reads them in the wrong order. The halves' senses follow
+the facing, so the section loops come out parallel, and the zip is
+the first check that can see it.
+
+`insert::strut_order` reads the angle. The bar is met:
+`join1_r1_reflex_battery` reports no `SeamOrientation` (159 poses over
+∩, ∪ and `a ∖ b`, and 17 over `b ∖ a`, all now sound), with no other
+battery line changed. Pinned by `join_rc_probes`
+`reflex_corner_struts_past_a_half_turn_build_sound`.
