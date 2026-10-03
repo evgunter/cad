@@ -390,13 +390,17 @@ impl<'a> Ends<'a> {
         min_transversality: f64,
         march_tol: f64,
     ) -> Result<SsiBranch, SsiError> {
-        let cert = certify::certify_branch(
+        let (SsiOperand::Nurbs(wall), Some(pcurve)) = (self.wall, pb.as_ref()) else {
+            return Err(SsiError::UnsupportedCertificate {
+                what: certify::NURBS_LIMBS_NEED_PCURVE,
+            });
+        };
+        let cert = certify::certify_chart_search(
             &carrier,
-            pb.as_ref(),
-            &SsiOperand::Analytic(self.plane),
-            self.wall,
+            pcurve,
+            self.plane,
+            wall,
             TubeScale::uniform(self.extent),
-            certify::Banked::Wall,
             self.band,
         )?;
         let params = carrier.domain();

@@ -16,14 +16,16 @@
 //!   box: **exclusion** when the enclosure excludes 0.
 //! - [`implicit_gradient_enclosure`] — `∇f(B)`, the input to the
 //!   transversality/graph enclosure.
-//! - [`graph_margin`] — `(∇f₁ × ∇f₂)·e` over a box. This single number
-//!   carries the whole uniqueness-tube argument: if its enclosure
+//! - [`graph_margin`] — `(∇f₁ × ∇f₂)·e` over a box. This number carries
+//!   the graph half of the uniqueness-tube argument: if its enclosure
 //!   excludes zero then, on every slice `e·x = const` meeting the box,
 //!   the 2×2 system `(f₁, f₂)` has non-singular Jacobian, so by the
 //!   implicit function theorem the solution set inside the box is a
-//!   **graph over the `e` axis** — one arc, no branch, no loop, no
-//!   second component. Straddling zero escalates: either a genuine
-//!   sliver (F6) or the enclosure's remaining slack.
+//!   **graph over the `e` axis**: at most one solution on each slice,
+//!   no branch, no loop. A second arc beside the first along `e` is a
+//!   graph too; that it is absent is `super::one_arc`'s proof.
+//!   Straddling zero escalates: either a genuine sliver (F6) or the
+//!   enclosure's remaining slack.
 //! - [`NurbsBoxes`] — the same three readings for a NURBS chart,
 //!   assembled from control-net hulls: the rational surface's point box
 //!   is the *Cartesian* control hull over a span cell (positive weights
@@ -145,6 +147,25 @@ impl Box3 {
             (Some(x), Some(y), Some(z)) => Self { x, y, z },
             _ => self,
         }
+    }
+
+    /// The componentwise intersection where it has interior on every
+    /// axis, `None` where it has none or a side is refused: the strict
+    /// sibling of [`Box3::meet`], for a reader that needs a box rather
+    /// than a reach.
+    pub(crate) fn intersection(self, o: Self) -> Option<Self> {
+        let side = |a: Interval, b: Interval| {
+            if !(a.is_certified() && b.is_certified()) {
+                return None;
+            }
+            let (lo, hi) = (a.lo().max(b.lo()), a.hi().min(b.hi()));
+            (lo < hi).then(|| Interval::from_bounds(lo, hi))
+        };
+        Some(Self {
+            x: side(self.x, o.x)?,
+            y: side(self.y, o.y)?,
+            z: side(self.z, o.z)?,
+        })
     }
 
     /// Grow every side by `r` (the certified tube radius).
@@ -368,14 +389,21 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
             radius,
             ..
         } => {
+            // The derivative of [`implicit_enclosure`]'s own form
+            // `(|w|² − r²)/2r`, `w = q − â(q·â)`: `(w − â(â·w))/r`. The
+            // second term vanishes for an exactly unit `â`, and an `f64`
+            // unit axis is not exactly one, so it is kept: Krawczyk's
+            // uniqueness reads this as the Jacobian of that form.
             let q = subp(b, origin);
-            let h = dot3(q, constv(axis));
             let a = constv(axis);
+            let h = dot3(q, a);
+            let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
+            let aw = dot3(a, w);
             let r = Interval::from_certified(radius);
             [
-                (q[0] - a[0] * h) / r,
-                (q[1] - a[1] * h) / r,
-                (q[2] - a[2] * h) / r,
+                (w[0] - a[0] * aw) / r,
+                (w[1] - a[1] * aw) / r,
+                (w[2] - a[2] * aw) / r,
             ]
         }
         // As the residual enclosure above: no implicit form, no
@@ -388,8 +416,8 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
 
 /// `(∇f₁ × ∇f₂)·e` over `b` — **the uniqueness-tube quantity** (module
 /// docs). An enclosure excluding zero proves the solution set inside
-/// `b` is a graph over the `e` axis: one arc, and therefore exactly one
-/// component to select.
+/// `b` is a graph over the `e` axis: at most one solution on each
+/// slice. One arc in `b` is `super::one_arc`'s proof, not this one.
 pub(crate) fn graph_margin<T: CertifiedBounds>(
     s1: &Surface<T>,
     s2: &Surface<T>,
