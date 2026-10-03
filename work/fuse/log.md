@@ -278,3 +278,11 @@ lane, because both edit `remap_contacts`.
   closes. Its second witness moves to
   `two-pinches-crossing-on-one-line-refuse-their-union` (P0), and the
   inside-out operand is cleave's (P1).
+
+- 2026-10-03 — Dispatched `two-pinches-crossing-on-one-line-refuse-their-union`
+  (P0) to a cloud implementer on `fuse/two-pinches-one-line`. The row's
+  "what is the result at rest" question is settled by D-tier 3′:
+  touching is between distinct entities with records. So the result has
+  two vertices with a v-v record at each overlap end, not one vertex
+  with two coincident edges. The lane stops if it finds ratified text
+  that says otherwise.
