@@ -857,11 +857,12 @@ fn run_at<T: editor_core::EvalScalar>(
 }
 
 /// **The corpus digest the pre-generic tree gives, per ε row.** Measured
-/// on main's own tree from this same file — first at `a8f56a79f`, before
-/// any solve code moved, and again at `2d29576fb` once PLACE's
-/// mate-frame offset (#3961) changed how an authored side is held — and
-/// held since: the generic solve at `f64` is the nominal solve, bit for
-/// bit.
+/// on main's own tree from this same file's corpus and digest — first at
+/// `a8f56a79f`, before any solve code moved, again at `2d29576fb` once
+/// PLACE's mate-frame offset (#3961) changed how an authored side is
+/// held, and at `11d9c7a7f` once the corpus took the shaft in two
+/// coaxial bores — and held since: the generic solve at `f64` is the
+/// nominal solve, bit for bit.
 ///
 /// One number per row because the documents are not ε-free: a part's
 /// content pin hashes its recorded ε, and an instance's id hashes the
@@ -1015,6 +1016,10 @@ fn tangents_match(
     for (name, p) in vertices(ev, node) {
         let value = [p.x.value, p.y.value, p.z.value];
         let tangent = [p.x.deriv, p.y.deriv, p.z.deriv];
+        assert!(
+            tangent.iter().all(|t| t.is_finite()),
+            "{what}: the tangent of {name:?} is finite: {tangent:?}"
+        );
         assert_eq!(
             value.map(f64::to_bits),
             at[&name].map(f64::to_bits),
@@ -1484,6 +1489,207 @@ fn a2_a_box_on_a_mate_frames_offset_encloses_the_mated_part() {
     );
 }
 
+// ---- C2: a clocking with no radius to turn ----
+
+/// **A shaft in two coaxial bores solves in every lane** ([`shaft`]),
+/// clocked either way. At `f64` every mate determines. At `Dual64`,
+/// seeded on `rise`, the shaft rides the rest one for one in `z`, and
+/// seeded on `idle`, which nothing reads, it holds still — each tangent
+/// finite and the `f64` builds' central difference. At `Interval`,
+/// over a box on `rise` a fraction of ε wide, the solve encloses the
+/// shaft's `f64` pose at both corners and the nominal and the evaluation
+/// encloses every vertex; at an ε where the corpus's identically-zero
+/// membership margins escalate unboxed ([`INTERVAL_ESCALATIONS`]), the
+/// shaft's fault is that escalation instead. A wider box escalates the
+/// rest's own membership, which the candidate meets by construction and
+/// the lane re-measures box-wide (§5 (b)).
+#[test]
+fn c2_a_shaft_in_two_coaxial_bores_solves_in_every_lane() {
+    let eps = Tol::witness().eps();
+    for (label, shape) in [
+        ("shaft-clocked-rider", ShaftShape::ClockedRider),
+        ("shaft-parallel-pin", ShaftShape::ParallelPin),
+    ] {
+        let s = shaft(&format!("msolve14-c2-{label}"), shape, BORES);
+        let f = run_at::<f64>(&s.doc, &s.opts, None);
+        for &mate in &s.mates {
+            assert!(
+                matches!(f.result(mate), Some(NodeResult::Ok(v))
+                    if matches!(v.payload, ValuePayload::Mate(editor_core::MateRole::Determining))),
+                "{label}: at f64 the mate {mate:?} determines: {:?}",
+                f.node_error(mate)
+            );
+        }
+        let ev = run_at::<Dual64>(&s.doc, &seeded(&s.opts, rise()), None);
+        for (name, t) in assert_tangents_match(&s.doc, &s.opts, &ev, s.bolt, rise(), RISE, label) {
+            assert_eq!(t, [0.0, 0.0, 1.0], "{label}: ∂/∂rise at {name:?}");
+        }
+        let ev = run_at::<Dual64>(&s.doc, &seeded(&s.opts, idle()), None);
+        for (name, t) in assert_tangents_match(&s.doc, &s.opts, &ev, s.bolt, idle(), IDLE, label) {
+            assert_eq!(t, [0.0; 3], "{label}: ∂/∂idle at {name:?}");
+        }
+        let escalates = INTERVAL_ESCALATIONS
+            .iter()
+            .any(|(e, l, _)| e.to_bits() == eps.to_bits() && *l == label);
+        let (lo, hi) = narrow(0.05);
+        let i = run_at::<Interval>(&s.doc, &boxed(&s.opts, rise(), lo, hi), None);
+        if escalates {
+            let diag = escalation(&i, s.bolt).unwrap_or_else(|| {
+                panic!(
+                    "{label}: at ε = {eps:e} the shaft escalates: {:?}",
+                    i.node_error(s.bolt)
+                )
+            });
+            assert_eq!(
+                diag.margin.kind(),
+                geom_core::MarginKind::Enclosure,
+                "{label}: {diag:?}"
+            );
+            continue;
+        }
+        let width =
+            assert_pose_encloses_corners(&s.doc, &s.opts, s.bolt, rise(), RISE, (lo, hi), label);
+        assert!(
+            width >= hi - lo,
+            "{label}: the rise widens the pose: {width}"
+        );
+        assert_encloses_corners(&s.doc, &s.opts, &i, s.bolt, (rise(), RISE), (lo, hi), label);
+    }
+}
+
+/// **Each of `mates` determines or escalates, and an escalation is on a
+/// mate's log**: a failed mate's fault is `Indeterminate` over a margin
+/// of `kind` (a point at `f64` and `Dual64`, an enclosure at `Interval`
+/// — never a poisoned one), and some mate's log carries it.
+fn assert_decides_or_escalates<T: geom_core::Decide>(
+    ev: &Evaluation<T>,
+    mates: &[RecipeNodeId],
+    kind: geom_core::MarginKind,
+    what: &str,
+) {
+    let mut escalated = false;
+    for &mate in mates {
+        let Some(error) = ev.node_error(mate) else {
+            continue;
+        };
+        let diag = escalation(ev, mate).unwrap_or_else(|| {
+            panic!("{what}: the mate {mate:?} determines or escalates: {error:?}")
+        });
+        assert_eq!(diag.margin.kind(), kind, "{what}: {diag:?}");
+        escalated = true;
+    }
+    let logged = mates.iter().any(|&m| match ev.result(m) {
+        Some(NodeResult::Ok(v)) => !v.escalations.is_empty(),
+        _ => ev.node_error(m).is_some_and(|e| !e.escalations.is_empty()),
+    });
+    assert!(
+        !escalated || logged,
+        "{what}: the escalation is on a mate's log"
+    );
+}
+
+/// **A near-degenerate shaft decides or escalates, and never reads a
+/// NaN**: its bores a rounding apart (non-dyadic points on one line), or
+/// three ε apart, inside the band. In every lane — `f64`, `Dual64`
+/// unseeded and seeded on `rise`, `Interval` unboxed — each mate
+/// determines or escalates on its own log, over a point margin or an
+/// enclosure and never a poisoned one, and where the shaft is posed
+/// every coordinate of every vertex, value and tangent, is finite. The
+/// rounding pair decides at `f64` and `Dual64` (its radius is far below
+/// every ε row's band); the in-band pair escalates there — on the
+/// table's own point-on-line predicate, which measures the radius the
+/// clocking would turn before the clocking is asked.
+#[test]
+fn c2_a_near_degenerate_shaft_decides_or_escalates_and_never_reads_nan() {
+    use geom_core::MarginKind;
+    let eps = Tol::witness().eps();
+    let rounding: Bores = (
+        [[0.1, 0.7, 0.0], [0.1, 0.7, 2.3]],
+        [[4.3, 4.1, SLAB_HEIGHT], [4.3, 4.1, -1.3]],
+    );
+    let (bolt_at, [first, second]) = BORES;
+    let in_band: Bores = (
+        bolt_at,
+        [first, [second[0] + 3.0 * eps, second[1], second[2]]],
+    );
+    for (variant, bores) in [("rounding", rounding), ("in-band", in_band)] {
+        for shape in [ShaftShape::ClockedRider, ShaftShape::ParallelPin] {
+            let label = format!("{variant} {shape:?}");
+            let s = shaft(
+                &format!("msolve14-c2-near-{variant}-{shape:?}"),
+                shape,
+                bores,
+            );
+            let f = run_at::<f64>(&s.doc, &s.opts, None);
+            assert_decides_or_escalates(&f, &s.mates, MarginKind::Value, &format!("{label}, f64"));
+            let decided = f.node_error(s.bolt).is_none();
+            match variant {
+                "rounding" => assert!(
+                    decided,
+                    "{label}: decides at f64: {:?}",
+                    f.node_error(s.bolt)
+                ),
+                _ => assert!(
+                    s.mates.iter().any(|&m| escalation(&f, m).is_some()),
+                    "{label}: escalates at f64: {:?}",
+                    f.node_error(s.bolt)
+                ),
+            }
+            if decided {
+                for (name, p) in vertices(&f, s.bolt) {
+                    assert!(
+                        [p.x, p.y, p.z].iter().all(|x| x.is_finite()),
+                        "{label}, f64: {name:?} is finite"
+                    );
+                }
+            }
+            for opts in [s.opts.clone(), seeded(&s.opts, rise())] {
+                let d = run_at::<Dual64>(&s.doc, &opts, None);
+                assert_decides_or_escalates(
+                    &d,
+                    &s.mates,
+                    MarginKind::Value,
+                    &format!("{label}, Dual64 {:?}", opts.seed),
+                );
+                assert_eq!(
+                    d.node_error(s.bolt).is_none(),
+                    decided,
+                    "{label}: Dual64 decides where f64 does"
+                );
+                if decided {
+                    for (name, p) in vertices(&d, s.bolt) {
+                        assert!(
+                            [p.x, p.y, p.z]
+                                .iter()
+                                .all(|x| x.value.is_finite() && x.deriv.is_finite()),
+                            "{label}, Dual64 {:?}: {name:?} is finite: {p:?}",
+                            opts.seed
+                        );
+                    }
+                }
+            }
+            let i = run_at::<Interval>(&s.doc, &s.opts, None);
+            assert_decides_or_escalates(
+                &i,
+                &s.mates,
+                MarginKind::Enclosure,
+                &format!("{label}, Interval"),
+            );
+            if i.node_error(s.bolt).is_none() {
+                use geom_core::Bounds;
+                for (name, p) in vertices(&i, s.bolt) {
+                    assert!(
+                        [p.x, p.y, p.z]
+                            .iter()
+                            .all(|x| x.lo().is_finite() && x.hi().is_finite()),
+                        "{label}, Interval: {name:?} is finite"
+                    );
+                }
+            }
+        }
+    }
+}
+
 // ---- A1: a face frame resolves on every lane ----
 
 /// **A face-framed mate on a `Dual64` seed run resolves and carries its
@@ -1597,7 +1803,8 @@ fn a4_a_seeded_pass_over_an_unseeded_prior_reuses_no_zero_tangent_pose() {
 // ---- A3's other half, and C5: one structure, every lane ----
 
 /// What a lane's evaluation says about the structure: each mate's role
-/// (its value) or that it failed, and whether each instance failed.
+/// (its value) or the class of its fault ([`fault_class`]), and each
+/// instance's.
 fn structure<T: editor_core::EvalScalar>(
     doc: &ProfileDoc,
     ev: &Evaluation<T>,
@@ -1627,40 +1834,93 @@ fn structure<T: editor_core::EvalScalar>(
 /// A failed result's class: the error kind's variant, and for a mate
 /// fault the fault's — never its numbers, which are the lane's.
 fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
-    let full = format!("{r:?}");
-    full.split(['{', '(']).take(4).collect::<Vec<_>>().join("|")
+    let variant = |debug: String| {
+        debug
+            .split(|c: char| !c.is_alphanumeric())
+            .next()
+            .unwrap_or_default()
+            .to_string()
+    };
+    match r {
+        NodeResult::Failed(e) => match &e.kind {
+            editor_core::NodeErrorKind::Mate(fault) => {
+                format!("Mate::{}", variant(format!("{fault:?}")))
+            }
+            other => variant(format!("{other:?}")),
+        },
+        NodeResult::Poisoned { .. } => "Poisoned".to_string(),
+        NodeResult::Ok(_) => unreachable!("an Ok result has a value, not a fault class"),
+    }
 }
 
-/// **An interval lane's structure is the `f64` one's, or an escalation
-/// on a mate's log**: where an interval decision could not settle, the
-/// mate faults `Indeterminate` — or the member whose checked offset it
-/// was faults `OffsetUnchecked` with the same cause — the escalation is
-/// on a mate's own log, and what the fault reaches fails with it;
-/// everything else reads as at `f64`. An identically-zero membership
-/// margin (the constructed candidate's own residual, a true checked
-/// offset's) encloses zero only as tightly as the lane's rounding, so at
-/// a fine enough ε it escalates on an unboxed run (the spec's §5 (b)):
-/// the corpus's clocked coaxial pair and its true checked offset do at
-/// ε = 1e-12.
+/// **Every escalation an unboxed `Interval` run of the corpus makes**:
+/// the ε row, the document, and the predicate whose enclosure straddled
+/// the band. An identically-zero membership margin (the constructed
+/// candidate's own residual, a true checked offset's) encloses zero only
+/// as tightly as the lane's rounding, so at a fine enough ε it escalates
+/// with no box at all (the spec's §5 (b),
+/// `work/msolve/an-identically-zero-margin-escalates-at-a-fine-eps.md`):
+/// at ε = 1e-12, six of the thirteen documents, and none at the coarser
+/// rows.
+const INTERVAL_ESCALATIONS: [(f64, &str, &str); 6] = [
+    (
+        1e-12,
+        "coaxial-clocked-rest",
+        "mate_member_rotation_identity",
+    ),
+    (1e-12, "gauge-chain", "mate_member_translation_zero"),
+    (1e-12, "two-pin", "mate_member_axis_fixed"),
+    (1e-12, "cross-pin", "mate_member_axis_fixed"),
+    (
+        1e-12,
+        "shaft-clocked-rider",
+        "mate_member_rotation_identity",
+    ),
+    (1e-12, "shaft-parallel-pin", "mate_member_axis_fixed"),
+];
+
+/// The escalation `id` fails with in `ev`, if its fault is one: a mate
+/// fault `Indeterminate`, or an `OffsetUnchecked` whose cause is.
+fn escalation<T: geom_core::Decide>(
+    ev: &Evaluation<T>,
+    id: RecipeNodeId,
+) -> Option<geom_core::predicate::Indeterminate> {
+    use editor_core::{MateFault, NodeErrorKind, OffsetCheck};
+    match &ev.node_error(id)?.kind {
+        NodeErrorKind::Mate(fault) => match &**fault {
+            MateFault::Indeterminate { diag, .. } => Some((**diag).clone()),
+            MateFault::OffsetUnchecked { cause, .. } => match &**cause {
+                OffsetCheck::Indeterminate(diag) => Some((**diag).clone()),
+                _ => None,
+            },
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// **An interval lane's structure is the `f64` one's, or one of the
+/// corpus's own escalations** ([`INTERVAL_ESCALATIONS`]): where an
+/// interval decision could not settle, the mate faults `Indeterminate` —
+/// or the member whose checked offset it was faults `OffsetUnchecked`
+/// with the same cause — over an enclosure (never a poisoned margin),
+/// under a predicate the table names for this document at this ε; the
+/// escalation is on a mate's own log, and what the fault reaches fails
+/// with it; everything else reads as at `f64`. A document the table
+/// names escalates.
 fn assert_interval_structure(
     doc: &ProfileDoc,
     f: &Evaluation<f64>,
     i: &Evaluation<Interval>,
     label: &str,
 ) {
-    use editor_core::{MateFault, NodeErrorKind, OffsetCheck};
-    let escalating = |id: RecipeNodeId| {
-        i.node_error(id).is_some_and(|e| match &e.kind {
-            NodeErrorKind::Mate(fault) => match &**fault {
-                MateFault::Indeterminate { .. } => true,
-                MateFault::OffsetUnchecked { cause, .. } => {
-                    matches!(**cause, OffsetCheck::Indeterminate(_))
-                }
-                _ => false,
-            },
-            _ => false,
-        })
-    };
+    use geom_core::MarginKind;
+    let eps = Tol::witness().eps();
+    let allowed: Vec<&str> = INTERVAL_ESCALATIONS
+        .iter()
+        .filter(|(e, l, _)| e.to_bits() == eps.to_bits() && *l == label)
+        .map(|(_, _, predicate)| *predicate)
+        .collect();
     let mate_log_escalated = doc.order().iter().any(|&id| {
         matches!(doc.node(id), Some(Node::Mate { .. }))
             && match i.result(id) {
@@ -1675,21 +1935,35 @@ fn assert_interval_structure(
         if w == g {
             continue;
         }
+        let diag = escalation(i, *id).unwrap_or_else(|| {
+            panic!(
+                "{label}: Interval reads {g} at {id:?} where f64 reads {w}, and its fault is no \
+                 escalation"
+            )
+        });
+        assert_eq!(
+            diag.margin.kind(),
+            MarginKind::Enclosure,
+            "{label}: the escalation at {id:?} is over an enclosure, not a poisoned margin: {diag:?}"
+        );
         assert!(
-            escalating(*id),
-            "{label}: Interval reads {g} at {id:?} where f64 reads {w}, and its fault is no \
-             escalation"
+            diag.predicate.is_some_and(|p| allowed.contains(&p)),
+            "{label}: Interval escalates at {id:?} on {:?} at ε = {eps:e}, which the corpus's \
+             escalations do not list ({allowed:?})",
+            diag.predicate
         );
         moved.push(*id);
     }
+    assert_eq!(
+        moved.is_empty(),
+        allowed.is_empty(),
+        "{label}: at ε = {eps:e} the corpus's escalations list {allowed:?}, and Interval \
+         escalated at {moved:?}"
+    );
     if !moved.is_empty() {
         assert!(
             mate_log_escalated,
             "{label}: Interval escalated at {moved:?} with no escalation on a mate's log"
-        );
-        println!(
-            "{label}: Interval escalated at {moved:?} (ε = {:e})",
-            Tol::witness().eps()
         );
     }
 }
@@ -1699,7 +1973,8 @@ fn assert_interval_structure(
 /// is the `f64` build's at `Dual64` (unseeded and under every seed) and
 /// at `Interval` (unboxed), save where an interval decision ESCALATES
 /// ([`assert_interval_structure`]); and at `Dual64` every instance's
-/// every vertex reads the `f64` build's bits on its value channel.
+/// every vertex reads the `f64` build's bits on its value channel and a
+/// finite tangent.
 #[test]
 fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f64s() {
     for (label, doc, opts) in corpus() {
@@ -1734,6 +2009,13 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
                         [p.x.value, p.y.value, p.z.value].map(f64::to_bits),
                         at[&name],
                         "{label}, seed {seed:?}: the value channel at {name:?} is f64's"
+                    );
+                    assert!(
+                        [p.x.deriv, p.y.deriv, p.z.deriv]
+                            .iter()
+                            .all(|t| t.is_finite()),
+                        "{label}, seed {seed:?}: the tangent at {name:?} is finite: {:?}",
+                        [p.x.deriv, p.y.deriv, p.z.deriv]
                     );
                 }
             }
