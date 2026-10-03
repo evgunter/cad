@@ -19,9 +19,9 @@ use crate::fixture::{ang, len, scl};
 use editor_core::UnitSym;
 use editor_core::expr::DimensionError;
 use editor_core::{
-    AssertionDir, Datum, Dimension, DocEdit, DocParam, DocumentId, EditError, EntityKind, Expr,
-    MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, ParamName, PersistError, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, SnapshotError, StableName, apply, load, save,
+    AssertionDir, Datum, Dimension, DocEdit, DocumentId, EditError, EntityKind, Expr, FreeVar,
+    MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId,
+    RoleSeg, SitedRef, SnapshotError, StableName, VarName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -73,8 +73,8 @@ fn every_form() -> ProfileDoc {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("pad"),
-            value: DocParam::Continuous {
+            name: VarName::from_static("pad"),
+            value: FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.001,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -105,7 +105,7 @@ fn every_form() -> ProfileDoc {
                         )
                         .expect("Length - Length"),
                         MeasureExpr::neg(MeasureExpr::value(Expr::param(
-                            ParamName::from_static("pad"),
+                            VarName::from_static("pad"),
                             Dimension::Length,
                         )))
                         .expect("a shallow negation"),

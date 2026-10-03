@@ -57,10 +57,9 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
-    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamName,
-    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload,
-    evaluate,
+    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
+    Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ProfileDoc,
+    ProfileLift, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -216,7 +215,7 @@ fn distributed_plate() -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("half_spacing"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: SPACING / 2.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -229,7 +228,7 @@ fn distributed_plate() -> ProfileDoc {
     for n in ["hole_a_r", "hole_b_r"] {
         r.push(DocEdit::SetDocParam {
             name: name(n),
-            value: DocParam::Continuous {
+            value: FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: RADIUS,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -346,8 +345,8 @@ fn assertions_of(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
         .collect()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// The ε-scaled half-width every parametric fixture here uses, for the
@@ -386,7 +385,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("place"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),

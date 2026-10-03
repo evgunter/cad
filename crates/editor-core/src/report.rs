@@ -35,7 +35,7 @@ use std::collections::BTreeMap;
 
 use crate::analysis::{AnalyzedBox, MeasureUnavailable};
 use crate::distribution::Distribution;
-use crate::doc::ParamName;
+use crate::doc::VarName;
 use crate::eval::{ContentKey, KeyHasher, key_of};
 
 /// **Priced or forced** — the honesty type the unresolved-mass budget
@@ -66,7 +66,7 @@ pub enum MassBasis {
     /// nobody stated.
     Forced {
         /// Every band-carrying parameter, in name order.
-        by: Vec<ParamName>,
+        by: Vec<VarName>,
     },
 }
 
@@ -79,7 +79,7 @@ impl MassBasis {
     /// measure with σ = 0, and a document of nothing but fixed
     /// parameters is priced (trivially, and truthfully).
     pub fn of(analyzed: &AnalyzedBox) -> Self {
-        let by: Vec<ParamName> = analyzed
+        let by: Vec<VarName> = analyzed
             .varying()
             .filter(|(_, p)| matches!(p.distribution, Some(Distribution::Band { .. })))
             .map(|(name, _)| name.clone())

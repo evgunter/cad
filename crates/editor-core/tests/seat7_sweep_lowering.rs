@@ -57,9 +57,9 @@ use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr,
-    LoopProgram, Node, ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, SlotId, StepArg, evaluate, persist,
+    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Expr, FreeVar,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, SlotId, StepArg, VarName, evaluate, persist,
 };
 use fixture::digest::digest;
 use fixture::{ang, axis_in_plane, frame, insert, len, scl, square, step, tol, xy_frame};
@@ -80,7 +80,7 @@ const H: f64 = 1.2;
 const PHI: f64 = PI / 4.0;
 
 fn param(name: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(name), Dimension::Length)
+    Expr::param(VarName::from_static(name), Dimension::Length)
 }
 
 /// A document declaring `r`.
@@ -89,8 +89,8 @@ fn doc_with_r(name: &'static str) -> ProfileDoc {
     step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, R),
+            name: VarName::from_static("r"),
+            value: FreeVar::continuous(Dimension::Length, R),
         },
     )
     .0
@@ -758,8 +758,8 @@ fn each_loop_of_a_hole_first_profile_carries_its_own_radius() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("q"),
-            value: DocParam::continuous(Dimension::Length, Q),
+            name: VarName::from_static("q"),
+            value: FreeVar::continuous(Dimension::Length, Q),
         },
     );
     // Hole first, deliberately.
@@ -921,8 +921,8 @@ fn the_memo_never_serves_a_stale_sweep_token() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, 2.0 * R),
+            name: VarName::from_static("r"),
+            value: FreeVar::continuous(Dimension::Length, 2.0 * R),
         },
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
@@ -1150,8 +1150,8 @@ fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("q"),
-            value: DocParam::continuous(Dimension::Length, Q),
+            name: VarName::from_static("q"),
+            value: FreeVar::continuous(Dimension::Length, Q),
         },
     );
     let (doc, profile_node, chain) =
