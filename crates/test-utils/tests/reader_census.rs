@@ -123,6 +123,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // node-kind vocabulary census, code view
     },
     Entry {
+        path: "crates/editor-core/src/stackup.rs",
+        disposition: Shared, // value-digest retired-tag census, code view
+    },
+    Entry {
         path: "crates/editor-core/src/verbs/mod.rs",
         disposition: Shared, // the two-Verb naming convention, code view
     },
