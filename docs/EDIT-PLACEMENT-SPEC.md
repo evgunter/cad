@@ -9,6 +9,9 @@ The ruling reaches the data model, the mate solve, evaluation, persistence, expo
 | P1 | The `Placement` type, held by `Node::Transform` | `edit/placement-type` | dual (`docs/DUAL-REVIEW-PROTOCOL.md`) |
 | P2a | Vocabulary: the code's cluster becomes a group and its representative a root, freeing "gauge" | `edit/group-root-vocabulary` | orchestrator's read |
 | P2 | Gauges; the registry and maintenance go; own space; STEP refusal | `edit/placement-gauges` | dual |
+| P2-carry | Split and inline keep a carried member's checked offset (ruling 9 below) | `place/carry-keeps-offsets` | single, full |
+| P2-split | Split and inline at a gauge: the gauge hoist, inline's gauge, the mate-placed inline | `place/p2-split` | dual |
+| P2-face | A `FromFace` side across the seam (rulings 7 and 8's `FromFace` case) | `place/p2-face` | after Ev's ruling |
 | P3 | Viewer: the group-wide probe and "place where shown" | the viewer owner's | filed on its slate, not EDIT's |
 
 Every premise below was read off `origin/main` by earlier surveys and may have moved. Treat each one as a hypothesis, verify it, and report any correction. This program's specs have each carried at least one false premise.
@@ -110,7 +113,7 @@ Announce each crossing.
 1. **The gauge node.**
    - `Node::Gauge { parent: Option<RecipeNodeId>, placement: Placement }`, where `None` is the world. It denotes no body, so as a root it contributes nothing (A10).
    - Its frame is its parent's frame composed with its `placement`.
-   - `parent` is a reading edge, so the gauge chain is acyclic by the DAG's own check.
+   - `parent` is a reading edge (`reading_edges`), not an input, so the DAG's acyclicity check does not see it; the gauge chain is kept acyclic by `doc::gauge_ref_fault`'s walk, asked at `InsertNode`, `SetGauge` and load.
    - Its steps are addressed by the existing `SlotId::PlacementStep`, through slot edits, and the parameter and dimension checks cover them, as for `Transform`.
 2. **The instance.**
    - `InstantiatePart` gains `gauge: Option<RecipeNodeId>` (`None` is the world; a reading edge) and `offset: Option<Placement>`.
@@ -215,6 +218,204 @@ Announce each crossing.
 Announce each crossing in the PR body.
 
 **Review.** Dual (`docs/DUAL-REVIEW-PROTOCOL.md`). P2 lands after P2a.
+
+## P2-split: split and inline at a gauge (spec)
+
+**What.** P2-core (PR 3676) built the cases of A4 that need no gauge minted or removed, and refuses the rest typed, so this unit only lifts refusals. Four arms go or narrow: `SplitError::CutHoldsGauge`, `InlineError::NeedsAGauge`, `InlineError::MatePlaced`, and `MateFaceFrameCrosses` on both sides. The row is `work/place/placement-split-and-inline-at-a-gauge-are-refused-until-p2-split.md`. The contract is ASSEMBLY.md A4 ("Identity, pins, split and inline") and A11 (2)–(5), with P2's ruling 7. Every result equals A4's document, and no lifted refusal changes a result P2-core admits. The older split and inline arms' `Recourse:` is `work/place/split-and-inline-refusals-short-of-the-shape-guard.md`'s, not this unit's.
+
+**Premises** (read on `ef90c4dba`; verify each one and report any correction).
+- **Where the four refusals are raised.** All four are in `crates/editor-core/src/refactor.rs`.
+  - `CutHoldsGauge`: in `split` (~2120), right after the reading-edge rule. It fires on any gauge in the cut, before the cut groups are read.
+  - `MatePlaced`: in `inline`'s match on `root_and_cause` (~2767), for any instance that is not its group's root.
+  - `NeedsAGauge`: in `inline`'s `sugar_root` (~2866). It fires at a non-empty offset whenever the part is not exactly one group whose root is at the empty chain on its world, with no gauge and no member carrying an offset.
+  - `MateFaceFrameCrosses`: in `split`'s crossing-mate loop (~2298) and `inline`'s frame-rule loop (~2931). Both raise it only after `frame_survives` holds, so today a `FromFace` side refuses even where its authored twin crosses.
+- **What P2-core admits.**
+  - The group hoist (`hoisted`, ~2223): the cut is exactly one placed group, its instances and its mates. The instance takes the root's offset, and the root lands at `Placement::IDENTITY`. A member carrying an offset refuses `HoistedMemberOffset`.
+  - The verbatim move: any other cut, with the instance at the empty offset. `carry`'s `regauge` sends every gauge reference to the part's world.
+  - Inline's sugar: the root takes the instance's offset.
+  - The empty offset: the content lands verbatim on the instance's gauge. `regauge` sends the part's world to `host_gauge`.
+  - Rows: `crates/editor-core/tests/p2_gauges.rs` (`the_group_hoist_and_the_frame_rule_at_a_split`, `inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_rest_typed`, `a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline`, `a_cut_of_two_placed_groups_moves_verbatim_rather_than_hoisting`).
+- **Helpers to reuse.**
+  - `frame_survives` (~801): the one frame-rule predicate.
+  - `carry` (~223): its `regauge`/`settle` pair is the hook for every gauge rewrite and offset rewrite below.
+  - `root_and_cause`, `groups`, `places` and `member_of` in `mate`.
+  - `spaces_with` and the anchor vote (~2163).
+  - `FaceName::part_local` (`names/role.rs` ~470): the unwrap. The wrap is a `StableName { node, path: [RoleSeg::InPart { of }] }`, as `remap_face` and the crossing loop build it.
+  - `Recording` for recorded edits.
+  - `refusal_concision_refactor.rs`'s wildcard-free rosters.
+- **Gauge references are reading edges, not inputs** (`Node::inputs`, `node.rs` ~3088, returns nothing for `Gauge` and `InstantiatePart`; `mate::solve::reading_edges` ~618). D-2's `SeveredEdge` loop therefore never sees a kept node hanging from a cut gauge, so the severed-gauge rule needs its own check.
+- **What a `FromFace` frame resolves against.**
+  - `resolve_side` (`mate/solve.rs` ~1189) asks `MateReach::face_pose` of the member's instance's part (`part_of`).
+  - `face_pose_over_cache` (`eval/mod.rs` ~3312) looks up the PART-LOCAL name in that part's product table and reads `topo::readback::face_pose` off the part's evaluated product body, in the part's own coordinates, with no placement applied.
+  - For a part that is an assembly, that body holds its inner instances already placed. A face `R.InPart{f}` therefore resolves to R's pose in the part composed with f's pose in R's own part.
+  - The face name is the state. `FaceFrame` (`mate.rs`) is spelled part-local, never in the head's qualified spelling.
+- **No edit writes a mate's alignment except its insert** (`DocEdit::writes_a_mates_datum`, `edit.rs` ~510).
+  - `Rebind` rewrites `payload_names`, which are the two heads only. It never rewrites a `FaceFrame` face, whose name lives in another document's namespace.
+  - Deleting and reinserting the mate is not a re-spelling: the insert runs the mate door (`clear_joined_offsets`, ~4608), which clears offsets when a placing mate joins two placed groups. It also mints a new id and moves the mate's root-list position.
+- **`carry` inserts carried mates through that same door, so it clears carried offsets.** A cut that moves verbatim, holding a group whose non-root member carries a checked offset, loses that offset in the part. The edit reports `OffsetCleared` in `part_maintenance` and does not refuse. Seen on `ef90c4dba` by a probe (placed pair, top's offset set to its solved pose, plus a second placed base, cut all four): the part's top has `offset: None`. Inline's carry is the same code. A11 (2) says a further statement of where an instance sits is "never silently ignored", and A4's round trip is shape-exact, so this is a defect that closes here.
+- **`split`'s `root_lands_empty` (~2256) does not read the root's gauge.** That was sound while every cut gauge reference landed on the part's world. Once the cut can hold a gauge, it is not.
+- **The round-trip rows assert evaluation, not shape.** `inline_admits_the_sugar_…` says "`inline(split(d))` is `d` up to node ids" but checks the group count, the root offset and the volume. No comparator up to node ids exists in the tree.
+- **A stale comment.** `inline`'s doc says spliced placements are "the host instance's frame COMPOSED onto the part's own (`Frame::compose`)", which contradicts A4 ("neither computes a frame"). Rewrite it as a drive-by.
+
+**The cut into units.** This section builds as three units, in order:
+- **P2-carry**: ruling 9 and row C1, alone. It is a live defect on main (a checked offset dropped by a split or inline that P2-core admits), so it does not wait for the rest.
+- **P2-split**: rulings 1–6, 8 with condition (c) binding every side, and 10; rows S1–S7, I1–I5 and R1. `MateFaceFrameCrosses` keeps refusing at both seams, as P2-core has it.
+- **P2-face**: ruling 7, the `FromFace` case of ruling 8, `SetMateFrame`, and rows F1–F5. It waits for Ev's ruling on how a face frame crosses the seam (below), which a designer pair weighs first; the representation is part of that question (re-spelling through a new edit, or a face spelled in the host's naming so `Rebind` carries it), so nothing of it is built ahead.
+
+**What PR 3908 builds of P2-split, and what follows it.** `[ev]` PR 3888 asks whether a gauge in the cut moves into the part as it is or becomes the instance, and whether the group hoist and inline's sugar stay. P2-split's PR builds the part that is the same under every answer:
+- **Built:** ruling 1 with D2 (an instance votes its gauge whatever its space, a dead reference having refused first; a cut gauge on a dead chain refuses `DeadGaugeReference`, whose field is `node`); ruling 2 (`SplitError::SeveredGauge`); ruling 4 for every cut that holds a gauge, so no cut gauge is hoisted and `SplitError::CutHoldsGauge` is gone; ruling 5 with D3's half for inline (the minted gauge takes the instance's label; `InlineError::MovedMemberOffset`; `InlineError::NeedsAGauge` is gone); ruling 6 (`MatePlaced` narrowed; its `part_root` and `part_gauges` name the concrete remedy where only the part root's offset or the gauges its group sits on are wrong); ruling 10. `inline`'s stale doc comment is rewritten.
+- **Rows:** S2, S3, S4 with D2's, S5 and S6 re-cut to the verbatim move (a kept mate reading a root on a cut gauge refuses `MateFrameCrosses`, since that root lands on the gauge's image; a kept instance on the anchor declaring into a cut gauge refuses `WouldStartPlacing`), I1–I5, and R1 over every cut holding a gauge, nested and parametric gauges among them (`crates/editor-core/tests/p2_split.rs`). The comparator is `tests/fixture/round_trip.rs`: it reads each node off its own rendering, never through the remapping under test, and has a failing row for each field it reads.
+- **Three facts the premises missed.** Gauges live in no space, so a cut of gauges, datums or other body-less nodes passed every refusal and left an instance of a part with no body: `SplitError::NoMaterial` refuses a cut none of whose roots denotes a body. `SetGauge` may put a node on a gauge inserted after it, so `carry` orders each carried gauge ahead of what sits on it (`gauges_first`) rather than relying on document order. A gauge is a sink of the recipe DAG and so a product root (A10), so the gauge inline mints joins the root list at the instance's position, ahead of the spliced roots.
+- **The slate's next units, after Ev answers PR 3888:** ruling 3 with rows S1 and S7, or its retirement; the group hoist's and the sugar's removal with D1, if Ev removes them; and P2-face. The group hoist, the sugar and `MateFaceFrameCrosses` at both seams stand as P2-core built them.
+
+**Where the clauses disagree with themselves, ruled.**
+- **D1. A4's round trip against the gauge hoist and inline's sugar.** A gauge K whose placement is the empty chain, or whose content is exactly one group rooted at the empty chain on K, hoists to an instance that inline does not turn back into a gauge: at the empty offset no gauge is minted, and for one such group the root takes the offset. So `inline(split(d))` returns `d` with K folded into the root's offset: equal in evaluation, not in shape. Both sentences are ratified A4 text, so which gives way is Ev's, put with the face-frame question. P2-split builds both sentences as written, and R1 pins those two shapes to the evaluation-equal result, naming them.
+- **D2. An unplaced cut group on a gauge other than the anchor.** A4 wins: every gauge reference leaving the cut lands on one anchor. A group unplaced for lack of an offset votes its gauge like any other instance; it only places nothing. A cut whose references then name two anchors refuses `TwoAnchors`. This narrows what P2-core admits (it sent such a group to the part's world and lost its gauge), and that admission was the defect.
+- **D3. A hoisted gauge's label.** A node that stands in for another across the seam takes its label: the instance a gauge hoist leaves behind takes K's label when K has one, and the gauge inline mints takes the instance's label. R1's comparator then reads every label.
+
+**Rulings.**
+1. **The vote, with gauges in the cut.**
+   - A cut gauge whose parent is outside the cut votes its parent.
+   - A cut instance or cut gauge whose gauge reference is inside the cut casts no vote.
+   - Every other vote is as P2-core casts it, with D2: an instance votes its gauge, its group placed or unplaced for lack of an offset, and a world-space non-instance root votes the world.
+   - A cut gauge whose parent is a deleted gauge refuses `DeadGaugeReference` naming that gauge (the field holds the cut node, gauge or instance; rename it if that reads truer). Otherwise the instance left behind would name a deleted gauge, which the insert door refuses untyped as `RemainderEdit`.
+2. **The severed-gauge rule** (A4: "a kept instance or gauge that hangs from a cut gauge"). A kept node whose `gauge_ref` is a cut gauge refuses with a new arm, `SplitError::SeveredGauge { gauge, kept }`, recourse "add {kept} to the cut, or set its gauge outside the cut (SetGauge)". Check it after `TornGroup`, which already speaks to a placing mate's two members, and before the vote. `CutHoldsGauge` goes.
+3. **The gauge hoist** (A4: "a cut that is exactly one gauge under the anchor gives that gauge's placement and leaves the gauge out of the part").
+   - **When it applies:**
+     - exactly one cut gauge K has its parent outside the cut;
+     - every other cut gauge and every cut instance has its gauge reference inside the cut, counting instances that cast no vote (D2);
+     - no world-space non-instance root is in the cut.
+
+     These conditions make K the cut's only reference out. The anchor is K's parent.
+   - **What it builds:**
+     - the instance takes K's placement as its offset, verbatim;
+     - K is not carried: `regauge` maps K to the part's world and every other cut gauge to its carried id;
+     - checked offsets under K move verbatim, since they were stated in K's frame, which is now the part's world. So no `HoistedMemberOffset` arises here, and none is checked.
+   - **K's parameters stay in the host** and count as kept, as the hoisted root's do.
+   - **Precedence.** The gauge hoist, the group hoist and the verbatim move are disjoint: the group hoist's cut holds no gauge, and a cut holding a gauge that fails the conditions above moves verbatim.
+4. **The verbatim move with gauges.**
+   - Each cut gauge is carried. Its parent maps to the part's world when it leaves the cut, and to the carried id when it stays inside.
+   - `carry`'s gauge order holds: a gauge precedes everything on it.
+   - The frame rule's `root_lands_empty` gains the gauge condition. A root lands at the empty chain on the part's world only when its gauge reference leaves the cut (the verbatim move), or is K (the gauge hoist), and its offset is the empty chain. The group hoist's root lands there by construction.
+5. **Inline's gauge** (A4: "the instance's frame becomes a gauge under the instance's gauge holding its offset").
+   - **When:** the instance is its group's root, its offset `o` is not the empty chain, and the part is not one group at the empty chain on its world. "One such group" is P2-core's sugar predicate unchanged: one group, root at the empty chain on the part's world, no gauge, no other member carrying an offset.
+   - **What it builds:**
+     - Insert `Gauge { parent: host_gauge, placement: o }` before the carry. `regauge` sends the part's world to it.
+     - Every non-root member of the instance's host group moves onto it (`SetGauge`), with its mates. A11 (2) makes the moved members' placing mates place again.
+     - Members are moved after the rebinds, so each mate already reads its inner member, and the edit list is the record (replay needs no solve).
+   - **A moved member with a further offset** refuses with a new arm, `InlineError::MovedMemberOffset { instance }`, recourse "clear {i}'s offset (SetOffset), then inline". Its offset was stated in the instance's gauge, and the member now sits in the new gauge's frame. `UnplaceableFrame` stays: plain recipe geometry sits on no gauge, minted or not. `NeedsAGauge` goes.
+6. **The mate-placed inline** (A4: "an instance its mates place is inlined only when its part is one such group").
+   - When the instance is not its group's root and the part is one such group, the part's root takes the instance's offset, which is `None` or the checked offset it carries, on the instance's gauge.
+   - The host mates that read the instance rebind onto the inner members. The frame and fold rules hold as for any inline.
+   - Otherwise it refuses `MatePlaced`, narrowed to that case. Its recourse is the P2 ruling's: "set the part's root offset to the empty chain, or place the instance, then inline". Where the part is one group and only its root's offset or gauge is wrong, name the first remedy concretely (`SetOffset` in the referenced document, then `UpdateReference`). Otherwise name the second, as P2-core's text does.
+7. **Re-spelling a `FromFace` side across the seam.**
+   - **At split**, a kept mate's side that reads cut instance R with face `f` is re-spelled `StableName { node: node_map[R], path: [InPart { of: f }] }`, the part-local name of the same face in the new part. That spelling is total: the frame rule's read-at-its-own-instance condition (ruling 8 (a)) has already refused pattern-copy and placer reads.
+   - **At inline**, a host side that will read inner member X is re-spelled `FaceName::part_local(face, X)`.
+     - If that answers `None`, the face is not on the member the side will read: it is a face of another inner instance, or of the part's plain geometry. No spelling can name it, so it refuses `InlineError::MateFaceFrameCrosses`, its text narrowed to say so, keeping its recourse.
+     - `SplitError::MateFaceFrameCrosses` goes.
+   - **The re-spelling is a recorded edit.** Add one arm, `DocEdit::SetMateFrame { mate, side, frame: MateFrame }`:
+     - It is refused typed on a node that is no mate.
+     - It asks the per-mate admission as the insert does (`admit_mate`, so `writes_a_mates_datum` answers true for it), and it never runs `clear_joined_offsets`.
+     - It is applied after the head rebinds.
+     - A split asks it of the remainder through a reach whose resolver also answers the new part at its pin. P2-core's remainder uses `RefusingReach`, because it inserts no mate.
+     - Inline asks it through its own reach.
+     - It is bound in Python as `DocEdit.set_mate_frame`. It is also the first door that edits a mate's frame in place.
+8. **The frame rule: one predicate, in `frame_survives`.** A mate side crosses the seam only when:
+   - (a) it reads its member at the member's own instance, with no pattern copy and no placer between;
+   - (b) that instance lies, in the part, in a group of the part's world space, never in an own space or under a dead reference; and
+   - (c) the instance is its group's root at the empty chain on the part's world.
+
+   An `Authored` side is held to (a), (b) and (c).
+
+   **For a re-spelled `FromFace` side, whether (c) binds is P2-face's question, for Ev:**
+   - if it binds, a `FromFace` side is held to all three, as A4's parenthetical reads;
+   - if it does not, it is held to (a) and (b), since its frame is read off the face in whichever part it names, and A4's parenthetical is re-worded to say so.
+
+   The fold rule (`MatePairSplits`) is unchanged.
+9. **`carry` leaves carried offsets as they were.** The part (or the spliced host) holds exactly the source's offsets, and the edit list replays to it without a solve. Whether carried mates skip the mate door's clear or the next edit re-states each cleared offset (`SetOffset`) is the unit's call; justify it against replay. No `OffsetCleared` for a carried node survives in the outcome's maintenance.
+10. **Every refusal states one recourse** and has its row in `refusal_concision_refactor.rs`. Remove `CutHoldsGauge`, `NeedsAGauge` and split's `MateFaceFrameCrosses` from the rosters, and add `SeveredGauge` and `MovedMemberOffset`. A new `EditError` arm for `SetMateFrame` on a non-mate goes in `viewer/tests/refusal_concision_edits.rs`.
+
+**Rows.** Each is red on `origin/main` (or absent there, where the door is new), then green. `S`, `I`, `F` and `C` mark split, inline, face and carry.
+- **S1. The gauge hoist.**
+  - A cut of K (parent g, placement p) with two groups under it, and a gauge K2 under K, splits: the instance sits on g at offset p; the part holds no K; K's instances sit on the part's world with their offsets; K2's parent is the world.
+  - Split-then-evaluate equals the unsplit evaluation (census, names, bit-equal volume).
+  - Red: `CutHoldsGauge`.
+- **S2. A gauge moved verbatim.** K plus an instance on the anchor: K is carried with parent world, and the instance sits at the empty offset. Red: `CutHoldsGauge`.
+- **S3. The severed gauge.** A kept instance on a cut gauge, and a kept gauge whose parent is a cut gauge, each refuse `SeveredGauge` naming both nodes, with the recourse. Red: `CutHoldsGauge`.
+- **S4. The vote.**
+  - K on g with an instance on the world in the cut refuses `TwoAnchors`.
+  - A bare cut gauge whose parent was deleted refuses `DeadGaugeReference`.
+  - A cut group unplaced for lack of an offset, on a gauge other than the anchor, refuses `TwoAnchors` (D2). Admitted on main, which loses the gauge.
+  - Red: `CutHoldsGauge`.
+- **S5. The frame rule under the gauge hoist.** A kept declaring mate whose cut side reads a root at the empty chain on K crosses. One reading a root at a non-empty offset on K, or a root on K2, refuses `MateFrameCrosses`. Red: `CutHoldsGauge`.
+- **S6. Would start placing.** Under the gauge hoist, a kept instance on g declaring against a cut instance on K refuses `WouldStartPlacing`. Red: `CutHoldsGauge`.
+- **S7. A parametric hoisted gauge.** K's placement reads a document parameter. After the hoist, the parameter stays in the host and the instance's offset reads it; changing it moves the part's material. Red: `CutHoldsGauge`.
+- **I1. Inline's gauge.**
+  - A root instance at offset o on gauge g, over a part of two groups, inlines: the minted gauge has parent g and placement o, and both groups hang from it.
+  - Every body's world pose equals the pre-inline evaluation.
+  - The same holds for a part whose root sits at a non-empty offset, and for a part holding a gauge.
+  - Red: `NeedsAGauge`.
+- **I2. The members move.** A host member that the instance places through a mate moves onto the minted gauge, its mate reads the inner root, and its world pose is unchanged. Red: `NeedsAGauge`.
+- **I3. A moved member with a further offset** refuses `MovedMemberOffset`, with the recourse. Red: `NeedsAGauge`.
+- **I4. The mate-placed inline.**
+  - An instance mated onto a host base, over a part that is one group at the empty chain, inlines: the part's root takes the instance's place, with no offset, on its gauge; the host mate reads it; and world poses are unchanged.
+  - With a checked offset on the instance, the root carries it.
+  - Red: `MatePlaced`.
+- **I5. The mate-placed refusal.** The same over a part whose root sits at a non-empty offset refuses `MatePlaced`, naming the remedy. It holds on main; the guard is that the lift stays narrow.
+- **F1. `FromFace` at split.**
+  - A kept declaring mate's `FromFace` side reads a cut root at the empty chain. It crosses, its face spelled `node_map[R]`-wrapped.
+  - Its resolved frame (`face_pose` through the new part, composed onto the instance's pose) equals the pre-split one.
+  - Red: `MateFaceFrameCrosses`.
+- **F2. `FromFace` at inline.** A host side whose face is wrapped at the inner member it will read unwraps, and inline succeeds. Red: `MateFaceFrameCrosses`.
+- **F3. A face not on the member.** A host side whose face is wrapped at another inner instance refuses `MateFaceFrameCrosses`. It holds on main; it guards the narrowed arm.
+- **F4. The `FromFace` frame-rule ruling** (ruling 8). A `FromFace` side reading a cut member that is not its group's root: either it crosses with its resolved frame unchanged, or it refuses `MateFrameCrosses`, as ruled. A side reading an unplaced cut member refuses `MateFrameCrosses` under either ruling.
+- **F5. `SetMateFrame`.**
+  - It is refused typed on a non-mate.
+  - A frame the coset table refuses is refused `MateRefused`.
+  - A placing mate re-framed clears no offset.
+  - A log holding it replays without a solve.
+  - Absent on main.
+- **C1. The carry keeps offsets.**
+  - A verbatim split of a group whose member carries a checked offset keeps it in the part, and `part_maintenance` holds no `OffsetCleared`.
+  - The same holds at an empty-offset inline.
+  - Red on main: the probe above.
+- **R1. The round trip.**
+  - `inline(split(d))` equals `d` up to node ids for S1, S2, S7, F1, F4 (where admitted), C1 and the nested-gauge shapes.
+  - Compare through the composed node map, with the hoisted gauge mapped to the minted one: node payloads (gauge references, offsets, mate alignments and heads), roots as a set, parameters, and labels.
+  - Build the comparator once, in the test substrate, as an oracle independent of the code under test: it reads each node through the composed node and step maps and never calls `refactor::remap_node`.
+  - D1's two shapes are pinned to the evaluation-equal result until Ev rules on D1. The F rows join R1 in P2-face. C1's round trip joins R1 when P2-split builds the comparator; P2-carry pins it on offsets alone.
+
+**Mutants** (plant, run, revert; report which rows go red):
+- the gauge hoist ignoring a cut instance on the anchor (S2, R1);
+- the severed-gauge check skipped (S3);
+- a cut gauge casting no vote (S4);
+- `root_lands_empty` without the gauge condition (S5);
+- the minted gauge's parent set to the world (I1, with g not the world);
+- the members not moved onto the minted gauge (I2);
+- the further offset ignored (I3);
+- the mate-placed admission without "one such group" (I5);
+- the split re-spelling skipped (F1);
+- inline unwrapping at the head's inner member without asking `part_local` of the face (F3);
+- `SetMateFrame` running the mate door's clear (F5);
+- the carry's re-statement skipped (C1, R1);
+- the hoisted gauge's parameters counted as cut (S7).
+
+**Sweep.**
+- **Datums the bridge does not rewrite.** List every `StableName` or `FaceName` field a node holds outside `payload_names`: these are the names split's and inline's bridge cannot rewrite. Give each one's disposition: `FaceFrame` is ruled here, and `InterfaceCrossing::Mate`'s `inner` is already remapped. State what that pattern misses: a name nested inside a non-name datum. Check that gap with a second pass over `remap_node`'s arms, which copy fields verbatim.
+- **Side effects the carry triggers.** List every side effect `apply`'s `InsertNode` arm has beyond minting: `roots::on_insert`, which split and inline already override with `SetRoots`, and `clear_joined_offsets`, ruled here. Say for each whether `carry` must undo it.
+
+**Seams.**
+- PLACE owns `refactor.rs`.
+- RECIPE: `edit.rs` (`SetMateFrame`, `writes_a_mates_datum`, its `EditError` arm), `resolve/mod.rs` and `persist/check.rs`, the `DocEdit` match sites.
+- MSOLVE: `mate/solve.rs` `admit_mate`, read and not changed. If ruling 8 drops (c) for `FromFace`, that is MSOLVE's frame semantics, and M1 (`work/msolve/a-mate-frame-is-written-in-the-reading-instances-coordinates.md`) should cite it.
+- LIB/BIND: `pncad-py` `edit_payload.rs`, `py/doc.rs`, `tags.rs`, and the stubs and census for `set_mate_frame`.
+- The viewer: `session.rs`'s `DocEdit` match, kept compiling.
+- TCOST/TINT: `p2_gauges.rs`, `refusal_concision_refactor.rs`, `tests/corpus/mod.rs`'s `DocEdit` census and `refusal_concision_edits.rs`, all mechanical.
+- ASSEMBLY.md's code table names `SetMateFrame`. If Ev drops (c) for `FromFace`, A4's frame-rule sentence is re-worded in the same PR, which then waits for Ev.
+
+Announce each crossing in the PR body.
+
+**Review.** P2-carry: a single full review. P2-split and P2-face: dual, a concurrent Opus pair (`docs/DUAL-REVIEW-PROTOCOL.md`), class H.
 
 ## P3: viewer (filed, not EDIT's)
 

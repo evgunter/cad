@@ -193,7 +193,7 @@ class TestTheHalfIsTheHalf(unittest.TestCase):
         section = [f for f in findings if f.relation == PlaneRelation.SameOpposite]
         self.assertEqual(len(section), 1, "the one section face pair")
         whole = doc.insert(
-            Node.boolean(BooleanOp.Union, above, below, declare=doc.declare_all(section))
+            Node.boolean(BooleanOp.Union, above, below, declare=section)
         )
         mass = mass_of(evaluate(doc), whole)
         self.assertEqual(mass.volume, 2.0 * 2.0 * 1.0)
@@ -446,6 +446,7 @@ class TestThePatternDoor(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.insert(Node.pattern(prototype, Expr.count(2), PatternKind.explicit([])))
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
+        self.assertEqual(caught.exception.inner_variant, "listed_on_pattern")
 
 
 class TestTheReadSide(unittest.TestCase):

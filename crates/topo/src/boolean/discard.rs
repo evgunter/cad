@@ -74,19 +74,26 @@ pub struct HeldEdge {
     pub at: VertexKey,
 }
 
-/// The operand face that clone face `face` is a fragment of: the
-/// `(new, divided-from)` rows of a boolean's chord splits
-/// (`BooleanNaming::face_fragments_a`/`_b`), followed back to a face no
-/// row divided. `None` when the rows cycle.
-pub fn fragment_root(
+/// The end of the face lineage that starts at `face` and steps through
+/// `up`, the boolean's one bounded lineage walk: `up` names the next
+/// face of a row, `None` where none does, and `rows` counts the rows
+/// it reads. Its readers: fragment rows back to the face they were
+/// divided from (`BooleanNaming::face_fragments_a`/`_b`,
+/// `SplitNaming::face_fragments`), and a merge's absorption rows
+/// forward to the surviving face.
+///
+/// `None` when the rows cycle: a walk that outlasts `rows` steps has
+/// revisited a face, so the record is corrupt, and a reader refuses it
+/// rather than treating the face it stopped on as the end.
+pub fn lineage_root(
     face: FaceKey,
     rows: usize,
-    divided_from: impl Fn(FaceKey) -> Option<FaceKey>,
+    up: impl Fn(FaceKey) -> Option<FaceKey>,
 ) -> Option<FaceKey> {
     let mut at = face;
     for _ in 0..=rows {
-        match divided_from(at) {
-            Some(up) => at = up,
+        match up(at) {
+            Some(next) => at = next,
             None => return Some(at),
         }
     }
@@ -123,7 +130,7 @@ impl<T: geom_core::Real> HeldInto<'_, T> {
     ) -> Result<Vec<(VertexKey, VertexKey)>, BooleanError> {
         let desync = |what| BooleanError::JoinDesync { what };
         let root = |f| {
-            fragment_root(f, self.fragments.len(), |k| {
+            lineage_root(f, self.fragments.len(), |k| {
                 self.fragments
                     .iter()
                     .find(|(new, _)| *new == k)
@@ -175,14 +182,18 @@ impl<T: geom_core::Real> HeldInto<'_, T> {
 /// `kept_across(mate)` says whether the face across an edge is one the
 /// result keeps beside it (the stretch is then `bordered`); `kept_ends`
 /// maps that stretch's two ends, in `body`'s keys, to the kept side's
-/// ends in result keys. `held` gives the row its held stretches; a path
-/// that holds no covered pair passes `None`.
+/// ends in result keys, given the face across it. `held` gives the row
+/// its held stretches; a path that holds no covered pair passes `None`.
 pub(super) fn discard_row<T: geom_core::Real>(
     body: &Body<T>,
     face: FaceKey,
     operand: Operand,
     kept_across: &dyn Fn(FaceKey) -> bool,
-    kept_ends: &dyn Fn(VertexKey, VertexKey) -> Result<(VertexKey, VertexKey), BooleanError>,
+    kept_ends: &dyn Fn(
+        FaceKey,
+        VertexKey,
+        VertexKey,
+    ) -> Result<(VertexKey, VertexKey), BooleanError>,
     held: Option<&HeldInto<'_, T>>,
 ) -> Result<DiscardRow, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -221,7 +232,7 @@ pub(super) fn discard_row<T: geom_core::Real>(
                 let end = body
                     .half_edge_end(he)
                     .ok_or_else(|| desync("a discarded face's half-edge has no end"))?;
-                row.bordered.push(kept_ends(h.start, end)?);
+                row.bordered.push(kept_ends(mate_face, h.start, end)?);
             } else {
                 let mut chain = vec![h.edge];
                 let mut at = h.edge;

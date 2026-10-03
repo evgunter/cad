@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 use serde::ser::{self, Serializer};
 
-use super::{MetaError, MetaValue};
+use super::{MAX_NESTING, MAX_PRODUCER_NESTING, MetaError, MetaValue};
 
 /// Erases a producer value into the canonical [`MetaValue`] tree
 /// (spec D7's `to_value` boundary).
@@ -22,12 +22,57 @@ use super::{MetaError, MetaValue};
 /// # Errors
 ///
 /// [`MetaError`] on out-of-`i64` integers, non-finite floats,
-/// non-string map keys, or a producer `Serialize` impl's own error.
+/// non-string map keys, a value that would nest past
+/// [`MAX_NESTING`](super::MAX_NESTING), a producer that nests past
+/// [`MAX_PRODUCER_NESTING`](super::MAX_PRODUCER_NESTING) however little
+/// of it the value keeps, or a producer `Serialize` impl's own error.
+/// Either depth is refused before the producer is read any deeper, so
+/// a producer of any depth, a self-referential one included, is read
+/// only that far.
 pub fn to_value<T: Serialize>(value: &T) -> Result<MetaValue, MetaError> {
-    value.serialize(ValueSer)
+    value.serialize(ValueSer { level: 1, read: 1 })
 }
 
-struct ValueSer;
+/// The serializer for a value at `level` of the tree, the root at 1,
+/// reached through `read` nested `serialize` calls, the root's
+/// included. An option or a newtype is read through without a level of
+/// its own, so `read` is never below `level`.
+#[derive(Clone, Copy)]
+struct ValueSer {
+    level: usize,
+    read: usize,
+}
+
+impl ValueSer {
+    /// The serializer for a producer this one reads through, at the
+    /// same level, refused past [`MAX_PRODUCER_NESTING`] before it is
+    /// read.
+    fn through(self) -> Result<Self, MetaError> {
+        if self.read >= MAX_PRODUCER_NESTING {
+            return Err(MetaError::ProducerTooDeep {
+                bound: MAX_PRODUCER_NESTING,
+            });
+        }
+        Ok(Self {
+            read: self.read + 1,
+            ..self
+        })
+    }
+
+    /// The serializer for a child of a value at this level, refused
+    /// past [`MAX_NESTING`] or [`MAX_PRODUCER_NESTING`] before the
+    /// child is read.
+    fn child(self) -> Result<Self, MetaError> {
+        if self.level >= MAX_NESTING {
+            return Err(MetaError::NestedTooDeep { bound: MAX_NESTING });
+        }
+        let through = self.through()?;
+        Ok(Self {
+            level: self.level + 1,
+            ..through
+        })
+    }
+}
 
 fn float(v: f64) -> Result<MetaValue, MetaError> {
     if v.is_finite() {
@@ -106,7 +151,7 @@ impl Serializer for ValueSer {
         Ok(MetaValue::Null)
     }
     fn serialize_some<T: Serialize + ?Sized>(self, v: &T) -> Result<MetaValue, MetaError> {
-        v.serialize(self)
+        v.serialize(self.through()?)
     }
     fn serialize_unit(self) -> Result<MetaValue, MetaError> {
         Ok(MetaValue::Null)
@@ -127,7 +172,7 @@ impl Serializer for ValueSer {
         _name: &'static str,
         v: &T,
     ) -> Result<MetaValue, MetaError> {
-        v.serialize(self)
+        v.serialize(self.through()?)
     }
     fn serialize_newtype_variant<T: Serialize + ?Sized>(
         self,
@@ -136,11 +181,12 @@ impl Serializer for ValueSer {
         variant: &'static str,
         v: &T,
     ) -> Result<MetaValue, MetaError> {
-        Ok(tag(variant, v.serialize(ValueSer)?))
+        tag(variant, v.serialize(self.child()?)?)
     }
     fn serialize_seq(self, len: Option<usize>) -> Result<SeqSer, MetaError> {
         Ok(SeqSer {
             items: Vec::with_capacity(len.unwrap_or(0)),
+            at: self,
         })
     }
     fn serialize_tuple(self, len: usize) -> Result<SeqSer, MetaError> {
@@ -159,12 +205,14 @@ impl Serializer for ValueSer {
         Ok(TaggedSeqSer {
             variant,
             items: Vec::with_capacity(len),
+            at: self.child()?,
         })
     }
     fn serialize_map(self, _len: Option<usize>) -> Result<MapSer, MetaError> {
         Ok(MapSer {
             entries: BTreeMap::new(),
             pending: None,
+            at: self,
         })
     }
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<MapSer, MetaError> {
@@ -180,29 +228,31 @@ impl Serializer for ValueSer {
         Ok(TaggedMapSer {
             variant,
             entries: BTreeMap::new(),
+            at: self.child()?,
         })
     }
 }
 
-fn tag(variant: &str, value: MetaValue) -> MetaValue {
-    let mut m = BTreeMap::new();
-    m.insert(variant.to_owned(), value);
-    MetaValue::Map(m)
+/// A one-entry map `{ variant: value }`, serde's external tagging.
+fn tag(variant: &str, value: MetaValue) -> Result<MetaValue, MetaError> {
+    MetaValue::map(BTreeMap::from([(variant.to_owned(), value)]))
 }
 
+/// A list's items, and the serializer of the list itself.
 struct SeqSer {
     items: Vec<MetaValue>,
+    at: ValueSer,
 }
 
 impl ser::SerializeSeq for SeqSer {
     type Ok = MetaValue;
     type Error = MetaError;
     fn serialize_element<T: Serialize + ?Sized>(&mut self, v: &T) -> Result<(), MetaError> {
-        self.items.push(v.serialize(ValueSer)?);
+        self.items.push(v.serialize(self.at.child()?)?);
         Ok(())
     }
     fn end(self) -> Result<MetaValue, MetaError> {
-        Ok(MetaValue::List(self.items))
+        MetaValue::list(self.items)
     }
 }
 
@@ -228,33 +278,38 @@ impl ser::SerializeTupleStruct for SeqSer {
     }
 }
 
+/// A tuple variant's items, and the serializer of the list that holds
+/// them, one level below the variant's tag.
 struct TaggedSeqSer {
     variant: &'static str,
     items: Vec<MetaValue>,
+    at: ValueSer,
 }
 
 impl ser::SerializeTupleVariant for TaggedSeqSer {
     type Ok = MetaValue;
     type Error = MetaError;
     fn serialize_field<T: Serialize + ?Sized>(&mut self, v: &T) -> Result<(), MetaError> {
-        self.items.push(v.serialize(ValueSer)?);
+        self.items.push(v.serialize(self.at.child()?)?);
         Ok(())
     }
     fn end(self) -> Result<MetaValue, MetaError> {
-        Ok(tag(self.variant, MetaValue::List(self.items)))
+        tag(self.variant, MetaValue::list(self.items)?)
     }
 }
 
+/// A map's entries, and the serializer of the map itself.
 struct MapSer {
     entries: BTreeMap<String, MetaValue>,
     pending: Option<String>,
+    at: ValueSer,
 }
 
 impl ser::SerializeMap for MapSer {
     type Ok = MetaValue;
     type Error = MetaError;
     fn serialize_key<T: Serialize + ?Sized>(&mut self, key: &T) -> Result<(), MetaError> {
-        match key.serialize(ValueSer)? {
+        match key.serialize(self.at.child()?)? {
             MetaValue::Str(s) => {
                 self.pending = Some(s);
                 Ok(())
@@ -275,11 +330,11 @@ impl ser::SerializeMap for MapSer {
         if self.entries.contains_key(&key) {
             return Err(MetaError::DuplicateKey(key));
         }
-        self.entries.insert(key, v.serialize(ValueSer)?);
+        self.entries.insert(key, v.serialize(self.at.child()?)?);
         Ok(())
     }
     fn end(self) -> Result<MetaValue, MetaError> {
-        Ok(MetaValue::Map(self.entries))
+        MetaValue::map(self.entries)
     }
 }
 
@@ -295,17 +350,21 @@ impl ser::SerializeStruct for MapSer {
         if self.entries.contains_key(key) {
             return Err(MetaError::DuplicateKey(key.to_owned()));
         }
-        self.entries.insert(key.to_owned(), v.serialize(ValueSer)?);
+        self.entries
+            .insert(key.to_owned(), v.serialize(self.at.child()?)?);
         Ok(())
     }
     fn end(self) -> Result<MetaValue, MetaError> {
-        Ok(MetaValue::Map(self.entries))
+        MetaValue::map(self.entries)
     }
 }
 
+/// A struct variant's fields, and the serializer of the map that holds
+/// them, one level below the variant's tag.
 struct TaggedMapSer {
     variant: &'static str,
     entries: BTreeMap<String, MetaValue>,
+    at: ValueSer,
 }
 
 impl ser::SerializeStructVariant for TaggedMapSer {
@@ -319,10 +378,11 @@ impl ser::SerializeStructVariant for TaggedMapSer {
         if self.entries.contains_key(key) {
             return Err(MetaError::DuplicateKey(key.to_owned()));
         }
-        self.entries.insert(key.to_owned(), v.serialize(ValueSer)?);
+        self.entries
+            .insert(key.to_owned(), v.serialize(self.at.child()?)?);
         Ok(())
     }
     fn end(self) -> Result<MetaValue, MetaError> {
-        Ok(tag(self.variant, MetaValue::Map(self.entries)))
+        tag(self.variant, MetaValue::map(self.entries)?)
     }
 }

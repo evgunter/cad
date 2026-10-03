@@ -8,7 +8,7 @@
 //! With the carrier `C(θ) = C₀ + ρ(û cos θ + v̂ sin θ)`, `v̂ = n̂ × û`,
 //! and the wall `(o, â, r)`, the linearized residual is EXACTLY
 //! `c₀ + c₁ cos θ + s₁ sin θ + c₂ cos 2θ + s₂ sin 2θ` in metres
-//! (`geom_brep::circle_cylinder_harmonics`, which
+//! (`geom_brep::conic_cylinder_harmonics`, which
 //! `geom_brep::circle_residual_extremes` reads too), so the noise
 //! meter's floor on `|F|` per metre of residual is `1`, an identity
 //! rather than a neighbourhood bound. At most four crossings per turn.
@@ -46,7 +46,7 @@ use geom_core::{Band, Decide, Margin, Sign};
 
 use super::circle_roots::{
     CircleRoots, FirstHarmonic, FirstHarmonicRows, HalfAngleFrame, HalfAngleRows, Harmonics,
-    first_harmonic_roots, half_angle_roots, rounding_charge,
+    SubdivisionRows, first_harmonic_roots, half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -66,7 +66,6 @@ const CIRCLE_CYLINDER_LADDER_ROWS: HalfAngleRows = HalfAngleRows {
     pole: "bool_circle_cylinder_pole",
     conditioning: "bool_circle_cylinder_pole_conditioning",
     noise: "bool_circle_cylinder_ladder_noise",
-    root_slack: "bool_circle_cylinder_ladder_root_slack",
     quartic: QuarticRows {
         disc: "bool_circle_cylinder_disc",
         shape: "bool_circle_cylinder_shape",
@@ -74,6 +73,12 @@ const CIRCLE_CYLINDER_LADDER_ROWS: HalfAngleRows = HalfAngleRows {
         odd: "bool_circle_cylinder_odd",
         split: "bool_circle_cylinder_split",
         split_lead: "bool_circle_cylinder_split_lead",
+    },
+    verify: SubdivisionRows {
+        clear: "bool_circle_cylinder_sub_clear",
+        monotone: "bool_circle_cylinder_sub_monotone",
+        side: "bool_circle_cylinder_sub_side",
+        width: "bool_circle_cylinder_sub_width",
     },
     decision: BooleanDecision::ArcCylinderRoots,
 };
@@ -118,8 +123,12 @@ pub(super) fn circle_cylinder_roots<T: Decide>(
                    or a surface that is not a cylinder",
         });
     };
-    let h =
-        geom_brep::circle_cylinder_harmonics(center, axis, radius, u_ref, origin, w_axis, w_radius);
+    let h = geom_brep::conic_cylinder_harmonics(
+        &geom_brep::Conic::circle(center, axis, radius, u_ref),
+        origin,
+        w_axis,
+        w_radius,
+    );
     let two = T::from_f64(2.0);
     // The harmonics' rounding, in residual metres: the term bound is in
     // m², before the `2r` division.
@@ -133,12 +142,15 @@ pub(super) fn circle_cylinder_roots<T: Decide>(
         // a quarter of the zero band for any wall `r ≥ zero`, so it never
         // moves a decision a test can reach. It is kept because it is
         // what makes the first harmonic the residual to within `noise`.
+        let (a1, noise) = (hypot(h.c1, h.s1), noise + hypot(h.c2, h.s2));
         let first = FirstHarmonic {
-            c0: h.c0,
-            a1: hypot(h.c1, h.s1),
+            lo: h.c0 - a1,
+            hi: h.c0 + a1,
             cos_part: h.c1,
             sin_part: h.s1,
-            noise: noise + hypot(h.c2, h.s2),
+            lo_noise: noise,
+            hi_noise: noise,
+            phase_noise: T::zero(),
         };
         return first_harmonic_roots(&first, radius, t0, t1, &CIRCLE_CYLINDER_SQUARE_ROWS, band);
     }
@@ -159,7 +171,8 @@ pub(super) fn circle_cylinder_roots<T: Decide>(
         HalfAngleFrame {
             t0,
             t1,
-            radius,
+            speed_lo: radius,
+            speed_hi: radius,
             // Not clamped by the wall's size, as the torus door clamps
             // by its extent: the wall is unbounded along its axis, and a
             // circle in a plane through that axis meets it at points a
@@ -328,6 +341,57 @@ mod tests {
                 (a - b).abs() < 1e-9,
                 "{label}: root {a} vs the oracle's {b}"
             );
+        }
+    }
+
+    /// **A graze is read by its depth, in the band's own metres.** A
+    /// circle of the wall's own radius, its plane tilted 0.3 rad about the
+    /// `x` axis, lies inside the wall and touches it at `θ = 0` and `π`;
+    /// moved `depth` along `x`, it crosses the wall by `|depth|` on one
+    /// side. At the default band: a depth inside the zero band is no
+    /// certified answer either way, and a definite depth is two certified
+    /// crossings, each on the wall. The half-angle ladder alone certified
+    /// a `Miss` at depth 1e-9 m on a 50 m wall and at 1e-8 m on a 500 m
+    /// wall, answered `CountDisagrees` at −1e-8 m, and declined the
+    /// 5e-6 m crossing of the 500 m wall.
+    #[test]
+    fn a_graze_is_read_by_its_depth() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let tilt = 0.3_f64;
+        for (r, depth) in [
+            (50.0, 1e-9),
+            (500.0, 1e-8),
+            (500.0, -1e-8),
+            (500.0, 5e-6),
+            (50.0, 2e-8),
+            (5.0, -2e-8),
+        ] {
+            let label = format!("wall r {r}, depth {depth}");
+            let pose = Pose {
+                c: [depth, 0.0, 0.0],
+                n: [0.0, -tilt.sin(), tilt.cos()],
+                u: [1.0, 0.0, 0.0],
+                rho: r,
+            };
+            let got = circle_cylinder_roots(&pose.carrier(), -1.0, 1.0, &wall(0.0, 0.0, r), band);
+            if f64::abs(depth) <= band.zero() * 10.0 {
+                assert!(
+                    matches!(got, Ok(CircleRoots::Uncertain) | Err(_)),
+                    "{label}: a graze in the band, got {got:?}"
+                );
+                continue;
+            }
+            let Ok(CircleRoots::Certified { count, thetas }) = got else {
+                panic!("{label}: two certified crossings, got {got:?}");
+            };
+            assert_eq!(count, 2, "{label}");
+            for &t in &thetas[..count] {
+                let off = off_wall(pose, t, 0.0, 0.0, r).abs();
+                assert!(
+                    off <= band.zero(),
+                    "{label}: root {t} lies {off} off the wall"
+                );
+            }
         }
     }
 

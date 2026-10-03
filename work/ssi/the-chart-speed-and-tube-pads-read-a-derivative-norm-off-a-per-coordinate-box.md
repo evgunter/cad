@@ -2,10 +2,13 @@
 id: the-chart-speed-and-tube-pads-read-a-derivative-norm-off-a-per-coordinate-box
 kind: issue
 title: the plane x NURBS chart speed, transverse stretch and tube pad read a derivative's norm off a per-coordinate box, so a rigid map moves them
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: M
+closed: 2026-10-02
+pr: 3916
+branch: ssi/rotation-chart-speed
 ---
 
 
@@ -55,3 +58,43 @@ Give the three sites a derivative-norm bound read from vector
 coefficients. Lower bounds stay box-assembled: a minimum of a convex
 function is not at a coefficient, so a mignitude floor cannot be read
 from coefficient norms.
+
+**The translation half is closed** (row
+`rational-chart-sup-speed-grows-with-translation`): `deriv_box` now
+reads every control point as a difference with another, so a
+translation moves these readings by their rounding width. A rotation
+still moves them by the box-to-norm factor this row names. A cheap
+candidate measured on that row's 1.8 / 0.7 wall: per cell,
+`(max_i ‖ΔA_i − c·Δw_i‖ + max_j ‖P_j − c‖·max_i |Δw_i|) / w_min` with
+`c` the cell's control centroid, read 5.91 against the box norm's
+5.86 (true 2.04) and is rotation-invariant; the coefficient form above
+would be tighter.
+
+## Closed (2026-10-02, PR 3916)
+
+The chart speeds, the pads and the transverse stretch read
+`max ‖t(P_j)‖ / w_min` over the quotient numerator's pair terms `t` and
+the cell's control points `P_j` (`CellNet::derivative_norm_sup`,
+`CellNet::transverse_readings`), with each cell cut to the window and
+met with its whole net. Each term is affine in `S`, so its norm peaks
+at a control point. The old box holds every `t(P_j)`, so per net the
+reading is never above the box's norm in real arithmetic. Over a cut
+window the box meets the cut and whole nets per axis, and the norm of
+that meet can sit below both nets' norms, so there the claim holds
+only up to rounding in practice (the review measured 159 of 15,000
+narrow windows above the box by at most 2.8e-10 relative) and not in
+principle. Taking the minimum with the box's norm would make the
+reading frame-dependent again wherever the box wins, so it is not
+taken. The reading is screened in `f64` and read in certification
+arithmetic only where the screen cannot rule a pair out
+(`pair_norm_sup`), and `φ` is read at the two ends of its scalar
+range. On the 1.8 / 0.7 wall the `u` speed reads
+5.853 in every frame (the box read 5.858 seated and 6.19 to 8.14 over
+32 rotations; true 2.036). Across the SSI suite's mints, 58 of 60
+speeds and 2799 of 2808 stretches read the same to six digits and the
+rest are tighter, none looser. Pinned by
+`a_rigidly_mapped_wall_reads_the_seated_chart_speeds_floors_and_tube`,
+`the_rotation_row_reads_red_on_a_per_coordinate_fold` and
+`the_derivative_box_dominates_the_dense_sampled_true_derivative`
+(`enclose.rs` tests). No golden moved. The sweep's further props sites
+went onto `work/props/props-reads-vector-norm-bounds-off-per-coordinate-hulls.md`.

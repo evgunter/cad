@@ -138,7 +138,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: ua,
             b: ub,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     doc = d;

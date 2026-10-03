@@ -168,9 +168,7 @@ fn corner_stations<T: Decide>(
         };
         for he in body.loop_cycle(first).ok_or(ReplaceFaceError::Corrupt)? {
             let p = body
-                .get_half_edge(he)
-                .and_then(|h| body.get_vertex(h.start))
-                .and_then(|x| body.get_point(x.point).copied())
+                .half_edge_start_point(he)
                 .ok_or(ReplaceFaceError::Corrupt)?;
             let h = (p - apex).dot(axis);
             window = Some(match window {

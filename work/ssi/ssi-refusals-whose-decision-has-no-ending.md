@@ -2,8 +2,11 @@
 id: ssi-refusals-whose-decision-has-no-ending
 kind: issue
 title: geom-brep: thirteen SsiError arms still end in no recourse (SsiError::ending gives None), each needing its decision named
-status: open
+status: closed
 opened: 2026-10-01
+closed: 2026-10-02
+pr: 3861
+branch: ssi/no-ending
 priority: P2
 cost: M
 ---
@@ -51,3 +54,22 @@ table where one fits (`crate::recourse::Unsized`, a `SizedDecision`,
 `crate::certify::recourse`), and shorten any payload the ending pushes
 past the word budget. A row asserting every arm's ending is `Some`
 over one representative payload each closes the class.
+
+## Closed (2026-10-02, PR 3861)
+
+`SsiError::ending` returns `String` over an exhaustive match, so no arm
+can end in nothing. Each of the thirteen arms is routed by its decision
+(table in the PR body); `Band(BandError)` was unreachable and is
+deleted. `StepBudget` carries the rungs that held its steps short (`StepBound`,
+each named from a quarter of the steps): the extent and domain cap ends
+in those levers, the curvature rungs in the domain and the last resort,
+and a branch both held in all of them.
+`each_ssi_ending_is_its_decisions` numbers every arm with a
+wildcard-free match and renders a roster through the concision checks
+(`test_utils::refusal::problems`), which also cut four existing payloads
+to the 75-word budget. The sweep's findings are filed:
+`ssi-unsupported-certificate-carries-faults-that-are-not-boundaries`,
+`work/iso/plane-nurbs-refusal-arms-with-no-ending.md`,
+`work/pctail/pcurve-certify-error-arms-with-no-ending.md`,
+`work/issues/certify-error-arms-with-no-ending-at-a-build-or-an-adoption.md`
+and `work/issues/geom-brep-error-enums-with-no-ending-door.md`.

@@ -2,10 +2,13 @@
 id: boolean-rebuild-folds-an-in-band-second-order-into-conventional
 kind: issue
 title: topo::boolean::ops folds an in-band tangent_second_order into the conventional posture, citing a tier-3 stance tier 3 does not take
-status: open
+status: closed
 opened: 2026-09-13
 priority: P0
 cost: M
+branch: fuse/rebuild-second-order
+closed: 2026-10-02
+pr: 3889
 ---
 
 
@@ -74,3 +77,17 @@ the revolve latitude join, a boolean seam has no ruling or symmetry that holds
 its dihedral constant, so the witness does not stand for the stations.
 Routing this block through `geom_brep::must_carry_over_edge` settles this
 defect too (a transverse station answers `MustCarryVerdict::Transverse`).
+
+## Closed (FUSE, PR 3889, 2026-10-02)
+
+The boolean's smooth seam now asks `geom_brep::must_carry_over_edge`
+(`seam_must_carry` in `boolean/ops.rs`). An in-band station refuses
+typed: first order through the seam lever rungs, second order as
+`BooleanDecision::SeamJet`. A transverse station keeps the conventional
+posture, as tier 3 allows. The hand-rolled lever arm and sagitta are
+gone. The review found that the rule returned at its first deciding
+station, so an in-band station behind a transverse one was still stored
+conventional. The fix pass made the rule read every station first-order
+before deciding, in tier 3's order, pinned on a Villarceau-arc fixture.
+Review tier: single FULL, with one in-scope fix pass. Residue:
+`work/encl/must-carry-reads-an-out-of-lane-in-band-seam-as-under-determined.md`.

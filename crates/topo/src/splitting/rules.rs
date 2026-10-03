@@ -55,8 +55,9 @@
 //! |---|---|---|
 //! | `S`-ON-`S` | convex edge | `S` |
 //! | `S`-ON-`S` | reflex edge | opposite `S` |
-//! | `S`-ON-`S` | smooth edge | opposite `S` (a safety default) |
-//! | `S`-ON-`S` | a duplicate | opposite `S` (a safety default) |
+//! | `S`-ON-`S` | smooth edge or duplicate, convex graze | `S` |
+//! | `S`-ON-`S` | smooth edge or duplicate, concave graze | opposite `S` |
+//! | `S`-ON-`S` | smooth edge or duplicate, no graze | opposite `S` (a safety default) |
 //! | `A`-ON-`B`, `B`-ON-`A` | any | `Below` |
 //! | | in the band | refused, [`SplitReduceError::SliverSector`] |
 //!
@@ -89,33 +90,53 @@
 //! touching through distinct entities rather than a shared-entity
 //! pinch (F2).
 //!
-//! **Smooth edges and duplicates: a safety default, not a
-//! derivation.** Neither carries a corner to read. A smooth edge (a
-//! curved face's seam along the plane) is unsigned: the seam, the cusp
-//! and the slit all classify smooth. A duplicate stands inside a sector
-//! of one face of 180° or more, which includes the straight sector a
-//! root inserted on a cap's rim leaves where the plane grazes a
-//! cylinder's wall. Whether the material there lies on `S` alone (a
-//! convex graze) or on both sides (a round hole grazed from inside)
-//! is a second-order fact of the wall, which rule (b) does not read.
-//! Opposite `S` mints the null edge: a convex graze then refuses at the
-//! join's zero-area net, and a concave one is cut or refuses, but
-//! neither is answered wrongly. Sending the entry to `S` instead
-//! answers convex grazes, and answers concave ones too: closed halves
-//! with the hole on the wrong side (10.0 / 5.2146 against a truth of
-//! 9.2146 / 6.0, PR 3726's review). The guards are
-//! `sweep/tests/split_tangent_edge_curved.rs` (the convex graze's
-//! refusal, and
-//! `a_concave_graze_never_answers_with_the_hole_on_the_wrong_side`)
-//! and `wedge_end_doors::a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint`.
-//! Answering convex grazes is
-//! `work/cleave/split-refuses-a-convex-graze-of-a-curved-wall.md`.
+//! **Smooth edges and duplicates: the wall decides.** Neither carries
+//! a corner to read. A smooth edge (a curved face's seam along the
+//! plane) is unsigned: the seam, the cusp and the slit all classify
+//! smooth. A duplicate stands inside a sector of one face of 180° or
+//! more, which includes the straight sector a root inserted on a cap's
+//! rim leaves where the plane grazes a cylinder's wall. Where the face
+//! (both faces, at a smooth edge) is a curved wall tangent to the plane,
+//! the plane grazes it, and the entry goes by the wall's material
+//! convexity (`wall_graze`):
+//!
+//! - **Convex graze** — the material lies on `S` at first order, and
+//!   the wall bends into its material
+//!   ([`geom_brep::bends_into_material`], a second-order read): a
+//!   cylinder or a cone touched from outside. Every bit of material at
+//!   the vertex is on `S`, so the entry goes to `S` and the body lands
+//!   whole on its material's side, as a planar edge contact does.
+//! - **Concave graze** — the material lies across the plane at first
+//!   order, and the wall bends away from it: a round hole or a conical
+//!   socket touched from inside. Material lies on both sides, and the
+//!   piece on `S` meets the cut face tangentially along the contact:
+//!   two crescents vanishing to a knife edge that the split, having no
+//!   declaration channel, refuses. The entry goes opposite `S`, which
+//!   mints the null edge, and the graze refuses
+//!   (`wedge_end_doors::a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint`
+//!   pins the knife edge's refusal, and
+//!   `split_tangent_edge_curved.rs`'s concave rows pin it at every
+//!   azimuth). Sending it to `S` instead returns the true volumes with
+//!   the hole's wall touching the cut face's interior along the
+//!   contact, with no edge for it, and tier 3 passes that
+//!   (`work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md`).
+//! - A wall's first- and second-order reads that disagree contradict
+//!   the `S`-ON-`S` neighbours, which are curves on the same wall, and
+//!   refuse as a sliver; a wall that osculates its tangent plane is
+//!   [`SplitReduceError::TangencyUnsupported`].
+//!
+//! Anywhere else — a plane face, or a curved one not tangent to the
+//! plane — opposite `S` stays a safety default, not a derivation: it
+//! mints the null edge, so the configuration is cut or refuses, never
+//! answered wrongly. The rows are
+//! `sweep/tests/split_tangent_edge_curved.rs` (convex grazes of a
+//! cylinder and a cone answered, concave ones guarded).
 //!
 //! **Mixed** neighbours are a free convention: either side yields
 //! manifold results; `Below` is kept for both witnesses' agreement and
 //! for rule (a)'s Fig. 14.8 coplanar-edge-goes-below choice.
 
-use geom_brep::{EntersMaterial, enters_material};
+use geom_brep::{EntersMaterial, WallBend, enters_material};
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::neighborhood::{chord, sector_face};
@@ -130,14 +151,20 @@ use crate::validate::decide;
 /// earlier one's on a shared entry (only reachable through adjacent
 /// coplanar faces — a maximal-faces violation; deterministic
 /// last-wins, as the book).
+///
+/// Returns, per entry, whether its sector's face is a curved wall the
+/// plane grazes (tangent at the vertex, definitely bending off it):
+/// rule (b) reads those walls' convexity rather than deciding the
+/// tangency again.
 pub(super) fn apply_rule_a<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     vertex: VertexKey,
     entries: &mut [SectorEntry],
     band: Band,
-) -> Result<(), SplitReduceError> {
+) -> Result<Vec<bool>, SplitReduceError> {
     let n = entries.len();
+    let mut grazes = vec![false; n];
     for k in 0..n {
         let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
@@ -149,12 +176,10 @@ pub(super) fn apply_rule_a<T: Decide>(
         match decide("split_sector_extent", Margin::of(extent), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
-                return Err(sliver(geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
+                return Err(sliver(crate::invalid_margin::invalid(
                     band,
-                    predicate: Some("split_sector_extent"),
-                    terminal_sliver: false,
-                }));
+                    "split_sector_extent",
+                )));
             }
             Err(diag) => return Err(sliver(diag)),
         }
@@ -190,13 +215,16 @@ pub(super) fn apply_rule_a<T: Decide>(
                         .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
                         .ok_or_else(corrupt)?;
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
-                    // Ledger row F11 (unchanged by the clause-(i)
-                    // migration): the sagitta is metered at the
-                    // WHOLE-FACE extent, over-refusal direction —
+                    // Ledger row F11: the sagitta is metered at the
+                    // WHOLE-FACE extent, which decides a bend more
+                    // readily than the contact's own arm would —
                     // arm-policy question, own unit.
                     let so_margin = Margin::sagitta(kappa, extent);
                     match decide("tangent_sector_osculation", so_margin, band) {
-                        Ok(Sign::Positive) => continue,
+                        Ok(Sign::Positive) => {
+                            grazes[k] = true;
+                            continue;
+                        }
                         Ok(Sign::Zero | Sign::Negative) => {
                             return Err(SplitReduceError::TangencyUnsupported { face, vertex });
                         }
@@ -228,30 +256,31 @@ pub(super) fn apply_rule_a<T: Decide>(
             // Tangent after the parallelism gate is contradictory —
             // escalate rather than guess.
             Ok(EntersMaterial::Tangent) => {
-                return Err(sliver(geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
+                return Err(sliver(crate::invalid_margin::invalid(
                     band,
-                    predicate: Some("enters_material"),
-                    terminal_sliver: false,
-                }));
+                    "enters_material",
+                )));
             }
             Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
         };
         entries[k].class = class;
         entries[(k + 1) % n].class = class;
     }
-    Ok(())
+    Ok(grazes)
 }
 
 /// Rule (b): reclassify every remaining ON entry by its cyclic
 /// neighbours and, where both sit on one side, by the convexity of the
 /// in-plane edge between its two flanking faces — the derived table
 /// (module docs). Checks the no-consecutive-ONs invariant loudly first
-/// (the book assumes it; we refuse if it fails).
+/// (the book assumes it; we refuse if it fails). `grazes` is rule (a)'s
+/// per-entry report of the curved walls the plane grazes.
 pub(super) fn apply_rule_b<T: Decide>(
     body: &Body<T>,
+    plane: &SplitPlane<T>,
     vertex: VertexKey,
     entries: &mut [SectorEntry],
+    grazes: &[bool],
     band: Band,
 ) -> Result<(), SplitReduceError> {
     let n = entries.len();
@@ -264,24 +293,37 @@ pub(super) fn apply_rule_b<T: Decide>(
         if entries[k].class != PlaneSide::On {
             continue;
         }
-        let prev = entries[(k + n - 1) % n];
+        let k_prev = (k + n - 1) % n;
+        let prev = entries[k_prev];
         let next = entries[(k + 1) % n].class;
         entries[k].class = match (prev.class, next) {
             (side @ (PlaneSide::Below | PlaneSide::Above), next) if next == side => {
-                let convex = match entries[k].kind {
-                    // A duplicate stands inside one face's sector of
-                    // 180° or more, so it has no edge to read. Sending
-                    // it across is a safety default, not a derivation
-                    // (module docs, "Smooth edges and duplicates").
-                    SectorEntryKind::WideBisector => None,
+                // A duplicate stands inside one face's sector of 180° or
+                // more, so it has no edge to read: its face's wall
+                // decides, as both faces' walls do at a smooth edge.
+                match entries[k].kind {
+                    SectorEntryKind::WideBisector => wall_graze(
+                        body,
+                        plane,
+                        vertex,
+                        &[(entries[k].he, grazes[k])],
+                        side,
+                        band,
+                    )?,
                     SectorEntryKind::Edge => {
-                        edge_wedge(body, vertex, prev.he, entries[k].he, band)?
+                        match edge_wedge(body, vertex, prev.he, entries[k].he, band)? {
+                            Some(true) => side,
+                            Some(false) => side.opposite(),
+                            None => wall_graze(
+                                body,
+                                plane,
+                                vertex,
+                                &[(prev.he, grazes[k_prev]), (entries[k].he, grazes[k])],
+                                side,
+                                band,
+                            )?,
+                        }
                     }
-                };
-                if convex == Some(true) {
-                    side
-                } else {
-                    side.opposite()
                 }
             }
             _ => PlaneSide::Below,
@@ -343,11 +385,82 @@ fn edge_wedge<T: Decide>(
         Ok(EntersMaterial::Enters) => Ok(Some(true)),
         Ok(EntersMaterial::Exits) => Ok(Some(false)),
         // The same wedge over the same arm read transverse just above,
-        // so only the two normal reads' rounding can land here; it takes
-        // the smooth arm's safety default.
+        // so only the two normal reads' rounding can land here; it reads
+        // as smooth.
         Ok(EntersMaterial::Tangent) => Ok(None),
         Err(geom_brep::LeverEscalation { diag, .. }) => Err(sliver(diag)),
     }
+}
+
+/// Where an `S`-ON-`S` entry with no corner to read goes (module docs,
+/// "Smooth edges and duplicates"): a duplicate inside one face's wide
+/// sector (`sectors` holds its orbit half-edge), or a smooth edge (the
+/// orbit half-edges of both its faces' sectors), each with rule (a)'s
+/// verdict on whether the plane grazes that face. Each face is read
+/// over its face extent, the arm rule (a) reads it over (ledger F11);
+/// every face must give the same verdict, or the reading refuses.
+fn wall_graze<T: Decide>(
+    body: &Body<T>,
+    plane: &SplitPlane<T>,
+    vertex: VertexKey,
+    sectors: &[(HalfEdgeKey, bool)],
+    side: PlaneSide,
+    band: Band,
+) -> Result<PlaneSide, SplitReduceError> {
+    let corrupt = || SplitReduceError::CorruptOperand { vertex };
+    let p = *body
+        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
+        .ok_or_else(corrupt)?;
+    let toward_side = if side == PlaneSide::Above {
+        plane.normal.get()
+    } else {
+        -plane.normal.get()
+    };
+    let mut verdict = None;
+    for &(he, tangent) in sectors {
+        let (face, n_face, _) = sector_face(body, vertex, he)?;
+        let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
+        let contradiction = |predicate| sliver(crate::invalid_margin::invalid(band, predicate));
+        let this =
+            if tangent {
+                let extent = face_extent(body, vertex, face)?;
+                let surface = body
+                    .get_face(face)
+                    .and_then(|f| body.get_surface(f.surface))
+                    .ok_or_else(corrupt)?;
+                let material_on_side = match enters_material(toward_side, n_face, extent, band) {
+                    Ok(EntersMaterial::Enters) => true,
+                    Ok(EntersMaterial::Exits) => false,
+                    Ok(EntersMaterial::Tangent) => return Err(contradiction("enters_material")),
+                    Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
+                };
+                let bend = geom_brep::bends_into_material(surface, p, n_face, extent, band)
+                    .map_err(|e| match e {
+                        geom_brep::WallBendError::Indefinite(kind) => {
+                            SplitReduceError::CurvedBooleanUnsupported { face, kind }
+                        }
+                        geom_brep::WallBendError::Lever(geom_brep::LeverEscalation {
+                            diag,
+                            ..
+                        }) => sliver(diag),
+                    })?;
+                match (material_on_side, bend) {
+                    (true, WallBend::IntoMaterial) => side,
+                    (false, WallBend::OutOfMaterial) => side.opposite(),
+                    (_, WallBend::Flat) => {
+                        return Err(SplitReduceError::TangencyUnsupported { face, vertex });
+                    }
+                    _ => return Err(contradiction("wall_bend_order2")),
+                }
+            } else {
+                side.opposite()
+            };
+        match verdict {
+            Some(v) if v != this => return Err(contradiction("wall_bend_order2")),
+            _ => verdict = Some(this),
+        }
+    }
+    verdict.ok_or_else(corrupt)
 }
 
 /// The face-extent lever arm for the coplanarity/sense predicates: the
@@ -369,9 +482,9 @@ fn edge_wedge<T: Decide>(
 ///   outer boundary at all, so its locus is unbounded and no finite
 ///   arm over-estimates anything. That is refused, not measured.
 ///   `validate_closed`'s tier-2 check 1 rejects every empty loop, so a
-///   validated operand cannot carry one; the boolean's own operand
-///   gates (`gate_operand_pairs`, `gate_maximal_faces`) do not run
-///   that check, which is why the refusal is here rather than assumed.
+///   validated operand cannot carry one; the boolean's operand gate
+///   (`gate_operand_pairs`) runs it, but the split's operand gate does
+///   not, which is why the refusal is here rather than assumed.
 ///
 /// The refusal is [`SplitReduceError::CorruptOperand`], whose own doc
 /// is *"a traversal failed (broken orbit/loop or a **lone vertex**):
@@ -603,7 +716,14 @@ mod tests {
         let mut e = entries(&[O, O, B]);
         let body = Body::<f64>::new();
         let band = Band::linear(Tol::witness()).unwrap();
-        let err = apply_rule_b(&body, VertexKey::default(), &mut e, band).unwrap_err();
+        let plane = crate::test_support_fixtures::split_plane(
+            geom_core::Point3::origin(),
+            geom_core::Vec3::unit_z(),
+            Tol::witness(),
+        );
+        let grazes = vec![false; e.len()];
+        let err =
+            apply_rule_b(&body, &plane, VertexKey::default(), &mut e, &grazes, band).unwrap_err();
         assert!(matches!(err, SplitReduceError::ConsecutiveOnSectors { .. }));
     }
 

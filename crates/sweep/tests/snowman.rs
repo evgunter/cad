@@ -19,11 +19,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use std::collections::BTreeMap;
+
+use super::common::certificates::assert_certificates_fresh;
 
 use geom_core::{Band, Point2, Tol};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
-use topo::{Body, BooleanOp};
+use topo::{Body, BooleanOp, EdgeKey, ShellKey};
 
 /// A ball of radius `r` centred on the y axis at height `y`.
 fn ball(r: f64, y: f64) -> Body<f64> {
@@ -205,6 +208,101 @@ fn the_near_tangent_family_builds_to_1e_6_and_escalates_at_1e_8() {
                     if diag.predicate == Some("bool_vertex_face_side")
             ),
             "δ = 1e-8 under {op:?}: expected the vertex-side escalation, got {e:?}"
+        );
+    }
+}
+
+/// **The near-tangent family at the finer bands.** At `δ = 1e-5` and
+/// `1e-6` the section circle is a few millimetres across and the
+/// meridians cross the partner sphere at a slope of `√(4.5δ)`, so the
+/// pierce points are placed only as well as the extremes of the circle
+/// × sphere residual are evaluated. Each δ builds under every op to its
+/// cap closed form wherever it is a definite depth with a decade to
+/// spare (`δ ≥ 10·Kε`): at ε = 1e-9 and 1e-12, not at 1e-6, where the
+/// pole's side of the other sphere is inside the band.
+#[test]
+fn the_near_tangent_family_builds_to_1e_6_at_the_finer_bands() {
+    let escalate = Band::linear(Tol::witness()).unwrap().escalate();
+    let deltas: Vec<f64> = [1e-5, 1e-6]
+        .into_iter()
+        .filter(|&delta| delta >= 10.0 * escalate)
+        .collect();
+    if deltas.is_empty() {
+        test_utils::vacuity::stood_down(
+            "coarse eps",
+            "at this band the near-tangent depths are inside the escalation gap",
+        );
+        return;
+    }
+    let a = ball(R1, 0.0);
+    let (va, vb) = (ball_volume(R1), ball_volume(R2));
+    for delta in deltas {
+        let d = R1 + R2 - delta;
+        let b = ball(R2, d);
+        let lens = lens_volume(R1, R2, d);
+        for (label, op, x, y, expected) in [
+            ("A ∪ B", BooleanOp::Union, &a, &b, va + vb - lens),
+            ("A ∩ B", BooleanOp::Intersect, &a, &b, lens),
+            ("A ∖ B", BooleanOp::Subtract, &a, &b, va - lens),
+            ("B ∖ A", BooleanOp::Subtract, &b, &a, vb - lens),
+        ] {
+            let label = format!("δ = {delta:e}, {label}");
+            let body = run(op, x, y);
+            assert_body(&label, &body, expected);
+            assert_pierces_on_the_section(&label, &body, d);
+        }
+    }
+}
+
+/// Every vertex off the axis lies within ε of the section circle,
+/// read off the radii alone: the radical plane at `y* = r1 − h` with
+/// `h = δ(2r2 − δ)/2d`, the circle's radius `√(h(2r1 − h))`, every
+/// factor free of cancellation, and `δ = (r1 − d) + r2` exact. The
+/// volume cannot see a misplaced pierce on a lens this thin; this can.
+fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
+    let eps = Tol::witness().get().eps;
+    let delta = (R1 - d) + R2;
+    let h = delta * (2.0 * R2 - delta) / (2.0 * d);
+    let (y_star, a) = (R1 - h, (h * (2.0 * R1 - h)).sqrt());
+    let mut pierces = 0;
+    for (key, _) in body.vertices() {
+        let p = topo::readback::vertex_point(body, key).unwrap();
+        let off_axis = p.x.hypot(p.z);
+        if off_axis <= eps {
+            continue;
+        }
+        pierces += 1;
+        let off = (p.y - y_star).hypot(off_axis - a);
+        assert!(
+            off <= eps,
+            "{label}: vertex {p:?} is {off:e} off the section circle (y {y_star}, radius {a})"
+        );
+    }
+    assert!(pierces >= 2, "{label}: the section's pierce vertices exist");
+}
+
+/// **Where the near-tangent family stops at ε = 1e-12.** At `δ = 1e-7`
+/// the slope at the pierce is `≈ 6.7e-4`, and the `f64` evaluation of
+/// the residual's near extreme cannot place the pierce point to within
+/// `1e-12`: the circle × sphere roots answer uncertain and every op
+/// refuses at the pierce door
+/// (`work/reach/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
+#[test]
+fn the_near_tangent_family_stops_at_1e_7_at_eps_1e_12() {
+    if Tol::witness().get().eps != 1e-12 {
+        test_utils::vacuity::stood_down(
+            "eps other than 1e-12",
+            "the f64 placement frontier is measured at the finest band only",
+        );
+        return;
+    }
+    let a = ball(R1, 0.0);
+    let b = ball(R2, R1 + R2 - 1e-7);
+    for op in OPS {
+        let e = refusal(op, &a, &b);
+        assert!(
+            matches!(e, topo::BooleanError::CurvedPierceUnsupported { .. }),
+            "δ = 1e-7 under {op:?}: expected the pierce door, got {e:?}"
         );
     }
 }
@@ -860,6 +958,141 @@ fn a_millimetre_lens_inside_a_ball_refuses_its_unplaced_circle_at_1e_6() {
                     "{label}: volume {v} against {want}"
                 );
             }
+        }
+    }
+}
+
+/// Each certified edge's certificate (`Debug`, its D9 identity), keyed
+/// by its carrier and parameter interval, which a graft copies bit for
+/// bit while it rewrites the surface handles; a key two edges share
+/// fails, since it could not tell them apart. `shell` keeps the edges
+/// of that shell alone.
+fn certificates(
+    label: &str,
+    body: &Body<f64>,
+    shell: Option<ShellKey>,
+) -> BTreeMap<String, (EdgeKey, String)> {
+    let shell_of = |e: &topo::Edge| {
+        let lp = body.get_half_edge(e.he_plus).unwrap().parent_loop;
+        body.get_face(body.get_loop(lp).unwrap().face)
+            .unwrap()
+            .shell
+    };
+    let mut out = BTreeMap::new();
+    for (k, e) in body.edges() {
+        if shell.is_some_and(|s| shell_of(e) != s) {
+            continue;
+        }
+        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
+            continue;
+        };
+        let key = format!("{:?} {:?}", c.carrier(), c.params());
+        let cert = format!("{:?}", c.certificate());
+        if let Some((other, _)) = out.insert(key.clone(), (k, cert)) {
+            panic!("{label}: edges {other:?} and {k:?} share the key {key}");
+        }
+    }
+    out
+}
+
+/// The `result` edges that carry the certified edges of `operand`'s
+/// shell number `kept` (its solid's order; every shell when `None`),
+/// one per operand edge, each asserted to store that edge's
+/// certificate verbatim.
+fn carried_edges(
+    label: &str,
+    operand: &Body<f64>,
+    kept: Option<usize>,
+    result: &Body<f64>,
+) -> Vec<EdgeKey> {
+    let shell = kept.map(|i| {
+        let (solid, _) = operand.solids().next().unwrap();
+        operand.shells_of_solid(solid).unwrap()[i]
+    });
+    let mine = certificates(label, operand, shell);
+    assert!(!mine.is_empty(), "{label}: the operand has certified edges");
+    let theirs = certificates(label, result, None);
+    mine.iter()
+        .map(|(key, (_, cert))| {
+            let Some((dk, carried)) = theirs.get(key) else {
+                panic!("{label}: no result edge on {key}")
+            };
+            assert_eq!(
+                carried, cert,
+                "{label}: the edge on {key} carries the operand's certificate"
+            );
+            *dk
+        })
+        .collect()
+}
+
+/// **The containment fallback's assembly carries its kept B operand's
+/// certificates**, as the void door carries a cavity's, under ∪ and ∩.
+/// The record of the graft's bridge says so whatever the certificates
+/// are. Each B edge arrives with its operand's certificate verbatim,
+/// and on the operands whose own certificates are fresh, a fresh
+/// re-certification mints that certificate again.
+///
+/// The lens is a boolean's own result, and the seam meridian it took
+/// from its B ball carries a certificate a fresh run does not
+/// reproduce
+/// (`work/cleave/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`):
+/// the assembly carries that one too.
+#[test]
+fn the_fallback_assembly_carries_the_kept_operands_certificates() {
+    let tol = Tol::witness();
+    let slab: Body<f64> = sweep::test_support::brick((-2.0, 2.0), (-3.0, -2.0), (-2.0, 2.0), tol);
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    // ∩ keeps shells of both operands: A's cavity sphere lies in B's
+    // material and B's outer sphere in A's.
+    let block: Body<f64> = sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (-3.0, 3.0), tol);
+    let holed = run(BooleanOp::Subtract, &block, &ball(1.0, 0.0));
+    let shell = run(BooleanOp::Subtract, &ball(2.0, 0.0), &ball(0.5, 0.0));
+    // (label, op, A, B, B's kept shell, B's certificates fresh)
+    for (label, op, a, b, kept, fresh) in [
+        (
+            "slab ∪ ball",
+            BooleanOp::Union,
+            &slab,
+            &ball(R1, 0.0),
+            None,
+            true,
+        ),
+        ("slab ∪ lens", BooleanOp::Union, &slab, &lens, None, false),
+        // ∩ keeps B's outer sphere and drops its cavity.
+        (
+            "holed block ∩ shell",
+            BooleanOp::Intersect,
+            &holed,
+            &shell,
+            Some(0),
+            true,
+        ),
+    ] {
+        let _ = topo::test_support::take_graft_bridges();
+        let out = match op {
+            BooleanOp::Union => topo::boolean::union(a, b, tol),
+            _ => topo::boolean::intersect(a, b, tol),
+        }
+        .unwrap_or_else(|e| panic!("{label}: refused: {e:?}"));
+        assert_eq!(
+            topo::test_support::take_graft_bridges(),
+            [topo::test_support::GraftBridge::RemapKeys],
+            "{label}: the assembly graft carries"
+        );
+        let out = out.body().unwrap_or_else(|| panic!("{label}: empty"));
+        assert!(
+            matches!(out.kind, topo::BooleanResultKind::Assembly),
+            "{label}: the containment fallback's assembly, got {:?}",
+            out.kind
+        );
+        let carried = carried_edges(label, b, kept, &out.body);
+        if fresh {
+            assert_eq!(
+                assert_certificates_fresh(label, &out.body, carried.iter().copied(), tol),
+                carried.len(),
+                "{label}: every carried edge compared"
+            );
         }
     }
 }

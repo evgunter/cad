@@ -480,8 +480,9 @@ pub use geom::SurfaceKind;
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
     BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId, FaceKey,
-    GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, Surface, TransformError, VertexKey,
-    intersect, intersect_with, subtract, subtract_with, transform_rigid, union, union_with,
+    GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, ShellOrientation, Surface,
+    TransformError, VertexKey, intersect, intersect_with, subtract, subtract_with, transform_rigid,
+    union, union_with,
 };
 
 // --- 5. The validation ladder ---------------------------------
@@ -758,7 +759,7 @@ pub use crate::select::{
     PieceRole, PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
     RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector,
     Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, declare, declare_all, declare_node, denotation, edge_carrier_kind,
+    all_vertices, attribute, declare, declare_all, declared_pairs, denotation, edge_carrier_kind,
     edge_frame, edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates, select,
     select_where, vertex_position,
 };

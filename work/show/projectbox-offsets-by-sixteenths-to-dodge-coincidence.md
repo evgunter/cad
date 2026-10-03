@@ -2,10 +2,12 @@
 id: projectbox-offsets-by-sixteenths-to-dodge-coincidence
 kind: issue
 title: projectbox sinks each boss 1/16 into the floor to dodge a cylinder-cap-on-floor contact the declared door could state
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
+closed: 2026-10-03
+pr: 3899
 ---
 
 ## What
@@ -36,3 +38,12 @@ top) and union it with the cap-on-floor contact declared; retire the
 citation of the rule in the module doc, the caption and
 `TestProjectbox`'s docstring (`crates/pncad-py/tests/test_north_star.py`).
 Measure the chain first and pin any refusal with `walls::wall`.
+
+## Closed
+
+By #3899. The bosses stand on the floor and each union declares the
+flush detector's findings. Six of those are continuations between
+disjoint boss tops that the union does not need:
+`work/tang/flush-detector-offers-disjoint-coplanar-pairs-as-continuations.md`.
+The drifted copy in crates/sweep is
+`work/tint/split-cylindrical-feature-box-copy-of-projectbox-has-drifted.md`.

@@ -76,7 +76,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: outer,
             b: inner,
-            declare: None,
+            declare: Vec::new(),
         }),
     );
     let downstream = insert(
@@ -85,7 +85,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             op: BooleanOp::Union,
             a: cut,
             b: outer,
-            declare: None,
+            declare: Vec::new(),
         }),
     );
     (doc, cut, downstream)
@@ -206,7 +206,7 @@ fn refusals_render_as_prose_not_debug_guts() {
         message.contains("Boolean refused an undeclared coincidence"),
         "{message}"
     );
-    assert!(message.contains("declare the candidate pair"), "{message}");
+    assert!(message.contains("add the candidate pair"), "{message}");
     for guts in [
         "UndeclaredCoincidence",
         "UndeclaredContact",
@@ -578,7 +578,10 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ],
         ),
         (
-            PlacementRuleFault::CountSpelling.to_string(),
+            PlacementRuleFault::CountSpelling {
+                shape: editor_core::CountMismatch::ListedOnPattern,
+            }
+            .to_string(),
             &["disagree about how many placements"],
         ),
         (

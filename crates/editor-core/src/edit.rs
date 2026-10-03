@@ -19,10 +19,10 @@ use crate::doc::{
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
-use crate::names::EntityKind;
+use crate::names::{EntityKind, ProfileEdgeRef};
 use crate::node::{
-    AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault, SlotId,
-    StableName, StepId,
+    AssertionBoundFault, CountMismatch, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault,
+    SlotId, StableName, StepId,
 };
 use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
@@ -74,12 +74,6 @@ pub enum DocEdit<P> {
     /// stranded rides the record as a [`Maintenance::Strand`]. An
     /// appearance key is the same carve-out at the store instead of a
     /// payload, and rides it as a [`Maintenance::StrandedAppearance`].
-    ///
-    /// A `Declare` the deleted node consumed, and nothing else
-    /// consumes, is left inert rather than stranded — the edge ran
-    /// the other way, so no name is dangling — and rides the record
-    /// as a [`Maintenance::OrphanedDeclare`], whose doc carries the
-    /// transition rule the report is built on.
     DeleteNode {
         /// The node to delete.
         id: RecipeNodeId,
@@ -110,6 +104,30 @@ pub enum DocEdit<P> {
         node: RecipeNodeId,
         /// The whole new list, in order (D9: the order is data).
         members: Vec<RecipeNodeId>,
+    },
+    /// **Replace a live Boolean's or Union's whole DECLARED PAIRS**
+    /// ([`crate::DeclaredPair`]) — [`DocEdit::SetMembers`]'s shape: the
+    /// new list is stated in full and nothing is inferred about the old
+    /// one. An empty list clears the declaration.
+    ///
+    /// A declaration is a parameter, not an operand: it carries no
+    /// material and mints no names, and its sites are the node's own
+    /// operands. So this edit moves no DAG edge, and DM6's rule that no
+    /// edit rewires a live node's inputs is untouched by it.
+    ///
+    /// The pairs are checked exactly as an insert checks them: names
+    /// and sites live ([`EditError::DeclareNamesMissingNode`],
+    /// [`EditError::NameStepNeverMinted`], [`EditError::ReadSiteMissingNode`]),
+    /// each site one of the node's operands
+    /// ([`EditError::DeclaredSiteNotAnOperand`]), and each name minted
+    /// before the node ([`EditError::DeclaredNameNotUpstream`]). A node
+    /// of any other kind refuses [`EditError::SetDeclareOnNonDeclaring`].
+    SetDeclare {
+        /// The Boolean or Union whose declaration is replaced.
+        node: RecipeNodeId,
+        /// The whole new list of declared pairs.
+        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
+        pairs: Vec<crate::DeclaredPair>,
     },
     /// **Replace a live profile node's PROGRAM whole** — its loops,
     /// their verbs, order and count, arc modes, sides, windings,
@@ -148,6 +166,11 @@ pub enum DocEdit<P> {
     /// [`Maintenance::Strand`] / [`Maintenance::StrandedAppearance`]
     /// exactly as a delete reports it (DM7: the subject is the edit
     /// that removes a name's referent, of which the delete is one).
+    /// So is a name on a kept step's piece that the new program does
+    /// not draw under the current parameters and the old one did, or
+    /// could not be replayed to say — a fillet inserted or moved before
+    /// a leg takes the leg's segment (`names/README.md`, "Undrawn pieces
+    /// vanish rather than alias").
     ///
     /// A program byte-identical to the current one, keeping every
     /// step, is legal and reports nothing.
@@ -350,7 +373,7 @@ pub enum DocEdit<P> {
     },
     /// Attach (or replace) one appearance attribute on a face or body
     /// stable name (M4 PR 7; [`crate::appearance`] module docs).
-    /// Validation mirrors `Declare`'s ruled carve-out: the name's
+    /// Validation mirrors declared pairs' ruled carve-out: the name's
     /// NODE must be live at edit time (a never-existed id is a typo,
     /// refused at the best-diagnostics door); name-LEVEL resolution
     /// happens at evaluation, where a non-resolving name surfaces as
@@ -511,13 +534,13 @@ impl<P> DocEdit<P> {
     pub(crate) fn writes_a_mates_datum(&self) -> bool {
         match self {
             Self::InsertNode { node } => matches!(&**node, Node::Mate { .. }),
-            // A reshaping rebinds or retires the NAMES a mate's heads
-            // hold — `Rebind`'s motion over every name at once — and
-            // never touches a datum; a head it strands is N5's, the
-            // solve's at evaluation.
+            // A reshaping rewrites no name and never touches a datum;
+            // a head whose piece it stops drawing is N5's, the solve's
+            // at evaluation.
             Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
+            | Self::SetDeclare { .. }
             | Self::Rebind { .. }
             | Self::SetOffset { .. }
             | Self::SetGauge { .. }
@@ -732,6 +755,36 @@ pub enum EditError {
         /// The node that carries no list.
         node: SpokenNode,
     },
+    /// `SetDeclare` aimed at a node that declares no contacts — only a
+    /// [`Node::Boolean`] and a [`Node::Union`] carry declared pairs.
+    SetDeclareOnNonDeclaring {
+        /// The node that carries no declaration.
+        node: SpokenNode,
+    },
+    /// A declared pair's side is READ AT a node that is not one of the
+    /// declaring node's operands ([`crate::DeclaredPair`], DM4): the
+    /// site is the side, and a site the node does not have is a table
+    /// it cannot read the name in. Asked by every door that writes a
+    /// pair — the insert door, `SetDeclare` and `Rebind`.
+    DeclaredSiteNotAnOperand {
+        /// The node whose declaration it is.
+        node: SpokenNode,
+        /// The side's name.
+        name: SpokenName,
+        /// The node the side is read at.
+        site: SpokenNode,
+    },
+    /// A declared pair's name is minted by the declaring node itself
+    /// or by a node after it in document order: a declaration names
+    /// only what exists before the node ([`crate::DeclaredPair`]), and
+    /// no operand of the node can hold such an entity. Asked by the
+    /// same doors as [`EditError::DeclaredSiteNotAnOperand`].
+    DeclaredNameNotUpstream {
+        /// The node whose declaration it is.
+        node: SpokenNode,
+        /// The name.
+        name: SpokenName,
+    },
     /// `SetProgram` aimed at a node that holds no profile program: a
     /// node of another kind, or a `Node::Profile` over a payload that
     /// carries no program ([`crate::ProfilePayload::loops`] answers
@@ -872,17 +925,6 @@ pub enum EditError {
         /// What it references.
         measure: SpokenNode,
     },
-    /// A node's `declare` input names a node that is not a
-    /// [`Node::Declare`]. The slot carries coincidence INTENT, which
-    /// only a `Declare` holds; a body or a datum wired there is a
-    /// mis-wire, refused where it is authored rather than at the
-    /// evaluation that would have found nothing to resolve.
-    DeclareInputNotDeclare {
-        /// The consuming node (the boolean or the union).
-        node: SpokenNode,
-        /// What its `declare` input names.
-        input: SpokenNode,
-    },
     /// A [`Node::Assertion`]'s bound is dimensioned differently from
     /// the measure it constrains — refused at the edit door, so a
     /// document never carries a comparison of metres with radians.
@@ -1005,12 +1047,12 @@ pub enum EditError {
     },
     /// Replacing the subtree broke an ancestor's dimension check.
     Dimension(DimensionError),
-    /// A name-referencing payload — a `Declare`'s pairs or a
+    /// A name-referencing payload — a boolean's declared pairs or a
     /// `Fillet`'s selection (M6-5) — names a node that does not exist
     /// at edit time (spec D3 carve-out, ruled): a never-existed id is
     /// a TYPO, refused at the best-diagnostics door. (A later
     /// `DeleteNode` stranding a name is ALLOWED — N5 dangling
-    /// semantics; see [`Node::Declare`].)
+    /// semantics; see [`crate::DeclaredPair`].)
     DeclareNamesMissingNode {
         /// The name whose node is not live.
         name: SpokenName,
@@ -1019,8 +1061,9 @@ pub enum EditError {
     /// document never minted — one its mint log does not hold. The
     /// node half's rule ([`EditError::DeclareNamesMissingNode`]) for
     /// the half of a name that is a step id: a never-minted id is a
-    /// typo, or a name carried from another branch of the document. (A step a `SetProgram` dropped was minted, so a name on
-    /// it is ALLOWED — it strands, DM7.)
+    /// typo, or a name carried from another branch of the document. (A
+    /// step a `SetProgram` dropped was minted, so a name on it is
+    /// ALLOWED — it strands, DM7.)
     NameStepNeverMinted {
         /// The name.
         name: SpokenName,
@@ -1269,13 +1312,12 @@ pub enum EditError {
         mate: SpokenNode,
     },
     /// A placement-rule node whose rule and count slot would give two
-    /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN): an
-    /// `Explicit` rule paired with a count slot, a stepped rule with
-    /// none — or a `Pattern` carrying an `Explicit` rule at all, since
-    /// its count is a non-optional field.
+    /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN).
     PlacementRuleMismatch {
         /// The offending node.
         node: SpokenNode,
+        /// Which answer it gives twice.
+        shape: CountMismatch,
     },
     /// A placement-rule node whose `Explicit` rule lists NO placements
     /// (GROUP-BOOLEAN-DESIGN): the list IS the count, so an empty one
@@ -1649,6 +1691,7 @@ impl EditError {
             }
             | Self::SelectionNotCanonical { node, at: _ }
             | Self::SetMembersOnNonList { node }
+            | Self::SetDeclareOnNonDeclaring { node }
             | Self::SetProgramOnNonProfile { node }
             | Self::StepIdsRefused { node, fault: _ }
             | Self::TooFewMembers { node, found: _ }
@@ -1681,7 +1724,7 @@ impl EditError {
             | Self::DuplicateWitnessEntry { node }
             | Self::OffsetOnNonInstance { node }
             | Self::GaugeOnNonPlaced { node }
-            | Self::PlacementRuleMismatch { node }
+            | Self::PlacementRuleMismatch { node, shape: _ }
             | Self::EmptyPlacementList { node }
             | Self::ImproperPlacement {
                 node,
@@ -1702,7 +1745,7 @@ impl EditError {
             Self::WouldCycle { at } => {
                 *at = at.respoken(doc);
             }
-            Self::DuplicateInput { node, input } | Self::DeclareInputNotDeclare { node, input } => {
+            Self::DuplicateInput { node, input } => {
                 *node = node.respoken(doc);
                 *input = input.respoken(doc);
             }
@@ -1744,6 +1787,15 @@ impl EditError {
             }
             Self::GaugeNotLive { node, gauge: _ } => {
                 *node = node.respoken(doc);
+            }
+            Self::DeclaredSiteNotAnOperand { node, name, site } => {
+                *node = node.respoken(doc);
+                *name = name.respoken(doc);
+                *site = site.respoken(doc);
+            }
+            Self::DeclaredNameNotUpstream { node, name } => {
+                *node = node.respoken(doc);
+                *name = name.respoken(doc);
             }
             Self::NotAGauge { node, gauge } | Self::GaugeCycle { node, gauge } => {
                 *node = node.respoken(doc);
@@ -1869,6 +1921,37 @@ impl EditError {
                         "set the members of a node that takes a list, or insert a new node \
                          over the inputs you want"
                     ),
+                )
+            }
+            Self::SetDeclareOnNonDeclaring { node } => {
+                write!(
+                    f,
+                    "{node} is not a boolean or a union, so it has no contacts to declare"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("declare on the boolean or union that joins the pair"),
+                )
+            }
+            Self::DeclaredSiteNotAnOperand { node, name, site } => {
+                write!(
+                    f,
+                    "the declared {name} is read at {site}, which is not an operand of {node}"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("read it at the operand of {node} whose entity it is"),
+                )
+            }
+            Self::DeclaredNameNotUpstream { node, name } => {
+                write!(
+                    f,
+                    "the declared {name} is not minted before {node}, so none of its operands \
+                     can hold it"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("declare an entity of one of {node}'s operands"),
                 )
             }
             // A document's profile node always holds a program; the
@@ -2031,17 +2114,6 @@ impl EditError {
                     node, measure
                 )?;
                 tail.recourse(f, format_args!("point the assertion at a measure node"))
-            }
-            Self::DeclareInputNotDeclare { node, input } => {
-                write!(
-                    f,
-                    "{}'s declare input names {}, which is not a declaration",
-                    node, input
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!("wire a Declare node there, or leave the input empty"),
-                )
             }
             Self::AssertionDimension {
                 node,
@@ -2449,15 +2521,34 @@ impl EditError {
                 )
             }
             // The two rule-shaped arms FORWARD the fault set's one
-            // prose vocabulary (`PlacementRuleFault`'s `Display`); the
-            // two frame-shaped arms below keep their own prose because
-            // their subject is a single group frame, which has no
-            // index in a rule's placement list.
+            // prose vocabulary (`PlacementRuleFault`'s `Display`). A
+            // rule's shape is written only by the insert that authors
+            // its node, so the recourse is that insert's.
             Self::EmptyPlacementList { node } => {
-                write!(f, "{node}: {}", PlacementRuleFault::NoPlacements)
+                write!(f, "{node}: {}", PlacementRuleFault::NoPlacements)?;
+                tail.recourse(f, format_args!("list at least one placement"))
             }
-            Self::PlacementRuleMismatch { node } => {
-                write!(f, "{node}: {}", PlacementRuleFault::CountSpelling)
+            Self::PlacementRuleMismatch { node, shape } => {
+                write!(
+                    f,
+                    "{node}: {}",
+                    PlacementRuleFault::CountSpelling { shape: *shape }
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "{}",
+                        match shape {
+                            CountMismatch::ListedWithCount =>
+                                "insert it without a count, since the list is the count",
+                            CountMismatch::SteppedWithoutCount => "insert it with a count",
+                            CountMismatch::ListedOnPattern =>
+                                "keep a pattern of separate copies by giving it a stepped rule, \
+                                 or insert a placed union to list the placements, fusing the \
+                                 copies into one body",
+                        }
+                    ),
+                )
             }
             Self::ImproperPlacement {
                 node,
@@ -2603,14 +2694,16 @@ pub enum Maintenance {
     /// and carries `name`, whose referent the edit removed — the node
     /// that minted it ([`DocEdit::DeleteNode`]), or the profile step
     /// it named a piece of ([`DocEdit::SetProgram`], for a name on a
-    /// step the reshaping did not keep).
+    /// step the reshaping did not keep, or on a kept step's piece it
+    /// stopped drawing).
     ///
     /// Either way the name still says exactly what it always said.
     /// After a delete what is gone is the node that minted it, so
     /// evaluation answers [`crate::resolve::ResolveError::NodeGone`] —
     /// rung 1 of the N5 ladder. After a reshaping what is gone is the
-    /// step: its id is never minted again, so no program draws the
-    /// piece and evaluation answers
+    /// piece: a dropped step's id is never minted again, and a kept
+    /// step's piece reported here is one the new program does not
+    /// draw, so evaluation answers
     /// [`crate::resolve::ResolveError::Vanished`], rung 3. Either way
     /// the name resolves to nothing and [`DocEdit::Rebind`] is the
     /// repair, from the spelling this row carries. A name is not a
@@ -2624,7 +2717,8 @@ pub enum Maintenance {
         /// The surviving node whose payload carries the name.
         node: SpokenNode,
         /// The name it carries: its minting node is the one a delete
-        /// removed, or its locator names a step a reshaping dropped.
+        /// removed, or its locator names a step a reshaping dropped or
+        /// a kept step's piece it stopped drawing.
         name: SpokenName,
     },
     /// **An appearance attachment this edit stranded** (DM7): the
@@ -2650,61 +2744,6 @@ pub enum Maintenance {
         /// the id a delete removed, or its locator names a step a
         /// reshaping dropped.
         name: SpokenName,
-    },
-    /// **A [`Node::Declare`] this edit left with no consumer** — the
-    /// delete door's orphan report, beside DM7's strands (ruled at
-    /// EDIT's wave 11; for Ev's objection): `declare` survives, and
-    /// the node the edit removed held the last edge that consumed
-    /// it.
-    ///
-    /// Not a strand and not its mirror: a declaration's names point
-    /// at the MEMBERS and its consumer points at IT (the `declare`
-    /// edge is a DAG input, DM4), so a delete through the consumer
-    /// dangles no name and the document stays legal. What is gone is
-    /// the node that would ever have consumed the declaration, and
-    /// this row is what says so at the door instead of leaving the
-    /// author a node nothing will mention again.
-    ///
-    /// **The rule is a TRANSITION, not a state.** A `Declare` is
-    /// legally consumerless in the one-pass authoring window DM4
-    /// sites it for — inserted FIRST, its boolean or union second —
-    /// so "consumerless" would report every fresh declaration; what
-    /// this row says is that a delete MADE it so. The consumers are
-    /// the nodes whose [`Node::inputs`] hold it, read out of the
-    /// document AFTER the removal, which is the document the strands
-    /// of the same edit are read out of.
-    ///
-    /// The strands' posture, verbatim: report, never refuse, never
-    /// repair. A consumerless `Declare` evaluates to its own payload
-    /// and refuses nothing, and the repair is the author's — a
-    /// [`DocEdit::DeleteNode`] of the `Declare`, or a new consumer.
-    ///
-    /// **It has a transient the strands do not** (the strand walk's
-    /// own cost paragraph says there are none to cancel there, and
-    /// stays true of strands). Deleting the `Declare`
-    /// itself means cascading its consumers first
-    /// ([`cascade_delete_order`]), and the consumer's step is the
-    /// same `(document, edit)` pair as the delete of that consumer
-    /// for any other reason, so it reports this row and the next
-    /// step removes its subject. Maintenance is a function of the
-    /// document and the edit, so the cancellation is not this door's:
-    /// the subject of a transient row is always in the doomed set
-    /// (`dm7_delete_strands::the_orphan_transient_is_cancellable_at_the_cascade_door`),
-    /// so the CASCADE door — the caller that holds
-    /// [`cascade_delete_order`]'s answer — is where the net over an
-    /// action is computed, by [`MaintenanceNet`].
-    OrphanedDeclare {
-        /// The `Declare` left with no consumer. It is LIVE in the
-        /// document this edit produced — the surviving node is the
-        /// subject here, where a strand's surviving node is the
-        /// carrier and the deleted one is in the name. It is also a
-        /// product ROOT of that document, since the same delete
-        /// re-rooted it: whether a `Declare` may be one is
-        /// `work/edit/an-orphaned-declare-joins-the-product-root-set.md`,
-        /// and it is why this arm's `Display` sentence says no node
-        /// CONSUMES the declaration rather than that nothing reads
-        /// it.
-        declare: SpokenNode,
     },
 }
 
@@ -2746,24 +2785,6 @@ impl core::fmt::Display for Maintenance {
                  resolves to nothing until it is rebound or cleared",
                 name.name().kind.article(),
                 name
-            ),
-            // The subject is the SURVIVOR here, where both strand
-            // sentences above open on a carrier and close on the
-            // casualty. What the declaration lost is a reader, not a
-            // name, so the sentence says which node went and what
-            // that leaves: the node is inert until it is deleted or
-            // consumed again.
-            // "nothing reads it" would be false: the same delete
-            // re-roots the declaration into the document's product
-            // root set (`work/edit/an-orphaned-declare-joins-the-product-root-set.md`).
-            // What it lost is a CONSUMER, which is what the sentence
-            // says.
-            Self::OrphanedDeclare { declare } => write!(
-                f,
-                "{} declares contacts and this edit deleted the last node that consumed \
-                 it, so no node consumes the declaration until a boolean or union names it \
-                 again",
-                declare
             ),
         }
     }
@@ -2813,9 +2834,9 @@ impl core::fmt::Display for Maintenance {
 /// it stands there are no transients to cancel: a payload name points
 /// at a producer UPSTREAM of its carrier and a cascade deletes
 /// dependents first, so a doomed carrier is always gone before the
-/// node it names (`rv_dm7_probes`'s
-/// `rv_a_sited_declaration_strands_nothing_inside_a_cascade` states
-/// the argument and measures the declaration case).
+/// node it names (`dm7_delete_strands`'s
+/// `a_carrier_deleted_with_the_node_it_names_reports_nothing`
+/// measures it).
 fn stranded_references<P>(
     before: &Doc<P>,
     doc: &Doc<P>,
@@ -2831,60 +2852,6 @@ fn stranded_references<P>(
             NameCarrier::Store { name } => Maintenance::StrandedAppearance {
                 name: before.spoken_name(name),
             },
-        })
-        .collect()
-}
-
-/// **The delete door's orphan report**, beside DM7's strands: the
-/// [`Node::Declare`] nodes the accepted `DeleteNode` left with no
-/// consumer — one row per `Declare` whose last consuming edge the
-/// removed node held.
-///
-/// `doc` is the document AFTER the removal and `deleted_inputs` is
-/// the removed node's [`Node::inputs`], so the two halves of the
-/// question are asked of the same two facts the strand pass uses: who
-/// is gone, and what the document now holds. A `Declare` is reported
-/// exactly when the removed node named it, it is still live, and no
-/// live node's `inputs()` hold it. The row speaks it from `before`.
-///
-/// [`Maintenance::OrphanedDeclare`] carries the rule — a transition,
-/// not a state — and the implementation of it is that the candidates
-/// are the deleted node's own inputs rather than the document's
-/// declarations.
-///
-/// Consumption is read through `inputs()` rather than
-/// [`Node::declare_input`]: the question is which nodes would ever
-/// read this one, and that is the DAG edge. A future node kind that
-/// consumes declarations therefore counts here the day it compiles,
-/// without a second list to remember it into.
-///
-/// Sink-hood is [`crate::roots::is_sink`], the one home for "does
-/// anything still read this node": the root maintainers ask it of
-/// the same deleted node's inputs at the same step, so a report that
-/// computed it its own way could name a `Declare` the root set did
-/// not, or miss one it did.
-///
-/// The set is **at most one** under the node vocabulary as it
-/// stands, since [`Node::declare_input`] is an `Option` and no kind
-/// holds two; the walk is the deleted node's input list, so should a
-/// kind ever hold two the rows come in input order, which is what
-/// [`Applied::maintenance`] contracts for. Nothing is sorted here.
-///
-/// **Cost.** One pass over the document's nodes per `Declare` input
-/// of the deleted node — nothing for the overwhelming majority of
-/// deletes, whose node consumes no declaration at all.
-fn orphaned_declares<P: crate::ProfilePayload>(
-    before: &Doc<P>,
-    doc: &Doc<P>,
-    deleted_inputs: &[RecipeNodeId],
-) -> Vec<Maintenance> {
-    deleted_inputs
-        .iter()
-        .copied()
-        .filter(|id| matches!(doc.node(*id), Some(Node::Declare { .. })))
-        .filter(|id| crate::roots::is_sink(doc, *id))
-        .map(|declare| Maintenance::OrphanedDeclare {
-            declare: before.spoken(declare),
         })
         .collect()
 }
@@ -2936,27 +2903,92 @@ fn settle_step_ids(
     Ok((minted, dropped))
 }
 
+/// **The pieces of kept steps a `SetProgram` stops drawing**, among
+/// those a name in `doc` spells ([`StableName::step_pieces`]): not drawn
+/// by `new` and drawn by `old` where it replays, under `doc`'s current
+/// parameters, as
+/// [`crate::ProfilePayload::drawn_pieces`] answers — the one authority
+/// on which pieces a program draws. A kept step's piece goes undrawn
+/// when another piece takes its segment (N1, "Undrawn pieces vanish
+/// rather than alias"): a fillet inserted or moved before its leg.
+///
+/// A piece `old` draws and `new` does not is the edit's to report; one
+/// `old` already left undrawn is not, since the edit removed nothing.
+/// Where `old` does not replay under the current parameters (a legal
+/// at-rest state) there is no drawn set to compare against, and every
+/// named kept piece `new` does not draw is reported: the edit removes
+/// the referent's future either way. Neither program is replayed when
+/// no name spells a kept step's piece.
+fn undrawn_kept_pieces<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    old: &P,
+    new: &P,
+    dropped: &std::collections::BTreeSet<StepId>,
+    tol: Tol,
+) -> Result<std::collections::BTreeSet<ProfileEdgeRef>, EditError> {
+    let Some(ids) = old.step_ids() else {
+        return Ok(std::collections::BTreeSet::new());
+    };
+    let kept: std::collections::BTreeSet<StepId> = ids
+        .iter()
+        .flatten()
+        .filter(|s| !dropped.contains(s))
+        .copied()
+        .collect();
+    let named: std::collections::BTreeSet<ProfileEdgeRef> = doc
+        .name_carriers()
+        .flat_map(|c| c.name().step_pieces())
+        .filter(|p| p.step().is_some_and(|s| kept.contains(&s)))
+        .collect();
+    if named.is_empty() {
+        return Ok(named);
+    }
+    let env = doc.param_env::<f64>();
+    let refused = |refusal| EditError::ProfileProgramRefused {
+        node: doc.spoken(node),
+        refusal: Box::new(refusal),
+    };
+    let before = match old.drawn_pieces(&env, tol) {
+        Ok(drawn) => Some(drawn),
+        Err(refusal @ crate::ProgramRefusal::Pieces(_)) => return Err(refused(refusal)),
+        Err(_) => None,
+    };
+    let after = new.drawn_pieces(&env, tol).map_err(refused)?;
+    Ok(named
+        .into_iter()
+        .filter(|p| before.as_ref().is_none_or(|b| b.contains(p)) && !after.contains(p))
+        .collect())
+}
+
 /// **The names a `SetProgram` stranded**: every carried name that
 /// spells a piece of a step the reshaping dropped
-/// ([`StableName::piece_steps`]) — [`Maintenance::Strand`] on its
-/// carrying node, [`Maintenance::StrandedAppearance`] on a store key,
-/// in that order. Nothing is rewritten: the name keeps its spelling
-/// and resolves `Vanished`, since the dropped id is never minted
-/// again. A step id is unique across the document, so which node
+/// ([`StableName::piece_steps`]), or a kept step's piece it stopped
+/// drawing (`undrawn`, [`undrawn_kept_pieces`]) —
+/// [`Maintenance::Strand`] on its carrying node,
+/// [`Maintenance::StrandedAppearance`] on a store key, in that order.
+/// Nothing is rewritten: the name keeps its spelling and resolves
+/// `Vanished`. A step id is unique across the document, so which node
 /// minted the name does not enter. The rows speak their nodes from
 /// `before`.
 fn stranded_steps<P>(
     before: &Doc<P>,
     doc: &Doc<P>,
     dropped: &std::collections::BTreeSet<StepId>,
+    undrawn: &std::collections::BTreeSet<ProfileEdgeRef>,
 ) -> Vec<Maintenance> {
-    if dropped.is_empty() {
+    if dropped.is_empty() && undrawn.is_empty() {
         return Vec::new();
     }
     let mut strands = Vec::new();
     let mut keys = Vec::new();
     for carrier in doc.name_carriers() {
-        if carrier.name().piece_steps().is_disjoint(dropped) {
+        let gone = carrier
+            .name()
+            .step_pieces()
+            .iter()
+            .any(|p| undrawn.contains(p) || p.step().is_some_and(|s| dropped.contains(&s)));
+        if !gone {
             continue;
         }
         match carrier {
@@ -3020,23 +3052,16 @@ pub struct Applied<P> {
     pub record: EditRecord,
     /// **What the edit did that the caller did not ask for**: the
     /// references it stranded (DM7) — the payload names, then the
-    /// appearance keys — the declarations it left with no consumer,
-    /// and the offset the mate door cleared. See [`Maintenance`].
+    /// appearance keys — and the offset the mate door cleared. See [`Maintenance`].
     ///
     /// **The order is a CONTRACT, not an accident of the
     /// implementation, and a consumer may rely on it**: every
     /// [`Maintenance::Strand`] first, in the document's node order
     /// and within one node in the payload's own order; then every
     /// [`Maintenance::StrandedAppearance`], in the appearance store's
-    /// key order; then every [`Maintenance::OrphanedDeclare`] (at most
-    /// one today — [`Node::declare_input`] is an `Option`, so no node
-    /// kind holds two; in the deleted node's input order should a kind
-    /// ever hold two, and
-    /// `dm7_delete_strands::no_delete_can_report_two_orphans_today`
-    /// reds the day that changes). The strands and the orphans are
-    /// read at the door, out of the document the edit had just
-    /// produced. A delete reports strands and orphans; a `SetProgram`
-    /// reports strands and never an orphan; the insert of a placing
+    /// key order. The strands are read at the door, out of the
+    /// document the edit had just produced. A delete and a
+    /// `SetProgram` report strands; the insert of a placing
     /// mate that joins two groups reports one
     /// [`Maintenance::OffsetCleared`] per offset its first operand's
     /// group held, in document order, and nothing else; no other edit
@@ -3047,21 +3072,18 @@ pub struct Applied<P> {
     /// `Carrier::ALL`, which is `pub(crate)`. In-crate the order has
     /// one home all the same: one roster, `Carrier::ALL`, drives the
     /// walk both doors read (`Doc::name_carriers`) — filtered on the
-    /// deleted node for a delete, on the dropped steps for a program
-    /// edit — so the strands' order is that roster's, and a reader who
-    /// wants to see why reads it there.
+    /// deleted node for a delete, on the dropped steps and the
+    /// undrawn kept pieces for a program edit — so the strands' order
+    /// is that roster's, and a reader who wants to see why reads it
+    /// there.
     ///
     /// Each boundary is held by the row whose fixture actually
     /// produces the pair of kinds it separates:
     /// `dm7_delete_strands::an_appearance_strand_follows_the_payload_strands_of_the_same_delete`
-    /// for payload strand before appearance strand. The orphan
-    /// boundary is
-    /// `dm7_delete_strands::an_orphaned_declare_follows_the_strands_of_the_same_delete`,
-    /// whose one delete both strands a name a surviving node carries
-    /// and takes a declaration's last consumer.
+    /// for payload strand before appearance strand.
     /// What a consumer may NOT do is read position 0 as a kind: a
     /// delete that strands no payload name puts an appearance strand
-    /// or an orphan there, so an arm is found by matching, never by
+    /// there, so an arm is found by matching, never by
     /// index.
     ///
     /// Every row is a function of the document and the edit alone, so
@@ -3075,9 +3097,11 @@ pub struct Applied<P> {
 ///
 /// [`Applied::maintenance`] is a function of one `(document, edit)`
 /// pair and answers what that edit did. An action — a cascade delete
-/// ([`cascade_delete_order`]'s sequence), a program written as several
-/// one-slot writes — is several edits, and a row one of them reported
-/// can be about nothing the action leaves behind. This is the one
+/// ([`cascade_delete_order`]'s sequence), a parameter's value and its
+/// notation written together — is several edits, and a row one of them
+/// reported can be about nothing the action leaves behind: a cascade's
+/// early delete strands a name on a carrier a later one deletes. This
+/// is the one
 /// spelling of which rows survive, so every caller that holds a
 /// sequence (the viewer's session, the pre-click count a chrome states
 /// before a cascade) answers the same.
@@ -3094,9 +3118,6 @@ pub struct Applied<P> {
 ///   repairs exactly this), strands nothing.
 /// - A [`Maintenance::StrandedAppearance`] survives when the store
 ///   still holds its key.
-/// - A [`Maintenance::OrphanedDeclare`] survives when the declaration
-///   is live at the end AND nothing consumes it: a later edit that
-///   deleted it, or gave it a consumer, took the report back.
 /// - A [`Maintenance::OffsetCleared`] survives when the instance is
 ///   live at the end and still carries no offset: a later edit that
 ///   deleted it, or gave it an offset again, took the report back.
@@ -3124,12 +3145,6 @@ impl MaintenanceNet {
     /// The rows that survive, against `end` — the document the last
     /// pushed edit produced.
     pub fn finish<P: crate::ProfilePayload>(self, end: &Doc<P>) -> Vec<Maintenance> {
-        let consumed = |declare: RecipeNodeId| {
-            end.order().iter().any(|id| {
-                end.node(*id)
-                    .is_some_and(|node| node.inputs().contains(&declare))
-            })
-        };
         self.rows
             .into_iter()
             .filter(|row| match row {
@@ -3138,9 +3153,6 @@ impl MaintenanceNet {
                     .is_some_and(|carrier| carrier.payload_names().contains(&name.name())),
                 Maintenance::StrandedAppearance { name } => {
                     end.appearance().contains_key(name.name())
-                }
-                Maintenance::OrphanedDeclare { declare } => {
-                    end.node(declare.id()).is_some() && !consumed(declare.id())
                 }
                 Maintenance::OffsetCleared { instance, .. } => matches!(
                     end.node(instance.id()),
@@ -3503,22 +3515,68 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     })
 }
 
-/// The `declare` edge's kind rule, in this door's vocabulary.
+/// Spec D3 carve-out (ruled): a payload's name refs must point at LIVE
+/// nodes at edit time — a never-existed id is a typo. They are not DAG
+/// edges: later deletes may strand them (N5), so the edits that WRITE a
+/// payload are the only doors that check, and they check every payload
+/// name — [`Node::payload_names`] is the list. The same holds for the
+/// node a reference is READ AT where that node is not also an input
+/// ([`Node::payload_read_sites`]): a never-existed id is a typo; a later
+/// delete stranding it is the evaluation's to refuse.
 ///
-/// The rule itself is [`Node::bad_declare_input`], asked by this door
-/// and by the load door (`persist::check`) of one answer; what is here
-/// is only this door's word for the refusal.
-fn check_declare_input<P: crate::ProfilePayload>(
+/// `doc` is the document the door was handed, `new` the one being
+/// written.
+fn check_payload_refs<P>(doc: &Doc<P>, new: &Doc<P>, node: &Node<P>) -> Result<(), EditError> {
+    for name in node.payload_names() {
+        if !new.nodes.contains_key(&name.node) {
+            return Err(EditError::DeclareNamesMissingNode {
+                name: doc.spoken_name(name),
+            });
+        }
+        check_name_steps(doc, new, name)?;
+    }
+    for at in node.payload_read_sites() {
+        if !new.nodes.contains_key(&at) {
+            return Err(EditError::ReadSiteMissingNode {
+                at: SpokenNode::absent(at),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// [`crate::node::declared_side_fault`] asked of the pairs `pairs` a
+/// door writes onto `node`, refused typed. `carrier` speaks the node
+/// and `at` is its place in `new`'s order (`None` for a node being
+/// inserted): every door that writes a pair asks this, so a pair no
+/// door admits is one no document holds.
+fn check_declared_sides<'p, P: crate::ProfilePayload>(
     doc: &Doc<P>,
-    id: RecipeNodeId,
+    new: &Doc<P>,
     node: &Node<P>,
+    pairs: impl IntoIterator<Item = &'p crate::DeclaredPair>,
+    carrier: impl Fn() -> SpokenNode,
+    at: Option<usize>,
 ) -> Result<(), EditError> {
-    match node.bad_declare_input(doc) {
-        Some(input) => Err(EditError::DeclareInputNotDeclare {
-            node: written(doc, id, node),
-            input: doc.spoken(input),
-        }),
+    let placed = new.positions();
+    let operands = node.inputs();
+    match crate::node::declared_side_fault(pairs, Some(&operands), at, |id| {
+        placed.get(&id).copied()
+    }) {
         None => Ok(()),
+        Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
+            Err(EditError::DeclaredSiteNotAnOperand {
+                node: carrier(),
+                name: doc.spoken_name(&side.name),
+                site: doc.spoken(side.at),
+            })
+        }
+        Some((side, crate::node::DeclaredSideFault::NameNotUpstream)) => {
+            Err(EditError::DeclaredNameNotUpstream {
+                node: carrier(),
+                name: doc.spoken_name(&side.name),
+            })
+        }
     }
 }
 
@@ -3570,32 +3628,94 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
     Ok(())
 }
 
-/// **"Copy `b`'s gauge to `a`, then mate `a` to `b`"** (A11 (2)): the
-/// edits that put every member of the group the mate's `a` side reads
-/// onto the gauge its `b` side's instance sits on, then insert the
-/// mate — which then places, and joins the two groups: the first
-/// operand's group is placed on the second's
-/// ([`DocEdit::InsertNode`]'s mate door clears the offsets `a`'s group
-/// held). One compound edit: the caller applies the list in order, and
-/// atomicity is applying all of it, as for [`cascade_delete_order`].
+/// What [`regauge_then_mate`] did: the document the whole action
+/// produced, the edits that produce it, the maintenance they
+/// performed, and the mate's id. The edits are a record beside a
+/// document the door has already applied — the shape of
+/// [`crate::InlineOutcome`] — so a caller that keeps edits (a history,
+/// the log [`crate::persist::save`] writes) records the action whole,
+/// and one that keeps only documents takes up `doc` and `maintenance`
+/// together. Undo is the caller keeping the input value: the input is
+/// untouched.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RegaugeThenMateOutcome<P> {
+    /// The input document with the action applied.
+    pub doc: Doc<P>,
+    /// The edits that produce `doc` from the input, in the order the
+    /// door applied them: a [`DocEdit::SetGauge`] for each member of
+    /// `a`'s group not already on `b`'s gauge, then the mate's
+    /// [`DocEdit::InsertNode`].
+    pub edits: Vec<DocEdit<P>>,
+    /// The maintenance `edits` reported, net of what a later edit in
+    /// the list took back ([`MaintenanceNet`]), in edit order.
+    pub maintenance: Vec<Maintenance>,
+    /// The mate's id, minted by its insert.
+    pub mate: RecipeNodeId,
+}
+
+/// **"Copy `b`'s gauge to `a`, then mate `a` to `b`"** (A11 (2)), as
+/// one action: every member of the group the mate's `a` side reads is
+/// put on the gauge its `b` side's instance sits on, then the mate is
+/// inserted — which then places, and joins the two groups: the first
+/// operand's group is placed on the second's ([`DocEdit::InsertNode`]'s
+/// mate door clears the offsets `a`'s group held).
 ///
-/// The answer is the bare insert when the two sides already share a
+/// The door applies the whole action and answers the result with its
+/// record ([`RegaugeThenMateOutcome`]). The re-gauges are computed
+/// against the input document, and each edit is applied to the
+/// document the one before it produced; a refusal at any step refuses
+/// the whole action, and no outcome comes back.
+///
+/// The action is the bare insert when the two sides already share a
 /// gauge, when a side resolves to no member — the insert door then
 /// refuses the mate in its own words — and for a node that is not a
-/// mate, which has no gauge to copy. Nothing is applied here.
+/// mate, which has no gauge to copy.
 ///
 /// # Errors
 ///
 /// [`EditError::WouldStartPlacing`] when the re-gauge would put the
 /// two instances of a mate already in the document on one gauge: that
 /// mate declares today, and would start placing — moving a group the
-/// action never named.
+/// action never named. Otherwise [`apply`]'s, from the step that
+/// refuses.
 pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     mate: Node<P>,
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> Result<RegaugeThenMateOutcome<P>, EditError> {
+    let mut edits = regauges_for(doc, &mate)?;
+    edits.push(DocEdit::InsertNode {
+        node: Box::new(mate),
+    });
+    let mut done = doc.clone();
+    let mut net = MaintenanceNet::new();
+    let mut minted = None;
+    for edit in &edits {
+        let applied = apply(&done, edit, tol, reach)?;
+        net.push(&applied);
+        minted = applied.record.minted;
+        done = applied.doc;
+    }
+    let Some(mate) = minted else {
+        unreachable!("an accepted InsertNode mints its node's id")
+    };
+    Ok(RegaugeThenMateOutcome {
+        maintenance: net.finish(&done),
+        doc: done,
+        edits,
+        mate,
+    })
+}
+
+/// The `SetGauge` edits [`regauge_then_mate`] applies before its
+/// insert, in order, computed against `doc`.
+fn regauges_for<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    mate: &Node<P>,
 ) -> Result<Vec<DocEdit<P>>, EditError> {
     let mut edits = Vec::new();
-    if let Node::Mate { a, b, .. } = &mate
+    if let Node::Mate { a, b, .. } = mate
         && let (Some(ma), Some(mb)) = (
             crate::mate::member_of(doc, a),
             crate::mate::member_of(doc, b),
@@ -3641,9 +3761,6 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
             }
         }
     }
-    edits.push(DocEdit::InsertNode {
-        node: Box::new(mate),
-    });
     Ok(edits)
 }
 
@@ -3737,9 +3854,8 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
     reach: Option<&dyn MateReach>,
 ) -> Result<Applied<P>, EditError> {
     let mut new = doc.clone();
-    // The report read at the door that made it: DM7's strands and the
-    // declarations a delete orphaned, or the strands a reshaped
-    // program made. `DeleteNode` fills it, the only edit that removes
+    // The report read at the door that made it: DM7's strands a delete
+    // made, or the strands a reshaped program made. `DeleteNode` fills it, the only edit that removes
     // a node, and `SetProgram`, the only edit that drops a profile
     // step. `Rebind` moves references onto a live name at the author's
     // word and reports nothing.
@@ -3759,33 +3875,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     });
                 }
             }
-            // Spec D3 carve-out (ruled): a payload's name refs must
-            // point at LIVE nodes at edit time — a never-existed id is
-            // a typo. They are not DAG edges: later deletes may strand
-            // them (N5), so this is the ONLY door that checks, and it
-            // checks every payload name — `Node::payload_names` is the
-            // list.
-            for name in node.payload_names() {
-                if !new.nodes.contains_key(&name.node) {
-                    return Err(EditError::DeclareNamesMissingNode {
-                        name: doc.spoken_name(name),
-                    });
-                }
-                check_name_steps(doc, &new, name)?;
-            }
-            // The same check for the node a reference is READ AT
-            // where that node is not also an input
-            // (`Node::payload_read_sites` — a mate's two operands).
-            // Same rule, same door, same N5 aftermath: a
-            // never-existed id is a typo; a later delete stranding it
-            // is the solve's to refuse.
-            for at in node.payload_read_sites() {
-                if !new.nodes.contains_key(&at) {
-                    return Err(EditError::ReadSiteMissingNode {
-                        at: SpokenNode::absent(at),
-                    });
-                }
-            }
+            check_payload_refs(doc, &new, node)?;
             // N1: the node's id is minted from the document's mint
             // chain, extended by the node as the edit states it, and
             // then every authored step's, from the same chain. Minting
@@ -3798,7 +3888,14 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 }
             })?;
             check_node_inputs(doc, id, node)?;
-            check_declare_input(doc, id, node)?;
+            check_declared_sides(
+                doc,
+                &new,
+                node,
+                node.declared_pairs(),
+                || SpokenNode::entering(id, node),
+                None,
+            )?;
             // A gauge reference is a reading edge, as a mate's operand
             // is: a never-live or wrong-kind one is a typo, refused here.
             check_gauge_ref(&new, id, node.gauge_ref(), || {
@@ -3900,14 +3997,6 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             // whose minting node just left, in both of the document's
             // carriers, read out of the document as it now stands.
             reported = stranded_references(doc, &new, *id);
-            // The declaration half of the same question, out of the
-            // same post-removal document so the two reports cannot
-            // disagree about which nodes are gone. Appended after the
-            // strands, which is the order the field contracts. The
-            // input list feeds both readers — this door and
-            // `roots::on_delete` below — so the declaration reported
-            // inert and the inputs re-rooted are read off one value.
-            reported.extend(orphaned_declares(doc, &new, &inputs));
             crate::roots::on_delete(&mut new, *id, &inputs);
             // The node's witness (if any) dies with it — ids are
             // never reused, so the entry could never be read again.
@@ -3969,6 +4058,40 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 structural: true,
             }
         }
+        DocEdit::SetDeclare { node, pairs } => {
+            let mut rewritten = match new.nodes.get(node) {
+                None => {
+                    return Err(EditError::UnknownNode {
+                        id: SpokenNode::absent(*node),
+                    });
+                }
+                Some(current) => current.clone(),
+            };
+            let (Node::Boolean { declare, .. } | Node::Union { declare, .. }) = &mut rewritten
+            else {
+                return Err(EditError::SetDeclareOnNonDeclaring {
+                    node: doc.spoken(*node),
+                });
+            };
+            declare.clone_from(pairs);
+            // The pairs are payload names and read sites, checked by the
+            // insert door's own functions; no edge moved, so neither
+            // acyclicity nor the root set is asked again.
+            check_payload_refs(doc, &new, &rewritten)?;
+            check_declared_sides(
+                doc,
+                &new,
+                &rewritten,
+                pairs,
+                || doc.spoken(*node),
+                new.positions().get(node).copied(),
+            )?;
+            new.nodes.insert(*node, rewritten);
+            EditRecord {
+                minted: None,
+                structural: true,
+            }
+        }
         DocEdit::SetProgram { node, loops, ids } => {
             let payload = match new.nodes.get(node) {
                 None => {
@@ -4016,12 +4139,10 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     node: doc.spoken(*node),
                     refusal: Box::new(refusal),
                 })?;
+            let undrawn = undrawn_kept_pieces(doc, *node, payload, rewritten, &dropped, tol)?;
             new.nodes.insert(*node, probe);
             new.mint = mint;
-            // DM7: a name on a kept step keeps denoting its pieces and
-            // is not touched; a name on a dropped step denotes nothing
-            // from here on, and the door says so.
-            reported = stranded_steps(doc, &new, &dropped);
+            reported = stranded_steps(doc, &new, &dropped, &undrawn);
             // Structural whatever moved: the edit's class is a
             // rewrite of program structure — verbs, order, count —
             // and the record classifies the edit, as
@@ -4189,8 +4310,34 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             // rewritten below, not by this loop. Zero sites across
             // both = nothing to repair, refused.
             let mut declare_sites = 0usize;
-            for node in new.nodes.values_mut() {
+            let mut redeclared = Vec::new();
+            for (&id, node) in &mut new.nodes {
+                let before = node.declared_pairs().to_vec();
                 declare_sites += node.rebind_payload_names(from, to);
+                if node.declared_pairs() != before.as_slice() {
+                    redeclared.push((id, before));
+                }
+            }
+            // A rewritten declared pair is one this door writes, so it
+            // answers the rule every such door asks — of the pairs the
+            // rebind moved only, so a strand a union already held does
+            // not block an unrelated repair.
+            for (id, before) in redeclared {
+                let Some(node) = new.nodes.get(&id) else {
+                    continue;
+                };
+                let moved = node
+                    .declared_pairs()
+                    .iter()
+                    .filter(|pair| !before.contains(pair));
+                check_declared_sides(
+                    doc,
+                    &new,
+                    node,
+                    moved,
+                    || doc.spoken(id),
+                    new.positions().get(&id).copied(),
+                )?;
             }
             // Appearance keys are rebind sites (the attribute rides
             // the name — PR 7's store; also the spec D9 banked
@@ -4503,10 +4650,12 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
     // lists at least one placement, and its frames meet the SAME bar
     // every placement's literal steps are held to
     // (`Frame::admission_fault`).
-    // Checked over the whole document rather than per arm because a
-    // structural slot edit can reach a bad state from a node that was
-    // consistent before; in document order, so where one edit breaks
-    // two nodes the refusal names the one placed first.
+    // A rule's shape and its listed frames are written only by the
+    // insert that authors its node, but a listed frame is admitted at
+    // the `tol` this edit is applied at, which need not be the one its
+    // insert was; so the whole document is checked, in document order,
+    // and where one edit breaks two nodes the refusal names the one
+    // placed first.
     for (&node, n) in new
         .order
         .iter()
@@ -4515,9 +4664,10 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
         let listed = |index| FrameSite::Listed { index };
         match n.placement_rule_fault(tol) {
             None => {}
-            Some(PlacementRuleFault::CountSpelling) => {
+            Some(PlacementRuleFault::CountSpelling { shape }) => {
                 return Err(EditError::PlacementRuleMismatch {
                     node: written(doc, node, n),
+                    shape,
                 });
             }
             Some(PlacementRuleFault::NoPlacements) => {

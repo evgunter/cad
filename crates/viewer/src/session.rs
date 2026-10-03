@@ -65,7 +65,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{FlushFinding, Resolution, RunCtx, declare_node, resolve};
+use pncad::select::{FlushFinding, Resolution, RunCtx, declared_pairs, resolve};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
@@ -2433,8 +2433,8 @@ impl DocSession {
     /// committing it** — the edit door's own `Applied::maintenance` for
     /// the one `SetProgram` the op would commit, netted by
     /// [`MaintenanceNet`] as the commit nets it: every name on a step
-    /// the reshaping drops, stranded. Empty when the op would write
-    /// nothing.
+    /// the reshaping drops, or on a kept step's piece it stops drawing,
+    /// stranded. Empty when the op would write nothing.
     ///
     /// The profile editor reads it BEFORE its Apply, while the person
     /// can still keep the step; the op's outcome carries the same rows
@@ -2519,8 +2519,8 @@ impl DocSession {
         })
     }
 
-    /// Insert one regularized boolean of two existing bodies, and the
-    /// declaration of the contacts it names
+    /// Insert one regularized boolean of two existing bodies, carrying
+    /// the declaration of the contacts it names
     /// ([`SessionOp::AddBoolean`]).
     fn add_boolean(
         &mut self,
@@ -2542,25 +2542,17 @@ impl DocSession {
         // first, which is what keeps two PROFILES in both seats
         // reported as "that is not a body" — the fact the user can act
         // on — rather than as the narrower complaint about the pair.
-        let declaration = if declare.is_empty() {
-            None
-        } else {
-            Some(declare_node(&declare).unwrap_or_else(|error| {
-                unreachable!(
-                    "`declare_node` refuses only an empty list, and this one is not: {error}"
-                )
-            }))
-        };
-        let boolean = |declare| DocEdit::InsertNode {
-            node: Box::new(Node::Boolean { op, a, b, declare }),
-        };
-        let staged = self.stage_run(|minted| match (minted, &declaration) {
-            ([], None) => Some(boolean(None)),
-            ([], Some(node)) => Some(DocEdit::InsertNode {
-                node: Box::new(node.clone()),
-            }),
-            ([Some(declared)], Some(_)) => Some(boolean(Some(*declared))),
-            _ => None,
+        // An empty list is the undeclared boolean.
+        let pairs = declared_pairs(&declare);
+        let staged = self.stage_run(|minted| {
+            minted.is_empty().then(|| DocEdit::InsertNode {
+                node: Box::new(Node::Boolean {
+                    op,
+                    a,
+                    b,
+                    declare: pairs.clone(),
+                }),
+            })
         });
         let staged = match staged {
             Ok(staged) => staged,
@@ -2859,6 +2851,7 @@ impl DocSession {
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
+            | DocEdit::SetDeclare { .. }
             // A profile's program replaced whole: structure, not a
             // panel field's value — and the identity program keeping
             // every step is the door's own no-op.
@@ -3130,9 +3123,6 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         Node::Mate { .. } => false,
         // A frame instances stand on; it puts nothing in.
         Node::Gauge { .. } => false,
-        // Declares contacts between faces of a consumer's operands,
-        // and puts no body of its own in.
-        Node::Declare { .. } => false,
         Node::Datum(_)
         | Node::Profile(_)
         | Node::Extrude { .. }

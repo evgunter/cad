@@ -13,8 +13,8 @@ use crate::docm7_union_declare::block;
 use crate::fixture;
 use editor_core::{
     BooleanOp, Dimension, Distribution, DocEdit, DocParam, DocumentId, EditError, Expr, Node,
-    ParamName, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, SlotId, SplitError,
-    UnitSym, UpstreamCause, apply,
+    ParamName, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, UnitSym,
+    UpstreamCause, apply,
 };
 use fixture::{fname, insert, len, run, scl, step, wall};
 use geom_core::{Sign, Tol};
@@ -173,19 +173,22 @@ fn a_count_a_slot_reads_refuses_the_redeclaration_with_a_recourse_that_gets_thro
     .expect("with no slot reading it, the count redeclares continuous");
 }
 
-/// A document holding a Declare whose `b` side was rebound onto a node
-/// inserted after it, and that node's wall name before the rebind.
-fn forward_declare() -> (ProfileDoc, editor_core::StableName, editor_core::StableName) {
+/// A document holding a fillet whose selection was rebound onto a
+/// node inserted after the fillet, and that node's wall name before
+/// the rebind. A selection is a frozen name with no document-order
+/// rule, so the rebind is admitted and the reference points forward.
+fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::StableName) {
     let doc = ProfileDoc::empty_derived("recourse_split_forward", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (wa, wb) = (wall(&doc, a, 0), wall(&doc, b, 0));
-    let (doc, _declare) = insert(
+    let wb = wall(&doc, b, 0);
+    let (doc, _fillet) = insert(
         doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(a, fname(a, wa)),
-            SitedRef::new(b, fname(b, wb.clone())),
-        )]),
+        Node::Fillet {
+            target: a,
+            radius: len(0.1),
+            selection: vec![fname(b, wb.clone())],
+        },
     );
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wc = wall(&doc, c, 0);
@@ -202,12 +205,12 @@ fn forward_declare() -> (ProfileDoc, editor_core::StableName, editor_core::Stabl
 
 /// **A split that cannot rebuild a forward reference says what to
 /// rebind, not what to edit.** The part is rebuilt in document order,
-/// so a Declare rebound onto a later node names a node the part does
+/// so a selection rebound onto a later node names a node the part does
 /// not hold yet. The user never wrote that insert: the sentence states
 /// the split's recourse, and the recourse, followed, splits.
 #[test]
 fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_through() {
-    let (doc, forward, back) = forward_declare();
+    let (doc, forward, back) = forward_selection();
     let cut: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
     let split = |doc: &ProfileDoc| {
         editor_core::split(
@@ -328,7 +331,7 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
             op: BooleanOp::Subtract,
             a,
             b: m,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &editor_core::EvalOptions::default());

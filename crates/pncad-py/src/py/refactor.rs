@@ -4,9 +4,8 @@
 //! Both families are PURE. `split` and `inline` hand back the new
 //! document VALUES plus the ordinary recorded edits that produce them,
 //! and mutate nothing; `update_references` hands back an edit list and
-//! applies none of it. That is what makes each of them atomic at the
-//! caller's single step — there is no partially applied state to roll
-//! back from, because the caller applies the whole list or none of it.
+//! applies none of it, each edit one site's and independent of the
+//! rest.
 //!
 //! Persisting a result is the store's write side (`Workspace.create`
 //! for a new part document, `Workspace.resave` for a rewritten one).
@@ -239,11 +238,11 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             instance: i,
             ..
         } => (none(), none(), none(), id(g), id(i), none(), none(), none()),
-        // The gauge a cut holds, or the one a cut instance's chain names
-        // that was deleted, is the `node`; the instance it is about is
-        // `instance`.
-        E::CutHoldsGauge { gauge } => (
-            id(gauge),
+        // A gauge refusal names the node whose gauge reference is at
+        // issue in `node` — the kept node on a cut gauge, or the cut
+        // node on a dead chain — and that gauge in `gauge` (below).
+        E::SeveredGauge { kept: n, .. } | E::DeadGaugeReference { node: n, .. } => (
+            id(n),
             none(),
             none(),
             none(),
@@ -252,12 +251,12 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::DeadGaugeReference { instance, gauge } => (
-            id(gauge),
+        E::NoMaterial { node: n } => (
+            id(n),
             none(),
             none(),
             none(),
-            id(instance),
+            none(),
             none(),
             none(),
             none(),
@@ -360,6 +359,10 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
         ),
     };
+    let gauge = match err {
+        E::SeveredGauge { gauge: g, .. } | E::DeadGaugeReference { gauge: g, .. } => id(g),
+        _ => none(),
+    };
     typed_err(
         py,
         ErrorClass::Split,
@@ -377,6 +380,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             ("param", param),
             ("name", name),
             ("id", doc_id),
+            ("gauge", gauge),
         ],
     )
 }
@@ -419,8 +423,9 @@ impl SplitOutcome {
     ///
     /// The document and the maintenance its edits performed travel
     /// TOGETHER, so `last_maintenance` on the `Doc` handed back reads
-    /// the record `remainder_edits` produced rather than an empty
-    /// list that would read as "nothing moved".
+    /// the record `remainder_edits` produced, net of what a later edit
+    /// in the same split took back, rather than an empty list that
+    /// would read as "nothing moved".
     #[getter]
     fn remainder(&self) -> Doc {
         Doc {
@@ -432,8 +437,9 @@ impl SplitOutcome {
     /// The new part document, carrying the cut nodes.
     ///
     /// Its `last_maintenance` is what building the part from empty
-    /// reported — an offset a cut mate's insert cleared as it joined
-    /// two groups.
+    /// reported, net of what a later edit in the same split took back.
+    /// An offset a cut mate's insert cleared as it joined two groups
+    /// is re-stated by a later edit, so it is not reported.
     #[getter]
     fn part(&self) -> Doc {
         Doc {
@@ -526,6 +532,7 @@ pub(crate) fn split(
     let store = resolver.map(super::store::Workspace::resolver);
     let out = d::split(&doc.inner, &set, part_id, tol, store.as_ref())
         .map_err(|err| split_err(py, &err))?;
+    let node_map = pairs_in_order(&out.node_map, &out.part);
     Ok(SplitOutcome {
         remainder: out.remainder,
         part: out.part,
@@ -534,11 +541,7 @@ pub(crate) fn split(
         part_edits: out.part_edits,
         part_maintenance: out.part_maintenance,
         instance: NodeId(out.instance),
-        node_map: out
-            .node_map
-            .into_iter()
-            .map(|(a, b)| (NodeId(a), NodeId(b)))
-            .collect(),
+        node_map,
         step_map: out.step_map,
     })
 }
@@ -645,10 +648,12 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
         ),
         // The instance is the subject: why it cannot be spliced is the
-        // variant, and an unplaced one's cause is in the message.
+        // variant, and an unplaced one's cause is in the message. A
+        // mate-placed instance's host root and part root ride their own
+        // slots (below), and a moved member rides `node`.
         E::MatePlaced { instance, .. }
         | E::Unplaced { instance, .. }
-        | E::NeedsAGauge { instance } => (
+        | E::MovedMemberOffset { member: instance } => (
             id(instance),
             none(),
             none(),
@@ -717,6 +722,21 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
         ),
     };
+    let (host_root, part_root, part_gauges) = match err {
+        E::MatePlaced {
+            host_root,
+            part_root,
+            part_gauges,
+            ..
+        } => (
+            id(host_root),
+            part_root.as_deref().map_or_else(none, id),
+            pyo3::types::PyList::new(py, part_gauges.iter().map(id))
+                .map(|l| l.unbind().into_any())
+                .unwrap_or_else(|_| py.None()),
+        ),
+        _ => (none(), none(), none()),
+    };
     typed_err(
         py,
         ErrorClass::Inline,
@@ -734,6 +754,9 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             ("root", root),
             ("host_epsilon", host_eps),
             ("part_epsilon", part_eps),
+            ("host_root", host_root),
+            ("part_root", part_root),
+            ("part_gauges", part_gauges),
         ],
     )
 }
@@ -756,7 +779,8 @@ impl InlineOutcome {
     ///
     /// The document and the maintenance its edits performed travel
     /// TOGETHER, so `last_maintenance` on the `Doc` handed back reads
-    /// what the splice's edits reported.
+    /// what the splice's edits reported, net of what a later edit in
+    /// the same inline took back.
     #[getter]
     fn doc(&self) -> Doc {
         Doc {
@@ -775,7 +799,8 @@ impl InlineOutcome {
             .collect()
     }
 
-    /// Part node → its id in the spliced document.
+    /// Part node → its id in the spliced document, as pairs in the
+    /// spliced document's order.
     #[getter]
     fn node_map(&self) -> Vec<(NodeId, NodeId)> {
         self.node_map.clone()
@@ -791,6 +816,14 @@ impl InlineOutcome {
     fn __repr__(&self) -> String {
         format!("InlineOutcome({} edit(s))", self.edits.len())
     }
+}
+
+/// A node map as the pairs Python reads ([`crate::node_map`]).
+fn pairs_in_order(map: &d::NodeMap, doc: &d::ProfileDoc) -> Vec<(NodeId, NodeId)> {
+    crate::node_map::in_document_order(map, doc)
+        .into_iter()
+        .map(|(a, b)| (NodeId(a), NodeId(b)))
+        .collect()
 }
 
 /// Splice a referenced document back in, replacing the instantiate
@@ -816,15 +849,12 @@ pub(crate) fn inline(
     let tol = Tol::witness();
     let store = resolver.resolver();
     let out = d::inline(&doc.inner, instance.0, &store, tol).map_err(|err| inline_err(py, &err))?;
+    let node_map = pairs_in_order(&out.node_map, &out.doc);
     Ok(InlineOutcome {
         doc: out.doc,
         edits: out.edits,
         maintenance: out.maintenance,
-        node_map: out
-            .node_map
-            .into_iter()
-            .map(|(a, b)| (NodeId(a), NodeId(b)))
-            .collect(),
+        node_map,
         step_map: out.step_map,
     })
 }
@@ -946,10 +976,10 @@ pub(crate) fn mixed_pins(doc: &Doc) -> Vec<PinMultiplicity> {
 /// the caller's fact; `Workspace.update_to_store` is the door that
 /// computes one from disk, and it says exactly when it reads.
 ///
-/// The caller applies the whole list or none of it, and that
-/// all-or-nothing is what "atomic" means here: there is no partially
-/// applied state to roll back from, because applying is the caller's
-/// single step.
+/// Each edit moves one site and reads no other edit's result, so the
+/// edits apply in any order, and any subset leaves an authorable
+/// mixed-pin state (`mixed_pins` reads it). "Update everywhere" is the
+/// whole list.
 ///
 /// A site already pinning `new_pin` contributes NO edit — mixed-pin
 /// state is authorable, so "update everywhere" stays usable from the
