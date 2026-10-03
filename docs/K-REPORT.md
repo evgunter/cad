@@ -838,7 +838,7 @@ population, which is exactly why the shared parity walk takes its row
 names from the caller.
 
 **Roster addition (ATREST-9): the arc-aware planar loop walk.** Eleven
-names from `topo/src/splitting/containment.rs`'s `point_in_carrier_loop`,
+names from `topo/src/splitting/containment.rs`'s `point_in_loop`,
 the in-face test `point_in_solid`'s planar arm reads a loop with circle
 or ellipse arcs through. Four are a new `ray_parity::ParityRows` value
 (`ARC_LOOP_ROWS`), the rest bare literals at their `decide` sites:

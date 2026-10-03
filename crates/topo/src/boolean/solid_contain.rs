@@ -1,5 +1,5 @@
 //! Trilean **point-in-solid** containment (F8): the ray design of
-//! profile's 2-D machinery and PR 3's [`point_in_vertex_polygon`](crate::splitting::containment::point_in_vertex_polygon) promoted to
+//! profile's 2-D machinery and PR 3's [`point_in_loop`](crate::splitting::containment::point_in_loop) promoted to
 //! 3-D. Its consumers: the boolean's containment fallback for operands
 //! whose boundaries do not intersect (the case §15.9 names), the
 //! split-join's role resolution for a region its section cannot place
@@ -8,11 +8,11 @@
 //! # Method: closest-hit ray test with the fixed schedule
 //!
 //! Cast a ray from `q` along a direction of the fixed schedule — the
-//! same 16-member golden-angle table as [`point_in_vertex_polygon`](crate::splitting::containment::point_in_vertex_polygon), and
+//! same 16-member golden-angle table as [`point_in_loop`](crate::splitting::containment::point_in_loop), and
 //! literally the same const (`SCHEDULE`, read from
 //! `splitting::containment`), used here as space directions
 //! **directly**: this module normalizes the raw triple, where
-//! `point_in_vertex_polygon` projects it into the loop's plane and skips the
+//! `point_in_loop` projects it into the loop's plane and skips the
 //! near-parallel members. One table, two different sweeps — the
 //! shared const buys the absence of drift between copies, not
 //! agreement on a direction, and determinism is per site (a `const`
