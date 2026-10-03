@@ -131,14 +131,16 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 
 /// One closed-form face's flux and area at the interval scalar: its
 /// surface and loops lifted point for point (`map_scalar`, which does no
-/// arithmetic) and handed to the same closed form the face walk runs,
+/// arithmetic) and handed to the same closed form the face walk runs
 /// (`super::closed_form_of`), so the result holds the exact flux of the
-/// stored geometry rather than its `f64` rounding.
+/// stored geometry rather than its `f64` rounding. A plane is the
+/// exception, taken about `centre` ([`planar_face_about`]).
 pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
     surface: &Surface<T>,
     loops: &[Vec<LoopEdge<T>>],
     sense: bool,
     band: Band,
+    centre: Point3<Interval>,
 ) -> Result<FaceContribution<Interval>, PropsError> {
     let loops: Vec<Vec<LoopEdge<Interval>>> = loops
         .iter()
@@ -157,12 +159,49 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
                 .collect()
         })
         .collect();
-    super::closed_form_of(
-        &surface.map_scalar(Interval::from_certified),
-        &loops,
-        sense,
-        band,
-    )
+    let surface = surface.map_scalar(Interval::from_certified);
+    match surface {
+        Surface::Plane { origin, normal, .. } => planar_face_about(origin, normal, &loops, centre),
+        _ => super::closed_form_of(&surface, &loops, sense, band),
+    }
+}
+
+/// A planar face's flux about `centre` and its area, at the interval
+/// scalar: `((origin − centre)·n)(n·A⃗)/(n·n)`, the face's vector area
+/// `A⃗` projected on its plane's normal and taken at the plane's distance
+/// from `centre`.
+///
+/// It is the flux of the face's loops projected onto the stored plane, so
+/// summed over a closed body about one `centre` it is the volume of the
+/// solid those projected faces bound, which differs from the walk's
+/// `origin · A⃗` only by the stored vertices' in-band distances from their
+/// planes. Every factor is small where the stored one is not: `A⃗` is
+/// summed about a vertex of the face's own (it does not depend on that
+/// point), and a `centre` on the body puts each plane at the body's own
+/// distance from it, so neither the interval's width nor the product is
+/// scaled by how far the carrier origins or the body sit from the world
+/// origin.
+fn planar_face_about(
+    origin: Point3<Interval>,
+    normal: geom_core::Vec3<Interval>,
+    loops: &[Vec<LoopEdge<Interval>>],
+    centre: Point3<Interval>,
+) -> Result<FaceContribution<Interval>, PropsError> {
+    let Some(anchor) = loops
+        .first()
+        .and_then(|edges| edges.first())
+        .map(|e| e.carrier.eval(e.t0))
+    else {
+        return Err(PropsError::DegenerateFace);
+    };
+    let mut va = geom_core::Vec3::zero();
+    for edges in loops {
+        va = va + loop_vector_area(edges, anchor)?;
+    }
+    Ok(FaceContribution {
+        flux: (origin - centre).dot(normal) * normal.dot(va) / normal.dot(normal),
+        area: va.norm(),
+    })
 }
 
 /// The certified flux/area enclosures of one curved-cut face

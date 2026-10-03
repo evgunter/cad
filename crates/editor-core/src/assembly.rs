@@ -1644,6 +1644,7 @@ fn attribute(
         | ValidationError::RingNestingUndecided { .. }
         | ValidationError::ShellWinding { .. }
         | ValidationError::SolidOuterShells { .. }
+        | ValidationError::ShellRoleUndecided { .. }
         | ValidationError::DanglingTopology { .. }
         | ValidationError::DanglingGeometry { .. }
         | ValidationError::NextPrevMismatch { .. }

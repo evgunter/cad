@@ -74,26 +74,19 @@ fn face_with_normal(body: &Body<f64>, n: [f64; 3]) -> FaceKey {
     hits[0]
 }
 
+/// `r`'s body, which passes tier 3.
 fn body_of(r: Result<BooleanResult<f64>, BooleanError>, what: &str) -> Body<f64> {
-    body_checked(r, what, true)
-}
-
-/// `tier3`: whether to run tier 3, whose signed-volume check shares the
-/// volume door's floor ([`RESOLVED_VOLUME`]).
-fn body_checked(r: Result<BooleanResult<f64>, BooleanError>, what: &str, tier3: bool) -> Body<f64> {
     let r = r.unwrap_or_else(|e| panic!("{what}: an answer, got {e}"));
     let b = r
         .body()
         .unwrap_or_else(|| panic!("{what}: a body"))
         .body
         .clone();
-    if tier3 {
-        assert_eq!(
-            validate_geometric(&b, Tol::witness()),
-            Ok(()),
-            "{what}: tier 3"
-        );
-    }
+    assert_eq!(
+        validate_geometric(&b, Tol::witness()),
+        Ok(()),
+        "{what}: tier 3"
+    );
     b
 }
 
@@ -133,61 +126,58 @@ fn volume(body: &Body<f64>) -> f64 {
 /// volume door's absolute error on a result spanning these fixtures'
 /// ~10 m is up to ~1e-15 m³, measured on exact slivers at ε from 1e-6
 /// to 1e-12 (it returns half of a 4e-19 m³ tetrahedron with exact
-/// corners, and −3e-16 for a 6e-19 one, which tier 3 then reads as
-/// negative). A thousand times that keeps the 1% check honest. Below it
-/// the corner set, which fixes the sliver and so its volume, is the
-/// oracle, and tier 3 runs on the other two results only. The door's
-/// error is filed:
-/// `work/contact/volume-door-reads-a-tiny-valid-boolean-result-wrong`.
+/// corners, and −3e-16 for a 6e-19 one). A thousand times that keeps
+/// the 1% check honest. Below it the corner set, which fixes the sliver
+/// and so its volume, is the oracle. The door's error is filed:
+/// `work/flux/a-planar-face-sums-its-area-about-a-far-carrier-origin`.
 const RESOLVED_VOLUME: f64 = 1e-12;
 
 /// Every op on `(solid, tool)` answers: `solid ∩ tool` has exactly the
 /// sliver's `corners` (within the band) and, where the volume door
-/// resolves it, the sliver's volume `overlap` (to 1%); `q`, inside
-/// both, is in the intersection and the union and out of
-/// `solid − tool`; every result passes tier 3.
+/// resolves it, the sliver's volume `overlap` (to 1%); every result
+/// passes tier 3; and each result holds exactly the points it should of
+/// four: `q` inside both, `solid_only` inside the solid alone,
+/// `tool_only` inside the tool alone, and a point 60 m away.
 fn answers(
     solid: &Body<f64>,
     tool: &Body<f64>,
     overlap: f64,
     corners: &[Point3<f64>],
-    q: Point3<f64>,
+    [q, solid_only, tool_only]: [Point3<f64>; 3],
     what: &str,
 ) {
+    use SolidContainment::{In, Out};
     let tol = Tol::witness();
-    assert_eq!(
-        contains(tool, q),
-        SolidContainment::In,
-        "{what}: q in the tool"
-    );
-    assert_eq!(
-        contains(solid, q),
-        SolidContainment::In,
-        "{what}: q in the solid"
-    );
-    let resolved = overlap >= RESOLVED_VOLUME;
-    let meet = body_checked(intersect(solid, tool, tol), &format!("{what}: ∩"), resolved);
+    let far = Point3::new(60.0, 1.0, 2.0);
+    for (body, name, want) in [
+        (solid, "the solid", [In, In, Out, Out]),
+        (tool, "the tool", [In, Out, In, Out]),
+    ] {
+        let got = [q, solid_only, tool_only, far].map(|p| contains(body, p));
+        assert_eq!(got, want, "{what}: the points in {name}");
+    }
+    let meet = body_of(intersect(solid, tool, tol), &format!("{what}: ∩"));
     has_corners(&meet, corners, &format!("{what}: ∩"));
-    if resolved {
+    if overlap >= RESOLVED_VOLUME {
         let v = volume(&meet);
         assert!(
             (v - overlap).abs() <= 1e-2 * overlap,
             "{what}: ∩ is the sliver: {v:e} vs {overlap:e}"
         );
     }
-    assert_eq!(contains(&meet, q), SolidContainment::In, "{what}: q in ∩");
     let cut = body_of(subtract(solid, tool, tol), &format!("{what}: −"));
-    assert_eq!(
-        contains(&cut, q),
-        SolidContainment::Out,
-        "{what}: the sliver is cut"
-    );
     let joined = body_of(union(solid, tool, tol), &format!("{what}: ∪"));
-    assert_eq!(
-        contains(&joined, q),
-        SolidContainment::In,
-        "{what}: ∪ holds q"
-    );
+    for (body, op, want) in [
+        (&meet, "∩", [In, Out, Out, Out]),
+        (&cut, "−", [Out, In, Out, Out]),
+        (&joined, "∪", [In, In, In, Out]),
+    ] {
+        let got = [q, solid_only, tool_only, far].map(|p| contains(body, p));
+        assert_eq!(
+            got, want,
+            "{what}: {op} holds q, the solid's point, the tool's point and the far point as it should"
+        );
+    }
 }
 
 /// `body`'s vertices are exactly `corners`, each within the band.
@@ -236,7 +226,7 @@ fn a_pierce_reads_a_dipping_edge_at_its_far_vertex() {
             &parallelepiped(e),
             sliver(e),
             &needle_corners(e),
-            q,
+            [q, Point3::new(-15.0, -15.0, -2.0), at(e, 0.5, 0.5, 0.5)],
             what,
         );
     }
@@ -259,7 +249,7 @@ fn a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex() {
             &parallelepiped(e),
             sliver(e),
             &needle_corners(e),
-            q,
+            [q, Point3::new(15.0, 15.0, -10.0), at(e, 0.5, 0.5, 0.5)],
             what,
         );
     }
