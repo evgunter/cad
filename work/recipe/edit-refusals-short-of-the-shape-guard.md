@@ -186,6 +186,6 @@ Ruling 10 of `docs/EDIT-PLACEMENT-SPEC.md`'s P2, against the five arms still on 
 
 ## Built (2026-10-02, PR 3909) — the two placement-rule arms; the row closes
 
-`EmptyPlacementList` and `PlacementRuleMismatch` state a recourse, the inserting edit's (a rule's shape is written only by the insert that authors its node). `PlacementRuleMismatch` carries which of its three shapes it met (`CountMismatch`, also Python's `inner_variant`) and states that shape's one recourse. `crates/editor-core/tests/lib_placedunion.rs`'s `a_placement_rule_refusals_recourse_gets_through` follows each recourse word for word. Details in the PR body.
+`EmptyPlacementList` and `PlacementRuleMismatch` state a recourse, each shape its own; the PR body has the detail.
 
 Nothing remains on this row.

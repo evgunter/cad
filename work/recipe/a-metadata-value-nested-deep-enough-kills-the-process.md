@@ -59,6 +59,6 @@ door's limit as the expression bound is; or walks that do not recurse,
 
 ## Built (2026-10-02, PR 3909)
 
-The type holds the bound: a value nests at most `meta::MAX_NESTING` (128) levels, and a list or a map past it cannot be built (`MetaValue::list`/`map`, `to_value` and the deserializer refuse typed). `to_value` also bounds how deep it reads a producer (`meta::MAX_PRODUCER_NESTING`, options and newtypes counted), so a deep or self-referential producer is refused before the stack runs out; the deserializer refuses a list or map past the bound before reading into it. The load door's limit reads the bound (`persist::nesting::META_BODY_NESTING`). Pinned in `crates/editor-core/tests/meta_nesting_bound.rs` on the 1 MiB stack. The design, the sweep and the mutants are in the PR body.
+A value nests at most `meta::MAX_NESTING` levels, held by the type; `to_value` and `from_value` read a producer only `meta::MAX_PRODUCER_NESTING` calls deep. Pinned in `crates/editor-core/tests/meta_nesting_bound.rs`. The design, the sweep and the mutants are in the PR body.
 
 Filed: `the-load-doors-refusals-are-held-to-no-shape-guard`.
