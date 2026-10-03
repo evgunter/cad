@@ -2,10 +2,11 @@
 id: chain-density-sheet-draws-the-collapsed-certified-box-as-zero-height
 kind: issue
 title: the chain density sheet draws the collapsed certified box as zero-height rects and still calls the advisory cloud nine times it
-status: open
+status: closed
 opened: 2026-10-03
 priority: P4
 cost: E
+closed: 2026-10-03
 ---
 
 
@@ -77,3 +78,27 @@ extent with a floor too, or as a marked tick, and say so in the legend.
 Compute the advisory-over-certified ratio. Print the column in `e`
 notation. Re-render `chain-density.svg`. When the pcert follow-on
 restores `0.111`, the same code draws the old boxes again.
+
+## Closed
+
+Fixed in the PR that filed this row, in `demos/tour/src/mcchain.rs`:
+
+- `Panel::certified_box` floors both sides at `CERTIFIED_MIN_PX`,
+  centred on the nominal pin. The legend says which sides are floored
+  (`floored_sides`, computed from `CERTIFIED_PIN_BOX` at the panel's
+  scale) and points to the table for the true half-widths. The
+  `CERTIFIED_PIN_BOX` doc in `chain.rs` says the same.
+- The "N times the certified box" ratio is `1 / CERTIFIABLE_FRACTION`
+  (`study_over_certified`). It is now `1.48e7` and will be `9.0` again
+  at `0.111`. The legend for a non-default ε formats the default-ε
+  fraction from the constant as well.
+- The table's certified column prints `{:.3e} m`.
+- `check_certified` reads the overlay back out of the finished sheet.
+  It checks the count of boxes per panel, that each box is centred on
+  its pin, and each side as `max(2·half·s, floor)`. It also checks the
+  table cells against `CERTIFIED_PIN_BOX` and the legend's ratio against
+  `CERTIFIABLE_FRACTION`. With the height floor removed, the tour reds:
+  `pin 2's certified box is drawn 0 px across the chain`.
+
+The data collapse itself stays with
+`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`.
