@@ -1639,9 +1639,11 @@ pub(crate) enum Lift {
 /// entity of its input `input`**: one [`Lift`] per seat `input` fills,
 /// empty when `input` is not one of `node`'s inputs.
 ///
-/// The match is exhaustive with no wildcard, so a new node kind does
-/// not compile until it is classified here. Every answer is read off
-/// the node's kind and seat alone; no slot is evaluated.
+/// The match is exhaustive with no wildcard, and every arm names its
+/// variant's fields (as [`crate::node::Node::inputs`] does), so a new
+/// node kind or a new field does not compile until it is classified
+/// here — a seat or not. Every answer is read off the node's kind and
+/// seat alone; no slot is evaluated.
 ///
 /// - **Spelled verbatim**: a `Part` (its table is the selected body's
 ///   rows, verbatim) and a `Split`'s target (its intact entities keep
@@ -1671,8 +1673,12 @@ pub(crate) fn lift<P>(
     };
     let seat = |at: RecipeNodeId, how: Lift| (at == input).then_some(how);
     let placer_axis = |kind: &PatternKind| match kind {
-        PatternKind::Circular { axis, .. } => seat(*axis, Lift::Dropped),
-        PatternKind::Linear { .. } | PatternKind::Explicit(_) => None,
+        PatternKind::Circular { axis, step: _ } => seat(*axis, Lift::Dropped),
+        PatternKind::Linear {
+            direction: _,
+            spacing: _,
+        }
+        | PatternKind::Explicit(_) => None,
     };
     match node {
         Node::Part { of, select: _ } => seat(*of, Lift::Spelled(name.clone()))
@@ -1705,11 +1711,23 @@ pub(crate) fn lift<P>(
         .into_iter()
         .flatten()
         .collect(),
-        Node::Fillet { target, .. } | Node::Chamfer { target, .. } | Node::Shell { target, .. } => {
-            seat(*target, under(RoleSeg::FromTarget))
-                .into_iter()
-                .collect()
+        Node::Fillet {
+            target,
+            radius: _,
+            selection: _,
         }
+        | Node::Chamfer {
+            target,
+            distance: _,
+            selection: _,
+        }
+        | Node::Shell {
+            target,
+            thickness: _,
+            open: _,
+        } => seat(*target, under(RoleSeg::FromTarget))
+            .into_iter()
+            .collect(),
         Node::Transform {
             input: placed,
             placement: _,
@@ -1727,27 +1745,55 @@ pub(crate) fn lift<P>(
             .into_iter()
             .flatten()
             .collect(),
-        Node::Datum(Datum::FaceFrame { at, .. }) => seat(*at, Lift::Dropped).into_iter().collect(),
-        Node::Datum(Datum::AxisInPlane { plane, .. }) => {
-            seat(*plane, Lift::Dropped).into_iter().collect()
+        Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => {
+            seat(*at, Lift::Dropped).into_iter().collect()
         }
+        Node::Datum(Datum::AxisInPlane {
+            plane,
+            origin: _,
+            direction: _,
+        }) => seat(*plane, Lift::Dropped).into_iter().collect(),
         Node::Measure { expr: _, refs } => refs
             .iter()
             .any(|r| r.at == input)
             .then_some(Lift::Dropped)
             .into_iter()
             .collect(),
-        Node::Assertion { measure, .. } => seat(*measure, Lift::Dropped).into_iter().collect(),
-        Node::Extrude { profile, .. } => seat(*profile, Lift::Dropped).into_iter().collect(),
-        Node::Revolve { profile, axis, .. } => {
+        Node::Assertion {
+            measure,
+            bound: _,
+            dir: _,
+        } => seat(*measure, Lift::Dropped).into_iter().collect(),
+        Node::Extrude {
+            profile,
+            distance: _,
+            side: _,
+        } => seat(*profile, Lift::Dropped).into_iter().collect(),
+        Node::Revolve {
+            profile,
+            axis,
+            angle: _,
+        } => {
             [seat(*profile, Lift::Dropped), seat(*axis, Lift::Dropped)]
                 .into_iter()
                 .flatten()
                 .collect()
         }
-        Node::Tube { spine, .. } | Node::HollowTube { spine, .. } => {
-            seat(*spine, Lift::Dropped).into_iter().collect()
+        Node::Tube {
+            spine,
+            u_ref: _,
+            major_radius: _,
+            window: _,
+            minor_radius: _,
         }
+        | Node::HollowTube {
+            spine,
+            u_ref: _,
+            major_radius: _,
+            window: _,
+            minor_radius: _,
+            wall: _,
+        } => seat(*spine, Lift::Dropped).into_iter().collect(),
         Node::Loft {
             profiles,
             v_degree: _,
@@ -1756,7 +1802,12 @@ pub(crate) fn lift<P>(
             .then_some(Lift::Dropped)
             .into_iter()
             .collect(),
-        Node::Sweep { profile, path, .. } => {
+        Node::Sweep {
+            profile,
+            path,
+            stations: _,
+            v_degree: _,
+        } => {
             [seat(*profile, Lift::Dropped), seat(*path, Lift::Dropped)]
                 .into_iter()
                 .flatten()
@@ -1768,11 +1819,37 @@ pub(crate) fn lift<P>(
         // Leaves: their references are names or document seams, not
         // inputs.
         | Node::Datum(
-            Datum::Plane { .. } | Datum::Axis { .. } | Datum::Point { .. } | Datum::Frame { .. },
+            Datum::Plane {
+                origin: _,
+                normal: _,
+            }
+            | Datum::Axis {
+                origin: _,
+                direction: _,
+            }
+            | Datum::Point { position: _ }
+            | Datum::Frame {
+                origin: _,
+                u: _,
+                v: _,
+            },
         )
-        | Node::InstantiatePart { .. }
-        | Node::Gauge { .. }
-        | Node::Mate { .. } => Vec::new(),
+        | Node::InstantiatePart {
+            doc_ref: _,
+            interface: _,
+            gauge: _,
+            offset: _,
+        }
+        | Node::Gauge {
+            parent: _,
+            placement: _,
+        }
+        | Node::Mate {
+            a: _,
+            b: _,
+            class: _,
+            alignment: _,
+        } => Vec::new(),
     }
 }
 

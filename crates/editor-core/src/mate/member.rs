@@ -106,12 +106,8 @@ impl Member {
 /// tree picks its edges by; so the ordering is stated rather than
 /// derived: `(instance, copy, chain)` — the instance, then the copy
 /// chain (patterns only, outermost first), then the whole placing
-/// chain, each compared lexicographically.
-///
-/// The copies come before the transforms because that is the order a
-/// document keyed by before the placing chain replaced the operand: a
-/// reference read at its mint or at a transform keys as it did, and
-/// the whole chain refines the order where the operand used to.
+/// chain, each compared lexicographically. The copies lead so that a
+/// copy chain alone decides between two members whenever it differs.
 impl Ord for Member {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         (self.instance, self.copy(), &self.chain).cmp(&(other.instance, other.copy(), &other.chain))
@@ -153,8 +149,20 @@ enum Placer {
 impl Placer {
     /// The recipe node this placer is — what a refusal names.
     fn node(self) -> RecipeNodeId {
-        match self {
-            Self::Pattern { node, .. } | Self::Transform(node) => node,
+        Placing::from(self).node()
+    }
+}
+
+/// The member's view of a placer: which copy or which transform, with
+/// the walk's own bookkeeping (the `Part` a check reads) left behind.
+impl From<Placer> for Placing {
+    fn from(p: Placer) -> Self {
+        match p {
+            Placer::Pattern { node, i, part: _ } => Self::Copy {
+                pattern: node,
+                index: i,
+            },
+            Placer::Transform(node) => Self::Transform(node),
         }
     }
 }
@@ -275,16 +283,7 @@ pub(super) fn walk<'r, P>(
                 return Ok(Walk {
                     member: Member {
                         instance: at,
-                        chain: chain
-                            .iter()
-                            .map(|p| match *p {
-                                Placer::Pattern { node, i, .. } => Placing::Copy {
-                                    pattern: node,
-                                    index: i,
-                                },
-                                Placer::Transform(node) => Placing::Transform(node),
-                            })
-                            .collect(),
+                        chain: chain.iter().copied().map(Placing::from).collect(),
                     },
                     chain,
                     head: &r.name,
