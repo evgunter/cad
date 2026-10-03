@@ -2,12 +2,13 @@
 id: split-gate-reads-a-world-axis-box
 kind: issue
 title: The split gate reads a world-axis-aligned box, so a cut clear of a sphere face refuses or splits by the body's pose
-status: review
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 pr: 3982
 branch: reach/split-gate-oriented-box
+closed: 2026-10-03
 ---
 
 
@@ -40,3 +41,13 @@ the torus window and the cylinder or cone slab, rather than against a
 world AABB. That is the face-box rule's business
 (`boxes/split-gate-sphere-zone-folds-into-face-box-rule`), and the gate's
 refusal text names the bounding box so that it stays true until then.
+
+## Closed (2026-10-03, PR 3982)
+
+The split gate reads every unarmed face's reach in the cut plane's own
+frame (`boxes::BoxFrame`, `census::face_reach_in`), with closed-form
+supports for a sphere zone (`classify::zone_extent`) and a ring torus's
+chart rectangle (`classify::torus_rect_extent`), so a cut's verdict no
+longer moves with the body's pose. Residue filed:
+`split-gate-zone-ignores-the-azimuth-window` (P1) and
+`split-gate-torus-ring-fallback-has-no-door` (P3).
