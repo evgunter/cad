@@ -1201,16 +1201,24 @@ member, chosen from the recipe and never from values or from the world,
 so an unrelated edit moves no bit (D9).
 
 **Structural coincidence.** Two cells coincide structurally when they
-are the same object: the same variable, or the same construction of the
-same variables. Each construction states which of its inputs each
-output carrier is a function of (an extrude's end cap is
-`plane(frame, direction, depth)`, independent of the profile), so the
-plate and the through-hole extruded by one `t` from one frame share
-their caps. Coaxiality is one `Axis` variable read twice; tangency is
-constructed (a sketch may read another surface's trace in its plane and
-continue tangent to it). Agreement as functions of the variables that
-is not object identity is found by the symbolic tier (E12) and offered
-as the edit that makes it one object; it never glues on its own.
+are the same construction of the same variables. Each construction
+states which of its inputs each output carrier is a function of (an
+extrude's end cap is `plane(frame, direction, depth)`, independent of
+the profile; a side wall is independent of where along the direction it
+sits), and carriers compare in a canonical form per kind: the frame
+modulo the kind's own symmetry (a plane forgets in-plane motion and
+folds a shift along its normal into its offset; an axis forgets slide
+and spin along itself), with offsets summed as linear forms over the
+variables with exact rational coefficients and derived variables read
+as their formulas. So the plate and the through-hole extruded by one
+`t` from one frame share their caps, and a copy placed on a face by a
+mate shares that face's plane. Coaxiality is one `Axis` variable read
+twice; tangency is constructed (a sketch may read another surface's
+trace in its plane and continue tangent to it). Agreement that needs
+more than linear arithmetic, or that holds only because two free
+variables have equal values, is found by the symbolic tier (E12) and
+offered as the one edit that makes it one construction; it never glues
+on its own.
 
 **Booleans.** A boolean's operands are already in one space. A
 structural coincidence glues; a definite verdict acts; an in-band
@@ -1446,8 +1454,8 @@ Cross-milestone commitments; each binds at the layer named.
   would make topology hinge on an UNMARGINED predicate — a razor-thin
   equal-vs-one-ulp cliff with no escalation band, exactly what Q1
   forbids — and value equality is not evidence of intent anyway. The
-  ladder: (a) **one object** — the same variable, or the same
-  construction of the same variables (D10); (b) cells that agree but
+  ladder: (a) **one construction** — the same construction of the
+  same variables, compared in D10's canonical form; (b) cells that agree but
   are not one object do **not** glue — agreement detection, including
   the symbolic tier's identities over the variables, is an offer of the
   edit that makes them one object; (c) near-coincidence between
