@@ -435,3 +435,42 @@ fn every_discharge_kind_retags_its_sample_with_a_token_of_its_own() {
         );
     }
 }
+
+/// **A decided zero enclosure offers no subdivision.** A gate's
+/// rejection of an enclosure decided zero is a decided reading: a
+/// sub-box keeps its sign, so the refusal reads within the zero band
+/// and names no subdivision.
+#[test]
+fn a_decided_zero_enclosure_rejection_offers_no_subdivision() {
+    let b = band();
+    let half = 0.5 * b.zero();
+    let text = decide_positive(
+        "gate_zero_enclosure",
+        Margin::of(Interval::from_bounds(-half, half)),
+        b,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(text.contains("lies within the zero band"), "{text}");
+    assert!(!text.contains("subdivide"), "decided: {text}");
+    assert!(!text.contains("cannot be classified"), "decided: {text}");
+}
+
+/// **The text places a margin where the classifier does, at the band's
+/// edge**: a margin of exactly `escalate` on the rejected side is
+/// decided, so it reads past the band and offers no tolerance.
+#[test]
+fn a_rejection_at_the_escalation_edge_reads_past_the_band() {
+    let b = band();
+    for text in [
+        decide_positive("gate_edge", Margin::of(-b.escalate()), b)
+            .unwrap_err()
+            .to_string(),
+        decide_negative("gate_edge", Margin::of(b.escalate()), b)
+            .unwrap_err()
+            .to_string(),
+    ] {
+        assert!(text.contains("lies past the ambiguity band"), "{text}");
+        assert!(!text.contains("tighten"), "sign-certain: {text}");
+    }
+}
