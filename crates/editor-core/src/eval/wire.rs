@@ -91,6 +91,8 @@ pub(crate) struct OpOut<T: Decide> {
     /// the documents below could not be minted at all; same arena, same
     /// one op.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    /// How many parts each output body is (`NodeValue::parts`).
+    pub parts: usize,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -102,7 +104,14 @@ impl<T: Decide> OpOut<T> {
             groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
+            parts: 1,
         }
+    }
+
+    /// This output, each body of it `parts` parts: a placer's or a
+    /// projection's output carries its input's count through.
+    fn carrying(self, parts: usize) -> Self {
+        Self { parts, ..self }
     }
 }
 
@@ -509,6 +518,7 @@ where
         groups: Arc::default(),
         contacts: Arc::clone(&part.contacts),
         carried: Arc::new(carried),
+        parts: part.parts,
     })
 }
 
@@ -809,13 +819,34 @@ fn wrong_operand<T: Decide>(
 
 // OPERAND-DOOR END
 
-/// A single-body operand: a Body value, or a boolean's non-empty
-/// result — what every consumer that genuinely takes ONE body reads
-/// through (a datum's face frame, a blend, a shell, a split's target,
-/// a boolean's and a union's members, a placed union's prototype):
-/// [`placeable_operand`]'s `Body` arm, refusing the other in its own
-/// one-body word.
+/// **A body that becomes material of the result**: what every consumer
+/// that combines or reshapes ONE body reads through (a blend, a shell,
+/// a split's target, a boolean's and a union's members, a placed
+/// union's prototype). It is [`read_body`] that also refuses a PRODUCT,
+/// a body of several parts ([`NodeErrorKind::ProductOperand`];
+/// `NodeValue::parts`): a solid is one piece of material, so material
+/// is fused or reshaped one part at a time. The placers read
+/// [`placeable_operand`] instead and carry a product through.
 fn body_operand<T: Decide>(
+    results: &Results<T>,
+    input: RecipeNodeId,
+) -> Result<Arc<Body<T>>, NodeErrorKind> {
+    let v = value_of(results, input)?;
+    if v.parts > 1 {
+        return Err(NodeErrorKind::ProductOperand {
+            input,
+            parts: v.parts,
+        });
+    }
+    read_body(results, input)
+}
+
+/// **A body read for its geometry**: a Body value, or a boolean's
+/// non-empty result — [`placeable_operand`]'s `Body` arm, refusing the
+/// other in its own one-body word. A reader consumes no material (a
+/// datum's face frame reads a face), so a product is read as it is;
+/// the product refusal is [`body_operand`]'s.
+fn read_body<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
 ) -> Result<Arc<Body<T>>, NodeErrorKind> {
@@ -1350,7 +1381,7 @@ fn wire_datum<T: Decide>(
         // stored fact copied out or an N5 resolution; nothing here
         // decides a number.
         Datum::FaceFrame { at, face, .. } => {
-            let body = body_operand(results, *at)?;
+            let body = read_body(results, *at)?;
             let table = &value_of(results, *at)?.name_table;
             // The fillet's ladder: rung 1 against the document, rungs
             // 2 and 3 against the body's own table.
@@ -2743,7 +2774,7 @@ fn wire_part<T: Decide>(
         .project(index)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)))
+    Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)).carrying(value.parts))
 }
 
 // `Bounds` rides along for the boolean lane only: the sweep's BVH
@@ -4177,7 +4208,7 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     let per = placeable.bodies().len();
     let payload =
         placeable.map(|body, i| place(body, Some(&map), Placing::of(id, 0, per, i)?, tol))?;
-    Ok(OpOut::plain(payload, Arc::clone(&value.name_table)))
+    Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
 }
 
 /// The resolved operands of a stepped placement rule: what the rule's
@@ -4321,7 +4352,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     }
     let table =
         names::name_pattern(id, &value.name_table, n, master.len(), &instances).map_err(naming)?;
-    Ok(OpOut::plain(ValuePayload::Instances(instances), table))
+    Ok(OpOut::plain(ValuePayload::Instances(instances), table).carrying(value.parts))
 }
 
 /// The group boolean (GROUP-BOOLEAN-DESIGN, ratified A′): one
@@ -4389,24 +4420,14 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .map_err(|topo::PlacementsMeet { i, j }| NodeErrorKind::PlacementsUncertified { i, j })?;
     let mut fused = topo::Body::new();
     let mut bridges: Vec<topo::GraftKeys> = Vec::with_capacity(maps.len());
-    let mut targets: Vec<topo::SolidKey> = Vec::new();
     for (i, map) in maps.iter().enumerate() {
         // Distinct instances are distinct sources, and distinct maps.
         let placed = place(&body, Some(map), Placing::of(id, i, 1, 0)?, tol)?;
-        // Placement 0 MINTS the destination solids; every later
-        // placement grafts ONTO them, so the fused body has the
-        // prototype's solid structure with N shells in each — the shape
-        // a union of separated bodies has, and the only one the seamed
-        // boolean path accepts as an operand.
-        let keys = if i == 0 {
-            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed)
-                .map_err(NodeErrorKind::Boolean)?;
-            targets = keys.solids().to_vec();
-            keys
-        } else {
-            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed)
-                .map_err(NodeErrorKind::Boolean)?
-        };
+        // Every placement MINTS its own solids: the copies are certified
+        // apart, so each is a piece of its own, and a body of N solids
+        // is a boolean operand like any other.
+        let keys =
+            topo::graft_disjoint_all_keyed(&mut fused, &placed).map_err(NodeErrorKind::Boolean)?;
         bridges.push(keys);
     }
     // Instance(i) wrapping (A8/N1), re-keyed onto the ONE output body

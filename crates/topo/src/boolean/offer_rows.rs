@@ -1882,7 +1882,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Euler
         | BooleanErrorKind::Join
         | BooleanErrorKind::VolumeUnmeasured
-        | BooleanErrorKind::GraftRecertify => Vec::new(),
+        | BooleanErrorKind::GraftRecertify
+        | BooleanErrorKind::Pieces => Vec::new(),
     }
 }
 

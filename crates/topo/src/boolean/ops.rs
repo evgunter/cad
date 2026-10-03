@@ -16,10 +16,10 @@
 //! - [`OperandA`](BooleanResultKind::OperandA) /
 //!   [`OperandB`](BooleanResultKind::OperandB): one operand's material
 //!   is the whole answer (disjoint ∖, nested ∩, …).
-//! - [`Assembly`](BooleanResultKind::Assembly): a multi-shell body
-//!   combining components of both operands without a seam — the
-//!   disjoint union (∪ of separated bodies), including assemblies
-//!   touching at declared vertex and edge contacts (the carried
+//! - [`Assembly`](BooleanResultKind::Assembly): components of both
+//!   operands without a seam, each piece a solid — the disjoint union
+//!   (∪ of separated bodies), including assemblies touching at declared
+//!   vertex and edge contacts (the carried
 //!   [`ContactRecords`] say where; genuinely 3′, certified by PR 6's
 //!   validator). A declared line contact through a face's interior is
 //!   not one: its records would name points of the line, so the union
@@ -30,7 +30,16 @@
 //!   insertion itself is [`super::voids::insert_void`] — the shared
 //!   void-insertion door every cavity is born through (this fallback,
 //!   the holed full revolve, and `shell`'s sealed hollow), with this
-//!   fallback's probe verdicts as the door's containment evidence.
+//!   fallback's probe verdicts as the door's containment evidence. A
+//!   hollow B's cavities land as pieces inside the void B leaves.
+//!
+//! **Bodies in, bodies out** (`docs/DESIGN.md`, "A solid is one piece
+//! of material"). An operand may hold any number of solids: the
+//! pipeline reads each operand as one multi-shell solid
+//! ([`Body::merge_all_solids`] on a clone), since it classifies, keeps and
+//! grafts shells, and every result leaves [`boolean_op_with`] sorted
+//! into pieces ([`crate::pieces`]) — one `Outer` per solid, each `Void`
+//! under the piece whose material surrounds it.
 //!
 //! When operand boundaries do not intersect, classification falls back
 //! to per-shell containment against the pristine other operand: the
@@ -170,7 +179,8 @@ pub enum BooleanResultKind {
 /// `work/reach/boolean-door-tier-3-waits-on-the-description-gap.md`.
 #[derive(Debug)]
 pub struct BooleanBody<T: Real> {
-    /// The result body: one solid, possibly multi-shell.
+    /// The result body: one solid per piece of material
+    /// ([`crate::pieces`]).
     pub body: Body<T>,
     /// How it was produced.
     pub kind: BooleanResultKind,
@@ -506,7 +516,28 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
             });
         }
     }
-    boolean_op_recut(op, a, b, decls, strategy, true, tol)
+    let band = Band::linear(tol)?;
+    let (a, b) = (one_solid(a)?, one_solid(b)?);
+    let mut result = boolean_op_recut(op, &a, &b, decls, strategy, true, tol)?;
+    if let BooleanResult::Body(r) = &mut result {
+        let pad = super::boxes::sweep_pad(band);
+        let face_box = |body: &Body<T>, f| super::boxes::face_box(body, f, pad, band).ok();
+        crate::pieces::sort_into_pieces(&mut r.body, band, tol, T::quad_lane(), Some(&face_box))
+            .map_err(BooleanError::Pieces)?;
+    }
+    Ok(result)
+}
+
+/// `body` as the pipeline reads an operand: as is when it holds at most
+/// one solid, else a clone with every shell under one solid (module
+/// docs, "Bodies in, bodies out").
+fn one_solid<T: Decide>(body: &Body<T>) -> Result<std::borrow::Cow<'_, Body<T>>, BooleanError> {
+    if body.solids().nth(1).is_none() {
+        return Ok(std::borrow::Cow::Borrowed(body));
+    }
+    let mut flat = body.clone();
+    flat.merge_all_solids().map_err(BooleanError::Euler)?;
+    Ok(std::borrow::Cow::Owned(flat))
 }
 
 /// The pipeline behind the front door, parameterized on whether the
@@ -3393,7 +3424,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                         .map(|&s| (s, voids::VoidContainment::Probed(SolidContainment::In)))
                         .collect(),
                 };
-                voids::insert_void(&mut body, solid, b_body, &evidence)
+                voids::insert_hollow_voids(&mut body, &[solid], b_body, &evidence)
                     .map_err(|e| match e {
                         voids::VoidInsertError::Revert(r) => BooleanError::Revert(r),
                         voids::VoidInsertError::Corrupt { what } => {
@@ -3402,7 +3433,8 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                         voids::VoidInsertError::MissingEvidence { .. }
                         | voids::VoidInsertError::NotStrictlyContained { .. }
                         | voids::VoidInsertError::ForeignShell { .. }
-                        | voids::VoidInsertError::DuplicateEvidence { .. } => {
+                        | voids::VoidInsertError::DuplicateEvidence { .. }
+                        | voids::VoidInsertError::HollowCavity { .. } => {
                             desync("void evidence desynced from the kept B shells")
                         }
                     })?

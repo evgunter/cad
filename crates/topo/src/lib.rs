@@ -187,6 +187,7 @@ pub mod offset_nappe;
 pub mod offset_together;
 pub mod param_source;
 pub mod pcurves;
+pub mod pieces;
 pub(crate) mod policy_lane;
 pub mod props;
 pub mod provenance;
@@ -666,8 +667,7 @@ pub use geom_brep::{
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{
-    GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
-    graft_disjoint_all_onto_keyed, per_part_gate_owed,
+    GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
     MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup,
@@ -691,6 +691,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
+pub use pieces::PieceSortError;
 pub use query::{
     CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
     SurfaceKind, SurfaceKindSet,

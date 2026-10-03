@@ -308,6 +308,17 @@ lane, because both edit `remap_contacts`.
   invariants or pins them. The #3891 rework runs in parallel on the
   piece rule.
 
+- 2026-10-03 — PR 3891 lands: a solid is one piece (Ev, PR 3901).
+  - Review: dual. The editor lane's MAJOR (the product fence leaked
+    through a nested sub-assembly, a `Transform` and `PlacedUnion`) was
+    fixed with a carried `NodeValue::parts`, and re-checked by
+    execution.
+  - A face-frame datum regression from that fix is fixed too: only
+    callers that fuse or reshape material refuse a product.
+  - Closed: the hollow-island unit, and the two rows filed during the
+    first pass.
+  - Residue: P3 connectedness, P2 one home for where a shell stands,
+    restfront P1 for overlapping solids, and the STEP voids writer.
 - 2026-10-03 — PR 3891, dual review of the one-piece rework:
   - Kernel lane: mergeable with fixes.
   - Editor/baselines lane: not mergeable. The product fence leaks through

@@ -93,6 +93,8 @@ pub enum NodeErrorClass {
     WrongOperand,
     /// [`NodeErrorKind::EmptyOperand`].
     EmptyOperand,
+    /// [`NodeErrorKind::ProductOperand`].
+    ProductOperand,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
     /// [`NodeErrorKind::InstanceOutOfRange`].
@@ -313,6 +315,7 @@ impl NodeErrorKind {
             Self::SeedPinnedSection { .. } => C::SeedPinnedSection,
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
+            Self::ProductOperand { .. } => C::ProductOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
@@ -529,6 +532,7 @@ mod tests {
         SeedPinnedSection,
         WrongOperand,
         EmptyOperand,
+        ProductOperand,
         EmptyHalf,
         InstanceOutOfRange,
         DegenerateDirection,
@@ -774,6 +778,10 @@ mod tests {
                 found: "profile",
             },
             C::EmptyOperand => K::EmptyOperand { input: n(3) },
+            C::ProductOperand => K::ProductOperand {
+                input: n(3),
+                parts: 2,
+            },
             C::EmptyHalf => K::EmptyHalf {
                 input: n(3),
                 half: crate::SplitHalf::Above,

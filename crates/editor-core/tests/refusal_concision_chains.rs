@@ -356,7 +356,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Finish/Corrupt",
     "Split/Finish/DegenerateSide",
     "Split/Finish/Euler",
-    "Split/Finish/NotSingleSolid",
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
     "Split/Join/Corrupt",
@@ -1530,7 +1529,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
     });
     let shell = ShellKey::default();
     let finish = [
-        ("NotSingleSolid", F::NotSingleSolid { count: 2 }),
         (
             "DegenerateSide",
             F::DegenerateSide {
@@ -1577,7 +1575,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         .into_iter()
         .chain(join)
         .chain(finish)
-        .chain([("Pcurves".to_owned(), SplitError::Pcurves(pcurve()))])
+        .chain([
+            ("Pcurves".to_owned(), SplitError::Pcurves(pcurve())),
+            (
+                "Pieces".to_owned(),
+                SplitError::Pieces(topo::PieceSortError::NoOwner { shell }),
+            ),
+        ])
         .map(|(n, e)| row(&format!("Split/{n}"), NodeErrorKind::Split(e)))
         .chain(boolean_join)
         .collect()
@@ -3747,10 +3751,16 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "Pieces",
+            S::Pieces {
+                error: topo::PieceSortError::Crossing { shell },
+            },
+        ),
+        (
             "OperandOuterShells",
             S::OperandOuterShells {
                 solid: SolidKey::default(),
-                outer: 2,
+                outer: 0,
             },
         ),
         (

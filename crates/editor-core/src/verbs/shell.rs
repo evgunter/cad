@@ -189,6 +189,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         },
         E::NoSolid => E::NoSolid,
         E::Roles { error } => E::Roles { error },
+        E::Pieces { error } => E::Pieces { error },
         E::OperandOuterShells { solid, outer } => E::OperandOuterShells { solid, outer },
         E::Partition { shell, error } => E::Partition { shell, error },
         // The pessimistic pair, which is the reading under which the two
