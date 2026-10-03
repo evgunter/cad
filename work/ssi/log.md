@@ -59,7 +59,7 @@ alternative was four PRs on one file.
   - Round 1: A had the boolean declare its contacts and SSI verify them. B had SSI decide its own knot-rectangle boundary.
   - Round 2: A moved to B's placement, because a patch corner outside a trimmed face has nothing to declare. B took up a shared plane × boundary-curve door.
   - Round 3: B moved to A's in-band arm, which reports a region with its reach and does not escalate.
-  - Both measured that the exhaustiveness sweep refuses a contact cell, so C3's ratified three-cell rule (#85, from Ev's 2026-07-23 draft) had to admit a boundary region. That made it an `[ev]` PR: 3862. Ev: "sounds good!". Fork log row 47 records the decision.
+  - Both measured that the exhaustiveness sweep refuses a contact cell, so C3's ratified three-cell rule (#85, from Ev's 2026-07-23 draft) had to admit a boundary region. That made it an `[ev]` PR: 3862. Ev: "sounds good!". Fork log row 52 records the decision.
   - The build runs on the PR's branch. The ℝ³ lane keeps its slab boundary search; I ruled it outside the ratified text's scope.
 - 2026-10-02: The designers' report of a stepper collapse on curved walls did not reproduce: the smallest step measured was 22 µm. A plane against a curved NURBS wall still fails broadly, though, for four causes, filed as `plane-nurbs-ssi-does-not-certify-a-curved-dome` (P1/H). No fixture certifies at κ ≳ 1/m.
   - Cause 1, a seed refined off the chart, was split out and fixed (PR 3864).

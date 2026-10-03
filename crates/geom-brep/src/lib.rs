@@ -99,8 +99,8 @@ pub use edge_nurbs::{
     PlaneNurbsRefusal, plane_nurbs_limbs,
 };
 pub use enters::{
-    EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, enters_material,
-    enters_material_order2,
+    EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, WallBend,
+    WallBendError, bends_into_material, enters_material, enters_material_order2,
 };
 pub use extent::ExtentBall;
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
@@ -109,11 +109,12 @@ pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
 pub use implicit::{
-    ARC_RESIDUAL_SAMPLES, CircleCylinderHarmonics, CircleSphereHarmonic, circle_arc_residual_range,
-    circle_cylinder_harmonics, circle_residual_curvature_bound, circle_residual_extremes,
-    circle_sphere_harmonic, cone_elevation, curvature_lever_arm, implicit_gradient,
+    ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, Conic, ConicHarmonics, HARMONIC_NOISE_ULPS,
+    circle_arc_residual_range, circle_residual_curvature_bound, circle_residual_extremes,
+    circle_sphere_harmonic, cone_elevation, conic_arc_residual_range, conic_cylinder_harmonics,
+    conic_residual_extremes, conic_sphere_harmonics, curvature_lever_arm, implicit_gradient,
     implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
-    implicit_residual, min_radius_of_curvature,
+    implicit_residual, min_radius_of_curvature, rounding_charge,
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,

@@ -19,11 +19,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use std::collections::BTreeMap;
+
+use super::common::certificates::assert_certificates_fresh;
 
 use geom_core::{Band, Point2, Tol};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
-use topo::{Body, BooleanOp};
+use topo::{Body, BooleanOp, EdgeKey, ShellKey};
 
 /// A ball of radius `r` centred on the y axis at height `y`.
 fn ball(r: f64, y: f64) -> Body<f64> {
@@ -573,15 +576,17 @@ fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
     }
 }
 
-/// **The snowman builds only with its seams coplanar.** Spin B about the
-/// shared axis by any angle off `0` and `π` and A's seam meridian pierces
-/// B's sphere at a point INSIDE B's half-band rather than on B's seam:
-/// that pierced face then carries a ring of null scaffolding with no
-/// charted run, which is the pierce-ring door
-/// (`work/tang/pierce-ring-has-no-join-arm.md`), typed, for every op.
+/// **The snowman builds spun, too.** Spin B about the shared axis by any
+/// angle off `0` and `π` and A's seam meridian pierces B's sphere at a
+/// point INSIDE B's half-band rather than on B's seam: that pierced face
+/// carries a pierce ring, and its chords take their arc from the face's
+/// own azimuth window. The spin moves no volume, so every op meets the
+/// coplanar pose's closed form.
 #[test]
-fn a_spun_snowman_refuses_at_the_pierce_ring_door() {
+fn a_spun_snowman_builds_under_every_boolean() {
     let a = ball(R1, 0.0);
+    let lens = lens_volume(R1, R2, D);
+    let (va, vb) = (ball_volume(R1), ball_volume(R2));
     for angle in [1e-3, 0.9, core::f64::consts::FRAC_PI_2] {
         let spin = geom_core::Affine3::rotation_about_axis(
             geom_core::Point3::origin(),
@@ -589,17 +594,16 @@ fn a_spun_snowman_refuses_at_the_pierce_ring_door() {
             angle,
         );
         let b = topo::transform_rigid(&ball(R2, D), &spin, Tol::witness()).unwrap();
-        for op in OPS {
-            let e = refusal(op, &a, &b);
-            assert!(
-                matches!(
-                    e,
-                    topo::BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                        case: topo::ArcWindowCase::NoChartedRun,
-                        ..
-                    })
-                ),
-                "spun by {angle} under {op:?}: expected the pierce-ring door, got {e:?}"
+        for (label, op, x, y, expected) in [
+            ("A ∪ B", BooleanOp::Union, &a, &b, va + vb - lens),
+            ("A ∩ B", BooleanOp::Intersect, &a, &b, lens),
+            ("A ∖ B", BooleanOp::Subtract, &a, &b, va - lens),
+            ("B ∖ A", BooleanOp::Subtract, &b, &a, vb - lens),
+        ] {
+            assert_body(
+                &format!("spun by {angle}: {label}"),
+                &run(op, x, y),
+                expected,
             );
         }
     }
@@ -608,10 +612,11 @@ fn a_spun_snowman_refuses_at_the_pierce_ring_door() {
 /// **A straight edge through a ball** reaches the line × sphere roots
 /// through a public op: a square bar poking out of a ball, its long
 /// edges straddling the sphere. They pierce, the pierce points' sector
-/// sides certify, and the op goes on to the join, where the pierced
-/// sphere face carries a ring with no charted run: the pierce-ring door
-/// (`work/tang/pierce-ring-has-no-join-arm.md`). A refusal at the
-/// pierce door would mean the root lane went dark.
+/// sides certify, and the op goes on to the join, where the bar's faces
+/// cut the sphere in circles tilted against its polar axis. Those take
+/// the run-side arc rule, and a run end the bar's corner leaves reflex
+/// refuses there (`SectionArcSide { ReflexRunEnd }`), typed, for every
+/// op. A refusal at the pierce door would mean the root lane went dark.
 #[test]
 fn a_bar_through_a_ball_crosses_the_sphere() {
     let a = ball(R1, 0.0);
@@ -622,13 +627,13 @@ fn a_bar_through_a_ball_crosses_the_sphere() {
         assert!(
             matches!(
                 e,
-                topo::BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                    case: topo::ArcWindowCase::NoChartedRun,
+                topo::BooleanError::Join(topo::SplitJoinError::SectionArcSide {
+                    case: topo::ArcSideCase::ReflexRunEnd,
                     ..
                 })
             ),
             "bar through a ball under {op:?}: expected to cross the sphere and stop at the \
-             pierce-ring door, got {e:?}"
+             run-side rule's reflex run end, got {e:?}"
         );
     }
 }
@@ -955,6 +960,141 @@ fn a_millimetre_lens_inside_a_ball_refuses_its_unplaced_circle_at_1e_6() {
                     "{label}: volume {v} against {want}"
                 );
             }
+        }
+    }
+}
+
+/// Each certified edge's certificate (`Debug`, its D9 identity), keyed
+/// by its carrier and parameter interval, which a graft copies bit for
+/// bit while it rewrites the surface handles; a key two edges share
+/// fails, since it could not tell them apart. `shell` keeps the edges
+/// of that shell alone.
+fn certificates(
+    label: &str,
+    body: &Body<f64>,
+    shell: Option<ShellKey>,
+) -> BTreeMap<String, (EdgeKey, String)> {
+    let shell_of = |e: &topo::Edge| {
+        let lp = body.get_half_edge(e.he_plus).unwrap().parent_loop;
+        body.get_face(body.get_loop(lp).unwrap().face)
+            .unwrap()
+            .shell
+    };
+    let mut out = BTreeMap::new();
+    for (k, e) in body.edges() {
+        if shell.is_some_and(|s| shell_of(e) != s) {
+            continue;
+        }
+        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
+            continue;
+        };
+        let key = format!("{:?} {:?}", c.carrier(), c.params());
+        let cert = format!("{:?}", c.certificate());
+        if let Some((other, _)) = out.insert(key.clone(), (k, cert)) {
+            panic!("{label}: edges {other:?} and {k:?} share the key {key}");
+        }
+    }
+    out
+}
+
+/// The `result` edges that carry the certified edges of `operand`'s
+/// shell number `kept` (its solid's order; every shell when `None`),
+/// one per operand edge, each asserted to store that edge's
+/// certificate verbatim.
+fn carried_edges(
+    label: &str,
+    operand: &Body<f64>,
+    kept: Option<usize>,
+    result: &Body<f64>,
+) -> Vec<EdgeKey> {
+    let shell = kept.map(|i| {
+        let (solid, _) = operand.solids().next().unwrap();
+        operand.shells_of_solid(solid).unwrap()[i]
+    });
+    let mine = certificates(label, operand, shell);
+    assert!(!mine.is_empty(), "{label}: the operand has certified edges");
+    let theirs = certificates(label, result, None);
+    mine.iter()
+        .map(|(key, (_, cert))| {
+            let Some((dk, carried)) = theirs.get(key) else {
+                panic!("{label}: no result edge on {key}")
+            };
+            assert_eq!(
+                carried, cert,
+                "{label}: the edge on {key} carries the operand's certificate"
+            );
+            *dk
+        })
+        .collect()
+}
+
+/// **The containment fallback's assembly carries its kept B operand's
+/// certificates**, as the void door carries a cavity's, under ∪ and ∩.
+/// The record of the graft's bridge says so whatever the certificates
+/// are. Each B edge arrives with its operand's certificate verbatim,
+/// and on the operands whose own certificates are fresh, a fresh
+/// re-certification mints that certificate again.
+///
+/// The lens is a boolean's own result, and the seam meridian it took
+/// from its B ball carries a certificate a fresh run does not
+/// reproduce
+/// (`work/cleave/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`):
+/// the assembly carries that one too.
+#[test]
+fn the_fallback_assembly_carries_the_kept_operands_certificates() {
+    let tol = Tol::witness();
+    let slab: Body<f64> = sweep::test_support::brick((-2.0, 2.0), (-3.0, -2.0), (-2.0, 2.0), tol);
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    // ∩ keeps shells of both operands: A's cavity sphere lies in B's
+    // material and B's outer sphere in A's.
+    let block: Body<f64> = sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (-3.0, 3.0), tol);
+    let holed = run(BooleanOp::Subtract, &block, &ball(1.0, 0.0));
+    let shell = run(BooleanOp::Subtract, &ball(2.0, 0.0), &ball(0.5, 0.0));
+    // (label, op, A, B, B's kept shell, B's certificates fresh)
+    for (label, op, a, b, kept, fresh) in [
+        (
+            "slab ∪ ball",
+            BooleanOp::Union,
+            &slab,
+            &ball(R1, 0.0),
+            None,
+            true,
+        ),
+        ("slab ∪ lens", BooleanOp::Union, &slab, &lens, None, false),
+        // ∩ keeps B's outer sphere and drops its cavity.
+        (
+            "holed block ∩ shell",
+            BooleanOp::Intersect,
+            &holed,
+            &shell,
+            Some(0),
+            true,
+        ),
+    ] {
+        let _ = topo::test_support::take_graft_bridges();
+        let out = match op {
+            BooleanOp::Union => topo::boolean::union(a, b, tol),
+            _ => topo::boolean::intersect(a, b, tol),
+        }
+        .unwrap_or_else(|e| panic!("{label}: refused: {e:?}"));
+        assert_eq!(
+            topo::test_support::take_graft_bridges(),
+            [topo::test_support::GraftBridge::RemapKeys],
+            "{label}: the assembly graft carries"
+        );
+        let out = out.body().unwrap_or_else(|| panic!("{label}: empty"));
+        assert!(
+            matches!(out.kind, topo::BooleanResultKind::Assembly),
+            "{label}: the containment fallback's assembly, got {:?}",
+            out.kind
+        );
+        let carried = carried_edges(label, b, kept, &out.body);
+        if fresh {
+            assert_eq!(
+                assert_certificates_fresh(label, &out.body, carried.iter().copied(), tol),
+                carried.len(),
+                "{label}: every carried edge compared"
+            );
         }
     }
 }

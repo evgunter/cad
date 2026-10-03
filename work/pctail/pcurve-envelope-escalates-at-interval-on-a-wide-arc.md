@@ -4,6 +4,7 @@ kind: issue
 title: the pcurve envelope check escalates at the Interval scalar on a wide shallow arc, so extrude refuses a cell it built before it minted
 status: open
 opened: 2026-10-01
+priority: P2
 ---
 
 Found by PCERT's `pcert/at-rest-rows-mandatory` (pcurve rows mandatory

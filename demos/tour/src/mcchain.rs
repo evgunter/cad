@@ -120,7 +120,7 @@ use pncad::topo::{Body, LoopBoundary};
 
 use crate::chain::{
     CERTIFIABLE_FRACTION, CERTIFIED_PIN_BOX, Chain, JOINT_SIGMA, LINK_HEIGHT, LINK_LENGTH, LINKS,
-    PIN_RADIUS, POSITION_BOUND, chain, pin_axis,
+    PIN_RADIUS, POSITION_BOUND, pin_axis, study,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -129,7 +129,7 @@ const MM: f64 = 1e3;
 // ---- the sheet's geometry, in px --------------------------------
 
 const SHEET_W: f64 = 1120.0;
-const SHEET_H: f64 = 920.0;
+const SHEET_H: f64 = 936.0;
 const WIDE_W: f64 = 1088.0;
 const WIDE_H: f64 = 230.0;
 const ZOOM_W_PX: f64 = 380.0;
@@ -137,7 +137,9 @@ const ZOOM_H_PX: f64 = 340.0;
 const MARGIN_X: f64 = 16.0;
 const WIDE_Y: f64 = 148.0;
 const ZOOM_Y: f64 = WIDE_Y + WIDE_H + 60.0;
-/// Where the per-joint table's columns start, in px from the left.
+/// Where the per-joint table starts, in px from the left.
+const TABLE_X: f64 = MARGIN_X + ZOOM_W_PX + 40.0;
+/// Where the per-joint table's columns start, in px from `TABLE_X`.
 const COL_X: [f64; 7] = [0.0, 40.0, 104.0, 210.0, 352.0, 414.0, 480.0];
 
 /// The tip panel's window WIDTH, in metres: how much of the part the
@@ -150,9 +152,39 @@ const ZOOM_WINDOW: f64 = 8.0e-3;
 /// invisible — a density, not a silhouette.
 const SAMPLE_ALPHA: f64 = 0.04;
 
-/// The floor width, in px, a certified box is drawn at — see
+/// The floor, in px, each side of a certified box is drawn at — see
 /// `Panel::certified_box` for why it has one.
 const CERTIFIED_MIN_PX: f64 = 5.0;
+
+/// The certified boxes' stroke; [`check_certified`] finds them by it.
+const CERTIFIED_STROKE: &str = "#0f766e";
+
+/// Which sides of the TIP's certified box, at `px_per_m`, are drawn at
+/// the [`CERTIFIED_MIN_PX`] floor rather than to scale. The tip's box is
+/// the largest, so a side floored there is floored at every pin.
+fn floored_sides(px_per_m: f64) -> &'static str {
+    let (dx, dy) = CERTIFIED_PIN_BOX[LINKS];
+    match (
+        2.0 * dx * px_per_m < CERTIFIED_MIN_PX,
+        2.0 * dy * px_per_m < CERTIFIED_MIN_PX,
+    ) {
+        (true, true) => "both sides",
+        (true, false) => "the side along the chain",
+        (false, true) => "the side across the chain",
+        (false, false) => "neither side",
+    }
+}
+
+/// How many times the certified box the whole study is, per axis —
+/// the box is [`CERTIFIABLE_FRACTION`] of it — spelled for the legend.
+fn study_over_certified() -> String {
+    let r = 1.0 / CERTIFIABLE_FRACTION;
+    if r < 1.0e3 {
+        format!("{r:.1}")
+    } else {
+        format!("{r:.2e}")
+    }
+}
 
 /// **Does the published certified box apply to THIS run?**
 ///
@@ -349,7 +381,7 @@ fn spreads(samples: &[Sample]) -> Vec<Spread> {
 ///
 /// Returns the SVG so the caller owns where it lands.
 pub fn narration(tol: Tol) -> String {
-    let base = chain(LINKS, JOINT_SIGMA, POSITION_BOUND, tol);
+    let base = study(LINKS, tol);
     let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
     let config = McConfig {
         samples: DEFAULT_SAMPLES,
@@ -739,26 +771,25 @@ impl Panel {
     /// that certifies whole — the other half of E11's trade, drawn to
     /// the same scale as the cloud it sits beside.
     ///
-    /// The along-the-chain half-width is microns (the reach barely
-    /// moves; the deviation is lateral), so at any scale this sheet
-    /// can carry, the box is a line. It is drawn at a floor width of
-    /// [`CERTIFIED_MIN_PX`] so that it is visible AS a box, and the
-    /// true number is in the table — a widened stroke that said
-    /// nothing about it would be the drawing lying about a
-    /// measurement.
+    /// Each side under [`CERTIFIED_MIN_PX`] is drawn at that floor,
+    /// centred on the nominal pin, so a box this sheet cannot resolve
+    /// is still visible AS a box; the legend says which sides are
+    /// floored ([`floored_sides`]) and the table prints the true
+    /// half-widths.
     fn certified_box(&self, out: &mut String, index: usize, applies: bool) {
         let (dx, dy) = CERTIFIED_PIN_BOX[index];
         if dy == 0.0 || !applies {
             return;
         }
         let s = self.px_per_m();
-        let (x0, y0) = self.map(index as f64 * LINK_LENGTH - dx, dy);
+        let (cx, cy) = self.map(index as f64 * LINK_LENGTH, 0.0);
         let w = (2.0 * dx * s).max(CERTIFIED_MIN_PX);
+        let h = (2.0 * dy * s).max(CERTIFIED_MIN_PX);
         let _ = writeln!(
             out,
-            r##"<rect x="{:.2}" y="{y0:.2}" width="{w:.2}" height="{:.2}" fill="none" stroke="#0f766e" stroke-width="1.8"/>"##,
-            x0 - (w - 2.0 * dx * s).max(0.0) / 2.0,
-            2.0 * dy * s
+            r##"<rect x="{:.2}" y="{:.2}" width="{w:.2}" height="{h:.2}" fill="none" stroke="{CERTIFIED_STROKE}" stroke-width="1.8"/>"##,
+            cx - w / 2.0,
+            cy - h / 2.0,
         );
     }
 
@@ -915,7 +946,7 @@ fn sheet(
     // The growth, as a table beside the zoom: the measured ratio and
     // the one the accumulation law predicts, so the fan is checked
     // rather than admired.
-    let tx = MARGIN_X + ZOOM_W_PX + 40.0;
+    let tx = TABLE_X;
     text(
         &mut out,
         tx,
@@ -968,7 +999,7 @@ fn sheet(
                 ratio(predicted_sigma(s.index), predicted_sigma(1))
             ),
             if certified {
-                format!("{:.4} mm", CERTIFIED_PIN_BOX[s.index].1 * MM)
+                format!("{:.3e} m", CERTIFIED_PIN_BOX[s.index].1)
             } else {
                 "\u{2014}".to_string()
             },
@@ -977,7 +1008,7 @@ fn sheet(
             text(
                 &mut out,
                 tx + COL_X[c],
-                ZOOM_Y + 78.0 + i as f64 * 22.0,
+                table_row_y(i),
                 12.0,
                 "#1a1a1a",
                 "normal",
@@ -1046,26 +1077,38 @@ fn sheet(
         "bold",
         "dashed orange: the nominal chain, every joint at zero.   dashed green: the target pin and the asserted position band",
     );
-    let (teal_bold, teal_note) = if certified {
+    // One clause per line: a legend line runs off a 1120 px sheet at
+    // about 170 characters, and what runs off is not on the sheet.
+    let (teal_bold, teal_notes) = if certified {
         (
             format!(
                 "teal: the CERTIFIED enclosure per joint \u{2014} exact over a box, and silent outside it. The widest box that certifies THIS chain whole is {:.3e} of the study.",
                 CERTIFIABLE_FRACTION
             ),
-            format!(
-                "\u{2014} across the chain it grows 1 : 3 : 6 : 10, the WORST-CASE lever sum; the advisory \u{03c3} beside it grows 1 : 2.24 : 3.74 : 5.48, the quadrature sum. Along the chain it is {:.1e} m at the tip, so the box draws as a line and is widened to {CERTIFIED_MIN_PX} px to be seen at all.",
-                CERTIFIED_PIN_BOX[LINKS].0
-            ),
+            [
+                "\u{2014} across the chain it grows 1 : 3 : 6 : 10, the WORST-CASE lever sum; the advisory \u{03c3} grows 1 : 2.24 : 3.74 : 5.48, the quadrature sum."
+                    .to_string(),
+                format!(
+                    "\u{2014} any side under {CERTIFIED_MIN_PX} px is drawn at {CERTIFIED_MIN_PX} px about its pin (on the whole chain: {}); the table has the true half-widths.",
+                    floored_sides(wide.px_per_m())
+                ),
+            ],
         )
     } else {
         (
             format!(
-                "CERTIFIED: no enclosure is drawn on this sheet. The published box ({:.3e} of the study) is a measurement at the compiled default \u{03b5}, and this run is at \u{03b5} = {:e}.",
+                "CERTIFIED: no enclosure is drawn here. The published box ({:.3e} of the study) is measured at the default \u{03b5}; this run is at \u{03b5} = {:e}.",
                 CERTIFIABLE_FRACTION,
                 Tol::witness().eps()
             ),
-            "\u{2014} the box MOVES with \u{03b5} (6.747e-5 at 1e-6 against 6.751e-8 at the default, measured), so at another \u{03b5} it is a different box. The tour's chaintol cell (demo-tour certified) declares that frontier at the same \u{03b5}; the sheet says what the cell says."
-                .to_string(),
+            [
+                format!(
+                    "\u{2014} the box MOVES with \u{03b5} (6.747e-5 at 1e-6 against {:.3e} at the default, measured), so at another \u{03b5} it is a different box.",
+                    CERTIFIABLE_FRACTION
+                ),
+                "\u{2014} the tour's chaintol cell (demo-tour certified) declares that frontier at the same \u{03b5}; the sheet says what the cell says."
+                    .to_string(),
+            ],
         )
     };
     text(
@@ -1077,28 +1120,33 @@ fn sheet(
         "bold",
         &teal_bold,
     );
+    for (i, note) in teal_notes.iter().enumerate() {
+        text(
+            &mut out,
+            MARGIN_X,
+            legend_y + 72.0 + i as f64 * 17.0,
+            12.0,
+            "#0f766e",
+            "normal",
+            note,
+        );
+    }
     text(
         &mut out,
         MARGIN_X,
-        legend_y + 72.0,
-        12.0,
-        "#0f766e",
-        "normal",
-        &teal_note,
-    );
-    text(
-        &mut out,
-        MARGIN_X,
-        legend_y + 89.0,
+        legend_y + 72.0 + teal_notes.len() as f64 * 17.0,
         12.0,
         "#1a1a1a",
         "normal",
         &format!(
             "ADVISORY: draws from the WHOLE distribution, tail included{}. Its numbers summarize these {} chains \u{2014} which is what the panels are.",
             if certified {
-                ", which is nine times the certified box"
+                format!(
+                    ", which is {} times the certified box",
+                    study_over_certified()
+                )
             } else {
-                ""
+                String::new()
             },
             samples.len()
         ),
@@ -1106,6 +1154,7 @@ fn sheet(
 
     out.push_str("</svg>\n");
     check_drawn(&out, samples, &wide, &zoom);
+    check_certified(&out, &wide, &zoom, certified);
     out
 }
 
@@ -1164,7 +1213,8 @@ fn elements<'a>(svg: &'a str, open: &str) -> Vec<&'a str> {
 /// 8,192 bar corners and the 2,560 pin centres, the panel maps, the
 /// ordering and the count. It does not read the legend, the axes, the
 /// nominal, the target or the certified boxes — those are literals,
-/// not draws from the population.
+/// not draws from the population; [`check_certified`] reads the
+/// certified boxes and the text that restates them.
 ///
 /// **Both arms were run against the defect that motivated them.** A
 /// one-millimetre displacement of every drawn pin reds here with
@@ -1248,4 +1298,115 @@ fn check_drawn(svg: &str, samples: &[Sample], wide: &Panel, zoom: &Panel) {
             }
         }
     }
+}
+
+/// The baseline, in px, of the per-joint table's `i`-th row (pin 2 first).
+fn table_row_y(i: usize) -> f64 {
+    ZOOM_Y + 78.0 + i as f64 * 22.0
+}
+
+/// The text content of the `<text>` element written at `(x, y)`, if any.
+fn text_at(svg: &str, x: f64, y: f64) -> Option<&str> {
+    let open = format!(r##"<text x="{x:.1}" y="{y:.1}""##);
+    let from = &svg[svg.find(&open)?..];
+    let body = &from[from.find('>')? + 1..];
+    Some(&body[..body.find("</text>")?])
+}
+
+/// **The certified overlay, read back out of the sheet**: the boxes
+/// [`check_drawn`] leaves alone, and the two places the text restates
+/// [`CERTIFIED_PIN_BOX`] and [`CERTIFIABLE_FRACTION`].
+///
+/// - every pin past the base gets one box per panel that draws it (the
+///   wide panel all [`LINKS`], the tip panel the tip), and none at all
+///   when the box does not apply;
+/// - each box is centred on its nominal pin, each side is at least
+///   [`CERTIFIED_MIN_PX`], and a side above the floor is drawn to
+///   scale — so a box that collapses to a zero-height rect reds here;
+/// - the table's certified column reads back, in metres, as the pinned
+///   half-width to its printed precision, and is never zero;
+/// - the legend's "times the certified box" reads back as
+///   `1 / CERTIFIABLE_FRACTION` to its printed precision.
+fn check_certified(svg: &str, wide: &Panel, zoom: &Panel, certified: bool) {
+    let stroke = format!(r##"stroke="{CERTIFIED_STROKE}""##);
+    let boxes: Vec<&str> = elements(svg, "<rect x=\"")
+        .into_iter()
+        .filter(|el| el.contains(&stroke))
+        .collect();
+    if !certified {
+        assert!(
+            boxes.is_empty(),
+            "a certified box is drawn at an ε the published box does not apply to"
+        );
+        return;
+    }
+    // The wide panel's pins 2..=LINKS+1 first, then the tip panel's tip.
+    let expected: Vec<(&Panel, usize)> = (1..=LINKS)
+        .map(|k| (wide, k))
+        .chain(std::iter::once((zoom, LINKS)))
+        .collect();
+    assert_eq!(
+        boxes.len(),
+        expected.len(),
+        "one certified box per pin on the whole chain, and one at the tip"
+    );
+    // Half a written unit at two decimals, with a unit of slack.
+    let px_slack = 0.015;
+    for (el, &(panel, k)) in boxes.iter().zip(&expected) {
+        let (x, y, w, h) = (
+            attr(el, r##"x=""##),
+            attr(el, r##"y=""##),
+            attr(el, r##"width=""##),
+            attr(el, r##"height=""##),
+        );
+        let s = panel.px_per_m();
+        let (dx, dy) = CERTIFIED_PIN_BOX[k];
+        for (side, drawn, half) in [("along", w, dx), ("across", h, dy)] {
+            let want = (2.0 * half * s).max(CERTIFIED_MIN_PX);
+            assert!(
+                (drawn - want).abs() <= px_slack,
+                "pin {}'s certified box is drawn {drawn} px {side} the chain; its half-width \
+                 {half:e} m at {s:.0} px/m draws {want} px (floored at {CERTIFIED_MIN_PX})",
+                k + 1
+            );
+        }
+        let (mx, my) = panel.unmap(x + w / 2.0, y + h / 2.0);
+        let tol = px_slack / s;
+        assert!(
+            (mx - k as f64 * LINK_LENGTH).abs() <= tol && my.abs() <= tol,
+            "pin {}'s certified box is centred at ({mx:e}, {my:e}) m, not on the nominal pin",
+            k + 1
+        );
+    }
+
+    for (k, &(_, pinned)) in CERTIFIED_PIN_BOX.iter().enumerate().skip(1) {
+        let cell = text_at(svg, TABLE_X + COL_X[6], table_row_y(k - 1))
+            .unwrap_or_else(|| panic!("the table has a certified cell for pin {}", k + 1));
+        let printed: f64 = cell
+            .strip_suffix(" m")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| panic!("pin {}'s certified cell `{cell}` is a length in m", k + 1));
+        assert!(
+            printed > 0.0 && (printed / pinned - 1.0).abs() <= 1.0e-3,
+            "pin {}'s certified cell prints `{cell}` against the pinned {pinned:e} m",
+            k + 1
+        );
+    }
+
+    let lead = ", which is ";
+    let at = svg
+        .find(lead)
+        .expect("the legend says how many times the certified box the study is")
+        + lead.len();
+    let rest = &svg[at..];
+    let printed: f64 = rest[..rest
+        .find(" times the certified box")
+        .expect("the ratio is followed by its unit")]
+        .parse()
+        .expect("the ratio is a number");
+    assert!(
+        (printed * CERTIFIABLE_FRACTION - 1.0).abs() <= 1.0e-2,
+        "the legend calls the study {printed} times the certified box; the box is \
+         {CERTIFIABLE_FRACTION:e} of it"
+    );
 }

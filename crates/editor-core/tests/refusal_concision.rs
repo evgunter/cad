@@ -49,7 +49,7 @@ fn cone_block_union_refusal() -> String {
         op: BooleanOp::Union,
         a: cone,
         b: block,
-        declare: None,
+        declare: Vec::new(),
     });
     let ev = eval::<f64>(&r.doc);
     match ev.nodes.get(&union) {
@@ -518,6 +518,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::RimCuspArmUnbuilt {
                 declaration,
                 wedge: MaterialWedge::Slit,
+            },
+        ),
+        (
+            "SharedVertexCrossings",
+            BooleanError::SharedVertexCrossings {
+                operand: Operand::B,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
             },
         ),
     ];

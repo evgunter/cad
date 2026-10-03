@@ -275,14 +275,14 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     m.insert("blob".into(), MetaValue::Bytes(vec![0xde, 0xad]));
     m.insert(
         "list".into(),
-        MetaValue::List(vec![MetaValue::Null, MetaValue::Bool(true)]),
+        MetaValue::list(vec![MetaValue::Null, MetaValue::Bool(true)]).expect("a shallow value"),
     );
     doc = push(
         &doc,
         &DocEdit::SetAppearanceMeta {
             name: body.clone(),
             key: "tool.example/pin".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
     );
     // v17: the measurement vocabulary on the wire (E3/E10) — a

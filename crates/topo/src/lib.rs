@@ -291,6 +291,27 @@ pub mod test_support {
         prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// Which bridge a graft ran ([`take_graft_bridges`]).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum GraftBridge {
+        /// Re-certified every carrier against the destination.
+        Recertify,
+        /// Carried the source's certificates, handles rewritten.
+        RemapKeys,
+    }
+
+    /// The bridge of every graft this thread ran since the last call,
+    /// in call order, draining the record.
+    pub fn take_graft_bridges() -> Vec<GraftBridge> {
+        crate::boolean::combine::take_bridges()
+            .into_iter()
+            .map(|b| match b {
+                crate::boolean::combine::Bridge::Recertify { .. } => GraftBridge::Recertify,
+                crate::boolean::combine::Bridge::RemapKeys => GraftBridge::RemapKeys,
+            })
+            .collect()
+    }
     pub use crate::test_support_samples::validation_error_samples;
 
     /// The boolean's volume backstop over `a`, `b` and a `result`, as the
@@ -690,11 +711,11 @@ pub use source::{
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ArcSideCase, ArcWindowCase, ConicCrossingsCase, ConicRootFault, CrossingDecision,
-    LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionError,
-    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SplitError, SplitFinishError,
-    SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult,
-    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
-    split_reduce, vertex_sides,
+    LoopContainment, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
+    SectionEdge, SectionError, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind,
+    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError,
+    SplitReduction, SplitResult, Uncrossable, UncrossableCarrier, classify_neighborhood,
+    plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

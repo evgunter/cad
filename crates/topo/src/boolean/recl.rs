@@ -24,7 +24,9 @@
 //! the rule to its OWN flankers' membership keys, apart: the germ's
 //! record is the pair of the two solids' transition flankers, minted
 //! when `pair_search` met no such pair (two coplanar flankers touching
-//! along the edge never make a record of their own).
+//! along the edge never make a record of their own). An edge two
+//! crossing pairs at one vertex both run a germ along folds Out in
+//! each ([`Reversed`]).
 //!
 //! Postcondition (checked loudly): no surviving record carries an On
 //! code.
@@ -252,14 +254,11 @@ pub(super) fn recl_sectors<T: Decide>(
             };
             let s_a = surface_of(a_body, sa.face)?;
             let s_b = surface_of(b_body, sb.face)?;
-            let p = a_body
-                .get_half_edge(sa.he)
-                .and_then(|he| a_body.get_vertex(he.start))
-                .and_then(|v| a_body.get_point(v.point))
-                .copied()
-                .ok_or(BooleanError::ClassificationInvariant {
+            let p = a_body.half_edge_start_point(sa.he).ok_or(
+                BooleanError::ClassificationInvariant {
                     what: "v-v site lost its point",
-                })?;
+                },
+            )?;
             let side = |own: &geom::Surface<T>, other: &geom::Surface<T>, n, d| {
                 super::sectors::tangent_relative_side(own, other, n, p, d, arm, read, band)
             };
@@ -508,6 +507,10 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 /// The event's germ is marked on ONE deterministic record; every other
 /// surviving record carrying an On in the event is cancelled (unless it
 /// was itself germ-marked by an earlier event).
+///
+/// An edge-edge germ along an edge in `reversed` goes on that solid's
+/// other flanker, folding the edge into the run on its Out side
+/// ([`Reversed`]).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_edges<T: Decide>(
     records: &mut Vec<PairRecord>,
@@ -519,6 +522,7 @@ pub(super) fn recl_edges<T: Decide>(
     op: BooleanOp,
     declared: &super::DeclaredPairs<T>,
     band: Band,
+    reversed: &Reversed,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
 
@@ -613,7 +617,17 @@ pub(super) fn recl_edges<T: Decide>(
             )?
             .map(|germ| match germ {
                 EdgeGerm::Held(g) => Ok(g),
-                EdgeGerm::Folded(germ) => place_germ(records, first_read, &marked, germ),
+                EdgeGerm::Folded(mut germ) => {
+                    let bound =
+                        |secs: &[BoolSector<T>], f_s: usize| secs[(f_s + 1) % secs.len()].he;
+                    if reversed.a.contains(&bound(a_sectors, am.start_holder)) {
+                        (germ.a, germ.sa) = reflank(germ.a, germ.sa, n_a);
+                    }
+                    if reversed.b.contains(&bound(b_sectors, bm.start_holder)) {
+                        (germ.b, germ.sb) = reflank(germ.b, germ.sb, n_b);
+                    }
+                    place_germ(records, first_read, &marked, germ)
+                }
             })
             .transpose()?,
             (Some(am), bm) if am.real => resolve_edge_sector(
@@ -694,6 +708,68 @@ pub(super) fn recl_edges<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// **The edges along which a vertex pair's edge-edge germs fold Out.**
+/// Two crossing pairs sharing a vertex may each hold a germ along one
+/// of its edges: an operand's two vertices at one point (a pinch) meet
+/// the other operand's vertex, whose edge runs along the pinch line.
+/// [`fold_on_bound`](super::sectors::fold_on_bound) folds the edge
+/// into each pair's In run, and the two In runs lie on either side of
+/// it, so the two pairs' cuts interleave around the shared vertex. The
+/// pinch's pieces meet only along the line, so the edge's Out side is
+/// one run for both: folded Out, each pair cuts on its own side of the
+/// edge.
+///
+/// A section segment along the edge puts its two ends' null edges into
+/// one face only if the fold is reversed at both ends, and each end is
+/// a v-v site of the edge's vertex with both pieces' vertices. An end
+/// at a vertex of the pinch is one already. An end inside the pinch's
+/// coincident edges, where the edge's own vertex meets them, or inside
+/// the edge where a pinch vertex meets it, starts as a vertex-on-edge
+/// event, and the reduction splits the edges there before this lane
+/// reads `contacts.vv`, so that end too pairs one vertex with both
+/// pieces' (the witness's top end does: its prism corner meets the
+/// pinch edges' interiors). The pieces' membership about the edge
+/// reads the same along it, so both ends hold the same two crossing
+/// germs, and both reverse.
+#[derive(Clone, Debug, Default)]
+pub(super) struct Reversed {
+    /// Bound half-edges in A's orbit (each the end bound's `he` of its
+    /// after-flanker).
+    pub a: Vec<crate::entity::HalfEdgeKey>,
+    /// Bound half-edges in B's orbit.
+    pub b: Vec<crate::entity::HalfEdgeKey>,
+}
+
+/// The bound half-edge, in `a_side`'s orbit, of a germ record (codes as
+/// first read) that runs along an edge of both solids: the edge's half
+/// at that vertex.
+pub(super) fn edge_edge_bound<T: geom_core::Real>(
+    read: &PairRecord,
+    a_sectors: &[BoolSector<T>],
+    b_sectors: &[BoolSector<T>],
+    a_side: bool,
+) -> Option<crate::entity::HalfEdgeKey> {
+    let bound = |secs: &[BoolSector<T>], idx: usize, codes| match on_bound(codes)? {
+        true => secs[idx]
+            .start_edge()
+            .then(|| secs[(idx + 1) % secs.len()].he),
+        false => secs[idx].end_edge().then_some(secs[idx].he),
+    };
+    let a = bound(a_sectors, read.a, read.sa)?;
+    let b = bound(b_sectors, read.b, read.sb)?;
+    Some(if a_side { a } else { b })
+}
+
+/// An edge-edge germ moved to its edge's other flanker, the edge read
+/// On at the bound that flanker holds and its other bound reading the
+/// opposite key, so [`mark_germ`] folds it to the same transition.
+fn reflank(idx: usize, codes: (SideCode, SideCode), n: usize) -> (usize, (SideCode, SideCode)) {
+    match codes {
+        (SideCode::On, k) => ((idx + 1) % n, (k.opposite(), SideCode::On)),
+        (k, _) => ((idx + n - 1) % n, (SideCode::On, k.opposite())),
+    }
 }
 
 /// Where an edge-edge event's germ goes.
@@ -904,14 +980,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                             };
                             let s_own = surface_of(own_body, own_sec.face)?;
                             let s_other = surface_of(other_body, other_sec.face)?;
-                            let p = own_body
-                                .get_half_edge(own_sec.he)
-                                .and_then(|he| own_body.get_vertex(he.start))
-                                .and_then(|vd| own_body.get_point(vd.point))
-                                .copied()
-                                .ok_or(BooleanError::ClassificationInvariant {
+                            let p = own_body.half_edge_start_point(own_sec.he).ok_or(
+                                BooleanError::ClassificationInvariant {
                                     what: "edge-edge site lost its point",
-                                })?;
+                                },
+                            )?;
                             let reach = declared.reach_of(
                                 own_op,
                                 own_sec.face,
@@ -1585,6 +1658,7 @@ mod tests {
             BooleanOp::Union,
             &declared,
             band,
+            &Reversed::default(),
         )
         .expect_err("the sense at an in-band arm refuses");
         let BooleanError::Escalated { decision, diag } = &err else {

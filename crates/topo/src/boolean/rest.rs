@@ -464,7 +464,10 @@ fn patch_discards<T: Decide>(
     let kept_across = |f: FaceKey| !patch.contains(&f);
     patch
         .iter()
-        .map(|&f| super::discard::discard_row(body, f, operand, &kept_across, result_ends, None))
+        .map(|&f| {
+            let ends = |_, u, w| result_ends(u, w);
+            super::discard::discard_row(body, f, operand, &kept_across, &ends, None)
+        })
         .collect()
 }
 
@@ -510,16 +513,10 @@ fn enumerate_segments<T: Decide>(
             .ok_or_else(|| desync("REST lane: pair B edge without a record"))?;
         sites.push((a_rec.at_vertex, b_rec.at_vertex));
         for g in &a_rec.germs {
-            let v = red
+            let point = red
                 .a
-                .get_half_edge(g.he)
-                .ok_or_else(|| desync("REST lane: germ half no longer resolves"))?
-                .start;
-            let point = *red
-                .a
-                .get_vertex(v)
-                .and_then(|vd| red.a.get_point(vd.point))
-                .ok_or_else(|| desync("REST lane: germ vertex has no point"))?;
+                .half_edge_start_point(g.he)
+                .ok_or_else(|| desync("REST lane: germ site has no point"))?;
             germs.push(Germ {
                 pair: i,
                 point,

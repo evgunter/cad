@@ -237,8 +237,10 @@ pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 3.016e-7;
 /// The enclosures are TIGHT, not padded: `2.430e-11` m is exactly
 /// `L · 3σ_c · 1` at the certified box's own σ. Since the extrude
 /// closes with the pcurve mint the box is `6.751e-8` of the study, so
-/// every enclosure is far under a pixel; the sheet widens it to be
-/// seen.
+/// every enclosure is far under a pixel: the sheet draws each side
+/// under `mcchain`'s pixel floor AT that floor, centred on the pin,
+/// says in its legend which sides are floored, and prints the true
+/// half-widths in its table.
 pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
     (0e0, 0e0),
     (6.938893903907228e-18, 2.430341361328867e-11),
@@ -348,6 +350,19 @@ pub struct Chain {
     /// The placed joint pins, base first: `links + 1` of them, pin `k`
     /// at the base of link `k` and the last at the tip.
     pub pins: Vec<RecipeNodeId>,
+}
+
+/// **The study** at `links` links: [`JOINT_SIGMA`] on every joint and
+/// [`POSITION_BOUND`] on the tip. At [`LINKS`] it is the chain
+/// [`crate::mcchain`] replays and the gallery writes;
+/// [`crate::chaintol`]'s table walks it from one link up.
+pub fn study(links: usize, tol: Tol) -> Chain {
+    chain(links, JOINT_SIGMA, POSITION_BOUND, tol)
+}
+
+/// The study's document at [`LINKS`] links, as the GUI opens it.
+pub fn gallery_document(tol: Tol) -> ProfileDoc {
+    study(LINKS, tol).doc
 }
 
 /// The chain document at `links` links, with `joint_sigma` on every

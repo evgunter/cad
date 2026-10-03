@@ -322,10 +322,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        11,
-        11,
+        16,
+        14,
         "`Box3`'s disjointness, containment, centre, split and reach meet all refuse by name, and \
-         so does the mignitude (`zero_free_lower_bound`, 4)",
+         so does the mignitude (`zero_free_lower_bound`, 4). `weight_floor` refuses the weight \
+         hull by name before reading its lower end, `s_offsets` asks it of each weight step it \
+         reads, and `transverse_readings` of the `φ` range whose ends it reads. The 2 that do \
+         not ask are `Centred::of`'s centre and radius, whose one caller, `pair_norm_sup`, \
+         refuses every term and offset by name before any is centred",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     ("crates/geom-brep/src/ssi/section.rs", 2, 2, ""),

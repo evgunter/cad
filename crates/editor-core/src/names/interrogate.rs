@@ -586,7 +586,6 @@ pub(crate) fn output_body<T: Decide>(
         // `ValuePayload::kind_name` speaks.
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
-        | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
         | ValuePayload::Gauge
         | ValuePayload::Measure { .. }
