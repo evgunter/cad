@@ -536,10 +536,54 @@ pub struct HeldNodes {
     nodes: Box<[SpokenNode]>,
     /// The profile steps the words name, where the document held them.
     steps: Box<[(StepId, StepAt)]>,
-    /// The features the words name, each with the one profile it read.
-    profiles: Box<[(RecipeNodeId, RecipeNodeId)]>,
-    /// The Booleans the words name, each with its operation.
-    ops: Box<[(RecipeNodeId, BooleanOp)]>,
+    /// What the words read off a node beyond its name: one slice, so a
+    /// refusal carrying these stays three pointers wide.
+    facts: Box<[NodeFact]>,
+}
+
+/// One thing a sentence's words read off a node ([`HeldNodes::facts`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NodeFact {
+    /// A feature, with the one profile it read.
+    SoleProfile(RecipeNodeId, RecipeNodeId),
+    /// A Boolean, with its operation.
+    Op(RecipeNodeId, BooleanOp),
+}
+
+impl NodeFact {
+    fn node(self) -> RecipeNodeId {
+        match self {
+            Self::SoleProfile(node, _) | Self::Op(node, _) => node,
+        }
+    }
+
+    /// This fact read again from `doc`: as `doc` holds the node now, or
+    /// as it was where `doc` does not hold it; let go where `doc` holds
+    /// the node and no longer answers it.
+    fn respoken<P: ProfilePayload>(self, doc: &Doc<P>) -> Option<Self> {
+        if doc.node(self.node()).is_none() {
+            return Some(self);
+        }
+        match self {
+            Self::SoleProfile(feature, _) => {
+                Some(Self::SoleProfile(feature, doc.sole_profile(feature)?))
+            }
+            Self::Op(boolean, _) => Some(Self::Op(boolean, doc.boolean_op(boolean)?)),
+        }
+    }
+}
+
+impl HeldNodes {
+    /// Keeps `fact`, once per node and kind of fact.
+    fn keep(&mut self, fact: NodeFact) {
+        let same = |held: &NodeFact| {
+            core::mem::discriminant(held) == core::mem::discriminant(&fact)
+                && held.node() == fact.node()
+        };
+        if !self.facts.iter().any(same) {
+            self.facts = self.facts.iter().copied().chain([fact]).collect();
+        }
+    }
 }
 
 impl HeldNodes {
@@ -557,21 +601,10 @@ impl HeldNodes {
                 .iter()
                 .filter_map(|&(id, _)| Some((id, doc.step(id)?)))
                 .collect(),
-            profiles: self
-                .profiles
+            facts: self
+                .facts
                 .iter()
-                .filter_map(|&(feature, profile)| match doc.node(feature) {
-                    Some(_) => Some((feature, doc.sole_profile(feature)?)),
-                    None => Some((feature, profile)),
-                })
-                .collect(),
-            ops: self
-                .ops
-                .iter()
-                .filter_map(|&(boolean, op)| match doc.node(boolean) {
-                    Some(_) => Some((boolean, doc.boolean_op(boolean)?)),
-                    None => Some((boolean, op)),
-                })
+                .filter_map(|fact| fact.respoken(doc))
                 .collect(),
         }
     }
@@ -593,15 +626,17 @@ impl HoldsNodes for HeldNodes {
     }
 
     fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
-        self.profiles
-            .iter()
-            .find_map(|&(held, profile)| (held == feature).then_some(profile))
+        self.facts.iter().find_map(|fact| match *fact {
+            NodeFact::SoleProfile(held, profile) if held == feature => Some(profile),
+            _ => None,
+        })
     }
 
     fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
-        self.ops
-            .iter()
-            .find_map(|&(held, op)| (held == id).then_some(op))
+        self.facts.iter().find_map(|fact| match *fact {
+            NodeFact::Op(held, op) if held == id => Some(op),
+            _ => None,
+        })
     }
 }
 
@@ -643,24 +678,15 @@ impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
 
     fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
         let profile = self.doc.sole_profile(feature)?;
-        let mut said = self.said.borrow_mut();
-        if said.profiles.iter().all(|(held, _)| *held != feature) {
-            said.profiles = said
-                .profiles
-                .iter()
-                .copied()
-                .chain([(feature, profile)])
-                .collect();
-        }
+        self.said
+            .borrow_mut()
+            .keep(NodeFact::SoleProfile(feature, profile));
         Some(profile)
     }
 
     fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
         let op = self.doc.boolean_op(id)?;
-        let mut said = self.said.borrow_mut();
-        if said.ops.iter().all(|(held, _)| *held != id) {
-            said.ops = said.ops.iter().copied().chain([(id, op)]).collect();
-        }
+        self.said.borrow_mut().keep(NodeFact::Op(id, op));
         Some(op)
     }
 }

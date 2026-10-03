@@ -2278,6 +2278,7 @@ NOT_BOUND = {
     "Say": SHAPE,
     "Speaker": SHAPE,
     "spoken_by": SHAPE,
+    "spoken_within": SHAPE,
     "SpokenName": SHAPE,
     "SpokenNode": SHAPE,
     "node_kind_noun": SHAPE,
