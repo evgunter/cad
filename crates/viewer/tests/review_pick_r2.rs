@@ -68,12 +68,16 @@ struct Tally {
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
 ///
-/// Last moved when an extrude's side became structural: 15 fewer
-/// grazes, the rays and refusals unchanged (the one corpus body that
-/// moved is `kitchen_sink`'s patterned block, now below its plane).
+/// Last moved when a boolean match came to mint both its chords on one
+/// computed curve (`chord_join::SegmentCurve`): the die's pip rims, the
+/// subtracted pips' edges on its top face, shift by 1 ulp, and only
+/// `die_composed_tour`'s aim crosses candidates whose determinant
+/// certification flips with it — 6 fewer refused candidates and 6 fewer
+/// rays with a refusal at each of its two landings, the rays and grazes
+/// unchanged.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (442_782, 141_968, 12_786, 6_882);
+const PINNED: (usize, usize, usize, usize) = (442_782, 141_968, 12_774, 6_870);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

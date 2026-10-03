@@ -2,11 +2,13 @@
 id: an-engraved-annular-sector-refuses-seam-orientation
 kind: issue
 title: A blind pocket shaped as an annular sector refuses SeamOrientation once its arcs sweep 135 degrees or more
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
 refs: [a-round-tube-standing-on-a-plate-refuses-seam-orientation]
+parent: JOIN-3
+closed: 2026-10-02
 ---
 
 
@@ -61,3 +63,20 @@ row the arc meets two lines at sharp corners.
 `tiltedcut` draws its C with each side split at the apex
 (`c_outline(Sides::SplitAtApex, ..)`), and pins the one-arc C as
 wall 4 of `curvedcut::walls`, which panics when the subtraction builds.
+
+## Closed (JOIN-3, PR 3895)
+
+Claimed from ZIP by JOIN-3, whose fix it is. The C's match on the cap's
+ring closed its run with the straight chord, and past a sweep near
+130° that chord winds the run the other way round from the arc the
+join mints, so the ring lane picked the wrong role order and the zip
+found the seams parallel. With the run closed by the segment's own
+curve (`chord_join::SegmentCurve`, `loop_winding::RunClosing`) every
+pose in the table builds at its closed form, through tiers 2 and 3′
+and the at-rest certificate: the top cap, the bottom cap, a box's top
+face, a through cut and a boss, at sweeps 135°, 180° and 270°, radii
+0.25 / 0.15 and 0.4 / 0.1
+(`sweep/tests/axis_lap.rs`, `an_engraved_one_arc_c_builds_at_every_sweep`).
+Closing the run with the straight chord again turns that row red with
+`SeamOrientation` at the first pose. `tiltedcut` draws its C with one
+arc per side, and its wall 4 is retired.

@@ -518,7 +518,10 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
     let band = Band::linear(tol)?;
-    let (a, b) = (one_solid(a)?, one_solid(b)?);
+    let (a, b) = (
+        one_solid(a, Operand::A, band, tol)?,
+        one_solid(b, Operand::B, band, tol)?,
+    );
     let mut result = boolean_op_recut(op, &a, &b, decls, strategy, true, tol)?;
     if let BooleanResult::Body(r) = &mut result {
         let pad = super::boxes::sweep_pad(band);
@@ -531,11 +534,20 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
 /// `body` as the pipeline reads an operand: as is when it holds at most
 /// one solid, else a clone with every shell under one solid (module
-/// docs, "Bodies in, bodies out").
-fn one_solid<T: Decide>(body: &Body<T>) -> Result<std::borrow::Cow<'_, Body<T>>, BooleanError> {
+/// docs, "Bodies in, bodies out"). A body of several solids passes the
+/// operand gate first, while its solids are still its own: the merged
+/// clone's one solid would total their volumes, and a total hides an
+/// inside-out part.
+fn one_solid<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    operand: Operand,
+    band: Band,
+    tol: Tol,
+) -> Result<std::borrow::Cow<'_, Body<T>>, BooleanError> {
     if body.solids().nth(1).is_none() {
         return Ok(std::borrow::Cow::Borrowed(body));
     }
+    super::reduce::gate_operand(body, operand, band, tol)?;
     let mut flat = body.clone();
     flat.merge_all_solids().map_err(BooleanError::Euler)?;
     Ok(std::borrow::Cow::Owned(flat))
@@ -1565,12 +1577,12 @@ pub(super) fn merge_rows(
 /// direction
 /// (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
 ///
-/// Complement operands: a reverted body's flux volume is NEGATIVE
-/// (its true set volume is infinite — the A∖B ≡ A∩revert(B) oracle
-/// route feeds such operands legitimately), so each bound applies
-/// only when its reference operand's volume is certified POSITIVE
-/// (bounded solid); against a complement the set bound is vacuous
-/// and is skipped, never misread as a violation.
+/// Each bound applies only when its reference operand's volume is
+/// certified POSITIVE (a bounded solid). The operand gate refuses an
+/// operand whose volume is definitely negative
+/// ([`BooleanError::InsideOutOperand`]), so what reaches here
+/// uncertified is an operand whose sign stayed open; against it the
+/// bound is skipped, never misread as a violation.
 ///
 /// # Dimension (audit F3, `docs/predicate-dimension-audit.md`)
 ///
