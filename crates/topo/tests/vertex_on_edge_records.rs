@@ -251,3 +251,116 @@ fn an_edge_on_face_overlap_ending_on_the_faces_edge_is_bounded_by_the_record() {
         "without the record its event refuses: {es:?}"
     );
 }
+
+/// `a ∪ c` of [`edge_touch`]'s bricks, joined: the union splits each
+/// rim where the other's corner rests, and the join makes each rim one
+/// edge again, so its two v-v records become `(vertex, edge)` records.
+fn joined_edge_touch(tol: Tol) -> topo::BooleanBody<f64> {
+    let a = common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let c = common::brick((0.5, 1.5), (-1.0, 0.0), (-1.0, 0.0), tol);
+    let topo::BooleanResult::Body(mut y) =
+        topo::union_with(&a, &c, &topo::BooleanDeclarations::none(), tol).expect("a ∪ c")
+    else {
+        panic!("a ∪ c came back empty");
+    };
+    y.join_edges(tol).expect("the join");
+    y
+}
+
+/// The two end points of `edge`.
+fn ends(body: &Body<f64>, edge: EdgeKey) -> [[f64; 3]; 2] {
+    let e = body.get_edge(edge).expect("a live edge");
+    let mut ends =
+        [e.he_plus, e.he_minus].map(|h| point(body, body.get_half_edge(h).unwrap().start));
+    ends.sort_by(|p, q| p.partial_cmp(q).unwrap());
+    ends
+}
+
+/// **Edge-split lineage**: a carried `(vertex, edge)` record lands on
+/// the piece of its split edge the vertex rests on. `c`'s corner
+/// (0.5, 0, 0) rests on `a`'s joined rim x∈(0, 1), and `a`'s corner
+/// (1, 0, 0) on `c`'s, x∈(0.5, 1.5). A slab across one rim, clear of
+/// the other brick, splits it at two points on one side of the corner,
+/// and the record follows the corner onto the piece between the
+/// nearer cut and the rim's far end: (0.3, 0, 0)–(1, 0, 0), and
+/// (0.5, 0, 0)–(1.2, 0, 0). The result certifies 3′ with the carried
+/// records. Red when the record stays on the edge's original key, or
+/// moves to the wrong side of a split: the piece it names does not
+/// hold the corner (`StaleContactDeclaration`), and the corner's event
+/// is undeclared.
+#[test]
+fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
+    let tol = Tol::witness();
+    let y = joined_edge_touch(tol);
+    let carried = topo::CarriedContacts {
+        vv: y
+            .contacts
+            .vv
+            .iter()
+            .map(|&pair| topo::CarriedVv {
+                pair,
+                class: topo::ContactClass::Rest,
+            })
+            .collect(),
+        ve: y
+            .contacts
+            .ve
+            .iter()
+            .map(|&rest| topo::CarriedVe {
+                rest,
+                class: topo::ContactClass::Rest,
+            })
+            .collect(),
+        ..topo::CarriedContacts::default()
+    };
+    for (at, rim, slab, piece) in [
+        (
+            [0.5, 0.0, 0.0],
+            [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
+            (0.2, 0.3),
+            [[0.3, 0.0, 0.0], [1.0, 0.0, 0.0]],
+        ),
+        (
+            [1.0, 0.0, 0.0],
+            [[0.5, 0.0, 0.0], [1.5, 0.0, 0.0]],
+            (1.2, 1.3),
+            [[0.5, 0.0, 0.0], [1.2, 0.0, 0.0]],
+        ),
+    ] {
+        let corner = vertex_at(&y.body, at);
+        let joined = y
+            .contacts
+            .ve
+            .iter()
+            .find(|r| r.vertex == corner)
+            .expect("the join leaves the corner's (vertex, edge) record");
+        assert_eq!(ends(&y.body, joined.edge), rim, "the joined rim");
+        let s = common::brick(slab, (-0.5, 0.5), (-0.5, 0.5), tol);
+        let decls = topo::BooleanDeclarations {
+            carried_a: carried.clone(),
+            ..topo::BooleanDeclarations::none()
+        };
+        let topo::BooleanResult::Body(out) = topo::union_with(&y.body, &s, &decls, tol)
+            .unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
+        else {
+            panic!("slab {slab:?}: empty");
+        };
+        let onto: Vec<_> = out
+            .contacts
+            .ve
+            .iter()
+            .filter(|r| r.vertex == corner)
+            .map(|r| ends(&out.body, r.edge))
+            .collect();
+        assert_eq!(
+            onto,
+            vec![piece],
+            "slab {slab:?}: the corner's record lands on its piece"
+        );
+        assert_eq!(
+            errors(&out.body, &out.contacts),
+            vec![],
+            "slab {slab:?}: the result certifies"
+        );
+    }
+}

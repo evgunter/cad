@@ -117,6 +117,83 @@ fn carried_records_certify_every_order_of_the_fold() {
     }
 }
 
+/// Every row of `records` carried in as `Rest`: the v-v rows and the
+/// `(vertex, edge)` rows a join leaves.
+fn carried_rows(records: &topo::ContactRecords) -> topo::CarriedContacts {
+    topo::CarriedContacts {
+        vv: rest_rows(records),
+        ve: records
+            .ve
+            .iter()
+            .map(|&rest| topo::CarriedVe {
+                rest,
+                class: ContactClass::Rest,
+            })
+            .collect(),
+        ..topo::CarriedContacts::default()
+    }
+}
+
+/// **Joined after every step, with the records carried, every order
+/// certifies and builds one body.** The fold of [`fold`], each step's
+/// result joined ([`BooleanBody::join_edges`]) before the next step
+/// reads it, as maximal edges asks of every output (`docs/DESIGN.md`,
+/// the merge stage): every step passes 3′, and the finished bodies of
+/// all six orders have one vertex, edge and face count, for each span
+/// (16, 24 and 12). Red when the join drops the v-v record whose vertex
+/// it joined away: the touching corner then rests on the joined rim
+/// undeclared (`UndeclaredContact` `VertexOnEdge` and the overlap it
+/// bounds). Red on the counts when a step's join is skipped: the orders
+/// that cut the rim before the flush pair merges keep a vertex the
+/// others never mint.
+#[test]
+fn joined_folds_certify_and_build_one_body_in_every_order() {
+    let tol = Tol::witness();
+    for span in C_SPANS {
+        let bodies = members(span, tol);
+        let mut counts = Vec::new();
+        for order in ORDERS {
+            let mut acc: Option<BooleanBody<f64>> = None;
+            for &next in &order[1..] {
+                let base = acc.as_ref().map_or(&bodies[order[0]], |s| &s.body);
+                let mut decls = flush_declarations(base, &bodies[next], tol);
+                if let Some(prev) = &acc {
+                    decls.carried_a = carried_rows(&prev.contacts);
+                }
+                let mut out = match union_with(base, &bodies[next], &decls, tol) {
+                    Ok(BooleanResult::Body(out)) => out,
+                    other => panic!("c over {span:?}, order {order:?}: {other:?}"),
+                };
+                out.join_edges(tol)
+                    .unwrap_or_else(|e| panic!("c over {span:?}, order {order:?}: join {e:?}"));
+                let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+                assert!(
+                    verdict.is_ok(),
+                    "c over {span:?}, order {order:?}, at {next}: 3′ refused {:?}",
+                    verdict.err()
+                );
+                acc = Some(out);
+            }
+            let body = &acc.expect("two steps").body;
+            assert!(
+                topo::joinable_vertices(body).is_empty(),
+                "c over {span:?}, order {order:?}: a joinable vertex is left"
+            );
+            counts.push((
+                order,
+                body.vertices().count(),
+                body.edges().count(),
+                body.faces().count(),
+            ));
+        }
+        let first = (counts[0].1, counts[0].2, counts[0].3);
+        assert!(
+            counts.iter().all(|c| (c.1, c.2, c.3) == first),
+            "c over {span:?}: the orders build different bodies: {counts:?}"
+        );
+    }
+}
+
 /// Two bricks touching along the z-axis over z ∈ (0.5, 1.5), and
 /// their record carried as `Rest` rows: two vertices at each end of
 /// the touch.
