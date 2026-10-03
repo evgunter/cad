@@ -2,13 +2,14 @@
 id: tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line
 kind: issue
 title: tier 3 passes a body whose curved wall touches a plane face's interior along a line with no edge for the contact
-status: review
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact]
 branch: cleave/tangent-interior-refuse
 pr: 3938
+closed: 2026-10-03
 ---
 
 
