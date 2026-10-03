@@ -16,9 +16,9 @@ The contract is ASSEMBLY.md A4, A9 and A11 (2)–(5). Ev's rulings on `[ev]` #34
 ## The slate, in order
 
 1. **P2-split** (`placement-split-and-inline-at-a-gauge-are-refused-until-p2-split`, P1 H):
-   - **What it builds:** the gauge hoist, a cut holding a gauge, an inline at an offset over any other part, and a mate-placed instance inlined when its part is one group at the empty chain. These are the interim refusals P2-core left: `CutHoldsGauge`, `NeedsAGauge`, `MatePlaced` and `MateFaceFrameCrosses`.
+   - **What it builds:** the gauge hoist, a cut holding a gauge, an inline at an offset over any other part, and a mate-placed instance inlined when its part is one group at the empty chain. These are the interim refusals P2-core left: `CutHoldsGauge`, `NeedsAGauge` and `MatePlaced`. The fourth, `MateFaceFrameCrosses`, is not this unit's: Ev ruled on `[ev]` #3888 that a `FromFace` side names no face, and P2-face (`a-from-face-mate-side-cannot-cross-the-split-or-inline-seam`) removes the arm.
    - **What it does first:** spec the `## P2-split` section of `docs/EDIT-PLACEMENT-SPEC.md` from the row and from the P2 section's rulings as built.
-   - **Open question on the row:** whether a re-spelled `FromFace` side may skip the frame rule's root-at-the-empty-chain condition.
+   - **The `FromFace` side** (ruled on `[ev]` #3888): it crosses with its head and is held to the frame rule's placed-group condition alone.
    - The parent row `placement-is-spelled-three-ways-node-registry-and-rule` closes when P2-split merges.
 2. **`split-and-inline-refusals-short-of-the-shape-guard`** (P3 E): the split and inline arms that still state no recourse. They are filed by exact id in `refusal_concision_refactor.rs`'s `FILED_NO_RECOURSE`. It rides with P2-split if that unit rewrites those arms.
 3. **`document-order-is-read-off-node-id-comparison-since-ids-are-digests`** (P1 M): the sweep of the class whose one known site (`admit_mate`) P2-core fixed.

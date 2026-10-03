@@ -2201,16 +2201,16 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// which is the one thing a tour scene had never needed before — see
 /// the friction note in `walk_tour`.
 ///
-/// # A mate frame names a face, and the solve resolves it
+/// # A mate side's frame is its head's face, and the solve resolves it
 ///
 /// A11 keeps the solve's ALGORITHM structural — coset intersection
 /// over decided predicates, no numeric fitting — while its inputs are
 /// the document plus its mated parts' evaluations: a mate frame is
-/// either numbers the author wrote or a FACE of the part, whose pose
-/// the solve reads off the part's own evaluation every time. The
-/// stand's post sides are faces (`MateFrame::FromFace`): each side's
-/// frame is its head, the post's cap, so a post whose height changes moves the seat
-/// with it, which the update walk shows — the shelf comes down with
+/// either numbers the author wrote or the side's own head face, whose
+/// pose the solve reads off the part's own evaluation every time. The
+/// stand's post sides are face frames (`MateFrame::FromFace`): each
+/// side's frame is its head, the post's cap, so a post whose height
+/// changes moves the seat with it, which the update walk shows — the shelf comes down with
 /// the shortened posts and the gate still certifies. The shelf's
 /// seating points stay authored numbers, because both lie on its one
 /// underside and a face frame has no offset inside its face — the two

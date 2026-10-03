@@ -263,7 +263,8 @@ shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 # Where each post's top meets the shelf's underside, each written in
 # its OWN part's coordinates. The post's seat IS its top cap face —
 # the face the post side's reference already names, so the frame
-# takes nothing: the solve reads the cap's pose off the post's
+# takes nothing, and one `own_face` serves every side framed on its
+# own head: the solve reads the cap's pose off the post's
 # evaluation every time, so a post whose height changes moves the
 # seat with it. The shelf's seats are authored numbers: both posts
 # meet ONE face of the shelf, its underside, and a face frame is that
@@ -271,7 +272,7 @@ shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 # spelled as the face would land on the same point. The posts sit
 # flush with the shelf's two ends, which is the obvious way to draw a
 # bench.
-post_seat = MateFrame.from_face()
+own_face = MateFrame.from_face()
 seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 seat_b = frame_at(SHELF_LENGTH - POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 
@@ -288,14 +289,14 @@ def seat(a, b):
 mate_a = stand.insert(
     Node.mate(
         shelf_i, shelf_underside, post_a, a_top, ContactClass.Rest,
-        seat(seat_a, post_seat),
+        seat(seat_a, own_face),
     ),
     resolver=store,
 )
 mate_b = stand.insert(
     Node.mate(
         post_b, b_top, shelf_i, shelf_underside, ContactClass.Rest,
-        seat(post_seat, seat_b),
+        seat(own_face, seat_b),
     ),
     resolver=store,
 )
@@ -351,9 +352,10 @@ mate follows the face when the part is edited, when the reference is
 rebound, and across a split or an inline; a face with no canonical
 frame (a NURBS carrier) refuses typed and keeps taking authored
 vectors. The face is the whole frame: a face frame's roll is the
-carrier's, and its origin is the face's canonical one. Authored vectors are the spelling for a
-point that is not a face's origin (the shelf's two seats above, both
-on its one underside), and for a roll the carrier does not give. A
+carrier's, and its origin is the face's canonical one. Authored
+vectors are the spelling for a point that is not a face's origin (the
+shelf's two seats above, both on its one underside), and for a roll
+the carrier does not give. A
 face frame also resolves at the NOMINAL value only: under an analysis
 lane — `stackup.sensitivities`' dual passes, a certified `clearance`'s
 interval leaf — the part's product pins no single number, the face

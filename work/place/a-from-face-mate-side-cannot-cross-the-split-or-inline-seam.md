@@ -34,10 +34,11 @@ A4, A3 and A11 (5) state it. The design-fork log records it as row 51.
 
 Built on `place/p2-face` as ruled. `MateFrame::FromFace` stores no face;
 `resolve_side` reads the face its head names in the member's part
-(`mate::head_face`, the one strip the viewer's mate tool also calls).
+(the member walk, the strip's one home; the viewer's mate tool reads
+the same walk).
 `MateFaceFrameCrosses` is gone at both seams, and `frame_survives`
 holds a face side to condition (b) alone. A face side reading a
-non-root member crosses split and inline with its world frame
+non-root member, or a pattern copy, crosses split and inline with its world frame
 unchanged bit for bit, and the round trip is exact under R1's
 comparator (`crates/editor-core/tests/p2_face.rs`). The spec's
 § P2-split rulings 7 and 8 and rows F1–F5 record what is built.
