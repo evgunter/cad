@@ -327,3 +327,17 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   - A shared-parameter `Expr` is strong evidence but not an explicit statement. Ev: the case for a silent assumption is much stronger when the user "literally declared that v tip should lie on the same plane".
   - The declaration seat stands as diffed, awaiting Ev's sign-off.
   - Follow-ups to file at merge: a detector finding that names the shared-parameter identity, and a DM1-style plane datum naming an edge.
+- [ev] PR 3960 merged with Ev's approval ("i think this works"). The fork-log row was renumbered 58 → 61 at merge. Filed with it:
+  - `split-refusal-detector-names-a-shared-parameter-coincidence` (P3);
+  - `a-plane-datum-through-a-named-edge` (P3);
+  - `coincidence-intent-has-too-many-spellings` (P2, design). This is Ev's concern: "this whole system is able to say the same thing in too many ways". Weigh it before CONTACT's vertex-declaration fork.
+
+  The split pinch build is not dispatched while weekly usage is in warning.
+- Steep tube (PR 3981, P1) reported. The −3.06e-6 margin is a conservative box lying *inside* the window, at every ε, so `trim_containment` decided a one-sided escape two-sidedly. The fix clamps each escape at zero, as the iso gates already do. Re-baselines: the tour chain's certifiable fractions about ×2, and the plate ledger's blocked residuals 32 → 40. This overlaps PCERT's open retirement of check 5 (Ev, PR 3919). Review tier: DR "steep-tube", M, byte 74 (mod 3 = 2), so SEQUENTIAL; first review dispatched (cloud).
+- Mints step 1 (PR 3979, P0) reported:
+  - gate rejections carry the decided margin; the `_reported` twins are folded in; `Invalid` now means poison only;
+  - `decide_magnitude` panics on a decided Negative, and 11 sites are migrated;
+  - sweep's `short_arm` also goes through the door;
+  - two sites are deferred to step 4 (I16's radius is input-reachable; N5).
+
+  The lane's open doubt: a decided zero on the wrong side now offers a tolerance that cannot pass, at every gate. A single full review is dispatched (cloud).
