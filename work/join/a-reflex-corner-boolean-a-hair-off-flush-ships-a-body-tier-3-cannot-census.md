@@ -105,4 +105,8 @@ claimed row `point-in-loop-escalates-on-ray-level-margins-the-arc-walk-retries`
 has the details). All 16 poses build SOUND.
 `join_rc_probes::reflex_corner_a_hair_off_flush_passes_its_own_census`
 pins four of them: the arm pose, two sqQ1 `U` side poses and one
-dRight `S_ab` side pose.
+dRight `S_ab` side pose. At ε = 1e-6 the hair is within ten bands, and
+three of the four refuse typed (`Escalated` on a coincidence, margins
+4e-6 to 7e-6), which the bar admits. The row allows that refusal only
+at a coarse ε, and logs it there; at 1e-9 and 1e-12 all four build
+sound. PR 3967.

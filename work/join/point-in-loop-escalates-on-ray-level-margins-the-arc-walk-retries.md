@@ -77,7 +77,7 @@ the abandon rule. Moving it to `ArmBand::Retry` changes refusals that
 `point_in_loop_arm` as the predicate its narrow rungs certify past.
 That consumer has to be measured first.
 
-## Built (JOIN, branch `join/rc-census-escalation`)
+## Built (JOIN, PR 3967)
 
 Claimed from HONE by JOIN's P0 reflex-corner census row, whose last pose
 was this row's arm half: the `sqQ1 0.003 -0.25 -0.75 U` union's census
