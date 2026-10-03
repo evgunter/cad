@@ -1243,6 +1243,20 @@ pub mod entity_door {
     }
 }
 
+/// How the copies of a circular pattern whose step is a turn or more
+/// would land ([`NodeErrorKind::FullRangeStep`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StepTurns {
+    /// The step is a whole number of turns at tolerance, so every
+    /// copy lands on the master.
+    Whole,
+    /// The angle within one turn that lands every copy where the step
+    /// does, up to rounding, spelled as a user writes it.
+    Within(String),
+    /// The step holds more whole turns than its value resolves.
+    Unresolved,
+}
+
 /// The closed set of node-evaluation failures. Kernel errors are
 /// carried UNALTERED (spec D2: no stringification).
 #[derive(Debug)]
@@ -1574,10 +1588,12 @@ pub enum NodeErrorKind {
     FullRangeStep {
         /// The step as authored.
         step: String,
-        /// Past a full turn, the step a turn nearer zero, which places
-        /// every copy where this one does; `None` at a full turn,
-        /// where every copy lands on the master.
-        nearer: Option<String>,
+        /// What the step evaluated to, in radians, when it is not a
+        /// literal (a literal's text already says), for the sentence
+        /// only.
+        evaluated: Option<geom_core::MarginDiag>,
+        /// How the copies would land.
+        turns: StepTurns,
     },
     /// A [`crate::node::Node::PlacedUnion`]'s placements could not be
     /// CERTIFIED disjoint (GROUP-BOOLEAN-DESIGN, ratified A′): the two
@@ -2463,20 +2479,49 @@ impl crate::spoken::Say for NodeErrorKind {
                  master. Recourse: make the step an angle the tolerance tells from zero \
                  (360 deg over the count closes a ring), or lower the tolerance",
             ),
-            Self::FullRangeStep { step, nearer: None } => write!(
-                f,
-                "the pattern step {step} is a full turn, so every copy would land on the \
-                 master. Recourse: make the step less than a turn (360 deg over the count \
-                 closes a ring)"
-            ),
             Self::FullRangeStep {
                 step,
-                nearer: Some(nearer),
-            } => write!(
-                f,
-                "the pattern step {step} is past a full turn, and a step is an angle within \
-                 one. Recourse: write it as {nearer}, which places every copy where this does"
-            ),
+                evaluated,
+                turns,
+            } => {
+                write!(f, "the pattern step {step}")?;
+                if let Some(radians) = evaluated {
+                    write!(f, ", which evaluated to {radians} rad,")?;
+                }
+                // A literal is rewritten; anything else is made to
+                // evaluate to the angle.
+                let make = if evaluated.is_some() {
+                    "make it evaluate to"
+                } else {
+                    "make the step"
+                };
+                match turns {
+                    StepTurns::Whole => write!(
+                        f,
+                        " is a whole number of turns, so every copy would land on the master. \
+                         Recourse: {make} a nonzero angle within one turn (360 deg over the \
+                         count closes a ring)"
+                    ),
+                    StepTurns::Within(within) if evaluated.is_some() => write!(
+                        f,
+                        " is past a full turn, and a step is an angle within one. Recourse: \
+                         make it evaluate within one turn; {within} does, and places every copy \
+                         where this does, up to rounding"
+                    ),
+                    StepTurns::Within(within) => write!(
+                        f,
+                        " is past a full turn, and a step is an angle within one. Recourse: \
+                         write it as {within}, which places every copy where this does, up to \
+                         rounding"
+                    ),
+                    StepTurns::Unresolved => write!(
+                        f,
+                        " holds more whole turns than its value resolves, and a step is an \
+                         angle within one. Recourse: {make} an angle within one turn (360 deg \
+                         over the count closes a ring)"
+                    ),
+                }
+            }
             Self::PlacementsUncertified { i, j } => write!(
                 f,
                 "placements {i} and {j} are not certified disjoint — their conservative boxes meet, \

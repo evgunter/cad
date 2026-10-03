@@ -834,7 +834,8 @@ mod tests {
             C::DegenerateStep => K::DegenerateStep,
             C::FullRangeStep => K::FullRangeStep {
                 step: "400 deg".to_owned(),
-                nearer: Some("400 deg - 360 deg".to_owned()),
+                evaluated: None,
+                turns: crate::StepTurns::Within("40 deg".to_owned()),
             },
             C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },
             C::PlacementRuleCountSpelling => {

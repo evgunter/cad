@@ -28,9 +28,10 @@
 //!
 //! **The placement-rule arithmetic.** [`transform_map`],
 //! [`SteppedOperands`], [`stepped_rule_map`] and the direction-role
-//! words beside them ([`TRANSFORM_AXIS_ROLE`],
-//! [`PATTERN_DIRECTION_ROLE`], [`DATUM_AXIS_ROLE`]) are the ONE
-//! spelling of "where does a placer put instance `i`". They are
+//! words beside them ([`TRANSFORM_AXIS_ROLE`], [`DATUM_AXIS_ROLE`];
+//! a linear rule's [`PATTERN_DIRECTION_ROLE`] is read inside its
+//! constructor) are the ONE spelling of "where does a placer put
+//! instance `i`". They are
 //! `pub(crate)` because the mate solve's derived offset
 //! (`crate::mate::member`) re-derives a placer's map from the recipe
 //! and must get the same affine and the same refusal words as the
@@ -910,7 +911,7 @@ pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
         "revolve_full_vs_partial" => "whether the revolve makes a full turn",
         PATTERN_SPACING => "whether the pattern spacing is positive",
         PATTERN_STEP => "whether the pattern step is zero",
-        PATTERN_STEP_TURN => "whether the pattern step reaches a full turn",
+        PATTERN_STEP_TURN => "how many whole turns the pattern step holds",
         _ => return None,
     })
 }
@@ -1780,23 +1781,9 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // Kernel contract: exactly-full must SAY Full. Anything else wires
     // Partial and the kernel's own classification rules on it.
     let angle = need_scalar(vals, SlotId::RevolveAngle)?;
-    let abs_angle = angle.max(-angle);
-    // Ledger row F14: |θ| − τ is RADIANS against the linear band; the
-    // honest lever (the profile's radial extent) lives kernel-side.
-    let revolution = match geom_core::k_stats::decide_flagged(
-        "revolve_full_vs_partial",
-        abs_angle - T::tau(),
-        b,
-        "F14",
-    ) {
-        Ok(Sign::Zero) => Revolution::Full,
-        Ok(_) => Revolution::Partial(angle),
-        Err(source) => {
-            return Err(NodeErrorKind::Escalated {
-                predicate: "revolve_full_vs_partial",
-                source,
-            });
-        }
+    let revolution = match turns_off("revolve_full_vs_partial", angle, T::tau(), b)? {
+        Sign::Zero => Revolution::Full,
+        _ => Revolution::Partial(angle),
     };
     wire_swept(
         &crate::verbs::sweep::revolve(),
@@ -4112,8 +4099,8 @@ fn declare_landing<'n>(
 pub(crate) const TRANSFORM_AXIS_ROLE: &str = "transform rotation axis";
 
 /// The role word a stepped rule's LINEAR direction is normalized
-/// under, shared by [`stepped_map`] and the mate solve.
-pub(crate) const PATTERN_DIRECTION_ROLE: &str = "pattern direction";
+/// under, inside [`SteppedOperands::linear`].
+const PATTERN_DIRECTION_ROLE: &str = "pattern direction";
 
 /// The role word a frame's authored +x direction is normalized under
 /// ([`frame_axes`]).
@@ -4183,171 +4170,31 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     Ok(OpOut::plain(payload, Arc::clone(&value.name_table)))
 }
 
-/// The resolved operands of a stepped placement rule: what the rule's
-/// math consumes, every direction unit by type: a LINEAR rule's
-/// direction minted here through [`unit()`], a CIRCULAR rule's axis a
-/// datum's `UnitVec3`, not re-decided.
-///
-/// Built only through [`Self::linear`] and [`Self::circular`], which
-/// the evaluation ([`stepped_map`]) and the mate solve's derived offset
-/// both call, so one value refuses on both roads. Neither is called
-/// for placement 0, which reads no operand.
-pub(crate) enum SteppedOperands<T: geom_core::Real> {
-    /// A linear rule: unit direction, spacing per step.
-    Linear {
-        /// The stepping direction.
-        direction: UnitVec3<T>,
-        /// The per-step translation distance along it, positive.
-        spacing: T,
-    },
-    /// A circular rule: the datum axis and the angle per step.
-    Circular {
-        /// A point on the rotation axis.
-        origin: Point3<T>,
-        /// The axis direction, the datum's own witness.
-        dir: UnitVec3<T>,
-        /// The rotation angle per step, signed by the right-hand rule
-        /// about `dir`, nonzero and within a turn.
-        step: T,
-    },
+mod stepped;
+pub(crate) use stepped::{
+    PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN, SteppedOperands, stepped_rule_map,
+};
+
+/// **The full-turn decision**: the sign of `|angle| − whole`, `whole`
+/// a whole number of turns, read by the revolve's full-or-partial
+/// wiring (at one turn) and by a circular pattern's step. Radians
+/// against the linear band (ledger row F14): the honest lever, the
+/// radial extent the angle sweeps at, is the kernel's for the revolve
+/// and not in hand for the pattern's derived offset.
+fn turns_off<T: Decide>(
+    predicate: &'static str,
+    angle: T,
+    whole: T,
+    band: Band,
+) -> Result<Sign, NodeErrorKind> {
+    geom_core::k_stats::decide_flagged(predicate, angle.max(-angle) - whole, band, "F14")
+        .map_err(escalated(predicate))
 }
 
-/// The funnel name of a linear pattern's spacing sign.
-pub(crate) const PATTERN_SPACING: &str = "pattern_spacing";
-
-/// The funnel name of whether a circular pattern's step is zero.
-pub(crate) const PATTERN_STEP: &str = "pattern_step";
-
-/// The funnel name of whether a circular pattern's step reaches a full
-/// turn.
-pub(crate) const PATTERN_STEP_TURN: &str = "pattern_step_full_turn";
-
-impl<T: Decide> SteppedOperands<T> {
-    /// A linear rule's operands. The direction is normalized under
-    /// [`PATTERN_DIRECTION_ROLE`]; the spacing is a size, so its sign
-    /// is decided at the band as an extrude's depth is: below zero
-    /// refuses naming the direction that steps the other way, spelled
-    /// from `authored` (the direction slots' expressions), and zero
-    /// refuses because every copy would land on the master.
-    pub(crate) fn linear(
-        direction: Vec3<T>,
-        spacing: T,
-        authored: &[crate::expr::Expr; 3],
-        band: Band,
-    ) -> Result<Self, NodeErrorKind> {
-        let unit_dir = unit(direction, PATTERN_DIRECTION_ROLE, band)?;
-        let decided = geom_core::k_stats::decide_reported(
-            PATTERN_SPACING,
-            geom_core::Margin::of(spacing),
-            band,
-        )
-        .map_err(|source| NodeErrorKind::Escalated {
-            predicate: PATTERN_SPACING,
-            source,
-        })?;
-        match decided.sign {
-            Sign::Positive => Ok(Self::Linear {
-                direction: unit_dir,
-                spacing,
-            }),
-            Sign::Zero => Err(NodeErrorKind::DegenerateSpacing),
-            Sign::Negative => Err(NodeErrorKind::NegativeSpacing {
-                spacing: decided.margin,
-                reversed: authored.each_ref().map(negated),
-            }),
-        }
-    }
-
-    /// A circular rule's operands. The step keeps its sign; a zero (or
-    /// sliver) step refuses, and so does one at or past a full turn,
-    /// spelled from `authored` (the step slot's expression). Both are
-    /// radians against the linear band, as the revolve's full-turn
-    /// check is (ledger row F14).
-    pub(crate) fn circular(
-        origin: Point3<T>,
-        dir: UnitVec3<T>,
-        step: T,
-        authored: &crate::expr::Expr,
-        band: Band,
-    ) -> Result<Self, NodeErrorKind> {
-        let escalated = |predicate| move |source| NodeErrorKind::Escalated { predicate, source };
-        let sign = geom_core::k_stats::decide_flagged(PATTERN_STEP, step, band, "F14")
-            .map_err(escalated(PATTERN_STEP))?;
-        if sign == Sign::Zero {
-            return Err(NodeErrorKind::DegenerateStep);
-        }
-        let past = match geom_core::k_stats::decide_flagged(
-            PATTERN_STEP_TURN,
-            step.max(-step) - T::tau(),
-            band,
-            "F14",
-        )
-        .map_err(escalated(PATTERN_STEP_TURN))?
-        {
-            Sign::Negative => return Ok(Self::Circular { origin, dir, step }),
-            Sign::Zero => false,
-            Sign::Positive => true,
-        };
-        Err(NodeErrorKind::FullRangeStep {
-            step: crate::expr::unparse(authored),
-            nearer: past.then(|| turn_nearer_zero(authored, sign == Sign::Positive)),
-        })
-    }
-}
-
-/// `authored`, negated, in the grammar a user types: a literal's own
-/// value negated (a zero stays `0.0`), anything else under a unary
-/// minus. Either evaluates to the exact negation, so the direction it
-/// spells steps the copies where the negative spacing did.
-fn negated(authored: &crate::expr::Expr) -> String {
-    use crate::expr::Expr;
-    let flipped = match authored.literal_value() {
-        Some(v) => Expr::literal(-v + 0.0, authored.dim()),
-        None => Expr::neg(authored.clone()),
-    };
-    flipped.map_or_else(
-        |_| format!("-({})", crate::expr::unparse(authored)),
-        |e| crate::expr::unparse(&e),
-    )
-}
-
-/// `authored` a full turn nearer zero, `step - 360 deg` for a positive
-/// step and `step + 360 deg` for a negative one.
-fn turn_nearer_zero(authored: &crate::expr::Expr, positive: bool) -> String {
-    use crate::expr::Expr;
-    let turn = Expr::angle_in(360.0, quantity::DEG);
-    let nearer = turn.and_then(|turn| {
-        if positive {
-            Expr::sub(authored.clone(), turn)
-        } else {
-            Expr::add(authored.clone(), turn)
-        }
-    });
-    let sign = if positive { '-' } else { '+' };
-    nearer.map_or_else(
-        |_| format!("{} {sign} 360 deg", crate::expr::unparse(authored)),
-        |e| crate::expr::unparse(&e),
-    )
-}
-
-/// The rigid map of placement `i ≥ 1` under a STEPPED rule (linear or
-/// circular) — **the one home of the stepped placement rule's math**,
-/// read by both placement-rule nodes (through [`stepped_map`]) and by
-/// the mate solve's derived offset, so all three derive the same map
-/// bit for bit. Placement 0 is the identity and reads no operand, so
-/// no caller asks this for it. `i as f64` is exact up to 2^53.
-pub(crate) fn stepped_rule_map<T: Decide>(ops: &SteppedOperands<T>, i: i64) -> Affine3<T> {
-    let step = T::from_f64(i as f64);
-    match ops {
-        SteppedOperands::Linear { direction, spacing } => {
-            Affine3::translation(direction.get() * (*spacing * step))
-        }
-        SteppedOperands::Circular {
-            origin,
-            dir,
-            step: angle,
-        } => Affine3::rotation_about_axis(*origin, dir.get(), *angle * step),
-    }
+/// A decision under `predicate` that could not be called, as the
+/// node's refusal.
+fn escalated(predicate: &'static str) -> impl FnOnce(geom_core::Indeterminate) -> NodeErrorKind {
+    move |source| NodeErrorKind::Escalated { predicate, source }
 }
 
 /// [`stepped_rule_map`] behind the evaluation's slot reads, which stay
@@ -5747,7 +5594,7 @@ mod stepped_operand_tests {
 
     use super::{NodeErrorKind, PATTERN_DIRECTION_ROLE, SteppedOperands, stepped_rule_map, unit};
     use crate::expr::{Dimension, Expr, ParamEnv, eval};
-    use geom_core::{Band, Tol, Vec3};
+    use geom_core::{Affine3, Band, Tol, Vec3};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -5764,7 +5611,7 @@ mod stepped_operand_tests {
     /// **The negative spacing's recourse, followed.** The refusal
     /// spells the authored direction negated; parsed back and written
     /// in with the spacing made positive, it steps every copy to the
-    /// map the negative spacing stepped it to, bit for bit up to the
+    /// translation the negative spacing names, bit for bit up to the
     /// sign of a zero component (a zero literal is spelled `0.0`, and
     /// `p + 0.0` is `p + -0.0` for every coordinate but `-0.0`).
     #[test]
@@ -5785,10 +5632,8 @@ mod stepped_operand_tests {
             else {
                 panic!("a negative spacing refuses for {authored:?}");
             };
-            let mirrored = SteppedOperands::Linear {
-                direction: unit(direction, PATTERN_DIRECTION_ROLE, band()).unwrap(),
-                spacing: -4.25,
-            };
+            let unit_dir = unit(direction, PATTERN_DIRECTION_ROLE, band()).unwrap();
+            let mirrored = |i: i64| Affine3::translation(unit_dir.get() * (-4.25 * i as f64));
             let written = reversed.each_ref().map(|text| {
                 crate::parse::parse_expr(text, &std::collections::BTreeMap::new())
                     .unwrap_or_else(|e| panic!("{text:?} parses: {e:?}"))
@@ -5799,7 +5644,7 @@ mod stepped_operand_tests {
             let bits = |c: [f64; 12]| c.map(|v| (v + 0.0).to_bits());
             for i in 1..6 {
                 assert_eq!(
-                    bits(stepped_rule_map(&mirrored, i).components()),
+                    bits(mirrored(i).components()),
                     bits(stepped_rule_map(&followed, i).components()),
                     "copy {i} of {reversed:?} lands where the negative spacing put it"
                 );

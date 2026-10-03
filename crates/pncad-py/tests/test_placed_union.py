@@ -761,9 +761,71 @@ class TestTheStepsReadBack(unittest.TestCase):
         self.assertEqual(self.refusal(self.circular(0.0)).kind, "degenerate_step")
         for degrees in (360.0, -360.0, 400.0, -400.0):
             self.assertEqual(self.refusal(self.circular(degrees)).kind, "full_range_step", degrees)
-        self.assertIn("write it as 400 deg - 360 deg,", str(self.refusal(self.circular(400.0))))
+        self.assertIn("write it as 40 deg,", str(self.refusal(self.circular(400.0))))
         for degrees in (90.0, -90.0):
             self.assertIsNone(self.refusal(self.circular(degrees)), degrees)
+
+    def stepped(self, step, th=None):
+        """Five copies of the block about the z axis at `step`, parsed
+        against the document (`th`, in degrees, declared first)."""
+        doc = Doc()
+        if th is not None:
+            doc.apply(DocEdit.set_doc_param(ParamName("th"), DocParam.angle(th * deg)))
+        box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
+        rule = PatternKind.circular(self.axis(doc), doc.parse_expr(step))
+        return doc, doc.insert(Node.pattern(box, Expr.count(5), rule))
+
+    def refused(self, built):
+        doc, node = built
+        ev = evaluate(doc)
+        self.assertFalse(ev.succeeded(node))
+        with self.assertRaises(EvaluationError) as caught:
+            ev.value(node)
+        self.assertEqual(caught.exception.kind, "full_range_step")
+        return str(caught.exception)
+
+    def lands(self, radians, built):
+        """Each copy's box centre sits where turning the master's by
+        `i * radians` about the z axis puts it, to rounding."""
+        doc, node = built
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(node), "the recourse builds")
+        centres = []
+        for body in ev.value(node).bodies():
+            ps = [tuple(c.meters for c in p) for p in body.tessellate(1 * m).positions]
+            centres.append(
+                [(min(p[k] for p in ps) + max(p[k] for p in ps)) / 2 for k in range(3)]
+            )
+        self.assertEqual(len(centres), 5)
+        x, y, z = centres[0]
+        for i, got in enumerate(centres):
+            s, c = math.sin(i * radians), math.cos(i * radians)
+            for k, want in enumerate((x * c - y * s, x * s + y * c, z)):
+                self.assertAlmostEqual(got[k], want, delta=1e-9, msg=(i, k))
+
+    def test_a_whole_number_of_turns_lands_every_copy_on_the_master(self):
+        for step in ("360 deg", "720 deg", "-720 deg", "12.566370614359172 rad"):
+            text = self.refused(self.stepped(step))
+            self.assertIn("is a whole number of turns, so every copy would land", text)
+
+    def test_past_a_turn_the_recourse_is_one_angle_that_lands_every_copy(self):
+        for step, radians, within in (
+            ("760 deg", math.radians(760.0), "40 deg"),
+            ("-760 deg", math.radians(-760.0), "-40 deg"),
+            ("13 rad", 13.0, None),
+        ):
+            text = self.refused(self.stepped(step))
+            named = text.split("write it as ")[1].split(", which places")[0]
+            if within is not None:
+                self.assertEqual(named, within)
+            self.assertIn("up to rounding", text)
+            self.lands(radians, self.stepped(named))
+
+    def test_a_driven_step_says_what_it_evaluated_to(self):
+        text = self.refused(self.stepped("th", th=760.0))
+        self.assertIn("which evaluated to", text)
+        self.assertIn("make it evaluate within one turn; th - 720 deg does", text)
+        self.lands(math.radians(760.0), self.stepped("th - 720 deg", th=760.0))
 
     def test_one_copy_reads_no_step(self):
         self.assertIsNone(self.refusal(self.circular(360.0), count=1))

@@ -23,7 +23,7 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
-use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
+use editor_core::{NodeError, NodeErrorKind, RecipeNodeId, StepTurns};
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
 
@@ -1077,17 +1077,43 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row("DegenerateSpacing", NodeErrorKind::DegenerateSpacing),
         row("DegenerateStep", NodeErrorKind::DegenerateStep),
         row(
-            "FullRangeStep(at)",
+            "FullRangeStep(whole)",
             NodeErrorKind::FullRangeStep {
                 step: "360 deg".to_owned(),
-                nearer: None,
+                evaluated: None,
+                turns: StepTurns::Whole,
             },
         ),
         row(
-            "FullRangeStep(past)",
+            "FullRangeStep(whole, evaluated)",
+            NodeErrorKind::FullRangeStep {
+                step: "720 deg * scalar(blades)".to_owned(),
+                evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
+                turns: StepTurns::Whole,
+            },
+        ),
+        row(
+            "FullRangeStep(within)",
+            NodeErrorKind::FullRangeStep {
+                step: "760 deg".to_owned(),
+                evaluated: None,
+                turns: StepTurns::Within("40 deg".to_owned()),
+            },
+        ),
+        row(
+            "FullRangeStep(within, evaluated)",
             NodeErrorKind::FullRangeStep {
                 step: "360 deg / scalar(blades) - 400 deg".to_owned(),
-                nearer: Some("360 deg / scalar(blades) - 400 deg + 360 deg".to_owned()),
+                evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
+                turns: StepTurns::Within("360 deg / scalar(blades) - 400 deg + 360 deg".to_owned()),
+            },
+        ),
+        row(
+            "FullRangeStep(unresolved)",
+            NodeErrorKind::FullRangeStep {
+                step: "1e20 rad".to_owned(),
+                evaluated: None,
+                turns: StepTurns::Unresolved,
             },
         ),
         row(

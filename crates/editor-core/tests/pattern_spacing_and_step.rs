@@ -22,17 +22,24 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Expr, Node, NodeErrorClass, NodeErrorKind, NodeResult, PatternKind, ProfileDoc, RecipeNodeId,
-    ValuePayload, parse_expr,
+    Dimension, DocEdit, DocParam, Expr, Node, NodeErrorClass, NodeErrorKind, NodeResult, ParamName,
+    PatternKind, ProfileDoc, RecipeNodeId, StepTurns, ValuePayload, parse_expr,
 };
 use fixture::{ang, len, scl};
 
 use corpus::{eval, failures};
 
 /// A block off the z axis (so a turn about it moves the copies), and
-/// the z-axis datum a circular rule turns it about.
-fn block() -> (corpus::Recorder, RecipeNodeId, RecipeNodeId) {
+/// the z-axis datum a circular rule turns it about; `th`, when given,
+/// is declared an angle parameter first.
+fn block(th: Option<(&ParamName, f64)>) -> (corpus::Recorder, RecipeNodeId, RecipeNodeId) {
     let mut r = corpus::Recorder::new();
+    if let Some((name, radians)) = th {
+        r.push(DocEdit::SetDocParam {
+            name: name.clone(),
+            value: DocParam::continuous(Dimension::Angle, radians),
+        });
+    }
     let axis = r.insert(Node::Datum(editor_core::Datum::Axis {
         origin: [len(0.0), len(0.0), len(0.0)],
         direction: [scl(0.0), scl(0.0), scl(1.0)],
@@ -60,7 +67,25 @@ fn linear(direction: [f64; 3], spacing: f64) -> PatternKind {
 
 /// A pattern (or, with `union`, a placed union) of the block.
 fn patterned(count: i64, kind: impl FnOnce(RecipeNodeId) -> PatternKind, union: bool) -> Built {
-    let (mut r, solid, axis) = block();
+    built(count, kind, union, None)
+}
+
+/// A pattern of the block whose rule reads the angle parameter `th`.
+fn driven(
+    count: i64,
+    kind: impl FnOnce(RecipeNodeId) -> PatternKind,
+    th: (&ParamName, f64),
+) -> Built {
+    built(count, kind, false, Some(th))
+}
+
+fn built(
+    count: i64,
+    kind: impl FnOnce(RecipeNodeId) -> PatternKind,
+    union: bool,
+    th: Option<(&ParamName, f64)>,
+) -> Built {
+    let (mut r, solid, axis) = block(th);
     let kind = kind(axis);
     let node = if union {
         Node::placed_union(solid, Expr::count(count), kind).expect("a stepped rule takes a count")
@@ -88,6 +113,38 @@ impl Built {
             Some(NodeResult::Failed(e)) => (e.kind.class(), e.to_string()),
             other => panic!("the pattern refuses, got {other:?}"),
         }
+    }
+
+    /// A full-range step's landing, and whether it carries a reading.
+    fn full_range_step(&self) -> (StepTurns, bool) {
+        let ev = eval::<f64>(&self.doc);
+        match ev.result(self.node) {
+            Some(NodeResult::Failed(e)) => match &e.kind {
+                NodeErrorKind::FullRangeStep {
+                    turns, evaluated, ..
+                } => (turns.clone(), evaluated.is_some()),
+                other => panic!("a full-range step, got {other:?}"),
+            },
+            other => panic!("the pattern refuses, got {other:?}"),
+        }
+    }
+
+    /// Each copy's centroid, in copy order; panics on any failure.
+    fn centroids(&self) -> Vec<[f64; 3]> {
+        let ev = eval::<f64>(&self.doc);
+        assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
+        let ValuePayload::Instances(bodies) = &ev.value(self.node).expect("builds").payload else {
+            panic!("a pattern builds instances");
+        };
+        bodies
+            .iter()
+            .map(|body| {
+                let (n, sum) = body.points().fold((0.0, [0.0; 3]), |(n, c), (_, p)| {
+                    (n + 1.0, [c[0] + p.x, c[1] + p.y, c[2] + p.z])
+                });
+                sum.map(|c| c / n)
+            })
+            .collect()
     }
 
     /// How many bodies the node builds; panics on any failure.
@@ -134,54 +191,194 @@ fn a_linear_spacing_is_a_positive_length() {
 }
 
 /// **The step's regions**: zero and a sliver refuse as degenerate; a
-/// full turn either way and anything past one refuse as full-range,
-/// past a turn naming the step a turn nearer zero; an ordinary step of
-/// either sign builds.
+/// whole number of turns either way and anything past one turn refuse
+/// as full-range; an ordinary step of either sign builds.
 #[test]
 fn a_circular_step_is_a_signed_angle_within_a_turn() {
     use std::f64::consts::TAU;
-    let circular = |step: f64| {
-        move |axis| PatternKind::Circular {
-            axis,
-            step: ang(step),
-        }
-    };
     for (step, class) in [
         (0.0, NodeErrorClass::DegenerateStep),
         (sliver(), NodeErrorClass::DegenerateStep),
         (TAU, NodeErrorClass::FullRangeStep),
         (-TAU, NodeErrorClass::FullRangeStep),
+        (2.0 * TAU, NodeErrorClass::FullRangeStep),
         (7.0, NodeErrorClass::FullRangeStep),
         (-7.0, NodeErrorClass::FullRangeStep),
+        (13.0, NodeErrorClass::FullRangeStep),
     ] {
-        let (got, text) = patterned(3, circular(step), false).refusal();
+        let (got, text) = patterned(3, circular(ang(step)), false).refusal();
         assert_eq!(got, class, "step {step}: {text}");
-    }
-    // Past a turn the refusal spells the step a turn nearer zero, in
-    // the grammar; written back in, it builds.
-    for (written, nearer) in [
-        ("400 deg", "400 deg - 360 deg"),
-        ("-400 deg", "-400 deg + 360 deg"),
-    ] {
-        let step = parse_expr(written, &BTreeMap::new()).unwrap();
-        let built = patterned(3, |axis| PatternKind::Circular { axis, step }, false);
-        let (_, text) = built.refusal();
-        assert!(
-            text.contains(&format!("write it as {nearer},")),
-            "past a turn, the step a turn nearer zero: {text}"
-        );
-        let step = parse_expr(nearer, &BTreeMap::new()).unwrap();
-        assert_eq!(
-            patterned(3, |axis| PatternKind::Circular { axis, step }, false).bodies(),
-            3,
-            "the recourse, followed, builds: {nearer}"
-        );
     }
     for step in [0.5, -0.5, TAU / 3.0] {
         assert_eq!(
-            patterned(3, circular(step), false).bodies(),
+            patterned(3, circular(ang(step)), false).bodies(),
             3,
             "step {step}"
+        );
+    }
+}
+
+/// **The full-turn band**: a step a band-sized hair off a whole turn
+/// is too close to call, on either side of it and of either sign.
+#[test]
+fn a_step_a_hair_off_a_turn_escalates() {
+    use std::f64::consts::TAU;
+    let hair = 2.0 * fixture::band().zero();
+    for step in [TAU + hair, TAU - hair, -TAU - hair, 2.0 * TAU + hair] {
+        let (got, text) = patterned(3, circular(ang(step)), false).refusal();
+        assert_eq!(got, NodeErrorClass::Escalated, "step {step}: {text}");
+    }
+}
+
+/// **A whole number of turns lands every copy on the master**, so the
+/// refusal says so, not "past a full turn": following a "past" recourse
+/// from 720° would only refuse again.
+#[test]
+fn a_whole_number_of_turns_refuses_as_coinciding_copies() {
+    use std::f64::consts::TAU;
+    for step in [
+        written("360 deg"),
+        written("720 deg"),
+        written("-720 deg"),
+        written("1080 deg"),
+        ang(2.0 * TAU),
+        ang(-3.0 * TAU),
+    ] {
+        let shown = editor_core::unparse(&step);
+        let built = patterned(3, circular(step), false);
+        let (_, text) = built.refusal();
+        let (turns, evaluated) = built.full_range_step();
+        assert_eq!(turns, StepTurns::Whole, "{shown}: {text}");
+        assert!(!evaluated, "{shown}: a literal is its own reading");
+        assert!(
+            text.contains("is a whole number of turns, so every copy would land on the master"),
+            "{shown}: {text}"
+        );
+    }
+}
+
+/// **Past a turn, the recourse is one angle within it, and following
+/// it lands the copies where the refused step would have.** A literal
+/// is rewritten as one literal in its own unit; every reduction is
+/// taken at once (760° is 40°, not "760 deg - 360 deg - 360 deg"), and
+/// the angle it names builds on the first try. The landing is
+/// geometric, not bitwise: each copy's centroid against the master's
+/// turned by the refused step, to rounding.
+#[test]
+fn past_a_turn_the_recourse_is_one_angle_that_lands_every_copy() {
+    for (step, radians, within) in [
+        ("760 deg", 760f64.to_radians(), Some("40 deg")),
+        ("-760 deg", (-760f64).to_radians(), Some("-40 deg")),
+        ("400 deg", 400f64.to_radians(), Some("40 deg")),
+        ("700 deg", 700f64.to_radians(), Some("340 deg")),
+        ("13 rad", 13.0, None),
+        ("-13 rad", -13.0, None),
+        ("1000 rad", 1000.0, None),
+    ] {
+        let built = patterned(5, circular(written(step)), false);
+        let (_, text) = built.refusal();
+        let (turns, evaluated) = built.full_range_step();
+        let StepTurns::Within(named) = turns else {
+            panic!("{step}: past a turn names an angle within one, got {turns:?}: {text}");
+        };
+        assert!(!evaluated, "{step}: a literal is its own reading");
+        if let Some(within) = within {
+            assert_eq!(named, within, "{step}: {text}");
+        }
+        assert!(
+            text.contains(&format!("write it as {named}, which places every copy")),
+            "{step}: {text}"
+        );
+        assert!(text.contains("up to rounding"), "{step}: {text}");
+        lands_where(radians, &named, &BTreeMap::new(), None);
+    }
+}
+
+/// **A driven step says what it evaluated to**, and that it must
+/// evaluate within one turn; the angle it names is the expression less
+/// the turns it holds, which builds and lands where the step would.
+#[test]
+fn a_driven_step_past_a_turn_says_what_it_evaluated_to() {
+    let th = ParamName::from_static("th");
+    let params = BTreeMap::from([(th.clone(), Dimension::Angle)]);
+    for (step, value, times, within) in [
+        ("th", 760.0, 1.0, "th - 720 deg"),
+        ("-th", 760.0, -1.0, "-th + 720 deg"),
+        ("th * 2.0", 200.0, 2.0, "th * 2.0 - 360 deg"),
+    ] {
+        let value = f64::to_radians(value);
+        let radians = times * value;
+        let expr = parse_expr(step, &params).unwrap();
+        let built = driven(5, circular(expr), (&th, value));
+        let (class, text) = built.refusal();
+        assert_eq!(class, NodeErrorClass::FullRangeStep, "{step}: {text}");
+        let (turns, evaluated) = built.full_range_step();
+        assert_eq!(
+            turns,
+            StepTurns::Within(within.to_owned()),
+            "{step}: {text}"
+        );
+        assert!(evaluated, "{step}: a driven step carries its reading");
+        assert!(
+            text.contains(&format!("which evaluated to {radians} rad")),
+            "{step}: the reading, in radians: {text}"
+        );
+        assert!(
+            text.contains(&format!("make it evaluate within one turn; {within} does")),
+            "{step}: {text}"
+        );
+        lands_where(radians, within, &params, Some((&th, value)));
+    }
+    let expr = parse_expr("th * 2.0", &params).unwrap();
+    let whole = driven(3, circular(expr), (&th, f64::to_radians(360.0)));
+    let (_, text) = whole.refusal();
+    assert_eq!(whole.full_range_step(), (StepTurns::Whole, true), "{text}");
+    assert!(
+        text.contains("make it evaluate to a nonzero angle within one turn"),
+        "{text}"
+    );
+}
+
+/// A circular rule about the block's axis at `step`.
+fn circular(step: Expr) -> impl FnOnce(RecipeNodeId) -> PatternKind {
+    move |axis| PatternKind::Circular { axis, step }
+}
+
+/// `text` parsed as a parameter-free expression.
+fn written(text: &str) -> Expr {
+    parse_expr(text, &BTreeMap::new()).unwrap()
+}
+
+/// **Follows a recourse**: builds five copies at `within` (with `th`
+/// declared when it is driven) and checks each copy's centroid sits
+/// where turning the master's by `i · radians` about the z axis puts
+/// it.
+fn lands_where(
+    radians: f64,
+    within: &str,
+    params: &BTreeMap<ParamName, Dimension>,
+    th: Option<(&ParamName, f64)>,
+) {
+    let step = parse_expr(within, params).unwrap_or_else(|e| panic!("{within:?} parses: {e:?}"));
+    let built = match th {
+        Some(th) => driven(5, circular(step), th),
+        None => patterned(5, circular(step), false),
+    };
+    let centroids = built.centroids();
+    assert_eq!(
+        centroids.len(),
+        5,
+        "{within}: the recourse builds every copy"
+    );
+    let [x, y, z] = centroids[0];
+    for (i, got) in centroids.iter().enumerate() {
+        let (sin, cos) = (i as f64 * radians).sin_cos();
+        let want = [x * cos - y * sin, x * sin + y * cos, z];
+        let off = (0..3).map(|k| (got[k] - want[k]).abs()).fold(0.0, f64::max);
+        assert!(
+            off < 1e-9,
+            "{within}: copy {i} lands {off} m from where the refused step put it ({got:?} vs \
+             {want:?})"
         );
     }
 }

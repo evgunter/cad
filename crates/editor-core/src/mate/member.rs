@@ -608,8 +608,8 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 /// outside the placement.
 ///
 /// `None` is the identity: an empty chain, or a chain whose every
-/// placer is itself the identity (copy 0's map is the identity by the
-/// stepped rule's own construction). Kept as absence, so a document
+/// placer is itself the identity (copy 0, the master, reads no operand
+/// and contributes none). Kept as absence, so a document
 /// with no transform and no pattern composes nothing and its solve
 /// stays bit-for-bit what it was.
 ///

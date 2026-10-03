@@ -309,6 +309,76 @@ fn a_certified_side_stops_at_the_seeds_edge() {
     assert_eq!(r.nominal(), 1.0);
 }
 
+/// **A pattern's step stays inside its turn**: the certificate over a
+/// driven step stops short of zero, where the copies would mirror and
+/// every reference to a copy silently change sides, and short of a
+/// full turn either way, from seeds that reach past both. The claim is
+/// where the certificate cannot reach, not how near it gets, so a
+/// small budget makes it.
+#[test]
+fn a_driven_step_certifies_within_its_turn() {
+    use std::f64::consts::TAU;
+    for (step, seed) in [
+        (1.0, RangeSeed { lo: -3.0, hi: 7.0 }),
+        (3.0, RangeSeed { lo: -5.0, hi: 5.0 }),
+        (-1.0, RangeSeed { lo: -7.0, hi: 3.0 }),
+    ] {
+        let mut r = Recorder::new();
+        let axis = r.insert(Node::Datum(editor_core::Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(0.0), scl(1.0)],
+        }));
+        let f = frame(&mut r);
+        let p = r.insert(Node::Profile(ProfileProgram {
+            plane: f,
+            loops: vec![unit_square()],
+            ids: Vec::new(),
+        }));
+        let e = r.insert(Node::Extrude {
+            profile: p,
+            distance: len(0.5),
+            side: ExtrudeSide::Along,
+        });
+        let pattern = r.insert(Node::Pattern {
+            input: e,
+            count: Expr::count(3),
+            kind: PatternKind::Circular {
+                axis,
+                step: fixture::ang(step),
+            },
+        });
+        let range = certified_range(
+            &r.doc,
+            &RangeField::Slot {
+                node: pattern,
+                slot: SlotId::Step,
+            },
+            seed,
+            &budget(8, 64),
+            tol(),
+        )
+        .expect("the step boxes");
+        let (lo, hi) = range.certified_interval();
+        let inside = if step > 0.0 {
+            0.0 < lo && hi < TAU
+        } else {
+            -TAU < lo && hi < 0.0
+        };
+        assert!(
+            inside && lo < step && step < hi,
+            "step {step}: the certificate stays inside its turn: [{lo}, {hi}], sides {:?} {:?}",
+            range.lo(),
+            range.hi()
+        );
+        for side in [range.lo(), range.hi()] {
+            assert!(
+                !matches!(side, RangeSide::Certified { .. }),
+                "step {step}: each side meets a boundary before the seed's edge: {side:?}"
+            );
+        }
+    }
+}
+
 /// **A pattern's spacing has the slab's floor**: a spacing is a size,
 /// so the certificate over a driven spacing stops above zero instead
 /// of certifying through it into the mirrored pattern, where every

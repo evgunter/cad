@@ -30,7 +30,7 @@ use std::path::{Path, PathBuf};
 /// level by hand with the audit's own prose inventory; the sibling
 /// assertion, [`every_shipped_site_cites_a_ledger_row_that_exists`],
 /// reads its rows out of the audit and does compute.
-const LEDGER_FLAGGED_SITES: usize = 6;
+const LEDGER_FLAGGED_SITES: usize = 5;
 
 /// One shipped call site: where it is, and the row it cites.
 #[derive(Debug)]
@@ -106,9 +106,14 @@ fn skip_turbofish(rest: &str, at: usize) -> usize {
     k
 }
 
-/// Finds every `decide_flagged(…)` call in `text`.
+/// The suffix of the lane's reporting door, `decide_flagged_reported`,
+/// whose sites are counted as the plain door's are.
+const REPORTED: &str = "_reported";
+
+/// Finds every `decide_flagged(…)` and `decide_flagged_reported(…)`
+/// call in `text`.
 ///
-/// **What this pattern matches**: the identifier, then an optional
+/// **What this pattern matches**: either identifier, then an optional
 /// turbofish, then `(` — under every import spelling
 /// (`geom_core::k_stats::decide_flagged(`, `k_stats::decide_flagged(`,
 /// and the bare `decide_flagged(` a `use` makes available) and with or
@@ -173,6 +178,11 @@ fn calls_in(text: &str) -> Vec<(usize, String)> {
         };
         if !prev_ok {
             continue;
+        }
+        // `decide_flagged_reported` is the same lane keeping its
+        // margin, and the same obligation.
+        if code[i..].starts_with(REPORTED) {
+            i += REPORTED.len();
         }
         let rest = &code[i..];
         let open = skip_turbofish(rest, at);
