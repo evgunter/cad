@@ -1659,7 +1659,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
             [MintRefusal::Reference { why, .. }] => {
-                assert_eq!(*why, editor_core::RefusedRef::Vanished);
+                assert_eq!(*why, editor_core::RefusedRef::Vanished { by: None });
             }
             rows => panic!("one mate refused, so one row: {rows:?}"),
         },
