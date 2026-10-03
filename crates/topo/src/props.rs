@@ -723,13 +723,13 @@ impl<T: Decide> Round<'_, '_, T> {
     /// lane to re-derive through.
     pub(crate) fn interval(&self) -> Option<Result<VolumeEnclosure<Interval>, MassPropsError>> {
         let lane = self.quad?;
-        Some(rederive(self.body, self.band, lane, self.runs).map(|(volume, area)| {
-            VolumeEnclosure {
+        Some(
+            rederive(self.body, self.band, lane, self.runs).map(|(volume, area)| VolumeEnclosure {
                 volume_lo: volume,
                 volume_hi: volume,
                 surface_area: area,
-            }
-        }))
+            }),
+        )
     }
 }
 
@@ -763,12 +763,13 @@ fn rederive<T: Decide>(
             None => {
                 let (face, surface) = resolve_face(body, run.face)?;
                 let loops = face_loops(body, face)?;
-                let c = (lane.closed_form)(surface, &loops, face.sense, band).map_err(|source| {
-                    MassPropsError::Face {
-                        face: run.face,
-                        source,
-                    }
-                })?;
+                let c =
+                    (lane.closed_form)(surface, &loops, face.sense, band).map_err(|source| {
+                        MassPropsError::Face {
+                            face: run.face,
+                            source,
+                        }
+                    })?;
                 (c.flux, c.area)
             }
         };
@@ -2501,11 +2502,11 @@ fn shell_role_at<U: Decide>(
             .and_then(|decided| ShellRole::decided_at(end, decided.sign))
     };
     let lo = sign_at(ends.volume_lo);
-    if let Some(role) = role_at(BracketEnd::Low, lo.clone()) {
+    if let Some(role) = role_at(BracketEnd::Low, lo) {
         return Ok(role);
     }
-    let hi = if padded { sign_at(ends.volume_hi) } else { lo.clone() };
-    role_at(BracketEnd::High, hi.clone()).ok_or_else(|| shell_role_refusal(shell, lo, hi, band))
+    let hi = if padded { sign_at(ends.volume_hi) } else { lo };
+    role_at(BracketEnd::High, hi).ok_or_else(|| shell_role_refusal(shell, lo, hi, band))
 }
 
 /// The refusal of a shell whose bracket `[lo, hi]` classified to neither

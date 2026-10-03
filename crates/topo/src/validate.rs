@@ -4423,12 +4423,14 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             quad,
             |round| match plus_v_decide(round.enclosure(), band) {
                 PlusVOutcome::Pass => Some(PlusVVerdict::Pass),
-                PlusVOutcome::Refuse => match plus_v_certify(round, crate::props::ShellRole::Void, band) {
-                    Ok(Some(crate::props::ShellRole::Void)) => Some(PlusVVerdict::Refuse),
-                    Ok(Some(crate::props::ShellRole::Outer)) => Some(PlusVVerdict::Pass),
-                    Ok(None) => None,
-                    Err(source) => Some(PlusVVerdict::Uncomputable(source)),
-                },
+                PlusVOutcome::Refuse => {
+                    match plus_v_certify(round, crate::props::ShellRole::Void, band) {
+                        Ok(Some(crate::props::ShellRole::Void)) => Some(PlusVVerdict::Refuse),
+                        Ok(Some(crate::props::ShellRole::Outer)) => Some(PlusVVerdict::Pass),
+                        Ok(None) => None,
+                        Err(source) => Some(PlusVVerdict::Uncomputable(source)),
+                    }
+                }
                 PlusVOutcome::Undecided => None,
             },
             |refusal| plus_v_at_target(PlusVOutcome::Undecided, refusal),
