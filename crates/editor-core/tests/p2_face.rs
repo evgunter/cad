@@ -586,7 +586,7 @@ fn a_head_naming_no_part_face_refuses_no_part_face_at_the_door() {
 /// profile — every face of it renamed, since a face name derives from
 /// the node that mints it — and the new body.
 fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, RecipeNodeId) {
-    let Some(Node::Extrude { profile, .. }) = base.node(body).cloned() else {
+    let Some(Node::Extrude { profile, side, .. }) = base.node(body).cloned() else {
         panic!("the base's body is an extrude");
     };
     let (base, _) = step(base.clone(), DocEdit::DeleteNode { id: body });
@@ -595,6 +595,7 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
         Node::Extrude {
             profile,
             distance: len(height),
+            side,
         },
     )
 }
