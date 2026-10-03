@@ -100,6 +100,18 @@
 //! the mass went. Beside it the Monte-Carlo lane answers the same
 //! question advisorily, labeled, with its count and seed.
 //!
+//! **The plate with its holes cut is a wall.** The study's document
+//! reads the web off the hole extrudes and never subtracts them
+//! ([`crate::plate`]); [`crate::plate::cut_plate`] cuts them and reads
+//! the cut part's bore walls, and the drive certifies no box of it:
+//! each hole lies wholly inside the blank, so the subtract's volume
+//! bound `vol(A ∖ B) ≥ vol(A) − vol(B)` is a tie whose enclosure
+//! straddles zero at every width
+//! (`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
+//! [`cut_wall`] pins it at `1e-9` of the study, a box the study's own
+//! document certifies whole. The Monte-Carlo lane answers on the cut
+//! plate; only the certified lane, and the stackup over it, refuse.
+//!
 //! **Stop 2 is the MVP's reason to exist, at the scale where it
 //! works.** The same plate with every tolerance scaled to the box the
 //! driver can certify: the certified worst case and the RSS's 3σ
@@ -180,7 +192,7 @@ use pncad::analysis::{
 use pncad::document::{ProfileDoc, RecipeNodeId};
 use pncad::geom_core::Tol;
 
-use crate::plate::{Plate, WEB, WEB_BOUND, plate};
+use crate::plate::{Plate, RADIUS_SIGMA, SPACING_HALF_WIDTH, WEB, WEB_BOUND, plate};
 
 /// The hull's padding below and above the true range over the
 /// certified leaves at stop 1's budget (512 leaves, 193 certified),
@@ -243,6 +255,57 @@ fn parallel() -> DriveConfig {
 pub fn narration(tol: Tol) {
     real_study(tol);
     certified_study(tol);
+    cut_wall(tol);
+}
+
+/// **The wall: the plate with its holes cut certifies on no box.**
+///
+/// [`crate::plate::cut_plate`] is the natural spelling — the holes
+/// subtracted from the blank, the web read off the cut part's bore
+/// walls. Each hole lies wholly inside the blank, so
+/// `vol(A ∖ B) ≥ vol(A) − vol(B)` holds with equality, and the
+/// backstop's `volume_backstop_violation` enclosure straddles zero at
+/// every box width (measured to `1e-12` of the study). The probe is the
+/// whole box at `1e-9` of the study, one leaf: a box that narrow
+/// certifies whole on the study's own document.
+fn cut_wall(tol: Tol) {
+    let s = 1.0e-9;
+    let whole = DriveConfig {
+        max_leaves: 1,
+        ..DriveConfig::default()
+    };
+    let uncut = plate(SPACING_HALF_WIDTH * s, RADIUS_SIGMA * s, WEB_BOUND, tol);
+    let uncut_box = analyzed_box(&uncut.doc, &AnalysisPolicy::default());
+    let receipt = drive(&uncut.doc, &uncut_box, &whole, tol)
+        .expect("the study's nominal builds")
+        .receipt();
+    assert_eq!(
+        receipt.certified, 1,
+        "the study's own document certifies this box whole, so the wall is the cut's: {receipt:?}"
+    );
+    let Plate { doc, measure, .. } =
+        crate::plate::cut_plate(SPACING_HALF_WIDTH * s, RADIUS_SIGMA * s, WEB_BOUND, tol);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let verdict = drive(&doc, &analyzed, &whole, tol).expect("the cut plate's nominal builds");
+    crate::walls::wall(
+        "two-hole plate",
+        1,
+        "the holes cut from the blank, the web read off the cut part's bore walls, \
+         over 1e-9 of the study",
+        stackup(&doc, measure, &analyzed, &verdict, None, true, tol).map_err(|r| match r {
+            StackupRefusal::NothingCertified { receipt, .. } => Ok(receipt),
+            other => Err(Box::new(other)),
+        }),
+        |r| matches!(r, Ok(receipt) if receipt.certified == 0),
+        "re-author crate::plate::plate as the cut (work/reach/\
+         a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md)",
+    );
+    // The advisory lane is not walled: it samples the cut plate over
+    // the real study.
+    let cut = crate::plate::cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
+    let cut_box = analyzed_box(&cut.doc, &AnalysisPolicy::default());
+    monte_carlo(&cut.doc, &cut_box, &McConfig::default(), tol)
+        .expect("the Monte-Carlo lane answers on the cut plate");
 }
 
 /// **Stop 1 — the study a user actually has.** ±0.05 mm on the

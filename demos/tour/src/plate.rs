@@ -9,16 +9,25 @@
 //! of the plate would let the picture and the report drift into being
 //! about two different studies, which is the one failure a density
 //! picture cannot survive.
+//!
+//! **The study's document does not cut its holes**: the web is read
+//! off the hole extrudes' own walls, so its product is the blank. The
+//! natural spelling, [`cut_plate`], is authored beside it and attempted
+//! every run as two walls — the certified drive certifies no box of it,
+//! and it has no product root.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::document::{
-    AssertionDir, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId, EvalOptions,
-    Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
+    AssertionDir, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId,
+    EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
 };
 use pncad::geom_core::Tol;
-use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
+use pncad::select::{
+    EntityKind, GeomPred, NamePat, SegPat, SegTag, Selector, SurfaceKindSet, declare_node,
+    find_flush_candidates, select_where,
+};
 
 /// The nominal hole spacing, in metres (3.1 mm).
 pub const SPACING: f64 = 3.1e-3;
@@ -123,7 +132,26 @@ pub fn gallery_document(tol: Tol) -> ProfileDoc {
     real_study(tol).doc
 }
 
+/// The study's document: the blank and the two hole extrudes, the web
+/// read off the holes' own walls.
 pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -> Plate {
+    author(spacing_half_width, radius_sigma, bound, false, tol)
+}
+
+/// **The plate in its natural spelling**: the holes CUT from the blank
+/// by two `Boolean(Subtract)`s, and the web read off the cut part's
+/// bore walls. Not the study's document, because two doors refuse it:
+/// the certified drive certifies no box of it
+/// (`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`,
+/// pinned in [`crate::tolerance`]), and its one root is the assertion,
+/// so it has no product to draw
+/// (`work/recipe/a-measured-part-is-not-a-product-root.md`, pinned in
+/// [`crate::gallery`]).
+pub fn cut_plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -> Plate {
+    author(spacing_half_width, radius_sigma, bound, true, tol)
+}
+
+fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol: Tol) -> Plate {
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-tolerance"), tol);
     // The hole spacing: a UNIFORM tolerance, the machinist's ±.
     declare(
@@ -181,7 +209,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
         }),
         tol,
     );
-    let _plate = insert(
+    let blank = insert(
         &mut doc,
         Node::Extrude {
             profile: plate_profile,
@@ -220,21 +248,60 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
     );
     let hole_b = hole(&mut doc, param("half_spacing"), "hole_b_r", tol);
 
+    // The holes run the plate's full depth, so each hole's caps lie
+    // flush on the blank's: a cut declares those continuations, as the
+    // coincidence discipline asks of any flush pair.
+    let eval_here = |doc: &ProfileDoc| -> Evaluation<f64> {
+        evaluate(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
+    };
+    let subtract = |doc: &mut ProfileDoc, a: RecipeNodeId, b: RecipeNodeId| {
+        let found = find_flush_candidates(&eval_here(doc), a, b, tol)
+            .expect("the hole's caps are definite flush pairs");
+        let declare = insert(
+            doc,
+            declare_node(&found).expect("a full-depth hole has flush caps"),
+            tol,
+        );
+        insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Subtract,
+                a,
+                b,
+                declare: Some(declare),
+            },
+            tol,
+        )
+    };
+    // Where each bore wall is read, and the name that picks it there.
+    // On the cut part a name records its lineage operand by operand,
+    // so "the faces hole a cut" is spelled through both cuts: the
+    // second's A side, then the first's B side.
+    let face = || NamePat::of_kind(EntityKind::Face);
+    let from = |side: SegTag, inner: NamePat| face().seg(SegPat::tag(side).of([inner]));
+    let sites = if cut {
+        let drilled = subtract(&mut doc, blank, hole_a);
+        let part = subtract(&mut doc, drilled, hole_b);
+        [
+            (
+                part,
+                from(SegTag::FromA, from(SegTag::FromB, face().node(hole_a))),
+            ),
+            (part, from(SegTag::FromB, face().node(hole_b))),
+        ]
+    } else {
+        [(hole_a, face()), (hole_b, face())]
+    };
+
     // The wall names come from the SELECTION door, the way a user gets
-    // them: evaluate what is built so far, then ask each hole for its
+    // them: evaluate what is built so far, then ask for each hole's
     // cylindrical face.
-    let ev: Evaluation<f64> = evaluate(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol,
-    );
-    let wall = |node: RecipeNodeId| {
+    let ev = eval_here(&doc);
+    let wall = |(at, lineage): (RecipeNodeId, NamePat)| {
         let mut faces = select_where(
             &ev,
-            node,
-            &Selector::of(NamePat::of_kind(EntityKind::Face)),
+            at,
+            &Selector::of(lineage),
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
                 pncad::prelude::SurfaceKind::Cylinder,
             ))],
@@ -243,8 +310,8 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
         )
         .expect("the surface-kind atom is exact");
         faces.sort();
-        assert!(!faces.is_empty(), "a hole extrude has a cylindrical wall");
-        SitedRef::new(node, faces.remove(0))
+        assert!(!faces.is_empty(), "each hole has a cylindrical wall");
+        SitedRef::new(at, faces.remove(0))
     };
 
     // web = distance(wall_a, wall_b) − r_a − r_b. The distance between
@@ -261,7 +328,8 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
     // document mutably — the borrow checker's way of saying that a
     // measure's references are resolved against a document that
     // already exists, which is exactly the E3 contract.
-    let refs = vec![wall(hole_a), wall(hole_b)];
+    let [site_a, site_b] = sites;
+    let refs = vec![wall(site_a), wall(site_b)];
     let measure = insert(
         &mut doc,
         Node::measure(web, refs).expect("both indices in range"),
