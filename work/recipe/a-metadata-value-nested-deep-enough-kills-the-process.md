@@ -2,12 +2,13 @@
 id: a-metadata-value-nested-deep-enough-kills-the-process
 kind: issue
 title: editor-core: a MetaValue nests without bound through the Rust API, and the edit door's walk over one recurses per level, so a deep one kills the process
-status: review
+status: closed
 opened: 2026-09-30
 priority: P2
 cost: E
 branch: recipe/meta-bound-and-rule-recourse
 pr: 3909
+closed: 2026-10-03
 ---
 
 (EDIT, found by the recursion sweep of `edit/expr-nesting-bound`.)
