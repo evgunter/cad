@@ -35,7 +35,7 @@ The test pins each row as a ratchet (`OVER_BUDGET`): a row that grows fails, and
 **Why it does not fit.**
 - A scoped name keeps its core at every detail: its role, its feature, its joins, and each opened citation's own role and feature. The 45-word names are ones whose rivals in their table differ only two citations down.
 - A full-form name says every citation, however deep.
-- `InBand`'s own prose is about 60 words, so any name over about 25 words overruns the budget by itself, and a refusal naming two such names cannot fit at all.
+- `InBand`'s own prose is about 60 words, so any name over about 15 words overruns the budget by itself, and a refusal naming two such names cannot fit at all.
 
 **Open: a design choice on the ruled gate, so it is Ev's.** Three options:
 1. Read the budget per refusal as "the prose plus the names".
