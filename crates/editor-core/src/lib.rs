@@ -122,8 +122,8 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, Maintenance, MaintenanceNet, apply,
-    apply_replayed, cascade_delete_order, regauge_then_mate,
+    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, Maintenance, MaintenanceNet,
+    RegaugeThenMateOutcome, apply, apply_replayed, cascade_delete_order, regauge_then_mate,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
@@ -184,9 +184,9 @@ pub use names::{
     meridian_vertex, select, select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, ListFault,
-    MeasureNodeFault, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg,
-    SitedFace, SitedRef, SlotId, StepArg, StepId, TubeWindow, VectorSlot,
+    Axis3, BooleanOp, CountMismatch, Datum, InputFault, InterfaceCrossing, InterfaceRecord,
+    ListFault, MeasureNodeFault, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId,
+    RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId, TubeWindow, VectorSlot,
 };
 pub use parse::{ParamNameFault, ParamNameReason, ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};

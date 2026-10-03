@@ -729,7 +729,9 @@ fn pattern_map<P: crate::ProfilePayload>(
         // than composing a pose out of a rule it cannot step.
         PatternKind::Explicit(_) => {
             return Err(here(NodeErrorKind::PlacementRule(
-                crate::node::PlacementRuleFault::CountSpelling,
+                crate::node::PlacementRuleFault::CountSpelling {
+                    shape: crate::node::CountMismatch::ListedOnPattern,
+                },
             )));
         }
     };

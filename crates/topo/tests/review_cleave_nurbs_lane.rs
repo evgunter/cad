@@ -189,11 +189,11 @@ fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
     }
 }
 
-/// The disjoint union would graft through `graft_solid`, which still
-/// re-certifies (`Bridge::Recertify`) through the lane-free door. It is
-/// unreachable for this class: the boolean refuses the NURBS-carried
-/// edge first. The row goes red the day that refusal lifts
-/// (`work/cleave/the-union-fallback-graft-re-certifies-a-disjoint-operand-through-the-lane-free-door.md`).
+/// A disjoint union with the M7-8 cube refuses typed BEFORE its
+/// fallback reaches the assembly graft: the operand gate refuses the
+/// NURBS-carried edge. The row goes red the day the gate admits the
+/// class, which is the day the assembly's carried certificates become
+/// reachable from the boolean.
 #[test]
 fn a_disjoint_union_with_the_m7_8_cube_refuses_before_the_graft() {
     let cube = m7_8_cube::<f64>();

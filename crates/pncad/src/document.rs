@@ -86,8 +86,8 @@
 // `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId, StepIdFault, apply,
-    apply_replayed, regauge_then_mate,
+    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, RegaugeThenMateOutcome, StepId,
+    StepIdFault, apply, apply_replayed, regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -99,10 +99,13 @@ pub use editor_core::cascade_delete_order;
 
 // Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
 // carries directly; it is re-exported here so document-layer code can
-// spell the whole node vocabulary through one module.
+// spell the whole node vocabulary through one module. `CountMismatch`
+// rides with `PlacementRuleFault`: it is what that fault and
+// `EditError::PlacementRuleMismatch` carry.
 pub use editor_core::{
-    Axis3, BooleanOp, Datum, InputFault, ListFault, MeasureNodeFault, Node, PartSelect,
-    PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot,
+    Axis3, BooleanOp, CountMismatch, Datum, InputFault, ListFault, MeasureNodeFault, Node,
+    PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow,
+    VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the

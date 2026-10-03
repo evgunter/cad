@@ -6,10 +6,8 @@
 //! Every scenario is generic over `T` and runs at f64 (all ε rows via
 //! CI) and on the interval lane.
 //!
-//! Tier-3 posture (the PR 3 gap, same documented posture): boolean
-//! outputs carry chord-line descriptions on seam edges, so tier 3 at
-//! rest runs through `describe_as_intersections` (the review
-//! helper posture) — the honest upgrade op is a PR 6 obligation.
+//! Boolean outputs carry honest descriptions on their seam edges, so
+//! tier 3 runs on them directly.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

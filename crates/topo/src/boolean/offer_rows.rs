@@ -1850,6 +1850,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::RimCuspArmUnbuilt
         | BooleanErrorKind::InvalidDeclaration
         | BooleanErrorKind::PairingMismatch
+        | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CorruptOperand
         | BooleanErrorKind::CurvedPairUnsupported
@@ -2188,6 +2189,18 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "ellipse_roots.rs",
+        "ellipse_roots",
+        "BooleanDecision::ArcCylinderRoots",
+        1,
+    ),
+    (
+        "ellipse_roots.rs",
+        "ellipse_roots",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    (
         "finish.rs",
         "weld_pinches",
         "BooleanDecision::VertexOnVertex",
@@ -2195,8 +2208,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
-    ("insert.rs", "mint_directed", "Coincide::Sectors", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
+    ("insert.rs", "strut_order", "Coincide::Sectors", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
@@ -2362,19 +2375,19 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     (
         "reduce.rs",
-        "line_wall_root_count",
+        "line_wall_roots_of",
         "BooleanDecision::SphereRoots",
         1,
     ),
     (
         "reduce.rs",
-        "line_wall_root_count",
+        "line_wall_roots_of",
         "BooleanDecision::TorusRoots",
         1,
     ),
     (
         "reduce.rs",
-        "line_wall_root_count",
+        "line_wall_roots_of",
         "BooleanDecision::WallRoots",
         1,
     ),

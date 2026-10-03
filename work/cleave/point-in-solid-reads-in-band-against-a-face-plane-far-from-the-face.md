@@ -2,11 +2,13 @@
 id: point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face
 kind: issue
 title: point_in_solid reads witnesses in-band against a face's plane where the point is far from the face itself, so a shell or wedge whose witnesses all lie near such planes refuses (ShellWitnessExhausted) where the answer is clear
-status: dispatched
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
 branch: cleave/far-plane
+pr: 3866
+closed: 2026-10-03
 ---
 
 
@@ -46,3 +48,23 @@ Measured by the branch's review (probes over the wide wedge at
 - On the branch the union builds, with volume 64.5 (the closed form),
   and 0 of 1720 `point_in_solid` probes against the closed form answer
   wrong. The intersect is `Empty`.
+
+## Measured on main at 6cf5d4b (2026-10-02, cleave/far-plane)
+
+- **`wide_wedge_with_a_far_vertex_{union,intersect}`.** At
+  ε = 4.95e-10 both PASS, with 0 in-band witness readings. PR 3755
+  re-baselined them to `Withdrawn(Passes)`. Union volume is 64.5
+  (8·8·1 + sin 30°), and the intersect is `Empty`. The same holds at
+  1e-12.
+- **The `m5_pr8_bvh_diff` grazing pose** (k ∈ {2, 5, 9}): 36 in-band
+  readings, all from B's top corners against A. The first is the
+  boundary pre-pass, not a ray: `bool_point_in_solid_plane` on A's
+  bottom carrier, with elevation k·ε, while the corner is 4–5 m from
+  the face. Fixing only that exposed two more layers, one after the
+  other:
+  - the in-plane loop walk's `point_in_loop_side`, on A's side face
+    whose carrier holds the corner: its first ray, +x, passes k·ε from
+    the vertex (5, 0, 1 + k·ε);
+  - the 3-D ray +x hitting A's x = 6 face k·ε below its bottom edge,
+    where `point_in_loop_boundary` reads in band at the hit point.
+- After all three: 0 in-band readings.

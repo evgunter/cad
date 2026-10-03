@@ -52,3 +52,14 @@ own edges, and here the edge is `b`'s, the other operand's.
 ## The bar
 
 `join1_r1_reflex_battery` reports no `JoinDesync`.
+
+## Measured beside it (reflex-corner lane, PR 3900)
+
+This row's poses are in the class of
+`four-germ-vertex-pairs-run-b-in-a-order`. With the strut order fixed,
+every `eLeft` pose at `sx < 0` (∩, ∪, `a ∖ b`) still refuses. The
+first step that goes wrong is at the corner's vertex pair: it keeps
+four germs, and `insert` runs one or both of B's null edges the long
+way round in A's germ order. The `b ∖ a` op was not instrumented. A B
+half bound to the wrong run reads the wrong sense, which would give
+this row's symptom.

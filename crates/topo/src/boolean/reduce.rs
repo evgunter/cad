@@ -63,6 +63,7 @@
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 
 use super::boxes;
+use super::circle_roots::CircleRoots;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
 use super::plane_eq::{LadderRefusal, PlaneDesc};
 use super::refusal_routes::NeighbourOffset;
@@ -1600,21 +1601,23 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// against a cylinder or sphere the residual is convex (both-inside
 /// means no wall crossing, both-outside clears through the span
 /// minimum), against a torus the certified quartic's roots decide, and
-/// for a CIRCLE
-/// carrier the ARC's residual range is enclosed two ways (the
-/// carrier's exact harmonic bounds and the arc's own chord-dip
-/// bound), so a definitely one-sided arc clears. What definitely MEETS
-/// the face is split by kind, and the third paragraph below is the
-/// statement of record: a LINE or a CIRCLE carrier against a CYLINDER
-/// wall, a SPHERE or a TORUS is routed through the certified roots and
-/// pierces; everything else — a tangency, a cone, an undeclared
+/// for a CONIC carrier (a circle or an ellipse, `geom_brep::Conic`) the
+/// ARC's residual range is enclosed two ways (the carrier's exact
+/// harmonic bounds and the arc's own chord-dip bound), so a definitely
+/// one-sided arc clears. What definitely MEETS the face is split by
+/// kind, and the third paragraph below is the statement of record: a
+/// LINE or a CIRCLE carrier against a CYLINDER wall, a SPHERE or a
+/// TORUS, and an ELLIPSE against a cylinder wall or a sphere, is routed
+/// through the certified roots and pierces; everything else — a
+/// tangency, a cone, an ellipse against a torus, an undeclared
 /// on-carrier edge, a trim with no verdict — refuses typed at the named
 /// frontier door ([`BooleanError::CurvedPierceUnsupported`]). An
 /// in-band clearance escalates (F6, the same margin's other half) —
-/// except an uncovered circle's against one of those three kinds, where
-/// the certified roots decide what the enclosures could not.
-/// Ellipse/NURBS carriers keep the unconditional M5 door. Never a
-/// silent fallback.
+/// except an uncovered conic's against one of those three kinds, where
+/// the certified roots decide what the enclosures could not. Spiric and
+/// NURBS carriers have no enclosure and take the frontier door before
+/// any clearance test (behind the operand gate, which refuses them
+/// first). Never a silent fallback.
 ///
 /// **The carrier-identity rung** comes before any enclosure on a
 /// CIRCLE carrier: an edge whose parent face is declared one carrier with
@@ -1702,20 +1705,25 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// split/record triple is the planar conic lane's, verbatim. Still the
 /// frontier is everything the roots do not cover: a TANGENCY (an
 /// in-band discriminant, or a torus root count the quartic cannot
-/// certify, is not a crossing at any order this lane sees), a CIRCLE
-/// carrier against a cone, and a trim the chart door declines to
+/// certify, is not a crossing at any order this lane sees), a conic
+/// carrier against a cone, an ELLIPSE against a torus (its residual is a
+/// degree-4 trigonometric polynomial, an octic in the half-angle, which
+/// no ladder here solves), and a trim the chart door declines to
 /// express.
 ///
 /// **A CIRCLE against a SPHERE, a CYLINDER or a TORUS takes the same
 /// arms as a line.** Against a sphere its residual is a first harmonic
 /// with closed-form roots ([`super::circle_sphere`]); against a torus
 /// or a cylinder wall it is a degree-2 trigonometric polynomial, a
-/// quartic in the tangent half-angle, and the ray lane's certified
-/// ladder answers it ([`super::circle_torus`],
+/// quartic in the tangent half-angle ([`super::circle_torus`],
 /// [`super::circle_cylinder`]; a circle square to the wall's axis is a
-/// first harmonic again, and takes the square arm, the first-harmonic door). It reaches
-/// those arms only from the
-/// circle rung, after the enclosures failed to clear the arc, and never
+/// first harmonic again, and takes the square arm, the first-harmonic door).
+/// An ELLIPSE against a sphere or a cylinder wall is a degree-2
+/// trigonometric polynomial in its eccentric anomaly too
+/// ([`super::ellipse_roots`]). Every degree-2 door's answer is the
+/// certified subdivision's, decided on the residual itself
+/// ([`super::circle_roots`]). A conic reaches those arms only from the
+/// conic rung, after the enclosures failed to clear the arc, and never
 /// through a one-sided cover arm — those rest on a line's separation
 /// story.
 ///
@@ -1854,8 +1862,8 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
     // one-sided — the arc strictly outside, or strictly inside — means
     // no wall crossing (meters). Anything else keeps the typed frontier
     // door, and an in-band clearance escalates (two-tolerance on the
-    // arm, definite ones included). Ellipse/NURBS carriers keep the M5
-    // unconditional door.
+    // arm, definite ones included). The rung is the CONIC's: an ellipse
+    // reads the same two enclosures (`geom_brep::Conic`).
     let side = |p: Point3<T>| {
         decide(
             "bool_vertex_face_side",
@@ -1880,7 +1888,10 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
     // always did, in those arms. It is dropped only when the clearance
     // reads definitely clear, which an in-band end cannot let happen.
     let early_ends = (!covered
-        && matches!(curve.carrier(), geom::Curve3::Circle { .. })
+        && matches!(
+            curve.carrier(),
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
+        )
         && matches!(
             surface,
             geom::Surface::Torus { .. }
@@ -1889,14 +1900,9 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         ))
     .then(|| (side(pu), side(pv)));
     let end_on_carrier = matches!(early_ends, Some((Ok(Sign::Zero), _) | (_, Ok(Sign::Zero))));
-    match *curve.carrier() {
-        geom::Curve3::Line { .. } => {}
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => 'clearance: {
+    match (curve.carrier(), geom_brep::Conic::of(curve.carrier())) {
+        (geom::Curve3::Line { .. }, _) => {}
+        (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, Some(conic)) => 'clearance: {
             if end_on_carrier {
                 break 'clearance;
             }
@@ -1914,8 +1920,7 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
             let clearance = if on_carrier {
                 Ok(Sign::Zero)
             } else {
-                circle_clearance(&surface, &curve, center, axis, radius, u_ref, band)
-                    .ok_or_else(frontier)?
+                conic_clearance(&surface, &conic, curve.params(), band).ok_or_else(frontier)?
             };
             match clearance {
                 Ok(Sign::Positive) => return Ok(CurvedEvent::None),
@@ -2067,6 +2072,13 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         }
+        // A `Spiric` or `Nurbs` carrier. The operand gate refuses both
+        // first (`gate_operand_edges`), so the pipeline never reaches
+        // here with one; the arm keeps its typed door rather than lean
+        // on that nesting. No enclosure of its residual along an arc
+        // exists here — the sampled one needs bounds on the carrier's
+        // speed and acceleration over the span
+        // (`work/reach/boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule.md`).
         _ => return Err(frontier()),
     }
     // The one-sided cover arms rest on a LINE's separation story; only an
@@ -2430,37 +2442,45 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
     }
 }
 
-/// The two enclosures of a circle ARC's residual against `surface`,
-/// folded: the carrier's exact harmonic bounds and the arc's sampled
-/// chord-dip range. Both enclose the arc's range, so the clearance
-/// margin is the larger of the two one-sidedness margins. `None` when
-/// the carrier enclosure has no form for the kind.
+/// The two enclosures of a conic ARC's residual against `surface` (a
+/// circle's or an ellipse's, `geom_brep::Conic`), folded: the carrier's
+/// harmonic bounds and the arc's sampled chord-dip range. Both enclose
+/// the arc's range, each with its own rounding charged
+/// (`geom_brep::conic_residual_extremes`,
+/// `geom_brep::conic_arc_residual_range`), so the clearance margin is
+/// the larger of the two one-sidedness margins. `None` when the carrier
+/// enclosure has no form for the kind.
+///
+/// **What certifies here, by kind.** Against a plane, sphere or
+/// cylinder both enclosures read; at a vertex whose harmonics' phases
+/// align, the carrier bound IS the residual's extreme, so its rounding
+/// charge is what stands between a graze and a certified clearance.
+/// Against a torus the carrier enclosure is the whole turn's sampled
+/// one, levered by a curvature bound that is loose in the direction that
+/// refuses: on grazes within 40 bands it certified none at ε 1e-12 and
+/// 1e-9 and a handful at 1e-6, each clear under the oracle
+/// (`clearance_rows`). Against a cone there is no enclosure (`None`, the
+/// frontier).
 ///
 /// The line row's vertex CLAMP does not port here, and the reason is
 /// the curve: along a line the residual is exactly quadratic, so "the
 /// vertex is outside the span" is a statement about a parabola and is
-/// decided by the endpoint gap alone. Along a circle it has up to four
+/// decided by the endpoint gap alone. Along a conic it has up to four
 /// critical parameters, so an endpoint gap says nothing about where
 /// its minimum sits. Subdivision is what is available without solving
 /// for them.
-#[allow(clippy::too_many_arguments)]
-fn circle_clearance<T: Decide>(
+fn conic_clearance<T: Decide>(
     surface: &geom::Surface<T>,
-    curve: &geom_brep::EdgeCurve<T>,
-    center: Point3<T>,
-    axis: geom_core::Vec3<T>,
-    radius: T,
-    u_ref: geom_core::Vec3<T>,
+    conic: &geom_brep::Conic<T>,
+    (t0, t1): (T, T),
     band: Band,
 ) -> Option<Result<Sign, geom_core::Indeterminate>> {
-    let (lo, hi) = geom_brep::circle_residual_extremes(surface, center, axis, radius, u_ref)?;
+    let (lo, hi) = geom_brep::conic_residual_extremes(surface, conic)?;
     let carrier_margin = lo.max(-hi);
-    let (t0, t1) = curve.params();
-    let arc_margin =
-        geom_brep::circle_arc_residual_range(surface, center, axis, radius, u_ref, t0, t1)
-            .map_or(carrier_margin, |(arc_lo, arc_hi)| arc_lo.max(-arc_hi));
+    let arc_margin = geom_brep::conic_arc_residual_range(surface, conic, t0, t1)
+        .map_or(carrier_margin, |(arc_lo, arc_hi)| arc_lo.max(-arc_hi));
     Some(decide(
-        "bool_circle_curved_clearance",
+        "bool_conic_curved_clearance",
         Margin::of(carrier_margin.max(arc_margin)),
         band,
     ))
@@ -2569,8 +2589,8 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 ///   each leaving along this arc's tangent where it starts
 ///   ([`super::arcs::arcs_along`]) and arriving at a point decided on
 ///   this arc's circle. A circle through two points with a given tangent
-///   at one is unique (this arc is a circle, as only a circle answers
-///   `LiesOn`), so the chain IS this arc, and edges of a valid body
+///   at one is unique (this arc is a circle: an ellipse answers `LiesOn`
+///   too, and keeps the door below), so the chain IS this arc, and edges of a valid body
 ///   cross no face's interior: the end records, with the chain's inner
 ///   vertices that the other direction's sweep records on this arc, are
 ///   every incidence it has.
@@ -2909,8 +2929,8 @@ enum SpanVerdict<T: geom_core::Real> {
     /// whose endpoints are definitely off the wall and a cosurface
     /// question for one whose endpoints are on it.
     Constant,
-    /// The circle LIES on the surface: its residual is a zero constant,
-    /// decided exactly on by the circle root door
+    /// The conic LIES on the surface: its residual is a zero constant,
+    /// decided exactly on by its root door
     /// ([`super::circle_roots::CircleRoots::OnSurface`]; in band it
     /// escalates there). Unlike [`Self::Constant`] this is a verdict
     /// on the side as well as the shape.
@@ -2925,7 +2945,8 @@ enum SpanVerdict<T: geom_core::Real> {
 /// The curved-wall crossing route: solve the certified roots — a
 /// line's quadratic on a cylinder wall or a sphere, its quartic on a
 /// torus, a circle's closed form on a sphere and its half-angle quartic
-/// on a torus or a cylinder wall — keep the roots the EDGE's
+/// on a torus or a cylinder wall, an ellipse's half-angle quartic on a
+/// sphere or a cylinder wall — keep the roots the EDGE's
 /// span carries strictly inside, and place the landing point in the
 /// face's trim.
 ///
@@ -2952,60 +2973,75 @@ fn wall_crossing<T: Decide>(
     t1: T,
     band: Band,
 ) -> Result<SpanVerdict<T>, BooleanError> {
-    let mut roots = [T::zero(); 4];
-    // The carrier's metres per unit of its parameter, so that a root's
-    // distance from the span's ends is metered as a length: a `Line`'s
-    // parameter runs `|dir|` metres per unit, a `Circle`'s is an angle and
-    // its arc length is `radius·Δθ`. The wall and sphere quadratics take
-    // any non-zero `dir`; the torus quartic
-    // ([`super::solid_contain::line_torus_roots`]) assumes it UNIT, the
-    // `Line` carrier's convention, which nothing checks.
-    let (count, metres_per_param) = match *carrier {
-        geom::Curve3::Line { origin, dir } => (
-            line_wall_root_count(origin, dir, (t1 - t0).abs(), surface, &mut roots, band)?,
-            dir.norm(),
-        ),
+    // A root's distance from an end of the span is metered as a length:
+    // the parameter gap times the carrier's speed AT that end, so that
+    // `Zero` means the root sits at the end's own point. A `Line`'s
+    // parameter runs `|dir|` metres per unit, a `Circle`'s `radius`, an
+    // `Ellipse`'s `|C′(t)|`, which varies over `[b, a]` (`geom_brep::Conic`).
+    // The wall and sphere quadratics take any non-zero `dir`; the torus
+    // quartic ([`super::solid_contain::line_torus_roots`]) assumes it UNIT,
+    // the `Line` carrier's convention, which nothing checks.
+    let found = match *carrier {
+        geom::Curve3::Line { origin, dir } => {
+            match line_wall_roots_of(origin, dir, (t1 - t0).abs(), surface, band)? {
+                Ok(found) => found,
+                Err(verdict) => return Ok(verdict),
+            }
+        }
         // The circle root doors ([`super::circle_roots`]), one per kind,
         // one answer shape. A circle against any other kind has no root
         // lane here.
-        geom::Curve3::Circle { radius, .. } => {
-            use super::circle_roots::CircleRoots;
-            let found = match surface {
-                geom::Surface::Sphere { .. } => {
-                    super::circle_sphere::circle_sphere_roots(carrier, t0, t1, surface, band)?
-                }
-                geom::Surface::Cylinder { .. } => {
-                    super::circle_cylinder::circle_cylinder_roots(carrier, t0, t1, surface, band)?
-                }
-                geom::Surface::Torus { .. } => {
-                    super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band)?
-                }
-                _ => return Ok(SpanVerdict::Unsettled),
-            };
-            match found {
-                CircleRoots::Certified { count, thetas } => {
-                    roots = thetas;
-                    (Ok(count), radius)
-                }
-                // A circle ON the surface: its residual is a zero
-                // constant, the circle rung's analogue of the ruling that
-                // lies on a wall.
-                CircleRoots::OnSurface => (Err(SpanVerdict::LiesOn), radius),
-                CircleRoots::Uncertain => (Err(SpanVerdict::Unsettled), radius),
-                CircleRoots::Miss => (Err(SpanVerdict::Miss), radius),
-                CircleRoots::CountDisagrees => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "the constructed roots of a quartic disagree in number with its \
-                               certified count",
-                    });
-                }
+        geom::Curve3::Circle { .. } => match surface {
+            geom::Surface::Sphere { .. } => {
+                super::circle_sphere::circle_sphere_roots(carrier, t0, t1, surface, band)?
             }
-        }
+            geom::Surface::Cylinder { .. } => {
+                super::circle_cylinder::circle_cylinder_roots(carrier, t0, t1, surface, band)?
+            }
+            geom::Surface::Torus { .. } => {
+                super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band)?
+            }
+            _ => return Ok(SpanVerdict::Unsettled),
+        },
+        // The ellipse door ([`super::ellipse_roots`]), on the kinds whose
+        // residual along it is a degree-2 trigonometric polynomial. Against
+        // a torus it is degree four (an octic in the half-angle), which no
+        // lane here solves, so that cell is `Unsettled`.
+        geom::Curve3::Ellipse { .. } => match surface {
+            geom::Surface::Sphere { .. } | geom::Surface::Cylinder { .. } => {
+                super::ellipse_roots::ellipse_roots(carrier, t0, t1, surface, band)?
+            }
+            _ => return Ok(SpanVerdict::Unsettled),
+        },
         _ => return Ok(SpanVerdict::Unsettled),
     };
-    let count = match count {
-        Ok(count) => count,
-        Err(verdict) => return Ok(verdict),
+    // The carrier's speed at a parameter: only the kinds `found` was
+    // read for reach here, and an ellipse whose frame cannot be read is
+    // a kernel bug, refused — never a zero speed that would read every
+    // root as at the span's end.
+    let speed_at = |t: T| match *carrier {
+        geom::Curve3::Line { dir, .. } => Ok(dir.norm()),
+        geom::Curve3::Circle { radius, .. } => Ok(radius),
+        _ => geom_brep::Conic::of(carrier).map(|c| c.speed_at(t)).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "a wall root's carrier is neither a line nor a conic",
+            },
+        ),
+    };
+    let (count, roots) = match found {
+        CircleRoots::Certified { count, thetas } => (count, thetas),
+        // A conic ON the surface: its residual is a zero constant — the
+        // circle or ellipse that lies on a sphere, wall or torus. (A
+        // ruling on a wall is the line door's `Constant`, above.)
+        CircleRoots::OnSurface => return Ok(SpanVerdict::LiesOn),
+        CircleRoots::Uncertain => return Ok(SpanVerdict::Unsettled),
+        CircleRoots::Miss => return Ok(SpanVerdict::Miss),
+        CircleRoots::CountDisagrees => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "the constructed roots of a quartic disagree in number with its \
+                       certified count",
+            });
+        }
     };
     let ts = &roots[..count];
     // Whether some root sits at an end of the span, and whether some
@@ -3015,13 +3051,11 @@ fn wall_crossing<T: Decide>(
     let mut at_end = false;
     let mut crossed_elsewhere = false;
     for &t in ts {
-        // Each gap is a length: `metres_per_param` turns a carrier
-        // parameter difference into arc length.
         let mut interior = true;
-        for gap in [t - t0, t1 - t] {
+        for (gap, end) in [(t - t0, t0), (t1 - t, t1)] {
             match decide(
                 "bool_wall_root_in_span",
-                Margin::of(gap * metres_per_param),
+                Margin::of(gap * speed_at(end)?),
                 band,
             ) {
                 Ok(Sign::Positive) => {}
@@ -3044,8 +3078,9 @@ fn wall_crossing<T: Decide>(
         let p = carrier.eval(t);
         // The face's own trim decides whether a crossing of the CARRIER
         // is a crossing of this FACE. `None` is the chart door's honest
-        // remainder (a ringed face, a non-iso boundary, a full-period
-        // window outside the band class) and keeps the caller's
+        // remainder (a ringed face, a boundary outside its outline
+        // classes, a full-period window outside the band class) and
+        // keeps the caller's
         // frontier rather than reading as "outside".
         //
         // **A landing point definitely OFF the carrier is not "outside
@@ -3095,24 +3130,33 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
     }
 }
 
-/// The certified LINE × wall roots, per kind, written into `roots`:
-/// `Ok(count)` for a certified root set, `Err(verdict)` for the answers
-/// that are not one. `span` is the run of the line's parameter the
-/// edge covers, the lever the wall's axis-parallel rung is metered over.
-fn line_wall_root_count<T: Decide>(
+/// The certified LINE × wall roots, per kind, in the root doors' answer
+/// shape — or, for the one answer that shape has no word for, the
+/// verdict itself: an axis-parallel line's residual is constant along it
+/// without being zero ([`SpanVerdict::Constant`]). `span` is the run of
+/// the line's parameter the edge covers, the lever the wall's
+/// axis-parallel rung is metered over.
+fn line_wall_roots_of<T: Decide>(
     origin: Point3<T>,
     dir: geom_core::Vec3<T>,
     span: T,
     surface: &geom::Surface<T>,
-    roots: &mut [T; 4],
     band: Band,
-) -> Result<Result<usize, SpanVerdict<T>>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, SpanVerdict<T>>, BooleanError> {
+    use super::solid_contain::WallRoots;
+    let two = |ts: [T; 2]| CircleRoots::Certified {
+        count: 2,
+        thetas: [ts[0], ts[1], T::zero(), T::zero()],
+    };
     // The certified roots, per kind. Every lane answers the same three
     // ways — a certified root set, a definite miss, or no certain
     // count — and the cylinder adds a fourth, the axis-parallel line
     // whose residual is constant. A line never lies on a torus or a
-    // sphere, so neither has such a case.
-    Ok(match *surface {
+    // sphere, so neither has such a case. A tangency is not a crossing
+    // this lane can act on — the material verdicts behind a pierce are
+    // first-order, and along a tangency every first-order datum ties —
+    // so it keeps the door.
+    Ok(Ok(match *surface {
         geom::Surface::Cylinder {
             origin: c_origin,
             axis,
@@ -3125,18 +3169,10 @@ fn line_wall_root_count<T: Decide>(
             decision: BooleanDecision::WallRoots(fault.rung),
             diag: fault.diag,
         })? {
-            super::solid_contain::WallRoots::Two(ts) => {
-                roots[..2].copy_from_slice(&ts);
-                Ok(2)
-            }
-            // A tangency is not a crossing this lane can act on: the
-            // material verdicts behind a pierce are first-order, and
-            // along a tangency every first-order datum ties. It keeps
-            // the door.
-            super::solid_contain::WallRoots::Tangent => return Ok(Err(SpanVerdict::Unsettled)),
-            // A constant residual, or no root on the infinite line at all.
-            super::solid_contain::WallRoots::AxisParallel => return Ok(Err(SpanVerdict::Constant)),
-            super::solid_contain::WallRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
+            WallRoots::Two(ts) => two(ts),
+            WallRoots::Tangent => CircleRoots::Uncertain,
+            WallRoots::AxisParallel => return Ok(Err(SpanVerdict::Constant)),
+            WallRoots::Miss => CircleRoots::Miss,
         },
         // The quartic: the ray lane's own certified root door, over the
         // edge's span instead of a ray's forward half. It answers only
@@ -3149,7 +3185,7 @@ fn line_wall_root_count<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } => match super::solid_contain::line_torus_roots(
+        } => super::solid_contain::line_torus_roots(
             origin,
             dir,
             center,
@@ -3161,20 +3197,8 @@ fn line_wall_root_count<T: Decide>(
         .map_err(|diag| BooleanError::Escalated {
             decision: BooleanDecision::TorusRoots,
             diag,
-        })? {
-            super::solid_contain::TorusRoots::Certified { count, ts } => {
-                *roots = ts;
-                Ok(count)
-            }
-            super::solid_contain::TorusRoots::Uncertain => return Ok(Err(SpanVerdict::Unsettled)),
-            super::solid_contain::TorusRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
-            super::solid_contain::TorusRoots::CountDisagrees => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "the constructed roots of a quartic disagree in number with its \
-                           certified count",
-                });
-            }
-        },
+        })?
+        .into(),
         // The quadratic, the ray lane's own. No line lies on a sphere,
         // so it has no constant case either.
         geom::Surface::Sphere { center, radius, .. } => {
@@ -3183,17 +3207,13 @@ fn line_wall_root_count<T: Decide>(
                     decision: BooleanDecision::SphereRoots,
                     diag,
                 })? {
-                super::solid_contain::WallRoots::Two(ts) => {
-                    roots[..2].copy_from_slice(&ts);
-                    Ok(2)
-                }
-                super::solid_contain::WallRoots::Tangent => return Ok(Err(SpanVerdict::Unsettled)),
-                super::solid_contain::WallRoots::AxisParallel
-                | super::solid_contain::WallRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
+                WallRoots::Two(ts) => two(ts),
+                WallRoots::Tangent => CircleRoots::Uncertain,
+                WallRoots::AxisParallel | WallRoots::Miss => CircleRoots::Miss,
             }
         }
-        _ => return Ok(Err(SpanVerdict::Unsettled)),
-    })
+        _ => CircleRoots::Uncertain,
+    }))
 }
 
 /// What one edge×curved-face pair asks of the sweep.
@@ -4638,7 +4658,7 @@ mod declaration_order_rows {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod wall_root_tests {
-    use super::{BooleanDecision, BooleanError, line_wall_root_count};
+    use super::{BooleanDecision, BooleanError, line_wall_roots_of};
     use crate::boolean::WallRung;
     use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -4660,13 +4680,11 @@ mod wall_root_tests {
             radius: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let mut roots = [0.0; 4];
-        let got = line_wall_root_count(
+        let got = line_wall_roots_of(
             Point3::new(d, -2.0, 0.5),
             Vec3::new(0.0, 1.0, 0.0),
             4.0,
             &wall,
-            &mut roots,
             b,
         );
         let Err(err) = got else {
@@ -4732,6 +4750,49 @@ mod edge_span_tests {
         assert!(
             matches!(far, Ok(SpanVerdict::Constant)),
             "drifting inside the band over [1000, 1001], the residual is constant: {far:?}"
+        );
+    }
+    /// **A root's distance from an end is metered at the carrier's speed
+    /// THERE.** An ellipse of semi-axes 1 and 0.05 is crossed square by a
+    /// wall at `θ = π/2 − 2e-8`, 2e-8 m of arc short of the span's end
+    /// `π/2` of the span `[π/2 − 0.1, π/2]` (the wall's other crossings lie
+    /// outside it), where the carrier runs at 1 m/rad — past the escalation
+    /// threshold, so the root is interior and goes on to the trim (which
+    /// an empty body cannot give, so `Unsettled`). Metered at the
+    /// semi-minor axis, the least speed, the same gap reads 1e-9 m, inside
+    /// the zero band: the root read as the end's own incidence, and the
+    /// span `NoInterior`.
+    #[test]
+    fn a_root_near_an_end_is_metered_at_the_ends_speed() {
+        let band = Band::new(1e-9, 1e-8).expect("a band");
+        let ellipse = geom::Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major: 1.0,
+            minor: 0.05,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let root = core::f64::consts::FRAC_PI_2 - 2e-8;
+        let p = ellipse.eval(root);
+        let wall = geom::Surface::Cylinder {
+            origin: Point3::new(p.x + 0.3, p.y, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.3,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let y = Body::<f64>::new();
+        let got = wall_crossing(
+            &y,
+            FaceKey::default(),
+            &wall,
+            &ellipse,
+            core::f64::consts::FRAC_PI_2 - 0.1,
+            core::f64::consts::FRAC_PI_2,
+            band,
+        );
+        assert!(
+            matches!(got, Ok(SpanVerdict::Unsettled)),
+            "the root is interior, and the empty body has no trim to place it in: {got:?}"
         );
     }
 }
@@ -5032,6 +5093,287 @@ mod lying_on_rows {
             reach((Point3::origin(), Vec3::unit_z(), 1.0)),
             "and on the sheet's own circle the chain runs through"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod clearance_rows {
+    //! The conic clearance rung ([`super::conic_clearance`]) on grazes:
+    //! a `Positive` there is a certified "no event" that returns before
+    //! any root door is asked, so it must never stand for a carrier that
+    //! comes within the band of the surface.
+
+    use core::f64::consts::FRAC_PI_2;
+
+    use super::conic_clearance;
+    use crate::boolean::conic_oracle::{distance_from_anchor, unit};
+    use geom_core::{Band, Point3, Sign, Vec3};
+    use test_utils::fuzz;
+
+    /// **The reviewer's pin: a definite crossing is not certified
+    /// clear.** An ellipse stored in the ordinary order and sign (major
+    /// 4.85 m, minor 0.21 m) meets a 24.7 µm ball 2.71e-11 m deep at its
+    /// minor vertex (a 60-digit oracle's figure), at ε = 1e-12. There
+    /// the harmonics' phases align, so `c₀ − A₁ − A₂` IS the least
+    /// residual, and read bare its rounding (`≈ u·a²/r ≈ 1e-10`) put it
+    /// at +2.9e-11: the rung certified the crossing clear.
+    #[test]
+    fn a_crossing_at_the_minor_vertex_is_not_certified_clear() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let axis = Vec3::new(
+            -0.962_120_141_566_121_1,
+            -0.090_956_895_968_249_41,
+            0.257_005_206_695_522_7,
+        );
+        let e = geom::Curve3::Ellipse {
+            center: Point3::new(
+                -0.480_548_118_168_072_4,
+                -0.441_016_920_669_073_5,
+                -0.888_958_285_986_655_8,
+            ),
+            axis,
+            major: 4.846_323_757_498_574,
+            minor: 0.207_528_397_062_063_02,
+            u_ref: Vec3::new(
+                0.087_713_558_478_483_3,
+                0.789_303_434_737_465_2,
+                0.607_705_865_999_894_6,
+            ),
+        };
+        let s = geom::Surface::Sphere {
+            center: Point3::new(
+                -0.426_972_420_046_788_4,
+                -0.567_049_134_604_379_2,
+                -0.732_997_401_751_036_8,
+            ),
+            radius: 2.466_073_624_731_285_6e-5,
+            axis,
+            u_ref: Vec3::new(
+                0.272_625_811_677_447_04,
+                -0.320_994_777_005_651_3,
+                0.906_993_671_390_437_7,
+            ),
+        };
+        let conic = geom_brep::Conic::of(&e).unwrap();
+        let v = 3.0 * FRAC_PI_2;
+        let got = conic_clearance(&s, &conic, (v - 0.5, v + 0.5), band);
+        assert!(
+            !matches!(got, Some(Ok(Sign::Positive))),
+            "a crossing 2.71e-11 m deep certified clear: {got:?}"
+        );
+    }
+
+    /// **A short arc a thousand kilometres out is charged its samples'
+    /// rounding.** The third delta review's pin: an ellipse stored with
+    /// `major = −0.556`, `minor = 1.02`, centred 1000 km out, an arc of
+    /// ±3e-4 rad about its vertex, against a 0.118 m ball, at ε = 1e-12.
+    /// The ball was placed 2.1e-11 m off by its nominal, but its stored
+    /// centre rounds at that distance's ulp, and the true least distance
+    /// of the STORED geometry is −5.3e-12 m — in band. On an arc that
+    /// short the chord-dip charge is negligible, so the arc enclosure's
+    /// margin is its samples' own: read without their rounding charge
+    /// (`geom_brep::conic_arc_residual_range`'s `sample_rounding`), the
+    /// rung certified the touch clear.
+    #[test]
+    fn a_short_arc_far_out_is_charged_its_samples_rounding() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let axis = Vec3::new(
+            -0.331_547_126_719_510_5,
+            -0.144_826_239_786_666_6,
+            0.932_256_329_039_010_6,
+        );
+        let center = Point3::new(
+            -793_186.577_792_401_4,
+            241_909.440_601_441_78,
+            -783_085.727_290_743_7,
+        );
+        let (major, minor) = (-0.556_277_953_009_113_9, 1.019_942_477_711_699_2);
+        let u_ref = Vec3::new(
+            -0.346_444_852_811_330_7,
+            -0.900_421_850_752_487_9,
+            -0.263_090_202_493_364_96,
+        );
+        let e = geom::Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        };
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let s = geom::Surface::Sphere {
+            center: Point3::new(
+                -793_187.576_342_526_2,
+                241_909.907_376_568_15,
+                -783_086.009_900_933_8,
+            ),
+            radius: 0.117_972_233_474_760_74,
+            axis,
+            u_ref: (x - axis * x.dot(axis)).normalize(),
+        };
+        let vertex: f64 = 4.712_388_980_384_69;
+        let (sv, cv) = vertex.sin_cos();
+        let least = distance_from_anchor(&s, |anchor| {
+            (center - anchor) + u_ref * (major * cv) + axis.cross(u_ref) * (minor * sv)
+        });
+        assert!(
+            least.abs() <= 1e-11,
+            "the pose is a touch in band: {least:e}"
+        );
+        let conic = geom_brep::Conic::of(&e).unwrap();
+        let got = conic_clearance(
+            &s,
+            &conic,
+            (4.712_088_980_384_689_5, 4.712_688_980_384_69),
+            band,
+        );
+        assert!(
+            !matches!(got, Some(Ok(Sign::Positive))),
+            "a touch {least:e} m off certified clear: {got:?}"
+        );
+    }
+
+    /// **No certified clearance on a graze, through the rung.** Circles,
+    /// and ellipses in all eight stored orders and signs (eccentricity
+    /// up to 40), metre- or kilometre-sized, centred up to a metre, a
+    /// kilometre or a thousand kilometres out (where a sampled residual's
+    /// coordinate rounding, `u·|p|`, passes the band at 1e-12), each meeting a sphere or a wall (radius 1 µm to 1 m, the
+    /// wall's axis across the outward normal) at a vertex, set off along
+    /// the outward normal by `gap`, −40 to 40 bands. The vertex is the
+    /// carrier's least distance from the surface (the carrier bends away
+    /// from it), read from the stored surface's anchor: the pose crosses
+    /// when that is below `−ε` and touches in band when it is within
+    /// `ε`; a certified
+    /// `Positive` is wrong in both. A third of the draws put a torus's
+    /// tube there instead, its spine bending away from the carrier, under
+    /// the same oracle. Counts printed.
+    #[test]
+    fn no_certified_clearance_on_a_graze() {
+        let mut rng = fuzz::start("reduce::no_certified_clearance_on_a_graze");
+        for eps in [1e-12, 1e-9, 1e-6] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            let (mut clear, mut refused, mut torus_clear) = (0, 0, 0);
+            for i in 0..fuzz::scaled(3000) {
+                let n = unit(&mut rng);
+                let u = unit(&mut rng);
+                let u_ref = (u - n * u.dot(n)).normalize();
+                let scale = if rng.below(2) == 0 { 1.0 } else { 1000.0 };
+                let big = scale * rng.range(0.5, 5.0);
+                let circle = i % 9 == 8;
+                let combo = i % 8;
+                let small = if circle {
+                    big
+                } else {
+                    big / rng.range(1.0, 40.0)
+                };
+                let (mut major, mut minor) = if combo & 1 == 0 {
+                    (big, small)
+                } else {
+                    (small, big)
+                };
+                if !circle && combo & 2 != 0 {
+                    major = -major;
+                }
+                if !circle && combo & 4 != 0 {
+                    minor = -minor;
+                }
+                let far = [1.0, 1e3, 1e6][rng.below(3)];
+                let center = Point3::new(
+                    rng.range(-far, far),
+                    rng.range(-far, far),
+                    rng.range(-far, far),
+                );
+                let e = if circle {
+                    geom::Curve3::Circle {
+                        center,
+                        axis: n,
+                        radius: major,
+                        u_ref,
+                    }
+                } else {
+                    geom::Curve3::Ellipse {
+                        center,
+                        axis: n,
+                        major,
+                        minor,
+                        u_ref,
+                    }
+                };
+                let conic = geom_brep::Conic::of(&e).unwrap();
+                let vertex = FRAC_PI_2 * f64::from(u32::try_from(rng.below(4)).unwrap());
+                let p = e.eval(vertex);
+                let outward = (p - center).normalize();
+                let gap = eps * rng.range(-40.0, 40.0);
+                let r = 10f64.powf(rng.range(-6.0, 0.0));
+                let hub = p + outward * (r + gap);
+                let x = Vec3::new(1.0, 0.0, 0.0);
+                let kind = rng.below(3);
+                let s = match kind {
+                    0 => geom::Surface::Sphere {
+                        center: hub,
+                        radius: r,
+                        axis: n,
+                        u_ref: (x - n * x.dot(n)).normalize(),
+                    },
+                    1 => {
+                        let v = unit(&mut rng);
+                        let w = (v - outward * v.dot(outward)).normalize();
+                        geom::Surface::Cylinder {
+                            origin: hub,
+                            axis: w,
+                            radius: r,
+                            u_ref: outward,
+                        }
+                    }
+                    _ => {
+                        let v = unit(&mut rng);
+                        let w = (v - outward * v.dot(outward)).normalize();
+                        let ring = r * rng.range(1.5, 10.0);
+                        let axis = outward.cross(w).normalize();
+                        geom::Surface::Torus {
+                            center: hub + outward * ring,
+                            axis,
+                            major_radius: ring,
+                            minor_radius: r,
+                            u_ref: (x - axis * x.dot(axis)).normalize(),
+                        }
+                    }
+                };
+                let got = conic_clearance(&s, &conic, (vertex - 0.5, vertex + 0.5), band);
+                let label = || {
+                    format!(
+                        "ε {eps}, case {i}: gap {gap:e}, {e:?} against {s:?} — {}",
+                        fuzz::replay()
+                    )
+                };
+                let certified = matches!(got, Some(Ok(Sign::Positive)));
+                // The least distance, at the vertex, of the STORED
+                // geometry: the surface's anchor was itself rounded where
+                // it was placed (about `u·|p|`, past the band a hundred
+                // kilometres out), so the oracle reads the vertex from
+                // that anchor — `C₀ − anchor` is exact, the two being
+                // metres apart, and the rest is metre-sized.
+                let (sv, cv) = vertex.sin_cos();
+                let from = |anchor: Point3<f64>| {
+                    (center - anchor) + u_ref * (major * cv) + n.cross(u_ref) * (minor * sv)
+                };
+                let least = distance_from_anchor(&s, from);
+                if certified {
+                    if kind == 2 {
+                        torus_clear += 1;
+                    } else {
+                        clear += 1;
+                    }
+                    assert!(least > eps, "{}: certified clear", label());
+                } else {
+                    refused += 1;
+                }
+            }
+            println!(
+                "ε {eps}: {clear} sphere/wall and {torus_clear} torus certified clear, {refused} not"
+            );
+        }
     }
 }
 

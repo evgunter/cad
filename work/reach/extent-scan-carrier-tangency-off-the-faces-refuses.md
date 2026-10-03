@@ -47,3 +47,19 @@ cylinder pair, which is
 `rounded-stack-subtract-and-intersect-refuse-fallback-extent` (on PR
 3657's branch) and a different question (a 2-D overlap of trims, not a
 touch locus).
+
+## Sweep gap from CLEAVE far-plane (PR 3866)
+
+The far-plane fix made two changes in `boolean/solid_contain.rs`:
+
+- `point_in_solid`'s plane pre-pass asks for the face of the point's
+  foot before an in-band carrier elevation refuses;
+- a ray that runs along a carrier within the band skips that face only
+  where `q` is definitely off the carrier.
+
+Its sweep covered `solid_contain` and the loop walks. It did **not**
+search `ops`' extent passes (`sphere_extent_scan`,
+`section_extent_pass`) for the same shape: a carrier decision taken
+before, or instead of, its face. This row is the one measured instance
+of that shape there. Any sibling found should be added to this row
+rather than filed separately.

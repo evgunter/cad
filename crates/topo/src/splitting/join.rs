@@ -50,7 +50,7 @@
 //! resolves them by membership of the minted above-copy vertex set,
 //! certifies the polygon's area definitely-positive
 //! (**`split_section_area`**, margin 2·A/P) — a zero-area section
-//! polygon (a below-side pinch, or a curved face's one-sided graze)
+//! polygon (a below-side pinch, or a curved face's concave graze)
 //! is refused typed, [`SplitJoinError::DegenerateSection`] — refuses
 //! a positive-area polygon carrying a grazing contact as a zero-width
 //! spur
@@ -706,25 +706,15 @@ impl<T: Decide> Sweep<T> {
             let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
                 continue;
             };
-            let (c_e, axis_e, sa, sb) = match *curve.carrier() {
-                geom::Curve3::Circle {
-                    center,
-                    axis,
-                    radius,
-                    ..
-                } => (center, axis, radius, radius),
-                geom::Curve3::Ellipse {
-                    center,
-                    axis,
-                    major,
-                    minor,
-                    ..
-                } => (center, axis, major, minor),
-                geom::Curve3::Line { .. }
-                | geom::Curve3::Spiric { .. }
-                | geom::Curve3::Nurbs(_) => {
-                    continue;
-                }
+            let Some(crate::loop_winding::ConicFrame {
+                center: c_e,
+                axis: axis_e,
+                sa,
+                sb,
+                ..
+            }) = crate::loop_winding::ConicFrame::of(curve.carrier())
+            else {
+                continue;
             };
             let (t0, t1) = curve.params();
             let span = t1 - t0;
@@ -767,8 +757,8 @@ impl<T: Decide> Sweep<T> {
     /// so the vertex before it and the vertex after it coincide
     /// ([`SplitJoinError::SectionSpur`]).
     ///
-    /// Where it comes from: a one-sided graze of a curved face (a plane
-    /// tangent to a cylinder's wall along a ruling) mints a contact.
+    /// Where it comes from: a concave graze of a curved face (a plane
+    /// tangent to a hole's wall along a ruling) mints a contact.
     /// When the graze is on the run's above side, the contact closes a
     /// polygon of its own, zero-area, and [`Self::certify_section_area`]
     /// refuses it ([`SplitJoinError::DegenerateSection`]).
@@ -779,8 +769,9 @@ impl<T: Decide> Sweep<T> {
     /// net area is the real section's, positive, and the area test
     /// passes it. This refuses that excursion, so the graze stays
     /// refused (the public `split` then surfaces the direct run's
-    /// `DegenerateSection`). A plane tangent along a convex edge never
-    /// gets here: rule (b) classifies the edge with its material.
+    /// `DegenerateSection`). A plane tangent along a convex edge, or to
+    /// a convex wall, never gets here: rule (b) classifies the entry
+    /// with its material.
     ///
     /// The margin is the distance between the tip's two neighbours
     /// (`split_section_spur`, a length through [`Margin::norm3`]).

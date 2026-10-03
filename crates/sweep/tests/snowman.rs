@@ -19,11 +19,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use std::collections::BTreeMap;
+
+use super::common::certificates::assert_certificates_fresh;
 
 use geom_core::{Band, Point2, Tol};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
-use topo::{Body, BooleanOp};
+use topo::{Body, BooleanOp, EdgeKey, ShellKey};
 
 /// A ball of radius `r` centred on the y axis at height `y`.
 fn ball(r: f64, y: f64) -> Body<f64> {
@@ -957,6 +960,141 @@ fn a_millimetre_lens_inside_a_ball_refuses_its_unplaced_circle_at_1e_6() {
                     "{label}: volume {v} against {want}"
                 );
             }
+        }
+    }
+}
+
+/// Each certified edge's certificate (`Debug`, its D9 identity), keyed
+/// by its carrier and parameter interval, which a graft copies bit for
+/// bit while it rewrites the surface handles; a key two edges share
+/// fails, since it could not tell them apart. `shell` keeps the edges
+/// of that shell alone.
+fn certificates(
+    label: &str,
+    body: &Body<f64>,
+    shell: Option<ShellKey>,
+) -> BTreeMap<String, (EdgeKey, String)> {
+    let shell_of = |e: &topo::Edge| {
+        let lp = body.get_half_edge(e.he_plus).unwrap().parent_loop;
+        body.get_face(body.get_loop(lp).unwrap().face)
+            .unwrap()
+            .shell
+    };
+    let mut out = BTreeMap::new();
+    for (k, e) in body.edges() {
+        if shell.is_some_and(|s| shell_of(e) != s) {
+            continue;
+        }
+        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
+            continue;
+        };
+        let key = format!("{:?} {:?}", c.carrier(), c.params());
+        let cert = format!("{:?}", c.certificate());
+        if let Some((other, _)) = out.insert(key.clone(), (k, cert)) {
+            panic!("{label}: edges {other:?} and {k:?} share the key {key}");
+        }
+    }
+    out
+}
+
+/// The `result` edges that carry the certified edges of `operand`'s
+/// shell number `kept` (its solid's order; every shell when `None`),
+/// one per operand edge, each asserted to store that edge's
+/// certificate verbatim.
+fn carried_edges(
+    label: &str,
+    operand: &Body<f64>,
+    kept: Option<usize>,
+    result: &Body<f64>,
+) -> Vec<EdgeKey> {
+    let shell = kept.map(|i| {
+        let (solid, _) = operand.solids().next().unwrap();
+        operand.shells_of_solid(solid).unwrap()[i]
+    });
+    let mine = certificates(label, operand, shell);
+    assert!(!mine.is_empty(), "{label}: the operand has certified edges");
+    let theirs = certificates(label, result, None);
+    mine.iter()
+        .map(|(key, (_, cert))| {
+            let Some((dk, carried)) = theirs.get(key) else {
+                panic!("{label}: no result edge on {key}")
+            };
+            assert_eq!(
+                carried, cert,
+                "{label}: the edge on {key} carries the operand's certificate"
+            );
+            *dk
+        })
+        .collect()
+}
+
+/// **The containment fallback's assembly carries its kept B operand's
+/// certificates**, as the void door carries a cavity's, under ∪ and ∩.
+/// The record of the graft's bridge says so whatever the certificates
+/// are. Each B edge arrives with its operand's certificate verbatim,
+/// and on the operands whose own certificates are fresh, a fresh
+/// re-certification mints that certificate again.
+///
+/// The lens is a boolean's own result, and the seam meridian it took
+/// from its B ball carries a certificate a fresh run does not
+/// reproduce
+/// (`work/cleave/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`):
+/// the assembly carries that one too.
+#[test]
+fn the_fallback_assembly_carries_the_kept_operands_certificates() {
+    let tol = Tol::witness();
+    let slab: Body<f64> = sweep::test_support::brick((-2.0, 2.0), (-3.0, -2.0), (-2.0, 2.0), tol);
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    // ∩ keeps shells of both operands: A's cavity sphere lies in B's
+    // material and B's outer sphere in A's.
+    let block: Body<f64> = sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (-3.0, 3.0), tol);
+    let holed = run(BooleanOp::Subtract, &block, &ball(1.0, 0.0));
+    let shell = run(BooleanOp::Subtract, &ball(2.0, 0.0), &ball(0.5, 0.0));
+    // (label, op, A, B, B's kept shell, B's certificates fresh)
+    for (label, op, a, b, kept, fresh) in [
+        (
+            "slab ∪ ball",
+            BooleanOp::Union,
+            &slab,
+            &ball(R1, 0.0),
+            None,
+            true,
+        ),
+        ("slab ∪ lens", BooleanOp::Union, &slab, &lens, None, false),
+        // ∩ keeps B's outer sphere and drops its cavity.
+        (
+            "holed block ∩ shell",
+            BooleanOp::Intersect,
+            &holed,
+            &shell,
+            Some(0),
+            true,
+        ),
+    ] {
+        let _ = topo::test_support::take_graft_bridges();
+        let out = match op {
+            BooleanOp::Union => topo::boolean::union(a, b, tol),
+            _ => topo::boolean::intersect(a, b, tol),
+        }
+        .unwrap_or_else(|e| panic!("{label}: refused: {e:?}"));
+        assert_eq!(
+            topo::test_support::take_graft_bridges(),
+            [topo::test_support::GraftBridge::RemapKeys],
+            "{label}: the assembly graft carries"
+        );
+        let out = out.body().unwrap_or_else(|| panic!("{label}: empty"));
+        assert!(
+            matches!(out.kind, topo::BooleanResultKind::Assembly),
+            "{label}: the containment fallback's assembly, got {:?}",
+            out.kind
+        );
+        let carried = carried_edges(label, b, kept, &out.body);
+        if fresh {
+            assert_eq!(
+                assert_certificates_fresh(label, &out.body, carried.iter().copied(), tol),
+                carried.len(),
+                "{label}: every carried edge compared"
+            );
         }
     }
 }
