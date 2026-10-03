@@ -706,25 +706,15 @@ impl<T: Decide> Sweep<T> {
             let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
                 continue;
             };
-            let (c_e, axis_e, sa, sb) = match *curve.carrier() {
-                geom::Curve3::Circle {
-                    center,
-                    axis,
-                    radius,
-                    ..
-                } => (center, axis, radius, radius),
-                geom::Curve3::Ellipse {
-                    center,
-                    axis,
-                    major,
-                    minor,
-                    ..
-                } => (center, axis, major, minor),
-                geom::Curve3::Line { .. }
-                | geom::Curve3::Spiric { .. }
-                | geom::Curve3::Nurbs(_) => {
-                    continue;
-                }
+            let Some(crate::loop_winding::ConicFrame {
+                center: c_e,
+                axis: axis_e,
+                sa,
+                sb,
+                ..
+            }) = crate::loop_winding::ConicFrame::of(curve.carrier())
+            else {
+                continue;
             };
             let (t0, t1) = curve.params();
             let span = t1 - t0;
