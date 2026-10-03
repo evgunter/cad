@@ -191,3 +191,95 @@ fn the_strand_the_door_repairs_is_the_absorbed_faces_boundary() {
         "the absorption strands exactly the edges that named the absorbed key"
     );
 }
+
+/// The split-wall prism with the wall's far neighbour turned off it by
+/// `lean` (its far corner at `(3, lean)`): `(body, kept, absorbed, strut)`,
+/// `strut` the edge between the absorbed face and that neighbour. Every
+/// edge whose two faces' dihedral decides is described as their
+/// `Intersection`; an undecided one keeps its construction chord.
+pub(crate) fn wall_beside_a_leaning_neighbour(
+    lean: f64,
+    tol: Tol,
+) -> (Body<f64>, FaceKey, FaceKey, EdgeKey) {
+    use crate::test_support_fixtures::{FaceGeometry, identity_map, prism_ops};
+    let mut body = Body::<f64>::new();
+    let ops = prism_ops(
+        &mut body,
+        &[
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (2.0, 0.0),
+            (3.0, lean),
+            (3.0, 1.0),
+            (0.0, 1.0),
+        ],
+        (0.0, 1.0),
+        identity_map,
+        FaceGeometry::Certified,
+        tol,
+    );
+    let band = geom_core::Band::linear(tol).unwrap();
+    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
+    for (key, edge) in edges {
+        let (s1, s2) = crate::readback::edge_sides(&body, key).unwrap().surfaces();
+        let start = body.get_half_edge(edge.he_plus).unwrap().start;
+        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let p0 = *body
+            .get_point(body.get_vertex(start).unwrap().point)
+            .unwrap();
+        let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
+        let witness = p0.lerp(p1, 0.5);
+        let surfaces = (
+            body.get_surface(s1).unwrap().clone(),
+            body.get_surface(s2).unwrap().clone(),
+        );
+        if let Ok(geom_brep::DihedralClass::Transverse) =
+            geom_brep::classify_dihedral(&surfaces.0, &surfaces.1, witness, p0.distance(p1), band)
+        {
+            let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
+            spec.description = geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
+            body.set_edge_curve(key, spec, tol).unwrap();
+        }
+    }
+    let (kept, absorbed) = (ops.sides[0].face, ops.sides[1].face);
+    (body, kept, absorbed, ops.struts[2].edge)
+}
+
+/// **The door's refusal is the door's own.** A kept face's boundary
+/// edge whose two faces' dihedral is in band refuses naming the kept
+/// face and the edge, with the merge's lever — and speaks of no seam.
+#[test]
+fn an_undecided_kept_boundary_edge_refuses_in_the_doors_words() {
+    let tol = Tol::witness();
+    let (mut body, kept, absorbed, strut) = wall_beside_a_leaning_neighbour(5e-9, tol);
+    let before = crate::fixtures::deep_snapshot(&body);
+    let pair = (surface_of(&body, kept), surface_of(&body, absorbed));
+    let refusal = body
+        .merge_coplanar_faces_declared(&[pair], tol)
+        .expect_err("the leaning neighbour's dihedral is in band at the kept face's edge");
+    assert!(
+        matches!(
+            refusal,
+            crate::merge_faces::MergeCoplanarError::KeptBoundaryUndecided { face, edge, .. }
+                if face == kept && edge == strut
+        ),
+        "the refusal names the kept face and the edge: {refusal:?}"
+    );
+    let text = refusal.to_string();
+    for words in [
+        "kept face",
+        "boundary edge",
+        "move the geometry so the faces at that edge clearly cross or are clearly smooth",
+    ] {
+        assert!(
+            text.contains(words),
+            "the door's text says {words:?}: {text}"
+        );
+    }
+    assert!(!text.contains("seam"), "the door speaks of no seam: {text}");
+    assert_eq!(
+        crate::fixtures::deep_snapshot(&body),
+        before,
+        "the refused body is untouched"
+    );
+}
