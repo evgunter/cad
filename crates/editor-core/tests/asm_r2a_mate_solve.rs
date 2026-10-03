@@ -633,11 +633,11 @@ fn two_groups() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore)
     (doc, ids, mates, store)
 }
 
-/// Row 4e — a cut of ONE WHOLE placed group hoists its root's offset
-/// onto the remainder instance and lands the root at the empty chain in
-/// the part (A4).
+/// Row 4e — a cut of ONE WHOLE placed group moves as selected (A4): the
+/// part's root keeps its offset, and the remainder instance sits at the
+/// empty chain.
 #[test]
-fn row4e_a_whole_group_cut_hoists_the_group_frame() {
+fn row4e_a_whole_group_cut_moves_as_selected() {
     use std::collections::BTreeSet;
     let (doc, ids, mates, store) = two_groups();
     let o = with_resolver(store);
@@ -652,9 +652,10 @@ fn row4e_a_whole_group_cut_hoists_the_group_frame() {
     .expect("a whole-group cut splits");
     assert_eq!(
         fixture::offset_of(&out.part, out.node_map[&ids[0]]),
-        Some(editor_core::Placement::IDENTITY),
-        "the part's root lands at the empty chain — its world pose \
-         belongs to the assembly"
+        Some(editor_core::Placement::literal(&Frame::translation([
+            3.0, 0.0, 0.0
+        ]))),
+        "the part's root keeps its offset"
     );
     let instance = *out
         .remainder
@@ -664,10 +665,8 @@ fn row4e_a_whole_group_cut_hoists_the_group_frame() {
         .expect("the remainder gained an instance");
     assert_eq!(
         fixture::offset_of(&out.remainder, instance),
-        Some(editor_core::Placement::literal(&Frame::translation([
-            3.0, 0.0, 0.0
-        ]))),
-        "the root's offset HOISTED onto the remainder instance"
+        Some(editor_core::Placement::IDENTITY),
+        "the remainder instance sits at the empty chain"
     );
     assert_eq!(
         fixture::offset_of(&out.remainder, ids[2]),
@@ -682,10 +681,7 @@ fn row4e_a_whole_group_cut_hoists_the_group_frame() {
 /// group and the instance on the far side (review MAJOR-2).
 ///
 /// A11 puts the frame on the group, so a torn group has one frame
-/// and two homes. Before this refusal landed, such a cut passed the
-/// hoist's group count (the torn group was FILTERED OUT of it, so
-/// a torn group looked like an absent one) and the torn frame —
-/// `[7,0,0]` here — silently vanished.
+/// and two homes.
 #[test]
 fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
     use std::collections::BTreeSet;

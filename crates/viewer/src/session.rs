@@ -2871,6 +2871,8 @@ impl DocSession {
             // on, not a panel field's value.
             | DocEdit::SetOffset { .. }
             | DocEdit::SetGauge { .. }
+            | DocEdit::Promote { .. }
+            | DocEdit::Fold { .. }
             // The declaration doors that are not the value or the
             // notation half. `SetDocParam` is create-or-replace: a
             // redeclaration is an act — it is how a parameter's

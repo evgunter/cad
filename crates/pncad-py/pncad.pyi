@@ -3420,6 +3420,28 @@ class DocEdit:
         would sit on itself)."""
 
     @staticmethod
+    def promote(instance: NodeId) -> DocEdit:
+        """PROMOTE an instance's offset to a gauge: a new gauge under
+        the instance's gauge holds the offset, and the instance sits on
+        it at the empty chain, with the other members of its group.
+        `DocEdit.fold` is the inverse; promoting, then splitting the
+        group out with the new gauge left behind, makes a part at that
+        frame. Refuses typed on `EditError`: `promote_on_non_instance`,
+        `promote_without_offset`, `promote_non_root` (the offset is a
+        check; `input` is the group's root), and
+        `promote_member_offset` (`input` is a member carrying an
+        offset)."""
+
+    @staticmethod
+    def fold(gauge: NodeId) -> DocEdit:
+        """FOLD a gauge away: every node on it hangs from its parent,
+        each one's own chain with the gauge's steps in front. An
+        instance with no offset keeps none; a lone dependent with no
+        label takes the gauge's. Refuses typed on `EditError`:
+        `fold_on_non_gauge`, and `fold_would_start_placing` (`input` is
+        the mate that would start placing)."""
+
+    @staticmethod
     def update_reference(node: NodeId, new_pin: ContentPin) -> DocEdit:
         """Move ONE instance's pin to a new version of the same
         document. The id does not move.
@@ -6364,15 +6386,15 @@ def split(
     that is no instance votes the world. A kept instance or gauge on a
     cut gauge refuses (`severed_gauge`, its `node` the kept node
     and its `gauge` the gauge). A placing mate never crosses: a cut that leaves behind the
-    mate placing its group refuses (`placing_mate_left`). A cut that is exactly one placed
-    group HOISTS its root's offset onto that instance and lands the
-    root at the empty chain in the part; any other cut moves
-    verbatim, each cut gauge carried, one whose parent leaves the cut
-    on the part's world. A dead gauge reference refuses
-    (`dead_gauge_reference`), as do a cut that holds no body
-    (`no_material`), a cut of unplaced
-    material alone (`unplaced_alone`), a hoisted member's further
-    offset (`hoisted_member_offset`), and a kept mate that would start
+    mate placing its group refuses (`placing_mate_left`). The cut moves
+    as selected: every cut node is carried as it is, a cut gauge whose
+    parent leaves the cut on the part's world, every root keeps its
+    offset, and the instance left behind sits at the empty chain. A
+    part at a frame of its own is `DocEdit.promote` before the split,
+    with the promoted gauge left out of the cut. A dead gauge reference
+    refuses (`dead_gauge_reference`), as do a cut that holds no body
+    (`no_material`), a cut of unplaced material alone
+    (`unplaced_alone`), and a kept mate that would start
     placing (`would_start_placing`), whose cut side would change
     coordinates (`mate_frame_crosses`), or whose cut side's frame is
     `MateFrame.from_face` (`mate_face_frame_crosses`): the face's name
@@ -6405,11 +6427,10 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     typed.
 
     Where the content lands (A4): with the instance at the empty chain, on
-    its gauge as it is; over a part that is one group at the empty
-    chain on its world, with that group's root taking the instance's
-    offset; over any other part, on a gauge minted under the instance's
-    gauge holding its offset, onto which the members the instance placed
-    move (one carrying a further offset refuses `moved_member_offset`).
+    its gauge as it is; at any other offset, on a gauge minted under
+    the instance's gauge holding that offset, onto which the members the
+    instance placed move (one carrying a further offset refuses
+    `moved_member_offset`).
     A mate-placed instance inlines only over one such group, whose root
     takes its place; otherwise it refuses `mate_placed`."""
 

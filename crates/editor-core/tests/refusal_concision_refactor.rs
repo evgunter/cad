@@ -46,7 +46,7 @@ test_utils::f6_variants! {
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
         NoMaterial, UnplacedAlone, WouldStartPlacing, MateFrameCrosses, MateFaceFrameCrosses,
-        HoistedMemberOffset, UncutParamReference, PartNameReachesRemainder,
+        UncutParamReference, PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
         RemainderEdit,
     ];
@@ -116,9 +116,6 @@ fn split_refusals() -> Vec<SplitError> {
         SplitError::MateFaceFrameCrosses {
             mate: s(7, "Mate"),
             side: MateSide::B,
-        },
-        SplitError::HoistedMemberOffset {
-            instance: s(4, "InstantiatePart"),
         },
         SplitError::UncutParamReference {
             param: param(),

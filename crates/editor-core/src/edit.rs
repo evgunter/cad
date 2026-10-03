@@ -37,7 +37,8 @@ use geom_core::Tol;
 /// nodes, their slots, the document's roots and where instances sit
 /// (`InsertNode`, `DeleteNode`, `SetMembers`, `SetProgram`,
 /// `SetParam`, `SetStructuralParam`, `SetExpression`, `SetRoots`,
-/// `SetOffset`, `SetGauge`, `UpdateReference`). The document-parameter family: one
+/// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference`). The
+/// document-parameter family: one
 /// create-or-replace door (`SetDocParam`) and the carry-forward doors,
 /// each moving ONE field of a standing declaration and keeping the
 /// rest (`SetDocParamValue`, `SetDocParamUnit`,
@@ -450,6 +451,42 @@ pub enum DocEdit<P> {
         /// The gauge it now sits on, `None` for the world.
         gauge: Option<RecipeNodeId>,
     },
+    /// **Turn an instance's offset into a gauge** (A4): a gauge under
+    /// the instance's gauge, holding the instance's offset, with the
+    /// instance on it at the empty chain. The other members of the
+    /// instance's group move onto the gauge with it, so each mate that
+    /// placed still places. The gauge's id is minted as its insert
+    /// would mint it, and the record returns it; it joins the root
+    /// list just ahead of the instance, or at the end when the
+    /// instance is not a root. [`DocEdit::Fold`] is the inverse.
+    ///
+    /// Refuses a node that is no instance
+    /// ([`EditError::PromoteOnNonInstance`]), an instance with no
+    /// offset ([`EditError::PromoteWithoutOffset`]), one whose offset
+    /// is a statement its group checks rather than where the group
+    /// sits ([`EditError::PromoteNonRoot`]), and a group whose other
+    /// member carries an offset, stated in the instance's gauge and so
+    /// not on the new one ([`EditError::PromoteMemberOffset`]).
+    Promote {
+        /// The instance whose offset becomes a gauge.
+        instance: RecipeNodeId,
+    },
+    /// **Dissolve a gauge** (A4): every node on it hangs from its
+    /// parent instead, and each one's own chain — a gauge's
+    /// placement, an instance's offset when it has one — gets the
+    /// gauge's steps in front ([`crate::placement::Placement::compose`]),
+    /// so every pose is unchanged and no frame is computed. An
+    /// instance with no offset keeps none. With exactly one node on
+    /// it, that node takes the gauge's label when it has none.
+    ///
+    /// Refuses a node that is no gauge ([`EditError::FoldOnNonGauge`]),
+    /// and a fold that would put both instances of a declaring mate on
+    /// one gauge, so that it would start placing
+    /// ([`EditError::FoldWouldStartPlacing`]).
+    Fold {
+        /// The gauge that dissolves.
+        gauge: RecipeNodeId,
+    },
     /// Move ONE instance's pin to a new version of the same document
     /// (A13's per-reference primitive; ASM-UPD D-1). The id does not
     /// move — A4 keeps identity and version distinct, and this edit
@@ -525,6 +562,8 @@ impl<P> DocEdit<P> {
             | Self::Rebind { .. }
             | Self::SetOffset { .. }
             | Self::SetGauge { .. }
+            | Self::Promote { .. }
+            | Self::Fold { .. }
             | Self::SetParam { .. }
             | Self::SetStructuralParam { .. }
             | Self::SetExpression { .. }
@@ -1273,6 +1312,49 @@ pub enum EditError {
         /// The mate that would start placing.
         mate: SpokenNode,
     },
+    /// A promote aimed at a node that does not instantiate a part.
+    PromoteOnNonInstance {
+        /// The offending target.
+        node: SpokenNode,
+    },
+    /// A promote of an instance that carries no offset: there is no
+    /// chain to become a gauge.
+    PromoteWithoutOffset {
+        /// The instance.
+        node: SpokenNode,
+    },
+    /// A promote of an instance that is not its group's root: its
+    /// offset is a statement the solve checks, not where the group
+    /// sits (A11 (2)).
+    PromoteNonRoot {
+        /// The instance.
+        node: SpokenNode,
+        /// Its group's root, whose offset places the group.
+        root: SpokenNode,
+    },
+    /// A promote whose group holds another member carrying an offset:
+    /// that offset is stated in the instance's gauge, and would not
+    /// hold on the promoted one.
+    PromoteMemberOffset {
+        /// The instance promoted.
+        node: SpokenNode,
+        /// The member carrying an offset.
+        member: SpokenNode,
+    },
+    /// A fold aimed at a node that is not a gauge.
+    FoldOnNonGauge {
+        /// The offending target.
+        node: SpokenNode,
+    },
+    /// A fold that would put both instances of `mate`, which declares
+    /// today, on one gauge, so it would start placing and move a group
+    /// the fold never named.
+    FoldWouldStartPlacing {
+        /// The gauge folded.
+        node: SpokenNode,
+        /// The mate that would start placing.
+        mate: SpokenNode,
+    },
     /// A placement-rule node whose rule and count slot would give two
     /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN).
     PlacementRuleMismatch {
@@ -1685,6 +1767,9 @@ impl EditError {
             | Self::DuplicateWitnessEntry { node }
             | Self::OffsetOnNonInstance { node }
             | Self::GaugeOnNonPlaced { node }
+            | Self::PromoteOnNonInstance { node }
+            | Self::PromoteWithoutOffset { node }
+            | Self::FoldOnNonGauge { node }
             | Self::PlacementRuleMismatch { node, shape: _ }
             | Self::EmptyPlacementList { node }
             | Self::ImproperPlacement {
@@ -1706,7 +1791,14 @@ impl EditError {
             Self::WouldCycle { at } => {
                 *at = at.respoken(doc);
             }
-            Self::DuplicateInput { node, input } | Self::DeclareInputNotDeclare { node, input } => {
+            Self::DuplicateInput { node, input }
+            | Self::DeclareInputNotDeclare { node, input }
+            | Self::PromoteNonRoot { node, root: input }
+            | Self::PromoteMemberOffset {
+                node,
+                member: input,
+            }
+            | Self::FoldWouldStartPlacing { node, mate: input } => {
                 *node = node.respoken(doc);
                 *input = input.respoken(doc);
             }
@@ -2451,6 +2543,58 @@ impl EditError {
                     f,
                     format_args!("delete {}, then copy the gauge and mate", mate),
                 )
+            }
+            Self::PromoteOnNonInstance { node } => {
+                write!(
+                    f,
+                    "{} does not instantiate a part, so it has no offset to promote",
+                    node
+                )?;
+                tail.recourse(f, format_args!("promote an instance"))
+            }
+            Self::PromoteWithoutOffset { node } => {
+                write!(
+                    f,
+                    "{} carries no offset, so there is no chain to become a gauge",
+                    node
+                )?;
+                tail.recourse(f, format_args!("set {}'s offset (SetOffset), then promote", node))
+            }
+            Self::PromoteNonRoot { node, root } => {
+                write!(
+                    f,
+                    "{}'s offset is a statement its group's solve checks; {} places the group",
+                    node, root
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("clear {}'s offset (SetOffset), then promote {}", node, root),
+                )
+            }
+            Self::PromoteMemberOffset { node, member } => {
+                write!(
+                    f,
+                    "{} carries an offset stated in {}'s gauge, and it moves onto the promoted \
+                     gauge, where that statement would not hold",
+                    member, node
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("clear {}'s offset (SetOffset), then promote", member),
+                )
+            }
+            Self::FoldOnNonGauge { node } => {
+                write!(f, "{} is not a gauge, so there is nothing to fold", node)?;
+                tail.recourse(f, format_args!("fold a gauge"))
+            }
+            Self::FoldWouldStartPlacing { node, mate } => {
+                write!(
+                    f,
+                    "folding {} would put both instances of {}, which declares, on one gauge, \
+                     so it would start placing",
+                    node, mate
+                )?;
+                tail.recourse(f, format_args!("delete {}, then fold {}", mate, node))
             }
             // The two rule-shaped arms FORWARD the fault set's one
             // prose vocabulary (`PlacementRuleFault`'s `Display`). A
@@ -4528,6 +4672,164 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 }
                 _ => unreachable!("node {} was checked an instance or a gauge above", node),
             }
+            EditRecord {
+                minted: None,
+                structural: true,
+            }
+        }
+        DocEdit::Promote { instance } => {
+            let Some(target) = doc.node(*instance) else {
+                return Err(EditError::UnknownNode {
+                    id: SpokenNode::absent(*instance),
+                });
+            };
+            let Node::InstantiatePart {
+                gauge: parent,
+                offset,
+                ..
+            } = target
+            else {
+                return Err(EditError::PromoteOnNonInstance {
+                    node: doc.spoken(*instance),
+                });
+            };
+            let Some(offset) = offset.clone() else {
+                return Err(EditError::PromoteWithoutOffset {
+                    node: doc.spoken(*instance),
+                });
+            };
+            let parent = *parent;
+            let promoted: Node<P> = Node::gauge(parent, offset);
+            let mut mint = new.mint.clone();
+            let id = mint
+                .insert(&promoted)
+                .map_err(|crate::NodeIdCollides { id }| EditError::NodeIdCollides {
+                    id: SpokenNode::entering(id, &promoted),
+                })?;
+            // The gauge's parent is the instance's gauge, which a live
+            // group's root may name dangling: the insert door's check.
+            check_gauge_ref(&new, id, parent, || SpokenNode::entering(id, &promoted))?;
+            let groups = crate::mate::groups(doc);
+            let Some(group) = groups.iter().find(|g| g.contains(instance)) else {
+                unreachable!("a live instance is in one of its document's groups")
+            };
+            let (root, _) = crate::mate::solve::root_and_cause(doc, group);
+            if root != *instance {
+                return Err(EditError::PromoteNonRoot {
+                    node: doc.spoken(*instance),
+                    root: doc.spoken(root),
+                });
+            }
+            if let Some(&member) = group.iter().find(|&&m| {
+                m != *instance
+                    && matches!(
+                        doc.node(m),
+                        Some(Node::InstantiatePart {
+                            offset: Some(_),
+                            ..
+                        })
+                    )
+            }) {
+                return Err(EditError::PromoteMemberOffset {
+                    node: doc.spoken(*instance),
+                    member: doc.spoken(member),
+                });
+            }
+            new.mint = mint;
+            new.nodes.insert(id, promoted);
+            new.order.push(id);
+            match new.roots.iter().position(|r| r == instance) {
+                Some(at) => new.roots.insert(at, id),
+                None => new.roots.push(id),
+            }
+            for member in group {
+                let Some(Node::InstantiatePart { gauge, offset, .. }) = new.nodes.get_mut(member)
+                else {
+                    unreachable!("a group's members are live instances")
+                };
+                *gauge = Some(id);
+                if member == instance {
+                    *offset = Some(crate::placement::Placement::IDENTITY);
+                }
+            }
+            EditRecord {
+                minted: Some(id),
+                structural: true,
+            }
+        }
+        DocEdit::Fold { gauge } => {
+            let Some(target) = doc.node(*gauge) else {
+                return Err(EditError::UnknownNode {
+                    id: SpokenNode::absent(*gauge),
+                });
+            };
+            let Node::Gauge { parent, placement } = target else {
+                return Err(EditError::FoldOnNonGauge {
+                    node: doc.spoken(*gauge),
+                });
+            };
+            let after = |id: RecipeNodeId| match doc.node(id).and_then(Node::gauge_ref) {
+                Some(g) if g == *gauge => *parent,
+                other => other,
+            };
+            for &mate in doc.order() {
+                let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
+                    continue;
+                };
+                let (Some(x), Some(y)) = (
+                    crate::mate::member_of(doc, a),
+                    crate::mate::member_of(doc, b),
+                ) else {
+                    continue;
+                };
+                if !crate::mate::places(doc, x.instance, y.instance)
+                    && after(x.instance) == after(y.instance)
+                {
+                    return Err(EditError::FoldWouldStartPlacing {
+                        node: doc.spoken(*gauge),
+                        mate: doc.spoken(mate),
+                    });
+                }
+            }
+            let dependents: Vec<RecipeNodeId> = doc
+                .order()
+                .iter()
+                .copied()
+                .filter(|&id| doc.node(id).and_then(Node::gauge_ref) == Some(*gauge))
+                .collect();
+            for dependent in &dependents {
+                match new.nodes.get_mut(dependent) {
+                    Some(Node::InstantiatePart {
+                        gauge: held,
+                        offset,
+                        ..
+                    }) => {
+                        *held = *parent;
+                        if let Some(offset) = offset {
+                            *offset = placement.compose(offset);
+                        }
+                    }
+                    Some(Node::Gauge {
+                        parent: held,
+                        placement: own,
+                    }) => {
+                        *held = *parent;
+                        *own = placement.compose(own);
+                    }
+                    _ => unreachable!("a node with a gauge reference is an instance or a gauge"),
+                }
+            }
+            if let [only] = dependents[..]
+                && !new.labels.contains_key(&only)
+                && let Some(label) = new.labels.get(gauge).cloned()
+            {
+                new.labels.insert(only, label);
+            }
+            new.labels.remove(gauge);
+            new.nodes.remove(gauge);
+            new.order.retain(|n| n != gauge);
+            new.witnesses.remove(gauge);
+            crate::roots::on_delete(&mut new, *gauge, &[]);
             EditRecord {
                 minted: None,
                 structural: true,

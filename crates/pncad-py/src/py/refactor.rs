@@ -303,16 +303,6 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::HoistedMemberOffset { instance } => (
-            none(),
-            none(),
-            none(),
-            none(),
-            id(instance),
-            none(),
-            none(),
-            none(),
-        ),
         E::UncutParamReference {
             param: p,
             cut_node,

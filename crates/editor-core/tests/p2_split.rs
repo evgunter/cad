@@ -4,15 +4,17 @@
 //! A split votes its anchor with the cut's gauges in it: a cut gauge
 //! votes its parent, a reference that stays inside the cut casts no
 //! vote, and a group unplaced for lack of an offset votes its gauge. A
-//! kept node hanging from a cut gauge refuses. A cut holding a gauge
-//! moves verbatim: each cut gauge is carried, one whose parent leaves
-//! the cut onto the part's world. Inline mints a gauge under the
-//! instance's gauge, holding its offset, for a part that is not one
-//! group at the empty chain on its world, and moves the members the
-//! instance placed onto it; a mate-placed instance inlines over one
-//! such group, whose root takes its place. A cut holding a gauge,
-//! moved verbatim and inlined at the empty offset, returns the
-//! document it was given up to node ids (R1).
+//! kept node hanging from a cut gauge refuses. Every cut moves
+//! verbatim: each cut gauge is carried, one whose parent leaves the
+//! cut onto the part's world, and each root keeps its offset. Inline
+//! at a non-empty offset mints a gauge under the instance's gauge,
+//! holding that offset, and moves the members the instance placed onto
+//! it; a mate-placed instance inlines over a part that is one group at
+//! the empty chain on its world, whose root takes its place. Every cut
+//! split admits, inlined back at the empty offset, returns the document
+//! it was given up to node ids (R1). `Promote` and `Fold` carry a
+//! group's frame onto a gauge and back, so a part at a frame of its own
+//! is a promote and a cut leaving the gauge behind.
 //!
 //! The scenes are `p2_gauges`'s two literal blocks; every placement is
 //! a translation by dyadic lengths, so the evaluations compared are
@@ -40,7 +42,7 @@ use geom_core::Tol;
 
 // ---- substrate ----
 
-fn split(
+pub(crate) fn split(
     doc: &ProfileDoc,
     ids: &[RecipeNodeId],
     label: &str,
@@ -55,7 +57,7 @@ fn split(
     )
 }
 
-fn inline(doc: &ProfileDoc, instance: RecipeNodeId, store: &PartStore) -> InlineOutcome {
+pub(crate) fn inline(doc: &ProfileDoc, instance: RecipeNodeId, store: &PartStore) -> InlineOutcome {
     let r: Arc<dyn PartResolver> = Arc::new(store.clone());
     editor_core::inline(doc, instance, &r, Tol::witness())
         .unwrap_or_else(|e| panic!("inline refused: {e}"))
@@ -70,7 +72,7 @@ fn inline_err(doc: &ProfileDoc, instance: RecipeNodeId, store: &PartStore) -> In
 }
 
 /// The whole document's product: its corners and volume.
-fn extent(doc: &ProfileDoc, o: &EvalOptions) -> ([f64; 3], [f64; 3], f64) {
+pub(crate) fn extent(doc: &ProfileDoc, o: &EvalOptions) -> ([f64; 3], [f64; 3], f64) {
     let body = product(doc, &run(doc, o), Tol::witness()).expect("gathers");
     let pts = points(&body);
     let lo = pts.iter().fold([f64::INFINITY; 3], |m, p| {
@@ -85,7 +87,7 @@ fn extent(doc: &ProfileDoc, o: &EvalOptions) -> ([f64; 3], [f64; 3], f64) {
     (lo, hi, volume)
 }
 
-fn same_extent(a: ([f64; 3], [f64; 3], f64), b: ([f64; 3], [f64; 3], f64), what: &str) {
+pub(crate) fn same_extent(a: ([f64; 3], [f64; 3], f64), b: ([f64; 3], [f64; 3], f64), what: &str) {
     let near = |x: [f64; 3], y: [f64; 3]| x.iter().zip(y).all(|(p, q)| (p - q).abs() <= 1e-9);
     assert!(
         near(a.0, b.0) && near(a.1, b.1) && (a.2 - b.2).abs() <= 1e-9,
@@ -108,7 +110,7 @@ fn base_bottom(p: &Parts, base: RecipeNodeId) -> StableName {
 
 /// **R1**: `doc` split at `ids` and the instance inlined back at the
 /// empty offset it sits at is `doc` up to node ids.
-fn round_trip(doc: &ProfileDoc, ids: &[RecipeNodeId], p: &Parts, label: &str) -> SplitOutcome {
+pub(crate) fn round_trip(doc: &ProfileDoc, ids: &[RecipeNodeId], p: &Parts, label: &str) -> SplitOutcome {
     let out = split(doc, ids, label, &p.opts()).unwrap_or_else(|e| panic!("{label}: {e}"));
     assert_eq!(
         offset_of(&out.remainder, out.instance),
@@ -657,13 +659,16 @@ fn i3_a_moved_member_with_a_further_offset_refuses() {
 
 // ---- I4–I5: the mate-placed inline ----
 
-/// The group hoist's part (a base at the empty chain, a top mated onto
-/// it) in a store, its base and top, and a host in which a tall block
+/// A part at a frame of its own — the placed pair's base promoted, and
+/// the group cut leaving the promoted gauge: a base at the empty chain,
+/// a top mated onto it — in a store, its base and top, and a host in
+/// which a tall block
 /// `ht`, placed first, places an instance of that part through a mate
 /// reading the part's base: the instance is not its group's root.
 fn mate_placed(label: &str) -> (Parts, PartStore, ProfileDoc, [RecipeNodeId; 5]) {
     let (p, doc, [base, top, mate]) = placed_pair(label);
-    let out = split(&doc, &[base, top, mate], label, &p.opts()).expect("the group hoist");
+    let (doc, _) = step(doc, DocEdit::Promote { instance: base });
+    let out = split(&doc, &[base, top, mate], label, &p.opts()).expect("the promoted group");
     let (part_base, part_top) = (out.node_map[&base], out.node_map[&top]);
     let mut store = p.store.clone();
     let part_ref = store.insert(out.part, Tol::witness());
@@ -1168,4 +1173,112 @@ fn r1_a_round_trip_keeping_a_profile_compares_equal() {
     let (doc, on_k) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, on_k, Some(k));
     round_trip(&doc, &[k, on_k], &p, "r1-profile");
+}
+
+/// **R1 over every shape split admits**: a cut moves as selected, so
+/// inlining it back at the empty offset returns the document up to node
+/// ids whatever the cut holds — one placed group, one with a checked
+/// member, a lone instance, a group rooted at a parametric offset, a
+/// gauge at the empty chain holding a group, a gauge holding one group
+/// at the empty chain, a gauge on a kept gauge holding two groups and a
+/// gauge, a group on a kept gauge, and plain geometry on the world.
+#[test]
+fn r1_every_shape_split_admits_round_trips_exactly() {
+    type Scene = (ProfileDoc, Vec<RecipeNodeId>);
+    let p = parts("r1-every");
+    let o = p.opts();
+    let empty = |label: &str| ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let pair_on = |doc: ProfileDoc, gauge: Option<RecipeNodeId>, at: Placement| {
+        let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+        let doc = set_gauge(doc, base, gauge);
+        let doc = set_offset(doc, base, Some(at));
+        let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+        let doc = set_gauge(doc, top, gauge);
+        let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+        (doc, [base, top, mate])
+    };
+    let one_group = || -> Scene {
+        let (doc, ids) = pair_on(empty("r1-one-group"), None, literal([4.0, 0.0, 0.0]));
+        (doc, ids.to_vec())
+    };
+    let checked_member = || -> Scene {
+        let (doc, [base, top, mate]) =
+            pair_on(empty("r1-checked-member"), None, literal([4.0, 0.0, 0.0]));
+        let solved = solve(&doc, &o, Tol::witness())
+            .placement(&doc, top)
+            .expect("placed");
+        let doc = set_offset(doc, top, Some(Placement::literal(&solved)));
+        (doc, vec![base, top, mate])
+    };
+    let lone = || -> Scene {
+        let (doc, kept) = insert(empty("r1-lone"), Node::instantiate_part(p.top));
+        let doc = set_offset(doc, kept, Some(literal([0.0, 9.0, 0.0])));
+        let (doc, lone) = insert(doc, Node::instantiate_part(p.base));
+        let doc = set_offset(doc, lone, Some(literal([4.0, 0.0, 0.0])));
+        (doc, vec![lone])
+    };
+    let parametric_root = || -> Scene {
+        let doc = crate::p2_gauges::declare_lift(empty("r1-parametric-root"), 0.5);
+        let at = Placement::from(editor_core::Step::Rigid {
+            translation: [
+                editor_core::Expr::param(crate::p2_gauges::lift(), editor_core::Dimension::Length),
+                fixture::len(0.0),
+                fixture::len(0.0),
+            ],
+            axis: [0.0, 0.0, 1.0].map(fixture::scl),
+            angle: fixture::ang(0.0),
+        });
+        let (doc, ids) = pair_on(doc, None, at);
+        (doc, ids.to_vec())
+    };
+    let empty_gauge = || -> Scene {
+        let (doc, k) = insert(empty("r1-empty-gauge"), Node::gauge(None, Placement::IDENTITY));
+        let (doc, ids) = pair_on(doc, Some(k), literal([4.0, 0.0, 0.0]));
+        (doc, [&[k][..], &ids].concat())
+    };
+    let group_at_empty = || -> Scene {
+        let (doc, k) = insert(
+            empty("r1-group-at-empty"),
+            Node::gauge(None, literal([2.0, 0.0, 0.5])),
+        );
+        let (doc, ids) = pair_on(doc, Some(k), Placement::IDENTITY);
+        (doc, [&[k][..], &ids].concat())
+    };
+    let gauge_on_kept = || -> Scene {
+        let (doc, g) = insert(empty("r1-gauge-on-kept"), Node::gauge(None, literal([0.0, 8.0, 0.0])));
+        let (doc, k) = insert(doc, Node::gauge(Some(g), literal([2.0, 0.0, 0.5])));
+        let (doc, pair) = pair_on(doc, Some(k), literal([0.0, 2.0, 0.0]));
+        let (doc, lone) = insert(doc, Node::instantiate_part(p.base));
+        let doc = set_gauge(doc, lone, Some(k));
+        let doc = set_offset(doc, lone, Some(literal([16.0, 0.0, 0.0])));
+        let (doc, k2) = insert(doc, Node::gauge(Some(k), literal([4.0, 0.0, 0.0])));
+        let (doc, deep) = insert(doc, Node::instantiate_part(p.top));
+        let doc = set_gauge(doc, deep, Some(k2));
+        (doc, [&[k, lone, k2, deep][..], &pair].concat())
+    };
+    let group_on_kept = || -> Scene {
+        let (doc, g) = insert(empty("r1-group-on-kept"), Node::gauge(None, literal([0.0, 8.0, 0.0])));
+        let (doc, ids) = pair_on(doc, Some(g), literal([4.0, 0.0, 0.0]));
+        (doc, ids.to_vec())
+    };
+    let plain = || -> Scene {
+        let (doc, _) = crate::p2_gauges::block("r1-plain", 2.0, 1.0);
+        let all = doc.order().to_vec();
+        (doc, all)
+    };
+    let scenes: [(&str, &dyn Fn() -> Scene); 9] = [
+        ("one placed group", &one_group),
+        ("one placed group with a checked member", &checked_member),
+        ("a lone instance", &lone),
+        ("a group at a parametric offset", &parametric_root),
+        ("a gauge at the empty chain holding a group", &empty_gauge),
+        ("a gauge holding one group at the empty chain", &group_at_empty),
+        ("a gauge on a kept gauge with two groups and a gauge", &gauge_on_kept),
+        ("a group on a kept gauge", &group_on_kept),
+        ("plain geometry on the world", &plain),
+    ];
+    for (shape, scene) in scenes {
+        let (doc, ids) = scene();
+        round_trip(&doc, &ids, &p, shape);
+    }
 }

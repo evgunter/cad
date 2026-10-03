@@ -2718,6 +2718,32 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::DuplicateWitnessEntry { node: sp(1) }, &["node"]);
     carries(&E::OffsetOnNonInstance { node: sp(1) }, &["node"]);
     carries(&E::GaugeOnNonPlaced { node: sp(1) }, &["node"]);
+    carries(&E::PromoteOnNonInstance { node: sp(1) }, &["node"]);
+    carries(&E::PromoteWithoutOffset { node: sp(1) }, &["node"]);
+    carries(&E::FoldOnNonGauge { node: sp(1) }, &["node"]);
+    // A promote or a fold names its target and the other node the
+    // refusal is about.
+    carries(
+        &E::PromoteNonRoot {
+            node: sp(1),
+            root: sp(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::PromoteMemberOffset {
+            node: sp(1),
+            member: sp(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::FoldWouldStartPlacing {
+            node: sp(1),
+            mate: sp(2),
+        },
+        &["node", "input"],
+    );
     // A gauge reference names the node it is written on and the id it
     // names.
     carries(
@@ -4844,6 +4870,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_placement_list",
             "empty_witness_bulk",
             "evaluation_of_another_document",
+            "fold_on_non_gauge",
+            "fold_would_start_placing",
             "gauge_cycle",
             "gauge_not_live",
             "gauge_on_non_placed",
@@ -4873,6 +4901,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_axis",
             "placement_rule_mismatch",
             "profile_program_refused",
+            "promote_member_offset",
+            "promote_non_root",
+            "promote_on_non_instance",
+            "promote_without_offset",
             "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
@@ -5852,7 +5884,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "body_name_crosses_cut",
             "dead_gauge_reference",
             "empty_cut",
-            "hoisted_member_offset",
             "mate_face_frame_crosses",
             "mate_frame_crosses",
             "name_on_dropped_step",
