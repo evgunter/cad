@@ -1212,6 +1212,16 @@ pub enum Locus {
     OnEdge(crate::entity::EdgeKey),
 }
 
+impl Locus {
+    /// The edge a germ along an edge lies on; `None` inside a face.
+    pub fn edge(self) -> Option<crate::entity::EdgeKey> {
+        match self {
+            Self::OnEdge(e) => Some(e),
+            Self::InFace(_) => None,
+        }
+    }
+}
+
 /// The **germ** a null-edge half faces (F9 as data, PR 5): every
 /// surviving crossing record — a section-polygon edge emanating from
 /// the classified vertex — lies on the intersection line of one A-face
@@ -1614,6 +1624,19 @@ pub enum BooleanError {
     /// message covering both could name neither.
     PointSplitCarrierUnsupported {
         /// The offending operand and edge.
+        operand: Operand,
+        /// The edge.
+        edge: EdgeKey,
+    },
+    /// **Two edges along one germ whose identity no rule decides.**
+    /// Where both operands' edges leave a vertex pair along the germ and
+    /// the reduction paired their far ends, the join reads them as one
+    /// segment only for lines and circles, which meet a line or circle
+    /// tangent to them at the site nowhere else. A conic or spline can
+    /// meet such a partner again, so the paired ends do not make the two
+    /// edges one, and nothing here reads whether they are.
+    GermEdgeCarrierUnsupported {
+        /// The operand whose edge is neither a line nor a circle.
         operand: Operand,
         /// The edge.
         edge: EdgeKey,
@@ -2416,6 +2439,8 @@ pub enum BooleanErrorKind {
     CurvedEdgeUnsupported,
     /// [`BooleanError::PointSplitCarrierUnsupported`].
     PointSplitCarrierUnsupported,
+    /// [`BooleanError::GermEdgeCarrierUnsupported`].
+    GermEdgeCarrierUnsupported,
     /// [`BooleanError::ArcLoopContainmentUnsupported`].
     ArcLoopContainmentUnsupported,
     /// [`BooleanError::ScaffoldingOperand`].
@@ -2629,6 +2654,7 @@ impl BooleanError {
             Self::PointSplitCarrierUnsupported { .. } => {
                 BooleanErrorKind::PointSplitCarrierUnsupported
             }
+            Self::GermEdgeCarrierUnsupported { .. } => BooleanErrorKind::GermEdgeCarrierUnsupported,
             Self::ArcLoopContainmentUnsupported { .. } => {
                 BooleanErrorKind::ArcLoopContainmentUnsupported
             }
@@ -2827,6 +2853,14 @@ impl core::fmt::Display for BooleanError {
                 "an ellipse edge of the {} operand has to be split where the solids \
                  meet, and the Boolean can split only lines and circles there. \
                  Recourse: move the parts so that edge does not meet the other solid",
+                operand_word(*operand),
+            ),
+            Self::GermEdgeCarrierUnsupported { operand, .. } => write!(
+                f,
+                "an edge of each solid runs from one shared point to another, and the \
+                 Boolean can tell whether two such edges are one curve only when both \
+                 are lines or circles; the {} operand's is not. Recourse: move the \
+                 parts so those edges do not run together",
                 operand_word(*operand),
             ),
             // No operand is named, for the same reason as above: some
@@ -3504,6 +3538,35 @@ pub(crate) fn through_the_join(
     )
 }
 
+/// **The join's own refusal** of `op` under `decls`: what its matching
+/// or its surgery refuses on the reduction, before the declared-REST
+/// door may take it over. `None` where the join connects, or where the
+/// reduction leaves no null pair to join. Test vocabulary
+/// (`topo::test_support`): a declared union that builds while its join
+/// refuses was built by the zip.
+///
+/// # Errors
+///
+/// The reduction's refusal.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn join_refusal(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    decls: &BooleanDeclarations,
+    tol: Tol,
+) -> Result<Option<BooleanError>, BooleanError> {
+    let band = Band::linear(tol)?;
+    let mut red = boolean_reduce_declared_strategy(op, a, b, decls, SweepStrategy::Realized, tol)?;
+    if red.null_pairs.is_empty() {
+        return Ok(None);
+    }
+    red.enter_join_surgery();
+    let connected = join::bool_connect(&mut red, a, b, band, tol);
+    red.leave_join_surgery(connected.is_ok());
+    Ok(connected.err())
+}
+
 /// [`boolean_reduce_declared`] with an explicit [`SweepStrategy`] —
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
@@ -3588,6 +3651,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             c,
             op,
             &declared,
+            &contacts,
             band,
             tol,
         )?;
@@ -3604,6 +3668,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             c,
             op,
             &declared,
+            &contacts,
             band,
             tol,
         )?;
@@ -3696,7 +3761,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .iter()
         .map(|(c, a_sectors, b_sectors, records, raw, _)| {
             insert::plan_null_pairs(
-                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, band,
+                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, band,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -5237,6 +5302,10 @@ mod tests {
                 operand: Operand::A,
                 edge,
             },
+            BooleanError::GermEdgeCarrierUnsupported {
+                operand: Operand::B,
+                edge,
+            },
             BooleanError::ArcLoopContainmentUnsupported {
                 operand: Operand::A,
                 cause: crate::splitting::Uncrossable {
@@ -5471,6 +5540,7 @@ mod tests {
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
+                BooleanErrorKind::GermEdgeCarrierUnsupported => "GermEdgeCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::InsideOutOperand => "InsideOutOperand",
