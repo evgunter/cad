@@ -10,10 +10,10 @@ use crate::wire::doctored;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Axis3, CancelToken, Dimension, DocEdit, DocParam, DocParamValue, EditError, EvalOptions, Expr,
-    Frame, FrameSite, Node, ParamEnv, ParamName, PersistError, Placement, ProfileDoc,
-    ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step,
-    ValuePayload, VectorSlot, evaluate, load, save,
+    Axis3, CancelToken, Dimension, DocEdit, EditError, EvalOptions, Expr, Frame, FrameSite,
+    FreeValue, FreeVar, Node, ParamEnv, PersistError, Placement, ProfileDoc, ProfileProgram,
+    REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step, ValuePayload,
+    VarName, VectorSlot, evaluate, load, save,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::predicate::Band;
@@ -363,13 +363,13 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
 /// at the same bits, and step 0 (the literal) has no slot to write.
 #[test]
 fn a_parameter_drives_a_rigid_steps_angle() {
-    let turn = ParamName::from_static("turn");
+    let turn = VarName::from_static("turn");
     let (doc, body) = cube("placement-param");
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
             name: turn.clone(),
-            value: DocParam::continuous(Dimension::Angle, 0.0),
+            value: FreeVar::continuous(Dimension::Angle, 0.0),
         },
     );
     let placement = Placement::literal(&Frame::translation([5.0, 0.0, 0.0])).compose(
@@ -403,7 +403,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
         doc.clone(),
         DocEdit::SetDocParamValue {
             name: turn,
-            value: DocParamValue::Continuous(quarter),
+            value: FreeValue::Continuous(quarter),
         },
     );
     let (turned, by_param) = min_x(&turned_doc);
@@ -450,13 +450,13 @@ fn a_parameter_drives_a_rigid_steps_angle() {
 /// unknown slot.
 #[test]
 fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
-    let turn = ParamName::from_static("turn");
+    let turn = VarName::from_static("turn");
     let (doc, body) = cube("placement-later-steps");
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
             name: turn.clone(),
-            value: DocParam::continuous(Dimension::Angle, 0.0),
+            value: FreeVar::continuous(Dimension::Angle, 0.0),
         },
     );
     let chain = |late: Step| {
@@ -491,7 +491,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let unknown = Step::Rigid {
         translation: [len(0.0), len(0.0), len(0.0)],
         axis: [scl(0.0), scl(0.0), scl(1.0)],
-        angle: Expr::param(ParamName::from_static("nope"), Dimension::Angle),
+        angle: Expr::param(VarName::from_static("nope"), Dimension::Angle),
     };
     assert!(
         door(

@@ -12,24 +12,24 @@
 use crate::docm7_union_declare::block;
 use crate::fixture;
 use editor_core::{
-    BooleanOp, Dimension, Distribution, DocEdit, DocParam, DocumentId, EditError, Expr, Node,
-    ParamName, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, UnitSym,
-    UpstreamCause, apply,
+    BooleanOp, Dimension, Distribution, DocEdit, DocumentId, EditError, Expr, FreeVar, Node,
+    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, UnitSym,
+    UpstreamCause, VarName, apply,
 };
 use fixture::{fname, insert, len, run, scl, step, wall};
 use geom_core::{Sign, Tol};
 use std::collections::BTreeSet;
 
-fn p(name: &'static str) -> ParamName {
-    ParamName::from_static(name)
+fn p(name: &'static str) -> VarName {
+    VarName::from_static(name)
 }
 
 fn edit(doc: &ProfileDoc, e: DocEdit<ProfileProgram>) -> Result<ProfileDoc, EditError> {
     apply(doc, &e, Tol::witness(), &editor_core::RefusingReach).map(|a| a.doc)
 }
 
-fn length(mm: f64) -> DocParam {
-    DocParam::written_length(quantity::WrittenLength::in_unit(mm, quantity::MM))
+fn length(mm: f64) -> FreeVar {
+    FreeVar::written_length(quantity::WrittenLength::in_unit(mm, quantity::MM))
 }
 
 fn mm() -> UnitSym {
@@ -47,7 +47,7 @@ fn a_count_refuses_a_unit_and_a_distribution_and_names_the_redeclaration_that_ge
         &doc,
         DocEdit::SetDocParam {
             name: p("n"),
-            value: DocParam::Count { value: 4 },
+            value: FreeVar::Count { value: 4 },
         },
     )
     .unwrap();
@@ -116,7 +116,7 @@ fn a_count_a_slot_reads_refuses_the_redeclaration_with_a_recourse_that_gets_thro
         doc,
         DocEdit::SetDocParam {
             name: p("n"),
-            value: DocParam::Count { value: 3 },
+            value: FreeVar::Count { value: 3 },
         },
     );
     let (doc, pattern) = insert(
@@ -152,7 +152,7 @@ fn a_count_a_slot_reads_refuses_the_redeclaration_with_a_recourse_that_gets_thro
         doc,
         DocEdit::SetDocParam {
             name: p("m"),
-            value: DocParam::Count { value: 3 },
+            value: FreeVar::Count { value: 3 },
         },
     );
     let (doc, _) = step(

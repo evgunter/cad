@@ -36,7 +36,7 @@
 
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
-use crate::doc::{DocParam, DocParamField, GaugeRefFault, ParamName, WitnessSiteFault};
+use crate::doc::{DocParamField, FreeVar, GaugeRefFault, VarName, WitnessSiteFault};
 use crate::edit::DocEdit;
 use crate::meta::MetaVersionError;
 use crate::node::SlotId;
@@ -55,7 +55,7 @@ pub enum NonFiniteSite {
     /// A continuous document parameter (snapshot).
     DocParam {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
         /// Which float of the parameter it is — the nominal, or the
         /// annotation's offset. The walk has to identify the field to
         /// decide there is a defect at all, so it says which one
@@ -150,7 +150,7 @@ pub(crate) enum Walk {
     /// document parameter's authored display unit measures the
     /// dimension it was declared with. A literal needs no twin walk
     /// (`Expr::literal_with_unit` makes the pairing at construction and
-    /// the load side re-runs it); a `DocParam` does, because its
+    /// the load side re-runs it); a `FreeVar` does, because its
     /// payload is `pub` and its dimension is data. Snapshot only.
     DisplayUnit,
     /// [`first_slot_fault`] over every node's slots: every node's SLOT
@@ -421,14 +421,14 @@ fn param_ref_refusal(
 /// Expression literals need no twin walk — `Expr::literal_with_unit`
 /// checks the pairing at construction and the load side re-runs that
 /// same constructor, so a literal cannot reach a document mismatched.
-/// A `DocParam` has no such door to make total: its payload is `pub`
+/// A `FreeVar` has no such door to make total: its payload is `pub`
 /// and its dimension is data, which is exactly the asymmetry this walk
 /// covers.
 fn first_display_unit_fault(
     snapshot: &ProfileDoc,
-) -> Option<(ParamName, crate::expr::Dimension, crate::expr::Dimension)> {
+) -> Option<(VarName, crate::expr::Dimension, crate::expr::Dimension)> {
     snapshot.params.iter().find_map(|(name, p)| match p {
-        DocParam::Continuous {
+        FreeVar::Continuous {
             dim, display_unit, ..
         } => {
             // The SAME reading the edit door and the literal
@@ -437,7 +437,7 @@ fn first_display_unit_fault(
             let measured = display_unit.measures();
             (measured != *dim).then(|| (name.clone(), measured, *dim))
         }
-        DocParam::Count { .. } => None,
+        FreeVar::Count { .. } => None,
     })
 }
 
@@ -574,11 +574,11 @@ fn first_non_finite(
 }
 
 /// The parameter's non-finite float as THIS door names it: the one
-/// predicate `DocParam::first_non_finite` decides, rendered as the
+/// predicate `FreeVar::first_non_finite` decides, rendered as the
 /// site vocabulary a document author reads. The distribution's offsets
 /// belong to this walk rather than to a second spelling of the same
 /// defect — the shape invariants are `first_distribution_fault`'s.
-fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
+fn param_site(name: &VarName, p: &FreeVar) -> Option<NonFiniteSite> {
     Some(NonFiniteSite::DocParam {
         name: name.clone(),
         field: p.first_non_finite()?,
@@ -594,7 +594,7 @@ fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
 ///
 /// Runs after the float walk, so a non-finite offset is reported as a
 /// non-finite float rather than as a shape fault.
-fn first_distribution_fault(snapshot: &ProfileDoc) -> Option<(ParamName, DistributionFault)> {
+fn first_distribution_fault(snapshot: &ProfileDoc) -> Option<(VarName, DistributionFault)> {
     snapshot
         .params
         .iter()
@@ -622,14 +622,14 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // continuous arm IS a raw float the format writes.
         //
         // It is the one float site here that cannot delegate to
-        // `DocParam::first_non_finite`: the payload is a bare `f64`,
-        // not a `DocParam`, so there is no parameter for the shared
+        // `FreeVar::first_non_finite`: the payload is a bare `f64`,
+        // not a `FreeVar`, so there is no parameter for the shared
         // predicate to read. What it shares with the walk over the
         // table is the SITE vocabulary, which is what a reader
         // comparing the two refusals sees.
         DocEdit::SetDocParamValue {
             name,
-            value: crate::doc::DocParamValue::Continuous(v),
+            value: crate::doc::FreeValue::Continuous(v),
         } if !v.is_finite() => Some(NonFiniteSite::DocParam {
             name: name.clone(),
             field: DocParamField::Nominal,
@@ -931,7 +931,7 @@ pub enum SnapshotError {
         /// The slot whose expression reads it.
         slot: SlotId,
         /// The name it reads.
-        name: ParamName,
+        name: VarName,
     },
     /// A node whose SLOT expression reads a declared parameter at
     /// another dimension than it was declared with — the pairing a
@@ -943,7 +943,7 @@ pub enum SnapshotError {
         /// The slot whose expression reads it.
         slot: SlotId,
         /// The name it reads.
-        name: ParamName,
+        name: VarName,
         /// The dimension the declaration carries.
         declared: crate::expr::Dimension,
         /// The dimension the expression reads it at.
@@ -960,7 +960,7 @@ pub enum SnapshotError {
         /// The offending node.
         node: SpokenNode,
         /// The name its payload reads.
-        name: ParamName,
+        name: VarName,
     },
     /// A node whose PAYLOAD expression reads a declared parameter at
     /// another dimension than it was declared with — the pairing a
@@ -969,7 +969,7 @@ pub enum SnapshotError {
         /// The offending node.
         node: SpokenNode,
         /// The name its payload reads.
-        name: ParamName,
+        name: VarName,
         /// The dimension the declaration carries.
         declared: crate::expr::Dimension,
         /// The dimension the expression reads it at.
@@ -1703,7 +1703,7 @@ mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
 
     use super::Walk;
-    use crate::doc::ParamName;
+    use crate::doc::VarName;
     use crate::expr::Dimension;
     use crate::node::{Node, RecipeNodeId, SlotId};
     use crate::persist::{PersistError, SnapshotError, save};
@@ -1902,22 +1902,22 @@ mod tests {
             SnapshotError::SlotUnknownDocParam {
                 node: node(),
                 slot: SlotId::Radius,
-                name: ParamName::from_static("fillet"),
+                name: VarName::from_static("fillet"),
             },
             SnapshotError::SlotDocParamDimension {
                 node: node(),
                 slot: SlotId::Distance,
-                name: ParamName::from_static("depth"),
+                name: VarName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::PayloadUnknownDocParam {
                 node: node(),
-                name: ParamName::from_static("depth"),
+                name: VarName::from_static("depth"),
             },
             SnapshotError::PayloadDocParamDimension {
                 node: node(),
-                name: ParamName::from_static("depth"),
+                name: VarName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },

@@ -176,17 +176,17 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
 /// the old one once the new run has landed.
 #[test]
 fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
-    use pncad::document::{Dimension, DocParam, Expr, MeasureExpr, ParamName};
+    use pncad::document::{Dimension, Expr, FreeVar, MeasureExpr, VarName};
     use viewer::props::{Computed, SlotValue};
     use viewer::session::{DocSession, SessionOp};
     use viewer::tree::Readout;
 
     let tol = Tol::witness();
-    let gap = ParamName::from_static("gap");
+    let gap = VarName::from_static("gap");
     let mut doc = common::declared(
         "measure-landed",
         &gap,
-        DocParam::continuous(Dimension::Length, 0.01),
+        FreeVar::continuous(Dimension::Length, 0.01),
         tol,
     );
     let measure = common::insert_into(

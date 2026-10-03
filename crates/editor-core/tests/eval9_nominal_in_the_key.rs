@@ -27,8 +27,8 @@ use crate::fixture;
 
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{
-    Axis3, CancelToken, Datum, Dimension, DocEdit, DocParam, EvalOptions, Expr, Node,
-    NodeErrorKind, NodeResult, ParamName, ProfileDoc, RecipeNodeId, SlotId, evaluate,
+    Axis3, CancelToken, Datum, Dimension, DocEdit, EvalOptions, Expr, FreeVar, Node, NodeErrorKind,
+    NodeResult, ProfileDoc, RecipeNodeId, SlotId, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -42,8 +42,8 @@ fn profile(doc: &ProfileDoc) -> RecipeNodeId {
     doc.order()[1]
 }
 
-fn p() -> ParamName {
-    ParamName::from_static("p")
+fn p() -> VarName {
+    VarName::from_static("p")
 }
 
 /// The probe's document: `p` a scalar parameter at `nominal`, a frame
@@ -57,7 +57,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
         .apply(
             &DocEdit::SetDocParam {
                 name: p(),
-                value: DocParam::continuous(Dimension::Scalar, nominal),
+                value: FreeVar::continuous(Dimension::Scalar, nominal),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -124,8 +124,7 @@ mod over_a_param_box {
 
     use editor_core::analysis::ParamBox;
     use editor_core::{
-        CancelToken, ContentKey, DocEdit, DocParamValue, Evaluation, ProfileDoc, ValuePayload,
-        evaluate,
+        CancelToken, ContentKey, DocEdit, Evaluation, FreeValue, ProfileDoc, ValuePayload, evaluate,
     };
     use geom_core::{Bounds, Interval, Tol};
 
@@ -137,7 +136,7 @@ mod over_a_param_box {
         doc.apply(
             &DocEdit::SetDocParamValue {
                 name: p(),
-                value: DocParamValue::Continuous(value),
+                value: FreeValue::Continuous(value),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

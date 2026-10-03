@@ -15,8 +15,8 @@ use crate::fixture;
 
 use crate::fixture::len;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload,
+    CancelToken, Dimension, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload, VarName,
     evaluate,
 };
 use geom_core::Tol;
@@ -31,12 +31,12 @@ use geom_core::Tol;
 /// the extrude over that: `doc.order()[1]` is the profile and
 /// `doc.order()[2]` the body.
 fn param_rect_doc(x0: f64) -> ProfileDoc {
-    let x0e = || Expr::param(ParamName::from_static("x0"), Dimension::Length);
+    let x0e = || Expr::param(VarName::from_static("x0"), Dimension::Length);
     let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::from_static("x0"),
-                value: DocParam::continuous(Dimension::Length, x0),
+                name: VarName::from_static("x0"),
+                value: FreeVar::continuous(Dimension::Length, x0),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

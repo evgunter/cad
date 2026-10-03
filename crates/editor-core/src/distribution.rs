@@ -47,7 +47,7 @@
 /// refuse the rest.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 // Externally tagged with the variant names as written, matching the
-// neighbouring `DocParam` spelling this type is nested inside.
+// neighbouring `FreeVar` spelling this type is nested inside.
 #[serde(deny_unknown_fields)]
 pub enum Distribution {
     /// Worst-case limits with NO shape claim, and therefore no
@@ -245,7 +245,7 @@ impl Distribution {
     /// identity (D7), where `0.0` and `-0.0` are different offsets.
     ///
     /// EXHAUSTIVE on purpose, on BOTH sides of the pair, for the
-    /// reason [`crate::DocParam::bit_eq`] gives: a wildcard would
+    /// reason [`crate::FreeVar::bit_eq`] gives: a wildcard would
     /// answer `false` for a new variant against ITSELF.
     pub fn bit_eq(&self, other: &Self) -> bool {
         match (self, other) {

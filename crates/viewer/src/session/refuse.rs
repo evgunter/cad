@@ -16,8 +16,8 @@
 
 use pncad::document::{
     BooleanOp, BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
-    Evaluation, HeldNodes, Node, NodeErrorKind, ParamName, ParseError, ProfileProgram,
-    RecipeNodeId, Said, SlotId, Speaker, SpokenNode, ValuePayload, held_by,
+    Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram, RecipeNodeId, Said,
+    SlotId, Speaker, SpokenNode, ValuePayload, VarName, held_by,
 };
 use pncad::prelude::{Body, StableName, SurfaceKind};
 use pncad::select::{FlushFinding, InterrogateError, face_carrier_kind};
@@ -232,7 +232,7 @@ pub enum Refusal {
         /// The slot.
         slot: SlotId,
         /// The document parameters the driving expression reads.
-        params: Vec<ParamName>,
+        params: Vec<VarName>,
         /// The slot's current value, when it has one.
         current: Option<SlotValue>,
         /// The working notation the affordance reads `current` in —
@@ -269,11 +269,11 @@ pub enum Refusal {
     /// that was refused, and a drag has no edit behind it, so a
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
-    NoSuchParam(ParamName),
+    NoSuchParam(VarName),
     /// A parameter's value field was given text that is not a number.
     ///
     /// **A document parameter holds a number, not an expression** —
-    /// `DocParam::Continuous` holds an `f64` — so there is no
+    /// `FreeVar::Continuous` holds an `f64` — so there is no
     /// `SetDocParamExpression` for such text to reach and no partial
     /// reading of it that would be honest. A slot's field takes the
     /// expression door here; a parameter's says why it has none, which
@@ -285,7 +285,7 @@ pub enum Refusal {
     /// refusal the parser already made.
     ParamNotANumber {
         /// The parameter whose field was typed into.
-        name: ParamName,
+        name: VarName,
     },
     /// The CREATE door was asked for a name that is already declared.
     ///
@@ -296,7 +296,7 @@ pub enum Refusal {
     /// offer can name what already stands there.
     ParamExists {
         /// The name, as asked for.
-        name: ParamName,
+        name: VarName,
         /// The dimension the existing declaration carries.
         dimension: Dimension,
     },
@@ -672,7 +672,7 @@ impl Refusal {
     /// ([`props::computed_text`], in the working `notation` and
     /// carrying its symbol), so the two never show one number two ways.
     pub fn affordance(
-        params: &[ParamName],
+        params: &[VarName],
         slot: SlotId,
         current: Option<SlotValue>,
         notation: Notation,
@@ -680,7 +680,7 @@ impl Refusal {
         let over = if params.is_empty() {
             "an expression".to_owned()
         } else {
-            let names: Vec<&str> = params.iter().map(ParamName::as_str).collect();
+            let names: Vec<&str> = params.iter().map(VarName::as_str).collect();
             format!("an expression over {}", names.join(", "))
         };
         match current {
@@ -703,7 +703,7 @@ impl Refusal {
     /// editor-core): a dimension is a quantity KIND, so a sentence a
     /// person reads says the common noun and never the variant
     /// identifier.
-    pub fn exists_wording(name: &ParamName, dimension: Dimension) -> String {
+    pub fn exists_wording(name: &VarName, dimension: Dimension) -> String {
         format!(
             "parameter {} already exists ({dimension}) — edit it instead?",
             name.as_str()
@@ -712,7 +712,7 @@ impl Refusal {
 
     /// The create-offer sentence, and its one home — shown over the
     /// add-parameter form when an expression refused on this name.
-    pub fn offer_wording(name: &ParamName) -> String {
+    pub fn offer_wording(name: &VarName) -> String {
         format!("create parameter {}?", name.as_str())
     }
 

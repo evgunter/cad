@@ -13,8 +13,8 @@
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::{Distribution, DistributionFault};
 use crate::doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamValue, GaugeRefFault,
-    NameCarrier, ParamName, ParamRefFault, WitnessSiteFault,
+    DisplayUnitRefusal, DistributionRefusal, Doc, FreeValue, FreeVar, GaugeRefFault, NameCarrier,
+    ParamRefFault, VarName, WitnessSiteFault,
 };
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::mate::reach::MateReach;
@@ -246,17 +246,17 @@ pub enum DocEdit<P> {
     /// A dimension change re-validates every referencing expression.
     SetDocParam {
         /// The parameter name.
-        name: ParamName,
+        name: VarName,
         /// The declared dimension and exact value.
-        value: DocParam,
+        value: FreeVar,
     },
     /// Write a NEW VALUE into an already-declared document parameter,
     /// keeping its declaration: its dimension and its optional
     /// distribution ride through untouched
-    /// ([`DocParam::with_value`]).
+    /// ([`FreeVar::with_value`]).
     ///
     /// The door [`Self::SetDocParam`] cannot be. That one is
-    /// create-or-replace, so it takes a whole `DocParam` and a caller
+    /// create-or-replace, so it takes a whole `FreeVar` and a caller
     /// who assembled one from `(dim, value)` — the natural spelling,
     /// and the only one a value-editing panel, gesture or binding
     /// wants — deletes any annotation the parameter carried, with no
@@ -269,27 +269,27 @@ pub enum DocEdit<P> {
     /// redeclaration, and belongs to the other door).
     SetDocParamValue {
         /// The parameter name — must already be declared.
-        name: ParamName,
+        name: VarName,
         /// The replacement value.
-        value: DocParamValue,
+        value: FreeValue,
     },
     /// Write a new NOTATION onto an already-declared document
     /// parameter, keeping its declaration: its dimension, its exact
     /// value and its optional distribution ride through untouched
-    /// ([`DocParam::with_display_unit`]).
+    /// ([`FreeVar::with_display_unit`]).
     ///
     /// [`Self::SetDocParamValue`]'s mirror over the other field of the
     /// declaration, and it exists for the same reason. A parameter's
     /// display unit sits on the DECLARATION, beside `dim` and
     /// `distribution`, so the only other way to re-spell it is
-    /// [`Self::SetDocParam`] — create-or-replace — with a `DocParam`
+    /// [`Self::SetDocParam`] — create-or-replace — with a `FreeVar`
     /// the caller assembled, and the natural spelling
-    /// ([`DocParam::continuous`] plus the notation) names no
+    /// ([`FreeVar::continuous`] plus the notation) names no
     /// distribution and therefore deletes any the parameter carried.
     /// There is nothing to omit here.
     ///
     /// A notation change is not a redeclaration — the argument, in
-    /// full, is [`DocParam::with_display_unit`]'s rustdoc.
+    /// full, is [`FreeVar::with_display_unit`]'s rustdoc.
     ///
     /// Refuses typed on a name the document does not declare
     /// ([`EditError::DocParamNotDeclared`] — there is no declaration to
@@ -301,7 +301,7 @@ pub enum DocEdit<P> {
     SetDocParamUnit {
         /// The parameter name — must already be declared, and must not
         /// be a `Count`.
-        name: ParamName,
+        name: VarName,
         /// The notation to write, which must MEASURE the declared
         /// dimension.
         unit: crate::expr::UnitSym,
@@ -309,27 +309,27 @@ pub enum DocEdit<P> {
     /// Write an E1/E2 ANNOTATION onto an already-declared document
     /// parameter, keeping its declaration: its dimension, its exact
     /// value and its authored display unit ride through untouched
-    /// ([`DocParam::with_distribution`]).
+    /// ([`FreeVar::with_distribution`]).
     ///
     /// The third of the carry-forward doors, one per field of the
     /// declaration a narrow edit can move, and it exists for its
     /// siblings' reason. The only other way to annotate a standing
     /// parameter is [`Self::SetDocParam`] — create-or-replace — with a
-    /// `DocParam` the caller assembled, and the authoring spelling for
-    /// an annotated parameter ([`DocParam::continuous_with`]) writes
+    /// `FreeVar` the caller assembled, and the authoring spelling for
+    /// an annotated parameter ([`FreeVar::continuous_with`]) writes
     /// the CANONICAL notation: a parameter authored in millimetres
     /// reverts to metres the moment anyone annotates it. There is
     /// nothing to restate here.
     ///
     /// **`None` CLEARS the annotation**, through this same door; the
-    /// argument is [`DocParam::with_distribution`]'s rustdoc.
+    /// argument is [`FreeVar::with_distribution`]'s rustdoc.
     ///
     /// Refuses typed on a name the document does not declare
     /// ([`EditError::DocParamNotDeclared`] — there is no declaration to
     /// carry forward), on a `Count`
     /// ([`EditError::DocParamCountHasNoDistribution`] — a count takes
     /// no annotation, the argument again being
-    /// [`DocParam::with_distribution`]'s rustdoc) and on a
+    /// [`FreeVar::with_distribution`]'s rustdoc) and on a
     /// distribution that breaks an E2 invariant
     /// ([`EditError::NonFiniteDocParam`],
     /// [`EditError::InvalidDistribution`] — the invariants the
@@ -337,7 +337,7 @@ pub enum DocEdit<P> {
     SetDocParamDistribution {
         /// The parameter name — must already be declared, and must not
         /// be a `Count`.
-        name: ParamName,
+        name: VarName,
         /// The annotation to write, or `None` to clear it.
         distribution: Option<Distribution>,
     },
@@ -697,7 +697,7 @@ pub const UNDECLARED_PARAM_RECOURSE: &str = "declare it first";
 /// bound — the expressions no slot addresses). Those four meanings are
 /// named as the product `{Slot,Payload}` x
 /// `{UnknownDocParam,DocParamDimension}`: the ADDRESS leads, the FACT
-/// trails, and the parameter is ONE noun (`DocParam`) in every arm.
+/// trails, and the parameter is ONE noun (`FreeVar`) in every arm.
 /// The load door's four ([`crate::SnapshotError::SlotUnknownDocParam`]
 /// and its three siblings) are the SAME four names, because the
 /// address is what the walk iterates and the fact is what the rule
@@ -736,7 +736,7 @@ pub const UNDECLARED_PARAM_RECOURSE: &str = "declare it first";
 /// reference or a declaration — never by the words already in its
 /// name. A sweep by SHAPE misses half of the declaration family:
 /// [`EditError::DocParamCountHasNoUnit`] and its siblings carry no
-/// `Mismatch` in them, so sweep by SUBJECT (`DocParam`, `Param`) too.
+/// `Mismatch` in them, so sweep by SUBJECT (`FreeVar`, `Param`) too.
 ///
 /// Every other mention of the convention in this tree cites this
 /// paragraph instead of re-wording it.
@@ -947,7 +947,7 @@ pub enum EditError {
     /// named under the convention this enum's own doc states.
     SlotUnknownDocParam {
         /// The missing parameter.
-        name: ParamName,
+        name: VarName,
         /// The referencing node.
         node: SpokenNode,
         /// The referencing slot.
@@ -957,7 +957,7 @@ pub enum EditError {
     /// document parameter's declared dimension.
     SlotDocParamDimension {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
         /// The referencing node.
         node: SpokenNode,
         /// The referencing slot.
@@ -974,7 +974,7 @@ pub enum EditError {
     /// instead of borrowing a slot name from a node that has one.
     PayloadUnknownDocParam {
         /// The missing parameter.
-        name: ParamName,
+        name: VarName,
         /// The referencing node.
         node: SpokenNode,
     },
@@ -982,7 +982,7 @@ pub enum EditError {
     /// document parameter's declared dimension.
     PayloadDocParamDimension {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
         /// The referencing node.
         node: SpokenNode,
         /// The dimension the parameter is declared with.
@@ -1021,10 +1021,10 @@ pub enum EditError {
         bound: Dimension,
     },
     /// A `Continuous` doc param declared with `Dimension::Count` —
-    /// Count parameters use [`DocParam::Count`] (exact integers).
+    /// Count parameters use [`FreeVar::Count`] (exact integers).
     ContinuousParamCannotBeCount {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
     },
     /// A carry-forward edit — [`DocEdit::SetDocParamValue`],
     /// [`DocEdit::SetDocParamUnit`] or
@@ -1041,7 +1041,7 @@ pub enum EditError {
     /// work out which of their edits it was talking about.
     DocParamNotDeclared {
         /// The undeclared parameter.
-        name: ParamName,
+        name: VarName,
         /// Which carry-forward edit was refused.
         door: CarryForwardDoor,
     },
@@ -1055,12 +1055,12 @@ pub enum EditError {
     /// count under ANY declaration.
     DocParamCountHasNoUnit {
         /// The count parameter.
-        name: ParamName,
+        name: VarName,
     },
     /// An annotation edit ([`DocEdit::SetDocParamDistribution`]) named
     /// a `Count` parameter, which takes no distribution and carries no
     /// field to write one into — the argument is
-    /// [`DocParam::with_distribution`]'s rustdoc (E11.3).
+    /// [`FreeVar::with_distribution`]'s rustdoc (E11.3).
     ///
     /// [`Self::DocParamCountHasNoUnit`]'s sibling at the third field,
     /// and separate from it for the same reason the two doors are
@@ -1072,7 +1072,7 @@ pub enum EditError {
     /// hide that.
     DocParamCountHasNoDistribution {
         /// The count parameter.
-        name: ParamName,
+        name: VarName,
     },
     /// A notation edit ([`DocEdit::SetDocParamUnit`]) offered a unit
     /// that does not MEASURE the parameter's declared dimension —
@@ -1080,7 +1080,7 @@ pub enum EditError {
     ///
     /// The same pairing the shared save/load validator refuses a
     /// document for (`PersistError::DisplayUnit`) and the authoring
-    /// doors ([`DocParam::written_length`], [`DocParam::written_angle`])
+    /// doors ([`FreeVar::written_length`], [`FreeVar::written_angle`])
     /// make unreachable by construction; this is that fault refused at
     /// the edit door, before it can reach a document at all.
     ///
@@ -1096,7 +1096,7 @@ pub enum EditError {
     /// argument that never reached one.
     DocParamUnitMismatch {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
         /// The dimension the offered unit measures.
         unit: Dimension,
         /// The dimension the document declares.
@@ -1109,12 +1109,12 @@ pub enum EditError {
     /// distribution are stated afresh rather than carried.
     DocParamValueKindMismatch {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
         /// The dimension the document declares (`Count` for a count
         /// parameter).
         declared: Dimension,
         /// The value the edit offered.
-        offered: DocParamValue,
+        offered: FreeValue,
     },
     /// A `SetExpression` path runs off the expression tree (spec D5).
     PathOffTree {
@@ -1168,7 +1168,7 @@ pub enum EditError {
     /// persist-time refusal then has nothing to catch).
     NonFiniteDocParam {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
         /// WHICH of its floats it is. The predicate identifies the
         /// field to answer at all, and this door carries it for the
         /// reason the load door's site does: a sentence naming `sigma`
@@ -1181,7 +1181,7 @@ pub enum EditError {
     /// would refuse to load cannot be authored.
     InvalidDistribution {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
         /// The invariant that failed.
         fault: DistributionFault,
     },
@@ -1623,7 +1623,7 @@ impl From<crate::ident::Mispaired> for EditError {
 // paragraph as describing the crate.
 //
 // **The bare name, by contrast, IS the crate's rule.** A parameter
-// name renders through `ParamName`'s `Display` at every door that
+// name renders through `VarName`'s `Display` at every door that
 // frames it in a sentence of its own; the one door that quotes is
 // `ParseError::UnknownParam`, which echoes the bytes an author typed
 // and says so at the site. The SLOT id renders through `SlotId::label`
@@ -3651,7 +3651,7 @@ fn spoken_before_else_after<P>(before: &Doc<P>, after: &Doc<P>, id: RecipeNodeId
 /// shape faults. Both the create-or-replace door and the annotation
 /// door reach it, so a caller comparing their refusals reads one
 /// answer rather than two spellings of it.
-fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditError {
+fn distribution_fault_error(name: &VarName, fault: DistributionFault) -> EditError {
     match fault {
         DistributionFault::NonFinite { field } => EditError::NonFiniteDocParam {
             name: name.clone(),
@@ -3665,7 +3665,7 @@ fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditE
     }
 }
 
-/// Write a fully-formed [`DocParam`] into the document: the shared
+/// Write a fully-formed [`FreeVar`] into the document: the shared
 /// tail of every parameter door, so no two of them can come to
 /// disagree about what a legal parameter is. Four doors reach it —
 /// the create-or-replace door ([`DocEdit::SetDocParam`]) and the three
@@ -3675,10 +3675,10 @@ fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditE
 /// declaration routes through here too, and adds itself to that list.
 ///
 /// **The NAME is not checked here, because it cannot be wrong**: a
-/// [`ParamName`] is admissible by construction — one identifier the
+/// [`VarName`] is admissible by construction — one identifier the
 /// expression parser reads back as a reference — so no edit can carry
 /// a name the document could not be asked about, and the load door
-/// refuses one at the token (`ParamName`'s `Deserialize` is the same
+/// refuses one at the token (`VarName`'s `Deserialize` is the same
 /// constructor). One decision at the type, and neither door restates
 /// it.
 ///
@@ -3700,13 +3700,13 @@ fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditE
 fn write_doc_param<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     before: &Doc<P>,
-    name: &ParamName,
-    value: DocParam,
+    name: &VarName,
+    value: FreeVar,
 ) -> Result<EditRecord, EditError> {
     // Ruled door 1 (non-finite policy): recipe data never carries
     // NaN/inf — the nominal and the distribution offsets alike, by the
     // ONE predicate the load door's float walk asks
-    // (`DocParam::first_non_finite`), which is also what decides WHICH
+    // (`FreeVar::first_non_finite`), which is also what decides WHICH
     // float this refusal names.
     if let Some(field) = value.first_non_finite() {
         return Err(EditError::NonFiniteDocParam {
@@ -3725,7 +3725,7 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
     {
         return Err(distribution_fault_error(name, fault));
     }
-    // The structural/continuous divide (`DocParam::is_continuous_count`).
+    // The structural/continuous divide (`FreeVar::is_continuous_count`).
     // This door is where it is REACHABLE: at the load door the same
     // declaration refuses one walk earlier, because no unit in the
     // table measures a count and the notation walk below asks that of
@@ -3735,13 +3735,13 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
     }
     // The unit/dimension pairing, at EVERY door that writes a
     // declaration rather than only at the one that writes a notation.
-    // This is the create-or-replace door, whose `DocParam` a caller
+    // This is the create-or-replace door, whose `FreeVar` a caller
     // assembles out of a `pub` payload, so it is the one door that can
     // state a mismatched pair — and before this check the only thing
     // that refused it was save/load, which meant an in-memory document
     // could hold a parameter no file could ever carry. `measures()` is
     // the same predicate the notation door and the validator ask.
-    if let DocParam::Continuous {
+    if let FreeVar::Continuous {
         dim, display_unit, ..
     } = value
     {
@@ -3754,7 +3754,7 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
             });
         }
     }
-    let structural = matches!(value, DocParam::Count { .. });
+    let structural = matches!(value, FreeVar::Count { .. });
     new.params.insert(name.clone(), value);
     // A (re)declaration can change the dimension out from under
     // referencing expressions: re-validate every slot (documents are

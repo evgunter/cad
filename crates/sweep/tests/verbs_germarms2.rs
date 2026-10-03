@@ -325,3 +325,34 @@ fn the_fenced_poses_keep_their_own_doors() {
         "parallel-equal-r",
     );
 }
+
+/// **`same_door` matches an undeclared coincidence arm for arm.** A
+/// margin just inside the zero band and one just past it into the
+/// ambiguity band lie closer than a band-width, yet one was decided
+/// zero and the other refused in band: two doors. Two margins inside
+/// the zero band are one.
+#[test]
+fn same_door_tells_a_decided_zero_from_a_coincidence_in_band() {
+    let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+    let refusal = |m: f64| BooleanError::UndeclaredCoincidence {
+        diag: geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(m * band.zero()),
+            band,
+            predicate: Some("bool_plane_offset"),
+            terminal_sliver: false,
+        },
+        pair: [
+            (topo::Operand::A, topo::FaceKey::default()),
+            (topo::Operand::B, topo::FaceKey::default()),
+        ],
+        relation: topo::PlaneRelation::SameOpposite,
+    };
+    assert!(
+        !same_door(&refusal(0.9), &refusal(1.1)),
+        "a decided zero and an in-band margin are two doors"
+    );
+    assert!(
+        same_door(&refusal(0.9), &refusal(0.2)),
+        "two decided zeros a band-width apart at most are one door"
+    );
+}

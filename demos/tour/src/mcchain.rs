@@ -110,8 +110,8 @@ use pncad::analysis::{
     AnalysisPolicy, DEFAULT_SAMPLES, McConfig, analyzed_box, monte_carlo, sample_offsets, summarize,
 };
 use pncad::document::{
-    CancelToken, DocEdit, DocParamValue, EvalOptions, Evaluation, ParamName, ProfileDoc,
-    RecipeNodeId, RefusingReach, ValuePayload, apply, evaluate,
+    CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, ProfileDoc, RecipeNodeId,
+    RefusingReach, ValuePayload, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -189,8 +189,8 @@ fn study_over_certified() -> String {
 /// **Does the published certified box apply to THIS run?**
 ///
 /// [`CERTIFIED_PIN_BOX`] and [`CERTIFIABLE_FRACTION`] are measured at
-/// the compiled default ε, and the box MOVES with ε (`6.747e-5` at
-/// `1e-6` against `6.751e-8` at the default, measured) — so at another
+/// the compiled default ε, and the box MOVES with ε (`1.317e-4` at
+/// `1e-6` against `1.318e-7` at the default, measured) — so at another
 /// ε it is a different box, and `chaintol` says so (`demo-tour certified`).
 /// It moves because the wall is an enclosure escalating against the
 /// band (the placed rows' angular comparisons, since the extrude closes
@@ -283,7 +283,7 @@ fn bar_outline(body: &Body<f64>) -> Vec<(f64, f64)> {
 /// tip's position read back out of it.
 fn replay(base: &Chain, samples: usize, config: &McConfig, tol: Tol) -> Vec<Sample> {
     let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
-    let nominal: Vec<(ParamName, f64)> = analyzed
+    let nominal: Vec<(VarName, f64)> = analyzed
         .varying()
         .map(|(name, p)| (name.clone(), p.nominal))
         .collect();
@@ -299,7 +299,7 @@ fn replay(base: &Chain, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
                     &doc,
                     &DocEdit::SetDocParamValue {
                         name: name.clone(),
-                        value: DocParamValue::Continuous(value + offset),
+                        value: FreeValue::Continuous(value + offset),
                     },
                     tol,
                     &RefusingReach,
@@ -1103,7 +1103,7 @@ fn sheet(
             ),
             [
                 format!(
-                    "\u{2014} the box MOVES with \u{03b5} (6.747e-5 at 1e-6 against {:.3e} at the default, measured), so at another \u{03b5} it is a different box.",
+                    "\u{2014} the box MOVES with \u{03b5} (1.317e-4 at 1e-6 against {:.3e} at the default, measured), so at another \u{03b5} it is a different box.",
                     CERTIFIABLE_FRACTION
                 ),
                 "\u{2014} the tour's chaintol cell (demo-tour certified) declares that frontier at the same \u{03b5}; the sheet says what the cell says."

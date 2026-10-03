@@ -43,8 +43,8 @@ use editor_core::drive::{
     BudgetKind, DriveConfig, ReasonClass, RefusalReason, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
-    ParamName, ProfileDoc, ProfileLift, ProfileProgram, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node,
+    ProfileDoc, ProfileLift, ProfileProgram, VarName, evaluate,
 };
 use geom_core::{Interval, Tol};
 
@@ -54,8 +54,8 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn unit_square() -> LoopProgram {
@@ -69,7 +69,7 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("depth"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -608,7 +608,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
         for (n, nominal) in [("hole_r", 0.25_f64), ("plate_h", 0.5)] {
             r.push(DocEdit::SetDocParam {
                 name: name(n),
-                value: DocParam::Continuous {
+                value: FreeVar::Continuous {
                     dim: Dimension::Length,
                     value: nominal,
                     display_unit: UnitSym::canonical_for(Dimension::Length),
