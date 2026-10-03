@@ -392,7 +392,7 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
 /// A C — the annular sector about `(−0.5, 0)` between radii `ro` and
 /// `ri`, sweeping `sweep` and open about `+x`, its sides one arc each —
 /// on the plane `z = z0`, extruded `h`, with its area.
-fn annular_sector(ro: f64, ri: f64, sweep: f64, z0: f64, h: f64) -> (Body<f64>, f64) {
+fn annular_sector(ro: f64, ri: f64, sweep: f64, z0: f64, h: f64) -> (AtRestBody<f64>, f64) {
     let (cx, g) = (-0.5, PI - sweep / 2.0);
     let at = |r: f64, a: f64| Point2::new(cx + r * a.cos(), r * a.sin());
     let b = (sweep / 4.0).tan();
@@ -403,7 +403,10 @@ fn annular_sector(ro: f64, ri: f64, sweep: f64, z0: f64, h: f64) -> (Body<f64>, 
         (at(ri, g), 0.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    (extruded(plane, lp, h), sweep / 2.0 * (ro * ro - ri * ri))
+    (
+        finished("the C", extruded(plane, lp, h), tol()),
+        sweep / 2.0 * (ro * ro - ri * ri),
+    )
 }
 
 /// **An engraved C builds at every sweep.** A blind annular-sector
@@ -418,15 +421,23 @@ fn annular_sector(ro: f64, ri: f64, sweep: f64, z0: f64, h: f64) -> (Body<f64>, 
 /// certificate.
 #[test]
 fn an_engraved_one_arc_c_builds_at_every_sweep() {
-    let cyl = extruded(
-        SketchPlane::xy(),
-        profile::circle(Point2::new(0.0, 0.0), 1.0, tol())
-            .unwrap()
-            .into(),
-        2.5,
+    let cyl = finished(
+        "the cylinder",
+        extruded(
+            SketchPlane::xy(),
+            profile::circle(Point2::new(0.0, 0.0), 1.0, tol())
+                .unwrap()
+                .into(),
+            2.5,
+        ),
+        tol(),
     );
     let (vc, vbox) = (PI * 2.5, 2.0 * 2.0 * 1.0);
-    let block = brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol());
+    let block = finished(
+        "the box",
+        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
     for (ro, ri) in [(0.25, 0.15), (0.4, 0.1)] {
         for deg in [135.0_f64, 180.0, 270.0] {
             let sweep = deg.to_radians();

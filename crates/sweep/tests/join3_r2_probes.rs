@@ -23,7 +23,7 @@
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::Body;
+use topo::{AtRestBody, Body};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -163,8 +163,7 @@ fn outcome(
                 let t2 = topo::validate_closed(&bb.body).is_ok();
                 let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).is_ok();
                 let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
-                let far =
-                    sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol());
+                let far = far_brick();
                 let legal = match topo::union(&bb.body, &far, tol()) {
                     Ok(_) => "legal".to_string(),
                     Err(e) => format!("NONOPERAND {:?}", e.kind()),
@@ -207,7 +206,32 @@ fn block() -> Body<f64> {
     )
 }
 
+/// The brick `[50, 51]³`, disjoint from every probe's operands: a
+/// union with it reads whether a body is a legal operand.
+fn far_brick() -> AtRestBody<f64> {
+    sweep::test_support::finished(
+        "the far brick",
+        sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
+        tol(),
+    )
+}
+
+/// `body` as a boolean operand, or the at-rest gate's findings.
+fn as_operand(body: Body<f64>) -> Result<AtRestBody<f64>, String> {
+    AtRestBody::validate(body, tol()).map_err(|e| format!("not a finished body: {e:?}"))
+}
+
+/// The six ops over `a` and `b`; an operand the at-rest gate refuses is
+/// printed in place of the battery.
 fn run_ops(tag: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, vi: Option<f64>) {
+    let (a, b) = match (as_operand(a.clone()), as_operand(b.clone())) {
+        (Ok(a), Ok(b)) => (a, b),
+        (a, b) => {
+            println!("J3R2 {tag} NONOPERAND-IN a={:?} b={:?}", a.err(), b.err());
+            return;
+        }
+    };
+    let (a, b) = (&a, &b);
     let mut got = std::collections::BTreeMap::new();
     for (op, wab, wba) in [
         ("U", vi.map(|i| va + vb - i), vi.map(|i| va + vb - i)),
@@ -571,13 +595,15 @@ fn j3r2_snowman_battery() {
 #[test]
 #[ignore = "probe"]
 fn j3r2_tilted_operands() {
-    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol());
-    println!(
-        "block: {:?}",
-        topo::union(&block(), &far, tol())
-            .map(|_| ())
-            .map_err(|e| e.kind())
-    );
+    let far = far_brick();
+    let legal = |body: Body<f64>| {
+        as_operand(body).and_then(|b| {
+            topo::union(&b, &far, tol())
+                .map(|_| ())
+                .map_err(|e| format!("{:?}", e.kind()))
+        })
+    };
+    println!("block: {:?}", legal(block()));
     for (name, base) in shapes() {
         for (axis, ax_name) in [
             (Vec3::new(1.0, 0.0, 0.0), "x"),
@@ -587,9 +613,7 @@ fn j3r2_tilted_operands() {
                 let rot = Affine3::rotation_about_axis(Point3::origin(), axis, theta);
                 let place = Affine3::translation(Vec3::new(0.0, 0.0, 0.5)) * rot;
                 let c = body_of(SketchPlane::new(place), &base, 1.0);
-                let r = topo::union(&c, &far, tol())
-                    .map(|_| ())
-                    .map_err(|e| e.kind());
+                let r = legal(c);
                 println!("J3R2OP {name} ax={ax_name} th={theta} => {r:?}");
             }
         }
@@ -602,7 +626,8 @@ fn j3r2_tilted_operands() {
 #[test]
 #[ignore = "probe"]
 fn j3r2_tilted_rod_operand() {
-    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol());
+    let far = far_brick();
+    let block = sweep::test_support::finished("the block", block(), tol());
     let disc: Shape = vec![((0.5, 0.0), 1.0), ((-0.5, 0.0), 1.0)];
     for (name, shape) in [
         ("disc", disc),
@@ -622,7 +647,14 @@ fn j3r2_tilted_rod_operand() {
                 Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), theta);
             let place = Affine3::translation(Vec3::new(0.0, 0.0, 0.5)) * rot;
             let c = body_of(SketchPlane::new(place), &shape, 1.0);
-            match topo::subtract(&block(), &c, tol()) {
+            let c = match as_operand(c) {
+                Ok(c) => c,
+                Err(e) => {
+                    println!("J3R2ROD {name} th={theta}: the cutter is no operand: {e}");
+                    continue;
+                }
+            };
+            match topo::subtract(&block, &c, tol()) {
                 Err(e) => println!("J3R2ROD {name} th={theta}: subtract refuses {e:?}"),
                 Ok(r) => {
                     let bb = r.body().unwrap();

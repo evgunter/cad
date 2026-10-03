@@ -33,20 +33,20 @@
 
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::Body;
+use topo::{AtRestBody, Body};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
+fn prism(pts: &[(f64, f64)], h: f64) -> AtRestBody<f64> {
     let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(
+    let body = extrude(
         &profile,
         Extrusion::Distance {
             depth: h,
@@ -55,15 +55,16 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
         tol(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the prism", body, tol())
 }
 
-fn rod(h: f64) -> Body<f64> {
+fn rod(h: f64) -> AtRestBody<f64> {
     let disc = profile::circle(Point2::new(0.0, 0.0), 0.5, tol()).unwrap();
     let profile = Profile::new(SketchPlane::xy(), vec![disc.into()])
         .validate(tol())
         .unwrap();
-    extrude(
+    let body = extrude(
         &profile,
         Extrusion::Distance {
             depth: h,
@@ -72,7 +73,8 @@ fn rod(h: f64) -> Body<f64> {
         tol(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the rod", body, tol())
 }
 
 fn area(p: &[(f64, f64)]) -> f64 {
@@ -149,8 +151,11 @@ fn outcome(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -
                 let t2 = topo::validate_closed(&bb.body).is_ok();
                 let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).is_ok();
                 let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
-                let far =
-                    sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol());
+                let far = finished(
+                    "the far brick",
+                    brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
+                    tol(),
+                );
                 let legal = match topo::union(&bb.body, &far, tol()) {
                     Ok(_) => "legal".to_string(),
                     Err(e) => format!("NONOPERAND {:?}", e.kind()),
@@ -225,7 +230,7 @@ fn j3r2_r1_battery() {
         for &x in &ranges {
             for &y in &ranges {
                 for &z in &zs {
-                    let b = brick(x, y, z, tol());
+                    let b = finished("the box", brick(x, y, z, tol()), tol());
                     let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                     let vi = area(&clip(pts, x, y)) * overlap(h, z);
                     for (op, want_ab, want_ba) in [
@@ -312,8 +317,12 @@ fn ball_box(r: f64, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> f64 {
 fn j3r2_r1_seam_battery() {
     let r = 0.5;
     let n = 1 << 16;
-    let cyl = revolved_cylinder(r, 2.0);
-    let ball = sweep::test_support::ball_poled_y(r, geom_core::Vec3::new(0.0, 0.0, 0.0), tol());
+    let cyl = AtRestBody::validate(revolved_cylinder(r, 2.0), tol());
+    let ball = Ok(finished(
+        "the ball",
+        sweep::test_support::ball_poled_y(r, geom_core::Vec3::new(0.0, 0.0, 0.0), tol()),
+        tol(),
+    ));
     let coords = [-1.0, -0.25, 0.0, 0.25, 0.5, 1.0];
     let mut ranges = Vec::new();
     for i in 0..coords.len() {
@@ -346,7 +355,7 @@ fn j3r2_r1_seam_battery() {
         for &x in &ranges {
             for &z in &ranges {
                 for &y in &ys {
-                    let b = brick(x, y, z, tol());
+                    let b = finished("the box", brick(x, y, z, tol()), tol());
                     let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                     let vi = if name == "rcyl" {
                         area(&clip(&disc, x, z)) * overlap((0.0, 2.0), y)
@@ -359,20 +368,27 @@ fn j3r2_r1_seam_battery() {
                         ("I", vi, vi),
                     ] {
                         for (order, want) in [("AB", want_ab), ("BA", want_ba)] {
-                            let (l, rr) = if order == "AB" {
-                                (body, &b)
-                            } else {
-                                (&b, body)
+                            let line = match body {
+                                Err(e) => {
+                                    let s = format!("NotFinished {e:?}");
+                                    let cut: String = s.chars().take(110).collect();
+                                    format!("ERR {cut}")
+                                }
+                                Ok(body) => {
+                                    let (l, rr) = if order == "AB" {
+                                        (body, &b)
+                                    } else {
+                                        (&b, body)
+                                    };
+                                    let res = match op {
+                                        "U" => topo::union(l, rr, tol()),
+                                        "S" => topo::subtract(l, rr, tol()),
+                                        _ => topo::intersect(l, rr, tol()),
+                                    };
+                                    outcome(res, want)
+                                }
                             };
-                            let res = match op {
-                                "U" => topo::union(l, rr, tol()),
-                                "S" => topo::subtract(l, rr, tol()),
-                                _ => topo::intersect(l, rr, tol()),
-                            };
-                            println!(
-                                "SEAM {name} x={x:?} y={y:?} z={z:?} {op} {order} => {}",
-                                outcome(res, want)
-                            );
+                            println!("SEAM {name} x={x:?} y={y:?} z={z:?} {op} {order} => {line}");
                         }
                     }
                 }
@@ -414,7 +430,7 @@ fn clip_convex(poly: &[(f64, f64)], clipper: &[(f64, f64)]) -> Vec<(f64, f64)> {
 /// A prism along `+y` over `y ∈ [y0, y1]` of a polygon given in world
 /// `(x, z)`: sketched in the zx plane (sketch `(u, v)` is world
 /// `(v, 0, u)`), so the sketch takes `(z, x)`.
-fn y_prism(xz: &[(f64, f64)], y: (f64, f64)) -> Body<f64> {
+fn y_prism(xz: &[(f64, f64)], y: (f64, f64)) -> AtRestBody<f64> {
     let lp = bulge_loop(xz.iter().map(|&(x, z)| (Point2::new(z, x), 0.0)).collect());
     let profile = Profile::new(SketchPlane::zx(), vec![lp])
         .validate(tol())
@@ -429,12 +445,13 @@ fn y_prism(xz: &[(f64, f64)], y: (f64, f64)) -> Body<f64> {
     )
     .unwrap()
     .body;
-    topo::transform_rigid(
+    let body = topo::transform_rigid(
         &body,
         &geom_core::Affine3::translation(geom_core::Vec3::new(0.0, y.0, 0.0)),
         tol(),
     )
-    .unwrap()
+    .unwrap();
+    finished("the y-prism", body, tol())
 }
 
 /// Flush-declared poses: z-prisms against boxes whose caps and side
@@ -480,7 +497,7 @@ fn j3r2_r1_declared_battery() {
         for &x in &ranges {
             for &y in &ranges {
                 for &z in &zs {
-                    let b = brick(x, y, z, tol());
+                    let b = finished("the box", brick(x, y, z, tol()), tol());
                     let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                     let vi = area(&clip(pts, x, y)) * overlap(h, z);
                     for (op, want_ab, want_ba) in [
@@ -525,7 +542,11 @@ fn j3r2_r1_hex_detail() {
         ],
         2.0,
     );
-    let b = brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol());
+    let b = finished(
+        "the box",
+        brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
+        tol(),
+    );
     let r = topo::union(&hex, &b, tol()).expect("builds");
     let bb = r.body().expect("a body");
     println!("t2 {:?}", topo::validate_closed(&bb.body));
@@ -579,7 +600,11 @@ fn j3r2_r1_reflex_battery() {
         (2.0, -2.0),
         (2.0, 0.0),
     ]);
-    let a = prism_z::<f64>(&a_prof, 0.0, 1.0, tol()).body;
+    let a = finished(
+        "the reflex prism",
+        prism_z::<f64>(&a_prof, 0.0, 1.0, tol()).body,
+        tol(),
+    );
     let va = area(&a_prof);
     let profiles: Vec<(&str, Vec<(f64, f64)>)> = vec![
         ("sqQ1", vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
@@ -644,6 +669,7 @@ fn j3r2_r1_reflex_battery() {
                     tol(),
                 );
                 describe_as_intersections(&mut b, tol());
+                let b = finished("the sheared prism", b, tol());
                 // ∫ over a ∩ b ∩ {L < 0} of −L, L = sx·x + sy·y.
                 let both = clip_convex(&a_prof, &prof);
                 let half: Vec<(f64, f64)> = {
@@ -767,7 +793,7 @@ fn solid_of_rev_box(
 #[ignore = "differential battery; run with --ignored"]
 fn j3r2_r1_tube_battery() {
     let (bore, r, h) = (0.2, 0.5, 2.0);
-    let tube = revolved_tube(bore, r, h);
+    let tube = finished("the tube", revolved_tube(bore, r, h), tol());
     let ann = |rect_x: (f64, f64), rect_z: (f64, f64)| {
         area(&clip(&disc_poly(r, 1 << 16), rect_x, rect_z))
             - area(&clip(&disc_poly(bore, 1 << 16), rect_x, rect_z))
@@ -784,7 +810,7 @@ fn j3r2_r1_tube_battery() {
         }
     }
     let ys = [(-1.0, 3.0), (1.0, 3.0), (-1.0, 1.0), (0.5, 1.5), (0.0, 2.0)];
-    let run = |tag: &str, w: &Body<f64>, vw: f64, vi: f64| {
+    let run = |tag: &str, w: &AtRestBody<f64>, vw: f64, vi: f64| {
         for (op, want_ab, want_ba) in [
             ("U", vt + vw - vi, vt + vw - vi),
             ("S", vt - vi, vw - vi),
@@ -808,7 +834,7 @@ fn j3r2_r1_tube_battery() {
     for &x in &ranges {
         for &z in &ranges {
             for &y in &ys {
-                let b = brick(x, y, z, tol());
+                let b = finished("the box", brick(x, y, z, tol()), tol());
                 let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                 let vi = ann(x, z) * overlap((0.0, h), y);
                 run(&format!("box x={x:?} y={y:?} z={z:?}"), &b, vb, vi);
@@ -852,6 +878,7 @@ fn j3r2_r1_tube_battery() {
 fn j3r2_r1_bored_capsule_battery() {
     let (bore, r, c, big) = (0.2, 0.5, 1.0, 0.7);
     let (body, top) = bored_capsule(bore, r, c, big);
+    let body = finished("the bored capsule", body, tol());
     let yc = c - (big * big - r * r).sqrt();
     let rho = move |y: f64| {
         if y <= c {
@@ -872,7 +899,7 @@ fn j3r2_r1_bored_capsule_battery() {
     for &x in &ranges {
         for &z in &ranges {
             for y in [(1.0, 3.0), (0.5, 3.0), (-1.0, 1.0), (1.0, 1.1)] {
-                let b = brick(x, y, z, tol());
+                let b = finished("the box", brick(x, y, z, tol()), tol());
                 let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                 let lo = (y.0.max(0.0), y.1.min(c));
                 let hi = (y.0.max(c), y.1.min(top));
