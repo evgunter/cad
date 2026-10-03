@@ -2,12 +2,13 @@
 id: declared-pairs-are-a-booleans-own-payload
 kind: issue
 title: A boolean's and a union's declared contact pairs become the node's own payload, settable on a live node (Ev, #3587, A2)
-status: review
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: H
 branch: recipe/declared-pairs-payload
 pr: 3902
+closed: 2026-10-03
 ---
 
 
