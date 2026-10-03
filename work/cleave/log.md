@@ -316,3 +316,14 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   - My process error: the designers' checkout was stale (the clone tracked the local `main` ref). Both caught it and read `82b9ceb2` directly.
   - Filed `classification-invariant-family-types-bug-only-states-against-d9-row-4` (P3).
   - Step 1 (the geom-core doors) dispatched as cloud lane `cleave/mints-doors`; single full review at report.
+- Inside-out gate (PR 3963, P1) merged on the orchestrator's read plus CI. Weekly usage is in warning, and the change only refuses: it adds no new answer.
+  - Ratified text already decides the question: D1 tier 3's orientation invariant, and "every door that returns or consumes [a finished body] pays that gate once" (Ev, PR 3870).
+  - The Boolean's operand gate now refuses `InsideOutOperand` on tier 3's own check-7 reading, per solid and before a multi-solid merge. The lane found that multi-solid hole itself.
+  - Accepted: an undecided sign passes, as check 7 passes it. The `A∩revert(B)` oracles become partition oracles.
+  - Accepted cost: about 17% of planar op time and 7% curved. REACH's `boolean-door-adopts-the-finished-body-type` retires it; the evidence is on that row.
+  - Filed by the lane: `split-answers-an-inside-out-operand-with-two-inside-out-halves` (CLEAVE) and a shell row on SHELL.
+  - Row closed.
+- [ev] PR 3960 (split pinch), discussed with Ev in the PR. Ev asked for a picture, and whether the main cases are structural. Answered there:
+  - A shared-parameter `Expr` is strong evidence but not an explicit statement. Ev: the case for a silent assumption is much stronger when the user "literally declared that v tip should lie on the same plane".
+  - The declaration seat stands as diffed, awaiting Ev's sign-off.
+  - Follow-ups to file at merge: a detector finding that names the shared-parameter identity, and a DM1-style plane datum naming an edge.

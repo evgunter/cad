@@ -2,12 +2,13 @@
 id: an-inside-out-operand-passes-the-boolean-gates-as-its-complement
 kind: issue
 title: An inside-out operand passes the Boolean's operand gates and is consumed as its complement
-status: review
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 branch: cleave/inside-out-gate
 pr: 3963
+closed: 2026-10-03
 ---
 
 
