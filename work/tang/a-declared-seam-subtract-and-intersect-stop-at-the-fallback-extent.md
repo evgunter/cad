@@ -27,3 +27,18 @@ fallback, and its containment read of the sphere's section against the
 disc lands on the rim itself, which is the disc's boundary. The union
 never asks that question, because the declared-REST zip removes the
 discs first.
+
+## A declared sphere `Rest` stops at the same question (`reach/rest-mate-intersect-diff`)
+
+A ball of radius 0.5 seated in a hemispherical cup (the profile
+`(0, −1) → (1, 0)` arc, `→ (0.5, 0)`, `→ (0, −0.5)` arc, revolved a
+full turn about `y`), the cup's inner sphere face × the ball's declared
+`Rest`: the union builds at `π/6 + 7π/12 = 3π/4`, and `∩`, `cup ∖ ball` and
+`ball ∖ cup`, in both operand orders, refuse `FallbackExtentUnsupported`
+with this item's sentence ("the sphere's section circle runs near the
+plane face's boundary"), operand the ball. Before
+`ops.rs` `Exempt::Rest` answered the sphere pair they refused `SpheresMeet`
+(nested margin zero) one arm earlier. The ball's equator lies in the
+cup's rim plane, on the boundary of the rim annulus, so the plane arm
+meets exactly this item's circle-on-a-boundary read; a ball filling a
+spherical cavity has no plane face and builds every op.

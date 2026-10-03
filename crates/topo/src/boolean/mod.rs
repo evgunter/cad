@@ -2114,6 +2114,9 @@ pub enum BooleanError {
     /// reason instead ([`BooleanError::FallbackExtentUnsupported`]). It is
     /// the decided refusal of [`SphereQuestion::Nested`], and ends as
     /// that question's escalation does ([`refusal_routes::SPHERES`]).
+    /// One sphere touching the other on one carrier is not asked when
+    /// every face of it is a verified `Rest` against the other face:
+    /// such a pair touches without overlapping (`ops::Exempt::Rest`).
     SpheresMeet {
         /// The operand whose sphere face the scan stopped at.
         operand: Operand,

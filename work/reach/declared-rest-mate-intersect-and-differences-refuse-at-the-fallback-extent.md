@@ -2,10 +2,12 @@
 id: declared-rest-mate-intersect-and-differences-refuse-at-the-fallback-extent
 kind: issue
 title: A declared cylindrical Rest mate's intersect and both differences refuse FallbackExtentUnsupported, arc-split bore and full-turn bore alike
-status: open
+status: review
 opened: 2026-10-02
 priority: P1
 cost: H
+branch: reach/rest-mate-intersect-diff
+pr: 3980
 ---
 
 
@@ -50,3 +52,48 @@ Measured by PR 3814's delta review: with the shaft's seam a hair off
 the bore's (1e-7°), `∩` and `∖` answer
 `Escalated { Coincidence(Sectors, Moot) }` instead of
 `FallbackExtentUnsupported`.
+
+## Measured cause (`reach/rest-mate-intersect-diff`)
+
+Instrumented on the reduction: under `∪` the declared mate leaves
+6–8 null pairs, so the union goes through the join to the REST zip;
+under `∩` and `∖` the same reduction (the same vertex contacts) leaves
+**no** null pair, since neither op's result changes side across the
+contact's rim. Both ops therefore take the no-crossings path, whose
+answer for a pure contact is the right one (the vertex probe keeps or
+drops each shell whole: `∩` empty, each difference its minuend). What
+refused was the path's certificate for curved pairs:
+`section_extent_pass` classified the declared bore × wall pair as two
+coincident cylinders (`section_cylinder_pair_coincident`, R-tan), and
+the pass exempted no pair. The torus socket and peg refuse there too,
+and a ball filling a spherical cavity refuses one step earlier, at
+`sphere_extent_scan`'s sphere pair (`SpheresMeet`, nested margin
+zero), its union included.
+
+## Fix
+
+The no-crossings path reads the `Rest` declarations the declaration
+door verified one carrier with opposed senses
+(`BooleanReduction::rest_contacts`): such a pair only touches, because
+each material stands on its own side of the one carrier, so it hides
+no overlap from the vertex probe (`ops.rs` `Exempt::Rest`). The
+section pass skips such a pair, and the sphere scan's sphere pair
+skips a carrier only when every face of it is such a pair against the
+partner face. A continuation (aligned senses) is not exempt. Nor is a
+pair settled only by a shared recipe source: measured, such a curved
+pair (a shaft drilled through a disc with its source carried onto the
+bore; a ball in the cavity its own subtraction made) refuses
+`CurvedPierceUnsupported` at the crossing layer, whose one-sided cover
+does not read a shared source, so none reaches this path.
+
+Pinned by `rest_mate_every_op` (both seam layouts, three radii and
+lengths, five spans including blind, azimuths 0° and 60°, two poses;
+the ball in a cavity; the cavity with one sphere pair undeclared; a
+pebble buried beside the mate), `full_turn_bore_mate::intersect_and_differences_answer_the_closed_form`
+and `mate7a_torus_rest::subtract_and_intersect_on_the_torus_rest_fixtures`,
+against closed forms at ε 1e-9, 1e-6 and 1e-12.
+
+A shaft 1e-7° off the bore's seam escalates
+`Coincidence(Sectors, Moot)` under every op, the union included: the
+sector margin, 1.51e-9, lies inside the band `[1e-9, 1e-8]`, which is
+D4's in-band escalation and not this row's.
