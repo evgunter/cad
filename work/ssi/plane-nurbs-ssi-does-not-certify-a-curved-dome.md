@@ -241,3 +241,19 @@ follows:
 `a_seed_settled_off_the_walls_chart_is_no_branch` in
 `crates/geom-brep/tests/m5_pr7_ssi.rs` pins the outcomes for d = 1 and
 d = 2.
+
+**Cause 3 is split out** to `ssi-step-rungs-mix-state-and-carrier-units`,
+which carries its fix: every step rung reads the carrier in metres. With
+it in place, the table above moves as follows (d = 0.05–3; d = 3–4 on
+the oblique and zcut, and d = 4 on the tilt, refuse
+`WindowShortOfWall` at this domain):
+- The level loop takes 1030 samples at ε 1e-9 and certifies at every d;
+  at 1e-12 it refuses `FitSampleBudget` at 5787 (was 7505). At 1e-6 it
+  takes 184 (was 238).
+- Every other curved cut takes fewer samples, by up to 1.2×; at 1e-12
+  the tilt reads `FSB` 1413 / 1950 / 2616 / 3303 at d = 0.5 / 1 / 2 / 3
+  (was 1664 / 2329 / 3186 / 4073), and the oblique and zcut 1–5% fewer.
+- Two cuts that certified now escalate limb 2 in band: the tilt at
+  d = 2 and ε 1e-6, and the zcut at d = 2 and ε 1e-9. The old rung's
+  over-count was slack that hid cause 4 there; this is further evidence
+  for cause 4, not a cause of its own.
