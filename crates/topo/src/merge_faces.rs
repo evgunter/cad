@@ -569,7 +569,8 @@ impl KeptBoundaryRefusal {
 
 impl PartialEq for KeptBoundaryRefusal {
     fn eq(&self, other: &Self) -> bool {
-        format!("{:?}", self.0) == format!("{:?}", other.0)
+        let (Self(mine), Self(theirs)) = (self, other);
+        format!("{mine:?}") == format!("{theirs:?}")
     }
 }
 
