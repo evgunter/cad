@@ -322,10 +322,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        11,
-        11,
+        16,
+        16,
         "`Box3`'s disjointness, containment, centre, split and reach meet all refuse by name, and \
-         so does the mignitude (`zero_free_lower_bound`, 4)",
+         so does the mignitude (`zero_free_lower_bound`, 4). The chart readings' weight floor \
+         (`derivative_norm_sup`, `transverse_readings`, 2 each) refuses the weight hull by name \
+         before reading its lower end, and `s_vertices` asks it of each weight step it reads",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
