@@ -83,10 +83,11 @@ fn insert_null_pairs<T: Decide>(
     records: &[PairRecord],
     raw: &[PairRecord],
     declared: &super::DeclaredPairs<T>,
+    contacts: &super::ContactRecords,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
     let mut plans = [plan_null_pairs(
-        a_body, b_body, contact, a_sectors, b_sectors, records, raw, declared, band,
+        a_body, b_body, contact, a_sectors, b_sectors, records, raw, declared, contacts, band,
     )?];
     let orbits = [(a_sectors, b_sectors)];
     reconcile_shared(&mut plans, &orbits, a_body, b_body, band)?;
@@ -177,6 +178,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
     records: &[PairRecord],
     raw: &[PairRecord],
     declared: &super::DeclaredPairs<T>,
+    contacts: &super::ContactRecords,
     band: Band,
 ) -> Result<NullPlan<T>, BooleanError> {
     // A-major order: `pair_search` mints records in it, and an edge-edge
@@ -235,10 +237,24 @@ pub(super) fn plan_null_pairs<T: Decide>(
         .iter()
         .zip(&raw)
         .map(|(r, w)| {
-            Ok((
-                super::sectors::germ_locus(a_body, &a_sectors[r.a], w.sa)?,
-                super::sectors::germ_locus(b_body, &b_sectors[r.b], w.sb)?,
-            ))
+            super::sectors::germ_loci(
+                super::sectors::GermSide {
+                    body: a_body,
+                    operand: Operand::A,
+                    site: contact.a,
+                    sector: &a_sectors[r.a],
+                    read: w.sa,
+                },
+                super::sectors::GermSide {
+                    body: b_body,
+                    operand: Operand::B,
+                    site: contact.b,
+                    sector: &b_sectors[r.b],
+                    read: w.sb,
+                },
+                contacts,
+                band,
+            )
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
 
@@ -255,21 +271,22 @@ pub(super) fn plan_null_pairs<T: Decide>(
         // direction is chosen.
         let g0_faces = ((a_sectors[r0.a].face, b_sectors[r0.b].face), loci[i0]);
         let g1_faces = ((a_sectors[r1.a].face, b_sectors[r1.b].face), loci[i1]);
-        // A germ along an edge of BOTH solids runs along that common
-        // edge: its two flankers may be coplanar (an edge-edge germ is
-        // the pair of the two solids' own fold flankers), so the planes'
-        // intersection is not its direction; the A flanker's bound read
-        // On is.
-        let record_dir = |i: usize, r: &PairRecord| match loci[i] {
-            (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => {
-                let s = &a_sectors[r.a];
-                let bound = if raw[i].sa.0 == SideCode::On {
-                    s.start
-                } else {
-                    s.end
-                };
-                Ok(bound.normalize())
+        // A germ along an edge runs along it: its two flankers may be
+        // coplanar (an edge-edge germ is the pair of the two solids' own
+        // fold flankers) or tangent (a germ only tangent to the other
+        // solid's edge), so the planes' intersection is not its
+        // direction; the bound read On is, the A flanker's where both
+        // solids hold the edge.
+        let on_bound = |s: &BoolSector<T>, read: (SideCode, SideCode)| {
+            if read.0 == SideCode::On {
+                s.start.normalize()
+            } else {
+                s.end.normalize()
             }
+        };
+        let record_dir = |i: usize, r: &PairRecord| match loci[i] {
+            (super::Locus::OnEdge(_), _) => Ok(on_bound(&a_sectors[r.a], raw[i].sa)),
+            (_, super::Locus::OnEdge(_)) => Ok(on_bound(&b_sectors[r.b], raw[i].sb)),
             _ => record_germ_dir(
                 a_body,
                 b_body,
@@ -1227,9 +1244,7 @@ fn strut_order<T: Decide>(
         return Ok(far1);
     }
     let order = Margin::levered(germs.0.cross(germs.1).dot(normal), arm);
-    match crate::validate::decide_nonzero_reported("bool_strut_order", order, band)
-        .map_err(refuse)?
-    {
+    match crate::validate::decide_nonzero("bool_strut_order", order, band).map_err(refuse)? {
         NonzeroSign::Negative => Ok(true),
         NonzeroSign::Positive => Ok(false),
     }
@@ -1650,6 +1665,7 @@ mod tests {
             &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
+            &crate::boolean::ContactRecords::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
@@ -1664,6 +1680,7 @@ mod tests {
             &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
+            &crate::boolean::ContactRecords::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
@@ -1708,6 +1725,7 @@ mod tests {
             &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
+            &crate::boolean::ContactRecords::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
@@ -1794,6 +1812,7 @@ mod tests {
             &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
+            &crate::boolean::ContactRecords::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .expect_err("nothing orders the struts' germs");

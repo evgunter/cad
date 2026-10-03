@@ -2,10 +2,11 @@
 id: a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported
 kind: issue
 title: A box whose corner stands on the ruling of a declared Tangent refuses CurvedBooleanUnsupported in both operand orders
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found while building `a-stack-across-a-mid-edge-tangency-builds-in-one-operand-order-only`,
