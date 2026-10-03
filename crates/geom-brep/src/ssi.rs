@@ -137,7 +137,9 @@ use crate::recourse::{
     Reading, Refused, RefusedArm, SizedDecision, StoredDefinite, Unsized, defect_ending,
 };
 
-pub use boundary::{BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SsiBoundaryContact};
+pub use boundary::{
+    BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SSI_REGION_REACH_MAX, SsiBoundaryContact,
+};
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb, SsiTube};
 pub use ends::SSI_SHORT_CLIP;
 pub use exhaust::{

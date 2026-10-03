@@ -3682,6 +3682,336 @@ fn an_offset_inside_the_band_reports_a_region_inside_and_nothing_outside() {
     }
 }
 
+/// The flat `w` wall of [`flat_wall`] with the control weights `weights`
+/// (in the net's order): the same square, reparametrised.
+fn weighted_wall(w: f64, weights: [f64; 4]) -> NurbsSurface<f64> {
+    let knots = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    NurbsSurface::new(
+        knots(),
+        knots(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, w),
+            Point3::new(w, 0.0, 0.0),
+            Point3::new(w, 0.0, w),
+        ],
+        weights.to_vec(),
+    )
+    .unwrap()
+}
+
+/// The reach of the one region `out` reports.
+fn region_reach(region: SsiBoundaryContact) -> f64 {
+    match region {
+        SsiBoundaryContact::Corner { reach, .. } | SsiBoundaryContact::Side { reach, .. } => reach,
+    }
+}
+
+/// The one branch `out` reports, with no region, and its end-to-end span.
+fn one_branch(
+    what: &str,
+    r: Result<geom_brep::SsiOutcome, SsiError>,
+) -> (geom_brep::SsiOutcome, f64) {
+    let out = r.unwrap_or_else(|e| panic!("{what}: expected a branch, got {e}"));
+    assert!(
+        out.boundary.is_empty(),
+        "{what}: no region: {:?}",
+        out.boundary
+    );
+    let [b] = out.branches.as_slice() else {
+        panic!("{what}: expected one branch, got {}", out.branches.len());
+    };
+    let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+    (out, span)
+}
+
+/// **A wall's weights move no answer.** The flat 1 m wall with uniform
+/// weights ¼, 2, 4 and 8 and two mixed nets is the same square
+/// reparametrised, so the truth is the unit-weight wall's, exactly: the
+/// edge plane `x = off` meets it along the segment `off` from its
+/// `u = 0` side, the corner clip `x + z = d` in the segment `d` from its
+/// corner. Inside the band each answer is the one region, with a reach
+/// that holds those crossings and stays under the region cap; outside
+/// the wall, nothing; past the band, on a uniform net, one branch
+/// spanning the segment, where the edge plane at `3Kε` once read a
+/// `Side` region off the weights' scale. Every ε.
+#[test]
+fn a_walls_weights_move_no_answer() {
+    let (eps, k_eps) = (band().zero(), band().escalate());
+    let cap = ssi::SSI_REGION_REACH_MAX * k_eps;
+    let nets: [(&str, [f64; 4]); 6] = [
+        ("weights ¼", [0.25; 4]),
+        ("weights 2", [2.0; 4]),
+        ("weights 4", [4.0; 4]),
+        ("weights 8", [8.0; 4]),
+        ("weights 1, 3, ½, 2.5", [1.0, 3.0, 0.5, 2.5]),
+        ("weights 2, ½, 1, 4", [2.0, 0.5, 1.0, 4.0]),
+    ];
+    for (net, weights) in nets {
+        let wall = weighted_wall(1.0, weights);
+        for d in [0.3 * eps, 0.9 * eps, 3.0 * eps, 0.8 * k_eps] {
+            for (what, plane) in [
+                (format!("{net}: the edge plane at {d:e} m"), edge_plane(d)),
+                (format!("{net}: the corner clip at {d:e} m"), corner_clip(d)),
+            ] {
+                let r = ssi::plane_nurbs_ssi(&plane, &wall, wall_box(1.0, 1.0), band());
+                let reach = region_reach(one_region(&what, r));
+                assert!(reach >= d && reach <= cap, "{what}: reach {reach:e}");
+            }
+            for (what, plane) in [
+                (format!("{net}: the edge plane at −{d:e} m"), edge_plane(-d)),
+                (
+                    format!("{net}: the corner clip at −{d:e} m"),
+                    corner_clip(-d),
+                ),
+            ] {
+                let out = ssi::plane_nurbs_ssi(&plane, &wall, wall_box(1.0, 1.0), band())
+                    .unwrap_or_else(|e| panic!("{what}: {e}"));
+                assert!(
+                    out.branches.is_empty() && out.boundary.is_empty(),
+                    "{what}: the empty answer, got {out:?}"
+                );
+            }
+        }
+        // A uniform net is the unit wall's parametrisation; a mixed one
+        // moves the 1 m branch's chart, whose fit is not this pass's
+        // subject.
+        if weights.iter().any(|w| *w != weights[0]) {
+            continue;
+        }
+        for d in [3.0 * k_eps, 6.0 * k_eps] {
+            let what = format!("{net}: the edge plane at {d:e} m");
+            let r = ssi::plane_nurbs_ssi(&edge_plane(d), &wall, wall_box(1.0, 1.0), band());
+            let (_, span) = one_branch(&what, r);
+            assert!((span - 1.0).abs() < 1.0e-6, "{what}: spans {span:e}");
+            let what = format!("{net}: the corner clip at {d:e} m");
+            let r = ssi::plane_nurbs_ssi(&corner_clip(d), &wall, wall_box(1.0, 1.0), band());
+            let (_, span) = one_branch(&what, r);
+            let want = d * std::f64::consts::SQRT_2;
+            assert!(
+                (span - want).abs() < 1.0e-2 * want,
+                "{what}: spans {span:e}"
+            );
+        }
+    }
+}
+
+/// The plane through `at + off·n̂` normal to `n`.
+fn plane_off(at: Point3<f64>, n: Vec3<f64>, off: f64) -> Surface<f64> {
+    let n = n * (1.0 / n.norm());
+    let seed = if n.x.abs() < 0.9 {
+        Vec3::new(1.0, 0.0, 0.0)
+    } else {
+        Vec3::new(0.0, 1.0, 0.0)
+    };
+    let u_ref = seed - n * seed.dot(n);
+    Surface::Plane {
+        origin: at + n * off,
+        normal: n,
+        u_ref: u_ref * (1.0 / u_ref.norm()),
+    }
+}
+
+/// **A region is reported only within `SSI_REGION_REACH_MAX · Kε`, and
+/// beyond it the roots decide.** On the flat 1 m wall in `y = 0`:
+///
+/// - `x + 100Kε·z = ½Kε` passes within the band of the corner, but
+///   meets the `u = 0` side 5 mm up it: the corner's reach is that far,
+///   so the corner is no region, and the branch between the two roots is
+///   traced, its cell banked by the branch's tube, not as a contact.
+/// - `sθ·x + y + 0.1Kε·z = 0.1Kε` for `sθ = 2Kε, 20Kε` lies within the
+///   band along the whole `u = 0` side, whose slope across is `sθ`: the
+///   side's reach is 5 cm and 5 mm, so the side is no region, and its
+///   root at the top corner and the bottom side's root end a branch a
+///   metre long.
+/// - A plane of normal `(1, 2, 0.05)` `0.3Kε` inside the corner crosses
+///   the `u = 0` side `13Kε` up it: a branch. One of normal `(1, 0, 0.2)`
+///   crosses it `1.5Kε` up: the corner's region, its reach holding both
+///   crossings.
+/// - A plane of normal `(0.02, 1, 0)` `0.3Kε` off the `u = 0` side
+///   lies within the band along all of it with no root on it, its locus
+///   `15Kε` in from it: no rung bounds a region there, and the pass
+///   refuses toward the tangency regime naming the side.
+///
+/// Every ε.
+#[test]
+fn a_region_is_reported_only_within_its_reach_cap() {
+    let k_eps = band().escalate();
+    let cap = ssi::SSI_REGION_REACH_MAX * k_eps;
+    let wall = flat_wall(1.0, 1.0);
+    let origin = Point3::new(0.0, 0.0, 0.0);
+    let run = |plane: &Surface<f64>| ssi::plane_nurbs_ssi(plane, &wall, wall_box(1.0, 1.0), band());
+
+    let what = "x + 100Kε·z = ½Kε";
+    let plane = plane_off(
+        Point3::new(0.5 * k_eps, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 100.0 * k_eps),
+        0.0,
+    );
+    let (out, span) = one_branch(what, run(&plane));
+    let want = (0.25 * k_eps * k_eps + 25.0e-6_f64).sqrt();
+    assert!(
+        (span - want).abs() < 1.0e-3 * want,
+        "{what}: spans {span:e}"
+    );
+    assert!(
+        out.exhaustiveness.contact == 0 && out.exhaustiveness.accounted > 0,
+        "{what}: the corner's cell is the branch's tube's: {}",
+        out.exhaustiveness
+    );
+
+    for s_theta in [2.0, 20.0] {
+        let what = format!("{s_theta}Kε·x + y + 0.1Kε·z = 0.1Kε");
+        let n = Vec3::new(s_theta * k_eps, 1.0, 0.1 * k_eps);
+        let plane = plane_off(Point3::new(0.1 / s_theta, 0.0, 0.0), n, 0.0);
+        let (_, span) = one_branch(&what, run(&plane));
+        let want = (1.0 + (0.1 / s_theta) * (0.1 / s_theta)).sqrt();
+        assert!((span - want).abs() < 1.0e-6, "{what}: spans {span:e}");
+    }
+
+    let what = "normal (1, 2, 0.05), 0.3Kε inside the corner";
+    let n = Vec3::new(1.0, 2.0, 0.05);
+    let (_, span) = one_branch(what, run(&plane_off(origin, n, 0.3 * k_eps)));
+    // On the wall: x + 0.05·z = 0.3Kε·|n|.
+    let c = 0.3 * k_eps * n.norm();
+    let want = (c * c + 400.0 * c * c).sqrt();
+    assert!(
+        (span - want).abs() < 1.0e-2 * want,
+        "{what}: spans {span:e}"
+    );
+
+    let what = "normal (1, 0, 0.2), 0.3Kε inside the corner";
+    let n = Vec3::new(1.0, 0.0, 0.2);
+    let region = one_region(what, run(&plane_off(origin, n, 0.3 * k_eps)));
+    let SsiBoundaryContact::Corner { reach, .. } = region else {
+        panic!("{what}: the corner's region, got {region:?}");
+    };
+    let c = 0.3 * k_eps * n.norm();
+    assert!(reach >= 5.0 * c && reach <= cap, "{what}: reach {reach:e}");
+
+    let what = "normal (0.02, 1, 0), 0.3Kε off the u = 0 side";
+    let n = Vec3::new(0.02, 1.0, 0.0);
+    let r = run(&plane_off(Point3::new(0.0, 0.0, 0.5), n, 0.3 * k_eps));
+    let Err(SsiError::RegionUnbounded { side, reach, limit }) = r else {
+        panic!("{what}: expected the unbounded region, got {r:?}");
+    };
+    assert_eq!(
+        side,
+        ChartSide {
+            fixed: ChartAxis::U,
+            end: ChartEnd::Low
+        },
+        "{what}"
+    );
+    assert!(
+        reach > limit && limit == cap,
+        "{what}: reach {reach:e}, limit {limit:e}"
+    );
+}
+
+/// A rational biquadratic wall over the unit square in `x, z`, bulging
+/// `b` along `y` at its middle, with control weights `weights`.
+fn rational_biquad(b: f64, weights: [f64; 9]) -> NurbsSurface<f64> {
+    let knots = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut net = Vec::new();
+    for i in 0..3 {
+        for j in 0..3 {
+            let y = match (i, j) {
+                (1, 1) => b,
+                (1, _) | (_, 1) => 0.5 * b,
+                _ => 0.0,
+            };
+            net.push(Point3::new(0.5 * f64::from(i), y, 0.5 * f64::from(j)));
+        }
+    }
+    NurbsSurface::new(knots(), knots(), net, weights.to_vec()).unwrap()
+}
+
+/// **A rational wall's corner and side inside the band answer the
+/// region or nothing, whichever side of the band's zero the plane
+/// sits.** The twisted bilinear wall of weights `1, 3, ½, 2.5` and two
+/// biquadratic walls of centre weight ½ and 9: a plane of normal
+/// `(1, 0.2, 1)` through the `(0, 0)` corner, and the plane `x = off`
+/// along the `u = 0` side, which is straight in `x = 0`, each moved
+/// `off` into the wall and out of it, from zero to `0.8Kε`. Into the
+/// wall the answer is one region, the corner's or the side's, whose
+/// reach holds the plane's offset and stays under the region cap, or,
+/// where the corner cell's bound is too loose for the cap (the twisted
+/// wall's corner from `3ε`), the short branch between the corner's
+/// roots; out of it, nothing. No offset forks to a refusal. Every ε.
+#[test]
+fn a_rational_walls_corner_and_side_in_band_answer_a_region_or_nothing() {
+    let (eps, k_eps) = (band().zero(), band().escalate());
+    let cap = ssi::SSI_REGION_REACH_MAX * k_eps;
+    let knots = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let twisted = NurbsSurface::new(
+        knots(),
+        knots(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0e-3, 1.0),
+            Point3::new(1.0, -1.0e-3, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+        ],
+        vec![1.0, 3.0, 0.5, 2.5],
+    )
+    .unwrap();
+    let walls = [
+        ("the twisted wall", twisted),
+        (
+            "the biquadratic of centre weight ½",
+            rational_biquad(0.01, [1.0, 0.7, 1.0, 0.7, 0.5, 0.7, 1.0, 0.7, 1.0]),
+        ),
+        (
+            "the biquadratic of centre weight 9",
+            rational_biquad(0.01, [1.0, 3.0, 1.0, 3.0, 9.0, 3.0, 1.0, 3.0, 1.0]),
+        ),
+    ];
+    let origin = Point3::new(0.0, 0.0, 0.0);
+    for (name, wall) in &walls {
+        for off in [0.0, 0.3 * eps, 0.9 * eps, 3.0 * eps, 0.8 * k_eps] {
+            for sign in [1.0, -1.0] {
+                for (what, plane) in [
+                    (
+                        format!(
+                            "{name}, the corner plane {}{off:e} m",
+                            if sign > 0.0 { "+" } else { "−" }
+                        ),
+                        plane_off(origin, Vec3::new(1.0, 0.2, 1.0), sign * off),
+                    ),
+                    (
+                        format!(
+                            "{name}, the side plane {}{off:e} m",
+                            if sign > 0.0 { "+" } else { "−" }
+                        ),
+                        edge_plane(sign * off),
+                    ),
+                ] {
+                    let out = ssi::plane_nurbs_ssi(&plane, wall, wall_box(1.0, 1.0), band())
+                        .unwrap_or_else(|e| panic!("{what}: {e}"));
+                    if sign < 0.0 && off > 0.0 {
+                        assert!(
+                            out.branches.is_empty() && out.boundary.is_empty(),
+                            "{what}: the empty answer, got {out:?}"
+                        );
+                        continue;
+                    }
+                    if out.boundary.is_empty() {
+                        assert!(!out.branches.is_empty(), "{what}: the plane meets the wall");
+                        continue;
+                    }
+                    assert!(out.branches.is_empty(), "{what}: no branch");
+                    let [region] = out.boundary.as_slice() else {
+                        panic!("{what}: one region, got {:?}", out.boundary);
+                    };
+                    let reach = region_reach(*region);
+                    assert!(reach >= off && reach <= cap, "{what}: reach {reach:e}");
+                }
+            }
+        }
+    }
+}
+
 /// **A clip shorter than `SSI_SHORT_CLIP · Kε` takes the Hermite
 /// candidate, and certifies.** The corner clip `x + z = d` on the 1 m
 /// wall has ends `d` from the corner and `|AB| = d·√2`. Over

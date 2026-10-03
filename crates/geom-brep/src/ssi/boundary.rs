@@ -29,8 +29,8 @@
 //! its certified zero set, its **cover**, lies inside its cell and its
 //! reach is at most [`SSI_REGION_REACH_MAX`]` · Kε`; otherwise the
 //! corner or side is no region, and its roots are ordinary crossings.
-//! A root inside a reported region's cover is the region's; every other
-//! root is kept. Whether a vertex lies on a face stays its consumer's
+//! A reported region's cell holds no zero beyond its cover, so a root
+//! in the cell is the region's; every other root is kept. Whether a vertex lies on a face stays its consumer's
 //! decision. Outside the domain the exact empty answer stands. Every
 //! root the pass keeps becomes a branch end, settled onto both
 //! surfaces, and the crossings are the only ends an open branch on this
@@ -38,7 +38,7 @@
 
 use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, div_up, max_bound};
+use geom_core::interval::{div_down, div_up, max_bound, norm_sup};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Interval, Margin, Point3, Sign, Vec3};
 
@@ -62,6 +62,10 @@ use super::{ChartAxis, SsiError, TraceDecision};
 /// to trace: there the pass reports no region and the roots decide, the
 /// arc traced between them as any branch is. It is the same number.
 pub const SSI_REGION_REACH_MAX: f64 = super::SSI_SHORT_CLIP;
+
+/// How finely a side's strip is cut along the side to bound its reach:
+/// at most `2^`this pieces (D9, a fixed rule).
+const STRIP_PIECES_LOG2: u32 = 6;
 use crate::dihedral::decide_reported;
 use crate::nurbs_iso::{boundary_iso_u, boundary_iso_v};
 use crate::recourse::Refused;
@@ -310,12 +314,8 @@ struct SideSection {
 /// What a side within the band of the plane is.
 enum SideClass {
     /// The plane lies along it: a region of `reach` over `strip`, whose
-    /// zero set lies in `cover`.
-    Region {
-        strip: UvRect,
-        cover: UvRect,
-        reach: f64,
-    },
+    /// zero set lies strictly inside it.
+    Region { strip: UvRect, reach: f64 },
     /// The plane misses the strip beside it (the exact empty answer).
     Clear { strip: UvRect },
     /// No rung bounds a region along it: the smallest certified reach.
@@ -325,12 +325,8 @@ enum SideClass {
 /// What a corner within the band of the plane is.
 enum CornerClass {
     /// The locus leaves the domain at the corner: a region of `reach`
-    /// over `cell`, whose zero set lies in `cover`.
-    Contact {
-        cell: UvRect,
-        cover: UvRect,
-        reach: f64,
-    },
+    /// over `cell`, whose zero set lies strictly inside it.
+    Contact { cell: UvRect, reach: f64 },
     /// The plane misses the corner cell (the exact empty answer).
     Empty { cell: UvRect },
     /// A branch starts at the corner.
@@ -450,7 +446,8 @@ impl Pass<'_> {
     ///
     /// Along it, a zero of the strip lies at most `sup / inf|φ⊥|` in from
     /// the side (`φ⊥` the slope across it), the strip's **cover**, and at
-    /// most `reach = sup · s⊥ / inf|φ⊥|` from it in metres. The region
+    /// most `reach = sup · s⊥ / inf|φ⊥|` from it in metres, both read
+    /// piecewise along the side ([`Pass::strip_reach`]). The region
     /// is reported at the widest rung, from the first one-signed rung
     /// down, whose cover lies strictly inside the strip (so the zero set
     /// meets the strip's far face nowhere, and an arc in the strip ends
@@ -516,33 +513,94 @@ impl Pass<'_> {
                     return Err(SsiError::BoundaryTangent { side, verdict });
                 }
             }
-            let depth = div_up(sup, inf);
+            let (depth, reach) = self.strip_reach(side, strip, sup);
             let pad_across = match side.fixed {
                 ChartAxis::U => pad.0,
                 ChartAxis::V => pad.1,
             };
-            let reach = div_up(sup, div_down(inf, speed.get())) + self.band.zero();
             best_reach = best_reach.min(reach);
             let inside = depth < pad_across || !cut_inside(across_domain, pad_across);
             if inside && reach <= self.reach_max() {
-                let cover = self.strip(
-                    side,
-                    match side.fixed {
-                        ChartAxis::U => (depth, pad.1),
-                        ChartAxis::V => (pad.0, depth),
-                    },
-                );
-                return Ok(Some(SideClass::Region {
-                    strip,
-                    cover,
-                    reach,
-                }));
+                return Ok(Some(SideClass::Region { strip, reach }));
             }
         }
         if !classified {
             return Ok(None);
         }
         Ok(Some(SideClass::Unbounded { reach: best_reach }))
+    }
+
+    /// How deep in from `side` a zero of `strip` lies, in parameter, and
+    /// how far from the side, in metres, plus the band: the strip cut
+    /// along the side into `2^j` pieces, `j` up to
+    /// [`STRIP_PIECES_LOG2`], until the reach is under the region cap.
+    /// A zero at `(t⊥, t)` in a piece is reached from the side at the
+    /// same `t` inside the piece, where the wall's slope across is at
+    /// least the piece's `inf|φ⊥|` and its speed across at most the
+    /// piece's `s⊥`, so it lies at most `sup / inf|φ⊥|` in and
+    /// `sup · s⊥ / inf|φ⊥|` from the side; the strip's bounds are the
+    /// largest over its pieces. The rational wall's derivative boxes
+    /// over a whole side pair its least slope with its greatest speed,
+    /// which pieces part. `(∞, ∞)` where a piece's slope is not
+    /// one-signed.
+    fn strip_reach(&self, side: ChartSide, strip: UvRect, sup: f64) -> (f64, f64) {
+        let boxes = NurbsBoxes::new(self.wall);
+        let along_u = side.fixed == ChartAxis::U;
+        let along = if along_u { strip.v } else { strip.u };
+        let mut best = (f64::INFINITY, f64::INFINITY);
+        for j in 0..=STRIP_PIECES_LOG2 {
+            let n = 1u32 << j;
+            let mut bound = (0.0_f64, 0.0_f64);
+            for k in 0..n {
+                let t = |i: u32| along.0 + (along.1 - along.0) * f64::from(i) / f64::from(n);
+                let piece = if k + 1 == n {
+                    (t(k), along.1)
+                } else {
+                    (t(k), t(k + 1))
+                };
+                let piece = if along_u {
+                    UvRect {
+                        u: strip.u,
+                        v: piece,
+                    }
+                } else {
+                    UvRect {
+                        u: piece,
+                        v: strip.v,
+                    }
+                };
+                let d = boxes.deriv_box(piece.u.0, piece.u.1, piece.v.0, piece.v.1, along_u);
+                let n_ = [
+                    self.plane.normal.x,
+                    self.plane.normal.y,
+                    self.plane.normal.z,
+                ]
+                .map(Interval::point);
+                let across = n_[0] * d.x + n_[1] * d.y + n_[2] * d.z;
+                let inf = if one_signed(across) {
+                    super::enclose::zero_free_lower_bound(across)
+                } else {
+                    0.0
+                };
+                let speed = norm_sup(&[d.x, d.y, d.z]);
+                if !(inf > 0.0 && speed.is_finite()) {
+                    bound = (f64::INFINITY, f64::INFINITY);
+                    break;
+                }
+                bound = (
+                    max_bound(bound.0, div_up(sup, inf)),
+                    max_bound(bound.1, div_up(sup, div_down(inf, speed))),
+                );
+            }
+            let reach = bound.1 + self.band.zero();
+            if reach < best.1 {
+                best = (bound.0, reach);
+            }
+            if best.1 <= self.reach_max() {
+                break;
+            }
+        }
+        best
     }
 
     /// The largest reach a region may claim, in metres.
@@ -558,7 +616,8 @@ impl Pass<'_> {
     /// so it lies in the **cover** `du ≤ |φ|/inf|φ_u|`,
     /// `dv ≤ |φ|/inf|φ_v|`, and at most
     /// `reach = |φ| · max(s_u/inf|φ_u|, s_v/inf|φ_v|)` from the corner
-    /// (the largest of `s_u·du + s_v·dv` under the constraint). The
+    /// (the largest of `s_u·du + s_v·dv` under the constraint, `s_u`,
+    /// `s_v` the wall's speeds over the cell). The
     /// region is reported at the widest rung, from the classifying one
     /// down, whose cover lies strictly inside the cell and whose reach
     /// is at most [`SSI_REGION_REACH_MAX`]` · Kε`.
@@ -617,14 +676,21 @@ impl Pass<'_> {
             return Ok(CornerClass::Empty { cell });
         }
         let ((u0, u1), (v0, v1)) = self.domain();
-        let (s_u, s_v) = (self.speeds.u.get(), self.speeds.v.get());
         let mag = magnitude(phi);
+        let boxes = NurbsBoxes::new(self.wall);
         for &pad in &rungs[first..] {
             let cell = self.corner_cell(corner, pad);
             let (pu, pv) = self.partials(cell);
             if !(one_signed(pu) && one_signed(pv)) {
                 continue;
             }
+            // The wall's speeds over the cell, which bound the path from
+            // the corner to a zero in it.
+            let speed = |along_u: bool| {
+                let d = boxes.deriv_box(cell.u.0, cell.u.1, cell.v.0, cell.v.1, along_u);
+                norm_sup(&[d.x, d.y, d.z])
+            };
+            let (s_u, s_v) = (speed(true), speed(false));
             let inf_u = super::enclose::zero_free_lower_bound(pu);
             let inf_v = super::enclose::zero_free_lower_bound(pv);
             let (du, dv) = (div_up(mag, inf_u), div_up(mag, inf_v));
@@ -636,8 +702,7 @@ impl Pass<'_> {
             let inside = (du < pad.0 || !cut_inside((u0, u1), pad.0))
                 && (dv < pad.1 || !cut_inside((v0, v1), pad.1));
             if inside && reach <= self.reach_max() {
-                let cover = self.corner_cell(corner, (du, dv));
-                return Ok(CornerClass::Contact { cell, cover, reach });
+                return Ok(CornerClass::Contact { cell, reach });
             }
         }
         // No rung bounds the region: the arc the cell holds reaches too
@@ -696,7 +761,6 @@ impl Pass<'_> {
         let ((u0, u1), (v0, v1)) = self.domain();
         let mut contacts = Vec::new();
         let mut regions: Vec<UvRect> = Vec::new();
-        let mut covers: Vec<UvRect> = Vec::new();
         let mut clear: Vec<UvRect> = Vec::new();
         let mut sections = Vec::new();
         for side in SIDES {
@@ -714,14 +778,9 @@ impl Pass<'_> {
             let section = match section {
                 BoundarySection::On { sup, side_of_plane } => {
                     match self.side_region(side, sup, side_of_plane)? {
-                        Some(SideClass::Region {
-                            strip,
-                            cover,
-                            reach,
-                        }) => {
+                        Some(SideClass::Region { strip, reach }) => {
                             contacts.push(SsiBoundaryContact::Side { side, reach });
                             regions.push(strip);
-                            covers.push(cover);
                             section
                         }
                         Some(SideClass::Clear { strip }) => {
@@ -807,10 +866,9 @@ impl Pass<'_> {
             }
             match self.corner_class(corner, phi)? {
                 CornerClass::Empty { cell } => clear.push(cell),
-                CornerClass::Contact { cell, cover, reach } => {
+                CornerClass::Contact { cell, reach } => {
                     contacts.push(SsiBoundaryContact::Corner { corner, reach });
                     regions.push(cell);
-                    covers.push(cover);
                 }
                 CornerClass::Start { cell } => starts.push(cell),
                 CornerClass::Through => {}
@@ -844,9 +902,9 @@ impl Pass<'_> {
                 };
                 let point = (at((u0, u1), corner.u), at((v0, v1), corner.v));
                 let in_start = starts.iter().any(|c| holds(*c, point));
-                // Inside a region's cover the root is the region's; in a
+                // Inside a region's cell the root is the region's; in a
                 // cell the plane is certified clear of, it is none.
-                if covers.iter().chain(&clear).any(|c| holds(*c, point)) {
+                if regions.iter().chain(&clear).any(|c| holds(*c, point)) {
                     continue;
                 }
                 if !in_start {
@@ -861,9 +919,10 @@ impl Pass<'_> {
             for root in roots {
                 let c = self.settle(*side, root)?;
                 let point = (c.state[2], c.state[3]);
-                // A root in a region's cell beyond its cover is not the
-                // region's: it is kept, a crossing of another branch.
-                if covers.iter().any(|r| holds(*r, point)) {
+                // A region's cell holds its zero set only within the
+                // cover, so a root in the cell is the region's, wherever
+                // its settling put it.
+                if regions.iter().any(|r| holds(*r, point)) {
                     continue;
                 }
                 // One crossing per corner a branch starts at.
