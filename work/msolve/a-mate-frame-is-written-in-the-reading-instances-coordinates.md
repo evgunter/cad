@@ -2,11 +2,12 @@
 id: a-mate-frame-is-written-in-the-reading-instances-coordinates
 kind: issue
 title: A mate's literal frame is written in the coordinates of the instance it reads, so split and inline must refuse where its meaning would change
-status: open
+status: parked
 opened: 2026-10-01
 priority: P2
 cost: M
 design: true
+blocked_on: [3990]
 ---
 
 
