@@ -4561,7 +4561,7 @@ mod tests {
     /// pruned vertices are left out of the substitution rows (the
     /// record drops) or mapped to a vertex.
     #[test]
-    fn a_record_citing_a_pruned_free_end_drops() {
+    fn a_record_citing_a_pruned_free_end_lands_on_the_face_that_swallowed_it() {
         use super::{Cell, Descendants, KeyView, Operand};
         use crate::boolean::{ContactRecords, VfContact, VvContact};
         use crate::entity::VertexKey;

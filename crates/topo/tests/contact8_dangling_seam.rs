@@ -169,10 +169,11 @@ fn the_merged_union_refuses_an_undeclared_third_brick_across_operands() {
 /// **The bent seam's corner is deleted, and no record survives to
 /// cite it.** The union ships no contact records at all: every
 /// reduction record here rests at a seam vertex the zip fused, and is
-/// consumed there, before the merge runs. That is why the drop rule
-/// for a pruned vertex is pinned on the merge's real outcome in
-/// `boolean::ops`' `a_record_citing_a_pruned_free_end_drops` rather
-/// than here.
+/// consumed there, before the merge runs. That is why the rule for a
+/// pruned vertex (a record citing it lands on the face that swallowed
+/// it) is pinned on the merge's real outcome in `boolean::ops`'
+/// `a_record_citing_a_pruned_free_end_lands_on_the_face_that_swallowed_it`
+/// rather than here.
 #[test]
 fn the_bent_seams_corner_is_deleted_and_no_record_survives() {
     let bb = a_union_f();
