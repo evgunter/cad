@@ -300,3 +300,10 @@ lane, because both edit `remap_contacts`.
   because an explicit union is the recourse. Fork-log row 48 records
   Ev's decision and the mapping (byte 93, A=fable B=opus). PR 3891 is
   reworked to the piece rule rather than landed.
+
+- 2026-10-03 — Dispatched `shared-vertex-crossings-that-tie-or-interleave-are-unprobed`
+  (P0) to a cloud implementer on `fuse/shared-vertex-tie`. The lane
+  builds the tie arm from the pieces' own faces, with certified
+  readings only, and either proves the three unreached arms are
+  invariants or pins them. The #3891 rework runs in parallel on the
+  piece rule.
