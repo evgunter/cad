@@ -139,6 +139,8 @@ mod curves_span_window_pairing;
 mod curves_split_at;
 #[path = "dual_foot_tangent.rs"]
 mod dual_foot_tangent;
+#[path = "j3_delta_reversal.rs"]
+mod j3_delta_reversal;
 #[path = "n2r1_probes.rs"]
 mod n2r1_probes;
 #[path = "net_placeholder_width.rs"]
