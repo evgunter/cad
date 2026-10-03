@@ -439,12 +439,12 @@ fn named_subset_frontier(e: &pncad::step_export::StepExportError) -> bool {
 /// no number at this ε. Such a body is VALID, and what the tour
 /// reports for it is the narrowest bracket the certificate or its
 /// continuation held.
-enum Measured {
+enum Measured<T: pncad::geom_core::Real> {
     /// The reporting-level reading: volume, area, and their pads.
-    Number(pncad::topo::MassProperties<f64>),
+    Number(pncad::topo::MassProperties<T>),
     /// The bracket `TargetUnreached` carries: two ends and the area
     /// lever, with no volume number in it by construction.
-    Bracket(pncad::topo::VolumeEnclosure<f64>),
+    Bracket(pncad::topo::VolumeEnclosure<T>),
 }
 
 /// The mesh's own surface area: the sum over its triangles, written
@@ -468,7 +468,7 @@ fn mesh_area(mesh: &pncad::mesh::Mesh) -> f64 {
 }
 
 /// The reporting door, for the one arm that still has to ask it.
-fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured {
+fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured<f64> {
     Measured::Number(
         pncad::topo::mass_properties(body, tol)
             .unwrap_or_else(|e| panic!("{label}: mass properties failed: {e:?}")),
@@ -477,7 +477,7 @@ fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured {
 
 /// A gate's certificate, continued to the number where the quadrature
 /// can reach it.
-fn continued(label: &str, certificate: pncad::topo::SignCertificate<'_, f64>) -> Measured {
+fn continued<T: Gated>(label: &str, certificate: pncad::topo::SignCertificate<'_, T>) -> Measured<T> {
     match certificate.measure() {
         Ok(props) => Measured::Number(props),
         // A body the gate ADMITTED whose schedule cannot reach the
@@ -493,6 +493,44 @@ fn continued(label: &str, certificate: pncad::topo::SignCertificate<'_, f64>) ->
             ..
         }) => Measured::Bracket(bracket),
         Err(unreached) => panic!("{label}: mass properties failed: {unreached}"),
+    }
+}
+
+/// The scalars a body is gated and measured at: the tour's `f64`, and
+/// the K sweep's recording `Probe` (`probe.rs`).
+trait Gated:
+    pncad::geom_core::Decide + pncad::geom_core::CertifiedBounds + pncad::topo::AtRestPolicy
+{
+}
+
+impl<T> Gated for T where
+    T: pncad::geom_core::Decide + pncad::geom_core::CertifiedBounds + pncad::topo::AtRestPolicy
+{
+}
+
+/// The tier-3 or tier-3′ gate a body that is not at rest passes — 3′
+/// with the op's declared contacts for a boolean result, plain tier 3
+/// otherwise (on contact-free bodies the two agree) — continued to the
+/// number where the quadrature can reach it. One home for the tour and
+/// the K sweep, so both measure a body through the same door.
+fn gated<T: Gated>(
+    label: &str,
+    body: &Body<T>,
+    contacts: Option<&ContactRecords>,
+    tol: Tol,
+) -> Measured<T> {
+    match contacts {
+        Some(contacts) => continued(
+            label,
+            pncad::topo::validate_pseudomanifold_certificate(body, contacts, tol).unwrap_or_else(
+                |e| panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}"),
+            ),
+        ),
+        None => continued(
+            label,
+            pncad::topo::validate_geometric_certificate(body, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}")),
+        ),
     }
 }
 
@@ -543,18 +581,7 @@ fn run_body(
                 }
             }
         }
-        Some(contacts) => continued(
-            label,
-            pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol)
-                .unwrap_or_else(|e| {
-                    panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
-                }),
-        ),
-        None => continued(
-            label,
-            pncad::topo::validate_geometric_certificate(&sb.body, tol)
-                .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}")),
-        ),
+        contacts => gated(label, &sb.body, contacts.as_ref(), tol),
     };
 
     let counts = euler_counts(&sb.body);

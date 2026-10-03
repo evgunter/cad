@@ -41,7 +41,7 @@ use pncad::geom_core::k_stats::{self, Probe, SampleOutcome};
 use pncad::topo::{Body, ContactRecords};
 
 use crate::{
-    az, bodies, bool_bodies, bossplate, bracket, crosslap, curvedcut, cutaway, heatsink,
+    Measured, az, bodies, bool_bodies, bossplate, bracket, crosslap, curvedcut, cutaway, heatsink,
     letterforms, lily, projectbox, rocker,
 };
 use pncad::geom_core::Tol;
@@ -58,19 +58,21 @@ fn seamed(name: &str, bb: pncad::topo::BooleanBody<Probe>) -> ProbeBody {
     (name.to_string(), bb.body, Some(bb.contacts))
 }
 
-/// `run_body`'s validation ladder, export lanes omitted.
-fn validate_probe(label: &str, body: &Body<Probe>, contacts: Option<&ContactRecords>, tol: Tol) {
+/// `run_body`'s validation ladder, export lanes omitted: tiers 1 and
+/// 2, then the gate a body that is not at rest passes, continued to
+/// the number through [`crate::gated`] — the tour's own door, so a
+/// body whose volume has only a bracket at this ε comes back as that
+/// bracket here exactly as it does there.
+fn validate_probe(
+    label: &str,
+    body: &Body<Probe>,
+    contacts: Option<&ContactRecords>,
+    tol: Tol,
+) -> Measured<Probe> {
     pncad::topo::validate(body).unwrap_or_else(|e| panic!("{label}: tier 1 at Probe: {e:?}"));
     pncad::topo::validate_closed(body)
         .unwrap_or_else(|e| panic!("{label}: tier 2 at Probe: {e:?}"));
-    match contacts {
-        Some(c) => pncad::topo::validate_pseudomanifold(body, c, tol)
-            .unwrap_or_else(|e| panic!("{label}: tier 3' at Probe: {e:?}")),
-        None => pncad::topo::validate_geometric(body, tol)
-            .unwrap_or_else(|e| panic!("{label}: tier 3 at Probe: {e:?}")),
-    }
-    pncad::topo::mass_properties(body, tol)
-        .unwrap_or_else(|e| panic!("{label}: mass at Probe: {e:?}"));
+    crate::gated(label, body, contacts, tol)
 }
 
 fn outcome_str(o: SampleOutcome) -> &'static str {
@@ -94,7 +96,13 @@ fn sweep<F: FnOnce() -> Vec<ProbeBody>>(
     k_stats::start_recording();
     let bodies = build();
     for (label, body, contacts) in &bodies {
-        validate_probe(label, body, contacts.as_ref(), tol);
+        if let Measured::Bracket(b) = validate_probe(label, body, contacts.as_ref(), tol) {
+            eprintln!(
+                "k_probe(demo): {scene}: {label}: volume in [{:e}, {:e}], a bracket — the \
+                 quadrature schedule cannot reach the reporting target at this eps",
+                b.volume_lo.0, b.volume_hi.0
+            );
+        }
     }
     let samples = k_stats::take_samples();
     *total += samples.len();
