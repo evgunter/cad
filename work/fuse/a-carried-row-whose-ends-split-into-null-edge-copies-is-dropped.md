@@ -49,6 +49,15 @@ still built: `remap_carried` resolved neither end of the carried rows
 at the two far ends. The undeclared pairs were exactly those ends'
 copies in `desc.copies_of`.
 
+## Third and fourth witnesses (FUSE, 2026-10-03)
+
+`two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face`
+(same test file). The two lenses are tied at both rays, which now
+build. `y ∖ cube` fails 3′ with `UndeclaredContact` `VertexVertex` at
+the far ends, both for `y = cut ∪ lens` and for that `y` with a notch
+cut from the inner lens (with or without a lens in the notch). Pinned
+there as it stands.
+
 ## Owed
 
 Have `remap_carried` record a carried row between the live copies of

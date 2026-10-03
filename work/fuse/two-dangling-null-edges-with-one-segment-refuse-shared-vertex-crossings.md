@@ -1,7 +1,7 @@
 ---
 id: two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings
 kind: issue
-title: Two dangling null edges with one segment refuse SharedVertexCrossings: which holds the other is not read off the geometry
+title: Two dangling null edges with one segment nest by their codes; the witness whose pinch lines end in the face fails beyond the origin
 status: dispatched
 opened: 2026-10-03
 priority: P0
@@ -14,44 +14,39 @@ branch: fuse/one-arc-struts
 
 At a vertex that several crossing pairs cut, two pairs whose
 dangling null edges have one segment are two pieces touching along
-both of its ends' directions (pinch lines in the corner's face). Each
-strut's other way round is the whole orbit, so
-`insert::reconcile_shared` (`crates/topo/src/boolean/insert.rs`)
-refuses `SharedVertexCrossings`, as on main. Pinned:
-`two_dangling_null_edges_with_one_segment_refuse_typed`
-(`crates/topo/tests/union_flush_onto_edge_contact.rs`), with `y`
-built both ways, plus the inner lens notched, with and without a lens
-in the notch.
+both of its ends' directions (pinch lines in the corner's face).
+`insert::holds_whole` (`crates/topo/src/boolean/insert.rs`) nests
+them by their codes on the segment, never by mint order. One piece is
+In there, the other Out (two Ins or two Outs would overlap), and the
+Out strut holds the In one. The vertex between them, the holder's tip
+and the inner's root, then keeps the corner's region outside both
+pieces. The other way round, it would be inside both.
 
-## What was tried (FUSE, PR 3950)
+The code is the lower germ's forward code (`insert::segment`): the
+classification's own data, read at the germ that walk order (a
+certified `precedes`) puts first. So the A-major record order, which
+flips with `y`'s union order, no longer reaches it.
 
-A strut whose segment holds another whole hangs the inner one at its
-tip (`insert::holds_whole`). That builds when the inner one's segment
-is strictly inside at one end at least. With both ends tied, each
-strut holds the other, and one has to be chosen:
+## Where it stands
 
-- **By mint order.** It builds with `y = cut ∪ lens`. With
-  `y = lens ∪ cut`, all six ops refuse `JoinDesync` ("every chord arc
-  separates a loose scaffolding pair").
-- **By the run's side code (`from.1.0`).** Same failure. That code is
-  not geometric for a strut whose germs share a sector entry: the
-  union order reverses the record order, which flips it.
-  Normalizing every shared strut to leave from its lower germ flips
-  the side codes, and nothing nests.
-
-The build that worked had the lens's strut (In on the segment)
-holding the block's (Out), the reverse of strict nesting, where the
-Out run holds.
-
-The end guard passes either way round. The record order also flips
-every end kind (the dangling-strut side swap in `insert::mint_run`),
-so the holder's tip is its In end in one order and its Out end in
-the other.
+- **Builds:** `two_dangling_null_edges_with_one_segment_build_in_every_op`
+  (`crates/topo/tests/union_flush_onto_edge_contact.rs`). The inner lens
+  reaches past the cube. Every op builds in both operand orders, with
+  `y` built both ways, and passes 3′.
+- **Pinned:** `two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face`.
+  The inner lens ends inside the cube's face, and each case fails
+  beyond the origin, on another row:
+  - `y = cut ∪ lens` builds in all six. `y ∖ cube` fails 3′ at the far
+    ends (`a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`).
+  - `y = lens ∪ cut` refuses `RingHomingAmbiguous` in all six
+    (`work/tang/a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run.md`).
+  - Notched, with and without a lens in the notch: both ∩ build clean,
+    and `y ∖ cube` fails 3′ as above. The ∪s and `cube ∖ y` refuse
+    `JoinDesync` (`work/cleave/a-discarded-vertex-between-nested-struts-has-two-kept-copies.md`).
+- **Order:** `every_tied_strut_witness_holds_with_its_vertex_pairs_reversed`
+  reruns every tied-strut witness with the reductions' vertex pairs
+  reversed (`topo::test_support::with_vertex_pairs_reversed`).
 
 ## Owed
 
-Work out what the join needs at a tip whose region is empty, then
-choose the holder from geometry, not from record order. Flip the pin
-to building in all six ops, with `y` built both ways.
-
-**P0** on the FUSE ruling (2026-10-02): the operand is a Boolean output that the next Boolean refuses (orchestrator, PR 3950).
+Flip the pinned cases as their rows land.

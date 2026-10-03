@@ -97,3 +97,25 @@ carrying its two v-v rows. The results are the same on main.
   `Join(RingHomingAmbiguous)`. pinch − B builds at 2.0 and passes 3′.
   This is a v-on-f contact, not a pierce: the two vertices land on the
   face at one point, and each mints its own ring.
+
+## A fifth witness: a pinch line's two far ends in a face (FUSE, 2026-10-03)
+
+`two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face`
+(`crates/topo/tests/union_flush_onto_edge_contact.rs`):
+- `y` is a block less a lens, with a smaller lens put back along both
+  of its rays. Its two pinch lines end at (0.5, 0.15, 0) and
+  (0.15, 0.5, 0), inside the unit cube's bottom face.
+- With `y = lens ∪ cut`, all six ops refuse `Join(RingHomingAmbiguous)`.
+  With `y = cut ∪ lens`, all six build. The bodies are the same up to
+  key order.
+
+Measured on `fuse/one-arc-struts`:
+- In `cube ∪ y`, the lens's section triangle (0,0) → (0.15, 0.5) →
+  (0.5, 0.15) closes first and divides the cube's bottom face.
+- The cut's ring at the far end is still loose: one null edge, both
+  vertices at (0.4999999999999999, 0.14999999999999997). So both land
+  `OnBoundary`.
+- In the order that builds, the join consumes that ring before the
+  triangle closes, so homing never meets it.
+- `with_vertex_pairs_reversed` (the v-v plan order) does not change
+  either outcome.

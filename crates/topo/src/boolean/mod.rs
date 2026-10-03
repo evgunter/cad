@@ -3676,10 +3676,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let orbits: Vec<_> = classified
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unused_mut))]
+    let mut orbits: Vec<_> = classified
         .iter()
         .map(|(_, a_sectors, b_sectors, ..)| (a_sectors.as_slice(), b_sectors.as_slice()))
         .collect();
+    #[cfg(any(test, feature = "test-support"))]
+    insert::reverse_when_asked(&mut plans, &mut orbits);
     insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
     null_edges.extend(out.edges);
