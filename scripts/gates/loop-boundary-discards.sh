@@ -148,7 +148,7 @@ REGISTER=(
   "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
   "crates/topo/src/boolean/finish.rs|pinch_site||1|audited: the arm above it answers an Empty loop holding either pierce vertex (refused); a lone vertex that is neither holds no half-edge leaving u or w, so stepping over it loses nothing"
   "crates/topo/src/boolean/join.rs|region_faces||1|unaudited"
-  "crates/topo/src/boolean/ops.rs|describe_minted_edges||1|unaudited"
+  "crates/topo/src/boolean/ops.rs|boundary_edges||1|unaudited"
   "crates/topo/src/boolean/ops.rs|sphere_extent_scan||1|unaudited"
   "crates/topo/src/boolean/rest.rs|bfs_order||1|unaudited"
   "crates/topo/src/boolean/rest.rs|cycle_starts||1|unaudited"

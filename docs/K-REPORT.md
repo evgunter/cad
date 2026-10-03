@@ -1029,6 +1029,7 @@ the value). The names that reach the funnel through them today:
 | `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
 | `mate_axes_parallel` | `crates/editor-core/src/mate/coset.rs`'s `parallel`, a name the mate solve already recorded by a bare `decide` | as before — the mate solve is not in the sweep's roster; see the MSOLVE-8 paragraph below |
 | `mate_coset_inverse` | `crates/editor-core/src/mate/solve.rs`'s `invert`, the solve's own | no — the mate solve is not in the sweep's roster |
+| `mate_frame_offset_axis` | `crates/editor-core/src/mate/solve.rs`'s `compose_offset`: a mate side's axis re-minted from the frame its base and offset compose, once per side whose offset is not the identity — every authored side, which is the part base with one literal step | no — the mate solve is not in the sweep's roster |
 | `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
 | `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
 | `bool_germ_plane_normal` | `crates/topo/src/boolean/join.rs`'s const, decided at the germ-plane read | yes — every germ pair with a plane side that a curved-capable boolean joins |

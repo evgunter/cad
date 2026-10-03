@@ -91,7 +91,7 @@ use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
 use super::ops::{
     Descendants, KeyView, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
-    merge_rows, remap_carried, remap_contacts,
+    merge_rows, of_merge, remap_carried, remap_contacts,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
@@ -374,7 +374,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
-        .map_err(BooleanError::Merge)?;
+        .map_err(of_merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
     let mut contacts = remap_contacts(
@@ -1167,11 +1167,8 @@ fn fan_edge_between<T: Decide>(
     u: VertexKey,
     v: VertexKey,
 ) -> Result<Option<EdgeKey>, BooleanError> {
-    let Some(anchor) = body.get_vertex(u).and_then(|vd| vd.emanating) else {
-        return Ok(None); // isolated ring vertex
-    };
     let orbit = body
-        .vertex_orbit(anchor)
+        .vertex_orbit_of(u)
         .ok_or_else(|| desync("REST lane: site vertex orbit not walkable"))?;
     let mut found: Option<EdgeKey> = None;
     for he in orbit {
@@ -1394,12 +1391,12 @@ fn incident_faces<T: Decide>(
     u: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
 ) -> Result<Vec<FaceKey>, BooleanError> {
-    let Some(anchor) = body.get_vertex(u).and_then(|vd| vd.emanating) else {
-        return Ok(rings.get(u).copied().into_iter().collect());
-    };
     let orbit = body
-        .vertex_orbit(anchor)
+        .vertex_orbit_of(u)
         .ok_or_else(|| desync("REST lane: site vertex orbit not walkable"))?;
+    if orbit.is_empty() {
+        return Ok(rings.get(u).copied().into_iter().collect());
+    }
     let mut faces = Vec::new();
     for he in orbit {
         let l = body
@@ -1972,13 +1969,12 @@ fn slit_zip<T: Decide + crate::props::AtRestPolicy>(
         let dead_end = hd.start;
         // The far vertex must hold ONLY this edge now (a T-junction
         // interior vertex is a sub-frontier, refused before surgery).
-        let anchor = body
-            .get_vertex(dead_end)
-            .and_then(|vd| vd.emanating)
-            .ok_or_else(|| desync("REST lane: run vertex lost its fan"))?;
         let orbit = body
-            .vertex_orbit(anchor)
+            .vertex_orbit_of(dead_end)
             .ok_or_else(|| desync("REST lane: run vertex orbit not walkable"))?;
+        if orbit.is_empty() {
+            return Err(desync("REST lane: run vertex lost its fan"));
+        }
         if orbit.len() != 1 {
             return Err(unsupported(RestZipFrontier::RunVertexBranches));
         }
@@ -2017,14 +2013,13 @@ fn slit_zip<T: Decide + crate::props::AtRestPolicy>(
                         let end = body
                             .half_edge_end(half)
                             .ok_or_else(|| desync("REST lane: band run half has no end"))?;
-                        let anchor = body
-                            .get_vertex(end)
-                            .and_then(|vd| vd.emanating)
-                            .ok_or_else(|| desync("REST lane: band run vertex lost its fan"))?;
-                        Ok(body
-                            .vertex_orbit(anchor)
-                            .ok_or_else(|| desync("REST lane: band run orbit not walkable"))?
-                            .len())
+                        let orbit = body
+                            .vertex_orbit_of(end)
+                            .ok_or_else(|| desync("REST lane: band run orbit not walkable"))?;
+                        if orbit.is_empty() {
+                            return Err(desync("REST lane: band run vertex lost its fan"));
+                        }
+                        Ok(orbit.len())
                     };
                     if valence(body, h)? == 1 {
                         Some(h)

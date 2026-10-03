@@ -86,6 +86,7 @@ use crate::provenance::Provenance;
 use crate::source::{
     AxisAttachError, AxisRecord, AxisSource, GeomOrigin, GeomSource, SourceAttachError,
 };
+use crate::validate::ValidatorSeal;
 
 /// Outcome of a bounded half-edge traversal (crate-internal; the public
 /// wrappers collapse the failure cases to `None`).
@@ -96,14 +97,17 @@ use crate::source::{
 /// pass, so the walk itself stays silent about it — while `Overrun`
 /// means every link resolved but the walk failed to return to its start
 /// within the arena bound (a corruption with no more-local witness, so it
-/// gets its own error variant).
+/// gets its own error variant). [`Body::orbit_walk`] also answers
+/// `Broken` for a member that starts at another vertex; the validator
+/// names those itself, through [`Body::orbit_walk_reading_no_start`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Walk {
     /// The walk returned to its starting half-edge; the members are in
     /// walk order, starting with the start itself.
     Closed(Vec<HalfEdgeKey>),
     /// A link failed to resolve mid-walk (stale key, or a mate that
-    /// does not exist).
+    /// does not exist), or an orbit walk reached a half-edge that does
+    /// not start at its first member's vertex.
     Broken,
     /// Every link resolved but the walk did not return to its start
     /// within the arena-length bound.
@@ -1436,11 +1440,16 @@ impl<T: Real> Body<T> {
     /// [`crate::entity`] module docs (orientation conventions).
     ///
     /// **Bounded** (D9): caps at the half-edge arena length; `None` on
-    /// stale keys, a broken mate (corrupt edge ↔ half-edge bijection), or
-    /// non-closure within the bound. On a *valid* body the orbit always
-    /// closes and visits exactly the half-edges starting at the vertex
-    /// (the validator's manifoldness check). A foreign `he` on a live
-    /// slot [walks another vertex's orbit](self#key-validity-stale-vs-foreign).
+    /// stale keys, a broken mate (corrupt edge ↔ half-edge bijection), a
+    /// member that starts at another vertex than `he` does, or
+    /// non-closure within the bound. So a `Some` lists half-edges that
+    /// all start at `he`'s vertex, though on a torn body not
+    /// necessarily all of them: a torn `next` elsewhere can close
+    /// another vertex's walk into this one without this walk leaving
+    /// the vertex. On a *valid* body the orbit always closes and visits
+    /// exactly the half-edges starting at the vertex (the validator's
+    /// manifoldness check). A foreign `he` on a live slot
+    /// [walks another vertex's orbit](self#key-validity-stale-vs-foreign).
     pub fn vertex_orbit(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
         match self.orbit_walk(he) {
             Walk::Closed(members) => Some(members),
@@ -1448,9 +1457,28 @@ impl<T: Real> Body<T> {
         }
     }
 
+    /// The orbit of `vertex` read from its stored [`Vertex::emanating`]:
+    /// [`Body::vertex_orbit`] from that half-edge, once the half-edge is
+    /// proven to start at `vertex`. `Some(empty)` for a vertex with no
+    /// emanating half-edge; `None` on a stale vertex, an `emanating` that
+    /// does not resolve or starts at another vertex, or a walk
+    /// [`Body::vertex_orbit`] refuses. Every vertex-keyed orbit read
+    /// starts here, so none answers for a walk another vertex's
+    /// `emanating` lends it.
+    pub(crate) fn vertex_orbit_of(&self, vertex: VertexKey) -> Option<Vec<HalfEdgeKey>> {
+        let Some(first) = self.get_vertex(vertex)?.emanating else {
+            return Some(Vec::new());
+        };
+        if self.half_edges.get(first)?.start != vertex {
+            return None;
+        }
+        self.vertex_orbit(first)
+    }
+
     /// The edges meeting `vertex`, each ONCE — or `None` where the
-    /// vertex key is stale or its orbit does not walk
-    /// ([`Body::vertex_orbit`]'s `None`). A foreign key on a live slot
+    /// vertex key is stale, its stored [`Vertex::emanating`] starts at
+    /// another vertex, or its orbit does not walk
+    /// ([`Body::vertex_orbit_of`]'s `None`). A foreign key on a live slot
     /// [answers another vertex's edges](self#key-validity-stale-vs-foreign).
     ///
     /// **The order is the orbit's, and it is part of the answer**: the
@@ -1499,19 +1527,16 @@ impl<T: Real> Body<T> {
         self.orbit_projection(vertex, |he| self.face_of_half_edge(he))
     }
 
-    /// The engine of the two vertex doors: `project` over the vertex's
-    /// orbit, each value kept at its first appearance; `None` on a
-    /// stale vertex, a broken orbit, or a projection that refuses.
+    /// The engine of the two vertex doors: `project` over
+    /// [`Body::vertex_orbit_of`], each value kept at its first
+    /// appearance; `None` where that read or a projection refuses.
     fn orbit_projection<K: PartialEq>(
         &self,
         vertex: VertexKey,
         project: impl Fn(HalfEdgeKey) -> Option<K>,
     ) -> Option<Vec<K>> {
-        let Some(first) = self.get_vertex(vertex)?.emanating else {
-            return Some(Vec::new());
-        };
         let mut out: Vec<K> = Vec::new();
-        for he in self.vertex_orbit(first)? {
+        for he in self.vertex_orbit_of(vertex)? {
             let k = project(he)?;
             if !out.contains(&k) {
                 out.push(k);
@@ -1528,14 +1553,31 @@ impl<T: Real> Body<T> {
         })
     }
 
-    /// Bounded vertex-orbit walk with the three-way outcome the validator
-    /// needs (see [`Walk`]). Step: `next(mate(he))` — the clockwise
-    /// orbit; see [`Body::vertex_orbit`].
+    /// Bounded vertex-orbit walk (see [`Walk`]). Step: `next(mate(he))`
+    /// — the clockwise orbit; see [`Body::vertex_orbit`]. `Broken` at
+    /// the first member that does not start where `first` does, so a
+    /// `Closed` walk is proven to stay at `first`'s vertex.
     pub(crate) fn orbit_walk(&self, first: HalfEdgeKey) -> Walk {
+        let Some(origin) = self.half_edges.get(first).map(|half_edge| half_edge.start) else {
+            return Walk::Broken;
+        };
         self.bounded_walk(first, |body, he| {
-            let mate = body.mate(he)?;
-            body.half_edges.get(mate).map(|half_edge| half_edge.next)
+            let next = body.orbit_step(he)?;
+            (body.half_edges.get(next)?.start == origin).then_some(next)
         })
+    }
+
+    /// [`Body::orbit_walk`] without the start proof: a torn `next` can
+    /// close it `Closed` through other vertices' half-edges. The
+    /// [`ValidatorSeal`] only `validate` can mint keeps it the
+    /// validator's, which walks it to name each foreign member.
+    pub(crate) fn orbit_walk_reading_no_start(&self, first: HalfEdgeKey, _: ValidatorSeal) -> Walk {
+        self.bounded_walk(first, Self::orbit_step)
+    }
+
+    fn orbit_step(&self, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
+        let mate = self.mate(he)?;
+        self.half_edges.get(mate).map(|half_edge| half_edge.next)
     }
 
     /// The shared bounded-walk engine: iterates `step` from `first` until
@@ -2240,6 +2282,143 @@ mod tests {
             .parent_loop = LoopKey::default();
         assert!(orphan.edges_of_vertex(root).is_some());
         assert_eq!(orphan.faces_of_vertex(root), None);
+    }
+
+    /// A walk a torn `next` closes through another vertex's half-edges
+    /// is not this vertex's orbit, and the read doors refuse it rather
+    /// than list the other vertex's edges and faces among this one's.
+    #[test]
+    fn the_vertex_doors_refuse_a_walk_closed_through_another_vertex() {
+        let (body, _, v) = crate::fixtures::torn_cube_closing_through_another_vertex();
+        if let Some(edges) = body.edges_of_vertex(v) {
+            for e in &edges {
+                let data = body.get_edge(*e).unwrap();
+                assert!(
+                    [data.he_plus, data.he_minus].iter().any(|&h| body
+                        .get_half_edge(h)
+                        .unwrap()
+                        .start
+                        == v),
+                    "edges_of_vertex({v:?}) = {edges:?} lists {e:?}, which no half of \
+                     starts at {v:?}"
+                );
+            }
+        }
+        let first = body.get_vertex(v).unwrap().emanating.unwrap();
+        assert_eq!(body.vertex_orbit(first), None, "vertex_orbit");
+        assert_eq!(body.edges_of_vertex(v), None, "edges_of_vertex");
+        assert_eq!(body.faces_of_vertex(v), None, "faces_of_vertex");
+    }
+
+    /// A vertex whose stored `emanating` is another vertex's half-edge
+    /// lends the vertex-keyed reads a walk that is proven, but at the
+    /// wrong vertex: `v` borrows `u`'s `emanating`, and without the
+    /// check that it starts at `v` both doors answer `u`'s edges and
+    /// faces for `v`.
+    #[test]
+    fn the_vertex_doors_refuse_an_emanating_that_starts_at_another_vertex() {
+        let mut body = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let vertices: Vec<VertexKey> = body.vertices().map(|(k, _)| k).collect();
+        let (v, u) = (vertices[0], vertices[1]);
+        let edges_of_u = body.edges_of_vertex(u).unwrap();
+        let faces_of_u = body.faces_of_vertex(u).unwrap();
+        body.get_vertex_mut(v).unwrap().emanating = body.get_vertex(u).unwrap().emanating;
+        assert_eq!(body.vertex_orbit_of(v), None, "vertex_orbit_of");
+        assert_eq!(body.edges_of_vertex(v), None, "edges_of_vertex");
+        assert_eq!(body.faces_of_vertex(v), None, "faces_of_vertex");
+        assert_eq!(body.edges_of_vertex(u), Some(edges_of_u), "u still reads");
+        assert_eq!(body.faces_of_vertex(u), Some(faces_of_u), "u still reads");
+    }
+
+    /// The start proof never refuses a valid body: on every fixture
+    /// below, the walk from EVERY half-edge (not only the stored
+    /// `emanating`) closes, and visits exactly the half-edges that start
+    /// where it does. A proof that read another vertex than the first
+    /// member's — its end, its mate's start — reds here.
+    #[test]
+    fn the_orbit_walk_refuses_no_half_edge_of_a_valid_body() {
+        let tol = Tol::witness();
+        let fixtures: Vec<(&str, Body<f64>)> = vec![
+            ("pillow", pillow(tol).body),
+            ("ngon_pillow(5)", crate::fixtures::ngon_pillow(5, tol).body),
+            ("mvfs_state", mvfs_state().body),
+            ("ops_holed_box", crate::fixtures::ops_holed_box(tol).body),
+            (
+                "ops_two_ring_face",
+                crate::fixtures::ops_two_ring_face(tol).body,
+            ),
+            ("ops_genus2", crate::fixtures::ops_genus2(tol)),
+            (
+                "ops_ring_bridge",
+                crate::fixtures::ops_ring_bridge(tol).body,
+            ),
+            ("ops_strut_cube", ops_strut_cube(tol).body),
+            ("ops_segment", crate::fixtures::ops_segment(tol).0),
+            ("ops_strutted", crate::fixtures::ops_strutted(tol).0),
+            (
+                "declined_cube",
+                crate::test_support_fixtures::declined_cube::<f64>(tol).body,
+            ),
+            (
+                "geometric_cube",
+                crate::test_support_fixtures::geometric_cube::<f64>(tol).body,
+            ),
+            (
+                "holed_block",
+                crate::test_support_fixtures::holed_block::<f64>(4.0, &[1.0, 3.0], tol),
+            ),
+        ];
+        let mut walked = 0usize;
+        for (name, body) in &fixtures {
+            assert_eq!(crate::validate::validate(body), Ok(()), "{name} is valid");
+            for (he, data) in body.half_edges() {
+                let orbit = body
+                    .vertex_orbit(he)
+                    .unwrap_or_else(|| panic!("{name}: the walk from {he:?} refuses"));
+                assert!(
+                    orbit
+                        .iter()
+                        .all(|&m| body.get_half_edge(m).unwrap().start == data.start),
+                    "{name}: the walk from {he:?} leaves its vertex"
+                );
+                let incident = body
+                    .half_edges()
+                    .filter(|(_, d)| d.start == data.start)
+                    .count();
+                assert_eq!(orbit.len(), incident, "{name}: the walk from {he:?}");
+                walked += 1;
+            }
+            for (v, _) in body.vertices() {
+                assert!(
+                    body.edges_of_vertex(v).is_some(),
+                    "{name}: edges_of_vertex({v:?})"
+                );
+                assert!(
+                    body.faces_of_vertex(v).is_some(),
+                    "{name}: faces_of_vertex({v:?})"
+                );
+            }
+        }
+        assert!(walked > 200, "the row walked {walked} half-edges");
+    }
+
+    /// The validator's pass 6 names each half-edge of a torn walk that
+    /// starts at another vertex, which the proven walk collapses into
+    /// `Broken`: it walks without the proof.
+    #[test]
+    fn pass_six_names_each_foreign_member_of_a_walk_closed_through_another_vertex() {
+        let (body, halves, v) = crate::fixtures::torn_cube_closing_through_another_vertex();
+        let foreign: Vec<(VertexKey, HalfEdgeKey)> = crate::validate::validate(&body)
+            .unwrap_err()
+            .into_iter()
+            .filter_map(|e| match e {
+                crate::validate::ValidationError::OrbitForeignMember { vertex, half_edge } => {
+                    Some((vertex, half_edge))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(foreign, vec![(v, halves[6]), (v, halves[5])]);
     }
 
     #[test]

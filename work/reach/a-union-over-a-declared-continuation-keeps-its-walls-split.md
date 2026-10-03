@@ -2,10 +2,11 @@
 id: a-union-over-a-declared-continuation-keeps-its-walls-split
 kind: issue
 title: B ∪ A over a declared rounded continuation builds the thick plate with its walls split where the thin plate's lay (18 or 14 faces against 10)
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
