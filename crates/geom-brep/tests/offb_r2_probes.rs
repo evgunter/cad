@@ -185,7 +185,7 @@ fn skinned_loft() -> NurbsSurface<f64> {
             let mut row = Vec::with_capacity(nv * 3);
             for t in &vparams {
                 let p = section(*u, *t);
-                row.extend_from_slice(&[p.x, p.y, p.z]);
+                row.extend_from_slice(&p.to_array());
             }
             row
         })

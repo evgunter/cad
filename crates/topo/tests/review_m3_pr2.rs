@@ -24,10 +24,11 @@ use geom_core::{Point3, Vec3};
 use topo::{Body, PlaneSide, SplitPlane, SplitReduceError, VertexKey, split_reduce};
 
 fn plane_y<T: geom_core::Decide>(y: f64, ny: f64) -> SplitPlane<T> {
-    SplitPlane {
-        origin: Point3::new(T::from_f64(0.0), T::from_f64(y), T::from_f64(0.0)),
-        normal: Vec3::new(T::from_f64(0.0), T::from_f64(ny), T::from_f64(0.0)),
-    }
+    topo::test_support::split_plane(
+        Point3::new(T::from_f64(0.0), T::from_f64(y), T::from_f64(0.0)),
+        Vec3::new(T::from_f64(0.0), T::from_f64(ny), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
+    )
 }
 
 fn point_of(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
@@ -174,34 +175,23 @@ fn r1b_orientation_equivariance_pins_bob_from_aoa() {
     }
 }
 
-/// R2 — the tangency residue, executed: a triangular prism touching the
-/// plane from above along its apex edge only (no below material
-/// anywhere). Documents EXACTLY what PR 3 receives: one wrapped ABOVE
-/// run per apex vertex ⇒ one non-dangling null edge; the old vertex is
-/// left holding only the bare tangent edge plus the null half — the
-/// degenerate Below piece the adjudication record promises PR 3 must
-/// detect and refuse. NOTE the `dangling` flag is FALSE here: PR 3 has
-/// no PR 2-level flag for this residue, only the reconstructable fact
-/// that the below side of these ON vertices holds no real material.
+/// R2 — the one-sided tangency, executed: a triangular prism touching
+/// the plane from above along its apex edge only (no below material
+/// anywhere). The apex is a convex edge with both neighbours Above, so
+/// rule (b) sends it Above with them: every entry at an apex vertex is
+/// Above, there is no run to separate, and the reduction mints no null
+/// edge. The old vertices keep their whole orbits.
 #[test]
-fn r2_one_sided_tangency_residue_documented() {
+fn r2_one_sided_tangency_mints_nothing() {
     let profile = [(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)]; // CCW, apex down
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     let red = split_reduce(&fx.body, &plane_y(1.0, 1.0), Tol::witness()).unwrap();
     assert_eq!(red.on_vertices.len(), 2); // apex bottom + top
-    assert_eq!(red.null_edges.len(), 2); // one per apex vertex
-    assert!(red.null_edges.iter().all(|r| !r.dangling));
+    assert!(red.null_edges.is_empty());
     for z in [0.0, 1.0] {
         let apex = vertex_at(&fx.body, 6.0, 1.0, z);
         let anchor = red.body.get_vertex(apex).unwrap().emanating.unwrap();
-        let orbit = red.body.vertex_orbit(anchor).unwrap();
-        // Old vertex keeps: the tangent (apex) edge + the null half.
-        assert_eq!(orbit.len(), 2, "below residue = bare edge + null");
-        let ends: Vec<_> = orbit
-            .iter()
-            .map(|&he| red.sides[red.body.half_edge_end(he).unwrap()])
-            .collect();
-        assert!(ends.iter().all(|&s| s == PlaneSide::On));
+        assert_eq!(red.body.vertex_orbit(anchor).unwrap().len(), 3, "z = {z}");
     }
 }
 
@@ -309,10 +299,11 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
         (98993.0, 101003.0),
     ];
     let l = 10.0f64.sqrt();
-    let plane = SplitPlane {
-        origin: Point3::new(100000.0, 100000.0, 0.0),
-        normal: Vec3::new(1.0 / l, 3.0 / l, 0.0),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(100000.0, 100000.0, 0.0),
+        Vec3::new(1.0 / l, 3.0 / l, 0.0),
+        geom_core::Tol::witness(),
+    );
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
 
@@ -354,10 +345,11 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
         use geom_core::k_stats::{Probe, start_recording, take_samples};
         let n_operand_vertices = fx.body.vertices().count();
         let fx_p = prism::<Probe>(&profile, 1.0, Tol::witness());
-        let plane_p = SplitPlane {
-            origin: Point3::new(Probe(100000.0), Probe(100000.0), Probe(0.0)),
-            normal: Vec3::new(Probe(1.0 / l), Probe(3.0 / l), Probe(0.0)),
-        };
+        let plane_p = topo::test_support::split_plane(
+            Point3::new(Probe(100000.0), Probe(100000.0), Probe(0.0)),
+            Vec3::new(Probe(1.0 / l), Probe(3.0 / l), Probe(0.0)),
+            geom_core::Tol::witness(),
+        );
         start_recording();
         let red_p = split_reduce(&fx_p.body, &plane_p, Tol::witness()).unwrap();
         let samples = take_samples();
@@ -381,8 +373,8 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
     for &v in &red.on_vertices {
         assert_eq!(red.sides[v], PlaneSide::On, "declared ON");
         let p = point_of(&red.body, v);
-        let (h1, e1) = two_prod(p.x - plane.origin.x, plane.normal.x);
-        let (h2, e2) = two_prod(p.y - plane.origin.y, plane.normal.y);
+        let (h1, e1) = two_prod(p.x - plane.origin.x, plane.normal.get().x);
+        let (h2, e2) = two_prod(p.y - plane.origin.y, plane.normal.get().y);
         let (s, es) = two_sum(h1, h2);
         let residual = s + (es + e1 + e2);
         max_residual = max_residual.max(residual.abs());

@@ -21,8 +21,9 @@
 use core::f64::consts::FRAC_PI_2;
 use geom_core::{Point2, Point3, Real, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, SplitPart, SplitPlane, split};
+use topo::{Body, SplitPart, split};
 
 use super::shell_operands::{tube, vessel};
 
@@ -50,27 +51,42 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
         v(1.0, 2.0, 0.0),
         v(0.0, 2.0, 0.0),
     ]);
-    let l_prism = extrude(&profile(l), Extrusion::Distance(T::from_f64(1.0)), tol)
-        .unwrap()
-        .body;
+    let l_prism = extrude(
+        &profile(l),
+        Extrusion::Distance {
+            depth: T::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
     out.push(("l_prism".into(), l_prism));
     // Cylinder (two semicircular arcs), closed form.
     let c = bulge_loop(vec![v(-1.0, 0.0, 1.0), v(1.0, 0.0, 1.0)]);
-    let cyl = extrude(&profile(c), Extrusion::Distance(T::from_f64(2.0)), tol)
-        .unwrap()
-        .body;
+    let cyl = extrude(
+        &profile(c),
+        Extrusion::Distance {
+            depth: T::from_f64(2.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
     out.push(("cylinder".into(), cyl.clone()));
     // Cylinder cut by an oblique plane: the ellipse-trimmed face needs the
     // quadrature lane (DL3's `cut_cylinder` class).
     let phi = 0.4;
-    let plane = SplitPlane {
-        origin: Point3::new(T::from_f64(0.0), T::from_f64(0.0), T::from_f64(1.0)),
-        normal: Vec3::new(
+    let plane = topo::test_support::split_plane(
+        Point3::new(T::from_f64(0.0), T::from_f64(0.0), T::from_f64(1.0)),
+        Vec3::new(
             T::from_f64(phi.sin()),
             T::from_f64(0.0),
             T::from_f64(phi.cos()),
         ),
-    };
+        geom_core::Tol::witness(),
+    );
     let res = split(&cyl, &plane, tol).unwrap();
     if let SplitPart::Body(above) = &res.above {
         out.push(("cut_cylinder_above".into(), above.clone()));
@@ -202,8 +218,8 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         tol,
     )
     .unwrap();
+    let wall = tq.walls()[0][1].expect("outer wall");
     let mut body = tq.body;
-    let wall = tq.walls[0][1].expect("outer wall");
     let outer = body.get_face(wall).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("cycle");

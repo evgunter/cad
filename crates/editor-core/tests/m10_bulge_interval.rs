@@ -39,8 +39,10 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// parameter's alike on every row but one — asserted on both, so the
 /// equality is a pinned fact and not a copy, and the one row that
 /// PARTS is supplied per document by [`d_tab_table`]. What stands:
-/// `carrier_matches_mapped_source` 12 of 180 on the literal and 16 on
-/// the parameter (it was 18 on both until SYM-5's rule E).
+/// `carrier_matches_mapped_source` 10 of 180 on the literal and 14 on
+/// the parameter (it was 18 on both until SYM-5's rule E; two more
+/// reach the door since the certification schedule assigns its last
+/// sample `t₁` itself, `geom_brep::schedule_param`).
 /// `carrier_endpoint_start`'s last 4 of 36 went with SYM-5's
 /// rule E (the quotient's common factor): they are 24/0/12/0 now, the
 /// rim identity `‖q − c‖ = r` through the DOOR at every sample — the
@@ -73,7 +75,36 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// The literal's shipped CEILING is not the residue: 0.56 of
 /// its real study, bounded by `arc_diameter_clearance` (the annulus's
 /// real-margin class); the parameter's is `3.52e2·ε`, on and off
-/// alike.
+/// alike. Both are unmeasured with the extrude's closing pcurve mint in
+/// the build, whose three `pcurve_*` rows below are its wall rows'
+/// certificate; the re-measure is
+/// `work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`'s.
+///
+/// **PCERT's incidence-and-fidelity unit (PR 3812) moved seven of the
+/// `pcurve_*` rows**, on both spellings. Against the pins it replaced:
+///
+/// - `pcurve_chart_azimuth_frame` 6/0/0/14 -> 12/0/0/26,
+///   `pcurve_chart_orientation` 0/0/0/6 -> 0/0/0/12 and
+///   `pcurve_chart_radial_moving` 8/0/0/6 -> 14/0/0/12: check 4
+///   re-derives each row's image (on the chart's orthonormal twin,
+///   which on these literal frames is the frame itself), so the
+///   derivation's decisions are taken twice.
+/// - `pcurve_map_residual` 0/0/28/98 -> 0/0/18/0: on a harmonic row the
+///   schedule is check 4's cross-check, run on the witness lane and not
+///   at this scalar; what is left is the rows of the lanes that keep
+///   their schedule.
+/// - `pcurve_envelope` 0/0/2/10 -> 8/0/0/4: incidence plus fidelity in
+///   place of the image pushed through the chart, and, with the loop
+///   walk's branch a literal `k` (`geom_brep::whole_periods`), the
+///   stored azimuth is `α + k·τ`; the envelope is a theorem on eight
+///   of its twelve rows.
+/// - `pcurve_fidelity_branch` is new, 0/0/0/24: fidelity's branch, two
+///   sign decisions per row at the half-period marks, definite, read
+///   off the value.
+/// - `pcurve_loop_branch` is new, 0/0/0/18: the walk's own branch
+///   decisions, definite.
+/// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
+///   node between them, four joints' two ends go through the door.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
@@ -99,9 +130,22 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("newell_plane_residual", [30, 0, 0, 0]),
     ("path_circle_radius", [0, 0, 0, 1]),
     ("path_junction_turn", [0, 0, 0, 4]),
-    ("pcurve_chart_azimuth_frame", [0, 0, 0, 2]),
-    ("pcurve_chart_radial_moving", [2, 0, 0, 0]),
+    ("pcurve_azimuth_period", [0, 0, 0, 12]),
+    ("pcurve_chart_azimuth_affine", [24, 0, 0, 0]),
+    ("pcurve_chart_azimuth_frame", [12, 0, 0, 26]),
+    ("pcurve_chart_orientation", [0, 0, 0, 12]),
+    ("pcurve_chart_radial_moving", [14, 0, 0, 12]),
+    ("pcurve_chart_winding", [12, 0, 0, 18]),
+    ("pcurve_envelope", [8, 0, 0, 4]),
+    ("pcurve_fidelity_branch", [0, 0, 0, 24]),
+    ("pcurve_interval_forward", [0, 0, 0, 12]),
+    ("pcurve_loop_branch", [0, 0, 0, 18]),
+    ("pcurve_loop_closure", [0, 0, 0, 3]),
+    ("pcurve_loop_closure_height", [3, 0, 0, 0]),
+    ("pcurve_loop_continuity", [9, 0, 4, 5]),
+    ("pcurve_loop_pole_joint", [0, 0, 0, 9]),
     ("pcurve_map_residual", [0, 0, 18, 0]),
+    ("pcurve_trim_containment", [18, 0, 0, 30]),
     ("segment_straightness", [6, 0, 0, 6]),
     ("side_cylinders_cosurface", [2, 0, 0, 0]),
     ("side_planes_cosurface", [0, 0, 0, 2]),
@@ -157,6 +201,20 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// quotient `5(a + h)²`, the root is the first term's atom
 /// (`m10_bulge_renders.txt` carries the form uncut). Nothing else on
 /// the boss, either D-tab or either control moves.
+///
+/// **PCERT's incidence-and-fidelity unit (PR 3812)** moves the same
+/// seven `pcurve_*` rows as on the D-tab, for the same reasons; the
+/// boss's own numbers: `pcurve_map_residual` 0/0/37/89 -> 0/0/18/0,
+/// `pcurve_envelope` 0/0/3/9 -> 6/6/0/0 (every one decided by the
+/// form, six theorems and six gated on a sign), the three derivation
+/// rows doubled, `pcurve_fidelity_branch` new at 0/0/0/24,
+/// `pcurve_loop_branch` new at 0/0/0/18, and `pcurve_loop_continuity`
+/// 9/0/0/9 -> 9/0/6/3.
+///
+/// **DECIDE-9** (a product with an ungated zero factor rests on that
+/// factor alone), merged in after PR 3812, makes the six gated
+/// `pcurve_envelope` decisions theorems: 6/6/0/0 -> 12/0/0/0. They are
+/// the six `sym_9` counts on the boss (`sign_gated` 26 -> 20).
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -189,9 +247,22 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("newell_plane_residual", [18, 0, 0, 0]),
             ("path_circle_radius", [0, 0, 0, 1]),
             ("path_junction_turn", [0, 0, 0, 2]),
-            ("pcurve_chart_azimuth_frame", [0, 0, 0, 2]),
-            ("pcurve_chart_radial_moving", [2, 0, 0, 0]),
+            ("pcurve_azimuth_period", [0, 0, 0, 12]),
+            ("pcurve_chart_azimuth_affine", [24, 0, 0, 0]),
+            ("pcurve_chart_azimuth_frame", [12, 0, 0, 26]),
+            ("pcurve_chart_orientation", [0, 0, 0, 12]),
+            ("pcurve_chart_radial_moving", [14, 0, 0, 12]),
+            ("pcurve_chart_winding", [12, 0, 0, 18]),
+            ("pcurve_envelope", [12, 0, 0, 0]),
+            ("pcurve_fidelity_branch", [0, 0, 0, 24]),
+            ("pcurve_interval_forward", [0, 0, 0, 12]),
+            ("pcurve_loop_branch", [0, 0, 0, 18]),
+            ("pcurve_loop_closure", [0, 0, 0, 3]),
+            ("pcurve_loop_closure_height", [3, 0, 0, 0]),
+            ("pcurve_loop_continuity", [9, 0, 6, 3]),
+            ("pcurve_loop_pole_joint", [0, 0, 0, 9]),
             ("pcurve_map_residual", [0, 0, 18, 0]),
+            ("pcurve_trim_containment", [0, 18, 0, 30]),
             ("segment_straightness", [2, 0, 0, 6]),
             ("side_cylinders_cosurface", [2, 0, 0, 0]),
             ("vertex_separation", [0, 0, 0, 8]),
@@ -212,8 +283,9 @@ fn d_tab_table(mapped_source: [u64; 4]) -> Vec<(&'static str, [u64; 4])> {
 }
 
 /// The D-tab with its bulge a literal `0.4`: [`D_TAB_AT_THE_NOMINAL`],
-/// with `carrier_matches_mapped_source` 126/0/42/12 — six of the
-/// eighteen that used to stand went to the DOOR with SYM-5's rule E.
+/// with `carrier_matches_mapped_source` 126/0/44/10 — six of the
+/// eighteen that used to stand went to the DOOR with SYM-5's rule E,
+/// and two more with the schedule's assigned last sample.
 #[test]
 fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -221,7 +293,7 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a literal)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([126, 0, 42, 12]),
+        &d_tab_table([126, 0, 44, 10]),
     );
 }
 
@@ -229,8 +301,8 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
 /// the literal's ([`D_TAB_AT_THE_NOMINAL`]) except on ONE row. At the
 /// nominal the bulge's sign is not what blocks on any of the shared
 /// rows, the ring is, on the same nodes — but with SYM-5's rule E the
-/// two part on `carrier_matches_mapped_source`: 126/0/42/12 on the
-/// literal against 126/0/38/16 here, so four of the six the rule takes
+/// two part on `carrier_matches_mapped_source`: 126/0/44/10 on the
+/// literal against 126/0/40/14 here, so four of the six the rule takes
 /// on the literal it does not take when the bulge is a parameter. The
 /// sign
 /// entered, where the dyadic control showed it, through the carrier's
@@ -247,6 +319,6 @@ fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a parameter)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([126, 0, 38, 16]),
+        &d_tab_table([126, 0, 40, 14]),
     );
 }

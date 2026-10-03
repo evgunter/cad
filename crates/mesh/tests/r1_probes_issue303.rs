@@ -11,6 +11,7 @@ use geom_core::{OrthoFrame, Point2, Point3, Tol};
 use mesh::validate::{check_mesh, signed_volume};
 use mesh::{FacePatch, Mesh, tessellate};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::test_support::{corners, prism_on};
 use sweep::{Extrusion, extrude};
 
@@ -172,7 +173,14 @@ fn r1_e2e_l_prism_near_far() {
                 return None;
             }
         };
-        let body = match extrude(&vp, Extrusion::Distance(0.4), Tol::witness()) {
+        let body = match extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: 0.4,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        ) {
             Ok(x) => x.body,
             Err(e) => {
                 println!("L prism {label}: typed refusal at extrude: {e:?}");
@@ -212,7 +220,10 @@ fn r1_e2e_l_prism_near_far() {
         )
         .validate(Tol::witness())
         .expect("profile validation"),
-        Extrusion::Distance(0.4),
+        Extrusion::Distance {
+            depth: 0.4,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .err();

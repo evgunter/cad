@@ -33,6 +33,7 @@
 use crate::common::approx::band;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, rod_chord_at, rod_creases,
@@ -76,9 +77,16 @@ fn extruded(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>, len: f64) -> 
     let p = Profile::new(plane, loops)
         .validate(tol())
         .expect("the profile validates");
-    extrude(&p, Extrusion::Distance(len), tol())
-        .expect("the profile extrudes")
-        .body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: len,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the profile extrudes")
+    .body
 }
 
 /// The block: `x ∈ [−1, 1]`, `y ∈ [−1, 0]`, `z ∈ [0, L]` — its top
@@ -186,7 +194,9 @@ fn cap_above() -> f64 {
 }
 
 /// **What the boolean does with the ruled fixtures on a block** — the
-/// groove (`block ∖ cylinder`) refuses `CurvedSectorSideUnsupported`;
+/// groove (`block ∖ cylinder`) builds through the pierce rings the
+/// block's edges leave in the rod's wall, and is the block less the
+/// rod's section below the top plane over the block's length;
 /// a sunk rod SHORTER than the block (`z ∈ [0.2, 0.8]`) builds, and is
 /// the block plus the rod's segment above the top plane over its
 /// length. The rod's end caps meet the top plane along chords with one
@@ -194,14 +204,19 @@ fn cap_above() -> f64 {
 /// The full-length fixtures the Phase-1 table carves come through the
 /// extrude door (below).
 #[test]
-fn the_boolean_refuses_the_groove_and_builds_a_short_sunk_rod() {
-    let groove = topo::subtract(&block(), &cylinder(-0.5, L + 1.0), tol());
+fn the_boolean_builds_the_groove_and_a_short_sunk_rod() {
+    let groove = topo::subtract(&block(), &cylinder(-0.5, L + 1.0), tol())
+        .expect("the groove builds")
+        .body()
+        .expect("a body")
+        .body
+        .clone();
+    topo::validate_geometric_certificate(&groove, tol()).expect("the groove certifies at rest");
+    let expect = 2.0 * L - (core::f64::consts::PI * ROD_R * ROD_R - cap_above()) * L;
     assert!(
-        matches!(
-            groove,
-            Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
-        ),
-        "the groove refuses at the boolean, got {groove:?}"
+        (volume(&groove) - expect).abs() < 1e-12,
+        "the groove's volume: {} vs {expect}",
+        volume(&groove)
     );
     let sunk = topo::union(&block(), &cylinder(0.2, 0.6), tol())
         .expect("the short sunk rod builds")
@@ -516,8 +531,8 @@ fn a_tall_cylinder_wall_rim_carves_past_a_two_pi_meridian() {
             topo::query::edge_adjacent_matches(
                 &body,
                 k,
-                topo::query::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
-                topo::query::SurfaceKindSet::just(geom_brep::SurfaceKind::Cone),
+                topo::query::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
+                topo::query::SurfaceKindSet::just(geom::SurfaceKind::Cone),
             )
         })
         .collect();

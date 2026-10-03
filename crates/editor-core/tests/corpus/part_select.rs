@@ -24,6 +24,7 @@
 //! D2 bump: the tool plane's height (mid-DAG — its cone is the plane,
 //! the split, both halves and the union; the pattern chain is reused).
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, Dimension, DocEdit, DocParam, EntityKind, Expr, Node, ParamName, PartSelect,
     PatternKind, RecipeNodeId, RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym,
@@ -86,6 +87,7 @@ pub fn document() -> CorpusDoc {
     let cube = r.insert(Node::Extrude {
         profile: box_p,
         distance: Expr::param(ParamName::from_static(H), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
 
     // ---- the cut at mid-height, and its two halves as bodies ----
@@ -105,15 +107,15 @@ pub fn document() -> CorpusDoc {
     // The two halves rest on each other across the section — a
     // declared contact, named through the split's own vocabulary
     // because each Part carries the split's names verbatim.
-    let rest = r.insert(Node::declare_rest(vec![(
+    let rest = editor_core::declare_rest(vec![(
         SitedRef::new(above, section_face(split, SplitHalf::Above)),
         SitedRef::new(below, section_face(split, SplitHalf::Below)),
-    )]));
+    )]);
     let whole = r.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: above,
         b: below,
-        declare: Some(rest),
+        declare: rest,
     });
 
     // ---- three boxes along x, and the middle one lifted ----

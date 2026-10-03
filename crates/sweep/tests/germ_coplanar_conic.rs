@@ -10,9 +10,8 @@
 //!   neighbour; today every op refuses `UndeclaredCoincidence`);
 //! - a donut revolved with its seam parallels at the equators, the box
 //!   top in the equator plane holding an arc of the outer equator (the
-//!   neighbours are the two torus faces; today ∪ refuses
-//!   `CurvedSectorSideUnsupported` and ∖, ∩ refuse the torus at their
-//!   roster, `CurvedPairUnsupported`);
+//!   neighbours are the two torus faces; today every op refuses at the
+//!   join's germ frame, which has no torus × plane arm);
 //! - a tube whose outer wall is two faces meeting in a circle, the box
 //!   top in that circle's plane holding an arc of it, or all of it
 //!   (today every op refuses at the join);
@@ -28,6 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::germ_pair::cyl;
 use crate::revolve_common::{axis_y, validated};
@@ -51,9 +51,16 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the box profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .expect("the box extrudes")
-        .body
+    sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: z.1 - z.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the box extrudes")
+    .body
 }
 
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
@@ -333,4 +340,33 @@ fn the_closed_forms_hold_on_the_operands() {
         (coarse - fine).abs() < 1e-5,
         "the quadrature has converged: {coarse} against {fine}"
     );
+}
+
+/// **The whole tube strut in the box top closes its section loops at one
+/// site each**: the outer circle `ρ = 1` lies in the box top with one
+/// vertex on it, and the inner wall's section circle `ρ = 0.5` crosses
+/// the wall's seam once. Each loop's two ends meet at that one vertex,
+/// and every op refuses that typed, naming the class, rather than
+/// counting the ends as unpaired.
+#[test]
+fn a_closed_section_loop_with_one_site_refuses_typed() {
+    let fx = fixtures()
+        .into_iter()
+        .find(|f| f.name == "whole tube strut in the box top")
+        .expect("the fixture exists");
+    let tol = Tol::witness();
+    for (op, r) in [
+        ("A ∪ B", topo::union(&fx.a, &fx.b, tol)),
+        ("A ∩ B", topo::intersect(&fx.a, &fx.b, tol)),
+        ("A ∖ B", topo::subtract(&fx.a, &fx.b, tol)),
+    ] {
+        let err = r.expect_err("a one-site section loop refuses");
+        assert!(
+            matches!(
+                err,
+                topo::BooleanError::Join(topo::SplitJoinError::SingleSiteSectionLoop { count: 2 })
+            ),
+            "{op}: {err:?}"
+        );
+    }
 }

@@ -169,8 +169,8 @@ fn hollow_torus_carries_its_cavity() {
     assert_eq!(outer.faces.len(), 2);
 
     // The handle bundle names the inner loop with result-body keys.
-    assert_eq!(t.walls.len(), 2);
-    assert!(t.walls[1].iter().all(Option::is_some));
+    assert_eq!(t.walls().len(), 2);
+    assert!(t.walls()[1].iter().all(Option::is_some));
     assert!(t.rims[1].iter().all(Option::is_some));
     assert!(t.poles[1].iter().all(Option::is_none));
 

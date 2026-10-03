@@ -109,7 +109,7 @@ fn fixed_bracket_loop(tol: Tol) -> ProfileLoop<Probe> {
         .unwrap()
         .line_to(Start, tol)
         .unwrap()
-        .loop_
+        .into()
 }
 
 /// The supported ε rows, as (band_zero, band_escalate) with the

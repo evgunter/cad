@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -36,27 +37,32 @@ fn boxed(
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, z0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )),
         },
     );
     let plane = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(fixture::desc(
+            node: Box::new(Node::Profile(fixture::desc(
                 plane,
                 vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-            )),
+            ))),
         },
     );
     let p = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(h),
-            },
+                side: ExtrudeSide::Along,
+            }),
         },
     );
     let e = crate::fixture::newest(&doc);
@@ -86,53 +92,58 @@ fn r2_measure_free_content_keys() {
     let d2 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )),
         },
     );
     let bplane = crate::fixture::newest(&d2);
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Profile(fixture::desc(
+            node: Box::new(Node::Profile(fixture::desc(
                 bplane,
                 vec![vec![(0.5, 0.5), (1.5, 0.5), (1.5, 2.5), (0.5, 2.5)]],
-            )),
+            ))),
         },
     );
     let bp = crate::fixture::newest(&d3);
     let d4 = push(
         &d3,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: bp,
                 distance: Expr::param(ParamName::from_static("t"), Dimension::Length),
-            },
+                side: ExtrudeSide::Along,
+            }),
         },
     );
     let b = crate::fixture::newest(&d4);
     let d5 = push(
         &d4,
         &DocEdit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 op: BooleanOp::Subtract,
                 a,
                 b,
-                declare: None,
-            },
+                declare: Vec::new(),
+            }),
         },
     );
     let cut = crate::fixture::newest(&d5);
     let d6 = push(
         &d5,
         &DocEdit::InsertNode {
-            node: Node::transform(
+            node: Box::new(Node::transform(
                 cut,
                 editor_core::Step::Rigid {
                     translation: [len(1.0), len(2.0), len(3.0)],
                     axis: [scl(0.0), scl(0.0), scl(1.0)],
                     angle: ang(0.0),
                 },
-            ),
+            )),
         },
     );
     let ev: Evaluation<f64> = evaluate::<f64>(

@@ -25,6 +25,7 @@ use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
@@ -36,9 +37,16 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a polygon extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a polygon extrudes")
+    .body
 }
 
 /// The convex polygon inset by `t`: each edge's line moved inward,
@@ -164,10 +172,7 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
         let Some(Surface::Plane { origin, normal, .. }) = chamfered.get_surface(f.surface) else {
             panic!("a chamfered cube carries planes only");
         };
-        let nonzero = [normal.x, normal.y, normal.z]
-            .iter()
-            .filter(|v| v.abs() > 1e-9)
-            .count();
+        let nonzero = normal.to_array().iter().filter(|v| v.abs() > 1e-9).count();
         let dist = match nonzero {
             1 => t, // a shrunk cube face
             2 => s, // a strip
@@ -364,9 +369,16 @@ fn r2a_one_curved_face_among_oblique_planes_refuses_at_the_old_door() {
     let profile = Profile::new(SketchPlane::xy(), vec![outer])
         .validate(tol)
         .expect("a one-arc hexagon validates");
-    let body = extrude(&profile, Extrusion::Distance(0.25), tol)
-        .expect("a one-arc hexagon extrudes")
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.25,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("a one-arc hexagon extrudes")
+    .body;
     let curved = body
         .faces()
         .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))

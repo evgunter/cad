@@ -36,6 +36,7 @@
 #![allow(clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
@@ -75,6 +76,7 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     if n == 4 {
@@ -148,7 +150,7 @@ impl Twins {
             RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
         );
         let edit = DocEdit::InsertNode {
-            node: Node::fillet(sq, len(0.1), vec![fourth.clone()]),
+            node: Box::new(Node::fillet(sq, len(0.1), vec![fourth.clone()])),
         };
         Self {
             square,
@@ -211,7 +213,9 @@ fn a_document_against_its_own_evaluation_answers_as_it_always_did() {
             &editor_core::RefusingReach
         )
         .expect_err("the triangle has no fourth outer segment"),
-        EditError::NameUnresolvedInEvaluation { name: t.fourth },
+        EditError::NameUnresolvedInEvaluation {
+            name: t.triangle.spoken_name(&t.fourth)
+        },
         "the triangle's own tables do not"
     );
 }
@@ -323,7 +327,7 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
         RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
     );
     let edit = DocEdit::InsertNode {
-        node: Node::fillet(sq, len(0.1), vec![fourth]),
+        node: Box::new(Node::fillet(sq, len(0.1), vec![fourth])),
     };
     assert!(
         apply_with_names(&moved, &edit, &ev_square, tol, &editor_core::RefusingReach).is_ok(),

@@ -182,7 +182,7 @@ solid each is filed under. So:
   written: the shared-key structural rung keeps firing across solids,
   which is the only class it exists for.
 - The disconnecting subtract's one-solid filing stays ZIP's defect
-  (`work/zip/subtract-of-a-hollow-operand-…`); fixed, it files two
+  (`work/fuse/subtract-of-a-hollow-operand-…`); fixed, it files two
   solids wearing the operand's charts, with nothing to re-mint.
 - A door that changes a chart's geometry for part of its wearers
   re-keys the ones in its scope at that door, where geometry changes
@@ -214,7 +214,7 @@ as two solids; the reshaped probe on `origin/chart-spans-solids-remint`
 (`r2_move_shells_to_new_solid_remints_the_charts_it_splits`) is kept
 under the opposite claim (no re-mint, surface count unchanged by the
 move). The disconnecting subtract's one-solid filing stays ZIP's
-(`work/zip/subtract-of-a-hollow-operand-…`).
+(`work/fuse/subtract-of-a-hollow-operand-…`).
 
 ## Closed (2026-09-29, PR 3430)
 

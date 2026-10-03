@@ -616,7 +616,7 @@ fn millimetre_lengths_scale_by_one_rounded_multiply() {
     let (body, _, _) = freecad_body("box");
     let mut coords: Vec<f64> = body
         .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point).map(|p| [p.x, p.y, p.z]))
+        .filter_map(|(_, v)| body.get_point(v.point).map(|p| p.to_array()))
         .flatten()
         .collect();
     coords.sort_by(f64::total_cmp);

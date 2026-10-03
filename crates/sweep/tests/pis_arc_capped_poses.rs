@@ -22,6 +22,7 @@
 
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::test_support::{
     ROD_FLAT, ROD_L, ROD_R, brick, dome, hemisphere_on_flat_base, prism, rod_d_profile_at,
 };
@@ -532,16 +533,19 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
-/// **An edge with no crossing row refuses only where it could matter.**
+/// **A spiric-bounded face answers everywhere off its spiric edge.**
 /// The sectioned vessel's cavity carries planar faces bounded by
-/// SPIRICS (a plane's section of the offset torus). The walk holds such
-/// an edge as a ball its arc lies in and steers its rays clear of it: a
-/// point far away along the face's plane is outside the face, the
-/// loop's own vertex is on its boundary (a straight edge leaves it), and
-/// a point ON the spiric — inside its ball, where every ray could meet
-/// the arc — is refused typed rather than read off a chord.
+/// SPIRICS (a plane's section of the offset torus), which the walk
+/// crosses on the oval itself. Every probe of a grid about the spiric —
+/// most of them inside the ball its arc lies in, where no ray from them
+/// could be steered clear of the arc — answers, and its answer is the
+/// region of the face's boundary sampled densely from every edge's own
+/// carrier (probes nearer that polyline than `1e-4` m are not asked). A
+/// point ON the spiric is on the boundary; a point off it by more than
+/// the band's coincidence threshold and less than its escalation
+/// threshold is in band, and refuses.
 #[test]
-fn a_spiric_bounded_face_refuses_only_within_its_reach() {
+fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
     let band = Band::linear(tol()).expect("the witness band");
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
     let spiric_face = cavity
@@ -561,11 +565,10 @@ fn a_spiric_bounded_face_refuses_only_within_its_reach() {
         unreachable!("selected as a plane");
     };
     let vertex = loop_vertex(&cavity, data.outer);
-    // An in-plane direction, and a point far along it.
     let across = normal.cross(Vec3::new(0.3, 0.5, 0.7)).normalize();
-    let far = vertex + across * 10.0;
+    let up = normal.cross(across);
     assert_eq!(
-        topo::test_support::point_in_face(&cavity, spiric_face, far, band).ok(),
+        topo::test_support::point_in_face(&cavity, spiric_face, vertex + across * 10.0, band).ok(),
         Some(Some(false)),
         "far outside the loop's reach, the face is missed"
     );
@@ -574,35 +577,140 @@ fn a_spiric_bounded_face_refuses_only_within_its_reach() {
         Some(None),
         "the loop's own vertex is on its boundary"
     );
-    let on_spiric = loop_half_edges(&cavity, data.outer)
-        .into_iter()
-        .find_map(|he| {
-            let edge = cavity.get_edge(cavity.get_half_edge(he)?.edge)?;
-            let curve = cavity.get_curve_geom(edge.curve)?.certified()?;
+
+    // The face's boundary, sampled from each edge's carrier, in the
+    // plane's (across, up) coordinates.
+    let loops: Vec<_> = core::iter::once(data.outer)
+        .chain(data.rings.iter().copied())
+        .collect();
+    let mut segments = Vec::new();
+    let mut spiric = None;
+    for lk in loops {
+        for he in loop_half_edges(&cavity, lk) {
+            let edge = cavity
+                .get_edge(cavity.get_half_edge(he).expect("half edge").edge)
+                .expect("edge");
+            let curve = cavity
+                .get_curve_geom(edge.curve)
+                .and_then(|c| c.certified())
+                .expect("a certified edge");
             let (t0, t1) = curve.params();
-            matches!(curve.carrier(), geom::Curve3::Spiric { .. })
-                .then(|| curve.carrier().eval((t0 + t1) * 0.5))
-        })
-        .expect("the face's spiric edge");
-    let got = topo::test_support::point_in_face(&cavity, spiric_face, on_spiric, band);
+            if let geom::Curve3::Spiric { .. } = curve.carrier() {
+                spiric = Some((curve.carrier().clone(), t0, t1));
+            }
+            let n = 4000;
+            let at = |k: usize| curve.carrier().eval(t0 + (t1 - t0) * k as f64 / n as f64);
+            for k in 0..n {
+                segments.push((at(k), at(k + 1)));
+            }
+        }
+    }
+    let (carrier, t0, t1) = spiric.expect("the face's spiric edge");
+    let geom::Curve3::Spiric {
+        major_radius: big,
+        minor_radius: r,
+        offset,
+        ..
+    } = carrier
+    else {
+        unreachable!("selected as a spiric");
+    };
+    // The ball the arc lies in: about its midpoint, its speed bound times
+    // half its window.
+    let centre = carrier.eval(0.5 * (t0 + t1));
+    let (speed, _) = geom::spiric_rate_bounds(r, offset, (big - r, big + r), 1.0);
+    let reach = speed * 0.5 * (t1 - t0).abs();
+    let planar = |p: Point3<f64>| ((p - centre).dot(across), (p - centre).dot(up));
+    let segments: Vec<_> = segments
+        .into_iter()
+        .map(|(a, b)| (planar(a), planar(b)))
+        .collect();
+    let truth = |(x, y): (f64, f64)| -> (bool, f64) {
+        let mut inside = false;
+        let mut gap = f64::INFINITY;
+        for &((ax, ay), (bx, by)) in &segments {
+            if (ay > y) != (by > y) && x < ax + (y - ay) / (by - ay) * (bx - ax) {
+                inside = !inside;
+            }
+            let (dx, dy) = (bx - ax, by - ay);
+            let len2 = dx * dx + dy * dy;
+            let s = if len2 > 0.0 {
+                (((x - ax) * dx + (y - ay) * dy) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            gap = gap.min(((x - ax - s * dx).powi(2) + (y - ay - s * dy).powi(2)).sqrt());
+        }
+        (inside, gap)
+    };
+    let mut wrong = Vec::new();
+    let (mut asked, mut in_ball, mut inside) = (0, 0, 0);
+    let steps = 30;
+    for i in 0..=steps {
+        for j in 0..=steps {
+            let (a, b) = (
+                reach * (3.0 * i as f64 / steps as f64 - 1.5),
+                reach * (3.0 * j as f64 / steps as f64 - 1.5),
+            );
+            let (want, gap) = truth((a, b));
+            if gap < 1e-4 {
+                continue;
+            }
+            asked += 1;
+            in_ball += usize::from(a.hypot(b) < reach);
+            inside += usize::from(want);
+            let q = centre + across * a + up * b;
+            match topo::test_support::point_in_face(&cavity, spiric_face, q, band) {
+                Ok(Some(got)) if got == want => {}
+                got => wrong.push(format!("({a}, {b}): want {want}, got {got:?}")),
+            }
+        }
+    }
     assert!(
-        matches!(got, Err(PointInSolidError::EdgeCarrierUnsupported { face }) if face == spiric_face),
-        "on the spiric the face refuses typed, got {got:?}"
+        wrong.is_empty(),
+        "{} of {asked} probes misread:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
+    assert!(
+        in_ball >= 100 && inside >= 20 && asked - inside >= 20,
+        "the grid is not vacuous: {asked} asked, {in_ball} in the spiric's ball, {inside} inside"
+    );
+
+    // On the spiric, and in its band.
+    let mid = 0.5 * (t0 + t1);
+    let on = carrier.eval(mid);
+    assert_eq!(
+        topo::test_support::point_in_face(&cavity, spiric_face, on, band).ok(),
+        Some(None),
+        "a point on the spiric is on the face's boundary"
+    );
+    let off = normal.cross(carrier.deriv(mid)).normalize();
+    let in_band = on + off * (0.5 * (band.zero() + band.escalate()));
+    let got = topo::test_support::point_in_face(&cavity, spiric_face, in_band, band);
+    assert!(
+        matches!(
+            got,
+            Err(PointInSolidError::Loop(
+                topo::PointInLoopError::Escalated { .. }
+            ))
+        ),
+        "a point in the spiric's band refuses, got {got:?}"
     );
 }
 
-fn body_surface(body: &Body<f64>, s: topo::SurfaceKey) -> Option<geom::Surface<f64>> {
+pub(crate) fn body_surface(body: &Body<f64>, s: topo::SurfaceKey) -> Option<geom::Surface<f64>> {
     body.get_surface(s).cloned()
 }
 
-fn loop_half_edges(body: &Body<f64>, lk: topo::LoopKey) -> Vec<topo::HalfEdgeKey> {
+pub(crate) fn loop_half_edges(body: &Body<f64>, lk: topo::LoopKey) -> Vec<topo::HalfEdgeKey> {
     let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).expect("loop").boundary else {
         panic!("a cycle");
     };
     body.loop_cycle(first).expect("cycle")
 }
 
-fn loop_carriers(body: &Body<f64>, lk: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
+pub(crate) fn loop_carriers(body: &Body<f64>, lk: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
     loop_half_edges(body, lk)
         .into_iter()
         .filter_map(|he| {
@@ -612,7 +720,7 @@ fn loop_carriers(body: &Body<f64>, lk: topo::LoopKey) -> Vec<geom::Curve3<f64>> 
         .collect()
 }
 
-fn loop_vertex(body: &Body<f64>, lk: topo::LoopKey) -> Point3<f64> {
+pub(crate) fn loop_vertex(body: &Body<f64>, lk: topo::LoopKey) -> Point3<f64> {
     let he = loop_half_edges(body, lk)[0];
     let v = body.get_half_edge(he).expect("half edge").start;
     *body
@@ -661,9 +769,16 @@ fn holed_plate() -> Body<f64> {
     )
     .validate(tol())
     .expect("the holed plate validates");
-    let body = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0), tol())
-        .expect("the plate extrudes")
-        .body;
+    let body = sweep::extrude(
+        &profile,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the plate extrudes")
+    .body;
     assert!(
         body.faces().any(|(_, f)| !f.rings.is_empty()),
         "the hole is a ring of the top and bottom faces"
@@ -893,8 +1008,8 @@ impl Cut {
 
     fn at(point: [f64; 3], normal: [f64; 3]) -> Self {
         Cut {
-            point: Point3::new(point[0], point[1], point[2]),
-            normal: Vec3::new(normal[0], normal[1], normal[2]).normalize(),
+            point: Point3::from_array(point),
+            normal: Vec3::from_array(normal).normalize(),
         }
     }
 
@@ -921,14 +1036,11 @@ fn cut_by(cuts: &[Cut]) -> Body<f64> {
 
 /// `body` cut down to the side of every plane in `cuts` below it.
 fn cut_from(mut body: Body<f64>, cuts: &[Cut]) -> Body<f64> {
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     for cut in cuts {
         let result = split(
             &body,
-            &SplitPlane {
-                origin: cut.point,
-                normal: cut.normal,
-            },
+            &topo::test_support::split_plane(cut.point, cut.normal, geom_core::Tol::witness()),
             tol(),
         )
         .expect("the cut splits");
@@ -944,6 +1056,8 @@ fn cut_from(mut body: Body<f64>, cuts: &[Cut]) -> Body<f64> {
 struct CutCase {
     name: &'static str,
     body: Body<f64>,
+    /// The planes that cut it.
+    cuts: Vec<Cut>,
     /// `Some(inside)` for a probe clear of the boundary, `None` near it.
     truth: Box<dyn Fn(Point3<f64>) -> Option<bool>>,
 }
@@ -980,6 +1094,7 @@ fn tilted_cut_cases() -> Vec<CutCase> {
         cases.push(CutCase {
             name,
             body: cut_by(&cuts),
+            cuts: cuts.clone(),
             truth: region(cuts),
         });
     };
@@ -1048,6 +1163,7 @@ fn tilted_cut_cases() -> Vec<CutCase> {
             cases.push(CutCase {
                 name,
                 body: cut_from(turned, &cuts),
+                cuts: cuts.clone(),
                 truth: region(cuts),
             });
         }
@@ -1060,6 +1176,7 @@ fn tilted_cut_cases() -> Vec<CutCase> {
         Ok(topo::BooleanResult::Body(b)) => cases.push(CutCase {
             name: "cut 0.3 minus a box (subtract)",
             body: b.body,
+            cuts: vec![cut],
             truth: Box::new(move |p| {
                 let clear =
                     |v: f64, lo: f64, hi: f64| (v - lo).abs() >= 0.05 && (v - hi).abs() >= 0.05;
@@ -1074,6 +1191,42 @@ fn tilted_cut_cases() -> Vec<CutCase> {
         other => panic!("the pocket subtracts: {:?}", other.err()),
     }
     cases
+}
+
+/// **Every tilted-cut fixture's section faces wind counter-clockwise.**
+/// Each face lying in one of a fixture's cutting planes is a section
+/// face the split minted, and its sense is `true`. A clockwise one is
+/// the polygon a chord run outside the wall face it divides makes, kept
+/// as a face cancelling part of the section beside it: the "valley" and
+/// "ridge at tilt 1.1" fixtures carried two per cut while the join
+/// paired a wall face's crossings by the sweep's order.
+#[test]
+fn every_tilted_cut_section_face_is_counter_clockwise() {
+    let mut problems = Vec::new();
+    for case in tilted_cut_cases() {
+        let mut sections = 0;
+        for (key, face) in case.body.faces() {
+            let Some(geom::Surface::Plane { origin, normal, .. }) =
+                case.body.get_surface(face.surface)
+            else {
+                continue;
+            };
+            let in_a_cut = case.cuts.iter().any(|c| {
+                normal.cross(c.normal).norm() < 1e-9
+                    && (*origin - c.point).dot(c.normal).abs() < 1e-9
+            });
+            if in_a_cut {
+                sections += 1;
+                if !face.sense {
+                    problems.push(format!("{}: section face {key:?} is clockwise", case.name));
+                }
+            }
+        }
+        if sections == 0 {
+            problems.push(format!("{}: no section face found", case.name));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
 /// **Every tilted-cut wall reads its truth, and its outline is read,
@@ -1117,7 +1270,7 @@ fn answered_floor_and_escalation_cap(name: &str) -> (usize, usize) {
         "lens" => (59, 0),
         "valley at tilt 0.4" => (313, 0),
         "ridge at tilt 0.4" => (300, 0),
-        "valley at tilt 1.1" => (231, 1),
+        "valley at tilt 1.1" => (230, 1),
         "ridge at tilt 1.1" => (212, 0),
         "cut 0.3 minus a box (subtract)" => (196, 0),
         other => panic!("no floor for {other}"),

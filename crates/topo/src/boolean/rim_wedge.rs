@@ -5,15 +5,22 @@
 //! physically different situations wearing one description, and which
 //! one a rim is decides what the boolean owes it:
 //!
-//! - **wedge π** — the outward normals agree across the rim, the
+//! - **wedge π** — the outward normals agree across the rim and the
+//!   two faces leave it on opposite sides ([`departures`]): the
 //!   composed material is smooth through it, and the rim is a SEAM of
-//!   one composite wall. Nothing is declared and nothing is verified:
-//!   the join's job there is structural.
+//!   one composite wall. Between two operands it is declared a `Seam`
+//!   and verified (C4); inside one body it is structural.
+//! - **normals agree, same departure** — the two faces leave the rim on
+//!   ONE side (a bowl hanging in a tube's mouth): a nested touch, a
+//!   cusp the normals alone cannot tell from the seam. The material
+//!   table answers [`RimRouting::Seam`] for it, since it reads only the
+//!   two sheets' normals and jets; [`departures`] is what tells the two
+//!   apart, and both callers ask it after the table.
 //! - **wedge 0 or 2π** — the normals oppose, the material pinches to a
 //!   knife edge or opens to a circular slit. That is the declared-cusp
-//!   family, whose verification needs a certified witness along the
-//!   rim; the witness lane has no torus arm, so the family is DEFINED
-//!   AND UNBUILT and its refusal says exactly that.
+//!   family, DEFINED AND UNBUILT: the pair reaching this routing has no
+//!   tangent-locus arm, and no consumer yet builds the cusp or slit
+//!   edge from a locus of any shape. Its refusal names both.
 //! - **anything the samples cannot settle** — escalates, naming the
 //!   predicate that failed to decide. Never a silent verdict.
 //!
@@ -56,7 +63,9 @@ pub(crate) struct Rim<T: Real> {
 /// What the ruling's table routes a shared rim to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RimRouting {
-    /// Wedge π: the smooth seam — the built arm.
+    /// Outward normals aligned along the rim: wedge π if the faces
+    /// leave it on opposite sides (the smooth seam, the built arm), a
+    /// nested touch if on one side. [`departures`] decides which.
     Seam,
     /// Wedge 0 or 2π: the declared-`Tangent` cusp family, defined and
     /// unbuilt.
@@ -136,29 +145,7 @@ pub(crate) fn shared_rim<T: Decide>(
 ) -> Result<Option<Rim<T>>, Indeterminate> {
     for ra in face_boundary_circles(a, fa) {
         for rb in face_boundary_circles(b, fb) {
-            // Radius and centre first, angle last: the two LENGTH data
-            // separate almost every non-rim pair definitely and cheaply,
-            // so ordering them ahead of the angular row keeps the sliver
-            // band from being consulted at all on pairs that are not
-            // candidates.
-            let mut same = true;
-            for (name, margin) in [
-                ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
-                ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
-                (
-                    "rim_circle_axis_parallel",
-                    Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
-                ),
-            ] {
-                match crate::validate::decide(name, margin, band)? {
-                    geom_core::Sign::Zero => {}
-                    geom_core::Sign::Positive | geom_core::Sign::Negative => {
-                        same = false;
-                        break;
-                    }
-                }
-            }
-            if same {
+            if same_circle(ra, rb, band)? {
                 return Ok(Some(ra));
             }
         }
@@ -166,8 +153,711 @@ pub(crate) fn shared_rim<T: Decide>(
     Ok(None)
 }
 
-/// The circle carriers of a face's boundary edges.
-fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
+/// Whether two circles are one, on their own data at `band`: radius and
+/// centre first, angle last — the two LENGTH data separate almost every
+/// non-rim pair definitely and cheaply, so ordering them ahead of the
+/// angular row keeps the sliver band from being consulted at all on
+/// pairs that are not candidates. [`shared_rim`]'s docs carry the rest.
+fn same_circle<T: Decide>(ra: Rim<T>, rb: Rim<T>, band: Band) -> Result<bool, Indeterminate> {
+    for (name, margin) in [
+        ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
+        ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
+        (
+            "rim_circle_axis_parallel",
+            Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
+        ),
+    ] {
+        match crate::validate::decide(name, margin, band)? {
+            geom_core::Sign::Zero => {}
+            geom_core::Sign::Positive | geom_core::Sign::Negative => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
+/// The curve two declared faces are tangent along: a shared rim circle,
+/// or the DEV-1 closed-form line (`origin + t·dir`, `dir` unit).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Locus<T: Real> {
+    /// A rim circle both faces' boundaries ride.
+    Rim(Rim<T>),
+    /// A tangent line.
+    Line {
+        /// A point on the line.
+        origin: Point3<T>,
+        /// The unit direction.
+        dir: Vec3<T>,
+    },
+}
+
+/// Which way two faces leave a locus they are tangent along, over the
+/// stretch where they touch ([`departures`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Departure {
+    /// Wherever they touch, both faces end at the locus and leave it on
+    /// opposite sides: the π wedge of a seam.
+    Opposite,
+    /// Wherever they touch, they leave it on the same side: a cusp.
+    Same,
+    /// Opposite sides along part of the touch and the same side along
+    /// another, or a face whose boundary runs one stretch of the locus
+    /// BOTH ways (the two half-edges of one edge, a chart seam or a
+    /// bridge): no one claim fits the pair.
+    Mixed,
+    /// Somewhere the two faces touch along the locus, one of them has no
+    /// boundary edge there: the locus runs through its interior, so the
+    /// face does not END at the locus and leaves it on no one side.
+    NoEdge,
+    /// The two faces share no stretch of the locus, and no point of it
+    /// where both END (an abutting pair is read there): the declaration
+    /// meets no curve of contact.
+    Untouched,
+    /// A boundary edge of one face is a curve the read does not place
+    /// against the locus (an ellipse, a spline): the touch is not read,
+    /// and the claim is refused as outside the envelope rather than
+    /// answered.
+    EdgeKindUnread,
+}
+
+/// **Which way two faces leave a locus they are tangent along, wherever
+/// they TOUCH**, read from the boundary half-edges that run along it:
+/// the half of the wedge a pair of operands can get wrong and a body's
+/// edge cannot.
+///
+/// A face's interior lies to the LEFT of each of its half-edges about
+/// its outward normal (outer loops counterclockwise, rings clockwise:
+/// `entity`'s convention), so at a locus point the direction a face
+/// leaves along is `n × t`, with `t` its boundary's direction there.
+/// For two faces whose outward normals are ALIGNED along the locus,
+/// which is what both callers have already verified, those departures
+/// are opposite exactly when the two boundaries run the locus in
+/// opposite directions: the sign of each riding half-edge's direction
+/// against the locus's own tangent (`axis × (p − centre)` on a rim,
+/// `dir` on a line).
+///
+/// **The read is tied to where the faces touch.** A face's edge on the
+/// locus names the face's side only where the face ENDS there; an edge
+/// elsewhere on the same line or circle says nothing about the stretch
+/// where the two faces meet. So the locus is cut, along its own
+/// parameter (the line parameter, or the rim angle), at every point
+/// where either face's membership can change: the ends of each face's
+/// riding edges, each face's vertices on the locus, and each point
+/// where one of its other boundary edges crosses the locus. Between two
+/// consecutive cuts each face either contains the locus or does not,
+/// and either rides it or does not; the piece is read at its midpoint
+/// (a riding edge's span, else the face's own containment door). The
+/// TOUCH is the pieces both faces contain. On each touch piece both
+/// faces must ride the locus ([`Departure::NoEdge`] otherwise), and
+/// their traversals there give the piece's departure.
+///
+/// **A pair meeting at a point only** is read at that point when both
+/// faces END there, their riding edges abutting: a declaration over
+/// face sets pairs a half-wall with the half-cap across the rim, and
+/// the boolean reads that pair's cover where the four faces meet at the
+/// rim's vertex, so the pair is declared and must verify. Beside the
+/// point each face ends at the locus, and their traversals compare the
+/// banks there. A pair that shares no stretch and no such point is
+/// [`Departure::Untouched`]: the declaration meets no contact.
+///
+/// Inside one body the question never arises: an edge's two half-edges
+/// run it in opposite directions by construction.
+///
+/// # Errors
+///
+/// [`Indeterminate`]: the deciding predicate when a riding, crossing,
+/// containment or traversal margin lands in the band, or
+/// `seam_cover_unread` (a label) when a face's containment door has no
+/// verdict for a curved face's chart.
+pub(crate) fn departures<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    locus: Locus<T>,
+    band: Band,
+) -> Result<Departure, Indeterminate> {
+    let (Some(ra), Some(rb)) = (reach(a, fa, locus, band)?, reach(b, fb, locus, band)?) else {
+        return Ok(Departure::EdgeKindUnread);
+    };
+    let tau = T::from_f64(core::f64::consts::TAU);
+    let mut cuts: Vec<T> = ra.cuts.iter().chain(&rb.cuts).copied().collect();
+    if let Locus::Rim(_) = locus
+        && cuts.is_empty()
+    {
+        cuts.push(T::zero());
+    }
+    let scale = match locus {
+        Locus::Rim(rim) => rim.radius,
+        Locus::Line { .. } => T::one(),
+    };
+    // Ascending, by decided differences: the scalars carry no order.
+    sort_params(&mut cuts, scale, band)?;
+    let pieces: Vec<(T, T)> = match locus {
+        Locus::Line { .. } => cuts.windows(2).map(|w| (w[0], w[1])).collect(),
+        Locus::Rim(_) => {
+            let mut out: Vec<(T, T)> = cuts.windows(2).map(|w| (w[0], w[1])).collect();
+            if let (Some(&first), Some(&last)) = (cuts.first(), cuts.last()) {
+                out.push((last, first + tau));
+            }
+            out
+        }
+    };
+    let (mut opposite, mut same, mut touched) = (false, false, false);
+    for (s0, s1) in pieces {
+        // A piece of no length between two cuts is a point, and so is
+        // one within the band of none: two cuts that close are one
+        // place on the locus, and no stretch a seam claims lives
+        // between them.
+        if !matches!(
+            crate::validate::decide("seam_cover_piece", Margin::of((s1 - s0) * scale), band),
+            Ok(geom_core::Sign::Positive)
+        ) {
+            continue;
+        }
+        let mid = (s0 + s1) * T::from_f64(0.5);
+        let ca = ra.at(a, fa, locus, mid, scale, band)?;
+        let cb = rb.at(b, fb, locus, mid, scale, band)?;
+        if !(ca.contains() && cb.contains()) {
+            continue;
+        }
+        touched = true;
+        match (ca, cb) {
+            (Cover::RidesBothWays, _) | (_, Cover::RidesBothWays) => {
+                return Ok(Departure::Mixed);
+            }
+            (Cover::Rides(x), Cover::Rides(y)) if x == y => same = true,
+            (Cover::Rides(_), Cover::Rides(_)) => opposite = true,
+            _ => return Ok(Departure::NoEdge),
+        }
+    }
+    if !touched {
+        // No stretch in common: the faces may still meet at a POINT of
+        // the locus where both END, their riding edges abutting there
+        // (a half-wall and the half-cap across the rim's vertex). Each
+        // face ends at the locus right beside that point, so their
+        // traversals there compare the two banks locally.
+        for &(alo, ahi, sa) in &ra.rides {
+            for &(blo, bhi, sb) in &rb.rides {
+                let mut abut = false;
+                for (x, y) in [(ahi, blo), (alo, bhi)] {
+                    let gap = (locus_point(locus, x) - locus_point(locus, y)).norm();
+                    abut |= matches!(
+                        crate::validate::decide("seam_cover_abut", Margin::of(gap), band)?,
+                        geom_core::Sign::Zero
+                    );
+                }
+                if abut {
+                    touched = true;
+                    if sa == sb {
+                        same = true;
+                    } else {
+                        opposite = true;
+                    }
+                }
+            }
+        }
+    }
+    Ok(match (touched, opposite, same) {
+        (false, _, _) => Departure::Untouched,
+        (true, true, true) => Departure::Mixed,
+        (true, true, false) => Departure::Opposite,
+        (true, false, _) => Departure::Same,
+    })
+}
+
+/// Sort locus parameters ascending by decided differences (metered in
+/// meters: `scale` is the rim's radius, one on a line). Two that decide
+/// equal keep their order; the piece between them has no length and
+/// the caller skips it.
+///
+/// # Errors
+///
+/// [`Indeterminate`] where a difference lands in the band.
+fn sort_params<T: Decide>(params: &mut Vec<T>, scale: T, band: Band) -> Result<(), Indeterminate> {
+    let mut out: Vec<T> = Vec::with_capacity(params.len());
+    for &p in params.iter() {
+        let mut at = out.len();
+        for (i, &q) in out.iter().enumerate() {
+            if crate::validate::decide("seam_cover_order", Margin::of((p - q) * scale), band)?
+                == geom_core::Sign::Negative
+            {
+                at = i;
+                break;
+            }
+        }
+        out.insert(at, p);
+    }
+    *params = out;
+    Ok(())
+}
+
+/// What one face does at a piece of the locus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Cover {
+    /// A riding edge covers the piece, run with this sign.
+    Rides(geom_core::Sign),
+    /// Riding edges cover it run BOTH ways.
+    RidesBothWays,
+    /// No riding edge covers it; the face contains the piece or not.
+    Contains(bool),
+}
+
+impl Cover {
+    /// Whether the face contains the piece.
+    fn contains(self) -> bool {
+        !matches!(self, Self::Contains(false))
+    }
+}
+
+/// Where one face meets a locus, in the locus's own parameter.
+struct Reach<T: Real> {
+    /// Each riding half-edge's span (`lo ≤ hi`; on a rim `lo` in
+    /// `[0, 2π)`) and its traversal sign.
+    rides: Vec<(T, T, geom_core::Sign)>,
+    /// Every parameter where the face's membership can change.
+    cuts: Vec<T>,
+}
+
+impl<T: Decide> Reach<T> {
+    /// At locus parameter `s` (a piece's midpoint, never a cut): the
+    /// riding edges covering it, every one of them, else whether the
+    /// face contains the locus point there. Spans compare in meters
+    /// (`scale`, as [`sort_params`]).
+    fn at(
+        &self,
+        body: &Body<T>,
+        face: FaceKey,
+        locus: Locus<T>,
+        s: T,
+        scale: T,
+        band: Band,
+    ) -> Result<Cover, Indeterminate> {
+        let tau = T::from_f64(core::f64::consts::TAU);
+        let wraps: &[f64] = match locus {
+            Locus::Rim(_) => &[-1.0, 0.0, 1.0],
+            Locus::Line { .. } => &[0.0],
+        };
+        let inside = |m: T| -> Result<bool, Indeterminate> {
+            Ok(
+                crate::validate::decide("seam_cover_ride", Margin::of(m * scale), band)?
+                    == geom_core::Sign::Positive,
+            )
+        };
+        let mut seen: Option<geom_core::Sign> = None;
+        for &(lo, hi, sign) in &self.rides {
+            for &k in wraps {
+                let s = s + tau * T::from_f64(k);
+                if inside(s - lo)? && inside(hi - s)? {
+                    if seen.is_some_and(|x| x != sign) {
+                        return Ok(Cover::RidesBothWays);
+                    }
+                    seen = Some(sign);
+                }
+            }
+        }
+        Ok(match seen {
+            Some(sign) => Cover::Rides(sign),
+            None => Cover::Contains(contains(body, face, locus_point(locus, s), band)?),
+        })
+    }
+}
+
+/// The locus point at parameter `s`.
+fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
+    match locus {
+        Locus::Line { origin, dir } => origin + dir * s,
+        Locus::Rim(rim) => {
+            let (sin, cos) = s.sin_cos();
+            rim.center + (rim.u_ref * cos + rim.axis.cross(rim.u_ref) * sin) * rim.radius
+        }
+    }
+}
+
+/// The locus parameter of a point on (or decided at) the locus.
+fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
+    match locus {
+        Locus::Line { origin, dir } => (p - origin).dot(dir),
+        Locus::Rim(rim) => {
+            let d = p - rim.center;
+            let th = d.dot(rim.axis.cross(rim.u_ref)).atan2(d.dot(rim.u_ref));
+            let tau = T::from_f64(core::f64::consts::TAU);
+            th - tau * (th / tau).floor()
+        }
+    }
+}
+
+/// Whether the face contains `p`, a point on its carrier: inside, or on
+/// its boundary.
+fn contains<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let unread = Indeterminate {
+        margin: geom_core::MarginDiag::INVALID,
+        band,
+        predicate: Some("seam_cover_unread"),
+        terminal_sliver: false,
+    };
+    let lift = |e: super::contain::ContainError| match e {
+        super::contain::ContainError::Escalated(diag) => diag,
+        _ => unread,
+    };
+    let f = body.get_face(face).ok_or(unread)?;
+    let read = match body.get_surface(f.surface) {
+        Some(geom::Surface::Plane { normal, .. }) => {
+            Some(super::contain::contfp(body, face, *normal, p, band).map_err(lift)?)
+        }
+        Some(_) => super::contain::curved_face_containment(body, face, p, band).map_err(lift)?,
+        None => return Err(unread),
+    };
+    match read {
+        Some(super::contain::FaceContainment::Out) => Ok(false),
+        Some(_) => Ok(true),
+        None => Err(unread),
+    }
+}
+
+/// The face's reach along `locus`; `None` when one of its boundary
+/// edges is a curve the read does not place (neither a line nor a
+/// circle).
+fn reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    locus: Locus<T>,
+    band: Band,
+) -> Result<Option<Reach<T>>, Indeterminate> {
+    let mut out = Reach {
+        rides: Vec::new(),
+        cuts: Vec::new(),
+    };
+    let tau = T::from_f64(core::f64::consts::TAU);
+    for (he, curve) in face_boundary_arcs(body, face) {
+        let (t0, t1) = curve.params();
+        let (p0, p1) = (curve.carrier().eval(t0), curve.carrier().eval(t1));
+        // Each end on the locus is a cut.
+        for p in [p0, p1] {
+            if on_locus(locus, p, band)? {
+                out.cuts.push(locus_param(locus, p));
+            }
+        }
+        if rides(curve, locus, band)? {
+            let mid = (t0 + t1) * T::from_f64(0.5);
+            let p = curve.carrier().eval(mid);
+            let along = curve.carrier().deriv(mid) * if he { T::one() } else { -T::one() };
+            let tangent = match locus {
+                Locus::Rim(rim) => rim.axis.cross(p - rim.center),
+                Locus::Line { dir, .. } => dir,
+            };
+            let cos = along.dot(tangent) / (along.norm() * tangent.norm());
+            let name = match locus {
+                Locus::Rim(_) => "seam_rim_traversal",
+                Locus::Line { .. } => "seam_line_traversal",
+            };
+            let sign = crate::validate::decide(name, Margin::of(cos), band)?;
+            if sign == geom_core::Sign::Zero {
+                return Err(Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band,
+                    predicate: Some("seam_traversal_unread"),
+                    terminal_sliver: false,
+                });
+            }
+            let span = match locus {
+                Locus::Line { .. } => {
+                    let (u, w) = (locus_param(locus, p0), locus_param(locus, p1));
+                    (u.min(w), u.max(w))
+                }
+                // The arc's span in the rim's own sense: from where the
+                // traversal against the rim's tangent says it starts.
+                Locus::Rim(_) => {
+                    let len = t1 - t0;
+                    let start = match curve_sense(curve, locus, band)? {
+                        geom_core::Sign::Negative => locus_param(locus, p1),
+                        _ => locus_param(locus, p0),
+                    };
+                    let start = start - tau * (start / tau).floor();
+                    (start, start + len)
+                }
+            };
+            out.cuts.push(span.0);
+            out.cuts.push(span.1 - tau * (span.1 / tau).floor());
+            out.rides.push((span.0, span.1, sign));
+            continue;
+        }
+        // A non-riding edge: where its interior crosses the locus.
+        let Some(points) = crossings(curve, locus, band)? else {
+            return Ok(None);
+        };
+        for q in points {
+            out.cuts.push(locus_param(locus, q));
+        }
+    }
+    Ok(Some(out))
+}
+
+/// The sense in which a circle edge's PARAMETER runs about the rim's
+/// axis: `Positive` with it, `Negative` against.
+fn curve_sense<T: Decide>(
+    curve: &geom_brep::EdgeCurve<T>,
+    locus: Locus<T>,
+    band: Band,
+) -> Result<geom_core::Sign, Indeterminate> {
+    match (locus, curve.carrier()) {
+        (Locus::Rim(rim), geom::Curve3::Circle { axis, .. }) => {
+            crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis)), band)
+        }
+        _ => Ok(geom_core::Sign::Positive),
+    }
+}
+
+/// Whether `p` lies on the locus.
+fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool, Indeterminate> {
+    let off = match locus {
+        Locus::Line { origin, dir } => {
+            let d = p - origin;
+            (d - dir * d.dot(dir)).norm()
+        }
+        Locus::Rim(rim) => {
+            let d = p - rim.center;
+            let h = d.dot(rim.axis);
+            let radial = (d - rim.axis * h).norm() - rim.radius;
+            (h.powi(2) + radial.powi(2)).sqrt()
+        }
+    };
+    Ok(
+        crate::validate::decide("seam_cover_on_locus", Margin::of(off), band)?
+            == geom_core::Sign::Zero,
+    )
+}
+
+/// The points where a line or circle edge's INTERIOR meets the locus
+/// (its ends are taken as vertices); `None` for an edge of any other
+/// kind, whose crossings this read does not solve. Candidates are
+/// solved in closed form, then kept where they decide on the locus and
+/// strictly inside the edge.
+fn crossings<T: Decide>(
+    curve: &geom_brep::EdgeCurve<T>,
+    locus: Locus<T>,
+    band: Band,
+) -> Result<Option<Vec<Point3<T>>>, Indeterminate> {
+    let (t0, t1) = curve.params();
+    let p0 = curve.carrier().eval(t0);
+    // The closed forms' own branch tests are lenient in the band: a
+    // datum that might be zero takes the zero branch, and one that might
+    // not takes the other, both where the band cannot tell. Each
+    // candidate either branch yields is then KEPT only where it decides
+    // on the locus and strictly inside the edge, so a lenient branch
+    // adds candidates and never a verdict.
+    let read = |m: T| crate::validate::decide("seam_cover_crossing", Margin::of(m), band);
+    let maybe_zero = |m: T| {
+        !matches!(
+            read(m),
+            Ok(geom_core::Sign::Positive | geom_core::Sign::Negative)
+        )
+    };
+    let maybe_nonzero = |m: T| !matches!(read(m), Ok(geom_core::Sign::Zero));
+    let maybe_not_positive = |m: T| !matches!(read(m), Ok(geom_core::Sign::Positive));
+
+    // Strictly inside an edge: a root within the band of an end is that
+    // end, which is read as a vertex (a cut where it lies on the locus),
+    // so the band answers "not inside" here rather than escalating. A
+    // meridian tangent to the rim's plane at its end puts its double
+    // root there.
+    let inside = |m: T| matches!(read(m), Ok(geom_core::Sign::Positive));
+    let mut candidates: Vec<Point3<T>> = Vec::new();
+    match (curve.carrier(), locus) {
+        (geom::Curve3::Line { .. }, _) => {
+            let p1 = curve.carrier().eval(t1);
+            let w = p1 - p0;
+            match locus {
+                Locus::Line { origin, dir } => {
+                    // The closest approach of the segment's line to the
+                    // locus, as a segment parameter.
+                    let n = w.cross(dir);
+                    if maybe_nonzero(n.norm()) {
+                        let lambda = (origin - p0).cross(dir).dot(n) / n.dot(n);
+                        candidates.push(p0 + w * lambda);
+                    }
+                }
+                Locus::Rim(rim) => {
+                    let nw = rim.axis.dot(w);
+                    let h0 = rim.axis.dot(p0 - rim.center);
+                    if maybe_nonzero(nw) {
+                        candidates.push(p0 + w * (-h0 / nw));
+                    }
+                    if maybe_zero(nw) && maybe_zero(h0) {
+                        // In the rim's plane: |p0 + λw − c|² = r².
+                        let d = p0 - rim.center;
+                        let (qa, qb, qc) = (
+                            w.dot(w),
+                            d.dot(w) * T::from_f64(2.0),
+                            d.dot(d) - rim.radius.powi(2),
+                        );
+                        let disc = qb.powi(2) - qa * qc * T::from_f64(4.0);
+                        if maybe_not_positive(-disc) {
+                            let root = disc.max(T::zero()).sqrt();
+                            for sgn in [-1.0, 1.0] {
+                                candidates.push(
+                                    p0 + w
+                                        * ((-qb + root * T::from_f64(sgn))
+                                            / (qa * T::from_f64(2.0))),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            let len = w.norm();
+            let mut kept = Vec::new();
+            for q in candidates {
+                let lambda = (q - p0).dot(w) / (len.powi(2));
+                if inside(lambda * len)
+                    && inside((T::one() - lambda) * len)
+                    && on_locus(locus, q, band)?
+                {
+                    kept.push(q);
+                }
+            }
+            Ok(Some(kept))
+        }
+        (
+            geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                ..
+            },
+            _,
+        ) => {
+            let (ce, ae, re) = (*center, *axis, *radius);
+            let e1 = {
+                let d = p0 - ce;
+                d / d.norm()
+            };
+            let e2 = ae.cross(e1);
+            let at = |phi: T| {
+                let (sn, cs) = phi.sin_cos();
+                ce + (e1 * cs + e2 * sn) * re
+            };
+            match locus {
+                Locus::Line { origin, dir } => {
+                    let ad = ae.dot(dir);
+                    if maybe_nonzero(ad) {
+                        candidates.push(origin + dir * (ae.dot(ce - origin) / ad));
+                    }
+                    if maybe_zero(ad) && maybe_zero(ae.dot(origin - ce)) {
+                        let foot = origin + dir * (ce - origin).dot(dir);
+                        let h = (foot - ce).norm();
+                        if maybe_not_positive(h - re) {
+                            let half = (re.powi(2) - h.powi(2)).max(T::zero()).sqrt();
+                            candidates.push(foot - dir * half);
+                            candidates.push(foot + dir * half);
+                        }
+                    }
+                }
+                Locus::Rim(rim) => {
+                    // n·(p(φ) − c) = A cos φ + B sin φ + C.
+                    let n = rim.axis;
+                    let (qa, qb, qc) = (n.dot(e1) * re, n.dot(e2) * re, n.dot(ce - rim.center));
+                    let rr = (qa.powi(2) + qb.powi(2)).sqrt();
+                    if maybe_nonzero(rr) {
+                        let ratio = -qc / rr;
+                        if maybe_not_positive(ratio.abs() - T::one()) {
+                            let alpha = qb.atan2(qa);
+                            let delta = ratio.max(-T::one()).min(T::one()).acos();
+                            candidates.push(at(alpha + delta));
+                            candidates.push(at(alpha - delta));
+                        }
+                    }
+                    if maybe_zero(rr) && maybe_zero(qc) {
+                        // Coplanar circles: the two intersection points.
+                        let d = rim.center - ce;
+                        let dist = d.norm();
+                        if maybe_nonzero(dist) {
+                            let x = (dist.powi(2) + re.powi(2) - rim.radius.powi(2))
+                                / (dist * T::from_f64(2.0));
+                            let y2 = re.powi(2) - x.powi(2);
+                            if maybe_not_positive(-y2) {
+                                let ux = d / dist;
+                                let uy = ae.cross(ux);
+                                let y = y2.max(T::zero()).sqrt();
+                                candidates.push(ce + ux * x + uy * y);
+                                candidates.push(ce + ux * x - uy * y);
+                            }
+                        }
+                    }
+                }
+            }
+            // Strictly inside the arc: its angle from the start, about
+            // the edge's own axis, inside the parameter span.
+            let span = t1 - t0;
+            let tau = T::from_f64(core::f64::consts::TAU);
+            let mut kept = Vec::new();
+            for q in candidates {
+                let d = q - ce;
+                let ang = ae.dot(e1.cross(d)).atan2(e1.dot(d));
+                let ang = ang - tau * (ang / tau).floor();
+                if inside(ang * re) && inside((span - ang) * re) && on_locus(locus, q, band)? {
+                    kept.push(q);
+                }
+            }
+            Ok(Some(kept))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Whether a boundary curve rides `locus`: a circle decided the rim's
+/// own, or a line segment whose two ends lie on the locus line.
+fn rides<T: Decide>(
+    curve: &geom_brep::EdgeCurve<T>,
+    locus: Locus<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    match (locus, curve.carrier()) {
+        (
+            Locus::Rim(rim),
+            geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            },
+        ) => same_circle(
+            Rim {
+                center: *center,
+                axis: *axis,
+                radius: *radius,
+                u_ref: *u_ref,
+            },
+            rim,
+            band,
+        ),
+        (Locus::Line { origin, dir }, geom::Curve3::Line { .. }) => {
+            let (t0, t1) = curve.params();
+            for p in [curve.carrier().eval(t0), curve.carrier().eval(t1)] {
+                let d = p - origin;
+                let off = (d - dir * d.dot(dir)).norm();
+                if crate::validate::decide("seam_line_collinear", Margin::of(off), band)?
+                    != geom_core::Sign::Zero
+                {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
+/// Each boundary half-edge of `face` with a certified curve: whether it
+/// is its edge's `he_plus` (so runs the curve forward), and the curve.
+pub(crate) fn face_boundary_arcs<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Vec<(bool, &geom_brep::EdgeCurve<T>)> {
     let mut out = Vec::new();
     let Some(f) = body.get_face(face) else {
         return out;
@@ -187,24 +877,36 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
             let Some(e) = body.get_edge(h.edge) else {
                 continue;
             };
-            if let Some(crate::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve)
-                && let geom::Curve3::Circle {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                } = *c.carrier()
+            if let Some(c) = body
+                .get_curve_geom(e.curve)
+                .and_then(crate::CurveGeom::certified)
             {
-                out.push(Rim {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                });
+                out.push((e.he_plus == he, c));
             }
         }
     }
     out
+}
+
+/// The circle carriers of a face's boundary edges.
+fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
+    face_boundary_arcs(body, face)
+        .into_iter()
+        .filter_map(|(_, c)| match *c.carrier() {
+            geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => Some(Rim {
+                center,
+                axis,
+                radius,
+                u_ref,
+            }),
+            _ => None,
+        })
+        .collect()
 }
 
 /// **The routing itself**: the wedge the two faces' material subtends
@@ -421,6 +1123,51 @@ pub(crate) fn classify_shared_rim<T: Decide>(
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod cover_rows {
+    use super::*;
+    use geom_core::Tol;
+
+    /// **A face that runs one stretch of the locus both ways is mixed.**
+    /// The two half-edges of one edge on the locus (a chart seam, a
+    /// bridge) both cover the piece, with opposite traversals; the
+    /// first one found must not stand for the face. No body puts such a
+    /// face on a seam's locus through the operations, so the reach is
+    /// stated here, against a line, with the face's own containment
+    /// never asked (a riding edge answers first).
+    #[test]
+    fn a_stretch_ridden_both_ways_reads_mixed() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let body: Body<f64> =
+            crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let line = Locus::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let at = |rides: Vec<(f64, f64, geom_core::Sign)>| {
+            Reach {
+                rides,
+                cuts: Vec::new(),
+            }
+            .at(&body, face, line, 0.5, 1.0, band)
+            .unwrap()
+        };
+        use geom_core::Sign::{Negative, Positive};
+        assert_eq!(at(vec![(0.0, 1.0, Positive)]), Cover::Rides(Positive));
+        assert_eq!(
+            at(vec![(0.0, 1.0, Positive), (0.0, 1.0, Negative)]),
+            Cover::RidesBothWays
+        );
+        assert_eq!(
+            at(vec![(0.0, 1.0, Positive), (0.2, 0.8, Positive)]),
+            Cover::Rides(Positive),
+            "two edges one way are one side"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod redfirst {
     use super::*;
     use geom_core::Tol;
@@ -431,8 +1178,8 @@ mod redfirst {
 
     fn circle(center: [f64; 3], axis: [f64; 3], radius: f64) -> Rim<f64> {
         Rim {
-            center: Point3::new(center[0], center[1], center[2]),
-            axis: Vec3::new(axis[0], axis[1], axis[2]),
+            center: Point3::from_array(center),
+            axis: Vec3::from_array(axis),
             radius,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }

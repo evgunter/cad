@@ -11,12 +11,17 @@
 //! segment and per canonical vertex, which the sweep emitters read in
 //! place of the position they iterate.
 //!
-//! So a value edit moves no name. Which loop is outer, which way a
-//! loop runs and how many segments a step draws are decisions about
-//! geometry, and each can move a canonical position; none of them
-//! moves a step's id or a piece's role. A piece the current values do
-//! not draw has no canonical segment and its name resolves `Vanished`
-//! until they draw it again.
+//! So a value edit moves no PIECE's locator. Which loop is outer,
+//! which way a loop runs and how many segments a step draws are
+//! decisions about geometry, and each can move a canonical position;
+//! none of them moves a step's id or a piece's role. A piece the
+//! current values do not draw has no canonical segment and its name
+//! resolves `Vanished` until they draw it again. What a value edit CAN
+//! change is which pieces one swept wall holds: runs are decided on the
+//! values (N1, "Swept walls over a run"), so an edit that makes two
+//! pieces collinear joins their walls into one run wall, and one that
+//! bends them apart splits it — the old wall's name vanishes and N3
+//! offers the wall that covers it, or the walls that cover its pieces.
 //!
 //! # Mechanism
 //!
@@ -30,14 +35,14 @@
 //!
 //! The match is exact: canonical loops are EXACT reindexings of their
 //! input (validate's own contract), starting at the authored vertex 0.
-//! Uniqueness needs positions AND bulges — the bulge sign pins the
+//! Uniqueness needs positions AND arcs — an arc's sweep sign pins the
 //! orientation parity, which positions alone cannot decide at n = 2
 //! (see `derive_naming`).
 
-use profile::{Profile, ProfileLoop, ValidatedProfile};
+use profile::{ConstructedLoop, ConstructedProfile, Segment, SegmentKind, ValidatedProfile};
 
 use crate::names::{
-    NamingError, PieceRole, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32,
+    NamingError, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32,
 };
 use crate::node::StepId;
 
@@ -129,6 +134,9 @@ pub struct ProfilePieces {
     pub edges: Vec<Vec<ProfileEdgeRef>>,
     /// Per canonical loop, per canonical vertex.
     pub vertices: Vec<Vec<ProfileVertexRef>>,
+    /// Per canonical loop: whether its canonical traversal runs
+    /// opposite to authored order ([`LoopAnchor::reversed`]).
+    pub reversed: Vec<bool>,
 }
 
 /// **Why a profile's pieces could not be published**: the naming
@@ -223,6 +231,7 @@ impl ProfilePieces {
     ) -> Result<Self, PiecesFault> {
         let mut edges = Vec::with_capacity(naming.loops.len());
         let mut vertices = Vec::with_capacity(naming.loops.len());
+        let reversed = naming.loops.iter().map(|a| a.reversed).collect();
         for anchor in &naming.loops {
             let loop_ = anchor.program_loop;
             let pl = loop_ as usize;
@@ -265,7 +274,11 @@ impl ProfilePieces {
                     .collect::<Result<Vec<_>, _>>()?,
             );
         }
-        Ok(Self { edges, vertices })
+        Ok(Self {
+            edges,
+            vertices,
+            reversed,
+        })
     }
 
     /// **A kernel-built section's pieces** — a tube's: loop 0 the outer
@@ -306,7 +319,11 @@ impl ProfilePieces {
                     .collect(),
             );
         }
-        Ok(Self { edges, vertices })
+        Ok(Self {
+            reversed: vec![false; edges.len()],
+            edges,
+            vertices,
+        })
     }
 
     /// **Distinct stand-in pieces for a profile no document holds** —
@@ -341,6 +358,7 @@ impl ProfilePieces {
                         .collect()
                 })
                 .collect(),
+            reversed: vec![false; counts.len()],
         }
     }
 
@@ -348,6 +366,25 @@ impl ProfilePieces {
     #[must_use]
     pub fn edge(&self, l: usize, k: usize) -> Option<ProfileEdgeRef> {
         self.edges.get(l)?.get(k).copied()
+    }
+
+    /// **The run of canonical segments `run` of loop `l` as a wall's
+    /// pieces**, in authored order (`names/README.md`, N1 "Swept walls
+    /// over a run"): by program segment, so a run wrapping through the
+    /// loop's start begins at its first piece after the start vertex.
+    /// `None` when a segment has no piece or the run is empty.
+    #[must_use]
+    pub fn run(&self, l: usize, run: &[usize]) -> Option<PieceRun> {
+        let n = self.edges.get(l)?.len();
+        let reversed = *self.reversed.get(l)?;
+        let mut order: Vec<usize> = run.to_vec();
+        order.sort_by_key(|&k| if reversed { n - 1 - k } else { k });
+        PieceRun::new(
+            order
+                .iter()
+                .map(|&k| self.edge(l, k))
+                .collect::<Option<Vec<_>>>()?,
+        )
     }
 
     /// The locator of canonical vertex `v` of canonical loop `l`.
@@ -408,8 +445,8 @@ pub struct ProfileValue<T: geom_core::Real> {
 }
 
 /// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed
-/// loops assembled into a `Profile<f64>`, its validated form, and the
-/// derived naming anchor. Computed in `eval_node`'s resolution stage,
+/// loops assembled into a `ConstructedProfile<f64>`, its validated
+/// form, and the derived naming anchor. Computed in `eval_node`'s resolution stage,
 /// inside the node's verdict frame: replay and the f64 validation are
 /// C6 STRUCTURE SELECTION (the v1 substrate's stored bits, one
 /// derivation earlier), decided once on the node's behalf and logged
@@ -424,7 +461,7 @@ pub(crate) struct ProfilePre {
     /// there is not — validation is 2-D and the naming anchor is
     /// loop-derived, so no decision reads it. What a consumer PLACES
     /// with is `placement_f64`, never this field's plane.
-    pub profile_f64: Profile<f64>,
+    pub profile_f64: ConstructedProfile<f64>,
     /// [`ProfilePre::profile_f64`]'s canonical form, minted by the
     /// pre-pass's one validation. Its plane is `profile_f64`'s
     /// assembly frame, with the same caveat: a consumer places with
@@ -446,36 +483,42 @@ pub(crate) struct ProfilePre {
     pub structure: profile::ProfileStructure,
 }
 
+/// An arc's stored fields as bits — centre, radius, sweep — for the
+/// anchor's exact match.
+fn arc_bits(arc: geom_core::Arc2<f64>) -> [u64; 4] {
+    [
+        arc.centre.x.to_bits(),
+        arc.centre.y.to_bits(),
+        arc.radius.to_bits(),
+        arc.sweep.to_bits(),
+    ]
+}
+
 /// Derives the anchor by bit-matching the canonical f64 loops against
 /// the replayed program-order f64 loops. `None` on a failed match —
 /// an internal invariant break (validate's exact-reindexing contract),
 /// surfaced typed by the caller, never a panic.
 ///
-/// The match covers vertex POSITIONS, the BULGE each segment was
-/// lowered from, and the declared joint set. Positions alone are NOT
-/// enough (PR #291 review MAJOR-1, both reviewers, executed): on a
-/// 2-vertex loop the forward and reversed maps agree on every position
-/// (index arithmetic mod 2), so a reversed hole circle — `circle()`
-/// lowers CCW, canonicalization orients holes CW — would recover
-/// `reversed: false` and swap the two semicircles' program names.
-/// Bulges disambiguate the parity exactly: canonicalization's reversal
-/// NEGATES bulges (bit-exact sign flip) and reindexes them (canonical
-/// segment k = program segment n−1−k traversed backward), while the
-/// identity carries them verbatim — so the bulge condition holds for
-/// precisely one orientation whenever any segment is an arc. (An
-/// all-straight loop has ±0.0 bulges either way, but needs n ≥ 3 to
-/// close, where positions already decide.) The bulge is the datum
-/// matched rather than an arc's sweep because it is present on every
-/// segment of both loops: a sub-tolerance arc is a validated `Line`
-/// with no sweep. Matching positions and bulges matches the stored
-/// segments too, because every stored segment is lowered from exactly
-/// those: its kind by the exact-zero rule (a line iff its bulge is
-/// ±0, which negation preserves) and an arc's carrier and sweep from
-/// its two positions and bulge alone. Declared joints
-/// ride the same maps and are checked as sets.
+/// The match covers vertex POSITIONS, each validated segment's KIND and
+/// an arc's carrier and sweep, and the declared joint set. Positions
+/// alone are NOT enough (PR #291 review MAJOR-1, both reviewers,
+/// executed): on a 2-vertex loop the forward and reversed maps agree on
+/// every position (index arithmetic mod 2), so a reversed hole circle —
+/// `circle()` lowers CCW, canonicalization orients holes CW — would
+/// recover `reversed: false` and swap the two semicircles' program
+/// names. The arcs disambiguate the parity exactly: canonicalization's
+/// reversal copies each stored carrier and NEGATES its sweep
+/// (bit-exact) and reindexes the segments (canonical segment k =
+/// program segment n−1−k traversed backward), while the identity
+/// carries them verbatim — so the condition holds for precisely one
+/// orientation whenever any validated segment is an arc. A validated
+/// `Line` matches either stored kind, because a sub-tolerance stored
+/// arc classifies as one and keeps no carrier to compare; a loop with
+/// no validated arc needs n ≥ 3 to close, where positions already
+/// decide. Declared joints ride the same maps and are checked as sets.
 pub(crate) fn derive_naming(
     validated: &ValidatedProfile<f64>,
-    program_loops: &[ProfileLoop<f64>],
+    program_loops: &[ConstructedLoop<f64>],
 ) -> Option<ProfileNaming> {
     let mut anchors = Vec::with_capacity(validated.loops().len());
     for vl in validated.loops() {
@@ -504,14 +547,24 @@ pub(crate) fn derive_naming(
                 if !positions_ok {
                     continue;
                 }
-                // Bulges: verbatim forward, negated under reversal —
-                // bit-exact either way.
-                let bulges_ok = (0..n).all(|k| {
-                    let pb = pl.bulges()[smap(k)];
-                    let want = if reversed { -pb } else { pb };
-                    vl.segments()[k as usize].bulge.to_bits() == want.to_bits()
+                // Segments: verbatim forward, retraced under reversal
+                // (the carrier copied, the sweep negated) — bit-exact
+                // either way. A validated line may be a stored arc the
+                // classifier read as straight, so it matches either
+                // stored kind; a validated arc matches only its own
+                // carrier and sweep.
+                let segments_ok = (0..n).all(|k| {
+                    let stored = pl.segments()[smap(k)];
+                    match (vl.segments()[k as usize].kind, stored) {
+                        (SegmentKind::Line, _) => true,
+                        (SegmentKind::Arc { arc, .. }, Segment::Arc(p)) => {
+                            let want = if reversed { p.reversed() } else { p };
+                            arc_bits(arc) == arc_bits(want)
+                        }
+                        (SegmentKind::Arc { .. }, Segment::Line) => false,
+                    }
                 });
-                if !bulges_ok {
+                if !segments_ok {
                     continue;
                 }
                 // Declared joints as SETS under the vertex map

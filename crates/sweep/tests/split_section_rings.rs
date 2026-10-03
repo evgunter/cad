@@ -10,25 +10,31 @@
 //! outline plus a coplanar disc cancelling it. The join pairs a planar
 //! face's crossings along that face's own line, so a ringed cap the
 //! plane crosses is chorded beside its hole, not across it — and two
-//! crossings on different faces, however close, never refuse.
+//! crossings on different faces, however close, never refuse. It pairs
+//! a curved face's crossings along the face's section conic, so a steep
+//! cut chords each wall face along the arc that lies in it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::bores::{bored_brick, halves_at_rest, section_faces, tilted, u_cut};
+use crate::common::bores::{
+    bored_brick, halves_at_rest, section_faces, tilted, turned_cylinder, u_cut,
+};
 use crate::common::cavity::{brick, cut, prism, rod};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::bored_cylinder;
-use topo::Body;
-use topo::splitting::{SplitError, SplitJoinError, SplitPlane, split};
+use topo::splitting::{SplitError, SplitPlane, split};
+use topo::validate::{validate_closed, validate_geometric};
+use topo::{Body, mass_properties};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
 fn at_x(x: f64) -> SplitPlane<f64> {
-    SplitPlane {
-        origin: Point3::new(x, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    }
+    topo::test_support::split_plane(
+        Point3::new(x, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// Each section face of `half` as `(sense, ring count)`, in face order.
@@ -231,7 +237,7 @@ fn a_bored_brick_splits_at_every_tilt_and_offset() {
                     matches!(
                         r,
                         Err(topo::MassPropsError::Face {
-                            source: geom_brep::PropsError::Escalated { cause },
+                            source: geom_brep::PropsError::Escalated { cause, .. },
                             ..
                         }) if cause.predicate == Some("props_quad_converged")
                     )
@@ -355,10 +361,11 @@ fn a_hairline_slot_cut_nearly_along_its_axis_answers() {
     .map(|(x, y)| Point2::new(x, y));
     let body = cut("slot", &block, &prism(&outline, -0.5, 3.0));
     for delta in [lean, -lean] {
-        let plane = SplitPlane {
-            origin: Point3::new(0.0, 0.0, 1.25),
-            normal: Vec3::new(-s, -delta, -c).normalize(),
-        };
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 1.25),
+            Vec3::new(-s, -delta, -c).normalize(),
+            geom_core::Tol::witness(),
+        );
         halves_at_rest(&format!("off-axis by {delta:e}"), &body, &plane);
     }
 }
@@ -410,31 +417,30 @@ fn a_cap_line_a_hair_off_the_sweeps_v_axis_never_refuses_at_the_join() {
     }
 }
 
-/// **Where nothing decides a clockwise polygon's place, it keeps its
-/// own face.** The unit cylinder of height 2.5 with its seams turned to
-/// `π/2 + 0.05`, cut through `(0, 0, 1.25)` at tilt 1.1 (both caps and
-/// both seams crossed): the join chords the wall face holding both top
-/// crossings across the arc outside it, and the section comes back as
-/// the whole ellipse plus two clockwise 2-gons touching it, which the
-/// nesting leaves standing. The halves pass tier 3 and read right by
-/// cancellation.
-///
-/// This row pins that fallback firing. It goes red when
-/// `work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`
-/// is fixed — each half's section then one counter-clockwise face —
-/// and is rewritten to that, which retires the fallback's one known
-/// customer.
+/// The vertex count of a face's outer loop.
+fn outline_len(half: &Body<f64>, face: topo::FaceKey) -> usize {
+    let outer = half.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = half.get_loop(outer).unwrap().boundary else {
+        panic!("a section outline is a cycle");
+    };
+    half.loop_cycle(first).unwrap().len()
+}
+
+/// **A steep cut whose wall faces each hold four crossings pairs them
+/// along the section ellipse.** The unit cylinder of height 2.5 with
+/// its seams turned to `π/2 + 0.05`, cut through `(0, 0, 1.25)` at tilt
+/// 1.1, both ways round: the plane crosses both caps and both seams, so
+/// each wall face holds two cap crossings and two seam crossings. Each
+/// half's section is ONE counter-clockwise face of six vertices (two
+/// seam crossings, four cap crossings) with no rings, and the halves,
+/// swapped by the half-turn about the cylinder's centre, each hold
+/// half its volume. Pairing the two cap crossings of one wall face
+/// with each other instead chords the arc beyond the cap, and the
+/// section comes back as the whole ellipse plus two clockwise 2-gons
+/// cancelling it.
 #[test]
-fn a_clockwise_section_nothing_places_keeps_its_face() {
-    let turn = core::f64::consts::FRAC_PI_2 + 0.05;
-    let cylinder: Body<f64> = sweep::test_support::prism(
-        vec![
-            (Point2::new(turn.cos(), turn.sin()), 1.0),
-            (Point2::new(-turn.cos(), -turn.sin()), 1.0),
-        ],
-        2.5,
-        tol(),
-    );
+fn a_steep_cut_through_both_seams_is_one_six_vertex_section_face() {
+    let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
     for flip in [false, true] {
         let plane = tilted(1.25, 1.1, flip);
         for (side, half) in ["below", "above"].into_iter().zip(halves_at_rest(
@@ -442,13 +448,126 @@ fn a_clockwise_section_nothing_places_keeps_its_face() {
             &cylinder,
             &plane,
         )) {
-            let mut s = sections(&half, &plane);
-            s.sort_unstable();
-            assert_eq!(
-                s,
-                vec![(false, 0), (false, 0), (true, 0)],
-                "flipped {flip} {side}: the ellipse and its two cancelling 2-gons"
+            let what = format!("flipped {flip} {side}");
+            let faces = section_faces(&half, &plane);
+            assert_eq!(sections(&half, &plane), vec![(true, 0)], "{what}");
+            assert_eq!(outline_len(&half, faces[0]), 6, "{what}: the outline");
+            let half_volume = core::f64::consts::PI * 1.25;
+            assert!(
+                (volume(&half) - half_volume).abs() < 1e-4,
+                "{what}: volume {} against {half_volume}",
+                volume(&half)
             );
+        }
+    }
+}
+
+/// **Every steep pose of the cylinder is one section face per half.**
+/// Seams turned to `0`, `1.0`, `π/2 ± 0.05`; tilts 0.9 to 1.3 through
+/// the centre, both ways round. Every half is at rest, its section is
+/// one counter-clockwise face with no rings, and it holds half the
+/// cylinder's volume.
+#[test]
+fn every_steep_pose_of_the_cylinder_is_one_section_face_per_half() {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    for turn in [0.0, 1.0, FRAC_PI_2 - 0.05, FRAC_PI_2 + 0.05] {
+        let cylinder = turned_cylinder(turn, 2.5);
+        for t in [0.9, 1.1, 1.3] {
+            for flip in [false, true] {
+                let what = format!("seams at {turn}, tilt {t}, flipped {flip}");
+                let plane = tilted(1.25, t, flip);
+                for (side, half) in ["below", "above"]
+                    .into_iter()
+                    .zip(halves_at_rest(&what, &cylinder, &plane))
+                {
+                    assert_eq!(sections(&half, &plane), vec![(true, 0)], "{what} {side}");
+                    assert!(
+                        (volume(&half) - PI * 1.25).abs() < 1e-4,
+                        "{what} {side}: volume {}",
+                        volume(&half)
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// **A plane through a seam's corner on a cap pairs the wall faces'
+/// crossings along the ellipse too.** The turned cylinder cut by planes
+/// through a seam's end on the top or bottom cap, tilted about `y`,
+/// both ways round: the corner is a crossing both wall faces share,
+/// and the far wall face holds four. Each half's section is one
+/// counter-clockwise face. (Pairing by the sweep's order chords the
+/// far face across the arc beyond the cap at each of these poses, and
+/// a clockwise face cancels it.)
+#[test]
+fn a_plane_through_a_seam_corner_is_one_section_face_per_half() {
+    use core::f64::consts::FRAC_PI_2;
+    for (turn, z, t) in [
+        (FRAC_PI_2 + 0.05, 2.5, 1.4f64),
+        (FRAC_PI_2 + 0.05, 0.0, 1.4),
+        (1.0, 2.5, 1.4),
+        (1.0, 0.0, 1.1),
+    ] {
+        let cylinder = turned_cylinder(turn, 2.5);
+        for flip in [false, true] {
+            let s = if flip { -1.0 } else { 1.0 };
+            let plane = topo::test_support::split_plane(
+                Point3::new(turn.cos(), turn.sin(), z),
+                Vec3::new(t.sin(), 0.0, t.cos()) * s,
+                tol(),
+            );
+            let what = format!("seams at {turn}, corner at z = {z}, tilt {t}, flipped {flip}");
+            for (side, half) in ["below", "above"]
+                .into_iter()
+                .zip(halves_at_rest(&what, &cylinder, &plane))
+            {
+                assert_eq!(sections(&half, &plane), vec![(true, 0)], "{what} {side}");
+            }
+        }
+    }
+}
+
+/// **A bore whose wall faces each hold four crossings pairs them along
+/// the bore's section ellipse too.** The unit cylinder of height 1
+/// bored concentrically at radius 0.4, turned about its axis so the
+/// bore's seams sit at `turn` and `turn + π`, cut through `(0, 0, 0.5)`
+/// at tilt 1.1, both ways round. With the seams near `±π/2` each bore
+/// wall face (sense `false`, its outward normal into the bore) holds
+/// both cap crossings on its side and both seam crossings. The bore's
+/// section runs out through both caps, so each half's section is two
+/// counter-clockwise faces with no rings — the outline less the bore,
+/// cut apart by the cap chords — and each half holds half the tube.
+/// Pairing a bore face's two cap crossings with each other instead
+/// returns the outline as one face ringed by the bore's whole ellipse,
+/// with two clockwise faces cancelling the parts past the caps.
+#[test]
+fn a_bore_cut_out_through_both_caps_pairs_its_crossings_along_its_ellipse() {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    let a = 0.4;
+    for (outer_phi, turn) in [(0.0, FRAC_PI_2 + 0.05), (0.0, FRAC_PI_2 - 0.05), (0.3, 1.0)] {
+        let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), turn);
+        let tube =
+            topo::transform_rigid(&bored_cylinder(a, 0.0, outer_phi, tol()), &map, tol()).unwrap();
+        for flip in [false, true] {
+            let plane = tilted(0.5, 1.1, flip);
+            let what = format!("tube with its bore seams at {turn}, flipped {flip}");
+            for (side, half) in ["below", "above"]
+                .into_iter()
+                .zip(halves_at_rest(&what, &tube, &plane))
+            {
+                assert_eq!(
+                    sections(&half, &plane),
+                    vec![(true, 0), (true, 0)],
+                    "{what} {side}"
+                );
+                let half_volume = PI * (1.0 - a * a) * 0.5;
+                assert!(
+                    (volume(&half) - half_volume).abs() < 1e-4,
+                    "{what} {side}: volume {} against {half_volume}",
+                    volume(&half)
+                );
+            }
         }
     }
 }
@@ -476,41 +595,459 @@ fn a_thin_tube_cut_at_a_tilt_is_one_annular_face_per_half() {
     }
 }
 
-/// **A plane through a notch's tip line refuses at the join, typed, as
-/// main does.** The block `[0, 4]² × [0, 2]` less a V-notch whose tip
-/// line is `x = 2, y = 2`, alone and with a second notch beside it, cut
-/// by planes through that tip line. The fixed partners of the line's
-/// crossings meet across a face an earlier chord divided, so they are
-/// returned to the book's rule, which leaves two ends unpaired:
-/// `Join(UnpairedLooseEnds { count: 2 })`, the refusal main gives. (It
-/// reached the Euler layer as `NotSameFace` before the partners were
-/// re-checked at use.) This row pins the refusal's stage and kind, not
-/// that the pose should refuse.
+/// **A plane through a notch's tip splits exactly.** The block
+/// `[0, 4]² × [0, 2]` less a V-notch whose tip line is `x = 2, y = 2`,
+/// alone and with a second notch (tip line `x = 1, y = 2`) beside it,
+/// cut by planes through the tips' bottom corners and tilted back over
+/// the block. The plane meets each notch only at its tip's bottom
+/// corner, a reflex vertex whose three edges read Above and whose
+/// reflex bisector reads Below: the splitter's whole-orbit strut. Both
+/// halves pass tiers 2 and 3; the below half is the notch-free wedge
+/// `y < 2 − t·z` of the block, `4·(4 − 2t)` for the tilt `t`, and the
+/// above half is the rest.
 #[test]
-fn a_plane_through_a_notch_tip_refuses_at_the_join() {
+fn a_plane_through_a_notch_tip_splits_exactly() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 2.0));
     let notch = [(1.0, 5.0), (2.0, 2.0), (3.0, 5.0)].map(|(x, y)| Point2::new(x, y));
     let v = cut("notch", &block, &prism(&notch, -1.0, 3.0));
     let second = [(0.5, 4.5), (1.0, 2.0), (1.5, 4.5)].map(|(x, y)| Point2::new(x, y));
     let two = cut("second notch", &v, &prism(&second, -1.0, 3.0));
     for (name, body) in [("one notch", &v), ("two notches", &two)] {
-        for (o, n) in [
-            (Point3::new(0.0, 2.0, 0.0), Vec3::new(0.0, 1.0, 0.3)),
-            (Point3::new(0.0, 1.0, 1.0), Vec3::new(0.0, 1.0, 1.0)),
+        let whole = mass_properties(body, tol()).unwrap().volume;
+        if name == "one notch" {
+            // The notch's part inside the block is the triangle
+            // (4/3, 4) (2, 2) (8/3, 4), area 4/3, two high.
+            assert!((whole - 88.0 / 3.0).abs() < 1e-12, "{name}: {whole}");
+        }
+        for (o, n, tilt) in [
+            (Point3::new(0.0, 2.0, 0.0), Vec3::new(0.0, 1.0, 0.3), 0.3),
+            (Point3::new(0.0, 1.0, 1.0), Vec3::new(0.0, 1.0, 1.0), 1.0),
         ] {
-            let plane = SplitPlane {
-                origin: o,
-                normal: n.normalize(),
-            };
+            let plane =
+                topo::test_support::split_plane(o, n.normalize(), geom_core::Tol::witness());
+            let what = format!("{name}, plane through {o:?}");
+            let r = split(body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let below_want = 4.0 * (4.0 - 2.0 * tilt);
+            for (part, want, side) in [
+                (&r.below, below_want, "below"),
+                (&r.above, whole - below_want, "above"),
+            ] {
+                let b = part.body().unwrap_or_else(|| panic!("{what}: no {side}"));
+                assert_eq!(validate_closed(b), Ok(()), "{what} {side}: tier 2");
+                assert_eq!(
+                    validate_geometric(b, tol()),
+                    Ok(()),
+                    "{what} {side}: tier 3"
+                );
+                let v = mass_properties(b, tol()).unwrap().volume;
+                assert!(
+                    (v - want).abs() < 1e-12,
+                    "{what} {side}: volume {v}, want {want}"
+                );
+            }
+        }
+    }
+}
+
+/// Twice the signed area of a polygon's corners in `(u, v)`.
+fn twice_area(polygon: &topo::SectionPolygon<f64>) -> f64 {
+    let uv = polygon.uv();
+    (0..uv.len())
+        .map(|i| {
+            let (a, b) = (uv[i], uv[(i + 1) % uv.len()]);
+            a.x * b.y - b.x * a.y
+        })
+        .sum()
+}
+
+/// **`plane_section` reports the U-cutter's section as one region, the
+/// prongs its two holes**: the outline the block's `4 × 4` square
+/// counter-clockwise, each hole a prong's `0.5 × 2` rectangle
+/// clockwise.
+#[test]
+fn plane_section_of_the_u_cutter_is_one_region_with_two_holes() {
+    let body = u_cut();
+    for x in [3.0, 3.9] {
+        let s = topo::plane_section(&body, &at_x(x), tol()).unwrap();
+        assert_eq!(s.regions.len(), 1, "x = {x}: one region");
+        let region = &s.regions[0];
+        assert_eq!(twice_area(&region.outline), 32.0, "x = {x}: the outline");
+        let holes: Vec<f64> = region.holes.iter().map(twice_area).collect();
+        assert_eq!(holes, [-2.0, -2.0], "x = {x}: the prongs");
+        for hole in &region.holes {
             assert!(
-                matches!(
-                    split(body, &plane, tol()),
-                    Err(SplitError::Join(SplitJoinError::UnpairedLooseEnds {
-                        count: 2
-                    }))
-                ),
-                "{name}, plane through {o:?}: refuses with two ends unpaired"
+                hole.points()
+                    .iter()
+                    .all(|p| (p.y - 1.0).abs() <= 2.0 && (1.0..=3.0).contains(&p.z)),
+                "x = {x}: a hole's corners are a prong's: {:?}",
+                hole.points()
             );
         }
     }
+}
+
+/// **`plane_section` reports a bored body's section as one region, the
+/// bore its hole**, for the flat and tilted cuts the split nests: every
+/// corner of the hole lies on the bore, every corner of the outline
+/// off it. The bore's circle has two corners, so its winding is read
+/// on its arcs, not its corners' shoelace.
+#[test]
+fn plane_section_of_a_bored_body_is_one_region_with_the_bore_its_hole() {
+    let cases = [
+        (
+            "cavity cut flat",
+            bored_brick(0.0, 0.0, 1.0),
+            (0.0, 0.0, 1.0),
+            tilted(1.25, 0.0, false),
+        ),
+        (
+            "cavity cut at tilt 0.3",
+            bored_brick(0.0, 0.0, 1.0),
+            (0.0, 0.0, 1.0),
+            tilted(1.25, 0.3, false),
+        ),
+        (
+            "off-centre cavity cut flat",
+            bored_brick(0.8, 0.0, 1.0),
+            (0.8, 0.0, 1.0),
+            tilted(1.25, 0.0, false),
+        ),
+        (
+            "bored cylinder cut at tilt 0.3",
+            bored_cylinder(0.3, 0.2, 0.37, tol()),
+            (0.2, 0.0, 0.3),
+            tilted(0.5, 0.3, false),
+        ),
+    ];
+    for (what, body, (cx, cy, r), plane) in cases {
+        let s = topo::plane_section(&body, &plane, tol()).unwrap();
+        assert_eq!(s.regions.len(), 1, "{what}: one region");
+        let region = &s.regions[0];
+        assert_eq!(region.holes.len(), 1, "{what}: the bore is the one hole");
+        let on_bore = |p: &Point3<f64>| ((p.x - cx).hypot(p.y - cy) - r).abs() < 1e-9;
+        assert!(
+            region.holes[0].points().iter().all(on_bore),
+            "{what}: the hole's corners lie on the bore: {:?}",
+            region.holes[0].points()
+        );
+        assert!(
+            !region.outline.points().iter().any(on_bore),
+            "{what}: the outline's corners lie off the bore: {:?}",
+            region.outline.points()
+        );
+    }
+}
+
+/// **An island inside a hole is a region of its own**, holding the hole
+/// inside it: the grooved block of
+/// `a_hole_in_an_island_in_a_hole_goes_to_the_island`, sliced flat at
+/// `z = 2`, is the square holed by the groove and the island's disc
+/// holed by the bore.
+#[test]
+fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
+    let block = brick(Point3::new(-3.0, -3.0, 0.0), Point3::new(3.0, 3.0, 4.0));
+    let grooved = cut("groove", &block, &rod(Point2::new(0.0, 0.0), 2.0, 1.0, 5.0));
+    let island = rod(Point2::new(0.0, 0.0), 1.0, 0.5, 4.5);
+    let islanded = match topo::union(&grooved, &island, tol()) {
+        Ok(topo::BooleanResult::Body(b)) => b.body,
+        other => panic!("the island unites: {:?}", other.err()),
+    };
+    let body = cut(
+        "bore",
+        &islanded,
+        &rod(Point2::new(0.0, 0.0), 0.5, -1.0, 5.0),
+    );
+    let s = topo::plane_section(&body, &tilted(2.0, 0.0, false), tol()).unwrap();
+    let radius = |p: &Point3<f64>| p.x.hypot(p.y);
+    let mut regions: Vec<(usize, Vec<f64>)> = s
+        .regions
+        .iter()
+        .map(|r| {
+            let holes = r.holes.iter().flat_map(|h| h.points().iter().map(radius));
+            (r.outline.points().len(), holes.collect())
+        })
+        .collect();
+    regions.sort_by_key(|r| r.0);
+    assert_eq!(regions.len(), 2, "the square and the island: {regions:?}");
+    let island_holes = &regions[0].1;
+    let square_holes = &regions[1].1;
+    assert!(
+        island_holes.iter().all(|&r| (r - 0.5).abs() < 1e-9) && !island_holes.is_empty(),
+        "the island holds the bore: {regions:?}"
+    );
+    assert!(
+        square_holes.iter().all(|&r| (r - 2.0).abs() < 1e-9) && !square_holes.is_empty(),
+        "the square holds the groove: {regions:?}"
+    );
+}
+
+/// **The steep cut through both seams slices to one region.** The
+/// turned cylinder of
+/// `a_steep_cut_through_both_seams_is_one_six_vertex_section_face`:
+/// `plane_section` reads one region, its outline the six crossings, with
+/// no holes. (Chording a wall face across the arc outside it makes two
+/// clockwise polygons touching the outline, which no region can state,
+/// and the slice refuses `UnplacedHole`.)
+#[test]
+fn plane_section_of_the_steep_cut_through_both_seams_is_one_region() {
+    let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
+    for flip in [false, true] {
+        let s = topo::plane_section(&cylinder, &tilted(1.25, 1.1, flip), tol())
+            .unwrap_or_else(|e| panic!("flipped {flip}: {e:?}"));
+        let shape: Vec<_> = s
+            .regions
+            .iter()
+            .map(|r| (r.outline.points().len(), r.holes.len()))
+            .collect();
+        assert_eq!(shape, vec![(6, 0)], "flipped {flip}");
+    }
+}
+
+/// **A section's arcs enclose their area**: `SectionPolygon::area`
+/// reads each polygon on its edges' carriers, so a bore's circle — two
+/// corners, whose shoelace is 0 — encloses `−π r² / cos t` (a hole),
+/// the bored cylinder's outline `π / cos t`, and each region its
+/// outline less its holes. `t` is the plane's tilt from the bore axis.
+#[test]
+fn plane_section_areas_read_the_arcs() {
+    use core::f64::consts::PI;
+    let cases = [
+        ("brick flat", bored_brick(0.0, 0.0, 1.0), 0.0, 16.0, 1.0),
+        ("brick at 0.3", bored_brick(0.0, 0.0, 1.0), 0.3, 16.0, 1.0),
+        ("brick at 0.5", bored_brick(0.8, 0.0, 0.5), 0.5, 16.0, 0.5),
+        (
+            "cylinder flat",
+            bored_cylinder(0.3, 0.2, 0.37, tol()),
+            0.0,
+            PI,
+            0.3,
+        ),
+        (
+            "cylinder at 0.3",
+            bored_cylinder(0.3, 0.2, 0.37, tol()),
+            0.3,
+            PI,
+            0.3,
+        ),
+    ];
+    for (what, body, t, outline, r) in cases {
+        let z = if what.starts_with("brick") { 1.25 } else { 0.5 };
+        let s = topo::plane_section(&body, &tilted(z, t, false), tol()).unwrap();
+        assert_eq!(s.regions.len(), 1, "{what}: one region");
+        let region = &s.regions[0];
+        assert_eq!(region.holes.len(), 1, "{what}: one hole");
+        let (want_outline, want_hole) = (outline / t.cos(), -PI * r * r / t.cos());
+        let (got_outline, got_hole) = (region.outline.area(), region.holes[0].area());
+        assert!(
+            (got_outline - want_outline).abs() < 1e-12,
+            "{what}: the outline encloses {got_outline}, want {want_outline}"
+        );
+        assert!(
+            (got_hole - want_hole).abs() < 1e-12,
+            "{what}: the hole encloses {got_hole}, want {want_hole}"
+        );
+        assert!(
+            (region.area() - (want_outline + want_hole)).abs() < 1e-12,
+            "{what}: the region encloses {}, want {}",
+            region.area(),
+            want_outline + want_hole
+        );
+        for polygon in std::iter::once(&region.outline).chain(&region.holes) {
+            assert_eq!(
+                polygon.edges().len(),
+                polygon.uv().len(),
+                "{what}: an edge per corner"
+            );
+            for (i, edge) in polygon.edges().iter().enumerate() {
+                let topo::SectionEdge::Arc {
+                    center,
+                    a,
+                    b,
+                    start,
+                    end,
+                } = *edge
+                else {
+                    continue;
+                };
+                let at = |th: f64| center + a * th.cos() + b * th.sin();
+                let (p, q) = (polygon.uv()[i], polygon.uv()[(i + 1) % polygon.uv().len()]);
+                assert!(
+                    (at(start) - p).norm() < 1e-12 && (at(end) - q).norm() < 1e-12,
+                    "{what}: arc {i} runs from its corner to the next: {:?} → {:?}, \
+                     corners {p:?} → {q:?}",
+                    at(start),
+                    at(end)
+                );
+            }
+        }
+    }
+}
+
+/// **A section mixing segments and arcs encloses its area**: the steep
+/// cut of `plane_section_of_the_steep_cut_through_both_seams_is_one_region`
+/// crosses both caps (two segments) and both walls (four ellipse arcs,
+/// split at the seams). Its region projects onto the cylinder's base as
+/// the unit disc's strip `|x| ≤ a`, `a = 1.25 / tan t`, of area
+/// `2 (a √(1 − a²) + asin a)`, and the plane meets that at `1 / cos t`.
+#[test]
+fn plane_section_area_of_the_steep_cut_reads_segments_and_arcs() {
+    let t = 1.1_f64;
+    let a = 1.25 / t.tan();
+    let want = 2.0 * (a * (1.0 - a * a).sqrt() + a.asin()) / t.cos();
+    let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
+    for flip in [false, true] {
+        let s = topo::plane_section(&cylinder, &tilted(1.25, t, flip), tol()).unwrap();
+        let [region] = &s.regions[..] else {
+            panic!("flipped {flip}: one region, got {}", s.regions.len());
+        };
+        let kinds: Vec<bool> = region
+            .outline
+            .edges()
+            .iter()
+            .map(|e| matches!(e, topo::SectionEdge::Arc { .. }))
+            .collect();
+        assert_eq!(
+            kinds.iter().filter(|&&arc| arc).count(),
+            4,
+            "flipped {flip}: four wall arcs and two cap segments, {kinds:?}"
+        );
+        let got = region.area();
+        assert!(
+            (got - want).abs() < 1e-12,
+            "flipped {flip}: the region encloses {got}, want {want}"
+        );
+    }
+}
+
+/// **At `Interval` the section's area encloses the closed form**: the
+/// bored cylinder of `plane_section_areas_read_the_arcs`, built and cut
+/// in the certified lane. The fixture's data are the `f64` roundings of
+/// its closed form, so the enclosure is asked to a few ulps.
+#[test]
+fn plane_section_areas_enclose_the_closed_form_at_interval() {
+    use crate::common::interval::{iv, p2, p3, v3};
+    use core::f64::consts::PI;
+    use geom_core::{Bounds, Interval};
+    let (phi, t) = (0.37_f64, 0.3_f64);
+    let outer = profile::test_support::bulge_loop(vec![
+        (p2(phi.cos(), phi.sin()), iv(1.0)),
+        (p2(-phi.cos(), -phi.sin()), iv(1.0)),
+    ]);
+    let inner = profile::test_support::bulge_loop(vec![
+        (p2(0.5, 0.0), iv(-1.0)),
+        (p2(-0.1, 0.0), iv(-1.0)),
+    ]);
+    let body = sweep::test_support::extruded(
+        profile::SketchPlane::<Interval>::xy(),
+        vec![outer, inner],
+        iv(1.0),
+        tol(),
+    );
+    let plane = topo::test_support::split_plane(
+        p3(0.0, 0.0, 0.5),
+        v3(t.sin(), 0.0, t.cos()),
+        Tol::witness(),
+    );
+    let s = topo::plane_section(&body, &plane, tol()).unwrap();
+    let [region] = &s.regions[..] else {
+        panic!("one region, got {}", s.regions.len());
+    };
+    let [hole] = &region.holes[..] else {
+        panic!("one hole, got {}", region.holes.len());
+    };
+    for (what, got, want) in [
+        ("outline", region.outline.area(), PI / t.cos()),
+        ("hole", hole.area(), -PI * 0.09 / t.cos()),
+    ] {
+        let slack = 1e-14;
+        assert!(
+            got.lo() - slack <= want && want <= got.hi() + slack,
+            "{what}: [{}, {}] encloses {want}",
+            got.lo(),
+            got.hi()
+        );
+        assert!(
+            got.hi() - got.lo() < 1e-12,
+            "{what}: [{}, {}] is too wide to be useful",
+            got.lo(),
+            got.hi()
+        );
+    }
+}
+
+/// A D-shaped prism — the arc of bulge `0.5` from `(−1, 0)` to
+/// `(1, 0)` closed by its chord, extruded to height `1` — cut through
+/// `(0, 0, 0.5)` at tilt `t = 0.3`, at scalar `T`: its one region's
+/// area, its outline's arc count, and the closed form. The section is
+/// one ellipse arc whose span is not `π` and one segment, so the arc's
+/// `sin Δ` is the whole of its bulge's correction: nothing cancels it.
+/// The arc spans `θ = 4 atan 0.5` of a circle of radius `1 / sin(θ/2)`,
+/// cutting off `R² (θ − sin θ) / 2`, and the plane meets the prism's
+/// cross-section at `1 / cos t`.
+fn tilted_cut_of_a_d_prism<T: geom_core::Decide + topo::AtRestPolicy>() -> (T, usize, f64) {
+    let (bulge, t) = (0.5_f64, 0.3_f64);
+    let p2 = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
+    let d = profile::test_support::bulge_loop(vec![
+        (p2(-1.0, 0.0), T::from_f64(bulge)),
+        (p2(1.0, 0.0), T::from_f64(0.0)),
+    ]);
+    let prism = sweep::test_support::extruded(
+        profile::SketchPlane::<T>::xy(),
+        vec![d],
+        T::from_f64(1.0),
+        tol(),
+    );
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.5).map(T::from_f64),
+        Vec3::new(t.sin(), 0.0, t.cos()).map(T::from_f64),
+        Tol::witness(),
+    );
+    let s = topo::plane_section(&prism, &plane, tol())
+        .unwrap_or_else(|e| panic!("{}: {e:?}", core::any::type_name::<T>()));
+    let [region] = &s.regions[..] else {
+        panic!("one region, got {}", s.regions.len());
+    };
+    assert!(region.holes.is_empty(), "no holes");
+    let arcs = region
+        .outline
+        .edges()
+        .iter()
+        .filter(|e| matches!(e, topo::SectionEdge::Arc { .. }))
+        .count();
+    let theta = 4.0 * bulge.atan();
+    let radius = 1.0 / (theta / 2.0).sin();
+    let want = radius * radius * (theta - theta.sin()) / 2.0 / t.cos();
+    (region.area(), arcs, want)
+}
+
+/// **An arc whose bulge nothing cancels reads its area, at `f64` and
+/// at `Interval`** ([`tilted_cut_of_a_d_prism`]): the bored rows' rings
+/// are whole conics, whose arcs' `sin Δ` terms cancel, so this row is
+/// what holds the bulge's `sin Δ` — and at `Interval` its enclosure —
+/// end to end. The `Interval` fixture's data are the `f64` roundings of
+/// its closed form, so the enclosure is asked to a few ulps.
+#[test]
+fn plane_section_area_of_an_uncancelled_arc_at_f64_and_interval() {
+    use geom_core::{Bounds, Interval};
+    let (got, arcs, want) = tilted_cut_of_a_d_prism::<f64>();
+    assert_eq!(arcs, 1, "f64: one wall arc");
+    assert!(
+        (got - want).abs() < 1e-12,
+        "f64: the region encloses {got}, want {want}"
+    );
+    let (got, arcs, want) = tilted_cut_of_a_d_prism::<Interval>();
+    assert_eq!(arcs, 1, "Interval: one wall arc");
+    let slack = 1e-14;
+    assert!(
+        got.lo() - slack <= want && want <= got.hi() + slack,
+        "Interval: [{}, {}] encloses {want}",
+        got.lo(),
+        got.hi()
+    );
+    assert!(
+        got.hi() - got.lo() < 1e-12,
+        "Interval: [{}, {}] is too wide to be useful",
+        got.lo(),
+        got.hi()
+    );
 }

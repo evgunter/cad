@@ -99,3 +99,31 @@ constituent's operand face holds the chord as a region, on a cylinder.
 `topo::point_in_face` answers for planar faces only
 (`KindUnsupported` otherwise), so the pick needs a curved in-face test
 or a combinatorial record of which pre-merge face the chord bordered.
+
+A `PlacedUnion` operand reaches it with planar faces only (SHOW,
+2026-10-02, measured against the heat-sink recipe of
+`demos/tour/src/heatsink.rs`): a `3 × 1 × 0.25` base and five
+`0.1875 × 1` fins standing flush on it and running its full depth, so
+each fin's two end faces are coplanar with the base's long side faces.
+`find_flush_candidates(base, group)` reports 15 pairs (five feet
+`Rest`, ten end walls `SameOriented`); declaring all 15 and unioning
+refuses `Naming(MergedChordConstituents { several: 5 })`. Each merged
+side face holds the five fins' end faces from the one group operand.
+This is the shape a real extruded heat sink has; the tour's scene
+stops its fins 1/8 short of the long sides.
+
+## Now on the document crosslap's path (REACH, 2026-10-01)
+
+Since the continuation ruling (PR 3613, built on
+`reach/cosurface-continuation`) an undeclared continuation refuses at
+the reduction. The north-star crosslap's beams have four: their tops
+and bottoms carry on into each other across the notch edges. Declaring
+only the mate (the five `Rest` findings) now refuses
+`undeclared_contact` on one of them, and following the menu to its end
+(all nine findings declared) reaches this row's
+`merged_chord_constituents`. So the document-layer crosslap, which used
+to glue on the mate alone (to a body whose coplanar tops and bottoms
+were left unmerged), waits on this rule. The kernel tour's crosslap
+declares the whole inventory and glues; only the naming layer stops.
+Pinned in `crates/pncad-py/tests/test_north_star.py`
+(`TestCrosslapAtTheNamingWall`).

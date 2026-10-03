@@ -13,15 +13,19 @@ outline refusal that unit repaired, on reach's ground.)
 
 ## What
 
-`splitting::finish::section_sense` (`crates/topo/src/splitting/finish.rs`)
-reads a section face's loop winding through `Body::planar_loop_winding`
-and refuses on
+`splitting::section_loops::loop_sense`
+(`crates/topo/src/splitting/section_loops.rs`; the split's
+`finish::section_sense` and `plane_section` both read it) reads a
+section loop's winding through `Body::planar_loop_winding` and refuses
+on
 
 ```rust
-Some(Ok(geom_core::Sign::Zero)) | None => {
-    Err(SplitFinishError::SectionWindingUndecided { face, diag: None })
-}
+Some(Ok(geom_core::Sign::Zero)) | None => Err(SenseFault::Undecided(None)),
 ```
+
+which the split states as `SplitFinishError::SectionWindingUndecided`
+and `plane_section` as `SectionError::WindingUndecided`, both with
+`diag: None`.
 
 - A ZERO winding is band-decided: its margin lies within the zero band
   and a smaller tolerance may decide it. The refusal carries

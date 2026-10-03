@@ -149,13 +149,13 @@ fn split_record<T: Decide>(record: VerbRecord<T>) -> Option<SplitNaming> {
 /// is a sketch's coordinate system, and reading one as a parting
 /// plane would let a split be authored against a profile's frame
 /// silently rather than against a plane the document names. The
-/// datum's normal is unit by construction (`UnitVec3`), which is the
-/// convention the kernel's plane states and does not check.
+/// datum's normal is the [`UnitVec3`](geom_core::UnitVec3) witness the
+/// kernel's split plane takes.
 fn plane_of<T: Decide>(datum: &DatumValue<T>) -> Option<SplitPlane<T>> {
     match datum {
         DatumValue::Plane { origin, normal } => Some(SplitPlane {
             origin: *origin,
-            normal: normal.get(),
+            normal: *normal,
         }),
         DatumValue::Axis { .. }
         | DatumValue::Point { .. }
@@ -193,10 +193,11 @@ mod tests {
     /// structural check every sibling module makes.
     #[test]
     fn the_correspondence_builds_the_split() {
-        let plane = SplitPlane {
-            origin: Point3::new(0.0, 0.0, 0.5),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            geom_core::Tol::witness(),
+        );
         let v: Verb<f64> = (split::<f64>().build)(plane);
         assert_eq!(
             v.kind(),
@@ -220,7 +221,7 @@ mod tests {
         let origin = Point3::new(0.0, 0.0, 0.5);
         let plane = (corr.tool)(&DatumValue::Plane { origin, normal: up })
             .expect("a plane datum is a parting plane");
-        assert_eq!(plane.normal.z, 1.0);
+        assert_eq!(plane.normal.get().z, 1.0);
         assert_eq!(plane.origin.z, 0.5);
         assert!(
             (corr.tool)(&DatumValue::Axis { origin, dir: up }).is_none(),

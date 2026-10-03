@@ -60,7 +60,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
             op: BooleanOp::Union,
             a: plate,
             b: rib,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Two notches across the rib's y = 1 seam: the first in place, the
@@ -84,7 +84,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
             op: BooleanOp::Union,
             a: n1,
             b: tr,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, cut) = insert(
@@ -93,7 +93,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
             op: BooleanOp::Subtract,
             a: joined,
             b: notches,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc2, _) = step(

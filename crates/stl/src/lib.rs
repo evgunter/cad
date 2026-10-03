@@ -170,10 +170,7 @@ pub(crate) fn facets(mesh: &mesh::Mesh) -> Result<Vec<Facet>, StlError> {
             // checkers recomputing normals from the file's f32
             // vertices may report small disagreements on such slivers
             // — a narrowing artifact, not an orientation defect.)
-            let vertex = |i: u32| {
-                let p = mesh.positions[i as usize];
-                [p.x, p.y, p.z]
-            };
+            let vertex = |i: u32| mesh.positions[i as usize].to_array();
             let [a, b, c] = [vertex(tri[0]), vertex(tri[1]), vertex(tri[2])];
             let u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
             let v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];

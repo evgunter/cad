@@ -26,6 +26,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use crate::common;
@@ -59,6 +60,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -80,6 +82,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         Node::Extrude {
             profile: twinned,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -101,6 +104,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         Node::Extrude {
             profile: last,
             distance: common::len(0.004),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

@@ -58,3 +58,29 @@ refusals. The self-retiring rows above then flip, and they say so.
   `BREP_WITH_VOIDS` (`step-export-refuses-every-hollow-body`). The
   pinned row flips to that refusal, not to success;
 - the error surface changes.
+
+**A consumer the fix makes export, not flip** (SHOW,
+projectbox-section-cuts-through-bores, 2026-10-02). The tour's
+`projectbox` cell splits the bored enclosure by a tilted plane through
+two of its round, bored bosses (`demos/tour/src/cutaway.rs`,
+`sectioned_beside`). The plane frees both boss tops, so the above half
+is one solid of three shells (the walls' piece and two caps), and its
+arcs make it refuse `CurvedShellClassification` (`kind: "circle
+curve"`). The scene pins it with `SceneBody::step_at_frontier`, so its
+manifest `step` is null and the FreeCAD lane draws no above half.
+`topo::classify_shells_of` on that half returns `[Outer, Outer, Outer]`,
+measured: the tour asserts it
+(`projectbox::tests::the_bored_box_and_its_halves_pass_their_tiers_and_the_above_half_is_three_outer_shells`),
+and the review measured the same for square bosses and for cuts at
+`z = 0.45` and `0.6`. With the roles read through `classify_shells_of`
+this body would EXPORT, so its pin fails as a success and says to drop it,
+unlike the hollow-body pins (`hollowring`, `hollowtorus`,
+`torusvessel`, `fivewall`), which flip to `VoidShellUnsupported`.
+
+**2026-10-03 — the `projectbox` cut exports another way (FUSE, PR
+3891).** Under Ev's ruling that a solid is one piece of material (PR
+3901), `split` sorts each side into pieces, so the above half is now
+three solids of one shell each and the writer classifies no shell at
+all: it exports. Its `step_at_frontier` pin is dropped
+(`demos/tour/src/cutaway.rs`). The writer's own classification gap this
+item names is untouched; this body just no longer reaches it.

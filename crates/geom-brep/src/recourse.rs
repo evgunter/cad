@@ -13,7 +13,7 @@
 
 use geom_core::{
     Band, Decided, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
-    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, Sign, SizedWords,
+    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, NOT_YET_ENDING, Sign, SizedWords,
 };
 pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE};
 
@@ -45,6 +45,30 @@ pub fn defect_ending(reading: Reading) -> &'static str {
     match reading {
         Reading::Build => KERNEL_DEFECT_ENDING,
         Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING,
+    }
+}
+
+/// **The ending of a refusal at a shape the kernel has no arm for yet**
+/// ([`geom_core::NOT_YET_ENDING`]): nothing the user changes in the
+/// model gets through today, and nothing is wrong with what they asked
+/// for, so the sentence says so plainly rather than labelling a
+/// capability gap `Recourse:`.
+///
+/// It is the one home for that ending beside the others here, and an
+/// unreadable margin adds what it may mean as every ending in this
+/// table does — `topo::validate`'s at-rest readings compose it too, so
+/// the words are not spelled twice.
+#[must_use]
+pub fn not_yet(arm: RefusedArm<'_>) -> String {
+    let unreadable = match arm {
+        RefusedArm::Undecided(cause) => cause.margin.is_invalid(),
+        RefusedArm::Zero(Classified { margin, .. }) => margin.is_invalid(),
+        RefusedArm::SignCertain => false,
+    };
+    if unreadable {
+        format!("{NOT_YET_ENDING}: {UNREADABLE_MARGIN_NOTE}")
+    } else {
+        NOT_YET_ENDING.to_owned()
     }
 }
 

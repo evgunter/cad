@@ -9,17 +9,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use pncad::document::ExtrudeSide;
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point2, Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, FaceKey, LoopBoundary};
 
-fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
+fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
     revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the meridian validates"),
         RevolveAxis {
@@ -33,10 +34,13 @@ fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
     .body
 }
 
-fn extruded(lp: ProfileLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
+fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     extrude(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the footprint validates"),
-        Extrusion::Distance(h),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("the footprint extrudes")
@@ -155,7 +159,11 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
         })
         .map(|(k, _)| k)
         .collect();
-    assert_eq!(mouth.len(), 2, "a full revolve's cap is two half-discs");
+    assert_eq!(
+        mouth.len(),
+        1,
+        "a full revolve sweeps its planar cap whole (BAND, one wall per run)"
+    );
 
     let cup = pncad::topo::shell_open(&body, t, &mouth, tol)
         .expect("the opened arm returns a body on my vase too")
@@ -229,7 +237,18 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
             }
         }
     }
-    assert_eq!(euler_counts(&cup).r, 1, "and that is the body's only ring");
+    // The vase's other rings are its latitude annuli's own: a full
+    // revolve sweeps a planar wall whole, so each annulus between two
+    // stations carries its ring. None of them is on the mouth plane.
+    let mouth_rings: usize = cup
+        .faces()
+        .filter(|(_, f)| {
+            matches!(cup.get_surface(f.surface),
+                Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
+        })
+        .map(|(_, f)| f.rings.len())
+        .sum();
+    assert_eq!(mouth_rings, 1, "and that is the mouth plane's only ring");
 
     // Euler bookkeeping on the returned data reads genus 0 — the census
     // door over the returned arenas, not the scene's helper.

@@ -12,6 +12,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -78,6 +79,7 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext)
@@ -148,7 +150,7 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
     .unwrap()
     .doc;
     let kept: Vec<Option<editor_core::StepId>> = match v1_painted.node(profile) {
-        Some(Node::Profile(p)) => p.ids[0].iter().copied().map(Some).collect(),
+        Some(Node::Profile(p)) => p.kept_in_place().remove(0),
         other => panic!("the part's profile: {other:?}"),
     };
     // The new leg is step 2 of the six: `at`, `line_to(2,0)`, the new
@@ -236,8 +238,10 @@ fn step_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<editor_core::StepId>
 fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f64)) -> ProfileDoc {
     let mut corners = vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
     corners.insert(at, corner);
-    let mut ids: Vec<Option<editor_core::StepId>> =
-        step_ids(base, profile).into_iter().map(Some).collect();
+    let mut ids = match base.node(profile) {
+        Some(Node::Profile(p)) => p.kept_in_place().remove(0),
+        other => panic!("the part's profile: {other:?}"),
+    };
     ids.insert(at, None);
     apply(
         base,
@@ -294,10 +298,13 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     let wall = |step| {
         fixture::fname(
             ext,
-            RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece {
-                step,
-                role: editor_core::PieceRole::Leg,
-            }),
+            RoleSeg::Lateral(
+                editor_core::ProfileEdgeRef::Piece {
+                    step,
+                    role: editor_core::PieceRole::Leg,
+                }
+                .into(),
+            ),
         )
     };
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
@@ -381,6 +388,7 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
         Node::Extrude {
             profile,
             distance: len(3.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (b, taller) = insert(
@@ -388,6 +396,7 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
         Node::Extrude {
             profile,
             distance: len(5.0),
+            side: ExtrudeSide::Along,
         },
     );
     assert_ne!(tall, taller, "each branch mints its own node's id");

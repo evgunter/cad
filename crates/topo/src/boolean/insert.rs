@@ -30,7 +30,24 @@
 //! whose orbit half-edges (deduplicated across subdivision twins) form
 //! the `mev_null` fan; an empty span (both germs in one sector) is the
 //! strut/dangling case (`Fan { he, he }` at the next sector's edge).
+//!
+//! **Plan, then mint.** [`plan_null_pairs`] takes every reading a
+//! pair's null edges need (codes, pairing, germ cells and directions,
+//! each run's direction) and [`mint_plans`] mints from the plan without
+//! reading the orbit's geometry again. The reduction plans every vertex
+//! pair before it mints any: one vertex can sit in several pairs (an
+//! operand whose own contact left several vertices at one point pairs
+//! each with the other operand's vertex there), and a mint moves its
+//! vertex's orbit. Where several crossing pairs cut one vertex,
+//! [`reconcile_shared`] turns each run that would hold another pair's
+//! cut the other way round its orbit, so the runs there are disjoint
+//! and no mint moves a half-edge another pair's plan read, unless one
+//! strut's segment holds another's whole: the inner then hangs at the
+//! outer's tip ([`holds_whole`]). Struts there mint before any fan, an
+//! outer before its inner, each spliced past those hung earlier at its
+//! vertex at a lower germ ([`strut_anchor`]).
 
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::sectors::{BoolSector, PairRecord, within};
@@ -39,7 +56,8 @@ use super::{
 };
 use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::contact::BooleanCoincidence;
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::MevSite;
 use crate::null::{NewVertexSide, NullEdge};
 
@@ -52,26 +70,130 @@ pub(super) struct InsertOut<T: geom_core::Real> {
     pub pairs: Vec<NullEdgePairRecord>,
 }
 
-/// Validates codes, pairs survivors, mints the null edges in both
-/// solids (module docs).
+/// One vertex pair through the reduction's own path: plan, reconcile,
+/// mint (module docs).
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
-pub(super) fn insert_null_pairs<T: Decide>(
+fn insert_null_pairs<T: Decide>(
     a_body: &mut Body<T>,
     b_body: &mut Body<T>,
     contact: VvContact,
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     records: &[PairRecord],
-    declared: &super::DeclaredPairs,
+    raw: &[PairRecord],
+    declared: &super::DeclaredPairs<T>,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
-    let survivors: Vec<&PairRecord> = records.iter().filter(|r| r.intersect).collect();
-    let mut out = InsertOut {
-        edges: Vec::new(),
-        pairs: Vec::new(),
+    let mut plans = [plan_null_pairs(
+        a_body, b_body, contact, a_sectors, b_sectors, records, raw, declared, band,
+    )?];
+    let orbits = [(a_sectors, b_sectors)];
+    reconcile_shared(&mut plans, &orbits, a_body, b_body, band)?;
+    mint_plans(a_body, b_body, &plans, &orbits, band)
+}
+
+/// One solid's side of a planned null edge: the germs it runs between,
+/// in the order its run is walked.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SideRun<T: geom_core::Real> {
+    /// The germ the run leaves from.
+    from: Germ<T>,
+    /// The germ that closes the run.
+    to: Germ<T>,
+    /// Whether `from` is the pair's second germ ([`mint_directed`]'s
+    /// slot alignment reads it).
+    swapped: bool,
+    /// Whether another crossing pair cuts the same vertex
+    /// ([`reconcile_shared`]): a strut then splices among the struts
+    /// hung there by their lower germs ([`strut_anchor`]).
+    shared: bool,
+}
+
+/// One vertex pair's two sector arrays, A's and B's.
+pub(super) type Orbits<'a, T> = (&'a [BoolSector<T>], &'a [BoolSector<T>]);
+
+/// A cut in a vertex's orbit: its sector entry and its direction.
+type Cut<T> = (usize, Vec3<T>);
+
+/// What the mints so far left at shared vertices
+/// ([`reconcile_shared`]).
+#[derive(Debug)]
+pub(super) struct Hung<T: geom_core::Real> {
+    /// Each strut hung at a shared vertex.
+    struts: Vec<HungStrut<T>>,
+    /// Each end of every null edge minted there: whether it is the
+    /// below (In) end.
+    ends: Vec<(Operand, VertexKey, bool)>,
+}
+
+/// A strut minted at a shared vertex.
+#[derive(Debug)]
+struct HungStrut<T: geom_core::Real> {
+    operand: Operand,
+    /// The shared vertex whose orbit its germs were read in.
+    root: VertexKey,
+    /// The vertex it hangs at: `root`, or the tip of the strut whose
+    /// segment holds its own ([`nests`]).
+    vertex: VertexKey,
+    /// Its null half that starts at `vertex`; it ends at the tip.
+    half: HalfEdgeKey,
+    /// Its two germs in walk order ([`run_ends`]).
+    lower: Cut<T>,
+    upper: Cut<T>,
+    /// Whether `half` faces `lower`.
+    half_faces_lower: bool,
+}
+
+impl<T: geom_core::Real> Default for Hung<T> {
+    fn default() -> Self {
+        Self {
+            struts: Vec::new(),
+            ends: Vec::new(),
+        }
+    }
+}
+
+/// The null edges of one vertex pair, every reading taken: what
+/// [`mint_plans`] mints without reading the orbit's geometry again.
+#[derive(Clone, Debug)]
+pub(super) struct NullPlan<T: geom_core::Real> {
+    /// The vertex pair.
+    pub contact: VvContact,
+    /// One `[A, B]` run per null-edge pair, in A-major order.
+    runs: Vec<[SideRun<T>; 2]>,
+}
+
+/// Validates codes, pairs survivors and reads every germ's cells and
+/// direction and each run's direction (module docs), touching neither
+/// body.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn plan_null_pairs<T: Decide>(
+    a_body: &Body<T>,
+    b_body: &Body<T>,
+    contact: VvContact,
+    a_sectors: &[BoolSector<T>],
+    b_sectors: &[BoolSector<T>],
+    records: &[PairRecord],
+    raw: &[PairRecord],
+    declared: &super::DeclaredPairs<T>,
+    band: Band,
+) -> Result<NullPlan<T>, BooleanError> {
+    // A-major order: `pair_search` mints records in it, and an edge-edge
+    // germ minted after it (`recl::place_germ`) takes its place in it.
+    let mut ordered: Vec<(&PairRecord, &PairRecord)> = records
+        .iter()
+        .zip(raw)
+        .filter(|(r, _)| r.survives())
+        .collect();
+    ordered.sort_by_key(|(r, _)| (r.a, r.b));
+    let (survivors, raw): (Vec<&PairRecord>, Vec<&PairRecord>) = ordered.into_iter().unzip();
+    let mut plan = NullPlan {
+        contact,
+        runs: Vec::new(),
     };
     if survivors.is_empty() {
-        return Ok(out); // touching without crossing: 3′ contact only
+        return Ok(plan); // touching without crossing: 3′ contact only
     }
     if !survivors.len().is_multiple_of(2) {
         return Err(BooleanError::ClassificationInvariant {
@@ -89,7 +211,7 @@ pub(super) fn insert_null_pairs<T: Decide>(
             });
         }
     }
-    // Survivors arrive in creation order = A-major; pair consecutively
+    // Survivors are now in A-major order (the sort above); pair consecutively
     // (cyclically, starting at the first survivor).
     let mismatch = || BooleanError::PairingMismatch {
         a_vertex: contact.a,
@@ -99,17 +221,30 @@ pub(super) fn insert_null_pairs<T: Decide>(
     let mut b_order: Vec<usize> = (0..survivors.len()).collect();
     b_order.sort_by_key(|&i| (survivors[i].b, survivors[i].a));
     let b_pos = |i: usize| b_order.iter().position(|&j| j == i).unwrap_or(usize::MAX);
+    // F12 guard 1: B-cyclic adjacency of each pair among survivors,
+    // checked for every pair before the first mint.
+    let n = survivors.len();
+    for pair_idx in 0..n / 2 {
+        let (p0, p1) = (b_pos(2 * pair_idx), b_pos(2 * pair_idx + 1));
+        if (p0 + 1) % n != p1 && (p1 + 1) % n != p0 {
+            return Err(mismatch());
+        }
+    }
+    // Every germ's cells are read before the first mint moves an orbit.
+    let loci = survivors
+        .iter()
+        .zip(&raw)
+        .map(|(r, w)| {
+            Ok((
+                super::sectors::germ_locus(a_body, &a_sectors[r.a], w.sa)?,
+                super::sectors::germ_locus(b_body, &b_sectors[r.b], w.sb)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, BooleanError>>()?;
 
     for pair_idx in 0..survivors.len() / 2 {
         let (i0, i1) = (2 * pair_idx, 2 * pair_idx + 1);
         let (r0, r1) = (survivors[i0], survivors[i1]);
-        // F12 guard 1: B-cyclic adjacency of the pair among survivors.
-        let (p0, p1) = (b_pos(i0), b_pos(i1));
-        let n = survivors.len();
-        let adjacent = (p0 + 1) % n == p1 || (p1 + 1) % n == p0;
-        if !adjacent {
-            return Err(mismatch());
-        }
         // Which forward run is the corner's wedge is decided by DATA,
         // not index parity (ambiguous at two survivors): default to the
         // forward run r0 → r1 (the book's consumption order); if that
@@ -118,116 +253,685 @@ pub(super) fn insert_null_pairs<T: Decide>(
         // wedge is the other direction (r1 → r0). Applied per solid;
         // the run-side agreement guard runs against whichever
         // direction is chosen.
-        let g0_faces = (a_sectors[r0.a].face, b_sectors[r0.b].face);
-        let g1_faces = (a_sectors[r1.a].face, b_sectors[r1.b].face);
-        let g0_dir = record_germ_dir(
-            a_body,
-            b_body,
-            &a_sectors[r0.a],
-            &b_sectors[r0.b],
-            declared,
-            band,
-        )?;
-        let g1_dir = record_germ_dir(
-            a_body,
-            b_body,
-            &a_sectors[r1.a],
-            &b_sectors[r1.b],
-            declared,
-            band,
-        )?;
-        let (a_rec, a_swapped) = mint_directed(
-            a_body,
-            Operand::A,
-            contact.a,
-            a_sectors,
-            (r0.a, r0.sa, g0_faces, g0_dir),
-            (r1.a, r1.sa, g1_faces, g1_dir),
-            mismatch,
-            band,
-        )?;
-        let (b_rec, b_swapped) = mint_directed(
-            b_body,
-            Operand::B,
-            contact.b,
-            b_sectors,
-            (r0.b, r0.sb, g0_faces, g0_dir),
-            (r1.b, r1.sb, g1_faces, g1_dir),
-            mismatch,
-            band,
-        )?;
-        // Slot canonicalization (the joining's slot lock): germ slot i
-        // of the A and B records must be the SAME spatial germ; a
-        // degeneracy swap in one solid only would misalign them, so
-        // align B's array to A's (entries carry their halves — the
-        // germ↔half binding is untouched).
-        let mut b_rec = b_rec;
-        if a_swapped != b_swapped {
-            b_rec.germs.swap(0, 1);
+        let g0_faces = ((a_sectors[r0.a].face, b_sectors[r0.b].face), loci[i0]);
+        let g1_faces = ((a_sectors[r1.a].face, b_sectors[r1.b].face), loci[i1]);
+        // A germ along an edge of BOTH solids runs along that common
+        // edge: its two flankers may be coplanar (an edge-edge germ is
+        // the pair of the two solids' own fold flankers), so the planes'
+        // intersection is not its direction; the A flanker's bound read
+        // On is.
+        let record_dir = |i: usize, r: &PairRecord| match loci[i] {
+            (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => {
+                let s = &a_sectors[r.a];
+                let bound = if raw[i].sa.0 == SideCode::On {
+                    s.start
+                } else {
+                    s.end
+                };
+                Ok(bound.normalize())
+            }
+            _ => record_germ_dir(
+                a_body,
+                b_body,
+                &a_sectors[r.a],
+                &b_sectors[r.b],
+                declared,
+                band,
+            ),
+        };
+        let g0_dir = record_dir(i0, r0)?;
+        let g1_dir = record_dir(i1, r1)?;
+        let side = |sectors: &[BoolSector<T>], body: &Body<T>, g0: Germ<T>, g1: Germ<T>| {
+            let swapped = run_degenerates(body, sectors, g0.0, g1.0)?;
+            Ok::<_, BooleanError>(SideRun::directed(g0, g1, swapped))
+        };
+        plan.runs.push([
+            side(
+                a_sectors,
+                a_body,
+                (r0.a, r0.sa, g0_faces, g0_dir),
+                (r1.a, r1.sa, g1_faces, g1_dir),
+            )?,
+            side(
+                b_sectors,
+                b_body,
+                (r0.b, r0.sb, g0_faces, g0_dir),
+                (r1.b, r1.sb, g1_faces, g1_dir),
+            )?,
+        ]);
+    }
+    Ok(plan)
+}
+
+impl<T: geom_core::Real> SideRun<T> {
+    fn directed(g0: Germ<T>, g1: Germ<T>, swapped: bool) -> Self {
+        let (from, to) = if swapped { (g1, g0) } else { (g0, g1) };
+        Self {
+            from,
+            to,
+            swapped,
+            shared: false,
         }
+    }
+
+    /// The same null edge run the other way round its orbit.
+    fn reversed(self) -> Self {
+        Self {
+            from: self.to,
+            to: self.from,
+            swapped: !self.swapped,
+            shared: self.shared,
+        }
+    }
+}
+
+/// Mints every plan's null edges, each solid in its own order: at a
+/// shared vertex its struts before any fan, each strut after every
+/// strut whose segment holds its own ([`nests`]), so it can hang at
+/// that strut's tip.
+pub(super) fn mint_plans<T: Decide>(
+    a_body: &mut Body<T>,
+    b_body: &mut Body<T>,
+    plans: &[NullPlan<T>],
+    orbits: &[Orbits<'_, T>],
+    band: Band,
+) -> Result<InsertOut<T>, BooleanError> {
+    let mut out = InsertOut {
+        edges: Vec::new(),
+        pairs: Vec::new(),
+    };
+    // The pairs' order: plans that hang a shared strut first, and those
+    // runs first within a plan (`join::find_match` breaks ties by it).
+    let hangs = |i: usize, k: usize| {
+        let r = &plans[i].runs[k];
+        [orbits[i].0, orbits[i].1]
+            .into_iter()
+            .zip(r)
+            .any(|(secs, r)| {
+                r.shared && run_fan(secs, r.from.0, r.to.0).is_ok_and(|f| f.is_empty())
+            })
+    };
+    let mut order: Vec<usize> = (0..plans.len()).collect();
+    order.sort_by_key(|&i| !(0..plans[i].runs.len()).any(|k| hangs(i, k)));
+    let runs: Vec<(usize, usize)> = order
+        .into_iter()
+        .flat_map(|i| {
+            let mut ks: Vec<usize> = (0..plans[i].runs.len()).collect();
+            ks.sort_by_key(|&k| !hangs(i, k));
+            ks.into_iter().map(move |k| (i, k))
+        })
+        .collect();
+    let mut edges: [Vec<Option<EdgeKey>>; 2] = [vec![None; runs.len()], vec![None; runs.len()]];
+    for (slot, operand) in [Operand::A, Operand::B].into_iter().enumerate() {
+        let vertex = |i: usize| {
+            let c = plans[i].contact;
+            if slot == 0 { c.a } else { c.b }
+        };
+        let orbit = |i: usize| if slot == 0 { orbits[i].0 } else { orbits[i].1 };
+        let run = |(i, k): (usize, usize)| plans[i].runs[k][slot];
+        let shared_strut = |at: (usize, usize)| -> Result<bool, BooleanError> {
+            let r = run(at);
+            Ok(r.shared && run_fan(orbit(at.0), r.from.0, r.to.0)?.is_empty())
+        };
+        let mut keyed = Vec::with_capacity(runs.len());
+        for (n, &at) in runs.iter().enumerate() {
+            let depth = if shared_strut(at)? {
+                let mut d = 0;
+                for &other in &runs {
+                    if other != at
+                        && vertex(other.0) == vertex(at.0)
+                        && shared_strut(other)?
+                        && nests(orbit(at.0), run(other), run(at), band)?
+                    {
+                        d += 1;
+                    }
+                }
+                Some(d)
+            } else {
+                None
+            };
+            keyed.push((depth.is_none(), depth.unwrap_or(0), n));
+        }
+        keyed.sort();
+        let body = if slot == 0 {
+            &mut *a_body
+        } else {
+            &mut *b_body
+        };
+        let mut hung = Hung::default();
+        for (.., n) in keyed {
+            let (i, k) = runs[n];
+            let mismatch = || BooleanError::PairingMismatch {
+                a_vertex: plans[i].contact.a,
+                b_vertex: plans[i].contact.b,
+            };
+            let mut rec = mint_directed(
+                body,
+                (operand, vertex(i)),
+                orbit(i),
+                plans[i].runs[k][slot],
+                &mut hung,
+                mismatch,
+                band,
+            )?;
+            // Slot canonicalization (the joining's slot lock): germ slot
+            // i of the A and B records must be the SAME spatial germ; a
+            // degeneracy swap in one solid only would misalign them, so
+            // align B's array to A's (entries carry their halves — the
+            // germ↔half binding is untouched).
+            let [a_run, b_run] = plans[i].runs[k];
+            if operand == Operand::B && a_run.swapped != b_run.swapped {
+                rec.germs.swap(0, 1);
+            }
+            edges[slot][n] = Some(rec.edge);
+            out.edges.push(rec);
+        }
+    }
+    for (n, &(i, _)) in runs.iter().enumerate() {
+        let (Some(a_edge), Some(b_edge)) = (edges[0][n], edges[1][n]) else {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a planned null edge was not minted",
+            });
+        };
         out.pairs.push(NullEdgePairRecord {
-            a_edge: a_rec.edge,
-            b_edge: b_rec.edge,
-            site: PairSite::VertexVertex(contact),
+            a_edge,
+            b_edge,
+            site: PairSite::VertexVertex(plans[i].contact),
         });
-        out.edges.push(a_rec);
-        out.edges.push(b_rec);
     }
     Ok(out)
 }
 
-/// Chooses the run direction for one solid (doc at the call site) and
-/// mints: forward `g0 → g1` unless that run swallows the whole orbit
+/// Whether `outer` and `inner` are struts and `outer`'s segment holds
+/// `inner`'s whole ([`holds_whole`]).
+fn nests<T: Decide>(
+    secs: &[BoolSector<T>],
+    outer: SideRun<T>,
+    inner: SideRun<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let strut = |r: SideRun<T>| run_fan(secs, r.from.0, r.to.0).map(|f| f.is_empty());
+    Ok(strut(outer)?
+        && strut(inner)?
+        && holds_whole(
+            secs,
+            run_ends(secs, outer, band)?,
+            run_ends(secs, inner, band)?,
+            band,
+        )?)
+}
+
+/// A strut's segment: its germs in walk order ([`run_ends`]).
+type Segment<T> = (Cut<T>, Cut<T>);
+
+/// **Whether the strut segment `outer` holds the strut segment `inner`
+/// whole**: both in one physical sector, `inner`'s germs between
+/// `outer`'s, strictly at one end at least and at the other strictly
+/// or along its direction (a pinch line in the corner's face). The
+/// inner strut then hangs at the outer's tip ([`mint_plans`]). Two
+/// struts tied at both ends (one arc) hold neither: which would hold
+/// the other is not read off the geometry, and the pair refuses
+/// [`BooleanError::SharedVertexCrossings`] ([`tied_held`]).
+fn holds_whole<T: Decide>(
+    secs: &[BoolSector<T>],
+    (lo, hi): Segment<T>,
+    (ilo, ihi): Segment<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    if secs[lo.0].he != secs[ilo.0].he {
+        return Ok(false);
+    }
+    let (at_lo, at_hi) = (
+        precedes(secs, lo, ilo, band)?,
+        precedes(secs, ihi, hi, band)?,
+    );
+    let inside = |o: Option<bool>| o != Some(false);
+    Ok(inside(at_lo) && inside(at_hi) && (at_lo, at_hi) != (None, None))
+}
+
+/// **Several vertex pairs' null edges at one vertex.** An operand
+/// whose own contact left two vertices at one point pairs both with
+/// the other operand's vertex there, and when both pairs cross, both
+/// cut that vertex's orbit. Each plan read the orbit before any mint,
+/// and a mint keeps every half-edge outside its run where it was, so
+/// each run is planned to hold no other pair's cut: the runs are then
+/// disjoint, every later mint finds its run's half-edges still at the
+/// vertex, and its cuts land beside the earlier mint's in the order
+/// the corner reads. A run that holds one is turned the other way
+/// round its orbit, every run re-read until none turns (one turn can
+/// make another's nested run the one to turn); cuts along one
+/// direction are placed by the runs ([`tied_held`]). A strut (whose
+/// other way round is the whole orbit) whose segment holds another
+/// pair's strut whole keeps it, the inner hanging at its tip
+/// ([`holds_whole`]): a piece with a reflex corner at the point leaves
+/// such a segment outside it. Another pair's cut strictly inside a
+/// strut's segment lies outside the strut's piece, and so does that
+/// pair's piece's In arc from it, up to the segment's ends: both its
+/// cuts lie in the segment, and its run is a strut that nests (the
+/// other way round would be the whole orbit). A null edge both of
+/// whose runs hold another pair's cut otherwise refuses
+/// [`BooleanError::SharedVertexCrossings`]: two struts with one
+/// segment (two pieces touching along both its ends' directions), or a
+/// fan whose two ways round both hold one, which needs a pair paired
+/// across the arcs outside its piece. Two crossing pairs that share both their
+/// vertices refuse
+/// [`BooleanError::NonManifoldResult`]: the result would hold a
+/// shared-entity wedge fan there.
+pub(super) fn reconcile_shared<T: Decide>(
+    plans: &mut [NullPlan<T>],
+    sectors: &[Orbits<'_, T>],
+    a_body: &Body<T>,
+    b_body: &Body<T>,
+    band: Band,
+) -> Result<(), BooleanError> {
+    // Two crossing pairs that share both their vertices: each operand
+    // holds two vertices at the point, and the result's would be one
+    // vertex whose orbit passes the pinch line twice.
+    let crossing = |j: usize| !plans[j].runs.is_empty();
+    for i in (0..plans.len()).filter(|&i| crossing(i)) {
+        let c = plans[i].contact;
+        let other = |same: &dyn Fn(VvContact) -> bool| {
+            (0..plans.len()).find(|&j| j != i && crossing(j) && same(plans[j].contact))
+        };
+        if let (Some(j), Some(_)) = (other(&|d| d.a == c.a), other(&|d| d.b == c.b)) {
+            return Err(BooleanError::NonManifoldResult {
+                a_vertex: c.a,
+                b_vertices: [c.b, plans[j].contact.b],
+            });
+        }
+    }
+    // Each pass re-reads every run against the others' current runs; a
+    // pass that turns none is the fixed point.
+    let limit = plans.iter().map(|p| p.runs.len()).sum::<usize>() + 1;
+    for _ in 0..limit {
+        if !reconcile_pass(plans, sectors, [a_body, b_body], band)? {
+            return Ok(());
+        }
+    }
+    Err(BooleanError::ClassificationInvariant {
+        what: "the runs at a shared vertex do not settle",
+    })
+}
+
+/// One pass of [`reconcile_shared`]: keeps each run that holds none of
+/// the other pairs' cuts, else turns it the other way round when that
+/// holds none, else refuses. Returns whether any run turned.
+fn reconcile_pass<T: Decide>(
+    plans: &mut [NullPlan<T>],
+    sectors: &[Orbits<'_, T>],
+    bodies: [&Body<T>; 2],
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let mut turned = false;
+    for (slot, operand) in [Operand::A, Operand::B].into_iter().enumerate() {
+        let body = bodies[slot];
+        let key = |c: VvContact| if slot == 0 { (c.a, c.b) } else { (c.b, c.a) };
+        let orbit = |i: usize| {
+            if slot == 0 {
+                sectors[i].0
+            } else {
+                sectors[i].1
+            }
+        };
+        for i in 0..plans.len() {
+            let (vertex, partner) = key(plans[i].contact);
+            let others: Vec<usize> = (0..plans.len())
+                .filter(|&j| j != i && !plans[j].runs.is_empty())
+                .filter(|&j| key(plans[j].contact).0 == vertex)
+                .collect();
+            if plans[i].runs.is_empty() || others.is_empty() {
+                continue;
+            }
+            let secs = orbit(i);
+            let same_reading = |o: &[BoolSector<T>]| {
+                o.len() == secs.len()
+                    && o.iter()
+                        .zip(secs)
+                        .all(|(x, y)| x.he == y.he && x.end_edge() == y.end_edge())
+            };
+            if !others.iter().all(|&j| same_reading(orbit(j))) {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "two readings of one vertex's orbit disagree",
+                });
+            }
+            let mut cuts: Vec<OtherCut<T>> = Vec::new();
+            for &j in &others {
+                for r in &plans[j].runs {
+                    let (lo, hi) = run_ends(secs, r[slot], band)?;
+                    let strut = run_fan(secs, r[slot].from.0, r[slot].to.0)?.is_empty();
+                    cuts.push(OtherCut {
+                        at: lo,
+                        mate: hi,
+                        leaves: true,
+                        owner: j,
+                        strut,
+                    });
+                    cuts.push(OtherCut {
+                        at: hi,
+                        mate: lo,
+                        leaves: false,
+                        owner: j,
+                        strut,
+                    });
+                }
+            }
+            for k in 0..plans[i].runs.len() {
+                let current = plans[i].runs[k][slot];
+                let mut blocker = None;
+                let mut chosen = None;
+                for run in [current, current.reversed()] {
+                    if run_degenerates(body, secs, run.from.0, run.to.0)? {
+                        continue;
+                    }
+                    match held_cut(secs, run, &cuts, band)? {
+                        Some(j) => blocker = blocker.or(Some(j)),
+                        None => {
+                            chosen = Some(run);
+                            break;
+                        }
+                    }
+                }
+                let chosen = chosen.ok_or_else(|| {
+                    let other = blocker.map_or(partner, |j| key(plans[j].contact).1);
+                    BooleanError::SharedVertexCrossings {
+                        operand,
+                        vertex,
+                        partners: [partner, other],
+                    }
+                })?;
+                turned |= chosen.swapped != current.swapped;
+                plans[i].runs[k][slot] = SideRun {
+                    shared: true,
+                    ..chosen
+                };
+            }
+        }
+    }
+    Ok(turned)
+}
+
+/// Another pair's cut at a shared vertex: where it lies, the other end
+/// of its run, whether that run lies after it walking forward (else
+/// before it), and the pair.
+#[derive(Clone, Copy, Debug)]
+struct OtherCut<T: geom_core::Real> {
+    at: Cut<T>,
+    mate: Cut<T>,
+    leaves: bool,
+    owner: usize,
+    /// Whether its run is a strut.
+    strut: bool,
+}
+
+/// A run's two ends in walk order: a fan's leaving germ then its
+/// closing germ, a strut's earlier germ through their one physical
+/// sector then its later (its run order follows the A-major record
+/// sort, not the angle). A strut whose germs lie along one direction
+/// is an invariant: a pair's two crossings are distinct.
+fn run_ends<T: Decide>(
+    secs: &[BoolSector<T>],
+    run: SideRun<T>,
+    band: Band,
+) -> Result<(Cut<T>, Cut<T>), BooleanError> {
+    let (from, to) = ((run.from.0, run.from.3), (run.to.0, run.to.3));
+    if !run_fan(secs, from.0, to.0)?.is_empty() {
+        return Ok((from, to));
+    }
+    match precedes(secs, from, to, band)? {
+        Some(true) => Ok((from, to)),
+        Some(false) => Ok((to, from)),
+        None => Err(BooleanError::ClassificationInvariant {
+            what: "a dangling null edge whose two germs lie along one direction",
+        }),
+    }
+}
+
+/// The owner of the first cut `run` holds, walking its orbit forward
+/// from its first end to its last: a cut in an entry the walk crosses
+/// whole, or in an end entry on the run's side of that end's germ, or a
+/// cut along an end germ's own direction that [`tied_held`] counts. A
+/// strut holds a cut of its own physical sector between its two germs,
+/// or along either that [`tied_held`] counts, unless that cut's strut
+/// and it nest ([`nested`]).
+fn held_cut<T: Decide>(
+    secs: &[BoolSector<T>],
+    run: SideRun<T>,
+    cuts: &[OtherCut<T>],
+    band: Band,
+) -> Result<Option<usize>, BooleanError> {
+    let n = secs.len();
+    let (lo, hi) = run_ends(secs, run, band)?;
+    let strut = run_fan(secs, lo.0, hi.0)?.is_empty();
+    let rel = |k: usize| (k + n - lo.0) % n;
+    for &cut in cuts {
+        let (j, d) = cut.at;
+        let held = if strut {
+            if secs[j].he != secs[lo.0].he || nested(secs, (lo, hi), cut, band)? {
+                false
+            } else {
+                match (
+                    precedes(secs, lo, (j, d), band)?,
+                    precedes(secs, (j, d), hi, band)?,
+                ) {
+                    (Some(false), _) | (_, Some(false)) => false,
+                    (None, _) => tied_held(secs, (lo, true), hi, cut, band)?,
+                    (_, None) => tied_held(secs, (hi, false), lo, cut, band)?,
+                    (Some(true), Some(true)) => true,
+                }
+            }
+        } else if rel(j) == 0 {
+            match walks_after(&secs[lo.0], lo.1, d, band)? {
+                Some(after) => after,
+                None => tied_held(secs, (lo, true), hi, cut, band)?,
+            }
+        } else if rel(j) < rel(hi.0) {
+            true
+        } else if rel(j) == rel(hi.0) {
+            match walks_after(&secs[hi.0], d, hi.1, band)? {
+                Some(before) => before,
+                None => tied_held(secs, (hi, false), lo, cut, band)?,
+            }
+        } else {
+            false
+        };
+        if held {
+            return Ok(Some(cut.owner));
+        }
+    }
+    Ok(None)
+}
+
+/// Whether `cut`'s run is a strut that the strut segment `own` holds
+/// whole, or that holds `own` whole ([`holds_whole`]): one hangs at
+/// the other's tip, and neither holds the other's cuts.
+fn nested<T: Decide>(
+    secs: &[BoolSector<T>],
+    own: Segment<T>,
+    cut: OtherCut<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let (lo, hi) = if cut.leaves {
+        (cut.at, cut.mate)
+    } else {
+        (cut.mate, cut.at)
+    };
+    let other = (lo, hi);
+    Ok(cut.strut && (holds_whole(secs, own, other, band)? || holds_whole(secs, other, own, band)?))
+}
+
+/// **Another pair's cut along one end germ's direction** (a pinch line
+/// lying flat in a face of the shared corner): whether `run` holds it.
+/// Each pair's run lies on the side of the line its codes, read off its
+/// own piece's faces, give it, which [`run_ends`] records as after or
+/// before the cut. Runs on opposite sides are disjoint: not held. Runs
+/// on one side are nested: not held either, as the longer holds the
+/// shorter's far cut strictly and turns ([`reconcile_shared`]'s fixed
+/// point); unless both ends tie, one arc, which holds, and the other
+/// way round is the complement, on the opposite side, so a fan turns,
+/// while a strut's is the whole orbit. Struts on one side otherwise
+/// nest before this reading ([`nested`]). No witness reaches a fan's
+/// one arc, nor the invariant that the two directions are opposite rays
+/// (a convex sector holds none).
+fn tied_held<T: Decide>(
+    secs: &[BoolSector<T>],
+    ((k, own), own_leaves): (Cut<T>, bool),
+    far: Cut<T>,
+    cut: OtherCut<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    if !super::sectors::direction_sense(own, cut.at.1, secs[k].arm, band)? {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "two cuts in one convex sector along opposite rays",
+        });
+    }
+    if cut.leaves != own_leaves {
+        return Ok(false);
+    }
+    Ok(cut.mate.0 == far.0 && walks_after(&secs[far.0], far.1, cut.mate.1, band)?.is_none())
+}
+
+/// Whether `y` lies after `x` walking the convex sector `s` forward,
+/// from its end bound toward its start (`None`: the two lie along one
+/// direction). The rotation from start to end is positive about the
+/// sector's normal, the convention [`within`] reads. An in-band reading
+/// refuses as the coincidence it is, as the strut order's does.
+fn walks_after<T: Decide>(
+    s: &BoolSector<T>,
+    x: Vec3<T>,
+    y: Vec3<T>,
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
+    let m = Margin::levered(x.cross(y).dot(s.normal.vec()), s.arm);
+    match crate::validate::decide("bool_shared_cut_order", m, band) {
+        Ok(Sign::Negative) => Ok(Some(true)),
+        Ok(Sign::Positive) => Ok(Some(false)),
+        Ok(Sign::Zero) => Ok(None),
+        Err(diag) => Err(BooleanError::coincidence(
+            Coincide::Sectors,
+            DeclarationRead::Moot,
+            diag,
+        )),
+    }
+}
+
+/// A germ in one solid: its sector entry, its codes there, its cells
+/// and its direction.
+type Germ<T> = (usize, (SideCode, SideCode), Cells, Vec3<T>);
+
+/// A germ's `(A face, B face)` and `(A locus, B locus)`.
+pub(super) type Cells = ((FaceKey, FaceKey), (super::Locus, super::Locus));
+
+/// Mints one solid's null edge along its planned run, forward
+/// `from → to`: `g0 → g1` unless that run swallows the whole orbit
 /// (detected structurally: the fan's orbit successor of its last edge
 /// is its first — the true wedge cannot, its far side being bounded by
-/// the complementary germ), in which case `g1 → g0`. The F12 run-side
-/// agreement guard (`entry germ's exit code == closing germ's entry
-/// code`) applies to whichever direction is chosen.
-type Germ<T> = (usize, (SideCode, SideCode), (FaceKey, FaceKey), Vec3<T>);
-
-#[allow(clippy::too_many_arguments)]
+/// the complementary germ) or holds another pair's cut at a shared
+/// vertex ([`reconcile_shared`]). The F12 run-side agreement guard
+/// (`entry germ's exit code == closing germ's entry code`) applies to
+/// whichever direction was planned.
 fn mint_directed<T: Decide>(
     body: &mut Body<T>,
-    operand: Operand,
-    vertex: VertexKey,
+    (operand, vertex): (Operand, VertexKey),
     sectors: &[BoolSector<T>],
-    g0: Germ<T>,
-    g1: Germ<T>,
+    run: SideRun<T>,
+    hung: &mut Hung<T>,
     mismatch: impl Fn() -> BooleanError,
     band: Band,
-) -> Result<(BoolNullEdgeRecord<T>, bool), BooleanError> {
-    let swapped = run_degenerates(body, sectors, g0.0, g1.0)?;
-    let (gf, gt) = if swapped { (g1, g0) } else { (g0, g1) };
+) -> Result<BoolNullEdgeRecord<T>, BooleanError> {
+    let (gf, gt) = (run.from, run.to);
     // Strut spike ORDER (PR 5.5, the sort half of ssortnulledges): a
     // dangling strut's two halves splice consecutively into the loop
     // as [he_plus, he_minus]; interleaved (crossing) chords at
     // multi-germ corner sites wall pending pairs off, so the half the
-    // loop walk meets FIRST (he_plus) must face the germ angularly
-    // closest to the splice corner's arrival edge (the anchor bound;
-    // convex-sector dot comparison). Senses follow the facing by the
-    // sense theorem, so only the splice order moves. Run direction is
-    // untouched (a strut's reverse run spans the whole orbit).
-    let spike_from_first = if run_fan(sectors, gf.0, gt.0)?.is_empty() {
-        let e_dir = anchor_dir(body, sectors[gf.0].he)?;
-        // Metered at the shorter sector arm: the germ directions and
-        // `e_dir` are all unit, so the bare dot difference was a
-        // DIMENSIONLESS comparand against the length band
-        // (rim-dimensional audit, class (c)); × arm makes it the
-        // displacement the facing difference induces at the sectors'
-        // own bounding-chord scale.
-        let arm = sectors[gf.0].arm.min(sectors[gt.0].arm);
-        let m = Margin::levered((gf.3 - gt.3).dot(e_dir), arm);
-        match crate::validate::decide("bool_strut_order", m, band) {
-            Ok(Sign::Positive) => true,
-            Ok(_) => false,
-            Err(diag) => {
-                return Err(BooleanError::coincidence(
-                    Coincide::Sectors,
-                    DeclarationRead::Moot,
-                    diag,
-                ));
+    // loop walk meets FIRST (he_plus) must face the right germ. A germ
+    // along an edge of this solid names it structurally
+    // ([`strut_facing`]); otherwise the half meeting the loop first
+    // faces the germ angularly nearest the splice corner's arrival
+    // edge, measured inside the sector ([`strut_order`]). Senses
+    // follow the facing by the sense theorem, so only the splice order
+    // moves. Run direction is untouched (a strut's reverse run spans
+    // the whole orbit).
+    let empty = run_fan(sectors, gf.0, gt.0)?.is_empty();
+    let corrupt = || BooleanError::corrupt_at(operand, vertex);
+    // A strut at a shared vertex: its germs in walk order, and the
+    // innermost strut hung earlier whose segment holds its own.
+    let walk = if empty && run.shared {
+        let (lo, hi) = run_ends(sectors, run, band)?;
+        let mut holder: Option<&HungStrut<T>> = None;
+        for h in hung
+            .struts
+            .iter()
+            .filter(|h| (h.operand, h.root) == (operand, vertex))
+        {
+            let segment = |h: &HungStrut<T>| (h.lower, h.upper);
+            let holds = holds_whole(sectors, segment(h), (lo, hi), band)?;
+            let inner = match holder {
+                None => true,
+                Some(o) => holds_whole(sectors, segment(o), segment(h), band)?,
+            };
+            if holds && inner {
+                holder = Some(h);
             }
         }
+        Some(SharedStrut {
+            lo,
+            hi,
+            from_is_lo: precedes(sectors, (gf.0, gf.3), (gt.0, gt.3), band)? == Some(true),
+            holder: holder.map(|h| (h.half, h.half_faces_lower)),
+        })
+    } else {
+        None
+    };
+    let structural = if let Some(SharedStrut {
+        from_is_lo,
+        holder: Some((_, faces_lower)),
+        ..
+    }) = walk
+    {
+        // Hung at the tip of the strut whose segment holds it, its half
+        // met first follows that strut's half from the vertex, so it
+        // faces its own germ on the side of the one that half faces.
+        Some(from_is_lo == faces_lower)
+    } else if empty {
+        let arrival = body
+            .get_half_edge(sectors[gf.0].he)
+            .ok_or_else(corrupt)?
+            .edge;
+        // At a shared vertex the corner may already hold another
+        // pair's strut, so its departure edge is read off the sectors.
+        let departure_he = if run.shared {
+            sectors[next_edge_bound(sectors, gf.0)].he
+        } else {
+            let mate = body.mate(sectors[gf.0].he).ok_or_else(corrupt)?;
+            body.get_half_edge(mate).ok_or_else(corrupt)?.next
+        };
+        let departure = body.get_half_edge(departure_he).ok_or_else(corrupt)?.edge;
+        // A germ inside a face, or along a closed edge at its lone
+        // vertex, falls through to the angular reading below.
+        match strut_facing(
+            arrival,
+            departure,
+            own_locus_edge(operand, gf.2),
+            own_locus_edge(operand, gt.2),
+        )? {
+            StrutFacing::PlusFirst => Some(true),
+            StrutFacing::MinusFirst => Some(false),
+            StrutFacing::Unnamed | StrutFacing::ClosedEdge => None,
+        }
+    } else {
+        None
+    };
+    let spike_from_first = if let Some(first) = structural {
+        first
+    } else if empty {
+        let s = &sectors[gf.0];
+        strut_order(
+            anchor_dir(body, s.he)?,
+            s.normal.vec(),
+            (gf.3, gt.3),
+            s.arm.min(sectors[gt.0].arm),
+            band,
+        )?
     } else {
         false
     };
@@ -240,18 +944,295 @@ fn mint_directed<T: Decide>(
     // Germ facings as data (module docs): he_plus faces the from-germ,
     // he_minus the to-germ (the mev splice contract).
     let meta = [(gf.2, gf.3), (gt.2, gt.3)];
+    // A nested strut hangs at its holder's tip, past the struts hung
+    // there earlier at a lower germ; any other shared strut at the
+    // vertex, past those hung in its corner.
+    let site = match walk {
+        Some(w) => {
+            // The half arriving at the corner the strut splices into.
+            let (at, arrival) = match w.holder {
+                Some((half, _)) => (body.half_edge_end(half).ok_or_else(corrupt)?, half),
+                None => (vertex, body.mate(sectors[w.lo.0].he).ok_or_else(corrupt)?),
+            };
+            let first = body.get_half_edge(arrival).ok_or_else(corrupt)?.next;
+            Some((
+                at,
+                strut_anchor(body, (operand, at), sectors, first, w.lo, hung, band)?,
+            ))
+        }
+        None => None,
+    };
+    let at = site.map_or(vertex, |(v, _)| v);
     let rec = mint_run(
         body,
         operand,
-        vertex,
+        at,
         sectors,
         from,
         to,
         side,
         meta,
         spike_from_first,
+        site.map(|(_, he)| he),
     )?;
-    Ok((rec, swapped))
+    if let Some(SharedStrut {
+        lo, hi, from_is_lo, ..
+    }) = walk
+    {
+        let edge = body.get_edge(rec.edge).ok_or_else(corrupt)?;
+        let half = [edge.he_plus, edge.he_minus]
+            .into_iter()
+            .find(|&h| body.get_half_edge(h).is_some_and(|d| d.start == at))
+            .ok_or_else(corrupt)?;
+        hung.struts.push(HungStrut {
+            operand,
+            root: vertex,
+            vertex: at,
+            half,
+            lower: lo,
+            upper: hi,
+            half_faces_lower: (rec.germs[0].he == half) == from_is_lo,
+        });
+    }
+    // The join reads a null half's sense off the side its start vertex
+    // is the end of, so no vertex at a shared point may be the In end
+    // of one null edge and the Out end of another. Each run takes its
+    // own pair's region and the vertex keeps what lies outside them
+    // all; a nested strut hangs at its holder's tip, and its facing
+    // (above) makes that tip the same end of both.
+    if run.shared {
+        for (end, below) in [(rec.attr.below_end, true), (rec.attr.above_end, false)] {
+            if hung
+                .ends
+                .iter()
+                .any(|&(o, v, b)| (o, v) == (operand, end) && b != below)
+            {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a vertex at a shared point is the In end of one null edge and the \
+                           Out end of another",
+                });
+            }
+            hung.ends.push((operand, end, below));
+        }
+    }
+    Ok(rec)
+}
+
+/// A strut at a shared vertex, as [`mint_directed`] places it: its germs
+/// in walk order, whether its run leaves from the lower, and the half
+/// from the vertex of the innermost strut hung earlier whose segment
+/// holds its own, with whether that half faces its lower germ.
+#[derive(Clone, Copy)]
+struct SharedStrut<T: geom_core::Real> {
+    lo: Cut<T>,
+    hi: Cut<T>,
+    from_is_lo: bool,
+    holder: Option<(HalfEdgeKey, bool)>,
+}
+
+/// The entry past `k` whose end bound is a real edge: the one holding
+/// the half-edge that bounds `k`'s physical sector at its start.
+fn next_edge_bound<T: geom_core::Real>(sectors: &[BoolSector<T>], k: usize) -> usize {
+    let n = sectors.len();
+    let mut j = (k + 1) % n;
+    while !sectors[j].end_edge() && j != k {
+        j = (j + 1) % n;
+    }
+    j
+}
+
+/// Where a strut at a shared vertex splices: before the first half-edge
+/// from `first` (the one past its corner's arrival) that is not a strut
+/// hung earlier at that vertex at a lower germ (`germ`, the earlier of
+/// a strut's two). The struts [`reconcile_shared`] leaves in one corner
+/// hold none of each other's cuts unless one nests whole inside the
+/// other, which hangs at the other's tip, so the segments hung at one
+/// vertex are disjoint, and two lower germs along one direction would
+/// make one segment hold the other's cut or both be one segment: an
+/// invariant.
+fn strut_anchor<T: Decide>(
+    body: &Body<T>,
+    (operand, vertex): (Operand, VertexKey),
+    sectors: &[BoolSector<T>],
+    first: HalfEdgeKey,
+    germ: Cut<T>,
+    hung: &Hung<T>,
+    band: Band,
+) -> Result<HalfEdgeKey, BooleanError> {
+    let corrupt = || BooleanError::corrupt_at(operand, vertex);
+    let successor = |he: HalfEdgeKey| -> Result<HalfEdgeKey, BooleanError> {
+        let mate = body.mate(he).ok_or_else(corrupt)?;
+        Ok(body.get_half_edge(mate).ok_or_else(corrupt)?.next)
+    };
+    let mut he = first;
+    while let Some(at) = hung
+        .struts
+        .iter()
+        .find(|h| (h.operand, h.vertex, h.half) == (operand, vertex, he))
+        .map(|h| h.lower)
+    {
+        match precedes(sectors, at, germ, band)? {
+            Some(true) => he = successor(he)?,
+            Some(false) => break,
+            None => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "two dangling null edges in one corner start along one direction",
+                });
+            }
+        }
+    }
+    Ok(he)
+}
+
+/// Whether cut `p` comes before cut `q` walking forward through their
+/// one physical sector (`None`: the two lie along one direction).
+fn precedes<T: Decide>(
+    sectors: &[BoolSector<T>],
+    p: Cut<T>,
+    q: Cut<T>,
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
+    if p.0 == q.0 {
+        return walks_after(&sectors[p.0], p.1, q.1, band);
+    }
+    let n = sectors.len();
+    let mut first = p.0;
+    while !sectors[first].end_edge() {
+        first = (first + n - 1) % n;
+        if first == p.0 {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a vertex orbit whose sectors hold no edge bound",
+            });
+        }
+    }
+    let rel = |e: usize| (e + n - first) % n;
+    Ok(Some(rel(p.0) < rel(q.0)))
+}
+
+/// The edge of `operand`'s own solid a germ runs along, if its locus
+/// there is `OnEdge`.
+pub(super) fn own_locus_edge(operand: Operand, (_, loci): Cells) -> Option<EdgeKey> {
+    match (operand, loci) {
+        (Operand::A, (super::Locus::OnEdge(e), _)) | (Operand::B, (_, super::Locus::OnEdge(e))) => {
+            Some(e)
+        }
+        _ => None,
+    }
+}
+
+/// What a strut's corner edges say about which half faces which germ
+/// ([`strut_facing`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum StrutFacing {
+    /// `he_plus` faces the first germ and `he_minus` the second.
+    PlusFirst,
+    /// `he_minus` faces the first germ and `he_plus` the second.
+    MinusFirst,
+    /// Neither germ runs along the corner's edges: the edges name no
+    /// facing.
+    Unnamed,
+    /// The corner's two edges are one closed edge (its lone vertex) and
+    /// a germ runs along it: the germ leaves along one end of that edge
+    /// and arrives along the other, so the edge key names no half.
+    ClosedEdge,
+}
+
+/// **Which half of a strut faces which germ, where a germ runs along an
+/// edge of its own solid.** A strut splices its halves
+/// `[he_plus, he_minus]` into its corner between the arrival half and
+/// the departure half, so `he_plus` lies beside the arrival edge and
+/// `he_minus` beside the departure edge, and the half beside a germ's
+/// own locus edge is the half that faces it — an angular reading would
+/// meet such a germ exactly ON its comparison's bound.
+///
+/// Each germ along one of the two edges is a vote; the votes must
+/// agree, and two that name opposite facings are no strut the
+/// classification mints: refused. A germ inside a face casts none
+/// ([`StrutFacing::Unnamed`] when neither votes), and at a closed
+/// edge's lone vertex the edge key cannot say which end a germ along it
+/// runs from ([`StrutFacing::ClosedEdge`]); each caller states what it
+/// does then.
+pub(super) fn strut_facing(
+    arrival: EdgeKey,
+    departure: EdgeKey,
+    first: Option<EdgeKey>,
+    second: Option<EdgeKey>,
+) -> Result<StrutFacing, BooleanError> {
+    if arrival == departure {
+        let along = first == Some(arrival) || second == Some(arrival);
+        return Ok(if along {
+            StrutFacing::ClosedEdge
+        } else {
+            StrutFacing::Unnamed
+        });
+    }
+    let mut votes = [
+        (first == Some(arrival)).then_some(StrutFacing::PlusFirst),
+        (first == Some(departure)).then_some(StrutFacing::MinusFirst),
+        (second == Some(departure)).then_some(StrutFacing::PlusFirst),
+        (second == Some(arrival)).then_some(StrutFacing::MinusFirst),
+    ]
+    .into_iter()
+    .flatten();
+    let Some(facing) = votes.next() else {
+        return Ok(StrutFacing::Unnamed);
+    };
+    if votes.any(|v| v != facing) {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "a strut's germs run along its corner's edges in contradictory order",
+        });
+    }
+    Ok(facing)
+}
+
+/// **Whether the strut half met first faces the first germ**: whether
+/// `germs.0` lies angularly nearer than `germs.1` to the splice
+/// corner's arrival edge `e_dir`, measured inside the sector, which
+/// sweeps from its end bound (the arrival edge) clockwise about its
+/// face's outward `normal`.
+///
+/// Each germ is first placed in its half-turn by its side of the
+/// arrival edge, `(g × e)·n` (`bool_strut_side`): the near half-turn
+/// `[0, π)` reads positive, the far one `[π, 2π)` negative, and a germ
+/// on the edge's line is placed by [`super::sectors::direction_sense`]
+/// (along `e`: angle 0, near; against it: π, far). A germ in the near
+/// half-turn is the nearer. Within one half-turn the nearer germ is the
+/// one the other follows clockwise, `(g0 × g1)·n < 0`
+/// (`bool_strut_order`). Both readings are sines levered at `arm`, the
+/// shorter of the two sectors' bounding chords: the distance at that
+/// arm from one direction's line, so they are linear in the spacing
+/// at every angle, where a cosine is flat beside 0 and π. That is
+/// `splitting::containment`'s doctrine for angular windows: decided as
+/// distances, never as an angle. A decided zero, of a side whose
+/// direction sense is in band or of two germs along one direction,
+/// refuses: nothing orders the germs.
+fn strut_order<T: Decide>(
+    e_dir: Vec3<T>,
+    normal: Vec3<T>,
+    germs: (Vec3<T>, Vec3<T>),
+    arm: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+    let far = |g: Vec3<T>| -> Result<bool, BooleanError> {
+        let side = Margin::levered(g.cross(e_dir).dot(normal), arm);
+        match crate::validate::decide("bool_strut_side", side, band).map_err(refuse)? {
+            Sign::Positive => Ok(false),
+            Sign::Negative => Ok(true),
+            Sign::Zero => Ok(!super::sectors::direction_sense(g, e_dir, arm, band)?),
+        }
+    };
+    let (far0, far1) = (far(germs.0)?, far(germs.1)?);
+    if far0 != far1 {
+        return Ok(far1);
+    }
+    let order = Margin::levered(germs.0.cross(germs.1).dot(normal), arm);
+    match crate::validate::decide_nonzero_reported("bool_strut_order", order, band)
+        .map_err(refuse)?
+    {
+        NonzeroSign::Negative => Ok(true),
+        NonzeroSign::Positive => Ok(false),
+    }
 }
 
 /// The unit direction of an orbit half-edge away from its start
@@ -274,7 +1255,7 @@ fn anchor_dir<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<Vec3<T>, Boo
 /// The record's germ direction, by declared class: a `Tangent` pair's
 /// sector normals are PARALLEL along the contact (the tangency), so
 /// its germ direction is the verified closed-form locus
-/// ([`super::rest::tangent_locus`] — the DEV-1 witness the door
+/// ([`geom_brep::tangent_locus`] — the DEV-1 witness the door
 /// derived), signed into the sector pair by the same membership test;
 /// every other pair takes the transverse normal cross ([`germ_dir`]).
 fn record_germ_dir<T: Decide>(
@@ -282,7 +1263,7 @@ fn record_germ_dir<T: Decide>(
     b_body: &Body<T>,
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     // What the door read of the pair, which the questions below refuse
@@ -292,7 +1273,7 @@ fn record_germ_dir<T: Decide>(
         Coincide::TangentLocus,
         &[],
     );
-    if read != DeclarationRead::Spent(crate::contact::ContactClass::Tangent) {
+    if read != DeclarationRead::Spent(BooleanCoincidence::TANGENT) {
         return germ_dir(sa, sb, read, band);
     }
     let surface_of = |body: &Body<T>, face| {
@@ -305,9 +1286,10 @@ fn record_germ_dir<T: Decide>(
     };
     let s_a = surface_of(a_body, sa.face)?;
     let s_b = surface_of(b_body, sb.face)?;
-    let d = match super::rest::tangent_locus(&s_a, &s_b, band) {
-        Ok(super::rest::TangentLocus::Line { dir, .. }) => dir.normalize(),
-        Err(super::rest::TangentLocusError::Escalated(diag)) => {
+    let reach = declared.reach_of(super::Operand::A, sa.face, super::Operand::B, sb.face)?;
+    let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
+        Ok(geom_brep::TangentLocus::Line { dir, .. }) => dir.normalize(),
+        Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,
                 read,
@@ -319,8 +1301,8 @@ fn record_germ_dir<T: Decide>(
         // produce. Listed rather than wildcarded, so a new
         // `TangentLocusError` arm is classified here deliberately.
         Err(
-            super::rest::TangentLocusError::NotTangent { .. }
-            | super::rest::TangentLocusError::Unsupported { .. },
+            geom_brep::TangentLocusError::NotTangent { .. }
+            | geom_brep::TangentLocusError::Unsupported { .. },
         ) => {
             return Err(BooleanError::ClassificationInvariant {
                 what: "declared-Tangent germ without a closed-form locus",
@@ -468,22 +1450,26 @@ fn mint_run<T: Decide>(
     from: usize,
     to: usize,
     run_side: SideCode,
-    germ_meta: [((FaceKey, FaceKey), Vec3<T>); 2],
+    germ_meta: [(Cells, Vec3<T>); 2],
     spike_from_first: bool,
+    anchor: Option<HalfEdgeKey>,
 ) -> Result<BoolNullEdgeRecord<T>, BooleanError> {
     let hes = run_fan(sectors, from, to)?;
     let successor = |body: &Body<T>, he: HalfEdgeKey| -> Result<HalfEdgeKey, BooleanError> {
         let mate = body
             .mate(he)
-            .ok_or(BooleanError::CorruptOperand { operand, vertex })?;
+            .ok_or(BooleanError::corrupt_at(operand, vertex))?;
         Ok(body
             .get_half_edge(mate)
-            .ok_or(BooleanError::CorruptOperand { operand, vertex })?
+            .ok_or(BooleanError::corrupt_at(operand, vertex))?
             .next)
     };
     let (site, dangling) = if hes.is_empty() {
         // The dangling strut, inside `from`'s physical sector.
-        let he = successor(body, sectors[from].he)?;
+        let he = match anchor {
+            Some(he) => he,
+            None => successor(body, sectors[from].he)?,
+        };
         (MevSite::Fan { he1: he, he2: he }, true)
     } else {
         let first = hes[0];
@@ -539,11 +1525,16 @@ fn mint_run<T: Decide>(
             above_end: created.vertex,
         },
     };
-    let germ = |i: usize, he: crate::entity::HalfEdgeKey| super::HalfGerm {
-        he,
-        a_face: germ_meta[i].0.0,
-        b_face: germ_meta[i].0.1,
-        dir: germ_meta[i].1,
+    let germ = |i: usize, he: crate::entity::HalfEdgeKey| {
+        let (((a_face, b_face), (a_locus, b_locus)), dir) = germ_meta[i];
+        super::HalfGerm {
+            he,
+            a_face,
+            b_face,
+            a_locus,
+            b_locus,
+            dir,
+        }
     };
     // Germ ↔ half facing: for a fan the mev splice puts he_plus at the
     // from-germ cut and he_minus at the to-germ cut; a strut's spike
@@ -573,6 +1564,63 @@ mod tests {
     use super::*;
     use geom_core::Tol;
 
+    /// **`strut_facing`'s vote table.** `he_plus` lies beside the
+    /// arrival edge and `he_minus` beside the departure edge, so each
+    /// germ along one of them votes for the facing that puts the half
+    /// beside it toward it; agreeing votes stand, a contradiction
+    /// refuses, no vote is `Unnamed`, and one closed edge on both sides
+    /// with a germ along it is `ClosedEdge`.
+    #[test]
+    fn strut_facing_reads_the_corner_edges() {
+        use StrutFacing::{ClosedEdge, MinusFirst, PlusFirst, Unnamed};
+        let mut keys = slotmap::SlotMap::<EdgeKey, ()>::with_key();
+        let (arr, dep, other) = (keys.insert(()), keys.insert(()), keys.insert(()));
+        let f = |first, second| strut_facing(arr, dep, first, second);
+        // Each single vote.
+        assert_eq!(
+            f(Some(arr), None).unwrap(),
+            PlusFirst,
+            "first along arrival"
+        );
+        assert_eq!(
+            f(Some(dep), None).unwrap(),
+            MinusFirst,
+            "first along departure"
+        );
+        assert_eq!(
+            f(None, Some(dep)).unwrap(),
+            PlusFirst,
+            "second along departure"
+        );
+        assert_eq!(
+            f(None, Some(arr)).unwrap(),
+            MinusFirst,
+            "second along arrival"
+        );
+        // Agreeing pairs.
+        assert_eq!(f(Some(arr), Some(dep)).unwrap(), PlusFirst);
+        assert_eq!(f(Some(dep), Some(arr)).unwrap(), MinusFirst);
+        // No vote: germs inside faces, or along an edge off the corner.
+        assert_eq!(f(None, None).unwrap(), Unnamed);
+        assert_eq!(f(Some(other), Some(other)).unwrap(), Unnamed);
+        // Contradictions refuse.
+        for (first, second) in [(Some(arr), Some(arr)), (Some(dep), Some(dep))] {
+            assert!(
+                matches!(
+                    f(first, second),
+                    Err(BooleanError::ClassificationInvariant { .. })
+                ),
+                "{first:?} {second:?}"
+            );
+        }
+        // A closed edge's lone vertex.
+        let closed = |first, second| strut_facing(arr, arr, first, second).unwrap();
+        assert_eq!(closed(Some(arr), None), ClosedEdge);
+        assert_eq!(closed(None, Some(arr)), ClosedEdge);
+        assert_eq!(closed(None, None), Unnamed);
+        assert_eq!(closed(Some(other), None), Unnamed);
+    }
+
     /// The survivor-validation invariants: odd counts and dirty codes
     /// refuse loudly (unit-level; the geometric paths are pinned by the
     /// acceptance fixtures).
@@ -600,6 +1648,7 @@ mod tests {
             &[],
             &[],
             &recs,
+            &recs,
             &crate::boolean::DeclaredPairs::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
@@ -612,6 +1661,7 @@ mod tests {
             contact,
             &[],
             &[],
+            &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
@@ -656,6 +1706,7 @@ mod tests {
             &[],
             &[],
             &recs,
+            &recs,
             &crate::boolean::DeclaredPairs::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
@@ -666,15 +1717,16 @@ mod tests {
         );
     }
 
-    /// F12 stress, mechanism level: a valid 4-survivor (two-pair)
-    /// neighborhood — two consecutive record pairs, each a strut pair
-    /// in BOTH solids — mints 4 dangling null edges and 2
-    /// correspondence pairs on real cube vertices, F9 attributes
-    /// carried as data, tier 1 preserved. (A geometric 4-crossing
-    /// operand fixture is not constructible from the prismatic corpus;
-    /// the runtime guards above defend the invariant — PR report.)
+    /// F12 at mechanism level: four survivors, two consecutive record
+    /// pairs, each a strut in BOTH solids, on real cube vertices but
+    /// synthetic sectors. Every germ runs along `+y`, and the first
+    /// strut's arrival edge (a cube edge) is normal to its sector's
+    /// plane, so nothing orders the strut's two germs: the strut order
+    /// refuses at the first germ's side, before any mint. Four
+    /// survivors at one vertex pair in real geometry are
+    /// `work/join/four-germ-vertex-pairs-run-b-in-a-order`'s.
     #[test]
-    fn f12_four_survivor_pairing() {
+    fn f12_four_unordered_struts_refuse_before_any_mint() {
         use SideCode::{In, Out};
         let mk = |a: usize, b: usize, sa, sb| PairRecord {
             a,
@@ -732,31 +1784,34 @@ mod tests {
             mk(1, 1, (Out, In), (Out, In)),
             mk(1, 1, (In, Out), (In, Out)),
         ];
-        let out = insert_null_pairs(
+        let edges = (abody.edges().count(), bbody.edges().count());
+        let err = insert_null_pairs(
             &mut abody,
             &mut bbody,
             contact,
             &a_sectors,
             &b_sectors,
             &recs,
+            &recs,
             &crate::boolean::DeclaredPairs::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
-        .unwrap();
-        assert_eq!(out.pairs.len(), 2);
-        assert_eq!(out.edges.len(), 4);
-        assert!(out.edges.iter().all(|e| e.dangling));
-        for e in &out.edges {
-            assert_ne!(e.attr.below_end, e.attr.above_end);
-            // Dangling Out-run struts: the strut facing swap (he_minus
-            // at the from-germ) swaps the side labels with it (PR 5.5
-            // sense theorem — join module docs), so the minted copy is
-            // the below end here, NOT an echo of the mint side.
-            assert_eq!(
-                e.attr.above_end,
-                if e.operand == Operand::A { va } else { vb }
-            );
-        }
+        .expect_err("nothing orders the struts' germs");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::DirectionSense,
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+        assert_eq!(
+            (abody.edges().count(), bbody.edges().count()),
+            edges,
+            "no null edge minted"
+        );
         crate::validate::validate(&abody).unwrap();
         crate::validate::validate(&bbody).unwrap();
     }
@@ -807,5 +1862,93 @@ mod tests {
             "{err:?}"
         );
         assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{err}");
+    }
+
+    /// The strut order ranks two germs by their angle from the arrival
+    /// edge inside the sector, past a half-turn too. The sector sweeps
+    /// from the arrival edge `+x` clockwise about `+z`, so `-y` lies 90°
+    /// in, `-x` 180° and `+y` 270°. Each row's answer is whether the
+    /// first germ is the nearer; a cosine alone answers the far row the
+    /// other way round.
+    #[test]
+    fn the_strut_order_reads_angles_past_a_half_turn() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let at = |deg: f64| {
+            let t = -deg.to_radians();
+            Vec3::new(t.cos(), t.sin(), 0.0)
+        };
+        for (g0, g1, first_nearer, row) in [
+            (45.0, 90.0, true, "both in the near half-turn"),
+            (90.0, 45.0, false, "both in the near half-turn, swapped"),
+            (90.0, 270.0, true, "one in each half-turn"),
+            (270.0, 90.0, false, "one in each half-turn, swapped"),
+            (
+                180.0,
+                270.0,
+                true,
+                "both in the far half-turn, one on its bound",
+            ),
+            (270.0, 180.0, false, "both in the far half-turn, swapped"),
+            (300.0, 225.0, false, "both strictly in the far half-turn"),
+        ] {
+            assert_eq!(
+                strut_order(e, n, (at(g0), at(g1)), 1.0, band).unwrap(),
+                first_nearer,
+                "{row}: germs at {g0}° and {g1}°"
+            );
+        }
+    }
+
+    /// REVIEW (join/reflex-corner-review): two germs decidedly apart in
+    /// angle (each germ's side `(g × e)·n` decides at these spacings),
+    /// but both beside a half-turn bound, where the cosine is flat: the
+    /// cosine difference is second order in the spacing and falls inside
+    /// the band. The strut order must then either order them rightly or
+    /// escalate; a decided zero read as "the second is nearer" is a
+    /// silent wrong pick. The spacing, 0.001°, is 1.7e-5 at the unit
+    /// arm: some 17 000 bands; the cross product of the two germs,
+    /// `(g0 × g1)·n`, reads it to first order.
+    #[test]
+    fn review_the_strut_order_never_misorders_germs_beside_a_half_turn_bound() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let at = |deg: f64| {
+            let t = -deg.to_radians();
+            Vec3::new(t.cos(), t.sin(), 0.0)
+        };
+        let mut wrong = Vec::new();
+        for (g0, g1) in [
+            (0.001, 0.002),
+            (179.998, 179.999),
+            (180.0, 180.001),
+            (180.001, 180.002),
+            (0.002, 0.001),
+            (180.001, 180.0),
+        ] {
+            let truth = g0 < g1;
+            match strut_order(e, n, (at(g0), at(g1)), 1.0, band) {
+                Ok(got) if got != truth => wrong.push(format!("{g0}°/{g1}°: got {got}")),
+                _ => {}
+            }
+        }
+        assert!(wrong.is_empty(), "silently misordered: {wrong:?}");
+    }
+
+    /// REVIEW (join/reflex-corner-review): an arrival edge along the
+    /// face normal (the synthetic sectors of `f12_four_survivor_pairing`)
+    /// leaves every germ's side, its along-reading and the cosine
+    /// difference a decided zero. Nothing then orders the germs, and
+    /// the order must escalate rather than answer.
+    #[test]
+    fn review_the_strut_order_escalates_when_nothing_orders_the_germs() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        let germs = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
+        let got = strut_order(n, n, germs, 1.0, band);
+        assert!(
+            got.is_err(),
+            "decided with no comparand away from zero: {got:?}"
+        );
     }
 }

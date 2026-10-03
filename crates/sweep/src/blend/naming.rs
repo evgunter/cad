@@ -142,7 +142,8 @@ pub struct Retired {
     /// output. `surgery::retire_fragment` is that rule's one home.
     pub edges: Vec<EdgeKey>,
     /// Source vertices that no longer exist: the sharp corners fused
-    /// under their octants, and the rim vertices.
+    /// under their octants, the joints a band was fused across, and the
+    /// rim vertices.
     pub vertices: Vec<VertexKey>,
 }
 
@@ -151,8 +152,9 @@ pub struct Retired {
 /// `(minted key, the source entity it was minted for, …)`, in the
 /// deterministic order the constructor visited them (D9).
 ///
-/// A request whose chains are all open fills `blends`, `corners`,
-/// `trims`, `feet`, `arcs` and `dead`, leaving every rim field empty;
+/// A request whose chains are all open fills `blends` (or
+/// `joined_blends`), `corners`, `trims`, `feet`, `arcs` and `dead`,
+/// leaving every rim field empty;
 /// a closed (rim) chain fills the rim phase as well.
 #[derive(Clone, Debug, Default)]
 pub struct BlendNaming {
@@ -162,6 +164,12 @@ pub struct BlendNaming {
     /// band — about a corner-terminated or a cap-terminated spine — or
     /// the chamfer's ruled strip).
     pub blends: Vec<(FaceKey, EdgeKey)>,
+    /// Blend face ← the source edges of the open chain it spans, in
+    /// chain order, where that chain is SEVERAL links joined at joints
+    /// (consecutive links on the same two supports, carved as one band
+    /// face). A one-link band is a [`BlendNaming::blends`] row instead,
+    /// so every open band face has exactly one row between the two.
+    pub joined_blends: Vec<(FaceKey, Vec<EdgeKey>)>,
     /// Corner face ← the source (trivalent, sharp) vertex it
     /// replaces: the fillet's sphere octant, or the chamfer's flat
     /// triangular patch.
@@ -169,7 +177,7 @@ pub struct BlendNaming {
     /// Trimline edge ← (the source edge it parallels, the support
     /// face it lies in).
     pub trims: Vec<(EdgeKey, EdgeKey, FaceKey)>,
-    /// Foot vertex ← (the source corner or cap vertex it retracts from,
+    /// Foot vertex ← (the source corner, joint or cap vertex it retracts from,
     /// the support face it lies in). At a transverse cap the foot sits
     /// on the cap's rim edge, where the support's trimline meets the
     /// cap plane.

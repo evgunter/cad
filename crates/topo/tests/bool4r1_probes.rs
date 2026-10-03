@@ -86,7 +86,7 @@ fn verdicts(
 
 /// `true` when every coordinate of `p` is one of `vals`.
 fn coords_in(p: Point3<f64>, vals: &[f64]) -> bool {
-    [p.x, p.y, p.z]
+    p.to_array()
         .iter()
         .all(|c| vals.iter().any(|v| (c - v).abs() < 1e-12))
 }

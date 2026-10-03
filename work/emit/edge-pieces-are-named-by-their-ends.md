@@ -2,8 +2,9 @@
 id: edge-pieces-are-named-by-their-ends
 kind: unit
 title: Edge pieces are named by their ends; the Split's same-side faces by the edges they keep
-status: review
+status: closed
 opened: 2026-10-01
+closed: 2026-10-01
 priority: P0
 cost: H
 refs: [curved-seam-pieces-have-no-ranking-direction, a-plane-split-of-a-curved-face-refuses-as-an-emission-bug, a-split-mints-a-twice-crossed-edges-pieces-under-one-name, edge-dir-is-a-chord-so-curved-edge-pieces-misrank]

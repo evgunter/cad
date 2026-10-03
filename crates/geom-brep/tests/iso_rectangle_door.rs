@@ -4,12 +4,14 @@
 //! wanting a volume.
 //!
 //! Every row is built as key-free `LoopEdge`s and run through the door
-//! AND through `curved_face`, so the rows state where the two agree
-//! (a rectangle passes both, a notch refuses both by `props_rim_level`,
-//! an oblique sphere section refuses both by the same incidence name)
-//! and the rimless lune, a chart rectangle the door admits on the
-//! shape alone while the flux lane measures it at the width its loop
-//! bounds — two premises, one face.
+//! AND through `curved_face`, so the rows state where the two agree (a
+//! rectangle passes both) and where they part: a notched cylinder wall,
+//! which the door refuses by `props_rim_level` while the cylinder's
+//! chart Green form measures it; an oblique sphere section, which the
+//! door refuses on incidence and the flux lane measures by
+//! Gauss–Bonnet; and the rimless lune, a chart rectangle the door
+//! admits on the shape alone while the flux lane measures it at the
+//! width its loop bounds — two premises, one face.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::point::{p3, v3};
@@ -70,10 +72,12 @@ fn great(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 }
 
 /// A cylinder rectangle passes the door and measures; the U-shaped
-/// keyway (a notch cut into the top rim) refuses at the door AND at the
-/// flux lane, both by `props_rim_level` — one predicate, two callers.
+/// keyway (a notch cut into the top rim) refuses at the door by
+/// `props_rim_level`, and the flux lane measures it: its chart area is
+/// the `1.5 × 1` rectangle less the `0.5 × 0.4` notch, on the unit
+/// radius about the origin, so area and flux are both `1.3`.
 #[test]
-fn a_keyway_refuses_at_the_door_by_the_same_name_the_flux_lane_uses() {
+fn a_keyway_refuses_at_the_door_and_measures_in_the_flux_lane() {
     let rect = vec![
         rim(0.0, 0.0, 1.5, 0, 1),
         mer(1.5, 0.0, 1.0, 1, 2),
@@ -96,10 +100,9 @@ fn a_keyway_refuses_at_the_door_by_the_same_name_the_flux_lane_uses() {
         what: "props_rim_level",
     });
     assert_eq!(require_iso_rectangle(&cylinder(), &keyway, band()), want);
-    assert_eq!(
-        curved_face(&cylinder(), &keyway, true, band()).map(|_| ()),
-        want
-    );
+    let c = curved_face(&cylinder(), &keyway, true, band()).expect("the keyway measures");
+    assert!((c.area - 1.3).abs() < 1e-15, "area {}", c.area);
+    assert!((c.flux - 1.3).abs() < 1e-15, "flux {}", c.flux);
 }
 
 /// **Two homes, one lune.** A lune between two great circles a
@@ -132,9 +135,13 @@ fn a_rimless_lune_passes_the_door_and_measures() {
 /// nor a great circle. The door classifies it a rim (`n·â` definite)
 /// and refuses its incidence: the circle's axis is not the sphere's.
 /// This is the `walk::iso_side_starts` qualification's face, refused
-/// on rim structure before any walk could collapse it.
+/// on rim structure before any walk could collapse it. The flux lane
+/// measures the same face — the cap the section bounds, split into two
+/// arcs — without a chart, at the cap's area `2πR·h` (`h = R − d`) and
+/// its flux `R·Area + c·A⃗`; with the centre at the origin the flux is
+/// `R·Area`.
 #[test]
-fn an_oblique_sphere_section_is_refused_on_rim_incidence() {
+fn an_oblique_sphere_section_is_refused_by_the_door_and_measured_by_the_flux_lane() {
     let (a, d) = (0.6_f64, 0.3_f64);
     let r = (1.0 - d * d).sqrt();
     let n = v3(a.sin(), 0.0, a.cos());
@@ -152,17 +159,41 @@ fn an_oblique_sphere_section_is_refused_on_rim_incidence() {
             e,
         )
     };
-    // Two arcs of the one oblique circle closing a loop on their own:
-    // the door refuses on the FIRST edge's incidence, so the loop's
-    // closure is not what is under test here.
-    let lens = vec![section(0.0, 3.0, 0, 1), section(3.0, 6.0, 1, 0)];
-    let want = Err(PropsError::NotIsoRectangle {
-        what: "props_rim_axis_parallel",
-    });
-    assert_eq!(require_iso_rectangle(&sphere(), &lens, band()), want);
+    let tau = core::f64::consts::TAU;
+    let cap = vec![section(0.0, 3.0, 0, 1), section(3.0, tau, 1, 0)];
     assert_eq!(
-        curved_face(&sphere(), &lens, true, band()).map(|_| ()),
-        want
+        require_iso_rectangle(&sphere(), &cap, band()),
+        Err(PropsError::NotIsoRectangle {
+            what: "props_rim_axis_parallel",
+        })
+    );
+    let fc = curved_face(&sphere(), &cap, true, band()).expect("the flux lane measures the cap");
+    let area = 2.0 * core::f64::consts::PI * (1.0 - d);
+    assert!((fc.area - area).abs() < 1e-12, "area {} != {area}", fc.area);
+    assert!((fc.flux - area).abs() < 1e-12, "flux {} != {area}", fc.flux);
+    // Traversed the other way round under the same bit, the loop bounds
+    // the complement — the face lies to the left of its traversal — and
+    // the arm measures that.
+    let rev: Vec<_> = cap
+        .iter()
+        .rev()
+        .map(|e| LoopEdge {
+            forward: !e.forward,
+            start: e.end,
+            end: e.start,
+            ..e.clone()
+        })
+        .collect();
+    let fc = curved_face(&sphere(), &rev, true, band()).expect("the complement measures");
+    let big = 4.0 * core::f64::consts::PI - area;
+    assert!((fc.area - big).abs() < 1e-12, "area {} != {big}", fc.area);
+    // A loop whose arcs do not meet is refused, not integrated.
+    let open = vec![section(0.0, 3.0, 0, 1), section(3.0, 6.0, 1, 0)];
+    assert_eq!(
+        curved_face(&sphere(), &open, true, band()).map(|_| ()),
+        Err(PropsError::SphereLoop {
+            what: "props_sphere_loop_closed",
+        })
     );
 }
 
@@ -470,7 +501,7 @@ fn the_doors_zero_extent_charter_is_exactly_at_zero() {
             assert!(
                 matches!(
                     &door,
-                    Err(PropsError::Escalated { cause })
+                    Err(PropsError::Escalated { cause, .. })
                         if cause.predicate == Some("props_rim_side")
                 ),
                 "extent {dv:.3e}: an in-band extent has no extreme to place a rim at: {door:?}"

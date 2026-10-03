@@ -37,23 +37,23 @@ fn doc_with_axis_dir(
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Datum(Datum::Axis {
+            node: Box::new(Node::Datum(Datum::Axis {
                 origin: [len(0.0), len(0.0), len(0.0)],
                 direction: dir.map(scl),
-            }),
+            })),
         },
     );
     let spine = *doc.order().last().expect("datum");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Tube {
+            node: Box::new(Node::Tube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
-            },
+            }),
         },
     );
     let tube = *doc.order().last().expect("tube");

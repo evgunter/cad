@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::sync::Arc;
 
@@ -60,6 +61,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -81,12 +83,9 @@ fn wall(doc: &ProfileDoc, bar: RecipeNodeId, segment: u32) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: bar,
-        path: vec![RoleSeg::Lateral(crate::fixture::piece(
-            doc,
-            bar,
-            0,
-            segment as usize,
-        ))],
+        path: vec![RoleSeg::Lateral(
+            crate::fixture::piece(doc, bar, 0, segment as usize).into(),
+        )],
     }
 }
 
@@ -111,7 +110,7 @@ fn slot() -> Slot {
             op: BooleanOp::Subtract,
             a,
             b: tr,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     Slot {
@@ -279,11 +278,12 @@ fn one_node_eval(
     nodes.insert(
         node,
         editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Declarations(vec![]),
+            payload: editor_core::ValuePayload::Gauge,
             name_table: Arc::new(t),
             fragment_groups: Arc::new(groups),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            parts: 1,
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
             placement: None,
@@ -294,6 +294,8 @@ fn one_node_eval(
     );
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        unplaced: Default::default(),
+        unplaced_below: Default::default(),
         document,
         prior_refused: None,
         order: vec![node],
@@ -306,7 +308,7 @@ fn one_node_eval(
     }
 }
 
-/// A two-`declare_rest` document and the vanished/base/wall names
+/// A two-frame document and the vanished/base/wall names
 /// over its first node. The document is deliberately geometry-free:
 /// every row below decides a rung's PLACE, and none of them may depend
 /// on a body existing.
@@ -325,9 +327,9 @@ struct Hand {
 fn hand() -> Hand {
     let (doc, n) = insert(
         ProfileDoc::empty_derived("bool7-hand", Tol::witness()),
-        Node::declare_rest(vec![]),
+        fixture::xy_frame(),
     );
-    let (doc, m) = insert(doc, Node::declare_rest(vec![]));
+    let (doc, m) = insert(doc, fixture::xy_frame());
     let of = minted(EntityKind::Body, n, RoleSeg::OutputBody);
     let wall = |rank| StableName {
         kind: EntityKind::Body,

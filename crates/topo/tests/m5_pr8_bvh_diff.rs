@@ -318,6 +318,7 @@ fn pad_zero_regression_is_caught() {
     let (r_ab, r_ba) = sweep_traces_with_pad(
         &a,
         &b,
+        &topo::BooleanDeclarations::none(),
         SweepStrategy::Realized,
         None,
         Some(0.0),
@@ -383,25 +384,37 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
             );
         }
         // The VALUE-channel pin: out of band the full boolean is
-        // byte-equal through either strategy. IN band, BOTH refuse —
-        // the in-band margin that the realized sweep prunes is caught
-        // again by the disjoint-operands containment stage
-        // (`bool_point_in_solid_plane`), so no strategy ever returns
-        // a silent value; the divergence is confined to the REFUSAL
-        // SITE (sweep side test vs solid containment), pinned here
-        // predicate-by-predicate.
+        // byte-equal through either strategy. IN band the idealized
+        // sweep refuses at its grazing side test, and the realized one,
+        // having pruned the remote pair, answers: the operands are
+        // disjoint, and every containment witness reads `Out`
+        // (`every_grazing_witness_reads_out_against_the_far_brick`).
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
             let decls = topo::BooleanDeclarations::none();
             let real = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Realized, Tol::witness());
             let ideal =
                 boolean_op_with(op, &a, &b, &decls, SweepStrategy::Idealized, Tol::witness());
             if k > 1.0 && k < tol.k {
-                let re = real.expect_err("in-band realized refuses at containment");
-                let ie = ideal.expect_err("in-band idealized refuses at the sweep");
+                let re = real.unwrap_or_else(|e| panic!("k = {k} / {op:?}: realized: {e:?}"));
+                let volume = re.body().map(|bb| {
+                    topo::mass_properties(&bb.body, Tol::witness())
+                        .unwrap()
+                        .volume
+                });
+                let disjoint = match op {
+                    BooleanOp::Union => Some(2.0),
+                    BooleanOp::Intersect => None,
+                    BooleanOp::Subtract => Some(1.0),
+                };
                 assert!(
-                    format!("{re:?}").contains("bool_point_in_solid_plane"),
-                    "k = {k} / {op:?}: realized refusal site, got {re:?}"
+                    match (volume, disjoint) {
+                        (Some(v), Some(w)) => (v - w).abs() < 1e-9,
+                        (None, None) => true,
+                        _ => false,
+                    },
+                    "k = {k} / {op:?}: the disjoint answer, got volume {volume:?}"
                 );
+                let ie = ideal.expect_err("in-band idealized refuses at the sweep");
                 assert!(
                     format!("{ie:?}").contains("bool_vertex_face_side"),
                     "k = {k} / {op:?}: idealized refusal site, got {ie:?}"
@@ -411,6 +424,43 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
                     format!("{:?}", real.unwrap()),
                     format!("{:?}", ideal.unwrap()),
                     "k = {k} / {op:?}: value channel diverged"
+                );
+            }
+        }
+    }
+}
+
+/// The grazing pose above, read witness by witness: every witness the
+/// shell ladder can offer — each corner, edge midpoint and face centre
+/// of either brick — reads `Out` against the other brick, at every gap
+/// in the band. Each sits within the band of a carrier of the other's
+/// faces (A's bottom, B's top, the side planes both share) while 4 m or
+/// more from the face itself; a reading in band of a far face, or of a
+/// ray's hit near a far face's loop, would refuse here instead.
+#[test]
+fn every_grazing_witness_reads_out_against_the_far_brick() {
+    let tol = Tol::witness();
+    let zero = tol.get().eps;
+    let band = geom_core::Band::linear(tol).unwrap();
+    for k in [2.0, 5.0, 9.0] {
+        let d = k * zero;
+        let ranges_a = [(5.0, 6.0), (0.0, 1.0), (1.0 + d, 2.0 + d)];
+        let ranges_b = [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)];
+        let body = |r: [(f64, f64); 3]| -> Body<f64> { brick(r[0], r[1], r[2], tol) };
+        for (name, own, other) in [
+            ("A against B", ranges_a, body(ranges_b)),
+            ("B against A", ranges_b, body(ranges_a)),
+        ] {
+            let at = |r: (f64, f64), i: usize| [r.0, 0.5 * (r.0 + r.1), r.1][i];
+            for (i, j, l) in (0..27).map(|n| (n / 9, (n / 3) % 3, n % 3)) {
+                if (i, j, l) == (1, 1, 1) {
+                    continue; // the centre is no witness
+                }
+                let q = geom_core::Point3::new(at(own[0], i), at(own[1], j), at(own[2], l));
+                let got = topo::point_in_solid(&other, q, band, tol);
+                assert!(
+                    matches!(got, Ok(topo::SolidContainment::Out)),
+                    "k = {k}, {name}: witness {q:?} reads {got:?}, not Out"
                 );
             }
         }

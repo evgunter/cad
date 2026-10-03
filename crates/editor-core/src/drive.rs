@@ -105,6 +105,7 @@ use crate::eval::{
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::{FlipSet, diff_verdicts};
+use crate::spoken::SpokenNode;
 // The two derived verdict forms live in one module (`resolve::vdiff`);
 // this driver is the strict form's certifying consumer, and names it at
 // `drive::` because that is where every consumer already reaches for it.
@@ -625,9 +626,43 @@ pub enum RefusalReason {
     MeasureRefused {
         /// The measure node that could not be taken.
         node: RecipeNodeId,
-        /// The engine's or the wiring's own class name for it.
-        class: &'static str,
+        /// Which refusal it was, typed.
+        class: MeasureRefusalClass,
     },
+}
+
+/// **Which measure refusal a smaller box cannot change**, as a type
+/// rather than a name.
+///
+/// The wiring's own arm and the clearance engine's refusal are two
+/// vocabularies, and one `&'static str` carrying both let a reader that
+/// wanted the arm match a string while nothing stopped the two
+/// colliding. The engine's typed refusal arrives at the measure layer
+/// already typed, and this is one hop further on, so it stays typed:
+/// `Clearance` holds the engine's own value.
+///
+/// [`Self::name`] is the serialized form, which is unchanged — the
+/// receipt reads only the name.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MeasureRefusalClass {
+    /// The selection resolved to the wrong KIND of entity
+    /// ([`NodeErrorKind::MeasureSelectionKind`]).
+    SelectionKind,
+    /// The clearance engine refused, with its own refusal
+    /// ([`NodeErrorKind::MeasureClearanceRefused`]).
+    Clearance(crate::clearance::ClearanceRefusal),
+}
+
+impl MeasureRefusalClass {
+    /// The class's name in a receipt: the wiring's own for its arm, the
+    /// engine's own for the engine's.
+    #[must_use]
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::SelectionKind => "selection_kind",
+            Self::Clearance(r) => r.name(),
+        }
+    }
 }
 
 impl RefusalReason {
@@ -1213,8 +1248,9 @@ pub enum DriveRefusal {
     /// error; evaluating the document at `f64` hands back the error
     /// itself.
     WitnessDoesNotBuild {
-        /// The first node, in evaluation order, that did not build.
-        node: RecipeNodeId,
+        /// The first node, in evaluation order, that did not build,
+        /// spoken from the driven document.
+        node: SpokenNode,
         /// The node error's rendering.
         cause: String,
     },
@@ -1242,8 +1278,9 @@ pub enum DriveRefusal {
     /// is in the message: drive this document with
     /// [`SymbolicDials::off`].
     SymbolicClearanceUnsupported {
-        /// The measure node whose primitive has no lane.
-        node: RecipeNodeId,
+        /// The measure node whose primitive has no lane, spoken from
+        /// the driven document.
+        node: SpokenNode,
     },
 }
 
@@ -1252,9 +1289,8 @@ impl core::fmt::Display for DriveRefusal {
         match self {
             Self::WitnessDoesNotBuild { node, cause } => write!(
                 f,
-                "the witness build refuses at node {}: {cause} — there is no branch to certify \
-                 leaves against until the nominal document builds",
-                node
+                "the witness build refuses at {node}: {cause} — there is no branch to certify \
+                 leaves against until the nominal document builds"
             ),
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
@@ -1262,10 +1298,9 @@ impl core::fmt::Display for DriveRefusal {
             ),
             Self::SymbolicClearanceUnsupported { node } => write!(
                 f,
-                "node {} measures a `min_clearance`, whose engine has no lane at the symbolic \
+                "{node} is a `min_clearance`, whose engine has no lane at the symbolic \
                  identity tier — drive with `DriveConfig {{ symbolic: SymbolicDials::off(), .. }}` \
-                 to get the numeric-only answer, or measure a closed form",
-                node
+                 to get the numeric-only answer, or measure a closed form"
             ),
         }
     }
@@ -1299,7 +1334,9 @@ pub fn drive(
     if config.symbolic.enabled
         && let Some(node) = clearance_measure(doc)
     {
-        return Err(DriveRefusal::SymbolicClearanceUnsupported { node });
+        return Err(DriveRefusal::SymbolicClearanceUnsupported {
+            node: doc.spoken(node),
+        });
     }
 
     // The WITNESS build: the document at its nominals, at f64, with the
@@ -1318,7 +1355,10 @@ pub fn drive(
         let cause = witness
             .node_error(node)
             .map_or_else(|| standing.to_string(), |e| e.kind.to_string());
-        return Err(DriveRefusal::WitnessDoesNotBuild { node, cause });
+        return Err(DriveRefusal::WitnessDoesNotBuild {
+            node: doc.spoken(node),
+            cause,
+        });
     }
     let witness_vector = Arc::new(certifying_vector(doc, &witness));
     let witness_key = witness_vector.key();
@@ -2058,7 +2098,7 @@ fn render_reason(r: &RefusalReason) -> String {
     match r {
         RefusalReason::SliverTerminal { predicate } => format!("sliver_terminal {predicate}"),
         RefusalReason::MeasureRefused { node, class } => {
-            format!("measure_refused {} {class}", node.full())
+            format!("measure_refused {} {}", node.full(), class.name())
         }
         RefusalReason::FlipCrossing { flipped } => {
             let mut s = String::from("flip_crossing");
@@ -2201,23 +2241,24 @@ pub fn assertion_at(
 ///
 /// [`ClearanceRefusal`]: crate::clearance::ClearanceRefusal
 /// [`MinClearanceLane`]: crate::measure::MinClearanceLane
-fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
+fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalClass> {
     match kind {
         // The selection resolved to the wrong KIND of entity. Document
         // structure; no parameter value moves it.
-        NodeErrorKind::MeasureSelectionKind { .. } => Some("selection_kind"),
+        NodeErrorKind::MeasureSelectionKind { .. } => Some(MeasureRefusalClass::SelectionKind),
         NodeErrorKind::MeasureClearanceRefused(r) => {
             use crate::clearance::ClearanceRefusal as C;
+            let engine = || Some(MeasureRefusalClass::Clearance(r.clone()));
             match r {
                 // Reached: which faces are in scope, whether the two
                 // scopes pair at all, and whether the carrier has an
                 // implementation are decided by the document's own
                 // topology and the engine's support table, not by the box.
-                C::EmptyScope | C::NoAdmittedPair | C::Unsupported { .. } => Some(r.name()),
+                C::EmptyScope | C::NoAdmittedPair | C::Unsupported { .. } => engine(),
                 // Not reached from `min_separation`. The bound and the
                 // run's tolerance are fixed for the whole drive, so no
                 // sub-box changes them either.
-                C::NotADistance { .. } | C::ToleranceHasNoBand => Some(r.name()),
+                C::NotADistance { .. } | C::ToleranceHasNoBand => engine(),
                 // Reached: an enclosure that did not evaluate over this
                 // box (NaI, or empty) may evaluate over a smaller one, so
                 // nothing proves it box-independent.

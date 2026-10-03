@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box, std_deviation};
 use editor_core::drive::{DriveConfig, drive};
@@ -146,6 +147,7 @@ fn stepped_shaft_sized(
     let base = r.insert(Node::Extrude {
         profile: base_p,
         distance: param("h1", Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let boss_p = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
@@ -157,6 +159,7 @@ fn stepped_shaft_sized(
     let boss_raw = r.insert(Node::Extrude {
         profile: boss_p,
         distance: param("h2", Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let boss = r.insert(Node::transform(
         boss_raw,
@@ -242,6 +245,7 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     let slab = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall; their
     // distance is `w`, so ∂m/∂w = 1 exactly.
