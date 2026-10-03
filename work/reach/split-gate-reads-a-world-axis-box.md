@@ -2,10 +2,12 @@
 id: split-gate-reads-a-world-axis-box
 kind: issue
 title: The split gate reads a world-axis-aligned box, so a cut clear of a sphere face refuses or splits by the body's pose
-status: open
+status: review
 opened: 2026-10-02
 priority: P1
 cost: M
+pr: 3982
+branch: reach/split-gate-oriented-box
 ---
 
 
