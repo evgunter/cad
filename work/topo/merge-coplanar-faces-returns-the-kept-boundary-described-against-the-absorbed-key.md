@@ -54,10 +54,15 @@ Either way, a public door must not return a strand at rest.
 
 The witness reds on the merge base through both doors: a declared
 merge, and an undeclared one on two keys of one surface source, each
-leave `DescriptionNotAdjacent` on the absorbed wall's three edges. The
-door now re-describes every boundary edge of each kept face through
-the boolean's describer (`boolean::describe_edges`) before its tier-2
-gate, and refuses `KeptBoundaryStranded` rather than return an edge
-tier 3 would name. The boolean's worklist keeps the seam edges and the
-skipped groups' faces only. Rows: `merge_faces::kept_rows`, and
-`boolean::ops::tests::the_description_worklist_carries_no_kept_boundary`.
+leave `DescriptionNotAdjacent` on the absorbed wall's three edges. After
+its tier-2 gate, the door now re-describes every boundary edge of each
+kept face once, through the boolean's describer
+(`boolean::describe_edges`), so none comes back with
+`DescriptionNotAdjacent`; an edge it cannot describe refuses in the
+door's own words (`KeptBoundaryUndescribed`, `KeptBoundaryUndecided`),
+which the boolean maps back to its own refusal. The boolean's worklist
+keeps the seam edges and the skipped groups' faces only. Rows:
+`merge_faces::kept_rows`, and `boolean::ops::tests`'
+`the_description_worklist_carries_no_kept_boundary`,
+`a_boundary_edge_between_two_listed_faces_is_listed_once` and
+`a_kept_boundary_refusal_comes_back_as_the_booleans_own`.
