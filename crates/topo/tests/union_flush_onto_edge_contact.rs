@@ -155,6 +155,37 @@ fn wedge(d0: f64, d1: f64, z: (f64, f64), tol: Tol) -> Body<f64> {
     common::prism_z(&[(0.0, 0.0), at(d0), at(d1)], z.0, z.1, tol).body
 }
 
+/// The wedge from 80° to 190° over z ∈ (0.5, 1), sheared by `shear`
+/// per unit of height above 0.5: its corner stays at the pinch's lower
+/// end and its vertical edge leans off the pinch line.
+fn sheared_wedge(shear: (f64, f64), tol: Tol) -> Body<f64> {
+    let mut body = Body::<f64>::new();
+    common::prism_ops(
+        &mut body,
+        &triangle(80.0, 190.0),
+        (0.5, 1.0),
+        |x, y, z| geom_core::Point3::new(x + shear.0 * (z - 0.5), y + shear.1 * (z - 0.5), z),
+        common::FaceGeometry::Certified,
+        tol,
+    );
+    common::describe_as_intersections(&mut body, tol);
+    body
+}
+
+/// The vertices of `body` at `p`, sorted.
+fn keys_at(body: &Body<f64>, p: (f64, f64, f64)) -> Vec<topo::VertexKey> {
+    let mut keys: Vec<topo::VertexKey> = body
+        .vertices()
+        .filter(|(_, v)| {
+            body.get_point(v.point)
+                .is_some_and(|q| (q.x, q.y, q.z) == p)
+        })
+        .map(|(k, _)| k)
+        .collect();
+    keys.sort();
+    keys
+}
+
 /// Each op of `pinch` and `cutter`, in both operand orders and with
 /// `carried` as the pinch's own records, builds at its volume and
 /// passes 3′: `pinch ∪ cutter`, `pinch ∖ cutter`, `pinch ∩ cutter` and
@@ -248,13 +279,54 @@ fn a_vertex_crossing_both_sides_of_a_pinch_builds_in_every_op() {
     );
 }
 
+/// The triangle of a unit-radius wedge from `d0` to `d1` degrees.
+fn triangle(d0: f64, d1: f64) -> [(f64, f64); 3] {
+    let at = |deg: f64| (deg.to_radians().cos(), deg.to_radians().sin());
+    [(0.0, 0.0), at(d0), at(d1)]
+}
+
+/// The area of a counterclockwise polygon.
+fn area(p: &[(f64, f64)]) -> f64 {
+    let n = p.len();
+    (0..n)
+        .map(|i| p[i].0 * p[(i + 1) % n].1 - p[(i + 1) % n].0 * p[i].1)
+        .sum::<f64>()
+        / 2.0
+}
+
+/// `subject` clipped to the convex counterclockwise `window`
+/// (Sutherland–Hodgman): the volumes below are read off it, outside
+/// the kernel.
+fn clip(subject: &[(f64, f64)], window: &[(f64, f64)]) -> Vec<(f64, f64)> {
+    let mut out = subject.to_vec();
+    for k in 0..window.len() {
+        let (a, b) = (window[k], window[(k + 1) % window.len()]);
+        let side = |p: (f64, f64)| (b.0 - a.0) * (p.1 - a.1) - (b.1 - a.1) * (p.0 - a.0);
+        let cross = |p: (f64, f64), q: (f64, f64)| {
+            let t = side(p) / (side(p) - side(q));
+            (p.0 + t * (q.0 - p.0), p.1 + t * (q.1 - p.1))
+        };
+        let input = std::mem::take(&mut out);
+        for i in 0..input.len() {
+            let (p, q) = (input[i], input[(i + 1) % input.len()]);
+            match (side(p) >= 0.0, side(q) >= 0.0) {
+                (true, true) => out.push(q),
+                (true, false) => out.push(cross(p, q)),
+                (false, true) => out.extend([cross(p, q), q]),
+                (false, false) => {}
+            }
+        }
+    }
+    out
+}
+
 /// Wedges about the z-axis over z ∈ (0.5, 1.5), folded into one body by
 /// unions with each step's records carried: they touch only along the
 /// axis, a pinch with a vertex per wedge at each end. Cut by the wedge
 /// over `cutter` at z ∈ (0.5, 1), which crosses into the outer two and
-/// holds the ones between, every op builds at `want` (∪, pinch ∖
-/// cutter, ∩) and `cutter ∖ pinch` at the rest of the cutter.
-fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), want: [f64; 3], tol: Tol) {
+/// holds the ones between, every op builds at the volume the wedges'
+/// triangles clipped to the cutter's give.
+fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), tol: Tol) {
     let fold = |acc: &BooleanBody<f64>, next: &Body<f64>| {
         let mut decls = flush_declarations(&acc.body, next, tol);
         decls.carried_a.vv = rest_rows(&acc.contacts);
@@ -283,13 +355,23 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), want: [f64;
         n * (n - 1),
         "{n} vertices at each end of the pinch line, a row per two"
     );
-    let [union, pinch_less, common] = want;
-    let cutter_volume = 0.5 * (cutter.1 - cutter.0).to_radians().sin() * 0.5;
+    let window = triangle(cutter.0, cutter.1);
+    let pinch_volume: f64 = spans.iter().map(|&(d0, d1)| area(&triangle(d0, d1))).sum();
+    let cutter_volume = area(&window) * 0.5;
+    let common: f64 = spans
+        .iter()
+        .map(|&(d0, d1)| area(&clip(&triangle(d0, d1), &window)) * 0.5)
+        .sum();
     every_op_builds(
         &pinch.body,
         &rest_rows(&pinch.contacts),
         &wedge(cutter.0, cutter.1, (0.5, 1.0), tol),
-        [union, pinch_less, common, cutter_volume - common],
+        [
+            pinch_volume + cutter_volume - common,
+            pinch_volume - common,
+            common,
+            cutter_volume - common,
+        ],
         tol,
     );
 }
@@ -298,22 +380,16 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), want: [f64;
 /// (0°–60°, 90°–120°, 150°–210°) cut by one from 50° to 160°: the
 /// middle wedge's corner cuts the prism's bottom corner between the
 /// outer pairs' cuts as a dangling null edge. Each op, in both operand
-/// orders, builds at the volume a polygon clipping outside the kernel
-/// gives and passes 3′ with the pinch's records carried. Red as the
-/// first row: `SharedVertexCrossings`. Red if a fan is minted at the
-/// corner before the dangling null edge there (∪ refuses
-/// `CorruptOperand`), or if a dangling null edge refuses whenever
-/// another pair cuts its corner.
+/// orders, builds at its volume and passes 3′ with the pinch's records
+/// carried. Red as the first row: `SharedVertexCrossings`. Red if a fan
+/// is minted at the corner before the dangling null edge there (∪
+/// refuses `CorruptOperand`), or if a dangling null edge refuses
+/// whenever another pair cuts its corner.
 #[test]
 fn three_crossings_at_one_corner_build_in_every_op() {
     crossings_at_one_corner(
         &[(0.0, 60.0), (90.0, 120.0), (150.0, 210.0)],
         (50.0, 160.0),
-        [
-            1.238_158_743_915_086_7,
-            1.003_235_588_718_609_7,
-            0.112_789_815_065_828_86,
-        ],
         Tol::witness(),
     );
 }
@@ -322,20 +398,15 @@ fn three_crossings_at_one_corner_build_in_every_op() {
 /// wedges (0°–30°, 60°–80°, 100°–120°, 150°–200°) cut by one from 20°
 /// to 160°: the middle two corners hang two dangling null edges in the
 /// prism's bottom corner, between the outer pairs' cuts. Each op, in
-/// both operand orders, builds at the volume a polygon clipping outside
-/// the kernel gives and passes 3′. Red if a dangling null edge splices
-/// at its corner's own successor, ahead of one hung there before it at
-/// an earlier germ (∪ refuses `JoinDesync`), and as the three's.
+/// both operand orders, builds at its volume and passes 3′. Red if a
+/// dangling null edge splices at its corner's own successor, ahead of
+/// one hung there before it at an earlier germ (∪ refuses
+/// `JoinDesync`), and as the three's.
 #[test]
 fn four_crossings_at_one_corner_build_in_every_op() {
     crossings_at_one_corner(
         &[(0.0, 30.0), (60.0, 80.0), (100.0, 120.0), (150.0, 200.0)],
         (20.0, 160.0),
-        [
-            1.053_289_933_583_019_3,
-            0.892_593_031_161_384_3,
-            0.082_449_333_723_773_3,
-        ],
         Tol::witness(),
     );
 }
@@ -367,13 +438,206 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
         let mut decls = flush_declarations(&a.body, &b.body, tol);
         decls.carried_a.vv.clone_from(ca);
         decls.carried_b.vv.clone_from(cb);
-        let got = union_with(&a.body, &b.body, &decls, tol);
-        assert!(
-            matches!(got, Err(BooleanError::SharedVertexCrossings { .. })),
-            "{name}: want SharedVertexCrossings, got {:?}",
-            got.map(|_| ())
+        // At (0,0,1) the lower pinch's two vertices are its split edges'
+        // and the upper pinch's are its corners; every pair crosses.
+        // Both operands' vertices are shared, and the refusal names A's
+        // and the two B vertices it crosses into.
+        let (a_at, b_at) = (
+            keys_at(&a.body, (0.0, 0.0, 1.0)),
+            keys_at(&b.body, (0.0, 0.0, 1.0)),
         );
+        match union_with(&a.body, &b.body, &decls, tol) {
+            Err(BooleanError::SharedVertexCrossings {
+                operand,
+                vertex,
+                partners: [p0, p1],
+            }) => {
+                let mut partners = vec![p0, p1];
+                partners.sort();
+                assert_eq!(operand, topo::Operand::A, "{name}: the refusal names A");
+                assert_ne!(p0, p1, "{name}: two distinct partners");
+                if b_at.is_empty() {
+                    assert!(a_at.contains(&vertex), "{name}: A's corner at (0,0,1)");
+                } else {
+                    assert_eq!(partners, b_at, "{name}: B's two corners at (0,0,1)");
+                }
+            }
+            other => panic!(
+                "{name}: want SharedVertexCrossings, got {:?}",
+                other.map(|_| ())
+            ),
+        }
     }
+}
+
+/// **A pinch line lying flat in the shared corner's face refuses typed.**
+/// The 80°–190° wedge sheared along its 80° face by half a unit per
+/// unit of height, backwards, so the z-axis runs inside that face from
+/// the corner: both pairs' cuts lie along the axis in one corner of the
+/// prism's corner, and no corner reading orders them. Every op, in both
+/// operand orders, refuses `SharedVertexCrossings` naming the prism's
+/// corner and the pinch's two vertices there: pinned as it stands
+/// (`work/fuse/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`),
+/// red when the tie's arm is built.
+#[test]
+fn a_pinch_line_flat_in_the_shared_corners_face_refuses_typed() {
+    let tol = Tol::witness();
+    let (pinch, carried) = pinch(tol);
+    let (c, s) = (80f64.to_radians().cos(), 80f64.to_radians().sin());
+    let cutter = sheared_wedge((-0.5 * c, -0.5 * s), tol);
+    let corner = (0.0, 0.0, 0.5);
+    let (prism_corner, pinch_ends) = (keys_at(&cutter, corner), keys_at(&pinch.body, corner));
+    assert_eq!(
+        (prism_corner.len(), pinch_ends.len()),
+        (1, 2),
+        "one prism corner and two pinch vertices at {corner:?}"
+    );
+    let mut ab = flush_declarations(&pinch.body, &cutter, tol);
+    ab.carried_a.vv.clone_from(&carried);
+    let mut ba = flush_declarations(&cutter, &pinch.body, tol);
+    ba.carried_b.vv = carried;
+    for (op, got, prism_side) in [
+        (
+            "pinch ∪ cutter",
+            union_with(&pinch.body, &cutter, &ab, tol),
+            topo::Operand::B,
+        ),
+        (
+            "pinch ∖ cutter",
+            subtract_with(&pinch.body, &cutter, &ab, tol),
+            topo::Operand::B,
+        ),
+        (
+            "pinch ∩ cutter",
+            intersect_with(&pinch.body, &cutter, &ab, tol),
+            topo::Operand::B,
+        ),
+        (
+            "cutter ∪ pinch",
+            union_with(&cutter, &pinch.body, &ba, tol),
+            topo::Operand::A,
+        ),
+        (
+            "cutter ∖ pinch",
+            subtract_with(&cutter, &pinch.body, &ba, tol),
+            topo::Operand::A,
+        ),
+        (
+            "cutter ∩ pinch",
+            intersect_with(&cutter, &pinch.body, &ba, tol),
+            topo::Operand::A,
+        ),
+    ] {
+        match got {
+            Err(BooleanError::SharedVertexCrossings {
+                operand,
+                vertex,
+                partners: [p0, p1],
+            }) => {
+                let mut partners = vec![p0, p1];
+                partners.sort();
+                assert_eq!(
+                    (operand, vertex, partners),
+                    (prism_side, prism_corner[0], pinch_ends.clone()),
+                    "{op}: the prism's corner and the pinch's two vertices"
+                );
+            }
+            other => panic!(
+                "{op}: want SharedVertexCrossings, got {:?}",
+                other.map(|_| ())
+            ),
+        }
+    }
+}
+
+/// **A pinch line crossing a face's interior drops the pinch's records
+/// at the new pinch end** (`work/fuse/a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records.md`):
+/// pinned as it stands. The 80°–190° wedge sheared off the axis, so the
+/// pinch line runs inside its corner and leaves through its top face,
+/// and a brick holding the axis, which its top face crosses. Each op
+/// builds, the sheared one's volumes agreeing with each other; the
+/// results that keep the pinch's two pieces at the top face's crossing
+/// fail 3′ there with an undeclared `VertexVertex` at (0,0,1), and the
+/// rest pass. Red when that end gets its record.
+#[test]
+fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
+    let tol = Tol::witness();
+    let (pinch, carried) = pinch(tol);
+    let cutter = sheared_wedge((0.3, -0.3), tol);
+    let block: Body<f64> = brick((-0.5, 0.5), (-0.5, 0.5), (0.0, 1.0), tol);
+    let mut ab = flush_declarations(&pinch.body, &cutter, tol);
+    ab.carried_a.vv.clone_from(&carried);
+    let mut ba = flush_declarations(&cutter, &pinch.body, tol);
+    ba.carried_b.vv.clone_from(&carried);
+    let mut block_first = flush_declarations(&block, &pinch.body, tol);
+    block_first.carried_b.vv = carried;
+    let volume_of = |op: &str, got: Result<BooleanResult<f64>, BooleanError>, drops: bool| {
+        let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
+            panic!("{op} came back empty");
+        };
+        match validate_pseudomanifold(&out.body, &out.contacts, tol) {
+            Ok(_) => assert!(!drops, "{op}: passes 3′; the row's pin flips"),
+            Err(errors) => {
+                assert!(drops, "{op}: 3′ refused {errors:?}");
+                assert!(
+                    format!("{errors:?}").contains("VertexVertex")
+                        && format!("{errors:?}").contains("(0.0, 0.0, 1.0)"),
+                    "{op}: the undeclared pair at the pinch's new end: {errors:?}"
+                );
+            }
+        }
+        mass_properties(&out.body, tol).expect("mass").volume
+    };
+    let union = volume_of(
+        "pinch ∪ cutter",
+        union_with(&pinch.body, &cutter, &ab, tol),
+        false,
+    );
+    let pinch_less = volume_of(
+        "pinch ∖ cutter",
+        subtract_with(&pinch.body, &cutter, &ab, tol),
+        true,
+    );
+    let common = volume_of(
+        "pinch ∩ cutter",
+        intersect_with(&pinch.body, &cutter, &ab, tol),
+        true,
+    );
+    let swapped = volume_of(
+        "cutter ∪ pinch",
+        union_with(&cutter, &pinch.body, &ba, tol),
+        false,
+    );
+    let cutter_less = volume_of(
+        "cutter ∖ pinch",
+        subtract_with(&cutter, &pinch.body, &ba, tol),
+        false,
+    );
+    let common_swapped = volume_of(
+        "cutter ∩ pinch",
+        intersect_with(&cutter, &pinch.body, &ba, tol),
+        true,
+    );
+    // Shearing keeps the cutter's volume: its triangle × the height.
+    let cutter_volume = area(&triangle(80.0, 190.0)) * 0.5;
+    for (what, got, want) in [
+        ("pinch ∖ cutter + ∩", pinch_less + common, 2.0),
+        ("cutter ∖ pinch + ∩", cutter_less + common, cutter_volume),
+        ("∪", union, 2.0 + cutter_volume - common),
+        ("∪ swapped", swapped, union),
+        ("∩ swapped", common_swapped, common),
+    ] {
+        assert!((got - want).abs() < 1e-9, "{what}: {got}, want {want}");
+    }
+    let block_common = volume_of(
+        "block ∩ pinch",
+        intersect_with(&block, &pinch.body, &block_first, tol),
+        true,
+    );
+    assert!(
+        (block_common - 0.25).abs() < 1e-9,
+        "block ∩ pinch: {block_common}, want two quarter-unit squares over z ∈ (0.5, 1)"
+    );
 }
 
 /// **A face through the pinch line, in every op and both operand
@@ -383,7 +647,11 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
 /// vertices there, one pair crossing and one touching. Every op
 /// builds at its volume, and with the pinch's records carried the
 /// result passes 3′. Red as the first row: `CorruptOperand` at the
-/// prism's vertex on the axis, in all four.
+/// prism's vertex on the axis, in all four. The subtract of the wall
+/// over z ∈ (0.75, 1.25) leaves the pinch a new end at its cut: red if
+/// the result's v-v rows leave out the null-edge copies there (3′
+/// refuses `VertexVertex` at (0,0,0.75), the corner closing the cut
+/// brick's lower piece being a copy no row names).
 #[test]
 fn a_face_through_a_pinch_line_builds_in_every_op() {
     let tol = Tol::witness();
@@ -393,10 +661,23 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
     let mut ab = flush_declarations(&pinch.body, &wall, tol);
     ab.carried_a.vv.clone_from(&carried);
     let mut ba = flush_declarations(&wall, &pinch.body, tol);
-    ba.carried_b.vv = carried;
+    ba.carried_b.vv.clone_from(&carried);
+    // The same wall over z ∈ (0.75, 1.25) cuts the brick on its side
+    // in two and leaves the other whole: the pinch survives below 0.75
+    // with a new pair of vertices at its cut.
+    let upper: Body<f64> =
+        common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.75, 1.25, tol).body;
+    let mut cut = flush_declarations(&pinch.body, &upper, tol);
+    cut.carried_a.vv = carried;
     // The prism holds the half x + y > 0 of the square, so it meets
-    // the pinch in the brick on that side, z ∈ (0.5, 1): 0.5.
+    // the pinch in the brick on that side, z ∈ (0.5, 1): 0.5, and the
+    // upper one over z ∈ (0.75, 1.25), 0.5 again.
     for (op, got, want) in [
+        (
+            "pinch ∖ upper wall",
+            subtract_with(&pinch.body, &upper, &cut, tol),
+            1.5,
+        ),
         (
             "pinch ∪ wall",
             union_with(&pinch.body, &wall, &ab, tol),

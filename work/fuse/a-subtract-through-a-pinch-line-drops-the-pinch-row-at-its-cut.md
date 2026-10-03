@@ -45,3 +45,12 @@ Trace the cut corner's lineage under subtract and give the group its
 second live end. Pin it with the case above added to
 `a_face_through_a_pinch_line_builds_in_every_op` (subtract, `diag2`
 span z ∈ (0.75, 1.25)).
+
+## Fixed on `fuse/shared-vertex-crossings` (PR 3927), pending merge
+
+The kept corner at (0,0,0.75) is a null-edge copy of the cut brick's
+split vertex, and no row named it. `remap_contacts` now takes each v-v
+group's null-edge copies in with its ends, and the subtract passes 3′.
+The witness is pinned as `pinch ∖ upper wall` in
+`a_face_through_a_pinch_line_builds_in_every_op`, and is red with the
+copies left out (measured). Close with that PR's merge.

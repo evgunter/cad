@@ -2741,10 +2741,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::SharedVertexCrossings { operand, .. } => write!(
                 f,
-                "a corner of the {} solid meets a point where the other solid holds two \
-                 corners that only touch each other, and cuts into both of them in a way \
-                 the Boolean cannot yet join. There is no way through this in the kernel \
-                 yet",
+                "a corner of the {} solid meets a point where the other solid holds \
+                 several corners that only touch each other (or both solids do), and \
+                 cuts into more than one of them in a way the Boolean cannot yet join. \
+                 There is no way through this in the kernel yet",
                 operand_word(*operand)
             ),
             Self::ClassificationInvariant { what } => {

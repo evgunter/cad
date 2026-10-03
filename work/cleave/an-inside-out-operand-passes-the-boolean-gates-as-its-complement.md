@@ -4,6 +4,8 @@ kind: issue
 title: An inside-out operand passes the Boolean's operand gates and is consumed as its complement
 status: open
 opened: 2026-10-03
+priority: P1
+cost: M
 ---
 
 

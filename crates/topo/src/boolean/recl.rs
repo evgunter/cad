@@ -719,10 +719,20 @@ pub(super) fn recl_edges<T: Decide>(
 /// it, so the two pairs' cuts interleave around the shared vertex. The
 /// pinch's pieces meet only along the line, so the edge's Out side is
 /// one run for both: folded Out, each pair cuts on its own side of the
-/// edge. The edge runs along the pinch line from one end of the
-/// coincidence to the other, and both ends pair it with both pieces,
-/// so the fold is reversed at both ends, and a section segment along
-/// the edge still puts both its null edges into one face.
+/// edge.
+///
+/// A section segment along the edge puts its two ends' null edges into
+/// one face only if the fold is reversed at both ends, and each end is
+/// a v-v site of the edge's vertex with both pieces' vertices. An end
+/// at a vertex of the pinch is one already. An end inside the pinch's
+/// coincident edges, where the edge's own vertex meets them, or inside
+/// the edge where a pinch vertex meets it, starts as a vertex-on-edge
+/// event, and the reduction splits the edges there before this lane
+/// reads `contacts.vv`, so that end too pairs one vertex with both
+/// pieces' (the witness's top end does: its prism corner meets the
+/// pinch edges' interiors). The pieces' membership about the edge
+/// reads the same along it, so both ends hold the same two crossing
+/// germs, and both reverse.
 #[derive(Clone, Debug, Default)]
 pub(super) struct Reversed {
     /// Bound half-edges in A's orbit (each the end bound's `he` of its

@@ -347,7 +347,9 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         };
     }
     let mut vertex_map = SeamCorrespondence::new();
-    let mut vv_partners: BTreeMap<VertexKey, BTreeSet<(VertexKey, VertexKey)>> = BTreeMap::new();
+    // Each A survivor's v-v pairs, each with the B survivor it gave.
+    let mut vv_partners: BTreeMap<VertexKey, BTreeMap<(VertexKey, VertexKey), VertexKey>> =
+        BTreeMap::new();
     for pair in &red.null_pairs {
         let aa = a_attr
             .get(pair.a_edge)
@@ -373,17 +375,23 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         };
         let bs = vertex_map.entry(a_survivor).or_default();
         bs.insert(b_survivor);
-        let partners = vv_partners.entry(a_survivor).or_default();
+        let pairs = vv_partners.entry(a_survivor).or_default();
+        let mut one_each = true;
         if let super::PairSite::VertexVertex(c) = pair.site {
-            partners.insert((c.a, c.b));
+            one_each = pairs
+                .insert((c.a, c.b), b_survivor)
+                .is_none_or(|old| old == b_survivor);
         }
         // A welded pinch lies on a seam once per pierce it fused, with
         // B's vertex of each; an A vertex several crossing pairs cut
-        // lies on one seam per pair, with that pair's B vertex.
-        let shared_cut = partners.len() == bs.len()
-            && partners
-                .iter()
-                .all(|p| partners.first().is_some_and(|q| q.0 == p.0));
+        // lies on one seam per pair, with that pair's B vertex: every
+        // B correspondent is one pair's, and the pairs share their A
+        // vertex.
+        let shared_cut = one_each
+            && pairs
+                .keys()
+                .all(|p| pairs.keys().next().is_some_and(|q| q.0 == p.0))
+            && pairs.values().copied().collect::<BTreeSet<_>>() == *bs;
         if bs.len() > 1 && !shared_cut && !a_welds.merges.iter().any(|&(_, k)| k == a_survivor) {
             return Err(desync("conflicting seam vertex correspondence"));
         }
