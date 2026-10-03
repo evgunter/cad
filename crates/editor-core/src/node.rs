@@ -2604,8 +2604,11 @@ pub enum Node<P> {
     /// ([`crate::mate::member_of`]). Two mates from one instance
     /// through two different transforms are two MEMBERS. So are two
     /// mates onto two copies of one pattern, at any depth of nesting:
-    /// a member's identity is its instance, the chain of copies the
-    /// walk consumed, and the operand it was read at.
+    /// a member's identity is its instance and the chain of placing
+    /// nodes the walk passed — each pattern with its copy, and each
+    /// transform. One placement spelled at two operands (a transform
+    /// and a union above it naming that member, a `Part` and the
+    /// pattern it selects from) is one member.
     ///
     /// The insert door checks both halves against the live document —
     /// a never-existed operand or name node is a typo. A later delete

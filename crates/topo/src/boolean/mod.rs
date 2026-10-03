@@ -99,6 +99,7 @@ pub(crate) use ops::no_crossings_certificates;
 pub(crate) use ops::volume_backstop;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
+pub(crate) use ops::{boundary_edges, describe_edges};
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
