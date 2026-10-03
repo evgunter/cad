@@ -4717,6 +4717,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_desync",
             "merge",
             "non_finite_sector_chord",
+            "non_manifold_result",
             "non_maximal_faces",
             "nurbs_extent_unsupported",
             "pairing_mismatch",

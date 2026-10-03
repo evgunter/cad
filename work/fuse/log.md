@@ -279,6 +279,12 @@ lane, because both edit `remap_contacts`.
   `two-pinches-crossing-on-one-line-refuse-their-union` (P0), and the
   inside-out operand is cleave's (P1).
 
+- 2026-10-03 — PR 3935 lands. Two pinches crossing on one line have no
+  representable union: it would be a shared-entity wedge fan, which D1's
+  representability boundary rules out. The case now refuses with its own
+  permanent kind, `NonManifoldResult`. The P0 row closes, and the
+  end-to-end variant and the crossing pair's ∖ and ∩ are pinned as
+  builds.
 - 2026-10-03 — Dispatched `two-pinches-crossing-on-one-line-refuse-their-union`
   (P0) to a cloud implementer on `fuse/two-pinches-one-line`. The row's
   "what is the result at rest" question is settled by D-tier 3′:

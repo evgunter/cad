@@ -537,6 +537,13 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 partners: [VertexKey::default(); 2],
             },
         ),
+        (
+            "NonManifoldResult",
+            BooleanError::NonManifoldResult {
+                a_vertex: VertexKey::default(),
+                b_vertices: [VertexKey::default(); 2],
+            },
+        ),
     ];
     let contained: Vec<(&'static str, PointInSolidError)> = vec![
         (
