@@ -2,11 +2,12 @@
 id: edge-edge-membership-reads-a-reflex-dihedral-wedge-as-convex
 kind: issue
 title: Edge-edge membership decides a germ by a convex-wedge test, which holds only within a half-turn: a reflex dihedral wedge along a coincident edge is read wrong
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 refs: [reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap]
+closed: 2026-10-03
 ---
 
 
@@ -68,3 +69,5 @@ Head: all 3 444 runs build sound against the closed form (tiers 2 and
 `m3_pr6_saddle::prism_reflex_kiss_takes_edge_edge_lane`, which pinned
 this lane's refusal at the L-prism's reflex corner, now builds sound
 at the closed form and is re-pinned so.
+
+Closed with PR 3962, 2026-10-03.
