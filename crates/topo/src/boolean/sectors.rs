@@ -858,43 +858,253 @@ pub(super) fn crossing_flank(before: SideCode, after: SideCode) -> Option<Flank>
     }
 }
 
-/// **The cell a germ lies in** ([`super::Locus`]), derived from the
-/// sector the germ was attributed to and its bounds' readings against
-/// the partner face as first read, before any rewrite. The germ ray is
-/// the intersection of the sector's face with the partner face, so a
-/// bound read On lies along it: a real edge there is `OnEdge`, and
-/// anything else — a bisector, or no bound On — leaves the germ inside
-/// the sector's face. Called by every site kind, before that site's
-/// surgery moves the orbit the bounds are read from.
+/// One operand's side of a germ: the sector the germ was attributed to
+/// at `site` of `body`, and its bounds' readings against the partner
+/// face as first read, before any rewrite.
+#[derive(Clone, Copy)]
+pub(super) struct GermSide<'a, T: geom_core::Real> {
+    pub body: &'a Body<T>,
+    pub operand: Operand,
+    pub site: VertexKey,
+    pub sector: &'a BoolSector<T>,
+    pub read: (SideCode, SideCode),
+}
+
+/// What the reduction recorded at the far end of an edge leaving a
+/// site, against the partner, in rank order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Touch {
+    /// No contact: the edge leaves the partner.
+    Apart,
+    /// A vertex pair: the end lies on the partner's boundary.
+    Boundary,
+    /// The end lies inside a face of the partner.
+    Face,
+}
+
+/// A bound of a germ's sector read On: the edge, and its far end.
+#[derive(Clone, Copy)]
+struct Along {
+    edge: crate::entity::EdgeKey,
+    far: VertexKey,
+}
+
+/// **The cell a germ lies in** ([`super::Locus`]) on one operand, where
+/// the partner holds the germ inside a face. The germ ray is the
+/// intersection of the sector's face with the partner face, so a bound
+/// read On is tangent to it. That bound's edge is the germ's cell only
+/// when the segment runs along it, and the reduction says when it does
+/// not: it splits an edge at every crossing of the partner, so an edge
+/// lying on the partner ends where it records a touch. An edge whose far
+/// end it records none at leaves the partner, the germ is only tangent
+/// to it, and it stays inside the sector's face, as it does under a
+/// bisector or with no bound On. Called by every site kind, before that
+/// site's surgery moves the orbit the bounds are read from.
 pub(super) fn germ_locus<T: Decide>(
-    body: &Body<T>,
-    s: &BoolSector<T>,
-    read: (SideCode, SideCode),
+    side: GermSide<'_, T>,
+    contacts: &super::ContactRecords,
 ) -> Result<super::Locus, BooleanError> {
+    let in_face = super::Locus::InFace(side.sector.face);
+    Ok(match along(side)? {
+        Some(e) if touch(side, e.far, contacts) != Touch::Apart => super::Locus::OnEdge(e.edge),
+        _ => in_face,
+    })
+}
+
+/// **Both operands' cells of a germ at a vertex pair** ([`germ_locus`]
+/// on each). Where both sectors hold a bound read On, the two edges
+/// leave the site together: they are one segment when the reduction
+/// paired their far ends, and otherwise they part, and the segment runs
+/// along at most one of them, the one whose far end lies deeper in the
+/// partner by what the reduction recorded there ([`Touch`]). The other
+/// germ is only tangent to its edge, and lies in the face its curve
+/// enters ([`tangent_face`]). Two edges that part with their far ends
+/// recorded alike are left as they read: nothing recorded tells them
+/// apart.
+pub(super) fn germ_loci<T: Decide>(
+    a: GermSide<'_, T>,
+    b: GermSide<'_, T>,
+    contacts: &super::ContactRecords,
+) -> Result<(super::Locus, super::Locus), BooleanError> {
+    use super::Locus::{InFace, OnEdge};
+    let (Some(ea), Some(eb)) = (along(a)?, along(b)?) else {
+        return Ok((germ_locus(a, contacts)?, germ_locus(b, contacts)?));
+    };
+    let (far_a, far_b) = (
+        crate::chord_join::null_site(a.body, &[ea.far]),
+        crate::chord_join::null_site(b.body, &[eb.far]),
+    );
+    let paired = contacts
+        .vv
+        .iter()
+        .any(|c| far_a.contains(&c.a) && far_b.contains(&c.b));
+    if paired {
+        return Ok((OnEdge(ea.edge), OnEdge(eb.edge)));
+    }
+    let tangent = |side: GermSide<'_, T>, partner: GermSide<'_, T>, e: Along| {
+        tangent_face(side, partner, e.edge, contacts).map(|f| InFace(f.unwrap_or(side.sector.face)))
+    };
+    let (ta, tb) = (touch(a, ea.far, contacts), touch(b, eb.far, contacts));
+    Ok(match ta.cmp(&tb) {
+        core::cmp::Ordering::Greater => (OnEdge(ea.edge), tangent(b, a, ea)?),
+        core::cmp::Ordering::Less => (tangent(a, b, eb)?, OnEdge(eb.edge)),
+        core::cmp::Ordering::Equal if ta == Touch::Apart => {
+            (InFace(a.sector.face), InFace(b.sector.face))
+        }
+        core::cmp::Ordering::Equal => (OnEdge(ea.edge), OnEdge(eb.edge)),
+    })
+}
+
+/// The bound of the germ's sector read On against the partner face, when
+/// that bound is an edge of the face.
+fn along<T: Decide>(side: GermSide<'_, T>) -> Result<Option<Along>, BooleanError> {
+    let (body, s, read) = (side.body, side.sector, side.read);
+    let invariant = |what| BooleanError::ClassificationInvariant { what };
     let on_start = read.0 == SideCode::On && s.start_edge();
     let on_end = read.1 == SideCode::On && s.end_edge();
-    let edge = |he: HalfEdgeKey| {
-        body.get_half_edge(he)
-            .map(|h| h.edge)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "a germ sector's half-edge no longer resolves",
-            })
-    };
-    match (on_start, on_end) {
-        (false, false) => Ok(super::Locus::InFace(s.face)),
-        (false, true) => Ok(super::Locus::OnEdge(edge(s.he)?)),
+    let he = match (on_start, on_end) {
+        (false, false) => return Ok(None),
+        (false, true) => s.he,
         (true, false) => {
             let orbit = body
                 .vertex_orbit(s.he)
-                .ok_or(BooleanError::ClassificationInvariant {
-                    what: "a germ sector's vertex orbit does not walk",
-                })?;
-            Ok(super::Locus::OnEdge(edge(orbit[1 % orbit.len()])?))
+                .ok_or(invariant("a germ sector's vertex orbit does not walk"))?;
+            orbit[1 % orbit.len()]
         }
-        (true, true) => Err(BooleanError::ClassificationInvariant {
-            what: "a germ sector with both edge bounds on the partner face",
-        }),
+        (true, true) => {
+            return Err(invariant(
+                "a germ sector with both edge bounds on the partner face",
+            ));
+        }
+    };
+    let half = body
+        .get_half_edge(he)
+        .ok_or(invariant("a germ sector's half-edge no longer resolves"))?;
+    let far = body
+        .half_edge_end(he)
+        .ok_or(invariant("a germ sector's half-edge no longer resolves"))?;
+    Ok(Some(Along {
+        edge: half.edge,
+        far,
+    }))
+}
+
+/// What the reduction recorded at the site of `far`, a vertex of the
+/// germ side's operand, against the partner.
+fn touch<T: Decide>(
+    side: GermSide<'_, T>,
+    far: VertexKey,
+    contacts: &super::ContactRecords,
+) -> Touch {
+    let site = crate::chord_join::null_site(side.body, &[far]);
+    let on_face = match side.operand {
+        Operand::A => &contacts.a_on_b,
+        Operand::B => &contacts.b_on_a,
+    };
+    if on_face.iter().any(|c| site.contains(&c.vertex)) {
+        Touch::Face
+    } else if contacts.vv.iter().any(|c| {
+        site.contains(&match side.operand {
+            Operand::A => c.a,
+            Operand::B => c.b,
+        })
+    }) {
+        Touch::Boundary
+    } else {
+        Touch::Apart
     }
+}
+
+/// **The face a tangent germ's curve enters**: the partner's germ runs
+/// along its edge `along`, so the segment is that edge, and it lies in
+/// the face of `side`'s body holding both of its ends, the site and
+/// where the reduction put `along`'s far end. `None` when no single face
+/// holds both.
+fn tangent_face<T: Decide>(
+    side: GermSide<'_, T>,
+    partner: GermSide<'_, T>,
+    along: crate::entity::EdgeKey,
+    contacts: &super::ContactRecords,
+) -> Result<Option<FaceKey>, BooleanError> {
+    let invariant = |what| BooleanError::ClassificationInvariant { what };
+    let start = |h| {
+        partner
+            .body
+            .get_half_edge(h)
+            .map(|d| d.start)
+            .ok_or(invariant(
+                "a tangent germ's partner edge no longer resolves",
+            ))
+    };
+    let e = partner.body.get_edge(along).ok_or(invariant(
+        "a tangent germ's partner edge no longer resolves",
+    ))?;
+    let near = crate::chord_join::null_site(partner.body, &[partner.site]);
+    let Some(far) = [start(e.he_plus)?, start(e.he_minus)?]
+        .into_iter()
+        .find(|w| !near.contains(w))
+    else {
+        return Ok(None);
+    };
+    let far_site = crate::chord_join::null_site(partner.body, &[far]);
+    let pierced = match partner.operand {
+        Operand::A => &contacts.a_on_b,
+        Operand::B => &contacts.b_on_a,
+    };
+    let mut far_faces: Vec<FaceKey> = pierced
+        .iter()
+        .filter(|c| far_site.contains(&c.vertex))
+        .map(|c| c.face)
+        .collect();
+    for c in &contacts.vv {
+        let (mine, theirs) = match side.operand {
+            Operand::A => (c.a, c.b),
+            Operand::B => (c.b, c.a),
+        };
+        if far_site.contains(&theirs) {
+            far_faces.extend(faces_at(side.body, mine)?);
+        }
+    }
+    let common: Vec<FaceKey> = faces_at(side.body, side.site)?
+        .into_iter()
+        .filter(|f| far_faces.contains(f))
+        .collect();
+    Ok(match common[..] {
+        [f] => Some(f),
+        _ => None,
+    })
+}
+
+/// The faces around a site of `body` (every copy null edges tie
+/// `vertex` to), deduplicated, null faces skipped.
+fn faces_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Vec<FaceKey>, BooleanError> {
+    let mut out = Vec::new();
+    for v in crate::chord_join::null_site(body, &[vertex]) {
+        let Some(anchor) = body.get_vertex(v).and_then(|d| d.emanating) else {
+            continue;
+        };
+        let orbit = body
+            .vertex_orbit(anchor)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a site's vertex orbit does not walk",
+            })?;
+        for he in orbit {
+            let edge = body.get_half_edge(he).map(|h| h.edge);
+            let null = edge
+                .and_then(|k| body.get_edge(k))
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .is_some_and(|g| g.null_scaffold().is_some());
+            if null {
+                continue;
+            }
+            if let Some(f) = body.face_of_half_edge(he)
+                && !out.contains(&f)
+            {
+                out.push(f);
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Whether `dir`, coplanar with `s`, runs into its face: within the

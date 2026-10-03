@@ -3215,6 +3215,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             c,
             op,
             &declared,
+            &contacts,
             band,
             tol,
         )?;
@@ -3231,6 +3232,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             c,
             op,
             &declared,
+            &contacts,
             band,
             tol,
         )?;
@@ -3305,7 +3307,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     }
     for (c, a_sectors, b_sectors, records, raw) in &classified {
         let out = insert::insert_null_pairs(
-            &mut a, &mut b, *c, a_sectors, b_sectors, records, raw, &declared, band,
+            &mut a, &mut b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, band,
         )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);

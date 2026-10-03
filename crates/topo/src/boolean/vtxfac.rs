@@ -105,6 +105,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     contact: VfContact,
     op: BooleanOp,
     declared: &super::DeclaredPairs<T>,
+    contacts: &super::ContactRecords,
     band: Band,
     tol: Tol,
 ) -> Result<VtxFacOut<T>, BooleanError> {
@@ -548,7 +549,16 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // the orbit the germ loci are read from.
     let germ_of = |t: usize| -> Result<Germ<T>, BooleanError> {
         let s = &sectors[t];
-        let own = super::sectors::germ_locus(piercing_body, s, (read[(t + 1) % n], read[t]))?;
+        let own = super::sectors::germ_locus(
+            super::sectors::GermSide {
+                body: piercing_body,
+                operand: piercing,
+                site: vertex,
+                sector: s,
+                read: (read[(t + 1) % n], read[t]),
+            },
+            contacts,
+        )?;
         let pierced = super::Locus::InFace(contact.face);
         let cells = match piercing {
             Operand::A => ((s.face, contact.face), (own, pierced)),
