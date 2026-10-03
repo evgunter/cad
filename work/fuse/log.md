@@ -338,3 +338,10 @@ lane, because both edit `remap_contacts`.
     structure, which is a design question for the next designer pair.
   - The pinch-end 3′ failure is filed separately (P1,
     `a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`).
+
+- 2026-10-03 — Dispatched the tie row's reachable arm, a dangling null
+  edge holding another pair's cut, to a cloud implementer on
+  `fuse/strut-holding-a-cut`. The nested-null-edge structure is internal
+  to the insertion, and no ratified text governs it, so the orchestrator
+  decides it is the implementer's call rather than a designer fork. The
+  lane stops if it finds ratified text that binds it.
