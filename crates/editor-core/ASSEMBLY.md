@@ -21,7 +21,7 @@ walk is `docs/guide/assembly.md`.
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
 | A3, A11, A12 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
-| A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
+| A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs`; `DocEdit::Promote`/`Fold` in `src/edit.rs` |
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |

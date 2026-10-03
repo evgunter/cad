@@ -1750,8 +1750,8 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         back_names.iter().count(),
         "and the inline neither loses nor invents a name either"
     );
-    // The offset the split hoisted onto the instance is put back on
-    // the restored node, bit for bit — where an instance sits is
+    // The shelf's offset crosses into the part with it and comes back
+    // on the restored node, bit for bit — where an instance sits is
     // document data, and a round trip that dropped it would still pass
     // every name check above while moving the part.
     let offset = |doc: &ProfileDoc, id| match doc.node(id) {
@@ -1767,7 +1767,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     println!(
         "   inline: {} node(s) spliced back, {} recorded edit(s); all {} product names \
          resolve through the two recorded node maps, the table is the same size, and the \
-         hoisted group frame comes back bit-exact",
+         group frame comes back bit-exact",
         back.node_map.len(),
         back.edits.len(),
         before_names.iter().count()
@@ -1777,12 +1777,11 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     //
     // The invariant under test is that split and inline are INVERSES
     // for every legal cut, and the shape most likely to break it is
-    // this one — the cut hoists the post group's authored frame onto
-    // the remainder's instance, and `inline` refuses a non-identity
-    // frame whose part's roots are not themselves instances
-    // (`UnplaceableFrame`), which a Pattern root is not. It does NOT
-    // refuse here, because the hoist leaves the pattern's own recipe
-    // able to express the placement; the arms below say which answer
+    // this one: `inline` refuses an instance off the world's origin
+    // whose part's roots are not themselves instances
+    // (`UnplaceableFrame`), which a Pattern root is not. The cut moves
+    // as selected and leaves the instance at the empty chain, so the
+    // pattern lands back verbatim; the arms below say which answer
     // this tree gave rather than asserting one, so a change in either
     // direction is reported at the scene instead of passing silently.
     let posts_id = DocumentId::derive("pncad-demo-posts-cell");
@@ -1811,7 +1810,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
             match inline(&posts.remainder, posts.instance, &store, tol) {
                 Ok(_) => println!(
                     "   second cut: the patterned-post cell splits out AND inlines back \
-                     (the hoisted group frame is expressible in the part's own recipe)"
+                     (the cut moved as selected, so the pattern lands back verbatim)"
                 ),
                 Err(e @ InlineError::UnplaceableFrame { .. }) => println!(
                     "   second cut (gap): the patterned-post cell splits out but does NOT \
