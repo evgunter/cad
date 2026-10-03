@@ -71,7 +71,7 @@ With the decision taken, measure again what the corpus ships.
 
 ## Designers (2026-10-02)
 
-Two designers weighed this (`docs/DESIGN-FORK-LOG.md`, row 46). Both
+Two designers weighed this (`docs/DESIGN-FORK-LOG.md`, row 47). Both
 found the description gap closed: M3 PR 6a mints honest seam
 descriptions, and the gate's doc is stale. The open question is the
 door contract.
@@ -88,3 +88,43 @@ recommend one final state:
 
 Put to Ev on the `[ev]` PR from `reach/ev-door-finished-body`.
 
+
+## Ev's answer, and the fold (PR 3870, 2026-10-02)
+
+Ev approved the recommendation. Two follow-ups:
+- Move the finished-body paragraph under tier 3. Done.
+- Fold 3′ into 3? The 3′ extras that are not contact-only are the census.
+
+A measurement lane answered the second (`analysis/reach-measure/census-fold`,
+`report.md`). It ran 2,572 non-fixture, contact-free bodies that pass
+tier 3, at three ε.
+
+**Cost.** The census costs a median 0.09× tier 3 on single solids and
+0.44× on multi-solid bodies. On the tour that is 0.02 s against 20 s of
+construction.
+
+**Real defects it catches that tier 3 misses (8).**
+- 5 pinch unions whose record dropped the contact;
+- a shell whose crossing walls build silently (#1055);
+- an `mfkrh` doubled face;
+- a twin-solid STEP file.
+
+**What it cannot yet decide.** 26 `shell` results whose nested or
+side-by-side curved solids the census answers `CensusUndecidable`: its
+cross-solid backstop has no curved × curved or curved × planar lane.
+`topo::shell` gates its result with `validate_geometric`, so turning on
+the folded bar there refuses those calls until that lane exists.
+
+**The ratified sentence it falsifies.** DESIGN's "the two gates agree
+there" (empty contacts) was false on 2.6% of the population.
+
+**Written.** The finished-body bar is tier 3′ against the body's own
+declared contacts, empty or not, and the `BooleanBody` paragraph says
+the same.
+
+**Sequencing, not a fork.**
+- The census's cross-solid curved lane must land before or with any door
+  whose results carry several curved solids (shell first) adopting the
+  bar, as check 7's interval re-derivation must before the boolean door's.
+- The product gather must gate after the mates' declarations are
+  minted, or with them.

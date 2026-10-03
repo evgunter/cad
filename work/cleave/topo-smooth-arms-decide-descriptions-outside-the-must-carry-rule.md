@@ -45,3 +45,15 @@ their own:
 Related, not duplicates: `work/boxes/description-staleness-ladder-three-spellings.md`
 (the keep-vs-restate ladder these same two arms spell), and
 `work/pred/lever-arm-fold-six-hand-rolled-siblings.md` (the fold).
+
+## Since (FUSE, PR 3889): item 1 done
+
+`describe_minted_edges`' smooth arm now asks the rule through
+`topo::boolean::ops::seam_must_carry`: an in-band station refuses typed
+(`SeamWedge`/`LeverArm(Seam)` by rung, `BooleanDecision::SeamJet` for
+the sagitta), every station is gated first-order, and a seam that is a
+corner at a station keeps the conventional description. (The comment's
+`SmoothUnderdetermined` citation covered zero-side only: tier 3 refuses
+an in-band sample `SliverDihedral`.) Item 2, `splitting/finish.rs`,
+stays open.
+

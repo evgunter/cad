@@ -510,3 +510,70 @@ The orchestrator checked the last fix pass itself.
 The dual-review row (DR-46) rides this PR's last commit.
 — (REACH orchestrator)
 
+
+## 2026-10-02 — the near-tangent snowman at ε 1e-12 (PR 3847)
+
+Built by a wave-three cloud implementer; dual-reviewed (DR row on this
+commit), both APPROVE-WITH-FIXES with no MAJOR; then one fix pass, which
+the orchestrator checked itself.
+
+- **Built.** δ 1e-5 and 1e-6 at ε 1e-12, every op. At ε 1e-9 the ×1e3
+  and non-unit-radius pairs now build too: 56 ops more than main at each
+  of 1e-12 and 1e-9, and none fewer.
+- **The meter.** Factored extremes with running rounding bounds; the
+  frame's defect charged; the root measured from the near extreme.
+  `geom_core::running` hosts the running-error scalar, and
+  `UNIT_ROUNDOFF` is the one spelling of `u`.
+- **The fix pass.** Pin rows for the near/far selection and for each
+  slack term, each red under its mutant. The bound is checked against an
+  exact dyadic evaluation. The bits that moved are disclosed in the PR
+  body.
+- **Residue.** The f64 floor (δ 1e-7 at ε 1e-12) needs an error-free
+  transform the scalar contract lacks, so it goes to design (P3). Two
+  sibling meters are filed.
+— (REACH orchestrator)
+
+## 2026-10-02 — a mid-edge tangency in either operand order (PR 3846)
+
+Built by a wave-three cloud implementer; dual-reviewed (DR row on this
+commit), both APPROVE-WITH-FIXES with no MAJOR; then one fix pass, which
+the orchestrator checked itself.
+
+- **Built.** Sharp-over-rounded stacks, a concave L and mismatched-radius
+  stacks now build in both operand orders, under every op. Before this,
+  one order refused `CurvedPierceUnsupported`.
+- **How.** A covered line touching a wall or a sphere inside an edge is
+  deferred. It is settled on the edge's fragments once both directions
+  have split it (`settle_deferred`, through one `sweep_and_settle`
+  driver), and the accepted pair is written to the trace.
+- **The fix pass.** Both reviewers showed `settle_held` had no row that
+  could fail. Rows now red under each mutant, including a comb pose
+  whose touch lies in a middle fragment (checked again by the
+  orchestrator on the merged head). The arms no fixture reached were
+  removed, and the README promises only what the code does.
+- **Residue.** Two items filed: a non-convex touch read at a fragment's
+  ends only, and an offset stack that refuses `Join(UnpairedLooseEnds)`.
+— (REACH orchestrator)
+
+## 2026-10-02 — an ellipse edge meets a curved face (PR 3805)
+
+Built by a wave-one cloud implementer.
+- **Review history.** Dual review (both NOT-MERGEABLE-AS-IS at the
+  frozen head), three fix passes each followed by a delta review, and a
+  fourth fix pass that the orchestrator checked itself.
+- **Built.** Ellipse × sphere and ellipse × cylinder cells go through
+  one conic rung, `geom_brep::Conic` and `boolean::ellipse_roots`. The
+  tour's tiltedcut U now builds.
+- **The lever MAJOR** (one reviewer, executed: certified roots 15× the
+  band off the wall at ε 1e-6). Fixed by carrying the speed bracket
+  `[b, a]` in the ladder's frame; delta review 3 measured 0 wrong in
+  12,931. It enters the tally (DR row on this commit).
+- **Rulings.** The certify gate refuses a non-positive minor semi-axis,
+  as before this PR. The sphere × cylinder scan arm defers to #3801's
+  section pass; the two items it opened close with it.
+- **Merges.** Main's factored circle × sphere extremes (#3847) were
+  merged in. The circle residual extremes charge their running bounds
+  plus the frame's defect.
+- **Filed.** Evidence for CLEAVE's steep tube cut at ε 1e-6 (red on main),
+  folded into `steep-tube-split-refuses-trim-containment-at-eps-1e-6`.
+— (REACH orchestrator)

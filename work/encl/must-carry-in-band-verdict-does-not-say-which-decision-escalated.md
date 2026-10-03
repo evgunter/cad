@@ -40,3 +40,24 @@ Let the verdict say which question escalated — `InBand` carrying a
 closed station decision beside the `Indeterminate` (or two arms) — so a
 caller maps it to its own decision exhaustively; the blend then gives
 the second-order reading its `SizedPass::AnySign` ending back.
+
+## Since (FUSE, PR 3889): the verdict says which question escalated
+
+The repair shape above is in: `MustCarryVerdict::InBand` (and
+`MustCarryRefusal::InBand`) carry a `geom_brep::MustCarryEscalation`,
+`FirstOrder(LeverEscalation)` with its rung or `SecondOrder(Indeterminate)`,
+with `.diag()` for a caller that wants only the escalation. The rule
+also classifies every station first-order before it reads any second
+order, so a first-order in-band station escalates wherever it sits.
+`topo::boolean::ops::seam_must_carry` maps it exhaustively (the seam's
+`LeverArm(Seam)`/`SeamWedge` by rung, `BooleanDecision::SeamJet` for the
+sagitta).
+
+**What remains of this row**: the sweep callers still call `.diag()`
+and drop the reading. `sweep::blend::surgery`'s contact edge still ends
+every in-band verdict as `BlendDecision::ContactSecondOrder`, so a
+first-order station is reported as the second-order question and the
+second-order reading is still owed its `AnySign` ending; `sweep::extrude`
+(strut, cap rim) and `sweep::revolve::upgrade` fold both into their
+sliver errors.
+

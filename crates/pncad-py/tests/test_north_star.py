@@ -49,6 +49,7 @@ from pncad import (
     SegTag,
     Selector,
     SketchPlane,
+    SplitHalf,
     Start,
     SurfaceKind,
     TubeWindow,
@@ -92,7 +93,7 @@ def slab(doc, x, y, z):
 # `NORMAL`): a mirror, so a change there is made here by hand.
 PROJECTBOX_BOSS_AXES = [(0.625, 0.625), (0.625, 1.375), (2.375, 0.625), (2.375, 1.375)]
 PROJECTBOX_BOSS_R = 0.1875
-PROJECTBOX_BOSS_Z = (0.1875, 0.875)
+PROJECTBOX_BOSS_Z = (0.25, 0.875)
 PROJECTBOX_BORE_R = 0.09375
 PROJECTBOX_CUT_THROUGH = (2.375, 1.0, 0.53)
 PROJECTBOX_CUT_NORMAL = (0.75, 0.1875, 1.0)
@@ -111,7 +112,8 @@ def rod(doc, cx, cy, r, z):
 
 def projectbox(doc):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): 15 ops
-    — cavity, six vent slots, four round bosses, and a through-bore
+    — cavity, six vent slots, four round bosses standing on the floor
+    (each union declaring the flush detector's findings), and a through-bore
     down each boss and out through the floor. Shared by the
     volume-oracle row and the `cutaway` row, which splits exactly
     this body."""
@@ -126,7 +128,8 @@ def projectbox(doc):
             )
     for cx, cy in PROJECTBOX_BOSS_AXES:
         boss = rod(doc, cx, cy, PROJECTBOX_BOSS_R, PROJECTBOX_BOSS_Z)
-        body = doc.insert(Node.boolean(BooleanOp.Union, body, boss))
+        decl = doc.declare_all(evaluate(doc).find_flush_candidates(body, boss))
+        body = doc.insert(Node.boolean(BooleanOp.Union, body, boss, declare=decl))
     for cx, cy in PROJECTBOX_BOSS_AXES:
         bore = rod(doc, cx, cy, PROJECTBOX_BORE_R, (-0.125, PROJECTBOX_BOSS_Z[1] + 0.25))
         body = doc.insert(Node.boolean(BooleanOp.Subtract, body, bore))
@@ -207,10 +210,8 @@ class TestDie(unittest.TestCase):
 
 class TestProjectbox(unittest.TestCase):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): the
-    longest boolean chain in the tour, 15 ops. Its own
-    design rule — no two operand planes coincide anywhere in the chain,
-    every offset in 1/16 steps — is exactly what makes it authorable
-    without a declaration door."""
+    longest boolean chain in the tour, 15 ops, the bosses' unions
+    through the detect/declare protocol."""
 
     def test_projectbox_matches_the_closed_form_oracle(self):
         doc = Doc()
@@ -566,22 +567,24 @@ def y_axis(doc, plane):
 
 
 class TestBracket(unittest.TestCase):
-    """Tour scene `bracket` (demos/tour/src/bodies.rs, row 1): an L
-    outline with one r = 0.5 inner fillet, extruded 0.75.
+    """Tour scene `bracket` (demos/tour/src/bracket.rs, row 1): an L
+    outline with one r = 0.5 inner fillet, extruded 0.75, as a
+    document.
 
-    The Rust scene asserts no closed form — the tour's generic ladder
-    (validate, tessellate, mesh-vs-mass-properties) is all it gets —
-    so the oracle here is derived and stated: the L's area is 5, and
-    rounding the reflex corner ADDS the region between the corner and
-    the arc, r^2 - pi*r^2/4.
+    The oracle is the scene's own: the L's area is 5, and rounding the
+    reflex corner ADDS the region between the corner and the arc,
+    r^2 - pi*r^2/4.
 
     `toward` rather than `angle(PI)`: only the ratio of the components
     carries meaning, so the unit ray is stored verbatim and the two
     trim vertices are exact — `sin(PI)` is 1.22e-16, and it would
     perturb both by an ulp."""
 
-    def test_bracket_matches_the_derived_closed_form(self):
-        outline = (
+    CUT = 2.75
+
+    @staticmethod
+    def outline():
+        return (
             Open.at((0 * m, 0 * m))
             .line_to((3 * m, 0 * m))
             .line_to((3 * m, 1 * m))
@@ -592,16 +595,61 @@ class TestBracket(unittest.TestCase):
             .line_to((0 * m, 3 * m))
             .line_to(Start)
         )
-        # Five sharp corners plus the arc's two tangent points; the
-        # virtual corner at (1, 1) is never a vertex.
-        self.assertEqual(outline.vertex_count, 7)
 
+    def build(self):
         doc = Doc()
         bracket = doc.insert(
-            Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), Expr.length_in(0.75, m))
+            Node.extrude(doc.insert(Node.profile(self.outline(), plane=doc.sketch_frame())), Expr.length_in(0.75, m))
         )
+        return doc, bracket
+
+    def test_bracket_matches_the_derived_closed_form(self):
+        # Five sharp corners plus the arc's two tangent points; the
+        # virtual corner at (1, 1) is never a vertex.
+        self.assertEqual(self.outline().vertex_count, 7)
+        doc, bracket = self.build()
         expected = 0.75 * (5.25 - math.pi / 16.0)
         self.assertAlmostEqual(volume_of(doc, bracket), expected, delta=1e-12)
+
+    def test_the_trimmed_leg_ends_cannot_be_broken_by_name(self):
+        """The scene's wall 1: split across both legs at x + y = 2.75,
+        keep the corner piece, chamfer its four cap chords by name.
+
+        The split partitions the body (each offcut is a trapezoid prism
+        of area (3 - 2.75) + 1/2) and names each cap chord by its ends,
+        because the plane crosses each cap twice. The chamfer refuses:
+        a plane-plane band ends only at a corner whose three edges are
+        all requested (work/band/a-plane-plane-blend-cannot-end-at-an-
+        unrequested-corner.md)."""
+        doc, bracket = self.build()
+        tool = doc.insert(
+            Node.datum_plane(
+                (Expr.length_in(self.CUT, m), Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.literal(1.0), Expr.literal(1.0), Expr.literal(0.0)),
+            )
+        )
+        split = doc.insert(Node.split(bracket, tool))
+        offcuts = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Above)))
+        corner = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Below)))
+
+        whole = volume_of(doc, bracket)
+        off = volume_of(doc, offcuts)
+        self.assertAlmostEqual(off, 2 * 0.75 * ((3 - self.CUT) + 0.5), delta=1e-12)
+        self.assertAlmostEqual(off + volume_of(doc, corner), whole, delta=1e-12)
+
+        chords = evaluate(doc).select(
+            corner,
+            Selector.of(
+                NamePat.of_kind(EntityKind.Edge).path([SegPat.tag(SegTag.SectionEdge), SegPat.tag(SegTag.Fragment)])
+            ),
+        )
+        self.assertEqual(len(chords), 4, "two legs x two caps, each chord named by its ends")
+
+        broken = doc.insert(Node.chamfer(corner, Expr.length_in(0.1, m), chords))
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(broken)
+        self.assertEqual(caught.exception.kind, "chamfer")
+        self.assertEqual(caught.exception.inner_kind, "unsupported_run_out")
 
 
 class TestVase(unittest.TestCase):

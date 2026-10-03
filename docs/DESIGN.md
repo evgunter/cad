@@ -284,11 +284,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    must certify a boundary embedded (`shell`'s cavity clone) runs the
    same engine at a certifying scalar and refuses typed at the door.
 
-   A **finished body** (`AtRestBody`) passes tier 3, or tier 3′ when
-   it carries contacts; every door that returns or consumes one pays
-   that gate once, at the door that built it. Construction state (tier 1, or tier 2 without
-   geometric certification) is what Euler operators hand back, and
-   becomes a finished body only through the at-rest gate.
+   A **finished body** (`AtRestBody`) passes tier 3′ against its own
+   declared contacts: none, for a body that touches nothing, where the
+   census must find no coincidence at all. Every door that returns or
+   consumes one pays that gate once, at the door that built it.
+   Construction state (tier 1, or tier 2 without geometric
+   certification) is what Euler operators hand back, and becomes a
+   finished body only through the at-rest gate.
 4. **Tier 3′ "pseudomanifold"** (`validate_pseudomanifold`) — the
    honest at-rest tier for boolean results that *touch*: contacts
    limited to entirely-coincident-but-distinct edges, edge-on-face,
@@ -343,9 +345,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 
    **Validity class rides the result wrapper, never a mutable `Body`
    field**: a boolean result is `BooleanBody` — body + contacts — whose
-   non-empty contact list is the 3′-grade currency and whose at-rest
-   gate is `validate_pseudomanifold(&body, &contacts)`; empty-contact
-   results remain plain tier-3 currency, and the two gates agree there.
+   at-rest gate is `validate_pseudomanifold(&body, &contacts)` over its
+   own contact list, empty or not; with the list empty, the census must
+   find nothing.
 
    **Representability boundary**: pseudomanifold touching via
    *distinct* entities (two vertices at one point, two edges on one
@@ -497,7 +499,12 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   Circle-carrier arm), so the oblique-trihedron octant faces store
   their rows; the cone/torus oblique classes have no ring-computable
   meters composite and refuse with the class named, their faces left
-  uncached until each class's route lands.
+  uncached, excused by C4's exemption until each class's route lands.
+  The same exemption covers a spline carrier at the closed-form door
+  and the zero-offset spiric, mirror-torus spiric and no-fitted
+  classes. Each class has its own PCERT row: the torus general circle,
+  the cone section, the spline carrier, and the spiric and no-fitted
+  classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest; what is missing is
   the join window itself (`run_azimuth_window`/`chart_pcurve` have no

@@ -176,7 +176,11 @@ pub struct Body<T: Real> {
     // row is present only where a cache was minted and certified
     // (`crate::pcurves`); planar faces store nothing (M2's
     // derive-on-demand status, C4 verbatim), so an all-planar body
-    // carries an empty map. Absence is never a claim about geometry.
+    // carries an empty map. On every other chart a row is mandatory at
+    // rest, and the tier-3 pcurve pass reports one that is missing —
+    // except on a face whose rows are not owed (an uncovered class, or
+    // a fitted face at a scalar with no fitted door: C4's exemption,
+    // `crate::pcurves`' `not_owed`), which may store none.
     pub(crate) pcurves: SecondaryMap<HalfEdgeKey, PcurveCache<T>>,
     // Null-face annotations (F9): typed loop-role attributes on null
     // (section-polygon) faces, parallel to the face arena like the
@@ -619,13 +623,42 @@ impl<T: Real> Body<T> {
         }
     }
 
+    /// **The one door that moves vertices**: mints ONE fresh point at
+    /// `point`, rebinds every vertex in `vertices` to it, and frees each
+    /// old point that no vertex sits on any longer. Returns the new
+    /// key, or `None` (body untouched) if a vertex does not resolve.
+    ///
+    /// It never writes an old point in place: an op's copies of one
+    /// vertex share its point (`Body::mev_null`, D1 tier 3′), so an
+    /// in-place write would drag every copy along. A copy left out of
+    /// `vertices` stays on the old point, parted from the ones that
+    /// moved; copies passed together stay on one point. Which vertices
+    /// move, and together with which, is the caller's to decide.
+    pub(crate) fn move_vertices(
+        &mut self,
+        vertices: &[VertexKey],
+        point: Point3<T>,
+    ) -> Option<PointKey> {
+        let old: Vec<PointKey> = vertices
+            .iter()
+            .map(|&v| self.vertices.get(v).map(|d| d.point))
+            .collect::<Option<_>>()?;
+        let new = self.add_point(point);
+        for &v in vertices {
+            self.vertices[v].point = new;
+        }
+        for k in old {
+            self.remove_point_if_orphaned(k);
+        }
+        Some(new)
+    }
+
     /// Removes `point` from the point arena iff no vertex references it,
     /// returning whether it was removed. Used by vertex-killing operators
-    /// (PR 4's `kev`/`kvfs`): with M1's per-vertex point minting the
-    /// killed vertex's point is always orphaned in practice, but the scan
-    /// is the rule — it keeps the op sound standalone if points are ever
-    /// shared. Deterministic (D9), same shape as
-    /// [`Body::remove_curve_if_orphaned`].
+    /// (`kev`/`kvfs`) and [`Body::move_vertices`]: an op's copies of one
+    /// vertex share its point (`Body::mev_null`), so the point outlives
+    /// a vertex while a twin still sits on it. Deterministic (D9), same
+    /// shape as [`Body::remove_curve_if_orphaned`].
     pub(crate) fn remove_point_if_orphaned(&mut self, point: PointKey) -> bool {
         if self.vertices.values().any(|vertex| vertex.point == point) {
             return false;
@@ -1586,10 +1619,16 @@ impl<T: Real> Body<T> {
     /// All stored pcurve caches (C4 — see [`crate::pcurves`]), in
     /// half-edge-slot order (deterministic per D9).
     ///
-    /// Emptiness is the normal state: planar faces keep M2's
-    /// derive-on-demand status and store nothing, and only the charts
-    /// with a certified closed-form image mint caches at M5, so a
-    /// prism, a box, or any all-planar body yields zero rows here.
+    /// Planar faces keep derive-on-demand status and store nothing, so
+    /// a prism, a box, or any all-planar body yields zero rows here. On
+    /// every other chart the row is mandatory at rest: every half-edge
+    /// of the face stores its certified row once its producer has
+    /// returned, and the tier-3 pcurve pass reports one that does not
+    /// ([`crate::pcurves::validate_pcurves`]). The exemption is a face
+    /// whose rows are not owed — one that meets an uncovered class, or a
+    /// fitted face at a scalar with no fitted door — which may store
+    /// none until its class's route lands (C4's exemption, named in
+    /// [`crate::pcurves::validate_pcurves`]' docs).
     pub fn pcurves(&self) -> impl Iterator<Item = (HalfEdgeKey, &PcurveCache<T>)> {
         self.pcurves.iter()
     }
@@ -1627,8 +1666,8 @@ impl<T: Real> Body<T> {
 
     /// Removes and returns `half_edge`'s stored pcurve cache —
     /// [`Body::attach_pcurve`]'s inverse (same trust posture: the
-    /// tier-3 pcurve pass owns coherence, and a face left HALF-minted
-    /// fails it loudly as `MissingCache`). Consumers of caches refuse
+    /// tier-3 pcurve pass owns coherence, and a curved face left
+    /// missing a row fails it loudly). Consumers of caches refuse
     /// typed on absence; nothing re-derives a branch silently.
     pub fn detach_pcurve(&mut self, half_edge: HalfEdgeKey) -> Option<PcurveCache<T>> {
         self.pcurves.remove(half_edge)

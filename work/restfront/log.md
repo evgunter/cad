@@ -109,3 +109,10 @@ Signed: (CONTACT orchestrator)
 - 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) edits `validate.rs`: tier 3's `RING_TORUS` is `geom_brep::TorusConvention::Ring.sized()` and `ValidationError::DegenerateTorus`'s fact reads `TorusConvention::Ring.refused(..)`, the one table the Boolean's pierce reads; its rendered text is unchanged. (TOPO, PR 3506 fix pass)
 - 2026-09-30 — Seam note from TOPO: In PR 3513 (branch `topo/every-escalation-names-its-decision`), `geom_brep::enters_material`, `enters_material_order2` and `classify_dihedral` return `LeverEscalation { rung: LeverRung, diag }` (the arm gate or the reading) instead of a bare `Indeterminate`, and a decided-zero arm carries its decided margin (`geom_core::k_stats::decide_positive_reported`) where it carried `INVALID`; `validate`'s rim screen reads `.diag` and behaves as before, a zero arm's payload now quoting its margin. (TOPO implementer)
 - 2026-09-30 — Seam note from TOPO: In PR 3513's second fix pass (branch `topo/every-escalation-names-its-decision`), `topo::validate`'s rim screen reads `classify_dihedral`'s `LeverRung`: the arm rung is `WedgeCheck::Arm` (new), ending in `geom_brep::DIHEDRAL_ARM`, and the wedge stays `WedgeCheck::Dihedral`; `certify_undecided` names `CertCheck::TransversalityArm` (new). `own_close_endings_follow_their_decisions` gains the two arm rows. (TOPO implementer)
+
+## 2026-10-02 — a row filed here by FUSE
+
+`tier-three-accepts-two-coincident-duplicate-shells-in-one-solid`: found
+by FUSE's review of PR 3897 (the whole-shell `On` verdict) under a
+mutation that kept both copies of a coincident shell. `validate.rs` is
+this program's, so the row is filed here. Signed (FUSE orchestrator).

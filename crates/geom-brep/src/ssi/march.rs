@@ -96,8 +96,12 @@
 //!   self-crossing makes the uniqueness tube's enclosure straddle.
 //! - **`ssi_branch_open_end`** — "the branch ends on the domain
 //!   boundary": the margin is the signed distance to the named domain
-//!   in meters. `Negative` ends the branch open; `Zero` also ends it
-//!   and **labels the end in-band** ([`BranchEnd::BoundaryInBand`]).
+//!   in meters. On a marched state, `Negative` ends the branch open;
+//!   `Zero` also ends it and **labels the end in-band**
+//!   ([`BranchEnd::BoundaryInBand`]). On the settled seed, `Negative`,
+//!   or `Zero` outside the box, makes the seed no branch
+//!   ([`super::SsiError::SeedOffDomain`]); in the escalation zone it
+//!   escalates on either.
 //!   The label is a report, not a mechanism: nothing keys off it. A
 //!   region no tube covers — including one past an in-band end — is
 //!   refined by the accounting pass and refuses typed at the floor,
@@ -428,6 +432,42 @@ pub enum StepFault {
     DoesNotMove,
 }
 
+/// Which rungs held a march's steps short ([`SsiError::StepBudget`]):
+/// the cap a caller's knobs set, the curvature, or both. A rung holding
+/// fewer than [`STEP_BOUND_MINORITY`] of the steps is not named.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepBound {
+    /// The curvature rungs. The fit's between-sample rung shrinks with
+    /// ε, so loosening the tolerance lengthens it exactly. The relative
+    /// heuristic's two rungs do not read ε at all; they bind only where
+    /// the radius of curvature is within a few hundred tolerances or
+    /// the torsion is extreme, and there the tolerance is an
+    /// approximate lever. No extent lengthens any of them.
+    Curvature,
+    /// The cap: a fraction of the feature extent, or the domain's
+    /// diagonal.
+    Cap,
+    /// Each held at least [`STEP_BOUND_MINORITY`] of the steps.
+    Both,
+}
+
+/// The share of a march's steps a rung must hold to be named in
+/// [`StepBound`]: a quarter.
+pub const STEP_BOUND_MINORITY: (usize, usize) = (1, 4);
+
+impl StepBound {
+    /// The rungs `curvature` of `steps` steps name.
+    fn of(curvature: usize, steps: usize) -> Self {
+        let (num, den) = STEP_BOUND_MINORITY;
+        let named = |n: usize| n * den >= steps * num;
+        match (named(curvature), named(steps - curvature)) {
+            (true, true) => Self::Both,
+            (true, false) => Self::Curvature,
+            (false, _) => Self::Cap,
+        }
+    }
+}
+
 /// How a traced branch ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BranchEnd {
@@ -530,7 +570,8 @@ pub(crate) trait TransversalityData<const N: usize> {
 /// other in-band trilean, [`SsiError::StepUnusable`] when the step
 /// minted from the march speed cannot be taken,
 /// [`SsiError::SeedRefinementFailed`] when the seed will not settle
-/// onto the locus, and [`SsiError::StepRefinementFailed`] when a step
+/// onto the locus, [`SsiError::SeedOffDomain`] when it settles outside
+/// the domain, and [`SsiError::StepRefinementFailed`] when a step
 /// from the locus will not settle back onto it.
 pub(crate) fn march<const M: usize, const N: usize, S>(
     sys: &S,
@@ -546,6 +587,22 @@ where
 {
     let mut x = newton_refine(sys, seed, ctx.tol)
         .ok_or(SsiError::SeedRefinementFailed { mode: mode.name() })?;
+    // The seed is decided as a marched state is, and enters the trace
+    // on the terms `push_boundary` gives a marched end: definitely
+    // inside, or in the band and `within` the box. Any other seed is no
+    // branch; the accounting pass decides whether that was a miss.
+    let margin = domain_margin(&x, &ctx, sys, &x);
+    match decide("ssi_branch_open_end", Margin::of(margin), band) {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Zero) if within(&x, &ctx.domain) => {}
+        Ok(Sign::Zero | Sign::Negative) => {
+            return Err(SsiError::SeedOffDomain {
+                mode: mode.name(),
+                margin,
+            });
+        }
+        Err(diag) => return Err(TraceDecision::BranchOpenEnd.escalated(diag)),
+    }
     let seed_state = x;
     let mut states = vec![x];
     let mut prev_tangent: Option<[f64; N]> = None;
@@ -554,6 +611,7 @@ where
     let mut min_sigma = f64::INFINITY;
     let mut left_start = false;
     let mut steps = 0usize;
+    let mut curvature_bound = 0usize;
 
     while steps < ctx.max_steps {
         // ---- 1. the local decomposition ----
@@ -622,13 +680,13 @@ where
         }
 
         // ---- 4./5. the step ----
-        let (dx, h_meters) = match mode {
+        let (dx, h_meters, bound) = match mode {
             StepperMode::Idealized => {
                 // The spec: a tangent line of fixed tiny length.
                 let h = [step_cap / speed, ctx.diagonal()]
                     .into_iter()
                     .fold((SSI_IDEALIZED_STEP * ctx.extent) / speed, Real::min);
-                (scale(&d1, h), h * speed)
+                (scale(&d1, h), h * speed, StepBound::Cap)
             }
             StepperMode::Realized => {
                 let b2 = sys.rhs2(&x, &d1);
@@ -683,15 +741,21 @@ where
                 } else {
                     f64::INFINITY
                 };
-                let h_max = step_cap / speed;
-                let h = [h_cub, h_fit, h_max, ctx.diagonal()]
-                    .into_iter()
-                    .fold(h_quad, Real::min);
+                let h_curve = [h_cub, h_fit].into_iter().fold(h_quad, Real::min);
+                let h_cap = Real::min(step_cap / speed, ctx.diagonal());
+                let h = Real::min(h_curve, h_cap);
+                // Bookkeeping for the budget's refusal only: a poisoned
+                // `h` reaches the step guard below whichever rung is named.
+                let bound = if h_curve < h_cap {
+                    StepBound::Curvature
+                } else {
+                    StepBound::Cap
+                };
                 let mut step = [0.0f64; N];
                 for (i, s) in step.iter_mut().enumerate() {
                     *s = h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i];
                 }
-                (step, h * speed)
+                (step, h * speed, bound)
             }
         };
 
@@ -736,6 +800,9 @@ where
         };
         next = refined;
         steps += 1;
+        if bound == StepBound::Curvature {
+            curvature_bound += 1;
+        }
 
         // ---- ssi_branch_open_end ----
         let inside = domain_margin(&next, &ctx, sys, &x);
@@ -823,6 +890,7 @@ where
     Err(SsiError::StepBudget {
         mode: mode.name(),
         budget: ctx.max_steps,
+        bound: StepBound::of(curvature_bound, steps),
     })
 }
 
@@ -1294,7 +1362,7 @@ mod tests {
                         fault: StepFault::SpeedUnusable,
                     }
                     .ending(crate::recourse::Reading::Build);
-                    assert_eq!(ending.as_deref(), Some(geom_core::KERNEL_DEFECT_ENDING));
+                    assert_eq!(ending, geom_core::KERNEL_DEFECT_ENDING);
                 }
                 Err(SsiError::Escalated { decision, .. }) => panic!(
                     "WRONG DIAGNOSIS: a march speed of {speed:e} escalated on \
@@ -1378,9 +1446,7 @@ mod tests {
             assert_eq!(named.to_bits(), speed.to_bits(), "the speed it names");
             let ending = r.unwrap_err().ending(crate::recourse::Reading::Build);
             assert!(
-                ending
-                    .as_deref()
-                    .is_some_and(|e| e.starts_with("Recourse: bring the operands")),
+                ending.starts_with("Recourse: bring the operands"),
                 "speed {speed:e}: {ending:?}"
             );
         }
@@ -1459,7 +1525,7 @@ mod tests {
                     // A poisoned margin names no lever of the decision's:
                     // the arm gate ends as transversality's unreadable
                     // margin, the rest as the kernel's defect.
-                    let ending = e.ending(crate::recourse::Reading::Build).unwrap();
+                    let ending = e.ending(crate::recourse::Reading::Build);
                     if guard == TraceDecision::TransversalityArm {
                         assert!(
                             ending.ends_with(geom_core::UNREADABLE_MARGIN_NOTE),
@@ -1619,5 +1685,81 @@ mod tests {
         assert!(r.reach <= 1.0 + 1.0e-12, "{r:?}");
         let tol = MarchTol::from_band(band, r).unwrap();
         assert_eq!(tol.settling(), SSI_NEWTON_TOL * band.zero());
+    }
+
+    /// **A seed is decided inside the domain where it settles, before it
+    /// is marched.** The locus is the `x` axis, and the seed `(0, ½, 0)`
+    /// lies inside every domain below; Newton settles it to the origin,
+    /// at `y = 0`. The `y` face of the domain is placed so the settled
+    /// seed is definitely outside (no branch, naming its margin), in the
+    /// band's escalation zone (the open end escalates), in the band's
+    /// zero but outside the box (no branch, as `push_boundary` drops a
+    /// marched end there), on the face or in the band inside the box
+    /// (marched), and inside (marched). The `x` faces sit a few
+    /// idealized steps from the origin so a marched seed ends.
+    #[test]
+    fn a_seed_that_settles_outside_the_domain_is_no_branch() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let run = |y_lo: f64| {
+            let mut ctx = unit_ctx(band);
+            ctx.domain[0] = [-0.01, 0.01];
+            ctx.domain[1] = [y_lo, 1.0];
+            march(
+                &sys,
+                [0.0, 0.5, 0.0],
+                ctx,
+                StepperMode::Idealized,
+                1.0,
+                band,
+                SSI_STEP_MAX,
+            )
+        };
+        match run(0.1) {
+            Err(SsiError::SeedOffDomain { margin, .. }) => {
+                assert!(
+                    (margin + 0.1).abs() < 1.0e-12,
+                    "outside by 0.1 m: {margin:e}"
+                );
+            }
+            other => panic!("outside: expected no branch, got {other:?}"),
+        }
+        match run(5.0e-9) {
+            Err(SsiError::Escalated {
+                decision: TraceDecision::BranchOpenEnd,
+                ..
+            }) => {}
+            other => panic!("in the escalation zone: expected the open end, got {other:?}"),
+        }
+        match run(5.0e-10) {
+            Err(SsiError::SeedOffDomain { margin, .. }) => {
+                assert!(
+                    (margin + 5.0e-10).abs() < 1.0e-20,
+                    "in the band, outside the box: {margin:e}"
+                );
+            }
+            other => panic!("in the band, outside the box: expected no branch, got {other:?}"),
+        }
+        for y_lo in [0.0, -5.0e-10, -0.1] {
+            let t = run(y_lo).unwrap_or_else(|e| panic!("y ≥ {y_lo}: the seed is marched: {e}"));
+            assert_eq!(t.states[0], [0.0; 3], "y ≥ {y_lo}: the settled seed");
+        }
+    }
+
+    /// **A rung is named from a quarter of the steps**, on either side
+    /// of the line, for each rung.
+    #[test]
+    fn a_rung_is_named_from_a_quarter_of_the_steps() {
+        use super::StepBound;
+        for (curvature, want) in [
+            (0, StepBound::Cap),
+            (4, StepBound::Cap),
+            (5, StepBound::Both),
+            (15, StepBound::Both),
+            (16, StepBound::Curvature),
+            (20, StepBound::Curvature),
+        ] {
+            assert_eq!(StepBound::of(curvature, 20), want, "{curvature} of 20");
+        }
     }
 }
