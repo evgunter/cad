@@ -6057,3 +6057,33 @@ text names the merge door's own decision.
   - mid-surgery reads that trust a certificate;
   - whether the stamp is a second copy of adjacency;
   - `revert`'s side flip.
+
+## PR 3970, round 2: both designers correct C′ (2026-10-03)
+
+Both reports are posted verbatim on PR 3970 (`5971015111`). I also wrote
+them to `design-kef-A-r2.md` and `design-kef-B-r2.md` in the archive.
+
+**The correction:** my C′ rested on "payload equality, as `same_chart`
+compares". `same_chart` and `one_payload` are `Arc::ptr_eq`, and payload
+equality cannot be written for a generic scalar. It would also break
+Ev's PR 53 bit-identity retirement.
+
+**Both designers agree:**
+- pure C has a real wrong-answer path through three mid-surgery readers:
+  `mate_surface`, the boolean's smooth lane and the tangency source;
+- a stamp must be key identity or shared-`Arc` identity.
+
+**A:** C″. Descriptions hold the `Arc<Surface>` they were certified on,
+and freshness is `ptr_eq`. Analytic surfaces become `Arc`-held in the
+arena. Stale is a legal transient, refused at rest as `Scaffold` is, so
+`kef`/`kfmrh` need no refusal.
+
+**B:** B. A key's surface never changes within a body, so the key is the
+sound stamp, and C′ done soundly is B plus a side label. Stale is
+refused at the door, per PR 2527.
+
+**Left for Ev:** is a stale description a legal transient state or a
+door refusal?
+
+**Off-question, to file:** `bit_identity.rs` says "`Dual`, which no
+`Body` instantiates", which is stale.
