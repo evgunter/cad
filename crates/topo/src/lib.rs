@@ -685,7 +685,7 @@ pub use pcurves::{
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
     ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate,
-    TargetUnreached, VolumeEnclosure, classify_shells, classify_shells_of,
+    TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells, classify_shells_of,
     classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};

@@ -1160,6 +1160,54 @@ pub struct TargetUnreached<T: Real> {
     pub bracket: Option<VolumeEnclosure<T>>,
 }
 
+/// **What a continued measurement is entitled to say about the
+/// volume**: the reporting-level number, or — where the schedule
+/// cannot reach the reporting target at this ε — the bracket
+/// [`TargetUnreached::bracket`] keeps. The one reading of
+/// [`SignCertificate::measure`]'s result that every consumer which
+/// accepts a bracket shares.
+#[derive(Clone, Copy, Debug)]
+pub enum VolumeReading<T: Real> {
+    /// The reporting-level reading: volume, area, and their pads.
+    Number(MassProperties<T>),
+    /// The narrowest bracket the certificate or its continuation held:
+    /// two ends and the area lever, with no volume number in it.
+    Bracket(VolumeEnclosure<T>),
+}
+
+impl<T: Real> VolumeReading<T> {
+    /// Classifies a continuation's result: a number, a bracket where
+    /// the refusal is the schedule running out, and otherwise the
+    /// refusal itself — a body with no volume at all.
+    ///
+    /// # Errors
+    ///
+    /// The refusal of a [`TargetUnreached`] that kept no bracket.
+    pub fn of(
+        measured: Result<MassProperties<T>, TargetUnreached<T>>,
+    ) -> Result<Self, MassPropsError> {
+        match measured {
+            Ok(props) => Ok(Self::Number(props)),
+            Err(TargetUnreached {
+                bracket: Some(bracket),
+                ..
+            }) => Ok(Self::Bracket(bracket)),
+            Err(TargetUnreached { refusal, .. }) => Err(refusal),
+        }
+    }
+
+    /// The volume enclosure either reading carries: a number's
+    /// `volume ± volume_pad` ([`MassProperties::enclosure`]), or the
+    /// bracket.
+    #[must_use]
+    pub fn enclosure(&self) -> VolumeEnclosure<T> {
+        match self {
+            Self::Number(props) => props.enclosure(),
+            Self::Bracket(bracket) => *bracket,
+        }
+    }
+}
+
 impl<T: Real> fmt::Display for TargetUnreached<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // The bracket is a field, not prose: its ends are the scalar's

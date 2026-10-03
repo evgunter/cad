@@ -557,8 +557,12 @@ pub use topo::{
 // `StepImport::Solid::enclosure`'s other arm: an admitted body whose
 // volume is not measurable at this ε imports with that refusal, and
 // the curated-type rule (the `coherence` note below) says a caller
-// able to hold the answer must be able to spell its vocabulary.
-pub use topo::{MassProperties, MassPropsError, TargetUnreached, VolumeEnclosure, mass_properties};
+// able to hold the answer must be able to spell its vocabulary;
+// `VolumeReading` is that answer read as a number or a bracket.
+pub use topo::{
+    MassProperties, MassPropsError, TargetUnreached, VolumeEnclosure, VolumeReading,
+    mass_properties,
+};
 
 // --- 7. Tessellation and export -------------------------------
 pub use mesh::{Mesh, TessellateError, tessellate};

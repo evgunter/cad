@@ -72,3 +72,18 @@ hulls at the same rounds. The refusal is the schedule's honest ending
 and the demo sweep now reads it as the bracket `measure()` hands back
 (`demos/tour/tests/k_probe_brackets.rs`); at 1e-9 and 1e-6 both leaves
 certify a number.
+
+**A tighter ε reads a looser enclosure** (measured by PR 3976's
+review, `analysis/reach-review/3976`'s `review.md` finding 5 and its
+`probes/pr3976-full-schedule-and-oracle.patch`). At 1e-9 `lily_leaf_b`
+certifies a number ± 2.1e-7 (6.7e-5 relative). At 1e-12 the
+after-round-0 exit hands back the round-0 bracket, ± 2.4e-5 (7.8e-3
+relative), about 100× looser than what the kernel certified at 1e-9.
+Running the full schedule instead (the exit disabled) gives
+[3.13020e-3, 3.13855e-3], still wide, because the continuation stops
+at the first refusing face. The last round's real width there is
+1.5459e-8 against the bound's 1.5433e-8, so the bound is tight, and the
+full schedule refuses with the same payload (`rounds: 8`). Sound
+throughout. What a stricter ε buys on such a body is the budget
+exit's bracket, and that lives with this dial and with
+`SignCertificate::measure`'s stop-at-first-refusal, not with the demo.

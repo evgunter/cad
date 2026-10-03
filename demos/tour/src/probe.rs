@@ -10,8 +10,14 @@
 //!
 //! Per body the sweep mirrors `crate::run_body`'s validation ladder
 //! (tiers 1 + 2, then 3′ with declared contacts for boolean results
-//! or plain tier 3 otherwise, then exact mass properties) — minus the
+//! or plain tier 3 otherwise, the gate's certificate continued to the
+//! volume through [`crate::gated`] — a number, or a bracket where the
+//! schedule cannot reach the reporting target at this ε) — minus the
 //! mesh/STL/STEP export lanes, which decide nothing at kernel level.
+//! Each body's volume reading goes to stderr as one tab-separated
+//! record, `k_probe(demo)\tvolume\t<scene>\t<label>\t<number|bracket>\t<lo>\t<hi>`
+//! (`lo`/`hi` the enclosure's ends), which
+//! `tests/k_probe_brackets.rs` reads.
 //! The lily's wall probes carry the refusal-path samples the M2 report
 //! asked for (refusal-path predicates never sample on all-valid
 //! corpora). The bowtie row that used to ride beside them left with the
@@ -38,10 +44,10 @@
 use std::io::Write as _;
 
 use pncad::geom_core::k_stats::{self, Probe, SampleOutcome};
-use pncad::topo::{Body, ContactRecords};
+use pncad::topo::{Body, ContactRecords, VolumeReading};
 
 use crate::{
-    Measured, az, bodies, bool_bodies, bossplate, bracket, crosslap, curvedcut, cutaway, heatsink,
+    az, bodies, bool_bodies, bossplate, bracket, crosslap, curvedcut, cutaway, heatsink,
     letterforms, lily, projectbox, rocker,
 };
 use pncad::geom_core::Tol;
@@ -68,7 +74,7 @@ fn validate_probe(
     body: &Body<Probe>,
     contacts: Option<&ContactRecords>,
     tol: Tol,
-) -> Measured<Probe> {
+) -> VolumeReading<Probe> {
     pncad::topo::validate(body).unwrap_or_else(|e| panic!("{label}: tier 1 at Probe: {e:?}"));
     pncad::topo::validate_closed(body)
         .unwrap_or_else(|e| panic!("{label}: tier 2 at Probe: {e:?}"));
@@ -96,13 +102,16 @@ fn sweep<F: FnOnce() -> Vec<ProbeBody>>(
     k_stats::start_recording();
     let bodies = build();
     for (label, body, contacts) in &bodies {
-        if let Measured::Bracket(b) = validate_probe(label, body, contacts.as_ref(), tol) {
-            eprintln!(
-                "k_probe(demo): {scene}: {label}: volume in [{:e}, {:e}], a bracket — the \
-                 quadrature schedule cannot reach the reporting target at this eps",
-                b.volume_lo.0, b.volume_hi.0
-            );
-        }
+        let reading = validate_probe(label, body, contacts.as_ref(), tol);
+        let kind = match reading {
+            VolumeReading::Number(_) => "number",
+            VolumeReading::Bracket(_) => "bracket",
+        };
+        let e = reading.enclosure();
+        eprintln!(
+            "k_probe(demo)\tvolume\t{scene}\t{label}\t{kind}\t{:e}\t{:e}",
+            e.volume_lo.0, e.volume_hi.0
+        );
     }
     let samples = k_stats::take_samples();
     *total += samples.len();

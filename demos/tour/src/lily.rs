@@ -3340,16 +3340,16 @@ mod review_probes {
         // centre of curvature, so its arc is len + |curl|·rise.
         //
         // Two readings against it. The kernel's own certified volume
-        // must CONTAIN it — and a containment is only evidence when the
-        // certificate is narrow, so its width is held under
-        // `BRACKET_CEILING` of Pappus, a tenth of the mesh's own
-        // deficit below: a closed form off by more than that is
-        // excluded. At the default ε the full widths are 1.4e-4 and
-        // 8.2e-5 of it, Pappus sitting inside each. At 1e-6 the pad,
-        // and at 1e-12 the round-0 bracket
+        // must CONTAIN it, at every width: a sound enclosure misses the
+        // true volume at none. A containment is strong evidence only
+        // when the enclosure is narrow — under `BRACKET_CEILING` of
+        // Pappus, a tenth of the mesh's own deficit below, so a closed
+        // form off by more than that is excluded. At the default ε the
+        // full widths are 1.4e-4 and 8.2e-5 of it. At 1e-6 the pad,
+        // and at 1e-12 the bracket the budget refusal keeps
         // (`work/quad/check-7-refuses-the-reporting-budget-on-a-definite-sign.md`),
-        // are wider than the ceiling, and the row says so rather than
-        // counting a wide bracket as agreement. And the mesh must fall
+        // are wider than the ceiling, and the row says so beside the
+        // containment it still asserts. And the mesh must fall
         // SHORT of it by between 3e-3 and 6e-3: every chord across the
         // convex lens cuts inside it, and the inscribed deficit measured
         // 4.3e-3 and 5.0e-3 at δ = 2e-3. A mesh that met Pappus would
@@ -3371,25 +3371,23 @@ mod review_probes {
                     .abs()
                     .mul_add(leaf.section.centroid_rise(), leaf.len);
             let b = body(&ps, name);
-            let (lo, hi) = match pncad::topo::validate_geometric_certificate(b, Tol::witness())
-                .expect("the swept leaf is tier 3 clean")
-                .measure()
-            {
-                Ok(p) => (p.volume - p.volume_pad, p.volume + p.volume_pad),
-                Err(pncad::topo::TargetUnreached {
-                    bracket: Some(e), ..
-                }) => (e.volume_lo, e.volume_hi),
-                Err(e) => panic!("{name}: no certified volume: {e}"),
-            };
-            if hi - lo <= BRACKET_CEILING * pappus {
-                assert!(
-                    lo <= pappus && pappus <= hi,
-                    "{name}: Pappus {pappus} outside the certified [{lo}, {hi}]"
-                );
-            } else {
+            let e = pncad::topo::VolumeReading::of(
+                pncad::topo::validate_geometric_certificate(b, Tol::witness())
+                    .expect("the swept leaf is tier 3 clean")
+                    .measure(),
+            )
+            .unwrap_or_else(|refusal| panic!("{name}: no certified volume: {refusal}"))
+            .enclosure();
+            let (lo, hi) = (e.volume_lo, e.volume_hi);
+            assert!(
+                lo <= pappus && pappus <= hi,
+                "{name}: Pappus {pappus} outside the certified [{lo}, {hi}]"
+            );
+            if hi - lo > BRACKET_CEILING * pappus {
                 println!(
                     "{name}: certified [{lo:e}, {hi:e}] is {:.1e} of Pappus wide, past \
-                     the {BRACKET_CEILING:e} ceiling at this ε — not evidence, not asserted",
+                     the {BRACKET_CEILING:e} ceiling at this ε — it contains Pappus, \
+                     which at this width is weak evidence of agreement",
                     (hi - lo) / pappus
                 );
             }

@@ -96,7 +96,7 @@ use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 use pncad::prelude::{Evaluation, RecipeNodeId};
 use pncad::topo::readback::euler_counts;
-use pncad::topo::{Body, ContactRecords, EulerCounts};
+use pncad::topo::{Body, ContactRecords, EulerCounts, VolumeReading};
 
 /// One body of a tour scene: its own STL/STEP exports, its own
 /// validation posture. `contacts` is `Some` exactly when the body is a
@@ -422,31 +422,6 @@ fn named_subset_frontier(e: &pncad::step_export::StepExportError) -> bool {
     )
 }
 
-/// What a tier-3 or tier-3′ gate leaves the tour holding about a
-/// body's volume — the LEVEL its certified quadrature stopped at.
-///
-/// Both gates run a certified quadrature (tier 3's check 7 and 3′'s
-/// are the same check), so every body here is measured by the gate it
-/// was already going to pass through and by nothing else. The two
-/// gates stop at different levels and that is the whole of this type:
-/// 3′'s check runs to the reporting target and hands back a number,
-/// while tier 3's stops as soon as the volume's SIGN is decided and
-/// hands back a certificate its holder continues.
-///
-/// That continuation can refuse where the gate passed. The reporting
-/// target is a length that scales with ε while the schedule's floor is
-/// a property of the part, so a body whose sign is definite may have
-/// no number at this ε. Such a body is VALID, and what the tour
-/// reports for it is the narrowest bracket the certificate or its
-/// continuation held.
-enum Measured<T: pncad::geom_core::Real> {
-    /// The reporting-level reading: volume, area, and their pads.
-    Number(pncad::topo::MassProperties<T>),
-    /// The bracket `TargetUnreached` carries: two ends and the area
-    /// lever, with no volume number in it by construction.
-    Bracket(pncad::topo::VolumeEnclosure<T>),
-}
-
 /// The mesh's own surface area: the sum over its triangles, written
 /// here rather than read off the kernel.
 ///
@@ -468,8 +443,8 @@ fn mesh_area(mesh: &pncad::mesh::Mesh) -> f64 {
 }
 
 /// The reporting door, for the one arm that still has to ask it.
-fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured<f64> {
-    Measured::Number(
+fn reported(label: &str, body: &Body<f64>, tol: Tol) -> VolumeReading<f64> {
+    VolumeReading::Number(
         pncad::topo::mass_properties(body, tol)
             .unwrap_or_else(|e| panic!("{label}: mass properties failed: {e:?}")),
     )
@@ -477,26 +452,22 @@ fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured<f64> {
 
 /// A gate's certificate, continued to the number where the quadrature
 /// can reach it.
+///
+/// Both gates run a certified quadrature (tier 3's check 7 and 3′'s
+/// are the same check), so every body here is measured by the gate it
+/// was already going to pass through and by nothing else. The
+/// continuation can refuse where the gate passed: the reporting target
+/// is a length that scales with ε while the schedule's floor is a
+/// property of the part, so a body whose sign is definite may have no
+/// number at this ε. Such a body is VALID, and what the tour reports
+/// for it is the bracket ([`VolumeReading::Bracket`]); every other
+/// refusal is a body with no volume at all, and stays fail-loud.
 fn continued<T: Gated>(
     label: &str,
     certificate: pncad::topo::SignCertificate<'_, T>,
-) -> Measured<T> {
-    match certificate.measure() {
-        Ok(props) => Measured::Number(props),
-        // A body the gate ADMITTED whose schedule cannot reach the
-        // reporting target: its sign is definite and its volume is not
-        // measurable at this ε. The bracket is the whole of what the
-        // quadrature is entitled to say, so the ribbon says it rather
-        // than the tour dying on a body the gate just certified. The
-        // kernel classifies the refusal (`TargetUnreached::bracket`);
-        // every OTHER refusal is a body with no volume at all, and
-        // stays fail-loud.
-        Err(pncad::topo::TargetUnreached {
-            bracket: Some(bracket),
-            ..
-        }) => Measured::Bracket(bracket),
-        Err(unreached) => panic!("{label}: mass properties failed: {unreached}"),
-    }
+) -> VolumeReading<T> {
+    VolumeReading::of(certificate.measure())
+        .unwrap_or_else(|refusal| panic!("{label}: mass properties failed: {refusal}"))
 }
 
 /// The scalars a body is gated and measured at: the tour's `f64`, and
@@ -521,7 +492,7 @@ fn gated<T: Gated>(
     body: &Body<T>,
     contacts: Option<&ContactRecords>,
     tol: Tol,
-) -> Measured<T> {
+) -> VolumeReading<T> {
     match contacts {
         Some(contacts) => continued(
             label,
@@ -613,7 +584,7 @@ fn run_body(
         // curved-CUT faces contribute certified quadrature enclosures,
         // `volume` is a bracket midpoint with half-width `volume_pad`
         // (0.0 on closed-form bodies).
-        Measured::Number(props) => {
+        VolumeReading::Number(props) => {
             let rel = ((v_mesh - props.volume) / props.volume).abs();
             let certified = if props.volume_pad > 0.0 {
                 format!(" (certified enclosure ± {:.1e})", props.volume_pad)
@@ -655,7 +626,7 @@ fn run_body(
         // surface across a convex feature and stands outside it across
         // a concave one, so a mesh volume may land on either side of
         // the exact one.
-        Measured::Bracket(enclosure) => {
+        VolumeReading::Bracket(enclosure) => {
             let slack = delta * mesh_area(&mesh);
             assert!(
                 v_mesh > enclosure.volume_lo - slack && v_mesh < enclosure.volume_hi + slack,

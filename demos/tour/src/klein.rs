@@ -781,16 +781,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // target is met, the narrowest bracket the certificate held where
     // it is not. The body's true volume is in it AND in the band, so
     // the two must meet.
-    let (v_lo, v_hi) = match pncad::topo::validate_geometric_certificate(&top, tol)
-        .unwrap_or_else(|e| panic!("the loop's tier 3 refused: {e:?}"))
-        .measure()
-    {
-        Ok(p) => (p.volume - p.volume_pad, p.volume + p.volume_pad),
-        Err(pncad::topo::TargetUnreached {
-            bracket: Some(b), ..
-        }) => (b.volume_lo, b.volume_hi),
-        Err(unreached) => panic!("the loop's mass properties: {unreached}"),
-    };
+    let e = pncad::topo::VolumeReading::of(
+        pncad::topo::validate_geometric_certificate(&top, tol)
+            .unwrap_or_else(|e| panic!("the loop's tier 3 refused: {e:?}"))
+            .measure(),
+    )
+    .unwrap_or_else(|refusal| panic!("the loop's mass properties: {refusal}"))
+    .enclosure();
+    let (v_lo, v_hi) = (e.volume_lo, e.volume_hi);
     assert!(
         v_lo <= band_hi && band_lo <= v_hi,
         "the loop's certified enclosure [{v_lo}, {v_hi}] misses Pappus's A·L = {pappus} \

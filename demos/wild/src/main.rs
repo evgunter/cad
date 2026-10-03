@@ -202,18 +202,12 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     // of the body's stored points — vertex points and control points,
     // whose hull bounds every NURBS patch). The wild has no closed
     // forms; the exact-vs-mesh volume row is the same end-to-end
-    // sanity ribbon the tour prints. A body whose schedule cannot
-    // reach the reporting target at this ε has a bracket and no
-    // number (`TargetUnreached::bracket`), and the ribbon reads the
-    // bracket; any other refusal is a body with no volume at all.
-    let measured = match enclosure {
-        Ok(props) => Ok(props),
-        Err(pncad::topo::TargetUnreached {
-            bracket: Some(bracket),
-            ..
-        }) => Err(bracket),
-        Err(unreached) => panic!("{name}: imported but has no volume: {unreached}"),
-    };
+    // sanity ribbon the tour prints. A pinned cell measures a NUMBER:
+    // one that comes back a bracket at this ε has drifted as surely as
+    // one that stops importing.
+    let props = enclosure.unwrap_or_else(|unreached| {
+        panic!("{name}: a PINNED montage cell has no volume number at this eps: {unreached}")
+    });
     let (lo, hi) = body.points().fold(
         ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]),
         |(lo, hi), (_, p)| {
@@ -231,45 +225,17 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{name}: check_mesh failed: {e:?}"));
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{name}: mesh signed volume must be positive");
-    match measured {
-        Ok(props) => {
-            let rel = ((v_mesh - props.volume) / props.volume).abs();
-            println!(
-                "   [{name}] exact: V = {:.3} mm^3, A = {:.3} mm^2; mesh (delta = {:.2e} m): \
-                 {} triangles, V_mesh = {:.3} mm^3 ({:.3}% off exact — chordal, inscribed)",
-                props.volume * 1e9,
-                props.surface_area * 1e6,
-                delta,
-                triangle_count(&mesh),
-                v_mesh * 1e9,
-                rel * 100.0
-            );
-        }
-        // The chord's volume slack is at most `delta` times the area
-        // it spans, on either side of the surface.
-        Err(bracket) => {
-            let slack = delta * bracket.surface_area;
-            assert!(
-                v_mesh > bracket.volume_lo - slack && v_mesh < bracket.volume_hi + slack,
-                "{name}: mesh signed volume {v_mesh} is outside the certified bracket \
-                 [{}, {}] widened by the chordal slack {slack:e}",
-                bracket.volume_lo,
-                bracket.volume_hi
-            );
-            println!(
-                "   [{name}] exact: V in [{:.3}, {:.3}] mm^3, certified bracket (no volume \
-                 NUMBER at this eps), A = {:.3} mm^2; mesh (delta = {:.2e} m): {} triangles, \
-                 V_mesh = {:.3} mm^3 (inside the bracket, chordal slack ±{:.1e} mm^3)",
-                bracket.volume_lo * 1e9,
-                bracket.volume_hi * 1e9,
-                bracket.surface_area * 1e6,
-                delta,
-                triangle_count(&mesh),
-                v_mesh * 1e9,
-                slack * 1e9
-            );
-        }
-    }
+    let rel = ((v_mesh - props.volume) / props.volume).abs();
+    println!(
+        "   [{name}] exact: V = {:.3} mm^3, A = {:.3} mm^2; mesh (delta = {:.2e} m): \
+         {} triangles, V_mesh = {:.3} mm^3 ({:.3}% off exact — chordal, inscribed)",
+        props.volume * 1e9,
+        props.surface_area * 1e6,
+        delta,
+        triangle_count(&mesh),
+        v_mesh * 1e9,
+        rel * 100.0
+    );
 
     // The binary header is the one caller-visible identity binary STL
     // carries; this corpus names each body in it.
