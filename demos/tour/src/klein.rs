@@ -103,14 +103,12 @@
 //!    improvement rather than a workaround (Ev, 2026-08-16). An arc
 //!    in the profile is a CONSTRUCTED part of the wall and answers to
 //!    no rolling ball; a post-hoc roll of the same size cannot exist.
-//! 4. **Neither join can start** (walls 3, 4). `union` refuses at the
-//!    operand gate before any pair is looked at:
-//!    `CurvedEdgeUnsupported { operand: B }` — the loop is a sweep, its
-//!    longitudinal edges are NURBS carriers, and rung-3 edges are what
-//!    the curved zip MINTS, not what it consumes. `subtract` answers
-//!    first at the revert roster with `{ op: Some(Subtract), kind:
-//!    Cone, other_kind: Plane }` — the flare against a planar cap of
-//!    the loop, a pair whose boxes MAY meet (box overlap
+//! 4. **Neither join can start** (walls 3, 4). Both refuse on the
+//!    flare's cone against a planar cap of the loop: `union` at the
+//!    operand gate's pair rung (`{ op: None, kind: Cone, other_kind:
+//!    Plane }`, the cone having no wired arm), `subtract` at the revert
+//!    roster with `{ op: Some(Subtract), kind: Cone, other_kind: Plane
+//!    }`; a pair whose boxes MAY meet (box overlap
 //!    over-approximates; the kernel cannot rule the meeting out, a
 //!    weaker claim than that they do). So the bottle cannot be one
 //!    body, and the self-intersection — the neck piercing the bulb,
@@ -261,7 +259,7 @@ use pncad::sweep::blend::{BlendError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, SkinError, revolve, sweep_body};
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{
-    Body, BooleanError, BooleanOp, EdgeKey, MassPropsError, Operand, ValidationError,
+    Body, BooleanError, BooleanOp, EdgeKey, MassPropsError, PairRefusalSite, ValidationError,
 };
 
 use crate::scalar::{Scalar, sketch_frame};
@@ -652,14 +650,17 @@ fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     }
 }
 
-/// Wall 3's pinned refusal: the loop's NURBS edges at the union's
-/// operand gate. Shared with `verbs_gate_r1_probes`, so the two
-/// cannot drift.
+/// Wall 3's pinned refusal: the flare's cone against a planar cap of
+/// the loop, at the union's operand gate. Shared with
+/// `verbs_gate_r1_probes`, so the two cannot drift.
 fn wall3_pinned(e: &BooleanError) -> bool {
     matches!(
         e,
-        BooleanError::CurvedEdgeUnsupported {
-            operand: Operand::B,
+        BooleanError::CurvedPairUnsupported {
+            op: None,
+            site: PairRefusalSite::OperandGate,
+            kind: SurfaceKind::Cone,
+            other_kind: SurfaceKind::Plane,
             ..
         }
     )
@@ -669,7 +670,7 @@ fn wall3_pinned(e: &BooleanError) -> bool {
 /// the loop, at the ∖/∩ revert roster. Both kinds and the op are
 /// pinned, so a pair that changed kind reds. The cone has no arm under
 /// any op, and the roster has no covered rung whatever the pair; it
-/// answers before the edge gate that stops wall 3.
+/// answers before the operand gate's pair rung that stops wall 3.
 fn wall4_pinned(e: &BooleanError) -> bool {
     matches!(
         e,
@@ -948,10 +949,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  full revolve of ONE meridian band; the loop over the top is ONE sweep \
                  of the annulus along its whole U-turn spine. The two MEET on annular \
                  faces, each cap tilted off the bulb's rim by its spine's end tangent, \
-                 and they cannot be joined: union refuses the loop's NURBS edges at the \
-                 operand gate, and subtract refuses the bulb's cone flare against a \
-                 planar cap at the revert roster. The neck passes through the flare \
-                 uncut for that second reason";
+                 and they cannot be joined: union refuses the bulb's cone flare against \
+                 a planar cap at the operand gate, and subtract refuses the same pair at \
+                 the revert roster. The neck passes through the flare uncut for that \
+                 second reason";
     vec![Stop {
         name: "klein",
         caption: "Klein bottle — two bodies the kernel cannot join".to_string(),
@@ -1082,12 +1083,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
-    // annular faces — the REST mate — and the union refuses before
-    // any pair is looked at: the loop is a sweep, its longitudinal
-    // edges are NURBS carriers, and the operand gate admits a rung-3
-    // edge in no INPUT operand (rung-3 is what the curved zip mints,
-    // not what it consumes) —
-    // `work/cleave/boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule`.
+    // annular faces — the REST mate — and the union refuses at the
+    // operand gate on the flare's cone against a planar cap of the
+    // loop: a cone has no wired arm. Behind it the loop is a sweep
+    // whose longitudinal edges are NURBS carriers, which the crossing
+    // lane would refuse next.
     crate::walls::wall(
         "bottle",
         3,
@@ -1363,8 +1363,8 @@ mod verbs_gate_r1_probes {
     //! for — but "the caller's declarations" is the
     //! `BooleanDeclarations` value handed to the op, and both walls
     //! below go through `pncad::topo::union` and `pncad::topo::subtract`,
-    //! the doors that take none. (Wall 3 refuses earlier still, on the
-    //! loop's NURBS edges, which no declaration speaks for.)
+    //! the doors that take none. (Wall 3 is the same cone pair, at the
+    //! union's operand gate.)
     //!
     //! Wall 4 is doubly out of reach and the second reason is the more
     //! durable one: it is a SUBTRACT, and the revert roster it refuses
@@ -1391,7 +1391,7 @@ mod verbs_gate_r1_probes {
         println!("klein wall 3: {joined:?}");
         assert!(
             wall3_pinned(&joined),
-            "wall 3 must refuse the loop's NURBS edges at the operand gate: {joined:?}"
+            "wall 3 must name the flare against a planar cap of the loop: {joined:?}"
         );
 
         let trimmed = pncad::topo::subtract(&bulb_body, &top, tol)

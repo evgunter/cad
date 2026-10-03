@@ -326,18 +326,19 @@ fn lofted() -> Body<f64> {
 /// there an operand must survive the per-arm operand gate and produce
 /// no crossings. No constructor mints such a body today:
 ///
-/// - a lofted body has NURBS **edges**, and the gate refuses those
-///   typed (`CurvedEdgeUnsupported`) before any face box is built —
-///   this row;
+/// - a lofted body has NURBS **edges**, which have no box of their own,
+///   so the sweep reads each against every face of the other operand
+///   and its crossing lane refuses the first typed
+///   (`EdgeCarrierUnsupported`) — this row;
 /// - the `mvfs` placeholder surface gives NURBS faces with line edges,
 ///   but its control net is poison, so its box is poison, so it is
 ///   never pruned and meets the crossing layer first.
 ///
 /// So the re-gate is defensive depth, pinned at the mechanism in
-/// `topo`'s own suite. When a rung-3 operand gate admits NURBS edges
-/// this row goes red, and whoever lifts it owes the end-to-end row.
+/// `topo`'s own suite. When a crossing rung reads NURBS edges this row
+/// goes red, and whoever builds it owes the end-to-end row.
 #[test]
-fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
+fn a_lofted_operand_is_refused_at_its_nurbs_edges_by_the_crossing_lane() {
     let a = lofted();
     // The operand is IN the class the re-gate exists for. Nothing else
     // in the row says so: the refusal below is about its EDGES.
@@ -354,8 +355,15 @@ fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
     let err = topo::boolean::union(&a, &b, Tol::witness())
         .expect_err("a NURBS operand must refuse typed");
     assert!(
-        matches!(err, BooleanError::CurvedEdgeUnsupported { .. }),
-        "the operand gate's edge arm is what a lofted body meets, got {err:?}"
+        matches!(
+            err,
+            BooleanError::EdgeCarrierUnsupported {
+                operand: topo::Operand::A,
+                site: topo::EdgeCarrierSite::PlanarCrossing,
+                ..
+            }
+        ),
+        "the crossing lane's spline refusal is what a lofted body meets, got {err:?}"
     );
 }
 

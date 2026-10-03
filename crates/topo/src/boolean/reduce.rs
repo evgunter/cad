@@ -355,17 +355,17 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// planar-only gate retires PER C5 TABLE ARM, never wholesale).
 ///
 /// First, each operand passes [`gate_operand`]: a closed solid at rest
-/// by the validator's own verdict, with supported edge carriers, and
-/// no solid inside-out. Then two rules, with different scopes on
-/// purpose:
+/// by the validator's own verdict, with no solid inside-out. Then a
+/// face kind with no wired arm ([`boolean_arm_exists`]) disqualifies
+/// the operation only through a PAIR it could enter
+/// ([`first_unsupported_pair`]) and that the caller's declarations do
+/// not cover. A torus wall whose box clears the other operand does not
+/// gate anything, and neither does one whose contact with the face it
+/// may meet the author has DECLARED.
 ///
-/// - **Faces**: a kind with no wired arm ([`boolean_arm_exists`])
-///   disqualifies the operation only through a PAIR it could enter
-///   ([`first_unsupported_pair`]) and that the caller's declarations
-///   do not cover. A torus wall whose box clears the other operand
-///   does not gate anything, and neither does one whose contact with
-///   the face it may meet the author has DECLARED.
-/// - **Edges**: body-scoped ([`gate_operand`]).
+/// Edge carriers are not gated: each lane that reads one refuses a
+/// kind it has no row for at its own site, naming the edge and the
+/// face ([`BooleanError::EdgeCarrierUnsupported`]).
 ///
 /// # Errors
 ///
@@ -410,21 +410,14 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds + crate::props::AtRestPolicy
 ///    [`BooleanError::CorruptOperand`], and tier-2 scaffolding — a
 ///    strut, an empty loop, a null edge, a split shell — as
 ///    [`BooleanError::ScaffoldingOperand`], each carrying the findings;
-/// 2. the edge carriers: `Line`/`Circle`/`Ellipse` pass (the crossing
-///    lanes handle all three; the both-split point lane still needs a
-///    `Line`, and says so where it refuses); a `Nurbs` or spiric edge
-///    refuses [`BooleanError::CurvedEdgeUnsupported`] wherever it sits
-///    — a rung-3 INPUT operand is outside the supported envelope,
-///    rung-3 edges being what the zip MINTS rather than what it
-///    consumes;
-/// 3. orientation: tier 3's check 7, per solid, at the scalar's lane
+/// 2. orientation: tier 3's check 7, per solid, at the scalar's lane
 ///    ([`crate::AtRestPolicy::quad_lane`]). A solid it decides
 ///    definitely negative refuses [`BooleanError::InsideOutOperand`];
 ///    one whose sign it leaves open passes, as check 7 passes it, and
 ///    the volume backstop keeps its own refusal of a body it cannot
 ///    measure.
 ///
-/// The subject of 3 is the solid: a body's total hides a sign, so a
+/// The subject of 2 is the solid: a body's total hides a sign, so a
 /// several-solid operand is gated here before it is read as one solid
 /// (`ops::one_solid`).
 pub(super) fn gate_operand<T: Decide + crate::props::AtRestPolicy>(
@@ -446,7 +439,6 @@ pub(super) fn gate_operand<T: Decide + crate::props::AtRestPolicy>(
             errors: scaffolding,
         });
     }
-    gate_operand_edges(body, operand)?;
     if let Some(&solid) =
         crate::validate::inside_out_solids(body, band, tol, T::quad_lane()).first()
     {
@@ -467,27 +459,6 @@ fn surface_of<'a, T: Decide>(
         .ok_or(BooleanError::ClassificationInvariant {
             what: "operand gate: an operand face's surface key does not resolve",
         })
-}
-
-/// [`gate_operand`]'s edge carriers.
-fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
-    for (edge_key, edge) in body.edges() {
-        match certified(body.get_curve_geom(edge.curve))?.carrier() {
-            geom::Curve3::Line { .. }
-            | geom::Curve3::Circle { .. }
-            | geom::Curve3::Ellipse { .. } => {}
-            // The boolean fence: no join, section or pierce arm
-            // reads a spiric, so an operand carrying one refuses
-            // here, at the gate, as a spline does.
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                return Err(BooleanError::CurvedEdgeUnsupported {
-                    operand,
-                    edge: edge_key,
-                });
-            }
-        }
-    }
-    Ok(())
 }
 
 /// An operand edge's certified carrier. Tier 2 refuses a null edge and
@@ -794,11 +765,25 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
             let relation = match super::carrier_pair_relation(a, fa, b, fb, false, band) {
                 Ok(relation) => relation,
                 Err(super::PairUnread::OutsideInventory) => continue,
-                // The operands passed the gates, whose face boxes read;
-                // a face with no extent to compare it over is named.
-                Err(super::PairUnread::Extent(_)) => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "continuation scan: an operand face's consumed extent cannot be read",
+                // A face bounded by a spline edge has no box (the edge has
+                // none of its own), and that edge is named; any other face
+                // with no extent to compare it over is a torn arena.
+                Err(super::PairUnread::Extent(which)) => {
+                    let (operand, body, face) = match which {
+                        super::PairFace::First => (Operand::A, a, fa),
+                        super::PairFace::Second => (Operand::B, b, fb),
+                    };
+                    return Err(match spline_boundary_edge(body, face) {
+                        Some(edge) => BooleanError::EdgeCarrierUnsupported {
+                            operand,
+                            edge,
+                            face,
+                            site: super::EdgeCarrierSite::FaceExtent,
+                        },
+                        None => BooleanError::ClassificationInvariant {
+                            what: "continuation scan: an operand face's consumed extent cannot \
+                                   be read",
+                        },
                     });
                 }
             };
@@ -1213,10 +1198,11 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // A spiric or a spline: its endpoints' sides neither
                     // find its crossings nor place them.
                     PlaneCrossingLane::Unlaned => {
-                        return Err(BooleanError::CrossingCarrierUnsupported {
+                        return Err(BooleanError::EdgeCarrierUnsupported {
                             operand: x_is,
                             edge: edge_key,
                             face,
+                            site: super::EdgeCarrierSite::PlanarCrossing,
                         });
                     }
                     PlaneCrossingLane::Conic(meet) => Some(meet),
@@ -1464,6 +1450,27 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     Ok(())
 }
 
+/// The first edge bounding `face` whose carrier is a spline: the kind
+/// with no box of its own (`boxes::EdgeBoxRule::NoSoundBox`), so the
+/// face it bounds has none either.
+fn spline_boundary_edge<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<EdgeKey> {
+    let f = body.get_face(face)?;
+    core::iter::once(f.outer)
+        .chain(f.rings.iter().copied())
+        .filter_map(|l| match body.get_loop(l)?.boundary {
+            crate::LoopBoundary::Cycle { first } => body.loop_cycle(first),
+            crate::LoopBoundary::Empty { .. } => None,
+        })
+        .flatten()
+        .filter_map(|he| body.get_half_edge(he).map(|h| h.edge))
+        .find(|&e| {
+            body.get_edge(e)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(CurveGeom::certified)
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Nurbs(_)))
+        })
+}
+
 /// An edge end: the vertex and its point.
 type End<T> = (VertexKey, Point3<T>);
 
@@ -1671,9 +1678,9 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// in-band clearance escalates (F6, the same margin's other half) —
 /// except an uncovered conic's against one of those three kinds, where
 /// the certified roots decide what the enclosures could not. Spiric and
-/// NURBS carriers have no enclosure and take the frontier door before
-/// any clearance test (behind the operand gate, which refuses them
-/// first). Never a silent fallback.
+/// NURBS carriers have no enclosure and refuse
+/// ([`BooleanError::EdgeCarrierUnsupported`]) before any clearance
+/// test. Never a silent fallback.
 ///
 /// **The carrier-identity rung** comes before any enclosure on a
 /// CIRCLE carrier: an edge whose parent face is declared one carrier with
@@ -2179,10 +2186,11 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         // carrier's speed and acceleration over the span), so nothing
         // finds its crossings, as at the planar arm.
         (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), _) => {
-            return Err(BooleanError::CrossingCarrierUnsupported {
+            return Err(BooleanError::EdgeCarrierUnsupported {
                 operand: x_is,
                 edge: edge_key,
                 face,
+                site: super::EdgeCarrierSite::CurvedCrossing,
             });
         }
         (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, None) => {
@@ -3856,7 +3864,7 @@ pub(super) mod coplanar_conic_rows;
 
 #[cfg(test)]
 #[path = "planar_lane_carrier_rows.rs"]
-mod planar_lane_carrier_rows;
+pub(super) mod planar_lane_carrier_rows;
 
 /// **A curved face's escalations read no declaration ahead of them, and
 /// offer none**, on the review's executed raises (its

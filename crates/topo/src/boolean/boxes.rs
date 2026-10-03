@@ -1772,11 +1772,9 @@ fn boundary_hull<T: Decide + Bounds>(
 ///
 ///   **Tightening is a separate obligation from soundness.** A
 ///   tighter box prunes pairs a wider one examined, and pruning is
-///   only sound for kinds the operand gate admits and the crossing
-///   lanes handle — `Line`, `Circle` and `Ellipse` all are
-///   (`reduce::gate_operand_edges`), which is what licensed the exact
-///   form here; the NURBS arm below is where that obligation is
-///   still owed. A correctness fix and a structural one are two
+///   only sound for kinds the crossing lanes handle — `Line`, `Circle`
+///   and `Ellipse` all are, which is what licensed the exact form here;
+///   the NURBS arm below is where that obligation is still owed. A correctness fix and a structural one are two
 ///   halves that separate (the rule S235 stated against #862): a
 ///   deletion of over-width retires with its defect — #862's half —
 ///   while a duplicated construction outlives every fix to either
@@ -1793,9 +1791,9 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   [`FaceBoxRule::ControlNet`] does one dimension up. Taking it
 ///   would TIGHTEN this box — it would start pruning pairs that are
 ///   examined today — and tightening is a different obligation from
-///   soundness: a rung-3 operand gate has to admit the kind first.
-///   Claiming nothing is already the conservative answer, so nothing
-///   is unsound while it waits. (It also carries the same trim ⊆ knot
+///   soundness: a crossing rung has to read the kind first. Claiming
+///   nothing is already the conservative answer: every face is then a
+///   candidate, and the crossing lane refuses the edge at the first. (It also carries the same trim ⊆ knot
 ///   domain premise the surface arm states.)
 pub(crate) enum EdgeBoxRule<T: Real> {
     /// The chord between the endpoints — see the type docs.
@@ -1821,8 +1819,7 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     /// The spiric's whole-period box through `geom`'s
     /// `spiric_arc_aabb` door (a C10 superset), hulled with the chord.
     /// No axial projection is written for it (the census lane reads
-    /// it as unclaimable); reachable only from its own rows today,
-    /// because the operand gate refuses the kind.
+    /// it as unclaimable).
     Spiric,
 }
 
@@ -4681,10 +4678,8 @@ pub(crate) mod tests {
     /// **The spiric arm of `edge_box`, and the census's reach twin,
     /// contain a dense sample of the arc** — the two readers of
     /// [`EdgeBoxRule::Spiric`], each executed on the hand-built sector
-    /// (no public door builds a spiric-bearing operand that reaches
-    /// either at this head: the boolean's operand gate refuses the
-    /// kind, and a hollowed partial revolve stops at tier 3 before the
-    /// census). The whole-period box is asserted over the whole
+    /// (a hollowed partial revolve, the one public door that mints a
+    /// spiric, stops at tier 3 before the census). The whole-period box is asserted over the whole
     /// period, which is what the door claims.
     #[test]
     fn the_spiric_edge_box_and_reach_contain_a_dense_sample() {

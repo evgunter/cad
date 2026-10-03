@@ -399,11 +399,10 @@ fn the_curved_approx_walls_tessellate() {
     }
 }
 
-/// **The boolean against the twisted body refuses TYPED at the edge
-/// rule** — a lofted operand's wall carriers are rung-3 splines, so the
-/// gate's body-scoped edge rule fires before the face rule ever sees
-/// the `Approx` kind. Recorded as the refusal's true shape for THIS
-/// operand (the germ-pair shape needs `Line` carriers; next row).
+/// **The boolean against the twisted body refuses TYPED at the
+/// pair-scoped face rule**: its `Approx` wall may meet the box's plane
+/// face, and no arm takes that pair. Its spline edges refuse only at the
+/// lanes that read them, which the face rule runs ahead of.
 #[test]
 fn a_boolean_against_the_twisted_approx_body_refuses_typed() {
     let Some((a, _)) = twisted_approx() else {
@@ -412,8 +411,16 @@ fn a_boolean_against_the_twisted_approx_body_refuses_typed() {
     let e = topo::union(&a, &moved_box(), Tol::witness())
         .expect_err("a lofted Approx operand is outside the boolean envelope");
     assert!(
-        matches!(e, topo::BooleanError::CurvedEdgeUnsupported { .. }),
-        "expected the edge rule's typed refusal on a spline carrier, got {e}"
+        matches!(
+            e,
+            topo::BooleanError::CurvedPairUnsupported {
+                site: topo::PairRefusalSite::OperandGate,
+                kind: geom::SurfaceKind::Approx,
+                other_kind: geom::SurfaceKind::Plane,
+                ..
+            }
+        ),
+        "expected the face rule's typed refusal on the Approx wall, got {e}"
     );
 }
 

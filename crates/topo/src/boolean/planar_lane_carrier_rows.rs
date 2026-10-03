@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::boolean::BooleanError;
+use crate::boolean::EdgeCarrierSite::{CurvedCrossing, PlanarCrossing};
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::brick;
 use crate::{Body, FaceKey};
@@ -59,7 +60,7 @@ fn arc_image(mx: f64, h: f64) -> geom_brep::Pcurve<f64> {
 }
 
 /// The sheet, and its arc edge.
-fn arc_sheet(mx: f64, h: f64) -> (Body<f64>, crate::EdgeKey) {
+pub(in crate::boolean) fn arc_sheet(mx: f64, h: f64) -> (Body<f64>, crate::EdgeKey) {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let (p0, p1) = (Point3::new(0.0, 0.0, 0.0), Point3::new(2.0, 0.0, 0.0));
@@ -122,6 +123,120 @@ fn arc_sheet(mx: f64, h: f64) -> (Body<f64>, crate::EdgeKey) {
     (body, e.edge)
 }
 
+/// A planar line edge from `p` to `q` in the sheet's plane chart.
+fn chart_line(plane: geom_brep::SurfaceKey, p: Point3<f64>, q: Point3<f64>) -> EdgeCurveSpec<f64> {
+    let d = q - p;
+    EdgeCurveSpec {
+        description: EdgeDescriptionSpec::chart(plane),
+        carrier: Curve3::Line {
+            origin: p,
+            dir: d.normalize(),
+        },
+        param_start: 0.0,
+        param_end: d.norm(),
+    }
+}
+
+/// The triangle sheet in `z = 0`: the arc (`mx = 1`, `h = 1`) from
+/// `(0, 0, 0)` to `(2, 0, 0)`, then lines to `(1, −1, 0)` and back. The
+/// face the arc runs first on, and the arc's edge.
+pub(in crate::boolean) fn arc_triangle() -> (Body<f64>, FaceKey, crate::EdgeKey) {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    let (p0, p1, p2) = (
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(2.0, 0.0, 0.0),
+        Point3::new(1.0, -1.0, 0.0),
+    );
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: geom::Surface::Plane {
+                    origin: p0,
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+    let e1 = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Chart {
+                    surface: plane,
+                    image: Some(arc_image(1.0, 1.0)),
+                    seam: false,
+                    declared: None,
+                },
+                carrier: arc(1.0, 1.0),
+                param_start: 0.0,
+                param_end: 1.0,
+            },
+            tol,
+        )
+        .unwrap();
+    let e2 = body
+        .mev(
+            MevSite::Fan {
+                he1: e1.he_minus,
+                he2: e1.he_minus,
+            },
+            p2,
+            chart_line(plane, p1, p2),
+            tol,
+        )
+        .unwrap();
+    let he = body
+        .find_half_edge(seed.face, e2.vertex, e1.vertex)
+        .unwrap();
+    let face = body
+        .mef(
+            MefSite::Chords {
+                he1: he,
+                he2: e1.he_plus,
+            },
+            chart_line(plane, p2, p0),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap()
+        .face;
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+    (body, face, e1.edge)
+}
+
+/// **The sector walk at a vertex refuses a spline edge** rather than
+/// read its chord as its departure direction. The arc leaves the origin
+/// along `(1, 2, 0)/√5`, its tangent there; its chord runs along
+/// `(1, 0, 0)`, 63.4° away.
+#[test]
+fn the_vertex_sector_walk_refuses_a_spline_edge() {
+    let (a, e) = arc_sheet(1.0, 1.0);
+    let v = a
+        .get_half_edge(a.get_edge(e).unwrap().he_plus)
+        .unwrap()
+        .start;
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    match super::super::sectors::build_sectors(&a, crate::boolean::Operand::A, v, band) {
+        Err(BooleanError::EdgeCarrierUnsupported {
+            edge,
+            site: crate::boolean::EdgeCarrierSite::VertexSector,
+            ..
+        }) => assert_eq!(edge, e, "the refusal names the arc"),
+        other => panic!("the sector walk has no row for a spline: {other:?}"),
+    }
+}
+
 /// A brick over `x ∈ [x0, x1]`, `y ∈ [y0, y1]`, `z ∈ [−1, 1]`, and its
 /// face whose outward normal is `n`.
 fn brick_face(x: (f64, f64), y: (f64, f64), n: Vec3<f64>) -> (Body<f64>, FaceKey) {
@@ -174,13 +289,16 @@ fn assert_refused(
     got: Result<(Body<f64>, crate::boolean::ContactRecords), BooleanError>,
     edge: crate::EdgeKey,
     b: &Body<f64>,
+    want: crate::boolean::EdgeCarrierSite,
 ) {
     match got.map(|(_, contacts)| contacts) {
-        Err(BooleanError::CrossingCarrierUnsupported {
+        Err(BooleanError::EdgeCarrierUnsupported {
             operand: crate::boolean::Operand::A,
             edge: e,
             face,
+            site,
         }) => {
+            assert_eq!(site, want, "the refusal names the lane");
             assert_eq!(e, edge, "the refusal names the arc");
             assert!(
                 b.get_face(face).is_some(),
@@ -212,7 +330,7 @@ fn an_arc_dipping_through_a_plane_face_refuses() {
         );
     }
     let (a, e) = arc_sheet(mx, h);
-    assert_refused(sweep_a(&a, &b), e, &b);
+    assert_refused(sweep_a(&a, &b), e, &b, PlanarCrossing);
 }
 
 /// **An arc crossing a plane face once refuses, rather than land its
@@ -240,7 +358,7 @@ fn an_arc_crossing_a_plane_face_once_refuses() {
         "the endpoint interpolation lands off the plane: x = {x_interp}"
     );
     let (a, e) = arc_sheet(mx, h);
-    assert_refused(sweep_a(&a, &b), e, &b);
+    assert_refused(sweep_a(&a, &b), e, &b, PlanarCrossing);
 }
 
 /// **The same arc against a cylinder wall refuses with the same
@@ -268,5 +386,5 @@ fn an_arc_crossing_a_cylinder_wall_refuses() {
         Tol::witness(),
     );
     let (a, e) = arc_sheet(mx, h);
-    assert_refused(sweep_a(&a, &b), e, &b);
+    assert_refused(sweep_a(&a, &b), e, &b, CurvedCrossing);
 }

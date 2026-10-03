@@ -1840,8 +1840,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Band
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
-        | BooleanErrorKind::CurvedEdgeUnsupported
-        | BooleanErrorKind::CrossingCarrierUnsupported
+        | BooleanErrorKind::EdgeCarrierUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::ScaffoldingOperand

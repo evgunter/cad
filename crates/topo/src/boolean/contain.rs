@@ -244,8 +244,9 @@ pub(crate) fn loop_circle<T: Decide>(
                     }
                 }
             },
-            // A line, a non-circular conic, or null scaffolding (which
-            // the operand gate refuses upstream): not one circle's arc.
+            // A line, a non-circular conic, a spiric or spline, or null
+            // scaffolding (which tier 2 refuses upstream): not one
+            // circle's arc.
             Some(
                 geom::Curve3::Line { .. }
                 | geom::Curve3::Ellipse { .. }

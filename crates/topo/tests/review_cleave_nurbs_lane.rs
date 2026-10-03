@@ -190,23 +190,28 @@ fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
 }
 
 /// A disjoint union with the M7-8 cube refuses typed BEFORE its
-/// fallback reaches the assembly graft: the operand gate refuses the
-/// NURBS-carried edge. The row goes red the day the gate admits the
-/// class, which is the day the assembly's carried certificates become
-/// reachable from the boolean.
+/// fallback reaches the assembly graft: the continuation scan cannot
+/// bound the cube's face that a NURBS-carried edge bounds, and names
+/// that edge. The row goes red the day that face has a box, which is
+/// the day the assembly's carried certificates become reachable from
+/// the boolean.
 #[test]
 fn a_disjoint_union_with_the_m7_8_cube_refuses_before_the_graft() {
     let cube = m7_8_cube::<f64>();
     let brick = common::brick::<f64>((4.0, 5.0), (4.0, 5.0), (4.0, 5.0), Tol::witness());
     match topo::union(&brick, &cube, Tol::witness()) {
-        Err(topo::BooleanError::CurvedEdgeUnsupported {
+        Err(topo::BooleanError::EdgeCarrierUnsupported {
             operand: topo::Operand::B,
+            site: topo::EdgeCarrierSite::FaceExtent,
             ..
         }) => {}
-        Err(e) => panic!("expected the curved-edge refusal, got {e:?}"),
-        Ok(BooleanResult::Empty) => panic!("expected the curved-edge refusal, got Empty"),
+        Err(e) => panic!("expected the spline-bounded face's refusal, got {e:?}"),
+        Ok(BooleanResult::Empty) => panic!("expected the spline-bounded face's refusal, got Empty"),
         Ok(BooleanResult::Body(b)) => {
-            panic!("expected the curved-edge refusal, got a {:?} body", b.kind)
+            panic!(
+                "expected the spline-bounded face's refusal, got a {:?} body",
+                b.kind
+            )
         }
     }
 }

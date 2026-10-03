@@ -201,10 +201,16 @@ pub(super) fn build_sectors<T: Decide>(
                     far: p_end,
                 },
             )),
-            geom::Curve3::Nurbs(_) => {
-                let d = p_end - p_base;
-                Ok((d, Reach::Extent(d.norm())))
-            }
+            // A spline's chord is not its departure direction, and no
+            // bound here says how far its tangent strays from it.
+            geom::Curve3::Nurbs(_) => Err(BooleanError::EdgeCarrierUnsupported {
+                operand,
+                edge: he_data.edge,
+                face: body
+                    .face_of_half_edge(he)
+                    .ok_or_else(|| corrupt(operand, vertex))?,
+                site: super::EdgeCarrierSite::VertexSector,
+            }),
             geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. }
             | geom::Curve3::Spiric { .. } => {

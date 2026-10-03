@@ -2783,9 +2783,8 @@ pub(crate) fn edge_reach<T: Decide>(
         // `geom::spiric_f_range` spelling) and the `axis` channel over
         // `r·[−1, 1]`, hulled with the chord. No public door builds a
         // spiric-bearing operand that reaches the contact census at
-        // this head (the boolean's operand gate refuses the kind; a
-        // hollowed partial revolve stops at tier 3's check 7 before
-        // the census), so the arm is exercised by the box module's
+        // this head (a hollowed partial revolve stops at tier 3's
+        // check 7 before the census), so the arm is exercised by the box module's
         // hand-built sector row (`boolean/boxes.rs`,
         // `the_spiric_edge_box_and_reach_contain_a_dense_sample`).
         crate::boolean::boxes::EdgeBoxRule::Spiric => {

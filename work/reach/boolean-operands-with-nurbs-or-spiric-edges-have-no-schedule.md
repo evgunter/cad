@@ -2,11 +2,11 @@
 id: boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule
 kind: issue
 title: No row schedules boolean operands whose edges are NURBS or spiric; gate_operand_edges refuses them and three demo joins wait on it
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
-design: true
+closed: 2026-10-03
 ---
 
 Filed by the SHOW orchestrator (2026-10-02) from the demo audit that
@@ -91,3 +91,27 @@ hodograph's control hull (rational weights need the quotient rule's
 bound). Neither has a root lane either (a spiric's residual against a
 sphere is not a trigonometric polynomial in `v`), so a definite
 crossing would still refuse — but a clear pair would clear.
+
+## Closed (2026-10-03, REACH)
+
+Decided by the REACH orchestrator, adopting both designers' reconciled
+reports (`analysis/design-fork/nurbs-spiric-operands-d1` and `-d2`,
+`design.md`, round 1):
+
+- `gate_operand_edges` is deleted
+  (`planar-crossing-lane-reads-a-curved-carrier-as-a-line`). Every lane
+  that reads an edge's carrier refuses a spiric or NURBS one at its own
+  site, naming the edge and face (`EdgeCarrierUnsupported`, with its
+  `EdgeCarrierSite`).
+- The three demo joins this row names are not the edge's: with the gate
+  gone they refuse on the lofted or swept piece's NURBS **faces** or
+  seams first (measured on that PR). They belong to the NURBS-face
+  operand row, not to this one.
+- The NURBS edge's crossing rung is
+  `nurbs-edge-crossing-rung-is-the-ring-composite` (the
+  `spline::compose` composite, one lane keyed on the carrier), parked
+  on frontier (d)'s `join/cylinder-sphere-germ-pair-has-no-section-frame`.
+- Spiric operand edges are deferred:
+  `spiric-operand-edges-reopen-with-their-first-producer`.
+- The "Why it is a design row" paragraph overlooked
+  `geom_core::spline::compose`: a root lane exists in substance.
