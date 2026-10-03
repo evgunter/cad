@@ -4,7 +4,7 @@ kind: issue
 title: Two dangling null edges with one segment refuse SharedVertexCrossings: which holds the other is not read off the geometry
 status: open
 opened: 2026-10-03
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -52,3 +52,5 @@ the other.
 Work out what the join needs at a tip whose region is empty, then
 choose the holder from geometry, not from record order. Flip the pin
 to building in all six ops, with `y` built both ways.
+
+**P0** on the FUSE ruling (2026-10-02): the operand is a Boolean output that the next Boolean refuses (orchestrator, PR 3950).
