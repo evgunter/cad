@@ -143,6 +143,8 @@ pub enum ProductError {
     PlacedUnderTwoRoots {
         /// The node whose body both roots place.
         placed: RecipeNodeId,
+        /// What that node is, which is what the recourse depends on.
+        twice: PlacedTwice,
         /// Which body of `placed` both roots read: `None` when either
         /// takes it whole, else the one selection they share.
         select: Option<crate::node::PartSelect>,
@@ -402,6 +404,7 @@ impl ProductError {
             Self::Root(standing) => write!(f, "{}", Said(&standing.of_root(), by)),
             Self::PlacedUnderTwoRoots {
                 placed,
+                twice,
                 select,
                 first,
                 second,
@@ -419,12 +422,20 @@ impl ProductError {
                         format!("instance `{}` of {placed}", crate::expr::unparse(i))
                     }
                 };
+                let recourse = match twice {
+                    PlacedTwice::Body => {
+                        "union the two to fuse them, or pattern it to keep the copies apart"
+                    }
+                    PlacedTwice::Instance => {
+                        "instantiate it again or pattern it to place it twice; \
+                         union the two to fuse them"
+                    }
+                };
                 write!(
                     f,
                     "{what} is placed under two roots, {} and {} — \
                      a transform or part selection mints no name, so both \
-                     would carry its names. Recourse: place it under one \
-                     root, or union the two",
+                     would carry its names. Recourse: {recourse}",
                     by.node(*first),
                     by.node(*second)
                 )
@@ -1260,9 +1271,11 @@ fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
                 .get(&next)
                 .and_then(|rows| rows.iter().find(|(_, s)| overlaps(*s, narrowed)))
             {
+                let select = earlier.and(narrowed);
                 return Some(ProductError::PlacedUnderTwoRoots {
                     placed: next,
-                    select: earlier.and(narrowed).cloned(),
+                    twice: placed_twice(doc, next, select),
+                    select: select.cloned(),
                     first,
                     second: root,
                 });
@@ -1273,6 +1286,40 @@ fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
         }
     }
     None
+}
+
+/// **What one recipe node placed under two roots is**, which decides
+/// the recourse [`ProductError::PlacedUnderTwoRoots`] names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacedTwice {
+    /// A body the recipe builds: two placements of it are two copies,
+    /// which a pattern keeps apart and a union fuses.
+    Body,
+    /// A part instance, taken whole, through transforms alone: a
+    /// second instance or a pattern places it twice, and a union
+    /// fuses the two.
+    Instance,
+}
+
+/// What `placed` is, read down its whole edges: an instance taken
+/// whole is [`PlacedTwice::Instance`], and anything else — a body, a
+/// selection out of a pattern or a split — is [`PlacedTwice::Body`].
+fn placed_twice<P>(
+    doc: &Doc<P>,
+    placed: RecipeNodeId,
+    select: Option<&crate::node::PartSelect>,
+) -> PlacedTwice {
+    if select.is_some() {
+        return PlacedTwice::Body;
+    }
+    let mut at = placed;
+    loop {
+        match doc.node(at) {
+            Some(crate::node::Node::Transform { input, .. }) => at = *input,
+            Some(crate::node::Node::InstantiatePart { .. }) => return PlacedTwice::Instance,
+            _ => return PlacedTwice::Body,
+        }
+    }
 }
 
 /// One body the gather will graft: which root contributed it, which
@@ -1478,6 +1525,7 @@ mod tests {
             ProductError::Root(NodeStanding::Poisoned { node, through }),
             ProductError::PlacedUnderTwoRoots {
                 placed: RecipeNodeId(test_utils::refusal::tagged(1)),
+                twice: super::PlacedTwice::Instance,
                 select: None,
                 first: node,
                 second: RecipeNodeId(test_utils::refusal::tagged(4)),
