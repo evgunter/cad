@@ -6013,3 +6013,25 @@ with its own disk. They cannot message back, so each PR body carries a
 - **`require-kill-anchors-empty-arm-refuses-loop-cycle-broken-for-a-collision`**
   (P4): session `session_018DFjyKqfH5g9SnhMvPhMKK`, branch
   `topo/kill-anchors-collision-refuses-its-own-variant`.
+
+## PR 3702 delivered; review dispatched (2026-10-03)
+
+The merge door re-describes its kept faces' boundaries with the boolean's
+own describer (`describe_edges`, at `Band::linear(tol)`). It then checks
+adjacency exactly, refusing `KeptBoundaryStranded`. The boolean's
+worklist keeps only the seam edges.
+- **Witness:** a two-face coplanar prism wall on distinct keys gave
+  `DescriptionNotAdjacent` on base, through both the declared and the
+  undeclared door.
+- **Identity:** every boolean body matches once curve keys are erased
+  (1235 of 1235 after merging main), and 1095 match exactly. The
+  difference is curve-slot order: re-describing takes new slots.
+- **Ruling:** editor-core's `crossing_slots` and `corner_table` are
+  re-baselined for that slot order. Per CLAUDE.md, a golden that moves
+  is re-baselined with what moved stated. The PR states it as deviation 1.
+- **CI:** run 37133708478 on `b6d81da606` passed.
+
+The review is on the walk target (`mergedesc-r-brief.md`). It asks
+whether `KeptBoundaryStranded` is a kernel-defect check (D2 row 4 or 5)
+rather than a typed refusal, and whether a standalone merge's refusal
+text names the merge door's own decision.
