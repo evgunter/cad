@@ -1,8 +1,8 @@
 # Review of PR #3982, frozen head 7ca2662950
 
-Lane `reach-dual3982-r2`. **Verdict: APPROVE-WITH-FIXES**, with MAJOR 0, MINOR 1, NOTE 3 (+ style). Wall clock: start 17:10 UTC, end (pending) UTC (2026-10-03).
+Lane `reach-dual3982-r2`. **Verdict: APPROVE-WITH-FIXES**, with MAJOR 0, MINOR 1, NOTE 3 (+ style). Wall clock: start 17:10 UTC, end 18:34 UTC (2026-10-03).
 CI on the frozen head: run 37139134700, `test` / `lint` / `gate ok` all success (read off the head's check runs, not off the PR body).
-Locally at the frozen head (`-p topo -p sweep`): ε 1e-9 4231/4231 passed; ε 1e-6 `--profile ci` 4181/4181 passed; ε 1e-12 `--profile ci` still running at first push.
+Locally at the frozen head (`-p topo -p sweep`): ε 1e-9 4231/4231 passed; ε 1e-6 `--profile ci` 4181/4181 passed; ε 1e-12 `--profile ci` 4181/4181 passed (the known-on-main `rigid_map_near_eps_plane_nurbs` did not fail here).
 
 ## Claims, falsified by execution
 1. **Sound: not falsified.** My probe (`probes/r2_probe_3982.rs`) uses seven new fixtures: a lollipop whose sphere zone is larger than a hemisphere, a shallow dome (r = 3), a **concave** torus fillet, a whole donut, a near-spindle fillet (R − r = 0.02), a big complement zone and a two-rim band. They take 12 random directions plus ±ŷ, an upright pose and two random rigid poses (one translated by ~2.9·s), and s ∈ {1e-3, 1, 1e3}.
