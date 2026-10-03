@@ -11,6 +11,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::SlotId;
 use pncad::geom_core::Tol;
@@ -327,6 +328,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
             pncad::document::Node::Extrude {
                 profile,
                 distance: common::len(1.0),
+                side: ExtrudeSide::Along,
             },
             tol,
         ));

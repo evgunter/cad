@@ -45,6 +45,7 @@ test_utils::gated_to![
 ];
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use bvh::test_support::ray;
 use editor_core::resolve::{TSpan, ray_triangle};
@@ -85,6 +86,7 @@ fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -130,7 +132,7 @@ fn resolved_patch(
 /// are dyadic-integer by construction; a fractional coordinate is a
 /// fixture bug, surfaced loudly).
 fn int_point(p: Point3<f64>) -> [i128; 3] {
-    let c = [p.x, p.y, p.z];
+    let c = p.to_array();
     let mut out = [0i128; 3];
     for a in 0..3 {
         assert!(

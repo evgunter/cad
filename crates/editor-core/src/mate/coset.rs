@@ -94,11 +94,11 @@ pub enum Subgroup {
 /// different base point), which is exactly why the algebra decides
 /// coincidence through predicates instead of comparing values.
 fn vec_eq(a: Vec3<f64>, b: Vec3<f64>) -> bool {
-    a.x == b.x && a.y == b.y && a.z == b.z
+    a.to_array() == b.to_array()
 }
 
 fn point_eq(a: Point3<f64>, b: Point3<f64>) -> bool {
-    a.x == b.x && a.y == b.y && a.z == b.z
+    a.to_array() == b.to_array()
 }
 
 impl PartialEq for Subgroup {
@@ -152,25 +152,11 @@ impl PartialEq for Subgroup {
 
 impl PartialEq for Coset {
     fn eq(&self, other: &Self) -> bool {
-        // Two levels are bound by name: a field added to `Coset` is
-        // an E0027 at the two patterns below, and one added to the
-        // `Affine3` it carries — or to the `Mat3` inside it — is an
-        // E0027 inside `m`.
-        //
-        // **The leaf is not tied here and this comment used to say it
-        // was.** A fourth component on `Vec3` compiles this crate
-        // clean: the four vectors go to `vec_eq`, which is a file
-        // away and reads three components by name. That arm is
-        // `work/census/componentwise-equality-of-the-linear-types-is-hand-listed.md`,
-        // measured by a style review rather than by an instrument.
-        let m = |x: &Affine3<f64>| {
-            let Affine3 {
-                linear,
-                translation,
-            } = x;
-            let Mat3 { c0, c1, c2 } = linear;
-            [*c0, *c1, *c2, *translation]
-        };
+        // A field added to `Coset` is an E0027 at the two patterns
+        // below. The placement is read through `Affine3::cols` and its
+        // vectors through `Vec3::to_array` (in `vec_eq`), and each of
+        // those doors binds its type's fields by pattern, so a field
+        // added to `Affine3`, `Mat3` or `Vec3` is an E0027 there.
         let Self {
             subgroup,
             representative,
@@ -180,9 +166,10 @@ impl PartialEq for Coset {
             representative: other_representative,
         } = other;
         subgroup == other_subgroup
-            && m(representative)
+            && representative
+                .cols()
                 .into_iter()
-                .zip(m(other_representative))
+                .zip(other_representative.cols())
                 .all(|(a, b)| vec_eq(a, b))
     }
 }
@@ -870,6 +857,19 @@ fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: Arm) -> Result<(), F
         }
     }
     Ok(())
+}
+
+/// **Whether `x` is the identity**, decided as membership of the
+/// trivial subgroup over `arm` — the test a checked offset meets
+/// against the solve (A11 (2)).
+///
+/// # Errors
+///
+/// [`member_of`]'s, and [`FoldStop::Unleverable`] when `arm` decides no
+/// angle at `band` ([`Arm::decides_over`]).
+pub(super) fn trivial_member(x: Affine3<f64>, band: Band, arm: Arm) -> Result<(), FoldStop> {
+    let arm = arm.decides_over(band).map_err(FoldStop::Unleverable)?;
+    member_of(Subgroup::Trivial, x, band, arm)
 }
 
 /// A rotation's departure from the identity as a pure number: the

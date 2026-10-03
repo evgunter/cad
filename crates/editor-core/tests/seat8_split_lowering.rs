@@ -38,6 +38,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -164,9 +165,9 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x64c5_2df8_35df_9382_u64),
-        ("part_select", 0x5eb6_281d_ea13_8df7),
-        ("kitchen_sink", 0x10a1_89b5_25a9_229b),
+        ("cut_cylinder", 0x1676_4144_da9e_6975u64),
+        ("part_select", 0xf3bf_580c_ea92_21c3),
+        ("kitchen_sink", 0x0973_ecf8_520a_08a7),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -221,6 +222,7 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(z)],
@@ -273,7 +275,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xc112_1ccf_49a9_f783,
+        got, 0xb71f_3b0d_97ba_2ab3,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

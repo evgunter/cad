@@ -37,6 +37,7 @@ test_utils::gated_to![
 ];
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -96,14 +97,15 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: Expr::param(name("q"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
 
-/// **A bounded chamber**: two extrudes, distances `q` and `c - q`, so
+/// **A bounded chamber**: two extrudes, depths `q` and `c - q`, so
 /// the witness branch holds only for `q` inside an interval bounded on
-/// BOTH sides — the geometry a containment-firing drive needs, and
-/// different geometry from every fixture the PR ships. A door for the
+/// BOTH sides, past either end of which one depth refuses — different
+/// geometry from every fixture the PR ships. A door for the
 /// tier's cost rows (`m10_sym_profile_interval`,
 /// `m10_sym_drive_memo_interval`); nothing in this suite drives it.
 pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
@@ -129,6 +131,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: Expr::param(name("q"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let xy_frame_2 = r.insert(xy_frame());
     let p2 = r.insert(Node::Profile(ProfileProgram {
@@ -140,6 +143,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
         profile: p2,
         distance: Expr::sub(len(c), Expr::param(name("q"), Dimension::Length))
             .expect("length minus length"),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -452,6 +456,7 @@ fn evidence_only_e2e_consumer_walk() {
         r.insert(Node::Extrude {
             profile: p,
             distance: Expr::param(name("depth"), Dimension::Length),
+            side: ExtrudeSide::Along,
         });
         r.doc
     };

@@ -89,17 +89,9 @@ pub(crate) struct ImplicitPairR3<'a> {
     pub b: &'a Surface<f64>,
 }
 
-fn v3(x: &[f64; 3]) -> Vec3<f64> {
-    Vec3::new(x[0], x[1], x[2])
-}
-
-fn p3(x: &[f64; 3]) -> Point3<f64> {
-    Point3::new(x[0], x[1], x[2])
-}
-
 impl LocalSystem<2, 3> for ImplicitPairR3<'_> {
     fn residual(&self, x: &[f64; 3]) -> [f64; 2] {
-        let p = p3(x);
+        let p = Point3::from_array(*x);
         [
             crate::implicit::implicit_residual(self.a, p),
             crate::implicit::implicit_residual(self.b, p),
@@ -107,15 +99,15 @@ impl LocalSystem<2, 3> for ImplicitPairR3<'_> {
     }
 
     fn jacobian(&self, x: &[f64; 3]) -> [[f64; 3]; 2] {
-        let p = p3(x);
+        let p = Point3::from_array(*x);
         let g1 = crate::implicit::implicit_gradient(self.a, p);
         let g2 = crate::implicit::implicit_gradient(self.b, p);
-        [[g1.x, g1.y, g1.z], [g2.x, g2.y, g2.z]]
+        [g1.to_array(), g2.to_array()]
     }
 
     fn rhs2(&self, x: &[f64; 3], d1: &[f64; 3]) -> [f64; 2] {
-        let p = p3(x);
-        let d = v3(d1);
+        let p = Point3::from_array(*x);
+        let d = Vec3::from_array(*d1);
         [
             -implicit_path_jet(self.a, p, d, Vec3::zero()).d2(),
             -implicit_path_jet(self.b, p, d, Vec3::zero()).d2(),
@@ -123,8 +115,8 @@ impl LocalSystem<2, 3> for ImplicitPairR3<'_> {
     }
 
     fn rhs3(&self, x: &[f64; 3], d1: &[f64; 3], d2: &[f64; 3]) -> [f64; 2] {
-        let p = p3(x);
-        let (u, w) = (v3(d1), v3(d2));
+        let p = Point3::from_array(*x);
+        let (u, w) = (Vec3::from_array(*d1), Vec3::from_array(*d2));
         [
             -implicit_path_jet(self.a, p, u, w).d3(),
             -implicit_path_jet(self.b, p, u, w).d3(),
@@ -132,7 +124,7 @@ impl LocalSystem<2, 3> for ImplicitPairR3<'_> {
     }
 
     fn point(&self, x: &[f64; 3]) -> Point3<f64> {
-        p3(x)
+        Point3::from_array(*x)
     }
 
     fn coordinate_scale(&self, _x: &[f64; 3]) -> [f64; 3] {
@@ -142,7 +134,7 @@ impl LocalSystem<2, 3> for ImplicitPairR3<'_> {
 
     fn tangent_speed(&self, _x: &[f64; 3], d: &[f64; 3]) -> f64 {
         // The state IS the point: the speed is the tangent's length.
-        v3(d).norm()
+        Vec3::from_array(*d).norm()
     }
 }
 
@@ -278,7 +270,7 @@ impl LocalSystem<3, 4> for ParametricPairR4<'_> {
         let pa = self.a.eval(x[0], x[1]);
         let pb = self.b.eval(x[2], x[3]);
         let d = pa - pb;
-        [d.x, d.y, d.z]
+        d.to_array()
     }
 
     fn jacobian(&self, x: &[f64; 4]) -> [[f64; 4]; 3] {
@@ -297,7 +289,7 @@ impl LocalSystem<3, 4> for ParametricPairR4<'_> {
         let ja = self.a.jet3(x[0], x[1]);
         let jb = self.b.jet3(x[2], x[3]);
         let s = chart_d2(&ja, d1[0], d1[1]) - chart_d2(&jb, d1[2], d1[3]);
-        [-s.x, -s.y, -s.z]
+        (-s).to_array()
     }
 
     fn rhs3(&self, x: &[f64; 4], d1: &[f64; 4], d2: &[f64; 4]) -> [f64; 3] {
@@ -305,7 +297,7 @@ impl LocalSystem<3, 4> for ParametricPairR4<'_> {
         let jb = self.b.jet3(x[2], x[3]);
         let s =
             chart_d3(&ja, d1[0], d1[1], d2[0], d2[1]) - chart_d3(&jb, d1[2], d1[3], d2[2], d2[3]);
-        [-s.x, -s.y, -s.z]
+        (-s).to_array()
     }
 
     fn point(&self, x: &[f64; 4]) -> Point3<f64> {
@@ -339,7 +331,7 @@ impl LocalSystem<3, 4> for ParametricPairR4<'_> {
 
 impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
     fn normals(&self, x: &[f64; 3]) -> super::march::NormalPair {
-        let p = p3(x);
+        let p = Point3::from_array(*x);
         (
             crate::implicit::implicit_gradient(self.a, p),
             crate::implicit::implicit_gradient(self.b, p),
@@ -347,7 +339,7 @@ impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
     }
 
     fn lever_arm(&self, x: &[f64; 3]) -> f64 {
-        crate::dihedral::pair_lever_arm(self.a, self.b, p3(x))
+        crate::dihedral::pair_lever_arm(self.a, self.b, Point3::from_array(*x))
     }
 }
 
@@ -435,7 +427,7 @@ mod tests {
         let sys = ImplicitPairR3 { a: &a, b: &b };
         let x = [0.8, 0.3, 0.2];
         let j = sys.jacobian(&x);
-        let g = crate::implicit::implicit_gradient(&a, p3(&x));
+        let g = crate::implicit::implicit_gradient(&a, Point3::from_array(x));
         assert_eq!(j[0][0].to_bits(), g.x.to_bits());
         assert_eq!(j[0][2].to_bits(), g.z.to_bits());
     }

@@ -38,7 +38,7 @@ it is genuinely a second measure and not a second reading.
 
 The ASSEMBLY vocabulary is the layer above a single document:
 `Workspace` holds the parts, `Node.instantiate_part` references one,
-`DocEdit.set_placement` places its group, `Node.mate` says how two
+`Node.gauge` and `DocEdit.set_offset` place it, `Node.mate` says how two
 instances meet, `solve_document` poses them, `product` gathers what
 the document IS and `assemble` says whether it is valid at rest.
 `split` and `inline` refactor across the seam, and
@@ -193,6 +193,13 @@ class EvaluationError(PncadError):
     always present, `None` where the reason has none (attributes never
     go missing).
 
+    The message speaks the failed node as the document holds it: its
+    kind, its label and its tag, `Extrude "base plate" (3fa9c1d2a0b1)`.
+    It is read off the document the evaluation is OF, the one
+    `evaluate` was handed. So a label set after `evaluate` shows on the
+    next evaluation, not on this one's errors. `node` is the `NodeId`,
+    every bit of it.
+
     TWO WORDS BECAUSE THERE ARE TWO ENUMS, and each is projected where
     it lives. `kind` is the carrier's discriminant — `revolve`,
     `tube`, `shell`, `boolean` — fixed by the node's kind before any
@@ -216,10 +223,11 @@ class EvaluationError(PncadError):
     different question and is not this attribute's.
 
     `finding` is the boolean's refusal MENU: when
-    `kind == "undeclared_contact"`, it carries the candidate
+    `kind == "undeclared_coincidence"`, it carries the candidate
     declaration as a typed `FlushFinding` — the same value
     `Evaluation.find_flush_candidates` answers with, ready for
-    `Node.declare` / `Doc.declare`. The menu has exactly two arms:
+    `Node.boolean`'s `declare=` or `Doc.declare`. The menu has exactly
+    two arms:
     declare that finding, or move the geometry.
 
     A refusal that CARRIES another node's refusal — `part_root_failed`,
@@ -452,18 +460,14 @@ class PersistError(PncadError):
     `variant` is the refusing arm's tag — `non_finite`,
     `profile_program`, `distribution`, `display_unit`, `serialize`,
     `header_id`, `id_mismatch`, `parse`, `unreadable`, `dimension`,
-    `snapshot`, `edit_replay`, `maintenance_frame`, `tolerance_conflict`
-    or
+    `snapshot`, `edit_replay`, `tolerance_conflict` or
     `tolerance_invalid`.
 
     Five arms wrap a refusal of their own, and its word rides beside
     the carrier's on `inner_variant`: a profile-program fault, a
     distribution fault, a snapshot invariant, the `EditError` a
-    replayed edit raised, what a recorded maintenance row's frame fails
-    to be a placement (`non_finite`, `improper` — the `SetPlacement`
-    door's own rule, applied to the log's rows at load; `index` is the
-    entry's, and the row within it is in the message), or the dimension
-    check a saved expression failed. The nested refusal's own payload is
+    replayed edit raised, or the dimension check a saved expression
+    failed. The nested refusal's own payload is
     the inner door's surface and stays in the message.
 
     `dimension` is
@@ -500,13 +504,24 @@ class PersistError(PncadError):
 
 class ExportError(PncadError):
     """The document-layer export door refused.
-    `through` (poisoning ancestor) and `kind` (the wrong-kind value's
-    tag) are always present, `None` where inapplicable."""
+    `through` (poisoning ancestor), `kind` (the wrong-kind value's
+    tag) and `parts` are always present, `None` where inapplicable.
+
+    `unplaced` is the refusal to write a part that lives in an
+    unplaced group's own space, since STEP writes one world: `parts`
+    lists each as `(node, root, cause)` — the part, its group's root,
+    and `no_offset` or `dead_gauge` — and the message says how to
+    place it. `unplaced_below` is the same refusal for a group in a
+    part below, which the part's world leaves out: `parts` lists each
+    as `(instance, root, cause)` — the instance it arrived through,
+    its root in the part's own ids, and the cause — and the message
+    names the whole route."""
 
     variant: str
     node: NodeId
     through: Optional[NodeId]
     kind: Optional[str]
+    parts: Optional[list[tuple[NodeId, NodeId, str]]]
 
 class TessellateError(PncadError):
     """The tessellator refused a body.
@@ -617,7 +632,8 @@ class SelectRefusal(PncadError):
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
     `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
-    `not_a_length`, `pair_in_band`, `bad_value`, or `band`. The other attributes are
+    `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
+    `distinct_finding` (a kernel defect). The other attributes are
     the refusing arm's payload, always present and `None` where
     inapplicable: `name` (the candidate's opaque name text),
     `predicate` (the funnel site), `matched`/`candidates` (a tied
@@ -688,7 +704,11 @@ class AssemblyError(PncadError):
 
 class ProductError(PncadError):
     """The whole-document gather refused. A product is all of the
-    roots or none of them — there are no partial products."""
+    roots or none of them — there are no partial products.
+
+    Its message names each node as the evaluation's own document holds
+    it (kind, label and tag): the document the gather was taken of.
+    `node` and `through` carry the full ids."""
 
     variant: str
     node: Optional[NodeId]
@@ -707,6 +727,14 @@ class SplitError(PncadError):
     param: Optional[str]
     name: Optional[str]
     id: Optional[str]
+    gauge: Optional[NodeId]
+    """`severed_gauge`: the cut gauge, `node` the kept node on it.
+    `dead_gauge_reference`: the deleted gauge, `node` the cut gauge or
+    instance whose chain names it. `no_material`: `node` is the cut's
+    first node. `unplaceable_root`: `node` is the cut root that sits on
+    no gauge, `gauge` the gauge the cut anchors on. `mate_frame_crosses`:
+    `node` is the mate, and `root` the cut root a promote would land at
+    the empty chain, where that is the recourse."""
 
 class InlineError(PncadError):
     """The `inline` refactoring refused.
@@ -725,6 +753,18 @@ class InlineError(PncadError):
     root: Optional[NodeId]
     host_epsilon: Optional[float]
     part_epsilon: Optional[float]
+    host_root: Optional[NodeId]
+    """`mate_placed`: the root of the instance's group in the host
+    (`node` is the instance)."""
+    part_root: Optional[NodeId]
+    """`mate_placed`: the part's root, in the referenced document's ids,
+    when the part is one group and only that root's offset, or the
+    gauges in `part_gauges`, keep it from being one group at the empty
+    chain on its world; `None` otherwise."""
+    part_gauges: Optional[list[NodeId]]
+    """`mate_placed`: the part's gauges on its root's chain, innermost
+    first, which the remedy deletes (empty when only the offset is
+    wrong). `moved_member_offset` names the moved member in `node`."""
 
 class UpdateError(PncadError):
     """A whole-document pin update produced no edit list.
@@ -890,7 +930,8 @@ class ChecksError(PncadError):
     DI3, refused before any check runs) or `product_unavailable` (the
     roots gather into no product, so the registry has no subject for a
     check that reads one). `node` names the root on the first arm and
-    is `None` on the others.
+    is `None` on the others. Its message names each node as the
+    evaluation's own document holds it, the gather's included.
 
     NOT a finding. A check that ran and disagreed is a value in the
     report; this class means nothing was checked."""
@@ -905,7 +946,8 @@ class CheckRefusal(PncadError):
     The registry's one refusing path, and it refuses on nothing the
     caller did not ask to be refused on — no resident defaults to
     `Error`, and the separation resident's knob cannot express it.
-    `findings` is every refusing finding, in report order."""
+    `findings` is every refusing finding, in report order, and the
+    message speaks each root from the document the checks ran over."""
 
     findings: list[CheckFinding]
 
@@ -1130,7 +1172,9 @@ class McRefusal(PncadError):
     asked for zero samples, and an estimator over no draws has no
     estimate (`no_samples`). Or the document does not build at its
     nominal, so there is nothing to replay
-    (`nominal_does_not_build`, with `node` and `cause`).
+    (`nominal_does_not_build`, with `node` and `cause`). Its message
+    speaks that node as the document holds it, kind, label and tag;
+    `node` keeps the full id.
 
     The band arm's `variant` is MeasureUnavailable's own word, because
     it carries that refusal: one fault, one word, whichever door
@@ -1801,6 +1845,13 @@ class BooleanOp:
     Intersect: Final[BooleanOp]
     Subtract: Final[BooleanOp]
 
+class ExtrudeSide:
+    """Which side of its sketch plane a `Node.extrude` goes toward:
+    along the plane's normal `u x v`, or against it."""
+
+    Along: Final[ExtrudeSide]
+    Against: Final[ExtrudeSide]
+
 class TubeWindow:
     """A tube's traversed window — the full ring, or an arc of it.
 
@@ -1969,6 +2020,11 @@ class Placement:
         that step's slot."""
 
     @staticmethod
+    def identity() -> Placement:
+        """The empty chain: the identity, and the unit of `compose` —
+        the offset an inserted instance carries on the world."""
+
+    @staticmethod
     def literal(frame: Frame) -> Placement:
         """One literal step: exactly `frame`, bit for bit."""
 
@@ -2012,10 +2068,21 @@ class PatternKind:
     @staticmethod
     def linear(
         direction: tuple[Expr, Expr, Expr], spacing: Expr
-    ) -> PatternKind: ...
+    ) -> PatternKind:
+        """Stepped along `direction`, `spacing` apart. The spacing is
+        a size: the direction says which way the copies step, so a
+        spacing below zero raises EvaluationError
+        (`negative_spacing`, naming the direction negated) and a zero
+        one too (`degenerate_spacing`), wherever a second copy reads
+        it."""
+
     @staticmethod
     def circular(axis: NodeId, step: Expr) -> PatternKind:
-        """Stepped around `axis`, an upstream `datum_axis` node."""
+        """Stepped around `axis`, an upstream `datum_axis` node. The
+        step is signed by the right-hand rule about the axis and lies
+        within a turn: zero raises EvaluationError (`degenerate_step`),
+        and so does a full turn or more (`full_range_step`), wherever a
+        second copy reads it."""
 
     @staticmethod
     def explicit(frames: list[Frame]) -> PatternKind:
@@ -2230,13 +2297,18 @@ class Node:
     @staticmethod
     def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
     @staticmethod
-    def extrude(profile: NodeId, distance: Expr) -> Node:
-        """Extrude a profile along its sketch-plane normal.
+    def extrude(
+        profile: NodeId, distance: Expr, side: ExtrudeSide = ExtrudeSide.Along
+    ) -> Node:
+        """Extrude a profile to one side of its sketch plane.
 
-        `distance` mints a LITERAL in the node's `distance` slot.
-        `DocEdit.set_param(node, "distance", expr)` moves it
-        afterwards, and makes it a named, editable number: a literal
-        is a new document per value, a parameter reference is one
+        `distance` mints a LITERAL in the node's `distance` slot. It is
+        a depth: a size, refused at `evaluate` unless definitely
+        positive. Which way it goes is `side` alone, and
+        `DocEdit.set_extrude_side` moves it afterwards.
+        `DocEdit.set_param(node, "distance", expr)` moves the depth,
+        and makes it a named, editable number: a literal is a new
+        document per value, a parameter reference is one
         `set_doc_param_value` per value."""
 
     @staticmethod
@@ -2309,8 +2381,8 @@ class Node:
         rim is its FIRST designated face, so name first the face that
         should carry the rim's identity. A repeat keeps its first
         occurrence; an EMPTY list is the SEALED hollow, which is legal.
-        Every face of one solid on a chart is named together (a full
-        revolve's cap is two half-faces). An unresolvable name, a name that is not a
+        Every face of one solid on a chart is named together (naming
+        only some of them refuses). An unresolvable name, a name that is not a
         face, a non-positive or unaffordable wall, or a curved
         designated face refuses typed at `evaluate`. `thickness` mints
         a literal in the node's `shell_thickness` slot, moved by
@@ -2440,17 +2512,28 @@ class Node:
 
     @staticmethod
     def boolean(
-        op: BooleanOp, a: NodeId, b: NodeId, declare: Optional[NodeId] = None
+        op: BooleanOp, a: NodeId, b: NodeId, declare: list[FlushFinding] = []
     ) -> Node:
-        """A Boolean of two upstream solids. `declare` names a
-        `Declare` node whose coincidence pairs this boolean consumes;
-        without one, operands that merely TOUCH refuse with the typed
-        menu (`EvaluationError`, `kind == "undeclared_contact"`,
-        `finding` attached) — the kernel never infers that two faces
-        are the same face."""
+        """A Boolean of two upstream solids. `declare` is its declared
+        contact pairs, given as the INSPECTED findings (each carries
+        its pair and class) and held as the node's own payload; an
+        empty list declares nothing, and then operands that merely
+        TOUCH refuse with the typed menu (`EvaluationError`,
+        `kind == "undeclared_coincidence"`, `finding` attached) — the
+        kernel never infers that two faces are the same face.
+        `Doc.declare` / `Doc.declare_all` set the list on the live
+        node.
+
+        A closed surface of one operand that lies wholly on the
+        other's — one body at both seats, or a member carried into a
+        union unchanged — is answered where every face of it is the
+        same face as one of the other's, by recipe or by declaration
+        (`A ∪ A` and `A ∩ A` are `A`, `A − A` is empty); where they
+        do not show that, the evaluation refuses with
+        `inner_kind == "coincident_shell"`."""
 
     @staticmethod
-    def union(members: list[NodeId], declare: Optional[NodeId] = None) -> Node:
+    def union(members: list[NodeId], declare: list[FlushFinding] = []) -> Node:
         """The N-ARY union: two or more member bodies folded into ONE
         body, in the LIST's order.
 
@@ -2459,21 +2542,14 @@ class Node:
         prototype under a placement rule: here the members are
         authored independently and the membership is a list, which
         `DocEdit.set_members` rewrites on the live node. `declare` is
-        the same optional coincidence input `boolean` takes, fed at
+        the same declared-pair list `boolean` takes, each pair fed at
         the fold step its two members meet at; without one, members
-        that merely TOUCH refuse (`undeclared_contact`).
+        that merely TOUCH refuse (`undeclared_coincidence`).
 
         Refuses at `Doc.insert` on the list as stated: `too_few_members`
         (with the `count` found), `duplicate_input`,
-        `unresolved_input`, `declare_input_not_declare`. Whether a
-        member is a BODY is the kernel's question at `evaluate`."""
-
-    @staticmethod
-    def declare(findings: list[FlushFinding]) -> Node:
-        """The `Declare` node built from INSPECTED findings; its
-        inserted id feeds `Node.boolean`'s `declare=`. Nothing here
-        detects (the ruled no-fusion boundary), and an empty list
-        raises EditError (`no_findings`)."""
+        `unresolved_input`. Whether a member is a BODY is the kernel's
+        question at `evaluate`."""
 
     @staticmethod
     def pattern(input: NodeId, count: Expr, kind: PatternKind) -> Node:
@@ -2491,8 +2567,8 @@ class Node:
         node's `Count` slot (`DocEdit.bind_count_param`). Below one
         refuses at `evaluate`
         (`non_positive_count`); an `explicit` rule refuses at
-        `Doc.insert` (`placement_rule_mismatch`), since it carries its
-        own placements."""
+        `Doc.insert` (`placement_rule_mismatch`, `inner_variant`
+        `listed_on_pattern`), since it carries its own placements."""
 
     @staticmethod
     def part(of: NodeId, select: PartSelect) -> Node:
@@ -2522,8 +2598,9 @@ class Node:
         EvaluationError (`placements_uncertified`) naming the pair,
         and the certificate is sufficient-not-necessary, so a
         touching-but-disjoint arrangement refuses too. An `explicit`
-        rule raises EditError (`placement_rule_mismatch`) here — it
-        carries its own count, and `placed_union_at` is its door."""
+        rule raises EditError (`placement_rule_mismatch`,
+        `inner_variant` `listed_with_count`) here — it carries its own
+        count, and `placed_union_at` is its door."""
 
     @staticmethod
     def placed_union_at(input: NodeId, frames: list[Frame]) -> Node:
@@ -2543,10 +2620,12 @@ class Node:
         (`DocEdit.update_reference`, or `update_references` for every
         site at once).
 
-        No frame argument: placement lives on the GROUP, which is
-        what makes zero-anchor and multi-anchor states
-        unrepresentable rather than merely refused —
-        `DocEdit.set_placement` is the door. No interface record
+        Placed at the world origin: the instance sits on the world at
+        the empty offset. `DocEdit.set_offset` moves it,
+        `DocEdit.set_gauge` puts it on a gauge, and a mate places it
+        on another instance's group — the first operand's group on the
+        second's, clearing every offset the first's group held. No
+        interface record
         either: an AUTHORED instance crosses nothing, and a non-empty
         record is mintable only by the `split` that observed
         declarations crossing its cut.
@@ -2555,6 +2634,18 @@ class Node:
         resolver=workspace)`. Without one it refuses typed
         (`part_no_resolver`) rather than pretending the part is
         empty."""
+
+    @staticmethod
+    def gauge(placement: Placement, parent: Optional[NodeId] = None) -> Node:
+        """A GAUGE: a frame other placements stand on. It holds a
+        `Placement` — rigid steps a document parameter can drive,
+        literal frames, or both — and denotes no body, so as a product
+        root it contributes nothing. `parent` is the gauge it sits on,
+        `None` for the world; its frame is the parent's composed with
+        `placement`. Instances name a gauge through
+        `DocEdit.set_gauge`, and every instance on it moves with it.
+        Every rigid step's components are checked against the slot they
+        land in, as `Node.transform_by` checks them."""
 
     @staticmethod
     def mate(
@@ -2578,6 +2669,14 @@ class Node:
         default, because a transform mints no name and the operand is
         the only thing that tells the two apart. Neither half is a
         recipe edge: inserting a mate transfers no root.
+
+        A mate PLACES when its two instances sit on one gauge, and
+        declares otherwise. A placing mate that joins two groups
+        places the first operand's group on the second's: "mate `a`
+        to `b`" moves `a`, and the insert clears every offset `a`'s
+        group held (`Doc.last_maintenance`, `offset_cleared`). Which side
+        moves is independent of which side's frame states the datum.
+        `Doc.regauge_then_mate` copies `b`'s gauge to `a`'s group first.
 
         `class_` is the declared contact class; ask `class_admission`
         BEFORE authoring, because a class the solve folds may still
@@ -2616,8 +2715,8 @@ class Node:
         name the minting node for the authored one. Both are legal and
         they are different questions.
 
-        These references ARE recipe edges, unlike `Node.declare`'s and
-        `Node.mate`'s names: a measure consumes the values it names, so
+        These references ARE recipe edges, unlike a boolean's declared
+        pairs and `Node.mate`'s names: a measure consumes the values it names, so
         deleting a referenced node is refused at the delete door
         (`delete_would_dangle`) like any other consumer's input.
 
@@ -3054,7 +3153,9 @@ class McReport:
         here a reader can check against the certified side."""
     def render(self) -> str:
         """The human form, with the advisory label and the dials on
-        every line that carries an estimate."""
+        every line that carries an estimate. Each node is spoken from
+        the document the run was drawn from, with its label as that
+        document held it."""
 
 def monte_carlo(
     doc: Doc, analyzed: AnalyzedBox, config: Optional[McConfig] = None
@@ -3173,6 +3274,18 @@ class DocEdit:
     @staticmethod
     def delete_node(id: NodeId) -> DocEdit: ...
     @staticmethod
+    def set_label(node: NodeId, label: Optional[str]) -> DocEdit:
+        """Set or clear a node's label: `label` replaces the label the
+        node has, `None` clears it. A label is document data beside the
+        node — not unique, never identity — so the edit recomputes
+        nothing; it does move the content pin, as a recolour does.
+
+        Raises EditError at this call for a text that is not a label
+        (`label_blank`, `label_line_break`, `label_control_character`),
+        and at `apply` for a node the document does not hold
+        (`unknown_node`) or an edit that would leave the label as it is
+        (`label_unchanged`)."""
+    @staticmethod
     def set_members(node: NodeId, members: list[NodeId]) -> DocEdit:
         """Replace a node's whole LIST input — a `Node.union`'s
         members, a `Node.loft`'s sections — with the list stated in
@@ -3182,12 +3295,28 @@ class DocEdit:
         spelling and no per-entry arm, so nothing is inferred about
         which old entry survived. Dropping a member is this edit
         without it plus `delete_node` of the orphan; a union's
-        `declare` input is left as it was.
+        declared pairs are left as they were.
 
         Every input check `Doc.insert` makes is remade of the
         REWRITTEN node — `unresolved_input`, `duplicate_input`,
         `too_few_members`, `would_cycle` — and a node carrying no list
         refuses `set_members_on_non_list`."""
+
+    @staticmethod
+    def set_declare(node: NodeId, findings: list[FlushFinding]) -> DocEdit:
+        """Replace a live boolean's or union's whole declared-pair list
+        with the pairs and classes of `findings`, the inspected
+        `FlushFinding`s `Node.boolean`'s `declare=` takes. An empty
+        list clears the declaration.
+
+        Refuses `set_declare_on_non_declaring` on a node that is
+        neither a boolean nor a union, `unknown_node` for a node the
+        document does not hold, the name checks an insert runs
+        (`declare_names_missing_node`, `name_step_never_minted`,
+        `read_site_missing_node`), and the pair rule an insert asks:
+        `declared_site_not_an_operand` for a pair read at a node that
+        is not one of `node`'s operands, `declared_name_not_upstream`
+        for a name not minted before `node`."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, expr: Expr) -> DocEdit:
@@ -3304,15 +3433,54 @@ class DocEdit:
         root is a silently dead subgraph)."""
 
     @staticmethod
-    def set_placement(node: NodeId, frame: Frame) -> DocEdit:
-        """Place an instance's GROUP.
+    def set_offset(instance: NodeId, offset: Optional[Placement]) -> DocEdit:
+        """Set an instance's OFFSET in its gauge, or clear it with
+        `None`.
 
-        The frame REPLACES whatever was recorded. Placement is
-        per-group, not per-instance: an instance coupled to others
-        by mates shares their frame, and `root_of` says which node
-        the registry is actually keyed by. Refuses typed on
-        `EditError`: `placement_on_non_instance`,
-        `non_finite_placement`, `improper_placement`."""
+        On its group's root the offset places the group; on any other
+        member it is a statement the solve checks (a disagreement
+        faults that instance, `mate_offset_disagrees`). Clearing the
+        root's offset unplaces the group unless another member carries
+        one. Refuses typed on `EditError`: `offset_on_non_instance`,
+        and the placement's own refusals (`non_finite_placement`,
+        `improper_placement`, `non_rigid_placement`,
+        `placement_axis`) naming the step."""
+
+    @staticmethod
+    def set_gauge(node: NodeId, gauge: Optional[NodeId]) -> DocEdit:
+        """Set the GAUGE a node sits on: an instance's gauge, or a
+        gauge's parent, `None` for the world.
+
+        A mate places only between instances on one gauge; across
+        gauges it declares. `Doc.regauge_then_mate` copies a gauge and
+        mates in one action. Refuses typed on `EditError`:
+        `gauge_on_non_placed` (neither an instance nor a gauge),
+        `gauge_not_live`, `not_a_gauge`, and `gauge_cycle` (a gauge
+        would sit on itself)."""
+
+    @staticmethod
+    def promote(instance: NodeId) -> DocEdit:
+        """PROMOTE an instance's offset to a gauge: a new gauge under
+        the instance's gauge holds the offset, and the instance sits on
+        it at the empty chain, with the other members of its group.
+        `DocEdit.fold` is the inverse; promoting, then splitting the
+        group out with the new gauge left behind, makes a part at that
+        frame. Refuses typed on `EditError`: `promote_on_non_instance`,
+        `promote_without_offset`, `promote_non_root` (the offset is a
+        check; `input` is the group's root), and
+        `promote_member_offset` (`input` is a member carrying an
+        offset)."""
+
+    @staticmethod
+    def fold(gauge: NodeId) -> DocEdit:
+        """FOLD a gauge away: every node on it hangs from its parent,
+        each one's own chain with the gauge's steps in front. An
+        instance with no offset keeps none; a lone unlabelled dependent
+        takes the gauge's label, and otherwise the label goes, reported
+        as `label_dropped` maintenance. Refuses typed on `EditError`:
+        `fold_on_non_gauge`, `fold_would_dangle` (`referenced_by` reads
+        the gauge as an input), and `fold_would_start_placing` (`input`
+        is the mate that would start placing)."""
 
     @staticmethod
     def update_reference(node: NodeId, new_pin: ContentPin) -> DocEdit:
@@ -3361,12 +3529,15 @@ class DocEdit:
         `inner_variant` `repeated`.
 
         A name on a profile piece spells its step's id, so a name on a
-        kept step keeps denoting its piece and is not touched. A step
-        the new program does not keep takes its id with it: every name
-        on it — a fillet's selection, a shell's mouth, a derived
-        frame's face, a paint — keeps its spelling, resolves to
-        nothing, and is reported `strand` or `stranded_appearance` on
-        `Doc.last_maintenance` until `rebind` repairs it.
+        kept step keeps denoting its piece wherever the new program
+        draws it and is not touched. A step the new program does not
+        keep takes its id with it: every name on it — a fillet's
+        selection, a shell's mouth, a derived frame's face, a paint —
+        keeps its spelling, resolves to nothing, and is reported
+        `strand` or `stranded_appearance` on `Doc.last_maintenance`
+        until `rebind` repairs it. So is a name on a kept step's piece
+        the new program stops drawing, as a fillet inserted before a
+        leg takes the leg's segment.
 
         Refuses `step_ids_refused` before the program is replayed
         (`inner_variant`: `loop_count`, `shape`, `not_this_profiles`,
@@ -3419,6 +3590,13 @@ class DocEdit:
         unknown parameter, a parameter of the wrong dimension."""
 
     @staticmethod
+    def set_extrude_side(node: NodeId, side: ExtrudeSide) -> DocEdit:
+        """Set which side of its sketch plane the extrude `node` goes
+        toward — the structural half of an extrude, which no value of
+        its depth can flip. Refuses typed on a node that is not an
+        extrude."""
+
+    @staticmethod
     def bind_instance_param(node: NodeId, name: ParamName) -> DocEdit:
         """Bind `node`'s STRUCTURAL instance slot to the document
         parameter `name` — a `Node.part`'s index into a pattern as a
@@ -3449,15 +3627,16 @@ class DocEdit:
 class Doc:
     """A parametric document: the recipe, not the geometry."""
 
-    def __init__(self, label: Optional[str] = None) -> None:
+    def __init__(self, seed: Optional[str] = None) -> None:
         """An empty document.
 
         `Doc()` mints a FRESH random identity, so two documents
         authored here are two parts and one workspace holds both.
-        `Doc(label)` derives the id from the label instead — same
-        label, same id, on every platform, which makes it the
+        `Doc(seed)` derives the id from the seed text instead — same
+        seed, same id, on every platform, which makes it the
         reproducible spelling and, deliberately, the one that makes
-        two same-label documents the SAME part. Raises IdentityError
+        two same-seed documents the SAME part. (The seed is not a
+        label: a node's label is `Doc.label`.) Raises IdentityError
         if the OS entropy source refuses."""
     @property
     def id(self) -> str:
@@ -3468,21 +3647,22 @@ class Doc:
         """Apply one edit, answering the minted node id if the edit
         minted one.
 
-        `resolver` is the document seam an edit that moves a group's
-        root levers through: its cluster-record maintenance mints the
-        group's frame from a solve of the prior document, whose lever
-        is the mated parts' own extent. Every other edit never consults
-        it, with one exception: inserting a mate asks the solve's own
-        per-mate admission at the door, which reads the mated parts
-        through `resolver` in two cases — a `MateFrame.from_face` side
-        is resolved from the part's own face, and a clocking rider on a
+        `resolver` is the document seam the mate door reads the mated
+        parts through: inserting a mate asks the solve's own per-mate
+        admission at the door, which reads the parts through
+        `resolver` in two cases — a `MateFrame.from_face` side is
+        resolved from the part's own face, and a clocking rider on a
         frame coincidence is decided over the parts' extent. Absent, a
-        root-moving edit raises `EditError` with variant
-        `maintenance_refused` rather than recording a frame nothing
-        decided, a mate with a face side raises `mate_refused` with
+        mate with a face side raises `mate_refused` with
         `inner_variant == "mate_face_unresolved"`, and one with such a
-        rider `inner_variant == "mate_unleverable"`; everything else is
-        unaffected.
+        rider `inner_variant == "mate_unleverable"`; no other edit
+        consults it, because no edit records a frame.
+
+        Inserting a mate that places — both instances on one gauge —
+        and joins two groups places the first operand's group on the
+        second's: every offset the first's group held is cleared in the
+        same edit, and `last_maintenance` reports each as
+        `offset_cleared`.
 
         A mate the solve refuses on its own datum — no member at its
         head, one member named twice, a class outside the vocabulary,
@@ -3541,16 +3721,26 @@ class Doc:
         program does not replay and validate under the current
         values."""
 
+    def regauge_then_mate(self, mate: Node, *, resolver: Optional[Workspace] = None) -> NodeId:
+        """"Copy `b`'s gauge to `a`, then mate `a` to `b`" — one action.
+        `mate` is a `Node.mate`: every member of the group its `a` side
+        reads is put on the gauge its `b` side's instance sits on, then
+        the mate is inserted, which places — the first operand's group
+        on the second's, every offset it held cleared. A plain insert
+        when the sides already share a gauge. Atomic: a refusal at any
+        step raises that step's `EditError` and leaves the document
+        untouched, and the action refuses whole (`would_start_placing`,
+        naming the mate) when the re-gauge would make a mate already in
+        the document start placing. Returns the mate's id;
+        `last_maintenance` reads the whole action's record."""
+
     @property
     def last_maintenance(self) -> list[Maintenance]:
-        """The maintenance the LAST accepted edit performed: its
-        cluster-record acts, the names its delete or reshaping
-        stranded, and the declarations its delete left with no
-        consumer. The strands lead, then the orphaned declarations,
-        and the cluster acts come last, so read `variant`, never a
-        position.
-        Empty after an edit that moved no mate graph, stranded no
-        name and orphaned no declaration, and on a document that has
+        """The maintenance the LAST accepted edit performed: the offset
+        a mate insert cleared (`offset_cleared`) and the names its delete
+        or reshaping stranded — read `variant`, never a position.
+        Empty after an edit that joined no groups and stranded no
+        name, and on a document that has
         applied none; a REFUSED edit leaves it untouched, as it
         leaves the document untouched.
 
@@ -3568,17 +3758,23 @@ class Doc:
         document always states its product rather than leaving it to
         be inferred."""
 
-    def placement(self, node: NodeId) -> Frame:
-        """An instance's GROUP frame, or the identity when nothing
-        was recorded. Total — use `placements` to tell "placed at the
-        identity" from "carries no frame of its own". This is the
-        AUTHORED frame; a mated instance's world pose is
-        `SolvedPoses.placement`."""
+    def offset(self, node: NodeId) -> Optional[Placement]:
+        """An instance's OFFSET in its gauge, or `None` when it carries
+        none. On its group's root the offset places the group; on any
+        other member it is a statement the solve checks. An instance
+        with no offset sits where its mates put it, and a group none of
+        whose members carries one is unplaced. This is the AUTHORED
+        offset; an instance's world pose is `SolvedPoses.placement`.
+        Raises `ValueError` for a node that does not instantiate a
+        part."""
 
-    def placements(self) -> dict[NodeId, Frame]:
-        """The placement registry itself: every node with a recorded
-        group frame. A mated instance that is not its group's
-        root is ABSENT here however it is posed."""
+    def gauge(self, node: NodeId) -> Optional[NodeId]:
+        """The GAUGE an instance or a gauge sits on, or `None` for the
+        world. A reference to a deleted gauge is kept, dangling, and
+        reads back as the id it names: the group it reaches is unplaced
+        (`dead_gauge`) until `DocEdit.set_gauge` names a live one.
+        Raises `ValueError` for a node that is neither an instance nor
+        a gauge."""
 
     def reference(self, node: NodeId) -> Optional[DocRef]:
         """The `(id, pin)` an instantiate node carries, or `None` for
@@ -3597,7 +3793,7 @@ class Doc:
         `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
         `chamfer`, `shell`, `split`, `boolean_union`, `boolean_intersect`,
         `boolean_subtract`, `union`, `transform`, `pattern`, `part`,
-        `placed_union`, `declare`, `instantiate_part`, `mate`,
+        `placed_union`, `instantiate_part`, `mate`, `gauge`,
         `measure`, `assertion`. A Boolean answers a word per
         OPERATION, because union, intersect and subtract are three
         kernel operations sharing one payload shape; the unprefixed
@@ -3613,9 +3809,25 @@ class Doc:
         A node this document does not hold raises EditError
         (`unknown_node`) rather than answering a word or `None`."""
 
-    def insert(self, node: Node, *, resolver: Optional[Workspace] = None) -> NodeId:
+    def label(self, node: NodeId) -> Optional[str]:
+        """The label a person gave `node`, or `None` when it has none.
+        Set or cleared by `DocEdit.set_label`, or by `label=` at
+        insert. A node this document does not hold raises EditError
+        (`unknown_node`): `None` answers only for a held node."""
+
+    def insert(
+        self,
+        node: Node,
+        *,
+        label: Optional[str] = None,
+        resolver: Optional[Workspace] = None,
+    ) -> NodeId:
         """Insert a node, answering its minted id — `apply` of
         `DocEdit.insert_node`.
+
+        `label=` labels the new node in the same call: the insert and
+        `DocEdit.set_label`, both applied or neither. A text that is
+        not a label raises EditError before anything is applied.
 
         `resolver` is the document seam a mate's admission reads the
         parts through: an insert is a Join at most (the survivor keeps
@@ -3628,24 +3840,34 @@ class Doc:
         self,
         plane: Optional[SketchPlane] = None,
         elevation: Optional[Expr] = None,
+        *,
+        label: Optional[str] = None,
     ) -> NodeId:
         """Insert a sketch frame and return its id.
 
-        Exactly `insert(Node.sketch_frame(...))`. Each call mints a
-        FRESH frame; two sketches meant to share a plane bind the id
-        once and pass it twice.
+        Exactly `insert(Node.sketch_frame(...), label=label)`. Each call
+        mints a FRESH frame; two sketches meant to share a plane bind
+        the id once and pass it twice.
         """
 
-    def declare(self, finding: FlushFinding) -> NodeId:
-        """Insert a `Declare` node for ONE inspected finding and
-        return its id for `Node.boolean`'s `declare=` (the
-        detect/declare protocol's declare arm). Raises EditError,
-        typed."""
+    def declare(self, node: NodeId, finding: FlushFinding) -> None:
+        """ADD one inspected finding's pair to the declared pairs of the
+        live boolean or union `node`, keeping every pair it declares
+        already (the detect/declare protocol's declare arm, and the
+        door an `undeclared_coincidence` refusal's recourse names:
+        following each refusal with its `finding` converges). A pair on
+        the same two sides as one already declared replaces it. Raises
+        EditError, typed: `set_declare_on_non_declaring` on a node
+        that is neither a boolean nor a union, `unknown_node`,
+        `declared_site_not_an_operand` for a finding inspected between
+        other operands than `node`'s, and the name checks an insert
+        runs."""
 
-    def declare_all(self, findings: list[FlushFinding]) -> NodeId:
-        """`declare` for a SET of findings in one `Declare` node —
-        arity, not fusion. An empty list raises EditError
-        (`no_findings`)."""
+    def declare_all(self, node: NodeId, findings: list[FlushFinding]) -> None:
+        """Set `node`'s whole declared-pair list to a SET of findings —
+        `DocEdit.set_declare`'s replace, where `declare` adds. An empty list raises
+        EditError (`no_findings`); `DocEdit.set_declare(node, [])` is
+        the spelling that clears."""
     @property
     def node_count(self) -> int: ...
     def order(self) -> list[NodeId]: ...
@@ -4199,8 +4421,9 @@ def band(node: NodeId, piece: Piece) -> str:
 
 def band_pi(node: NodeId, piece: Piece) -> str:
     """The `[pi, 2pi)` band face swept from the profile piece `piece` —
-    `band`'s twin, where a full revolve emits a segment as two faces.
-    A face, as `band` is."""
+    `band`'s twin, where a full revolve emits a CURVED segment as two
+    faces. A planar segment sweeps whole, one face, its `band`, and has
+    no `band_pi`. A face, as `band` is."""
 
 def band_rim(node: NodeId, piece: Piece) -> str:
     """The latitude rim at the vertex the profile piece `piece` starts
@@ -4561,9 +4784,10 @@ class Verdict:
 # --- detect / declare -------------------------------------------------
 # The flush-contact protocol's value vocabulary. A finding is a
 # REPORT: `Evaluation.find_flush_candidates` answers with them, the
-# caller inspects, and `Node.declare` / `Doc.declare` /
-# `Doc.declare_all` turn inspected findings into the `Declare` node
-# `Node.boolean`'s `declare=` consumes. The same value rides the
+# caller inspects, and `Node.boolean` / `Node.union`'s `declare=`,
+# `Doc.declare` / `Doc.declare_all` and `DocEdit.set_declare` put
+# inspected findings on a boolean or union as its declared pairs. The
+# same value rides the
 # boolean's refusal menu (`EvaluationError.finding`). Detection and
 # declaration are separate doors ON PURPOSE: no fused
 # detect-and-declare door exists.
@@ -4571,7 +4795,7 @@ class Verdict:
 class PlaneRelation:
     """The verify door's relation verdict: `SameOpposite` = resting
     contact (opposed outward normals), `SameOriented` = flush walls
-    (the merge-stage flavor). `Distinct` exists as vocabulary; a
+    (a continuation). `Distinct` exists as vocabulary; a
     finding never carries it."""
 
     SameOriented: Final[PlaneRelation]
@@ -4579,17 +4803,27 @@ class PlaneRelation:
     Distinct: Final[PlaneRelation]
 
 class ContactClass:
-    """The contact class a declaration asserts. `Rest` (cosurface
-    contact, on any carrier the verify ladder names — plane, sphere,
-    cylinder, torus) is the only class the flush DETECTOR mints, so
-    it is the only one a `FlushFinding` from
-    `find_flush_candidates` carries;
-    `Tangent` crossed the mirror with M9-1 and is nameable here
-    because a class the binding cannot name would refuse typed at the
-    crossing instead."""
+    """The contact class a mate asserts: `Rest` (cosurface contact,
+    opposed senses, on any carrier the verify ladder names — plane,
+    sphere, cylinder, torus) or `Tangent`. A union's declaration
+    speaks `BooleanCoincidence`, which adds the continuation."""
 
     Rest: Final[ContactClass]
     Tangent: Final[ContactClass]
+
+class BooleanCoincidence:
+    """What a boolean node may declare about a face pair: a contact
+    (`Rest`, `Tangent`), a `Continuation` — one carrier with aligned
+    senses, as two stacked parts' outer walls are, which the union
+    merges — or a `Seam` — two carriers joining G1 with aligned senses,
+    as a cap on a tube does. The flush detector reports `Rest` for an
+    opposed pair and `Continuation` for an aligned one; it never reports
+    a seam."""
+
+    Rest: Final[BooleanCoincidence]
+    Tangent: Final[BooleanCoincidence]
+    Continuation: Final[BooleanCoincidence]
+    Seam: Final[BooleanCoincidence]
 
 class FlushRung:
     """Which rung of the verify ladder decided a finding:
@@ -4600,11 +4834,10 @@ class FlushRung:
     DecidedCoincident: Final[FlushRung]
 
 class FlushFinding:
-    """One flush finding: "this face pair would verify as declared
-    contact" — a VALUE to inspect and declare, never itself a
-    declaration. The detector's reach is the `Rest` ladder's, so a
-    pair may be cosurface on a plane, a sphere, a cylinder or a
-    torus. `a`/`b` are the pair's names in the same OPAQUE text
+    """One flush finding: "this face pair would verify as declared" —
+    a VALUE to inspect and declare, never itself a declaration. The
+    detector's reach is the carrier ladder's, so a pair may be
+    cosurface on a plane, a sphere, a cylinder or a torus. `a`/`b` are the pair's names in the same OPAQUE text
     alphabet every materializer speaks (store them, hand them back;
     never parse). `class_` spells `class` (a Python keyword)
     with the `or_` trailing-underscore precedent."""
@@ -4616,7 +4849,7 @@ class FlushFinding:
     @property
     def relation(self) -> PlaneRelation: ...
     @property
-    def class_(self) -> ContactClass: ...
+    def class_(self) -> BooleanCoincidence: ...
     @property
     def rung(self) -> FlushRung: ...
     def __eq__(self, other: object) -> bool: ...
@@ -5136,8 +5369,8 @@ class Evaluation:
         Findings are DEFINITE and canonically ordered. Raises
         `SelectRefusal`, typed (`node_has_no_value` when either node
         has no value, `pair_in_band`, `tied_disagrees`, `unreadable`,
-        `band`) — an ambiguous pair is never silently included or
-        dropped."""
+        `band`, `distinct_finding` for a kernel defect) — an ambiguous
+        pair is never silently included or dropped."""
     @property
     def recomputed(self) -> int:
         """How many nodes ran their op. With no `prior=` that is every
@@ -5149,6 +5382,13 @@ class Evaluation:
         neither, so on a refusal path the sum undershoots
         `len(order())` by exactly the number of poisonings. A node that
         ran and FAILED counts here: it ran."""
+    def unplaced(self, node: NodeId) -> Optional[tuple[NodeId, str]]:
+        """Whether `node`'s value lives in an UNPLACED group's own
+        space: `(root, cause)` — the group, by its root, and
+        `no_offset` or `dead_gauge` — or `None` for a node in the
+        world. An unplaced group evaluates in its own frame; the
+        product gathers only the world, and nothing outside the group
+        is compared with it."""
     @property
     def reused(self) -> int:
         """How many nodes came from `evaluate`'s `prior=` memo without
@@ -5273,16 +5513,21 @@ def evaluate(
 # Two part documents in a store, instances of them in a third, mates
 # saying how the instances meet, and one gate that says whether the
 # result is valid at rest. Authoring is `Node.instantiate_part` +
-# `Node.mate` + `DocEdit.set_placement`; reading is `solve_document`,
-# `product` and `assemble`; refactoring is `split` / `inline`.
+# `Node.gauge` + `DocEdit.set_offset` / `DocEdit.set_gauge` +
+# `Node.mate`; reading is `solve_document`, `product` and `assemble`;
+# refactoring is `split` / `inline`.
 #
-# Placement lives on the GROUP, never on the instance: mated
-# instances share one recorded frame — the earliest of them in
-# document order, their ROOT — and every other member's world pose is
-# SOLVED from the mates and composed outward. That is why
-# `Doc.placement` and `SolvedPoses.placement` are two different
-# questions, and why a document can carry three instances and one
-# frame.
+# Placement lives on a GAUGE: each instance names its gauge (the
+# world by default) and may carry an offset in it. Mates place
+# instances relative to one another only within one gauge, and the
+# instances they join form a GROUP whose ROOT is its earliest member
+# carrying an offset: the group's frame is its gauge chain composed
+# with that offset, and every other member's world pose is SOLVED
+# from the mates and composed outward. That is why `Doc.offset` and
+# `SolvedPoses.placement` are two different questions. A group
+# nothing places — its gauge, its placed member or its placing mate
+# deleted — is UNPLACED: it evaluates in its own frame and nothing
+# outside it is compared with it (`SolvedPoses.unplaced`).
 
 class MateFrame:
     """One side's mate frame, in that instance's own part coordinates
@@ -5294,18 +5539,18 @@ class MateFrame:
     perpendicular part are read. Both are plain numbers (a direction
     carries no dimension); `origin` is three lengths.
 
-    FROM A FACE: `MateFrame.from_face(face)`, where `face` is the
-    PART-LOCAL name text of a face of the mated part — the row
-    `evaluate(part).select(...)` answers on the part's own document,
-    never the instance-qualified spelling a mate head carries. The
-    solve reads that face's canonical pose off the part's own
-    evaluation at every evaluation and takes it as the frame: the
+    FROM A FACE: `MateFrame.from_face()`, which takes nothing: the
+    side's frame is its own HEAD's face, the face the mate's reference
+    on that side names, read in the mated part. The solve reads that
+    face's canonical pose off the part's own evaluation at every
+    evaluation and takes it as the frame: the
     carrier's origin, its CHART axis (the face's orientation sense is
     not folded in — the mate's `AxisSense` says which way the sides
     point) and the carrier's own in-frame reference direction as the
     roll. So a face frame's roll is the carrier's: a side that needs a
     roll of its own takes authored vectors. Nothing is stored twice:
-    edit the part so the face moves, and the mate follows. A face with
+    edit the part so the face moves, or rebind the head, and the mate
+    follows; split and inline carry it with its head. A face with
     no canonical frame (a NURBS carrier) refuses at the solve and keeps
     taking authored vectors.
 
@@ -5324,12 +5569,10 @@ class MateFrame:
         reference: tuple[float, float, float],
     ) -> None: ...
     @staticmethod
-    def from_face(face: str) -> MateFrame:
-        """A frame resolved from `face`, a face of the part by its
-        PART-LOCAL name text (see the class docs); the name is the
-        whole frame, and it resolves on the nominal lane only. Raises
-        ValueError for text that is not a stable name, and EditError
-        (`mate_head_not_a_face`) for a name of another kind."""
+    def from_face() -> MateFrame:
+        """A frame resolved from the side's own head face (see the
+        class docs); it takes nothing, and it resolves on the nominal
+        lane only."""
 
     @property
     def variant(self) -> str:
@@ -5348,11 +5591,6 @@ class MateFrame:
     def reference(self) -> Optional[tuple[float, float, float]]:
         """The authored clocking reference; `None` on a `from_face`
         frame, whose roll is the carrier's own."""
-
-    @property
-    def face(self) -> Optional[str]:
-        """The face a `from_face` frame names, as its name text in the
-        part's own spelling; `None` on an authored frame."""
 
     def placement(self) -> Frame:
         """The rigid placement an AUTHORED frame denotes: local +Z is
@@ -5509,6 +5747,14 @@ NO_AT_REST_RECORD_RECOURSE: Final[str]
 """The recourse the at-rest gate's `NoAtRestRecord` refusal ends on:
 `Rest` is the one class v1 mints and verifies at rest."""
 
+OFFSET_RECOURSE: Final[str]
+"""The recourse a checked offset's refusal (`mate_offset_disagrees`)
+ends on: clear the offset, or change the mate."""
+
+UNPLACED_RECOURSE: Final[str]
+"""The recourse an unplaced group's refusals end on: how to place it —
+an offset, a live gauge, or a mate to a placed instance on its gauge."""
+
 class MateRole:
     """What a mate did in the solve: `Determining` (a tree mate — it
     placed its child), `Declaring` (it solved nothing and is carried
@@ -5558,7 +5804,15 @@ class MateFault:
     it, the `EvaluationError` the placer's own evaluation raises, which
     `str(fault)` points at and never quotes. `None` where the placer
     fails in its own right, whose own failure states it. A raised
-    `MateError` carries the same as its `__cause__`."""
+    `MateError` carries the same as its `__cause__`.
+
+    A checked offset's two faults name no mate: `mate_offset_disagrees`
+    carries `instance`, `root`, `predicate` and the measured `clash`
+    (with its lever, when levered); `mate_offset_unchecked` carries
+    `instance` and, on `inner_variant`, why the check could not run —
+    `placement_refused` (with `placer` and `error`, as a placer's
+    refusal), `unleverable`, or `indeterminate` (with the classifier's
+    words)."""
 
     @property
     def variant(self) -> str: ...
@@ -5577,9 +5831,12 @@ class MateFault:
     @property
     def instance(self) -> Optional[NodeId]: ...
     @property
+    def root(self) -> Optional[NodeId]: ...
+    @property
     def face(self) -> Optional[str]:
-        """The face a `from_face` frame named, as its name text in the
-        PART's own spelling, where the refusal is about one
+        """The face a `from_face` side read — its head's face, as its
+        name text in the PART's own spelling, or the head itself where
+        it names no face of the part — where the refusal is about one
         (`mate_face_unresolved`)."""
 
     @property
@@ -5630,7 +5887,7 @@ class MateFault:
         rather than one part, with no `instance`), or the face refusal's on
         `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
         `ambiguous`, `not_a_face`, `readback`, `unpinned`,
-        `not_an_instance`, with the
+        `not_an_instance`, `no_part_face`, with the
         instance as `instance` and the face as `face`). `None` on an
         arm whose payload is a struct rather than an enum — an
         escalation has no inner word, and its shape is which margin
@@ -5710,28 +5967,51 @@ class SolvedPoses:
     def fault(self, node: NodeId) -> Optional[MateFault]:
         """The node's recorded fault. Recorded against the refusing
         MATE and against every instance in its group that
-        consequently has no pose — and no further."""
+        consequently has no pose — and no further.
+
+        Its words speak each node from the document as it was SOLVED:
+        the fault is the solve's, recorded over that version, so a
+        label set on the document afterwards does not reach it. Solve
+        again to speak the current labels."""
 
     def role(self, mate: NodeId) -> Optional[MateRole]: ...
     def root(self, instance: NodeId) -> Optional[NodeId]:
         """The instance's group root. A singleton is its own."""
 
     def relative(self, instance: NodeId) -> Optional[Frame]:
-        """Its pose relative to that root. The root's own entry is
-        the identity, bit-exactly."""
+        """Its pose in its group's own space: where it sits when the
+        group's frame is the identity — relative to its root when no
+        placer stands on the path from the root, and in an unplaced
+        group the pose the group is evaluated at."""
+
+    def unplaced(self, instance: NodeId) -> Optional[str]:
+        """Why the instance's group is UNPLACED — `no_offset` (no
+        member carries an offset) or `dead_gauge` (its gauge chain
+        names a deleted gauge) — or `None` when it is placed or the
+        node is not a live instance. An unplaced group evaluates in its
+        own frame, and nothing outside it is compared with it."""
 
     def placement(self, doc: Doc, instance: NodeId) -> Frame:
-        """The instance's WORLD placement: the group's recorded
-        frame composed onto the solved relative pose. A singleton
-        returns its recorded frame verbatim.
+        """The instance's WORLD placement, at the document's own
+        parameters: its group's frame — the gauge chain composed with
+        the root's offset — composed into the solved pose. A lone
+        instance returns its offset's frame on its gauge bit for bit,
+        and on the world at the empty offset the identity.
 
         `doc` must be the document this solve is OF. Passing another
-        would compose this document's relative poses onto that one's
-        group frames, which is a pose of neither, so the door
-        refuses first: a `SolvedPoses` carries the id of the document
+        would compose this document's poses onto that one's
+        placements, which is a pose of neither, so the door refuses
+        first: a `SolvedPoses` carries the id of the document
         `solve_document` solved, and a mismatch raises MateError with
         tag `mate_poses_of_another_document` before any frame is
-        read. Raises MateError when the group did not solve."""
+        read. Raises MateError when the group did not solve, and
+        EvaluationError — kind `unplaced`, or `placement_refused` with
+        the placement's own refusal as the cause — when nothing places
+        its group or a placement on its frame does not evaluate.
+
+        A MateError's words are the solve's fault, spoken from the
+        document as it was solved; an EvaluationError's are read off
+        `doc`, and spoken from it."""
 
 def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedPoses:
     """Solve the document's mates: the per-pair coset fold along a
@@ -5756,13 +6036,15 @@ def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedP
     gate."""
 
 def groups(doc: Doc) -> list[list[NodeId]]:
-    """The placement groups: instances coupled by mates, members in
-    document order. The partition placement is keyed by."""
+    """The placement groups: instances coupled by PLACING mates (both
+    instances on one gauge), members in document order."""
 
 def root_of(doc: Doc, instance: NodeId) -> NodeId:
-    """An instance's group ROOT — the document-order-first instance
-    of its group, whose recorded frame places the whole group.
-    Answers the node itself when it is in no group."""
+    """An instance's group ROOT — the earliest member, in document
+    order, that carries an offset, whose offset on the group's gauge
+    places the whole group; the earliest instance when none does or its
+    gauge chain names a deleted gauge (the group is then unplaced). Answers the node itself when it is not a
+    live instance."""
 
 def reading_edges(doc: Doc) -> list[tuple[NodeId, NodeId]]:
     """For each mate, the instantiate node each of its references
@@ -5775,14 +6057,17 @@ def relative_freedom_components(doc: Doc) -> list[list[NodeId]]:
 
 class Maintenance:
     """One act of automatic maintenance an accepted edit performed:
-    what an ordinary edit's motion of the mate graph forced on the
-    placement registry, or a reference its delete stranded.
+    the offset the mate door cleared, or a reference a delete stranded.
 
     It rides the accepted edit rather than being an edit of its own —
     deterministic from the edit, so a replay reproduces it and undo
-    restores it exactly. What the record adds is VISIBILITY: an
-    absorbed cluster's frame is consumed here, and a stranded name is
+    restores it exactly. What the record adds is VISIBILITY: a cleared
+    offset is said with the offset it held, and a stranded name is
     said at the delete rather than at the next evaluation.
+
+    An `offset_cleared` names, on `node`, the root of the group a
+    placing mate's FIRST operand read: the mate placed that group on
+    its second operand's, so the root gave up its `offset`.
 
     A `strand` names a node that survived the edit carrying a name
     whose referent the edit removed — its minting node, under a
@@ -5797,49 +6082,21 @@ class Maintenance:
     because the store carries it and no node does; the attachment is
     left exactly where it was, since the report never repairs.
 
-    An `orphaned_declare` is not a loss of that kind: its `node` is a
-    `Declare` that SURVIVED the delete, and what went is the last node
-    that consumed it (`Node.union`/`Node.boolean`'s `declare=`). It
-    carries no `name` — nothing dangles, and no node consumes the
-    declaration any more (the document's `roots` do gain it, since a
-    node nothing reads is a product root). The repair is the author's:
-    delete the declaration, or give it a new consumer. A declaration
-    that has never had a consumer is not reported: a `Declare` is
-    inserted before the union that consumes it, so what the row says
-    is that a delete MADE it consumerless.
-
-    The row is TRANSIENT when the declaration itself is what the
-    author is deleting: the consumer must go first, that delete
-    reports the orphan, and the delete that follows removes its
-    subject — so a caller walking a node and its dependents reads the
-    net effect off the document the walk ended at, not off the rows.
-
-    `source` and `target` rather than `from`/`to`: `from` is a Python
-    keyword."""
+    A `label_dropped` names, on `node`, a gauge `DocEdit.fold` took out
+    of the document whose label went with it: no single unlabelled
+    node stood in for it. The label is in the row's message."""
 
     @property
     def variant(self) -> str:
-        """`join`, `split`, `gauge_rewrite`, `drop`, `strand`,
-        `stranded_appearance`, or `orphaned_declare`."""
+        """`offset_cleared`, `strand`, `stranded_appearance`, or
+        `label_dropped`."""
 
-    @property
-    def survived(self) -> Optional[NodeId]: ...
-    @property
-    def absorbed(self) -> Optional[NodeId]: ...
-    @property
-    def absorbed_frame(self) -> Optional[Frame]: ...
-    @property
-    def source(self) -> Optional[NodeId]: ...
-    @property
-    def target(self) -> Optional[NodeId]: ...
-    @property
-    def frame(self) -> Optional[Frame]: ...
-    @property
-    def gauge(self) -> Optional[NodeId]: ...
     @property
     def node(self) -> Optional[NodeId]: ...
     @property
     def name(self) -> Optional[str]: ...
+    @property
+    def offset(self) -> Optional[Placement]: ...
 
 # --- the gather and the at-rest gate ----------------------------------
 
@@ -6134,7 +6391,7 @@ class SplitOutcome:
 
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
-        """Cut node -> its id in the part document."""
+        """Cut node -> its id in the part document, as pairs in the part's own order."""
     @property
     def step_map(self) -> dict[StepId, StepId]:
         """Cut profile step id -> the id the part minted for it."""
@@ -6154,16 +6411,35 @@ def split(
     placement groups. Pure — `doc` is untouched. Raises SplitError,
     typed, naming the offending edge, group, parameter or name.
 
-    `resolver` is the document seam the split's own edits lever
-    through where one moves a group's root (the remainder's mate
-    deletes split the group they cut; the part's mate inserts
-    re-form it): its cluster-record maintenance mints the group's
-    frame from a solve of the prior document, whose lever is the
-    mated parts' own extent. The part being minted answers its own
-    reference; `resolver` answers every other. Absent, a cut that
-    moves a root raises `SplitError` carrying an `EditError` with
-    variant `maintenance_refused`; a cut that moves none is
-    unaffected."""
+    `resolver` is the document seam the part's mate inserts lever
+    through where one carries a clocking rider, decided over the mated
+    parts' own extent. The part being minted answers its own
+    reference; `resolver` answers every other. Absent, such a rider
+    raises `SplitError` carrying an `EditError` with variant
+    `mate_refused`; a cut with none is unaffected.
+
+    The gauge rules (A4): every reference leaving the cut lands on ONE
+    anchor — a kept gauge or the world — which the instance left
+    behind names (`two_anchors`, its `instance` the cut node that
+    disagrees): a cut instance votes its gauge and a cut gauge its
+    parent, unless that reference stays inside the cut, and a cut root
+    that is no instance votes the world. A kept instance or gauge on a
+    cut gauge refuses (`severed_gauge`, its `node` the kept node
+    and its `gauge` the gauge). A placing mate never crosses: a cut that leaves behind the
+    mate placing its group refuses (`placing_mate_left`). The cut moves
+    as selected: every cut node is carried as it is, a cut gauge whose
+    parent leaves the cut on the part's world, every root keeps its
+    offset, and the instance left behind sits at the empty chain. A
+    part at a frame of its own is `DocEdit.promote` before the split,
+    with the promoted gauge left out of the cut. A dead gauge reference
+    refuses (`dead_gauge_reference`), as do a cut that holds no body
+    (`no_material`), a cut of unplaced material alone
+    (`unplaced_alone`), and a kept mate that would start
+    placing (`would_start_placing`), or whose cut side would change
+    coordinates (`mate_frame_crosses`): an authored side reading an
+    instance that is not, in the part, its group's root at the empty
+    chain, or a `MateFrame.from_face` side reading one in its group's
+    own space. A face side otherwise crosses with its head."""
 
 class InlineOutcome:
     """What an inline produced: the spliced document value and the
@@ -6175,7 +6451,7 @@ class InlineOutcome:
     def edits(self) -> list[DocEdit]: ...
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
-        """Part node -> its id in the spliced document."""
+        """Part node -> its id in the spliced document, in the spliced document's order."""
     @property
     def step_map(self) -> dict[StepId, StepId]:
         """Part profile step id -> the id the host minted for it."""
@@ -6188,7 +6464,17 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     pin gate: a reference whose pinned version is not what the store
     holds refuses `part_pin_mismatch`, never silently splices the
     version on disk. Pure — `doc` is untouched. Raises InlineError,
-    typed."""
+    typed.
+
+    Where the content lands (A4): with the instance at the empty chain, on
+    its gauge as it is; at any other offset, on a gauge minted under
+    the instance's gauge holding that offset (a `DocEdit.promote` of the
+    instance), onto which the members the instance placed move (one
+    carrying a further offset refuses `moved_member_offset`). A
+    mate-placed instance inlines only over a part that is one group
+    rooted at the empty chain on its world, holding no gauge and no
+    other member carrying an offset, whose root takes its place;
+    otherwise it refuses `mate_placed`."""
 
 # --- the pin-update door ----------------------------------------------
 
@@ -6238,8 +6524,9 @@ def update_references(doc: Doc, id: str, new_pin: ContentPin) -> list[DocEdit]:
     door that computes one from disk, and it says exactly when it
     reads.
 
-    The caller applies the whole list or none of it, and that
-    all-or-nothing is what atomic means here. A site already pinning
+    Each edit moves one site and reads no other edit's result, so the
+    edits apply in any order, and any subset leaves an authorable
+    mixed-pin state (`mixed_pins` reads it). A site already pinning
     `new_pin` contributes NO edit, so "update everywhere" stays usable
     from the staged state where some sites already moved.
 
@@ -6416,7 +6703,11 @@ class CheckFinding:
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
     the body it names; `str()` renders it the way the library renders
-    a finding, recourse included."""
+    a finding, recourse included, each root spoken (kind, label and
+    tag) from the document the checks ran over — the one the
+    evaluation is of. `repr()` keeps the full id. Two findings are
+    equal when they are the same finding over the same document;
+    labels are not compared."""
 
     @property
     def check(self) -> CheckId: ...
@@ -6434,7 +6725,11 @@ class ChecksReport:
     `skipped` is why this is a report and not a list — "checked and
     fine" and "not checked" are different answers, and an empty
     `findings` read without `skipped` confuses them. `len(report)`
-    counts findings."""
+    counts findings. `str()` speaks each root from the document the
+    checks ran over, the one the evaluation is of: a label set after
+    `evaluate` shows on the next evaluation's report, not this one's.
+    Two reports are equal when they hold the same findings and skips
+    over the same document; labels are not compared."""
 
     @property
     def findings(self) -> list[CheckFinding]:

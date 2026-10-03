@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
+use editor_core::ExtrudeSide;
 use std::time::Instant;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
@@ -123,6 +124,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     let seg = r.insert(Node::Extrude {
         profile: seg_profile,
         distance: thickness.clone(),
+        side: ExtrudeSide::Along,
     });
     let bore_centre_y = Expr::mul(plen("chord_half"), scl(0.2)).expect("Length * Scalar");
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
@@ -136,6 +138,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     let bore = r.insert(Node::Extrude {
         profile: bore_profile,
         distance: thickness,
+        side: ExtrudeSide::Along,
     });
 
     let refs = {
@@ -153,7 +156,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,

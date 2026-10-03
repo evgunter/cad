@@ -25,8 +25,8 @@ use crate::fixture;
 
 use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, LeverRefusal, MateFault,
-    MateFrame, MatePrimitive, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, ExtrudeSide, LeverRefusal,
+    MateFault, MateFrame, MatePrimitive, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, insert, len, on_frame, solve, square, step};
@@ -501,6 +501,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -545,9 +546,23 @@ fn out_of_range_through_the_doors() {
     let (doc, i1) = insert(doc, Node::instantiate_part(doc_ref));
     let o = with_resolver(store);
     let add = |doc, node| {
-        let (doc, id) = step(doc, DocEdit::InsertNode { node });
+        let (doc, id) = step(
+            doc,
+            DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+        );
         (doc, id.expect("the insert minted an id"))
     };
+    // The second instance sits where its mates put it, so the first
+    // roots the group and no offset is checked.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetOffset {
+            instance: i1,
+            offset: None,
+        },
+    );
     let (doc, first) = add(
         doc,
         rest(body, [i0, i1], [0.0, 0.0, 1e152], [0.0, 0.0, 1e152]),
@@ -572,7 +587,7 @@ fn out_of_range_through_the_doors() {
     let text = fault.to_string();
     assert!(text.contains(RANGE_RECOURSE), "{text}");
     assert!(
-        text.contains(&format!("mates {first} and {second} meet")),
+        text.contains("meet at a point further away than the solve can measure"),
         "{text}"
     );
 }

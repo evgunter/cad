@@ -3,12 +3,10 @@ id: mate-solve-carries-the-cluster-maintenance-half
 kind: issue
 title: mate/solve.rs holds the D-3 cluster-record maintenance beside the solve, a second concern the module doc gives one bullet
 status: closed
+closed: 2026-10-01
 opened: 2026-09-19
 priority: P1
-cost: M
-parent: MSOLVE-12
-pr: 3698
-closed: 2026-10-01
+cost: D
 ---
 
 
@@ -32,13 +30,13 @@ and the module doc it already has. Not taken in MSOLVE-7: the fence
 was the solve's cost and seats, and a file split is a review of its
 own.
 
-## Closed (2026-10-01, PR 3698)
+## Closed
 
-`crates/editor-core/src/mate/maintain.rs` holds `ClusterMaintenance`,
-`Maintain`, `maintain`, `registry_after`, `unsolved_because`,
-`undecided` and `reconcile`, moved verbatim in their own commit
-(`140c89663`) under a module doc of their own (what they re-key, when
-the edit door runs them, why a solve with no verdict refuses the
-edit). `solve.rs` keeps the solve and its module doc, less the
-`reconcile` bullet. Every moved item keeps its visibility;
-`has_mates`, which stays, became `pub(super)`.
+By PR #3676 (EDIT P2-core, `edit/placement-gauges`): the cluster-record
+maintenance is deleted whole — `ClusterMaintenance`, `Maintain`,
+`maintain`, `registry_after`, `reconcile` and the edit door's
+maintenance solve, with the placement registry they kept. No edit
+records a frame (A11 (2)), so `mate/solve.rs` holds the solve alone and
+there is no second concern to move out.
+
+MSOLVE-12's §3, which moved this half to `mate/maintain.rs` on PR 3698, was overtaken by #3676: the code it moved is gone.

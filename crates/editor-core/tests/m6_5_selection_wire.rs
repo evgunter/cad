@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use editor_core::{PersistError, load};
@@ -39,6 +40,7 @@ fn the_selection_reaches_the_wire_canonical() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let steps: Vec<u64> = (0..4)
@@ -68,7 +70,11 @@ fn the_selection_reaches_the_wire_canonical() {
     doc = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(body, len(0.0625), vec![rim(high as u32), rim(low as u32)]),
+            node: Box::new(Node::fillet(
+                body,
+                len(0.0625),
+                vec![rim(high as u32), rim(low as u32)],
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -104,7 +110,7 @@ fn the_selection_reaches_the_wire_canonical() {
     );
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {
-            fault: editor_core::InputFault::SelectionNotCanonical { at: 0 },
+            fault: editor_core::ListFault::SelectionNotCanonical { at: 0 },
             ..
         })) => {}
         other => panic!("a non-canonical selection must refuse typed, got {other:?}"),

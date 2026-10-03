@@ -37,62 +37,43 @@ stable half.
   crosses the seam.
 - **Free-move is display state** (G3): a display frame over an
   instance's placement, no solver, admitted only for an instance no
-  mate names (`display.rs`). `DocEdit::SetPlacement` exists and keys
-  on the cluster gauge (A11).
+  mate names (`display.rs`). `DocEdit::SetOffset` exists and sets the
+  instance's offset in its gauge (A11 (2)).
 
-## DI1 — A held node id is valid on the branch that minted it
+## DI1 — A node id names one authored node wherever it is minted
 
-`RecipeNodeId` is minted from the document's mint chain (N1), and
-the chain is part of the `Doc` value, so an undo past a node's insert
-followed by a fresh insert mints on a sibling branch of the history
-from the chain the undone insert minted from. A different insert
-mints a different id there, but the same insert mints the same one,
-so an id alone does not say which branch's node it names. Layer-3
-state that holds an id across turns — `Selection::Node`,
+`RecipeNodeId` is a digest of the document's mint chain (N1): the
+chain digests every minting edit since the empty document, and an
+insert's id digests the chain with the node as authored, its inputs'
+and names' ids included. So every document whose mint log holds an id
+holds the same insert of the same node, after the same minting edits,
+whichever history branch, file or session it came from; a different
+insert mints a different id. An undo past an insert followed by a
+different insert therefore mints a new id, and the undone node's id is
+foreign on that branch; an undo followed by the byte-identical insert
+re-mints the same node, which is the same node.
+
+The rule, one for every holder — `Selection::Node`,
 `FaceSelection::node`, the seats behind the revolve and combining
-tools, `BlendTarget::node`, and every held `StableName`, since a name
-embeds its minting node — then denotes the sibling branch's node with
-no refusal (`seats.rs`, issue 1384).
+tools, `BlendTarget::node`, every held `StableName`, the API's
+callers: **a holder keeps the bare id, and asks the document in hand.
+An id the mint log does not hold is foreign; one it holds that is not
+live is deleted (`Doc::has_minted`, `Doc::node`); a live one is the
+node.** History position is not part of the question.
 
-The rule, one for every holder: **an id denotes the same node iff
-the current history entry descends from the entry that minted it,
-in the same history, and the node is live.** Along any forward path
-from the mint the mint log only grows, so the id is never minted
-again; on any other branch the same insert can mint it. A hold
-therefore carries the id plus its minting entry, which the history
-computes at pick time by walking up until it passes the last entry
-whose document has minted the id (`History::entry`,
-`Doc::has_minted`), and the per-frame `reconcile` / `standing` checks
-descent before liveness. `has_minted` is the mint log's one reading
-of a node id and answers minting alone — a deleted id is still
-minted, and liveness stays `Doc::node`'s question — so the
-monotonicity this walk rests on is argued where the log lives rather
-than restated at the holder.
+- Undoing past the mint drops a pick, redoing restores it, and a
+  sibling branch's different insert leaves it foreign — each because
+  of what the document in hand holds, not because of how the user
+  navigated there.
+- A history REPLACEMENT (`Open`, `NewDocument`) clears every holder,
+  tools included, the way it clears selection (`session.rs`): held
+  picks are session state about the document replaced.
+- What this rule does not touch: a live node whose geometry changed
+  under a held name. That is `Standing`'s per-frame question and
+  stays so.
 
-- Undoing an unrelated later edit keeps a pick valid; undoing past
-  the mint invalidates it; redoing onto the original branch restores
-  it; a sibling branch that re-mints the id is refused.
-- A history REPLACEMENT (`Open`, `NewDocument`) is not a rewind:
-  entry ids are indices a fresh history reuses from zero, so tools
-  clear on replacement the way selection already does (`session.rs`).
-  Selection keeps surviving undo: `Standing` stays a state, not an
-  event (`session.rs`).
-- Headless callers have no history; for them the rule is the
-  documented obligation that an id is comparable only along a path
-  of forward `apply`s.
-- What this rule does not touch: a live node on the right branch
-  whose geometry changed under a held name. That is `Standing`'s
-  per-frame question and stays so.
-
-*Record: the rule is ratified; the build is VIEW's and is not in the
-tree — `layer3-recipenodeid-aliases-across-rewinds`, open since
-`Doc::has_minted` gave the walk its reading, and no holder checks
-descent today. The same class had a second instance one level in, on
-a held profile locator rather than a node id — a value edit through a
-`Zero` fit changed how many segments a loop draws and so what a
-positional locator denoted — which profile pieces named by minted step
-ids closed (`names/README.md`, "N1, the profile pieces"; Ev, #3193):
-`edit_set_program::a_slot_edit_through_a_zero_fit_keeps_a_live_name_and_reports_nothing`.*
+*Record: the build is VIEW's, `layer3-recipenodeid-aliases-across-rewinds`:
+the tools' clear on replacement and the rows pinning the rule.*
 
 ## DI2 — The memo is a pure function of the document; the store is the session's
 
@@ -188,7 +169,7 @@ excluded committing it from v1's scope. **The viewer may record a
 free-moved placement persistently**, and the reading taken is the
 stronger one, under G1's preview-versus-commit rule: the gesture's
 previews stay display frames, and **its release emits one
-`DocEdit::SetPlacement`** on the instance — one undo step, one
+`DocEdit::SetOffset`** on the instance — one undo step, one
 document transition, and the placement survives save and reopen,
 which is what a user expects of a part they placed. Consequences:
 
@@ -197,9 +178,9 @@ which is what a user expects of a part they placed. Consequences:
   `hidden` stays display state.
 - Admission is unchanged: only an instance no mate names may be
   free-moved (`free_move_check`), so the edit's target is a singleton
-  cluster and keys on itself as gauge (A11 rule 3). A later mate that
-  joins clusters re-keys the record through `ClusterMaintenance`
-  as any placement is.
+  group and roots it (A11 (3)). A later mate that places it on another
+  group clears its offset, as the mate door does for any first
+  operand (A11 (2)).
 - G3's sentence "hiding and free-move are display state, never
   persisted" narrows to hiding; `crates/viewer/README.md`, the
   `display.rs` module doc and the round-trip row that pins the

@@ -20,7 +20,7 @@ fn main() {
     use profile::RawLoop;
     use profile::{Profile, ProfileLoop, SketchPlane};
     use sweep::blend::fillet_edges;
-    use sweep::{Extrusion, extrude};
+    use sweep::{ExtrudeSide, Extrusion, extrude};
     use topo::{Body, EdgeKey};
 
     let _ = <Interval as Bounds>::lo;
@@ -36,9 +36,16 @@ fn main() {
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the square validates");
-    let blank: Body<Interval> = extrude(&vp, Extrusion::Distance(i(l)), Tol::witness())
-        .expect("the square extrudes")
-        .body;
+    let blank: Body<Interval> = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: i(l),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the square extrudes")
+    .body;
 
     let planes = blank
         .faces()
@@ -62,9 +69,7 @@ fn main() {
                     f.body
                         .get_curve_geom(e.curve)
                         .and_then(topo::CurveGeom::certified)
-                        .is_some_and(|c| {
-                            matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_))
-                        })
+                        .is_some_and(|c| c.description().is_scaffold())
                 })
                 .count();
             let t3 = topo::validate_geometric(&f.body, Tol::witness());

@@ -236,50 +236,22 @@ fn a_hostless_host_with_an_unrequested_outer_cycle_edge_refuses_at_the_host_gate
 // ------------------------------------------------------------------
 
 /// **A CURVED single face carrying both arcs refuses at the half-band
-/// gate on both routes, and `Struts` never carves it.** The plane×sphere
-/// hemisphere's two half-caps are merged into ONE sphere face by
-/// killing a seam meridian. Unrepaired (two plane half-discs) the rim
-/// takes the `Seams` route and the sphere face fails the half-band
-/// gate; repaired (one disc) it takes the `Struts` route and the SAME
-/// gate fires on the mate. Neither carves.
+/// gate, and `Struts` never carves it.** The plane×sphere hemisphere's
+/// two half-caps are merged into ONE sphere face by killing a seam
+/// meridian. The full revolve builds the plane side as one disc, so the
+/// rim takes the `Struts` route and the half-band gate fires on the
+/// mate.
 #[test]
-fn a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate_on_both_routes() {
-    // (a) Unrepaired plane side: `Seams` route.
+fn a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate() {
     let mut body = hemisphere_on_flat_base();
     let arcs = rim_arcs_at(&body, 1.0, 0.0);
     assert_full_revolve_rim(&arcs, "the hemisphere base");
     merge_curved_wall(&mut body, &arcs);
+    assert_eq!(planar_supports(&body, &arcs).len(), 1, "one plane host");
     assert_eq!(
         curved_supports(&body, &arcs).len(),
         1,
         "ONE sphere face carries both arcs"
-    );
-    assert_eq!(
-        planar_supports(&body, &arcs).len(),
-        2,
-        "the plane is still two half-discs"
-    );
-    let detail = detail_of(
-        fillet_edges(&body, &arcs, 0.05, tol())
-            .expect_err("a curved single host refuses (Seams route)")
-            .error,
-    );
-    assert!(
-        detail.contains("does not carry exactly its own rim arc"),
-        "Seams route: the half-band gate fires: {detail}"
-    );
-
-    // (b) Repaired plane side: `Struts` route, the same gate on the mate.
-    // Repair FIRST (the merge refuses a body carrying the strut vertex
-    // the `kef` leaves at the pole), then merge the curved wall.
-    let mut body = repaired(hemisphere_on_flat_base());
-    let arcs = rim_arcs_at(&body, 1.0, 0.0);
-    merge_curved_wall(&mut body, &arcs);
-    assert_eq!(planar_supports(&body, &arcs).len(), 1, "one plane host now");
-    assert_eq!(
-        curved_supports(&body, &arcs).len(),
-        1,
-        "still one sphere face"
     );
     let detail = detail_of(
         fillet_edges(&body, &arcs, 0.05, tol())

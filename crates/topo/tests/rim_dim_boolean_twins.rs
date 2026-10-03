@@ -74,14 +74,12 @@ use topo::{BooleanResult, subtract};
 
 /// Audited, documented non-length comparands still awaiting their own
 /// units (docs/predicate-dimension-audit.md FLAG rows). Everything
-/// else must scale linearly.
-/// (F3 and F4 were on this list until this unit; the module docs
-/// record what they were and what retired them.)
-const KNOWN_NONLINEAR: &[&str] = &[
-    // F2: ray-caster denominators (dimensionless / 1/m).
-    "bool_point_in_solid_denom",
-    "bool_ray_cylinder_disc",
-];
+/// else must scale linearly. EMPTY: F3 and F4 were on this list until
+/// their unit (the module docs record what retired them), and F2's
+/// ray-caster denominators until they were levered by the selection's
+/// reach. These bricks have no curved wall, so the wall arm's two rungs
+/// are pinned by `sweep`'s `ray_wall_margin_twins`, on a pipe.
+const KNOWN_NONLINEAR: &[&str] = &[];
 
 /// Predicates whose DECISION COUNT may differ between the twins.
 /// EMPTY since the F3 fix: the only entry was
@@ -250,10 +248,12 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
     // refactor stops one from firing, the pin goes vacuous — fail
     // loudly instead so the pin moves with the code.
     //
-    // `bool_ring_run_winding` (F4) and the two `volume_backstop*`
+    // `bool_ring_run_winding` (F4) and the three `volume_backstop*`
     // gates (F3) are on this list BECAUSE of this unit: their
     // presence here is what makes their absence from KNOWN_NONLINEAR
-    // a claim rather than a silence — they fire, and they scale.
+    // a claim rather than a silence — they fire, and they scale. So is
+    // `bool_point_in_solid_denom` (F2): the plane arm's cosine, levered
+    // by the selection's reach.
     //
     // `bool_join_chord` is here for the ASSIGNMENT, not the metering:
     // it decides the germ-chord LENGTH, so its samples are the join
@@ -268,6 +268,8 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
         "bool_ring_run_winding",
         "volume_backstop",
         "volume_backstop_operand",
+        "volume_backstop_violation",
+        "bool_point_in_solid_denom",
     ] {
         assert!(
             mm.contains_key(fixed),

@@ -1,12 +1,7 @@
 //! Placement: the literal [`Frame`], and the [`Placement`] chain a
-//! `Node::Transform` holds (`crates/editor-core/ASSEMBLY.md` A11 (2)) —
-//! rigid steps of expressions and literal frames.
-//!
-//! [`crate::Doc`]'s placement registry holds one [`Frame`] per
-//! placement group, keyed by the group's root instance (A11 (3)).
-//! A missing entry is the IDENTITY frame: a legal, complete state, not
-//! a hole. Zero-anchor and multi-anchor states are unrepresentable
-//! because the registry holds at most one frame per group.
+//! `Node::Transform`, a `Node::Gauge` and an instance's offset hold
+//! (`crates/editor-core/ASSEMBLY.md` A11 (2)) — rigid steps of
+//! expressions and literal frames.
 
 use geom_core::predicate::Band;
 use geom_core::{Affine3, Decide, Mat3, Real, Vec3};
@@ -90,10 +85,11 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// composition rule, which [`Frame::compose`] and a [`Placement`]'s
 /// chain both fold through — returns the other operand verbatim on one,
 /// admitted by [`Frame::is_identity_bits`] over [`Frame::bit_eq`]. That
-/// is what makes the split/inline round trip exact — the frames a split
-/// hoists or leaves behind compose back with zero arithmetic, so D-4's
-/// bit-level volume identity never meets a rounding step — and what
-/// makes an identity step in a chain move no bit.
+/// is what makes the split/inline round trip exact — the offsets a split
+/// moves and the empty chain it leaves behind compose back with zero
+/// arithmetic, so D-4's bit-level volume identity never meets a
+/// rounding step — and what makes an identity step in a chain move no
+/// bit.
 ///
 /// A placement and a modeled transform of the same part agree BIT FOR
 /// BIT: [`Frame::rotate_then_translate`] is the `Transform` node's own
@@ -131,7 +127,7 @@ pub struct Frame {
 // by type, and repeating it there fires `clippy::double_must_use`
 // unless given a message.
 impl Frame {
-    /// The identity placement — what a missing registry entry means.
+    /// The identity frame.
     pub const IDENTITY: Self = Self {
         columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.0, 0.0, 0.0],
@@ -176,26 +172,17 @@ impl Frame {
     /// [`NodeErrorKind::NonFiniteDirection`],
     /// [`NodeErrorKind::UnderflowedDirection`],
     /// [`NodeErrorKind::Escalated`]). [`crate::EditError::PlacementAxis`]
-    /// is what carries it through the `SetPlacement` door.
+    /// is what carries it through the `SetOffset` door.
     pub fn rotate_then_translate(
         axis: [f64; 3],
         angle: f64,
         v: [f64; 3],
         band: Band,
     ) -> Result<Self, AxisRefusal> {
-        let dir = crate::eval::unit_direction(
-            Vec3::new(axis[0], axis[1], axis[2]),
-            PLACEMENT_AXIS_ROLE,
-            band,
-        )
-        .map_err(|e| AxisRefusal(NodeRefusal::from(e)))?;
-        let m = Mat3::rotation_about(dir.get(), angle);
+        let dir = crate::eval::unit_direction(Vec3::from_array(axis), PLACEMENT_AXIS_ROLE, band)
+            .map_err(|e| AxisRefusal(NodeRefusal::from(e)))?;
         Ok(Self {
-            columns: [
-                [m.c0.x, m.c0.y, m.c0.z],
-                [m.c1.x, m.c1.y, m.c1.z],
-                [m.c2.x, m.c2.y, m.c2.z],
-            ],
+            columns: Mat3::rotation_about(dir.get(), angle).to_cols_array(),
             translation: v,
         })
     }
@@ -212,13 +199,13 @@ impl Frame {
     /// keeps the coordinates it came in with.
     #[must_use]
     pub fn from_affine(a: geom_core::Affine3<f64>) -> Self {
+        let Affine3 {
+            linear,
+            translation,
+        } = a;
         Self {
-            columns: [
-                [a.linear.c0.x, a.linear.c0.y, a.linear.c0.z],
-                [a.linear.c1.x, a.linear.c1.y, a.linear.c1.z],
-                [a.linear.c2.x, a.linear.c2.y, a.linear.c2.z],
-            ],
-            translation: [a.translation.x, a.translation.y, a.translation.z],
+            columns: linear.to_cols_array(),
+            translation: translation.to_array(),
         }
     }
 
@@ -243,26 +230,14 @@ impl Frame {
     /// the column arrays become a matrix.
     #[must_use]
     fn linear_f64(&self) -> Mat3<f64> {
-        let col = |c: [f64; 3]| Vec3::new(c[0], c[1], c[2]);
-        Mat3::from_cols(
-            col(self.columns[0]),
-            col(self.columns[1]),
-            col(self.columns[2]),
-        )
+        Mat3::from_cols_array(self.columns)
     }
 
     /// The affine map at the scalar it is STORED in — the one place
     /// the stored arrays become geometry.
     #[must_use]
     fn affine_f64(&self) -> Affine3<f64> {
-        Affine3::from_parts(
-            self.linear_f64(),
-            Vec3::new(
-                self.translation[0],
-                self.translation[1],
-                self.translation[2],
-            ),
-        )
+        Affine3::from_parts(self.linear_f64(), Vec3::from_array(self.translation))
     }
 
     /// The affine map this frame denotes, in the backend scalar — what
@@ -285,16 +260,24 @@ impl Frame {
         }
     }
 
+    /// The frame a motion at `f64` denotes: the identity's own bits
+    /// for the marked identity, the map's coordinates carried
+    /// otherwise ([`Frame::from_affine`]).
+    #[must_use]
+    pub(crate) fn from_motion(motion: Motion<f64>) -> Self {
+        match motion {
+            Motion::Identity => Frame::IDENTITY,
+            Motion::Map(map) => Frame::from_affine(map),
+        }
+    }
+
     /// The composition `self ∘ inner`: the frame that places by
     /// `inner` first, then by `self` — inline's rule (ASM-4 D-3: the
     /// instance's group frame composed onto the part's placements),
     /// by [`Motion::compose`] at `f64`.
     #[must_use]
     pub fn compose(&self, inner: &Frame) -> Frame {
-        match self.motion::<f64>().compose(inner.motion()) {
-            Motion::Identity => Frame::IDENTITY,
-            Motion::Map(map) => Frame::from_affine(map),
-        }
+        Frame::from_motion(self.motion::<f64>().compose(inner.motion()))
     }
 
     /// Whether this frame is the stored identity, BY BITS — D-3's
@@ -310,9 +293,8 @@ impl Frame {
     /// orientation, and is a rigid motion.
     ///
     /// One predicate with one home, asked wherever a document admits a
-    /// frame — the A11 group registry ([`crate::doc::PlacementFault`]),
-    /// a placement rule's listed frames
-    /// ([`crate::node::PlacementRuleFault`]) and a transform's literal
+    /// frame — a placement rule's listed frames
+    /// ([`crate::node::PlacementRuleFault`]) and a placement's literal
     /// steps ([`Placement::frame_fault`]) — so none of them can come to
     /// hold frames to a different standard. Each caller keeps its own
     /// arms, says WHICH frame is at fault in its own vocabulary
@@ -328,7 +310,7 @@ impl Frame {
     /// load door asks it again at the loading tolerance.
     ///
     /// It lives on [`Frame`] because the rule is about a frame and
-    /// nothing else: it reads no document, no node and no registry.
+    /// nothing else: it reads no document and no node.
     #[must_use]
     pub(crate) fn admission_fault(&self, tol: geom_core::Tol) -> Option<FrameFault> {
         if !self.is_finite() {
@@ -367,9 +349,7 @@ impl Frame {
 
 /// What makes a [`Frame`] inadmissible as a placement
 /// ([`Frame::admission_fault`]) — one vocabulary, and one SENTENCE, for
-/// every door that admits a frame. Public because the load door
-/// carries it out on [`crate::PersistError::MaintenanceFrame`], for a
-/// recorded maintenance row held to the same rule.
+/// every door that admits a frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FrameFault {
     /// A coordinate that is not a number: no predicate downstream can
@@ -432,15 +412,13 @@ impl FrameFault {
 /// a door names beside the [`FrameFault`] sentence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameSite {
-    /// The instance's placement frame: the registry row
-    /// `DocEdit::SetPlacement` writes, or one a file holds.
-    Registry,
     /// Listed placement `index` of an explicit placement rule.
     Listed {
         /// Its index in the placement list.
         index: usize,
     },
-    /// Step `index` of a transform's placement chain.
+    /// Step `index` of the placement chain a node holds: a
+    /// transform's, a gauge's, or an instance's offset.
     Step {
         /// Its index in the chain.
         index: usize,
@@ -453,11 +431,10 @@ impl FrameSite {
     /// numbers a chain's steps; a listed placement reads by its index,
     /// the one an instance's name carries.
     #[must_use]
-    pub fn subject(self, node: crate::node::RecipeNodeId) -> String {
+    pub fn subject(self, node: &crate::SpokenNode) -> String {
         match self {
-            Self::Registry => format!("the placement frame for node {}", node),
-            Self::Listed { index } => format!("placement {index} of node {}", node),
-            Self::Step { index } => format!("step {} of node {}'s placement", index + 1, node),
+            Self::Listed { index } => format!("placement {index} of {node}"),
+            Self::Step { index } => format!("step {} of {node}'s placement", index + 1),
         }
     }
 }
@@ -518,9 +495,9 @@ impl<T: Real> Motion<T> {
 }
 
 /// **A placement: an ordered chain of steps** — what a
-/// [`crate::Node::Transform`] holds (ASSEMBLY-DESIGN A11 (2)). The
-/// registry (`Doc::placements`) and an explicit rule's listed
-/// placements hold literal [`Frame`]s.
+/// [`crate::Node::Transform`] and a [`crate::Node::Gauge`] hold, and an
+/// instance's offset is (ASSEMBLY-DESIGN A11 (2)). An explicit rule's
+/// listed placements hold literal [`Frame`]s.
 ///
 /// The chain composes as a product: `[s0, s1, …, sn]` denotes
 /// `s0 ∘ s1 ∘ … ∘ sn`, the reading A11 (5) writes "gauge frame ∘ offset
@@ -672,9 +649,45 @@ impl Placement {
         env: &ParamEnv<T>,
         band: Band,
     ) -> Result<Affine3<T>, NodeErrorKind> {
+        self.motion_at(env, band).map(Motion::affine)
+    }
+
+    /// [`Placement::eval`] with the bit-exact identity kept marked
+    /// ([`Motion`]): the empty chain and a chain of identity literals
+    /// are [`Motion::Identity`], so a placement that moves nothing
+    /// composes with no arithmetic.
+    ///
+    /// # Errors
+    ///
+    /// [`Placement::eval`]'s.
+    pub(crate) fn motion_at<T: Decide>(
+        &self,
+        env: &ParamEnv<T>,
+        band: Band,
+    ) -> Result<Motion<T>, NodeErrorKind> {
+        self.motion_after(Motion::Identity, env, band)
+    }
+
+    /// **`before`, then this placement's steps, one step at a time** —
+    /// the fold every chain of placements goes through
+    /// (`mate::solve::group_frame` down a gauge chain and into an
+    /// offset). Folding step by step makes a chain's frame a function
+    /// of its steps alone, not of how they are grouped into placements,
+    /// so the edits that regroup them ([`crate::DocEdit::Promote`],
+    /// [`crate::DocEdit::Fold`]) move no bit of any pose.
+    ///
+    /// # Errors
+    ///
+    /// [`Placement::eval`]'s.
+    pub(crate) fn motion_after<T: Decide>(
+        &self,
+        before: Motion<T>,
+        env: &ParamEnv<T>,
+        band: Band,
+    ) -> Result<Motion<T>, NodeErrorKind> {
         let vals = crate::eval::slots::eval_rows(self.rows(), env)
             .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-        self.motion(&vals, band)
+        self.chain_motion(before, &vals, band)
     }
 
     /// **The one construction of a placement's motion**, from its
@@ -692,7 +705,19 @@ impl Placement {
         vals: &SlotValues<T>,
         band: Band,
     ) -> Result<Affine3<T>, NodeErrorKind> {
-        let mut composed = Motion::Identity;
+        self.chain_motion(Motion::Identity, vals, band)
+            .map(Motion::affine)
+    }
+
+    /// [`Placement::motion`] after `before`, with the identity kept
+    /// marked.
+    fn chain_motion<T: Decide>(
+        &self,
+        before: Motion<T>,
+        vals: &SlotValues<T>,
+        band: Band,
+    ) -> Result<Motion<T>, NodeErrorKind> {
+        let mut composed = before;
         for (k, step) in self.steps.iter().enumerate() {
             let map = match step {
                 Step::Rigid { .. } => {
@@ -714,7 +739,7 @@ impl Placement {
             };
             composed = composed.compose(map);
         }
-        Ok(composed.affine())
+        Ok(composed)
     }
 }
 
@@ -894,11 +919,10 @@ mod tests {
     /// The teeth are the `is_identity_bits` assertions, and the
     /// fixtures under them must perturb the identity in BOTH PARTS —
     /// a translation-only set leaves a linear-part snap green, and a
-    /// linear-part snap is the one that silently changes an answer:
-    /// `mate::maintain`'s `reconcile` branches on
-    /// `relative.is_identity_bits()` and its `true` arm DISCARDS the
-    /// solved relative pose, so a root that rotated by a hair would
-    /// read as "did not move".
+    /// linear-part snap is the one that silently changes an answer: a
+    /// solved pose composes through [`Frame::motion`], whose identity
+    /// arm DISCARDS the pose, so an instance that rotated by a hair
+    /// would read as "did not move".
     ///
     /// Each of the four is one representable step from the identity —
     /// a signed zero, a subnormal, an off-diagonal subnormal, and the
@@ -955,11 +979,8 @@ mod tests {
         Band::linear(geom_core::Tol::witness()).expect("the witness tolerance forms a band")
     }
 
-    fn motion_bits(a: &Affine3<f64>) -> Vec<u64> {
-        [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-            .iter()
-            .flat_map(|c| [c.x.to_bits(), c.y.to_bits(), c.z.to_bits()])
-            .collect()
+    fn motion_bits(a: &Affine3<f64>) -> [u64; 12] {
+        a.components().map(f64::to_bits)
     }
 
     /// Keeps [`Placement::literal`]'s claim: a one-step literal
@@ -995,9 +1016,9 @@ mod tests {
                 .eval::<f64>(&ParamEnv::default(), band())
                 .expect("a rigid step evaluates");
             let want = crate::eval::transform_map(
-                Vec3::new(t[0], t[1], t[2]),
+                Vec3::from_array(t),
                 crate::eval::unit_direction(
-                    Vec3::new(axis[0], axis[1], axis[2]),
+                    Vec3::from_array(axis),
                     crate::eval::TRANSFORM_AXIS_ROLE,
                     band(),
                 )

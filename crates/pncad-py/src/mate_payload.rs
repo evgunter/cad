@@ -65,7 +65,7 @@
 
 use pncad::document::{
     Clash, DocumentId, FacePoseRefusal, FaceRefusal, Lever, LeverRefusal, MateFault, MateSide,
-    ReachRefusal, RecipeNodeId, Subgroup,
+    OffsetCheck, ReachRefusal, RecipeNodeId, Subgroup,
 };
 use pncad::geom_core::{BandError, FrameError, Indeterminate};
 use pncad::prelude::StableName;
@@ -73,7 +73,7 @@ use pncad::prelude::StableName;
 use crate::escalation::escalation;
 use crate::tags::{
     band_error_tag, band_field_tag, face_refusal_tag, frame_error_tag, lever_refusal_tag,
-    node_error_tag,
+    node_error_tag, offset_check_tag,
 };
 
 /// What one [`MateFault`] arm carries, every field present.
@@ -81,7 +81,7 @@ use crate::tags::{
 /// Every field is a plain kernel value: the Python wrappers are built
 /// at the accessor, so this record is what the no-interpreter build
 /// tests. Borrowed from the fault for the one field that is not
-/// `Copy` — the face a `FromFace` frame named.
+/// `Copy` — the face a `FromFace` side read.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MateFaultPayload<'a> {
     /// The mate the fault is ABOUT.
@@ -96,11 +96,15 @@ pub struct MateFaultPayload<'a> {
     /// every node failure crosses with
     /// ([`crate::tags::node_error_tag`]).
     pub error: Option<&'static str>,
-    /// The instance a self-mate names twice, or the instance whose
-    /// part a lever or a face frame was asked of.
+    /// The instance a self-mate names twice, the instance whose part
+    /// a lever or a face frame was asked of, or whose checked offset
+    /// faulted.
     pub instance: Option<RecipeNodeId>,
-    /// **The face a `FromFace` frame named**, in the part's own
-    /// spelling, where the refusal is about one.
+    /// The root of a faulted checked offset's group: the member whose
+    /// offset places the group the solve placed the instance in.
+    pub root: Option<RecipeNodeId>,
+    /// **The face a `FromFace` side read**: its head's face in the part's own
+    /// spelling, or the head itself where it names no face of the part.
     pub face: Option<&'a StableName>,
     /// The instance an under-determined tree mate extended FROM.
     pub parent: Option<RecipeNodeId>,
@@ -183,7 +187,7 @@ impl<'a> MateFaultPayload<'a> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`MateFault`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 31] {
+    pub fn presence(&self) -> [(&'static str, bool); 32] {
         let Self {
             mate,
             side,
@@ -191,6 +195,7 @@ impl<'a> MateFaultPayload<'a> {
             placer,
             error,
             instance,
+            root,
             face,
             parent,
             child,
@@ -224,6 +229,7 @@ impl<'a> MateFaultPayload<'a> {
             ("placer", placer.is_some()),
             ("error", error.is_some()),
             ("instance", instance.is_some()),
+            ("root", root.is_some()),
             ("face", face.is_some()),
             ("parent", parent.is_some()),
             ("child", child.is_some()),
@@ -269,6 +275,7 @@ impl<'a> MateFaultPayload<'a> {
         placer: None,
         error: None,
         instance: None,
+        root: None,
         face: None,
         parent: None,
         child: None,
@@ -479,6 +486,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                     },
                 ),
                 FaceRefusal::NotAnInstance { node } => (*node, None),
+                FaceRefusal::NoPartFace { instance, .. } => (*instance, None),
             };
             MateFaultPayload {
                 mate: Some(*mate),
@@ -573,5 +581,55 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             instance: Some(*instance),
             ..none
         },
+        // A checked offset (A11 (2)): the instance stating it is the
+        // subject and names no mate. A refuted one carries the
+        // predicate and its measured clash as a contradiction does.
+        MateFault::OffsetDisagrees {
+            instance,
+            root,
+            predicate,
+            clash,
+        } => {
+            let (lever_tilt, lever_residual, lever_arm) = match clash {
+                Clash::Levered(Lever::Roll { radians, arm }) => (Some(*radians), None, Some(*arm)),
+                Clash::Levered(Lever::Residual { value, arm }) => (None, Some(*value), Some(*arm)),
+                Clash::Structural | Clash::Length { .. } => (None, None, None),
+            };
+            MateFaultPayload {
+                instance: Some(*instance),
+                root: Some(*root),
+                predicate: Some(predicate),
+                clash: clash.deviation(),
+                lever_tilt,
+                lever_residual,
+                lever_arm,
+                ..none
+            }
+        }
+        // Why it could not be checked is the inner word; each cause
+        // carries what its own arm elsewhere carries.
+        MateFault::OffsetUnchecked { instance, cause } => {
+            let base = MateFaultPayload {
+                instance: Some(*instance),
+                inner_variant: Some(offset_check_tag(cause)),
+                ..none
+            };
+            match &**cause {
+                // The node whose placement did not evaluate, and the
+                // evaluation's word for why, as a placer's.
+                OffsetCheck::Placement { node, error } => MateFaultPayload {
+                    placer: Some(*node),
+                    error: Some(node_error_tag(error.kind().class())),
+                    ..base
+                },
+                OffsetCheck::Unleverable(_) | OffsetCheck::OutOfRange => base,
+                OffsetCheck::Indeterminate(diag) => with_escalation(base, diag),
+                // The refused mate that strands the member.
+                OffsetCheck::Unreached { mate } => MateFaultPayload {
+                    mate: Some(*mate),
+                    ..base
+                },
+            }
+        }
     }
 }

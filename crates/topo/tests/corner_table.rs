@@ -32,11 +32,11 @@ use topo::{BooleanError, BooleanResult, BooleanResultKind, mass_properties, unio
 const TOP_VOL: f64 = 4.0 * 3.0 * 0.25; // 3.0
 const PER_LEG_GAIN: f64 = 0.5 * 0.5 * 1.125 - 0.5 * 0.5 * 0.125; // 0.25
 
-fn top<T: Decide>() -> topo::Body<T> {
+fn top<T: Decide + topo::AtRestPolicy>() -> topo::Body<T> {
     brick::<T>((0.0, 4.0), (0.0, 3.0), (1.0, 1.25), Tol::witness())
 }
 
-fn leg<T: Decide>(cx: f64, cy: f64) -> topo::Body<T> {
+fn leg<T: Decide + topo::AtRestPolicy>(cx: f64, cy: f64) -> topo::Body<T> {
     let (x0, x1) = if cx == 0.0 {
         (0.0, 0.5)
     } else {

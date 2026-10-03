@@ -5,7 +5,7 @@ title: a field's text is accepted within the render's relative tolerance and com
 status: closed
 opened: 2026-09-12
 closed: 2026-09-22
-refs: [parameter-row-field-has-no-text-door, the-render-grids-cap-is-a-length-and-angles-go-through-it]
+refs: [the-render-grids-cap-is-a-length-and-angles-go-through-it]
 priority: P0
 cost: D
 pr: 3068

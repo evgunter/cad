@@ -138,8 +138,9 @@
 
 use std::sync::Arc;
 
+use geom::SurfaceKind;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfaceKind};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe};
 use geom_core::k_stats::decide;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
@@ -1328,8 +1329,18 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
             }
         }
     }
+    // Copies of one vertex on one point move together: their candidates
+    // are pooled and checked as one set, and the group lands on one
+    // point.
+    let mut groups: Vec<(Vec<VertexKey>, Point3<T>)> = Vec::new();
     let mut moved: Vec<(VertexKey, Point3<T>)> = Vec::new();
-    for (vertex, points) in candidates {
+    for group in group_by_point(body, candidates.iter().map(|(v, _)| *v))? {
+        let vertex = group[0];
+        let points: Vec<Point3<T>> = candidates
+            .iter()
+            .filter(|(v, _)| group.contains(v))
+            .flat_map(|(_, points)| points.iter().copied())
+            .collect();
         for (i, a) in points.iter().enumerate() {
             for b in &points[i + 1..] {
                 let gap = a.distance(*b);
@@ -1350,7 +1361,8 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
         let Some(point) = points.first().copied() else {
             return Err(ReplaceFaceError::Corrupt);
         };
-        moved.push((vertex, point));
+        moved.extend(group.iter().map(|&v| (v, point)));
+        groups.push((group, point));
     }
 
     // ---- Decide: the incident edges that only need re-anchoring. ----
@@ -1371,7 +1383,7 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
         .into_iter()
         .map(|plan| (plan.edge, plan.spec))
         .collect();
-    move_points_then_rechart(&mut work, &moved, vec![chart], &specs, tol)?;
+    move_points_then_rechart(&mut work, &groups, vec![chart], &specs, tol)?;
     for (edge, spec) in anchored {
         work.set_edge_curve(edge, spec, tol)
             .map_err(|error| ReplaceFaceError::Op {
@@ -1441,9 +1453,11 @@ fn mint_offset<T: Decide>(
 ///
 /// - a **line** segment: its endpoints (distance to a point is convex
 ///   along a line, so a segment attains its maximum at an end);
-/// - a **circle** or **ellipse**: centre distance plus the (major)
-///   radius, whatever the parameter span — a closed rim, whose two
-///   endpoints coincide, is exactly the case sampling misses;
+/// - a **circle** or **ellipse**: centre distance plus the radius, or
+///   the larger semi-axis MAGNITUDE (the mint certifies an ellipse
+///   stored with `minor > major` or a negative `major`), whatever the
+///   parameter span — a closed rim, whose two endpoints coincide, is
+///   exactly the case sampling misses;
 /// - a **spiric** (a curve on a torus): centre distance plus `R + r`;
 /// - a **NURBS** carrier: its control points (the convex-hull property
 ///   of positive weights).
@@ -1465,7 +1479,12 @@ fn pose_reach<T: Real>(surfaces: [&Surface<T>; 2], carrier: &Curve3<T>, t0: T, t
                 .norm()
                 .max((*origin + *dir * t1 - anchor).norm()),
             Curve3::Circle { center, radius, .. } => (*center - anchor).norm() + radius.abs(),
-            Curve3::Ellipse { center, major, .. } => (*center - anchor).norm() + major.abs(),
+            Curve3::Ellipse {
+                center,
+                major,
+                minor,
+                ..
+            } => (*center - anchor).norm() + major.abs().max(minor.abs()),
             Curve3::Spiric {
                 center,
                 major_radius,
@@ -1687,7 +1706,9 @@ fn plan_edge<T: Decide>(
         // the edge — which is a body-wide offset, not a
         // face-replacement, and this door says so rather than
         // storing a row the neighbour's own lane will reject.
-        let (fa, fb) = edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
+        let (fa, fb) = crate::readback::edge_sides(body, edge)
+            .map_err(|_| ReplaceFaceError::Corrupt)?
+            .faces();
         let other = if group.contains(&fa) { fb } else { fa };
         if !group.contains(&other)
             && matches!(
@@ -1874,7 +1895,9 @@ fn plan_edge<T: Decide>(
             image: Some(shift_chart_v(&c.pcurve, shift).ok_or(
                 ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
-                    what: "a fitted chart image whose v channel has no closed-form parameter shift",
+                    what: "a chart image with no closed-form parameter shift: a fitted \
+                           image's v channel is a control net, and an offset cone section \
+                           is no plane section of the offset cone",
                 },
             )?),
             seam: false,
@@ -1886,8 +1909,8 @@ fn plan_edge<T: Decide>(
         {
             let other = if s1 == old_key { s2 } else { s1 };
             let other_surface = body.get_surface(other).ok_or(ReplaceFaceError::Corrupt)?;
-            let other_kind = SurfaceKind::of(other_surface);
-            let kind = SurfaceKind::of(new_surface);
+            let other_kind = other_surface.kind();
+            let kind = new_surface.kind();
             if !geom_brep::intersect::route(kind, other_kind).implemented {
                 return Err(ReplaceFaceError::NeighborPairUnroutable {
                     edge,
@@ -1901,7 +1924,8 @@ fn plan_edge<T: Decide>(
             let reach = pose_reach([new_surface, other_surface], &carrier, t0, t1);
             let posed = geom_brep::intersect::route_pose(new_surface, other_surface, reach, band)
                 .map_err(|e| match e {
-                geom_brep::SectionError::Escalated(source) => {
+                geom_brep::SectionError::Escalated(source)
+                | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
                     ReplaceFaceError::Escalated { source }
                 }
                 // `route_pose` returns only an escalation or a
@@ -2048,7 +2072,8 @@ fn plan_edge<T: Decide>(
 /// not bend the curve drawn in it. `None` for a fitted image, whose
 /// `v` channel is a control net rather than a closed form — refused
 /// rather than shifted point-by-point, which would author a fit this
-/// door has no certificate for.
+/// door has no certificate for — and for a cone-section image, whose
+/// offset is no plane section of the offset cone.
 fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
@@ -2104,7 +2129,11 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
                 },
             },
         },
-        Pcurve::Fitted(_) | Pcurve::General(_) => return None,
+        // A cone section's image is tied to its cone through `β`, the
+        // projected ellipse's eccentricity: the offset moves the curve
+        // off the plane section it was, so no image of the same form
+        // is shifted out of this one.
+        Pcurve::ConeSection { .. } | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }
 
@@ -2155,34 +2184,53 @@ pub(crate) fn offset_rechart<T: Real>(
     Ok(chart)
 }
 
-/// **The points move first, then one re-chart**: every vertex in
-/// `moved` takes its new point, and then every chart moves in ONE
+/// **The points move first, then one re-chart**: every group in
+/// `moved` moves onto its new point, and then every chart moves in ONE
 /// [`Body::set_face_surfaces_describing`] with every spec, which so
 /// certifies each at the endpoints the offset leaves it. One call,
 /// because an edge between two moving charts certifies on neither pair
 /// of mixed charts; a spec names a chart by the key its face wears now.
 /// The offset doors' shared mutation step, run on their staged clone.
-pub(crate) fn move_points_then_rechart<T: Decide>(
+///
+/// A group is the vertices that move together: the moved vertices on
+/// one point ([`group_by_point`]), solved once, so copies that share a
+/// point before the offset share one after it. A vertex the op does
+/// not move is in no group and keeps its point.
+pub(crate) fn move_points_then_rechart<T: Decide + crate::props::AtRestPolicy>(
     work: &mut Body<T>,
-    moved: &[(VertexKey, Point3<T>)],
+    moved: &[(Vec<VertexKey>, Point3<T>)],
     charts: Vec<Rechart<T>>,
     specs: &[(EdgeKey, EdgeCurveSpec<T>)],
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
-    for (vertex, point) in moved {
-        let old_point = work
-            .get_vertex(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point;
-        let new_point = work.add_point(*point);
-        work.get_vertex_mut(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point = new_point;
-        work.remove_point_if_orphaned(old_point);
+    for (vertices, point) in moved {
+        work.move_vertices(vertices, *point)
+            .ok_or(ReplaceFaceError::Corrupt)?;
     }
     work.set_face_surfaces_describing(charts, specs, tol)
         .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
     Ok(())
+}
+
+/// `vertices` grouped by the point each sits on, groups in order of
+/// first appearance and each group in `vertices`' order (D9): the
+/// copies of one vertex that an op moves together.
+pub(crate) fn group_by_point<T: Real>(
+    body: &Body<T>,
+    vertices: impl IntoIterator<Item = VertexKey>,
+) -> Result<Vec<Vec<VertexKey>>, ReplaceFaceError<T>> {
+    let mut groups: Vec<(crate::PointKey, Vec<VertexKey>)> = Vec::new();
+    for vertex in vertices {
+        let point = body
+            .get_vertex(vertex)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .point;
+        match groups.iter_mut().find(|(k, _)| *k == point) {
+            Some((_, group)) => group.push(vertex),
+            None => groups.push((point, vec![vertex])),
+        }
+    }
+    Ok(groups.into_iter().map(|(_, group)| group).collect())
 }
 
 /// `description` with every occurrence of `old` re-pointed at `new` —
@@ -2435,23 +2483,6 @@ fn move_mapped_endpoint<T: Real>(
     })
 }
 
-/// The two faces an edge separates (they coincide on a seam).
-///
-/// **One of two spellings, and the twin is in another crate**:
-/// `sweep::blend::surgery::edge_faces` takes the same edge key and
-/// composes the same two half-edge walks, over `surgery`'s own
-/// `face_of_half` rather than [`Body::face_of_half_edge`]. Both hops
-/// now read through the door on this side; folding the two functions
-/// together is a crate-boundary question and is filed on `carve`'s
-/// slate.
-pub(crate) fn edge_faces<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<(FaceKey, FaceKey)> {
-    let e = body.get_edge(edge)?;
-    Some((
-        body.face_of_half_edge(e.he_plus)?,
-        body.face_of_half_edge(e.he_minus)?,
-    ))
-}
-
 /// **The offset mint's fit door, as the pass takes it** — the rows that
 /// say what each of its two answers costs.
 ///
@@ -2514,7 +2545,7 @@ mod offset_fit_door_rows {
         let bits = |n: &geom::NurbsSurface<f64>| -> Vec<u64> {
             n.control()
                 .iter()
-                .flat_map(|p| [p.x, p.y, p.z])
+                .flat_map(|p| p.to_array())
                 .chain(n.weights().iter().copied())
                 .chain(n.knots_u().knots().iter().copied())
                 .chain(n.knots_v().knots().iter().copied())
@@ -2526,5 +2557,83 @@ mod offset_fit_door_rows {
             bits(free.fit()),
             "the door's fit and the free function's differ in some bit of their nets"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod shift_chart_v_rows {
+    use geom_brep::Pcurve;
+    use geom_core::{Point2, Vec2};
+
+    use super::shift_chart_v;
+
+    /// The offset's `v` shift moves a harmonic image's constant term and
+    /// refuses a cone-section image, whose offset is no plane section of
+    /// the offset cone.
+    #[test]
+    fn a_cone_section_image_has_no_shift() {
+        let section = Pcurve::ConeSection {
+            u0: 0.1,
+            v0: 2.0,
+            va: -0.4,
+            vb: 0.0,
+            beta: 0.2,
+            sense: 1.0,
+        };
+        assert!(shift_chart_v(&section, 0.3).is_none());
+        let harmonic = Pcurve::Harmonic {
+            p0: Point2::new(0.0, 1.0),
+            pa: Vec2::new(0.5, 0.0),
+            pb: Vec2::new(0.0, 0.5),
+            pl: Vec2::new(0.0, 0.0),
+        };
+        let Some(Pcurve::Harmonic { p0, .. }) = shift_chart_v(&harmonic, 0.25) else {
+            panic!("a harmonic image shifts");
+        };
+        assert_eq!(p0.y, 1.25);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod pose_reach_rows {
+    use geom::{Curve3, Surface};
+    use geom_core::{Point3, Vec3};
+
+    use super::pose_reach;
+
+    /// **The reach bounds every point of an ellipse in any stored order or
+    /// sign.** The mint certifies an ellipse stored with `minor > major`
+    /// and one with a negative `major` (its `u_ref` flipped); the reach
+    /// must still be at least each point's distance from the surface's
+    /// anchor, round the whole turn. Read at `|major|`, the first falls
+    /// short by `minor − major`.
+    #[test]
+    fn the_reach_bounds_an_ellipse_in_any_stored_frame() {
+        let sphere = Surface::Sphere {
+            center: Point3::new(0.3, -0.2, 0.1),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for (major, minor, u) in [(0.5, 0.9, 1.0), (-0.9, 0.5, -1.0), (0.9, -0.5, 1.0)] {
+            let e = Curve3::Ellipse {
+                center: Point3::new(0.1, 0.2, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                major,
+                minor,
+                u_ref: Vec3::new(u, 0.0, 0.0),
+            };
+            let reach = pose_reach([&sphere, &sphere], &e, 0.0, 0.5);
+            for k in 0..=720 {
+                let t = core::f64::consts::TAU * f64::from(k) / 720.0;
+                let far = (e.eval(t) - Point3::new(0.3, -0.2, 0.1)).norm();
+                assert!(
+                    reach >= far,
+                    "({major}, {minor}): the reach {reach} falls short of {far} at θ = {t}"
+                );
+            }
+        }
     }
 }

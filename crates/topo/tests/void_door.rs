@@ -221,6 +221,40 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
     );
 }
 
+/// **A hollow cavity refuses, typed, and mutates nothing**: reverted,
+/// its cavity would face outward — a piece of material under the
+/// destination solid — so the public door takes one shell per cavity
+/// solid and adds cavities only.
+#[test]
+fn door_refuses_a_hollow_cavity() {
+    let dst_of = || brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), Tol::witness());
+    let hollow = match subtract(
+        &brick((1.0, 5.0), (1.0, 5.0), (1.0, 5.0), Tol::witness()),
+        &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    {
+        BooleanResult::Body(b) => b.body,
+        other => panic!("a hollow cube, got {other:?}"),
+    };
+    let hollow_solid = hollow.solids().next().unwrap().0;
+    let mut dst = dst_of();
+    let (solid, _) = dst.solids().next().unwrap();
+    let evidence = probed_in(&hollow);
+    let pristine = format!("{dst:?}");
+    let e = insert_void(&mut dst, solid, hollow, &evidence).unwrap_err();
+    assert!(
+        matches!(e, VoidInsertError::HollowCavity { solid } if solid == hollow_solid),
+        "{e:?}"
+    );
+    assert_eq!(
+        format!("{dst:?}"),
+        pristine,
+        "refusal mutated the destination"
+    );
+}
+
 // ---------------------------------------------------------------------
 // The N-ary door
 // ---------------------------------------------------------------------

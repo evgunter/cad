@@ -67,6 +67,48 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Vec3};
 
+/// Which rung of a reading metered over a lever arm escalated: the arm
+/// gate or the reading itself. [`enters_material`],
+/// [`enters_material_order2`] and [`crate::classify_dihedral`] each ask
+/// two questions, and a door that wraps their escalation tells them
+/// apart by this rather than by predicate name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LeverRung {
+    /// Whether the lever arm is positive: a length to measure the
+    /// angle over. It passes only on a definitely positive arm.
+    Arm,
+    /// The reading the arm meters, once the arm has passed.
+    Reading,
+}
+
+/// An escalation of a reading metered over a lever arm, with the rung
+/// that raised it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LeverEscalation {
+    /// The rung that could not decide.
+    pub rung: LeverRung,
+    /// Its diagnostics.
+    pub diag: Indeterminate,
+}
+
+impl LeverEscalation {
+    /// The arm gate's escalation.
+    pub(crate) fn arm(diag: Indeterminate) -> Self {
+        Self {
+            rung: LeverRung::Arm,
+            diag,
+        }
+    }
+
+    /// The metered reading's escalation.
+    pub(crate) fn reading(diag: Indeterminate) -> Self {
+        Self {
+            rung: LeverRung::Reading,
+            diag,
+        }
+    }
+}
+
 /// The verdict of [`enters_material`]: where `dir` goes relative to the
 /// face's material.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -188,25 +230,29 @@ impl<T: Real> ReferenceNormal<T> {
 ///
 /// # Errors
 ///
-/// [`Indeterminate`]:
-/// - predicate `"enters_material_arm"` — the lever arm failed to
-///   classify definitely positive (collapsed, in-band, or poisoned): no
-///   angular verdict can be metered here (escalate-never-guess).
-/// - predicate `"enters_material"` — the metered margin landed in the
-///   sliver band or was poisoned (e.g. a zero `dir`).
+/// [`LeverEscalation`]:
+/// - [`LeverRung::Arm`], predicate `"enters_material_arm"` — the lever
+///   arm failed to classify definitely positive (collapsed, in-band, or
+///   poisoned): no angular verdict can be metered here
+///   (escalate-never-guess).
+/// - [`LeverRung::Reading`], predicate `"enters_material"` — the
+///   metered margin landed in the sliver band or was poisoned (e.g. a
+///   zero `dir`).
 pub fn enters_material<T: Decide>(
     dir: Vec3<T>,
     outward_normal: OutwardNormal<T>,
     arm: T,
     band: Band,
-) -> Result<EntersMaterial, Indeterminate> {
-    decide_positive("enters_material_arm", Margin::of(arm), band)?;
+) -> Result<EntersMaterial, LeverEscalation> {
+    decide_arm("enters_material_arm", Margin::of(arm), band).map_err(LeverEscalation::arm)?;
     let margin = Margin::levered(dir.normalize().dot(outward_normal.vec()), arm);
-    Ok(match decide("enters_material", margin, band)? {
-        Sign::Negative => EntersMaterial::Enters,
-        Sign::Positive => EntersMaterial::Exits,
-        Sign::Zero => EntersMaterial::Tangent,
-    })
+    Ok(
+        match decide("enters_material", margin, band).map_err(LeverEscalation::reading)? {
+            Sign::Negative => EntersMaterial::Enters,
+            Sign::Positive => EntersMaterial::Exits,
+            Sign::Zero => EntersMaterial::Tangent,
+        },
+    )
 }
 
 /// **`enters_material_order2`** — the second-order descent of the
@@ -242,8 +288,9 @@ pub fn enters_material<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`Indeterminate`]: predicate `"tangent_sector_order2_arm"` (the
-/// collapsed-arm gate, the dihedral.rs idiom) or
+/// [`LeverEscalation`]: [`LeverRung::Arm`], predicate
+/// `"tangent_sector_order2_arm"` (the collapsed-arm gate, the
+/// dihedral.rs idiom), or [`LeverRung::Reading`], predicate
 /// `"tangent_sector_order2"` (in-band or poisoned margin).
 pub fn enters_material_order2<T: Decide>(
     deriv2: Vec3<T>,
@@ -251,14 +298,119 @@ pub fn enters_material_order2<T: Decide>(
     reference_normal: ReferenceNormal<T>,
     arm: T,
     band: Band,
-) -> Result<EntersMaterial, Indeterminate> {
-    decide_positive("tangent_sector_order2_arm", Margin::of(arm), band)?;
+) -> Result<EntersMaterial, LeverEscalation> {
+    decide_arm("tangent_sector_order2_arm", Margin::of(arm), band).map_err(LeverEscalation::arm)?;
     let margin = Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm);
-    Ok(match decide("tangent_sector_order2", margin, band)? {
-        Sign::Negative => EntersMaterial::Enters,
-        Sign::Positive => EntersMaterial::Exits,
-        Sign::Zero => EntersMaterial::Tangent,
-    })
+    Ok(
+        match decide("tangent_sector_order2", margin, band).map_err(LeverEscalation::reading)? {
+            Sign::Negative => EntersMaterial::Enters,
+            Sign::Positive => EntersMaterial::Exits,
+            Sign::Zero => EntersMaterial::Tangent,
+        },
+    )
+}
+
+/// The verdict of [`bends_into_material`]: which way a wall curves off
+/// its tangent plane, relative to the wall's own material.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WallBend {
+    /// The wall curves toward its material side (a convex wall: a
+    /// cylinder or a cone seen from outside, a ball). Near the point,
+    /// the material lies wholly on the material side of the tangent
+    /// plane.
+    IntoMaterial,
+    /// The wall curves away from its material (a concave wall: a round
+    /// hole's or a conical socket's wall). The material wraps round the
+    /// curve onto both sides of the tangent plane.
+    OutOfMaterial,
+    /// The wall's curvature sum is exactly zero: it osculates its
+    /// tangent plane, and the second order cannot say.
+    Flat,
+}
+
+/// Why [`bends_into_material`] gave no verdict.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WallBendError {
+    /// The surface's principal curvatures can disagree in sign (a
+    /// torus's inner half is a saddle), so their sum certifies no side.
+    Indefinite(geom::SurfaceKind),
+    /// The arm or the metered reading escalated.
+    Lever(LeverEscalation),
+}
+
+/// **`bends_into_material`** — the wall's **material convexity** at `p`:
+/// whether the surface curves off its tangent plane toward the side its
+/// material is on, a second-order fact the first-order
+/// [`enters_material`] cannot see (the tangent plane is the same for a
+/// cylinder and for a round hole of the same radius; only the bend
+/// relative to the material tells them apart).
+///
+/// The datum is the sum of the principal curvatures, read branch-free
+/// from the implicit Hessian as the restricted trace
+/// `tr H − n̂ᵀHn̂` over `|∇F|` — the trace
+/// [`crate::implicit_max_normal_curvature`] reads too. A positive Hessian form bends the surface
+/// toward `−∇F` (differentiate `F(c(t)) = 0` twice along a surface
+/// curve: `∇F·c'' = −c'ᵀHc'`), so the sum is folded by `∇̂F · n_out`
+/// (±1: which way the face's outward normal runs against the implicit
+/// gradient) to read positive exactly when the wall bends into its
+/// material. That makes the verdict chart-free: neither the surface's
+/// parameterization nor a cone's nappe enters it.
+///
+/// The sum is a certificate only where the principal curvatures cannot
+/// disagree in sign, so the kinds are matched rather than assumed:
+/// - `Plane`: no curvature, [`WallBend::Flat`].
+/// - `Cylinder`, `Cone`: developable — the curvature along the ruling
+///   is structurally zero, so the sum IS the one bend.
+/// - `Sphere`: umbilic, both curvatures equal.
+/// - `Torus`, `Nurbs`, `Approx`: [`WallBendError::Indefinite`].
+///
+/// The margin is the displacement half the sum induces at `arm`
+/// (`Margin::sagitta` of the mean curvature, D4 ¶1): the mean is never
+/// more than the larger principal curvature, so the margin errs toward
+/// escalation, never toward a verdict. An exactly-zero margin is
+/// [`WallBend::Flat`] (the caller refuses; never guess); an in-band one
+/// escalates.
+///
+/// # Errors
+///
+/// [`WallBendError::Indefinite`] for a kind whose curvature sum
+/// certifies nothing; [`WallBendError::Lever`] with predicate
+/// `"wall_bend_order2_arm"` (the collapsed-arm gate) or
+/// `"wall_bend_order2"` (in-band or poisoned margin, e.g. on a cone's
+/// axis).
+pub fn bends_into_material<T: Decide>(
+    surface: &geom::Surface<T>,
+    p: geom_core::Point3<T>,
+    outward_normal: OutwardNormal<T>,
+    arm: T,
+    band: Band,
+) -> Result<WallBend, WallBendError> {
+    match surface.kind() {
+        geom::SurfaceKind::Plane => return Ok(WallBend::Flat),
+        geom::SurfaceKind::Cylinder | geom::SurfaceKind::Cone | geom::SurfaceKind::Sphere => {}
+        kind
+        @ (geom::SurfaceKind::Torus | geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx) => {
+            return Err(WallBendError::Indefinite(kind));
+        }
+    }
+    decide_arm("wall_bend_order2_arm", Margin::of(arm), band)
+        .map_err(|d| WallBendError::Lever(LeverEscalation::arm(d)))?;
+    let g = crate::implicit_gradient(surface, p);
+    let g_norm = g.norm();
+    let g_hat = g / g_norm;
+    let trace = crate::implicit::implicit_restricted_trace(surface, p, g_hat);
+    let fold = g_hat.dot(outward_normal.vec());
+    let mean_into = trace / g_norm * fold / T::from_f64(2.0);
+    let margin = Margin::sagitta(mean_into, arm);
+    Ok(
+        match decide("wall_bend_order2", margin, band)
+            .map_err(|d| WallBendError::Lever(LeverEscalation::reading(d)))?
+        {
+            Sign::Positive => WallBend::IntoMaterial,
+            Sign::Negative => WallBend::OutOfMaterial,
+            Sign::Zero => WallBend::Flat,
+        },
+    )
 }
 
 /// The crate-local funnel wrapper (the `geom-brep` pattern: one
@@ -272,16 +424,19 @@ fn decide<T: Decide>(
 }
 
 /// The collapsed-arm gate through the same funnel
-/// ([`geom_core::k_stats::decide_positive`]): the lever arm this file's
-/// sector predicates meter against must classify definitely positive,
-/// and a definite `Zero` escalates as the funnel's own indeterminacy
-/// rather than one minted here.
-fn decide_positive<T: Decide>(
+/// ([`geom_core::k_stats::decide_positive_reported`]): a lever arm a
+/// reading is metered over must classify definitely positive. The arm
+/// is a length the user may intend, so a decided `Zero` escalates with
+/// the margin the funnel decided (its refusal offers the tolerance that
+/// margin gives), and a definite `Negative`, no length at all, as
+/// `INVALID`. Shared by this file's sector predicates and
+/// [`crate::classify_dihedral`].
+pub(crate) fn decide_arm<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
 ) -> Result<(), Indeterminate> {
-    geom_core::k_stats::decide_positive(name, margin, band)
+    geom_core::k_stats::decide_positive_reported(name, margin, band)
 }
 
 #[cfg(test)]
@@ -327,7 +482,10 @@ mod tests {
     fn collapsed_arm_escalates() {
         let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
         let err = enters_material(n_out.vec(), n_out, 0.0, band()).unwrap_err();
-        assert_eq!(err.predicate, Some("enters_material_arm"));
+        assert_eq!(
+            (err.rung, err.diag.predicate),
+            (LeverRung::Arm, Some("enters_material_arm"))
+        );
     }
 
     /// A poisoned direction (zero vector normalizes to NaN) escalates
@@ -336,6 +494,160 @@ mod tests {
     fn zero_dir_escalates() {
         let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
         let err = enters_material(Vec3::zero(), n_out, 1.0, band()).unwrap_err();
-        assert_eq!(err.predicate, Some("enters_material"));
+        assert_eq!(
+            (err.rung, err.diag.predicate),
+            (LeverRung::Reading, Some("enters_material"))
+        );
+    }
+
+    /// `bends_into_material` on every kind it reads, both ways round:
+    /// a wall whose outward normal runs with the implicit gradient
+    /// (a cylinder, a cone on either nappe, a ball, seen from outside)
+    /// bends into its material, and the same wall with the material
+    /// across it (a hole, a socket, a cavity) bends out of it. A plane
+    /// is flat; a torus is refused rather than read.
+    #[test]
+    fn wall_bend_reads_the_material_side() {
+        use geom::Surface;
+        use geom_core::Point3;
+        let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let o = Point3::origin();
+        let half = 0.5f64.atan();
+        let walls: [(&str, Surface<f64>, Point3<f64>); 5] = [
+            (
+                "cylinder",
+                Surface::Cylinder {
+                    origin: o,
+                    axis: z,
+                    radius: 0.5,
+                    u_ref: x,
+                },
+                Point3::new(0.0, 0.5, 0.3),
+            ),
+            (
+                "cone, the apex below",
+                Surface::Cone {
+                    apex: o,
+                    axis: z,
+                    half_angle: half,
+                    u_ref: x,
+                },
+                Point3::new(0.0, 0.5, 1.0),
+            ),
+            (
+                "cone, the mirror nappe",
+                Surface::Cone {
+                    apex: o,
+                    axis: z,
+                    half_angle: half,
+                    u_ref: x,
+                },
+                Point3::new(0.5, 0.0, -1.0),
+            ),
+            (
+                "sphere",
+                Surface::Sphere {
+                    center: o,
+                    radius: 2.0,
+                    axis: z,
+                    u_ref: x,
+                },
+                Point3::new(0.0, 2.0, 0.0),
+            ),
+            (
+                "plane",
+                Surface::Plane {
+                    origin: o,
+                    normal: z,
+                    u_ref: x,
+                },
+                Point3::new(0.3, 0.2, 0.0),
+            ),
+        ];
+        for (label, surface, p) in &walls {
+            let (surface, p) = (surface, *p);
+            let g = crate::implicit_gradient(surface, p).normalize();
+            for (sense, want) in [
+                (true, WallBend::IntoMaterial),
+                (false, WallBend::OutOfMaterial),
+            ] {
+                let want = if *label == "plane" {
+                    WallBend::Flat
+                } else {
+                    want
+                };
+                let n_out = OutwardNormal::from_chart(g, sense);
+                let got = bends_into_material(surface, p, n_out, 1.0, band());
+                assert_eq!(got, Ok(want), "{label}, sense {sense}");
+            }
+        }
+        let torus = Surface::Torus {
+            center: o,
+            axis: z,
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            u_ref: x,
+        };
+        let p = Point3::new(2.5, 0.0, 0.0);
+        let n_out = OutwardNormal::from_chart(x, true);
+        assert_eq!(
+            bends_into_material(&torus, p, n_out, 1.0, band()),
+            Err(WallBendError::Indefinite(geom::SurfaceKind::Torus))
+        );
+        let (_, cylinder, p) = &walls[0];
+        let err = bends_into_material(cylinder, *p, n_out, 0.0, band()).unwrap_err();
+        let WallBendError::Lever(e) = err else {
+            panic!("a collapsed arm is a lever escalation: {err:?}");
+        };
+        assert_eq!(
+            (e.rung, e.diag.predicate),
+            (LeverRung::Arm, Some("wall_bend_order2_arm"))
+        );
+    }
+
+    /// The same read at `T = Interval`: a cylinder seen from outside
+    /// and as a hole, and a cone on its mirror nappe, decide as at
+    /// `f64`, their enclosures clear of the band.
+    #[test]
+    fn wall_bend_reads_the_material_side_at_interval() {
+        use geom::Surface;
+        use geom_core::{Interval, Point3};
+        let i = Interval::from_f64;
+        let v = |x, y, z| Vec3::new(i(x), i(y), i(z));
+        let (x, z) = (v(1.0, 0.0, 0.0), v(0.0, 0.0, 1.0));
+        let o = Point3::new(i(0.0), i(0.0), i(0.0));
+        let walls = [
+            (
+                "cylinder",
+                Surface::Cylinder {
+                    origin: o,
+                    axis: z,
+                    radius: i(0.5),
+                    u_ref: x,
+                },
+                Point3::new(i(0.0), i(0.5), i(0.3)),
+            ),
+            (
+                "cone, the mirror nappe",
+                Surface::Cone {
+                    apex: o,
+                    axis: z,
+                    half_angle: i(0.5).atan(),
+                    u_ref: x,
+                },
+                Point3::new(i(0.5), i(0.0), i(-1.0)),
+            ),
+        ];
+        for (label, surface, p) in &walls {
+            let g = crate::implicit_gradient(surface, *p).normalize();
+            for (sense, want) in [
+                (true, WallBend::IntoMaterial),
+                (false, WallBend::OutOfMaterial),
+            ] {
+                let n_out = OutwardNormal::from_chart(g, sense);
+                let got = bends_into_material(surface, *p, n_out, i(1.0), band());
+                assert_eq!(got, Ok(want), "{label}, sense {sense}");
+            }
+        }
     }
 }

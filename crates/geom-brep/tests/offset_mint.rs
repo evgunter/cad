@@ -31,7 +31,8 @@ use core::f64::consts::{FRAC_PI_6, PI};
 
 use crate::shared::tol::band;
 use geom::Surface;
-use geom_brep::{OffsetError, SurfaceKind, offset_surface};
+use geom::SurfaceKind;
+use geom_brep::{OffsetError, offset_surface};
 use geom_core::{Point3, Tol, Vec3};
 
 // ---------------------------------------------------------------------

@@ -25,7 +25,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::Curve3;
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{BlendError, Open, Start, fillet_edges};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
 
@@ -58,7 +58,7 @@ fn lily_lantern(tol: Tol) -> (Body<f64>, [(f64, f64); 4]) {
         (r_mouth, t_mouth),
         (LIP_R, t_end),
     ];
-    let meridian: ProfileLoop<f64> = Open
+    let meridian: ConstructedLoop<f64> = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(NECK_R, 0.0), tol)
         .expect("throat disk")

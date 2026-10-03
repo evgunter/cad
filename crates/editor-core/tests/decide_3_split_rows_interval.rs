@@ -80,7 +80,7 @@ fn decide_3_no_predicate_loses_a_decision() {
             );
             let discharged = |s: [u64; 4]| s[0] + s[1] + s[2];
             // **TWO predicates are re-baselined, at their numbers, with
-            // their reasons**, both on R2's link. It is a re-baseline and
+            // their reasons**, all on R2's link. It is a re-baseline and
             // not an exemption: the numbers are asserted on both sides,
             // so any further drift reds and says which.
             //

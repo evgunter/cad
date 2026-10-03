@@ -13,6 +13,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use corpus::plate_param::{
@@ -54,7 +55,7 @@ fn scene() -> Scene {
     let applied = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: fixture::xy_frame(),
+            node: Box::new(fixture::xy_frame()),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -64,7 +65,7 @@ fn scene() -> Scene {
     let applied = apply(
         &applied.doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(plate_profile(plane)),
+            node: Box::new(Node::Profile(plate_profile(plane))),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -74,10 +75,11 @@ fn scene() -> Scene {
     let applied = apply(
         &applied.doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile,
                 distance: len(PLATE_DEPTH),
-            },
+                side: ExtrudeSide::Along,
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

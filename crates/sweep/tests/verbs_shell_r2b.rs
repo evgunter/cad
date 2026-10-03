@@ -13,6 +13,7 @@
 use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, ShellError};
 
@@ -64,9 +65,16 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
         .expect("a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("it extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("it extrudes")
+    .body
 }
 
 /// **Claim 3's MINT on MY OWN stepped meridian** — eight stations, all
@@ -93,12 +101,16 @@ fn r2b_squared_stepped_vase_mints_one_annular_rim() {
         .body;
     assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
     assert_eq!(cup.shells().count(), 1);
+    let rim = plane_chart_at_y(&cup, h);
+    assert_eq!(rim.len(), 1, "ONE rim face");
+    // The shoulders are annuli too — a full revolve builds each plane
+    // wall whole, its inner circle a ring — so the rim's own ring is
+    // the one counted.
     assert_eq!(
-        (rings_of(&cup), genus_of(&cup)),
+        (cup.get_face(rim[0]).unwrap().rings.len(), genus_of(&cup)),
         (1, 0),
         "one annular rim, one ring, genus 0"
     );
-    assert_eq!(plane_chart_at_y(&cup, h).len(), 1, "ONE rim face");
     for delta in [1e-2, 1e-3, 2e-4] {
         mesh::tessellate(&cup, delta, tol)
             .unwrap_or_else(|e| panic!("the vase rim must mesh at {delta}: {e:?}"));

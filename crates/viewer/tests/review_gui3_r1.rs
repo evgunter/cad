@@ -24,13 +24,14 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, EvalOutcome, Expr, LoopProgram, Node, ParamName,
     ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 
-use crate::common::{ang, edited, inserted, len, scl, tempdir, xy_frame};
+use crate::common::{ang, edited, inserted, len, row_of, scl, tempdir, xy_frame};
 use viewer::evalseam::EvalDone;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
@@ -77,6 +78,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
             profile,
             distance: Expr::mul(Expr::param(depth_param(), Dimension::Length), scl(3.0))
                 .expect("length * scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -317,7 +319,8 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         &doc,
         Node::Extrude {
             profile,
-            distance: len(0.005), // literal to begin with
+            distance: len(0.005), // literal to begin with,
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -377,6 +380,7 @@ fn r1_document_edits_are_refused_while_a_gesture_is_in_flight() {
         Node::Extrude {
             profile,
             distance: len(0.005),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -445,6 +449,7 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
             profile,
             // Well-dimensioned at the door, non-finite at evaluation.
             distance: Expr::div(len(0.005), scl(0.0)).expect("length / scalar"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -466,20 +471,11 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
     let rows = session.tree_rows();
     assert!(tree::has_faults(&rows));
     assert!(matches!(
-        &rows
-            .iter()
-            .find(|row| row.id == extrude)
-            .expect("the extrude has a row")
-            .status,
+        &row_of(&rows, extrude).status,
         RowStatus::Failed { .. }
     ));
     for id in [child, grandchild] {
-        match &rows
-            .iter()
-            .find(|row| row.id == id)
-            .expect("the descendant has a row")
-            .status
-        {
+        match &row_of(&rows, id).status {
             RowStatus::Poisoned { through, message } => {
                 assert_eq!(
                     *through, extrude,
@@ -521,8 +517,7 @@ fn r1_a_replayed_history_opens_at_the_tip_with_the_log_undoable() {
             expr: len(0.013),
         },
     ];
-    let mut history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
-        .expect("the log replays");
+    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
     assert!(!history.can_redo(), "the cursor opens at the tip");
     assert!(history.can_undo());
     assert!(history.undo().is_some());

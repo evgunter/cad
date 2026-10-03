@@ -51,6 +51,7 @@ mod bodies;
 mod bool_bodies;
 mod booleans;
 mod bossplate;
+mod bracket;
 mod bud;
 mod chain;
 mod chaintol;
@@ -70,6 +71,7 @@ mod lily;
 mod mate7a_r2_probes;
 mod mcchain;
 mod mcplate;
+mod oracles;
 mod plate;
 #[cfg(feature = "probe")]
 mod probe;
@@ -78,6 +80,7 @@ mod ring;
 mod rocker;
 mod scalar;
 mod skinned;
+mod snowman;
 mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
@@ -123,6 +126,9 @@ struct SceneBody {
     /// built it from an evaluated document and could hand one over.
     /// See [`SceneBody::named`].
     face_names: Option<tess_meter::FaceNames>,
+    /// `Some(δ)` when the scene asks this body for a finer chordal
+    /// deviation than its own [`Stop::delta`]. See [`SceneBody::finer`].
+    delta: Option<f64>,
 }
 
 impl SceneBody {
@@ -139,6 +145,7 @@ impl SceneBody {
             transparency: 0,
             step_frontier: None,
             face_names: None,
+            delta: None,
         }
     }
 
@@ -148,6 +155,39 @@ impl SceneBody {
     fn transparent(mut self, t: u8) -> Self {
         self.transparency = t;
         self
+    }
+
+    /// The same body, meshed at chordal deviation `delta` where the
+    /// rest of its scene takes [`Stop::delta`]: a small feature on one
+    /// body (a glyph's inner arc) is paid for on that body alone.
+    ///
+    /// Finer only — [`SceneBody::delta`] refuses a `delta` that is not
+    /// strictly under the scene's, so the scene's budget is the
+    /// coarsest any of its bodies is meshed at.
+    fn finer(mut self, delta: f64) -> Self {
+        self.delta = Some(delta);
+        self
+    }
+
+    /// The chordal deviation this body is meshed at, in a scene whose
+    /// own is `scene`.
+    ///
+    /// # Panics
+    ///
+    /// If the body's [`SceneBody::finer`] budget is not strictly finer
+    /// than `scene`.
+    fn delta(&self, scene: f64) -> f64 {
+        match self.delta {
+            None => scene,
+            Some(d) => {
+                assert!(
+                    d > 0.0 && d < scene,
+                    "{}: a per-body delta {d:e} must be finer than its scene's {scene:e}",
+                    self.name
+                );
+                d
+            }
+        }
     }
 
     /// **The scene DECLARES this body past the STEP writer's named
@@ -204,6 +244,7 @@ impl SceneBody {
             transparency: 0,
             step_frontier: None,
             face_names: None,
+            delta: None,
         }
     }
 
@@ -241,6 +282,7 @@ impl SceneBody {
             transparency: 0,
             step_frontier: None,
             face_names: None,
+            delta: None,
         }
     }
 
@@ -314,6 +356,8 @@ struct Stop {
     montage: bool,
     story: &'static str,
     ops: &'static str,
+    /// The chordal deviation every body is meshed at, unless it asks
+    /// for a finer one ([`SceneBody::finer`]).
     delta: f64,
     note: Option<String>,
     view: View,
@@ -353,6 +397,16 @@ struct StepFrontierPin {
     pinned: fn(&pncad::step_export::StepExportError) -> bool,
     /// What to do with the scene when the export stops refusing.
     retire: &'static str,
+}
+
+/// Whether a boolean result declares no contacts, which is how its
+/// body is routed: a TRANSVERSE curved boolean declares none and takes
+/// plain tier 3, because the 3′ census is exact-on-planar by ruling
+/// (C12.4/OQ5: a TOUCHING curved result refuses there — pinned in
+/// `sweep/tests/m5_pr9_boss_union.rs`); a result that declares some
+/// takes 3′ with them.
+fn declares_no_contacts(contacts: &ContactRecords) -> bool {
+    contacts.vv.is_empty() && contacts.a_on_b.is_empty() && contacts.b_on_a.is_empty()
 }
 
 /// The writer's named subset frontier, as one list. Refusals in this
@@ -736,7 +790,7 @@ fn run_stop(
     let bodies: Vec<ManifestBody> = stop
         .bodies
         .iter()
-        .map(|sb| run_body(sb, stop.delta, outdir, dumps, tol))
+        .map(|sb| run_body(sb, sb.delta(stop.delta), outdir, dumps, tol))
         .collect();
     manifest.push_str(&scene_json(stop, &bodies));
 }
@@ -817,7 +871,9 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
-    println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
+    println!(
+        "\n-- the rocker plate (fillets in the profile, the branch PICKED, and on the solid) --"
+    );
     for stop in rocker::stops(tol) {
         visit(&stop);
     }
@@ -848,19 +904,27 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
-    println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
+    println!("\n-- the Klein bottle: a non-orientable surface, two bodies deep --");
     for stop in klein::stops(tol) {
         visit(&stop);
     }
     klein::wall_probes::<f64>(tol);
 
-    println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
+    println!("\n-- the tilted cut (an engraved cap, an exact ellipse section) --");
     for stop in curvedcut::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
     for stop in bossplate::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the snowman (two coaxial balls under every boolean; the waist rolled into a \
+         torus band; a head moved off the axis in the seam plane builds too) --"
+    );
+    for stop in snowman::stops(tol) {
         visit(&stop);
     }
 
@@ -962,7 +1026,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
-         split/inline, the update door) --"
+         gauges, split/inline, the update door) --"
     );
     for stop in assembly::stops(work, tol) {
         visit(&stop);
@@ -1215,5 +1279,36 @@ fn main() {
     match pncad::tolerance::committed_report() {
         Some(report) => println!("{report}"),
         None => println!("tolerance: never committed (no predicate ran)"),
+    }
+}
+
+#[cfg(test)]
+mod scene_body_delta {
+    use super::SceneBody;
+
+    fn body() -> SceneBody {
+        SceneBody::plain("probe", [0.5, 0.5, 0.5], pncad::topo::Body::new())
+    }
+
+    #[test]
+    fn a_body_takes_its_scenes_delta_unless_it_asks_for_a_finer_one() {
+        assert_eq!(body().delta(1e-2), 1e-2, "no per-body delta: the scene's");
+        assert_eq!(
+            body().finer(2e-3).delta(1e-2),
+            2e-3,
+            "a finer per-body delta"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must be finer than its scene's")]
+    fn a_coarser_per_body_delta_is_refused() {
+        body().finer(2e-2).delta(1e-2);
+    }
+
+    #[test]
+    #[should_panic(expected = "must be finer than its scene's")]
+    fn an_equal_per_body_delta_is_refused() {
+        body().finer(1e-2).delta(1e-2);
     }
 }

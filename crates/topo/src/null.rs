@@ -180,8 +180,9 @@ impl<T: Real> CurveGeom<T> {
 impl<T: geom_core::Decide> Body<T> {
     /// MEV, null-edge form — *make (null) edge, vertex*: the zero-length
     /// `lmev` idiom of ch. 14/15 (`separ1`/`separ2`), minting a new
-    /// vertex **coincident with the site's old vertex** (its point is a
-    /// bitwise copy — structural coincidence, no comparison) joined by a
+    /// vertex **on the site's old vertex's point** (the same
+    /// `PointKey` — structural coincidence, no comparison; D1 tier 3′
+    /// reads two vertices on one point as structural sharing) joined by a
     /// **null edge** whose curve entry is [`CurveGeom::NullScaffold`]
     /// carrying the F9 side attribute (`new_side` declares which side
     /// the new vertex faces; the old vertex takes the other).
@@ -197,7 +198,7 @@ impl<T: geom_core::Decide> Body<T> {
     ///   to certify, by type (the ratified F9 shape, module docs);
     /// - the re-basing gate over a fan site's moved run
     ///   ([`Body::certify_rebased_run`]), because the new vertex's
-    ///   point is the old one's bitwise, so no re-based edge's
+    ///   point is the old one's, so no re-based edge's
     ///   endpoint moves and every certificate is the one it had. A
     ///   structural coincidence, not a comparison — which is why this
     ///   door needs no `Tol`.
@@ -221,8 +222,8 @@ impl<T: geom_core::Decide> Body<T> {
     /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — identical to
     /// `mev` (a null edge is an edge).
     ///
-    /// **Minting order** (D9, exact — deviates from `mev`'s): point,
-    /// **vertex**, curve entry (the F9 attribute names the new vertex,
+    /// **Minting order** (D9, exact — deviates from `mev`'s): no point,
+    /// then **vertex**, curve entry (the F9 attribute names the new vertex,
     /// so the vertex must exist first), edge, `he_plus`, `he_minus`.
     /// Emanating rule and splice positions: as [`Body::mev`].
     ///
@@ -246,7 +247,7 @@ impl<T: geom_core::Decide> Body<T> {
         let created = match site {
             MevSite::Fan { he1, he2 } => {
                 let plan = self.mev_fan_plan(he1, he2)?;
-                let point = plan.p_old; // bitwise coincident copy
+                let point = plan.point;
                 self.mev_fan_execute(
                     plan,
                     point,
@@ -261,7 +262,7 @@ impl<T: geom_core::Decide> Body<T> {
                 self.mev_lone_execute(
                     r#loop,
                     v,
-                    p_old, // bitwise coincident copy
+                    p_old,
                     crate::euler::MevCurveMint::Null(new_side),
                     Vec::new(),
                     provenance,
@@ -362,9 +363,10 @@ mod tests {
     use crate::validate::{ValidationError, validate, validate_closed};
     use geom_core::Tol;
 
-    /// A null strut (`he1 == he2`) on a cube vertex: coincident point
-    /// copy, F9 attribute recorded per side, tier 1 accepts, tier 2
-    /// refuses by name, and the scaffolding is killable by `kev`.
+    /// A null strut (`he1 == he2`) on a cube vertex: the new vertex on
+    /// the old one's point, F9 attribute recorded per side, tier 1
+    /// accepts, tier 2 refuses by name, and the scaffolding is killable
+    /// by `kev`, which leaves the point to the vertex still on it.
     #[test]
     fn mev_null_strut_lifecycle() {
         let cube = declined_cube::<f64>(Tol::witness());
@@ -376,15 +378,9 @@ mod tests {
             .unwrap();
         let strut = crate::MevSite::Fan { he1: he, he2: he };
         let created = body.mev_null(strut, NewVertexSide::Above).unwrap();
-        // Coincident copy, bitwise.
-        let p_new = *body.get_point(created.point).unwrap();
-        let p_old = *body
-            .get_point(body.get_vertex(cube.seed.vertex).unwrap().point)
-            .unwrap();
-        assert_eq!(
-            (p_new.x.to_bits(), p_new.y.to_bits(), p_new.z.to_bits()),
-            (p_old.x.to_bits(), p_old.y.to_bits(), p_old.z.to_bits()),
-        );
+        let old_point = body.get_vertex(cube.seed.vertex).unwrap().point;
+        assert_eq!(created.point, old_point, "the copy shares the point");
+        assert_eq!(body.get_vertex(created.vertex).unwrap().point, old_point);
         // The F9 attribute names old-below / new-above.
         let attr = *body
             .get_curve_geom(created.curve)
@@ -415,7 +411,9 @@ mod tests {
         );
         // Consumed by kev like any other edge; the scaffolding entry
         // dies with it and tier 2 is restored.
-        body.kev(created.he_plus).unwrap();
+        let killed = body.kev(created.he_plus).unwrap();
+        assert_eq!(killed.killed_point, None, "the old vertex still sits on it");
+        assert!(body.get_point(old_point).is_some());
         assert_eq!(validate_closed(&body), Ok(()));
     }
 

@@ -112,7 +112,7 @@ use pncad::prelude::{
 // The prefix data lives with the unit TABLE, one hop away from the
 // prelude — the scene converts its own constants with the same factor
 // the table pairs with `mm`, so the two cannot drift.
-use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::quantity::MILLI;
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
@@ -143,7 +143,7 @@ const RI_MM: f64 = 50.0;
 const RI: f64 = RI_MM * MILLI;
 
 /// One concentric circle of the section, centred on the tube axis.
-fn section(radius: f64, tol: Tol) -> ProfileLoop<f64> {
+fn section(radius: f64, tol: Tol) -> ConstructedLoop<f64> {
     pncad::profile::circle(p2(R, 0.0), radius, tol)
         .expect("a positive section radius")
         .into()
@@ -201,21 +201,21 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
     let plane = insert(
         &mut doc,
-        Node::Datum(Datum::Frame {
+        Box::new(Node::Datum(Datum::Frame {
             origin: [mm(0.0), mm(0.0), mm(0.0)],
             u: [scl(1.0), scl(0.0), scl(0.0)],
             v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        })),
     );
     let profile = insert(
         &mut doc,
-        Node::Profile(ProfileProgram {
+        Box::new(Node::Profile(ProfileProgram {
             plane,
             // Outer first, then the holes: the list IS the hole
             // vocabulary, and nothing else here mentions one.
             loops: vec![circle(RO_MM), circle(RI_MM)],
             ids: Vec::new(),
-        }),
+        })),
     );
     // The axis of revolution, written in the sketch it turns: the
     // frame's v is world +Y, so this is its own +y through (0, 0).
@@ -223,25 +223,25 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     // world's — and no way to write one that leaves the plane.
     let axis = insert(
         &mut doc,
-        Node::Datum(Datum::AxisInPlane {
+        Box::new(Node::Datum(Datum::AxisInPlane {
             plane,
             origin: [mm(0.0), mm(0.0)],
             direction: [
                 Expr::literal(0.0, Dimension::Scalar).expect("a scalar"),
                 Expr::literal(1.0, Dimension::Scalar).expect("a scalar"),
             ],
-        }),
+        })),
     );
     let revolved = insert(
         &mut doc,
-        Node::Revolve {
+        Box::new(Node::Revolve {
             profile,
             axis,
             // A full turn, written as one: the half-turn row is a
             // NOTATION carried as a unit, so the recipe says `2 pi rad`
             // where it would otherwise say `6.283185307179586 rad`.
             angle: Expr::angle_in(2.0, HALF_TURN).expect("a full turn"),
-        },
+        }),
     );
     (doc, revolved)
 }

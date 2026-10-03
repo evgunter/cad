@@ -70,7 +70,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use pncad::document::{Doc, Evaluation, Frame, NodeStanding, ProfileProgram, RecipeNodeId};
+use pncad::document::{
+    Doc, Evaluation, Frame, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker,
+};
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{
@@ -373,20 +375,28 @@ pub enum PickIndexError {
     Names(NameLookupError),
 }
 
-impl core::fmt::Display for IdMapError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Say for IdMapError {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Duplicate { key } => write!(
                 f,
-                "patch {} of body {} on node {} was offered twice; an id assignment \
-                 is a bijection",
-                key.patch, key.body, key.node
+                "patch {} of body {} on {} was offered twice; an id assignment is a bijection",
+                key.patch,
+                key.body,
+                by.node(key.node)
             ),
             Self::TooManyPatches { patches } => write!(
                 f,
                 "{patches} patches is more than a 32-bit id buffer can address"
             ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for IdMapError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
     }
 }
 
@@ -437,7 +447,7 @@ impl PickIndexError {
     }
 }
 
-impl core::fmt::Display for PickIndexError {
+impl Say for PickIndexError {
     /// The arms that carry somebody else's refusal forward to its own
     /// `Display`: the layer that raised a failure names it, and this
     /// one does not restate it. The root the [`PickIndexError::Node`]
@@ -446,19 +456,29 @@ impl core::fmt::Display for PickIndexError {
     /// the root was not indexed: why — no value, no body, or a
     /// tessellation or indexing refusal — is the payload's to say. The
     /// layout arm is this layer's own finding and says so itself.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Node { node, error } => {
-                write!(f, "root {} could not be indexed: {error}", node)
-            }
-            Self::Ids(error) => write!(f, "{error}"),
+            Self::Node { node, error } => write!(
+                f,
+                "{} could not be indexed: {}",
+                by.node_as(*node, "root"),
+                Said(error, by.about(*node))
+            ),
+            Self::Ids(error) => error.say(f, by),
             Self::DrawnTwice { node, body } => write!(
                 f,
-                "body {} of node {} is drawn by two parts; one drawn body is one part",
-                body, node
+                "body {body} of {} is drawn by two parts; one drawn body is one part",
+                by.node(*node)
             ),
-            Self::Names(error) => write!(f, "{error}"),
+            Self::Names(error) => error.say(f, by),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for PickIndexError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
     }
 }
 
@@ -1279,17 +1299,29 @@ impl PickIndex {
         display: &DisplayView,
     ) -> Result<Option<PickHit>, HitTestError> {
         let visible = |part: &&NodePick| !display.hidden_roots.contains(&part.node());
-        let unmoved: Vec<PickTarget<'_>> = self
+        // The unmoved parts, one batch per space: the kernel orders
+        // faces within one space only (A9, A11 (2)), and each space is
+        // drawn where the display puts it — today an unplaced group's
+        // own space at the world's origin — so the merge below orders
+        // the batches as drawn, which is display, not logic.
+        let mut unmoved: BTreeMap<Option<RecipeNodeId>, Vec<PickTarget<'_>>> = BTreeMap::new();
+        for part in self
             .parts
             .iter()
             .filter(visible)
             .filter(|part| !display.moved_roots.contains_key(&part.node()))
-            .map(NodePick::target)
-            .collect();
+        {
+            let space = eval.unplaced.get(&part.node()).map(|(group, _)| *group);
+            unmoved.entry(space).or_default().push(part.target());
+        }
         // Every group's whole answer, in group order: the unmoved
-        // batch, then the moved instances. A group that refuses
-        // contributes its tied faces rather than ending the call.
-        let mut candidates: Vec<PickHit> = group_answer(pick_face(eval, &unmoved, ray))?;
+        // batches, the world's first, then the moved instances. A
+        // group that refuses contributes its tied faces rather than
+        // ending the call.
+        let mut candidates: Vec<PickHit> = Vec::new();
+        for targets in unmoved.values() {
+            candidates.extend(group_answer(pick_face(eval, targets, ray))?);
+        }
         for (&node, frame) in &display.moved_roots {
             if display.hidden_roots.contains(&node) {
                 continue;
@@ -2316,15 +2348,15 @@ pub enum EdgeNameFault {
     Unnamed(UnnamedEntity),
 }
 
-impl core::fmt::Display for EdgeNameFault {
-    /// The `Unnamed` arm forwards to the carried value's own
-    /// `Display`: the naming layer named that failure.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Say for EdgeNameFault {
+    /// The `Unnamed` arm forwards the carried value's own sentence:
+    /// the naming layer named that failure.
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::NotDrawn { node, body } => write!(
                 f,
-                "this picture draws no body {body} of node {}, so it draws none of its edges",
-                node
+                "this picture draws no body {body} of {}, so it draws none of its edges",
+                by.node(*node)
             ),
             Self::OutOfRange {
                 node,
@@ -2333,12 +2365,19 @@ impl core::fmt::Display for EdgeNameFault {
                 drawn,
             } => write!(
                 f,
-                "edge {boundary} of body {body} on node {}: that body draws {drawn} edges, so \
-                 this address was not one this index handed out",
-                node
+                "edge {boundary} of body {body} on {}: that body draws {drawn} edges, so this \
+                 address was not one this index handed out",
+                by.node(*node)
             ),
-            Self::Unnamed(error) => write!(f, "a drawn edge has no name: {error}"),
+            Self::Unnamed(error) => write!(f, "a drawn edge has no name: {}", Said(error, by)),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for EdgeNameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
     }
 }
 
@@ -2377,10 +2416,9 @@ pub struct EdgeNamesRefused {
     pub refused: usize,
 }
 
-impl core::fmt::Display for EdgeNamesRefused {
-    /// The refusal itself is [`EdgeNameFault::Unnamed`]'s, through its
-    /// own `Display`.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Say for EdgeNamesRefused {
+    /// The refusal itself is [`EdgeNameFault::Unnamed`]'s sentence.
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let Self {
             node,
             body,
@@ -2390,29 +2428,45 @@ impl core::fmt::Display for EdgeNamesRefused {
         } = self;
         write!(
             f,
-            "the index names {named} of the {} edges it draws on body {body} of node {}; the \
-             first it cannot: {}",
+            "the index names {named} of the {} edges it draws on body {body} of {}; the first \
+             it cannot: {}",
             named.saturating_add(*refused),
-            node,
-            EdgeNameFault::Unnamed(*first)
+            by.node(*node),
+            Said(&EdgeNameFault::Unnamed(*first), by.about(*node))
         )
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for EdgeNamesRefused {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
     }
 }
 
 impl core::error::Error for EdgeNamesRefused {}
 
-impl core::fmt::Display for PickError {
+impl Say for PickError {
     /// The rule this crate follows is that the layer which raised a
     /// failure names it, never a sentence composed here about somebody
-    /// else's refusal. Every arm forwards to its payload's own
-    /// `Display` — [`CameraError`], `editor-core`'s `HitTestError`,
-    /// and [`EdgeNameFault`] each name their own failure.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    /// else's refusal. Every arm forwards its payload's own sentence —
+    /// [`CameraError`], `editor-core`'s `HitTestError`, and
+    /// [`EdgeNameFault`] each name their own failure.
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Camera(error) => write!(f, "the cursor names no ray: {error}"),
-            Self::HitTest(error) => write!(f, "the hit test refused: {error}"),
-            Self::EdgeName(fault) => write!(f, "the picked edge has no name: {fault}"),
+            Self::HitTest(error) => write!(f, "the hit test refused: {}", Said(error, by)),
+            Self::EdgeName(fault) => {
+                write!(f, "the picked edge has no name: {}", Said(fault, by))
+            }
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for PickError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
     }
 }
 

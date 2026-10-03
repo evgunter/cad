@@ -9,7 +9,9 @@
 //! across an earlier step's seam. Each piece edge is chased to the
 //! stretch a discard recorded along it, through the edge's split
 //! lineage and the lineage the discards themselves carry for edges that
-//! died with them, and so to its obstacle. An obstacle that borders two
+//! died with them, and so to its obstacle. A face discarded where a
+//! coincident kept face holds part of its region borders that face
+//! where the held part ends (`topo::DiscardRow::held`). An obstacle that borders two
 //! or more pieces DIVIDES the face; a piece's qualifier is the set of
 //! walls — the faces across its edges — along which it meets a divider,
 //! each cited by its parent's name. Nothing beyond a piece's own
@@ -71,15 +73,15 @@ impl<K: Ord + Clone> Obstacles<K> {
         body: &Body<T>,
         mut parents_of: impl FnMut(topo::Operand, FaceKey) -> Result<BTreeSet<K>, NamingError>,
     ) -> Result<(), NamingError> {
-        let fused = naming
-            .fused_into()
-            .ok_or_else(|| bug("a boolean's vertex fusions form a cycle"))?;
+        let fused = naming.fused_into();
         let settle = |v: VertexKey| fused.get(&v).copied().unwrap_or(v);
         // A bordered stretch settles on a seam edge: the zip made the
-        // kept face's section edge one edge with the wall's.
+        // kept face's section edge one edge with the wall's. A held
+        // stretch settles on the kept face's own edge, whichever it is.
         let seam_edges: BTreeSet<EdgeKey> = naming.seam_edges.iter().copied().collect();
         let mut by_ends: BTreeMap<(VertexKey, VertexKey), Vec<EdgeKey>> = BTreeMap::new();
-        for (k, e) in body.edges().filter(|(k, _)| seam_edges.contains(k)) {
+        let mut any_by_ends: BTreeMap<(VertexKey, VertexKey), Vec<EdgeKey>> = BTreeMap::new();
+        for (k, e) in body.edges() {
             let s = body
                 .get_half_edge(e.he_plus)
                 .ok_or_else(|| bug("a result edge's half-edge is dangling"))?
@@ -87,7 +89,10 @@ impl<K: Ord + Clone> Obstacles<K> {
             let t = body
                 .half_edge_end(e.he_plus)
                 .ok_or_else(|| bug("a result edge has no end"))?;
-            by_ends.entry((s.min(t), s.max(t))).or_default().push(k);
+            if seam_edges.contains(&k) {
+                by_ends.entry((s.min(t), s.max(t))).or_default().push(k);
+            }
+            any_by_ends.entry((s.min(t), s.max(t))).or_default().push(k);
         }
         let earlier: BTreeSet<EdgeKey> = self
             .discards
@@ -124,12 +129,14 @@ impl<K: Ord + Clone> Obstacles<K> {
                 })
                 .collect();
             let mut seams = Vec::new();
-            for &(u, w) in &row.bordered {
-                let (u, w) = (settle(u), settle(w));
-                // A stretch no live seam edge joins merged away with the
-                // faces beside it: nothing of a piece lies along it.
-                if let Some(es) = by_ends.get(&(u.min(w), u.max(w))) {
-                    seams.extend(es.iter().copied());
+            // A stretch no live edge joins merged away with the faces
+            // beside it: nothing of a piece lies along it.
+            for (stretches, edges) in [(&row.bordered, &by_ends), (&row.held, &any_by_ends)] {
+                for &(u, w) in stretches {
+                    let (u, w) = (settle(u), settle(w));
+                    if let Some(es) = edges.get(&(u.min(w), u.max(w))) {
+                        seams.extend(es.iter().copied());
+                    }
                 }
             }
             for chain in &chains {

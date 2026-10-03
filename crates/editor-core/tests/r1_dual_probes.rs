@@ -66,6 +66,7 @@ test_utils::gated_to![
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use test_utils::fuzz;
 
@@ -230,7 +231,12 @@ where
                             for (vx, s) in lp.vertices().iter().zip(lp.segments()) {
                                 d.sc(vx.x);
                                 d.sc(vx.y);
-                                d.sc(s.bulge);
+                                if let profile::SegmentKind::Arc { arc, .. } = s.kind {
+                                    d.sc(arc.centre.x);
+                                    d.sc(arc.centre.y);
+                                    d.sc(arc.radius);
+                                    d.sc(arc.sweep);
+                                }
                             }
                         }
                     }
@@ -262,11 +268,8 @@ where
                             body_deep(&mut d, b);
                         }
                     }
-                    ValuePayload::Declarations(pairs) => {
-                        d.u64(19);
-                        d.u64(pairs.len() as u64);
-                    }
                     ValuePayload::Mate(_) => d.u64(20),
+                    ValuePayload::Gauge => d.u64(25),
                     // The measured quantity IS a lane value, so it is
                     // digested through the same value-channel bracket
                     // every coordinate takes.
@@ -507,6 +510,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let slab = r.insert(Node::Extrude {
         profile: plate,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     let xy_frame_1 = r.insert(xy_frame());
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
@@ -517,12 +521,13 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let boss = r.insert(Node::Extrude {
         profile: boss_profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let fused = r.insert(Node::Boolean {
         op: editor_core::BooleanOp::Union,
         a: slab,
         b: boss,
-        declare: None,
+        declare: Vec::new(),
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(0.75)],

@@ -39,7 +39,10 @@ Merged as #3073 (head `aea96608e`, run 35741468541). The single style review
 with a correctness arm (OPUS): MERGEABLE-AFTER-FIXES 3/4/5 — the code and
 the picture reproduced to the byte and survived every plant; three causal
 claims were enshrined in P1 rows and headers without execution (what
-bounds the box is `dihedral_wedge`'s poisoned margin, not `dihedral_arm`;
+bounds the box is `dihedral_wedge`'s margin, not `dihedral_arm` —
+poisoned just past the default ε's wall, and straddling `K·ε` just past
+`1e-6`'s and `1e-5`'s own walls (SYM-15's Phase 1, on
+`a-chain-of-two-or-more-joints-poisons-its-transversality-margin`);
 the invariant across link counts is HALF THE PIN RADIUS, a property of
 this document and not of the tier; the three-link chain carries the
 two-link poison); the fix pass A–O corrected them by execution, added the

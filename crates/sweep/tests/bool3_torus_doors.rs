@@ -734,7 +734,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
     }
     let msg = PointInSolidError::KindUnsupported {
         face: body.faces().next().unwrap().0,
-        kind: geom_brep::SurfaceKind::Nurbs,
+        kind: geom::SurfaceKind::Nurbs,
     }
     .to_string();
     assert!(msg.contains("The solid itself is fine"), "{msg}");
