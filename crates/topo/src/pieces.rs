@@ -27,10 +27,12 @@
 //!   `Outer` is overlapping material, which no piece is bounded by.
 //!
 //! An encloser's own enclosers are read only when a shell has more than
-//! one, so a shell nothing asks about is probed once. Two shells whose
-//! padded boxes are certified apart cannot nest and are never probed
-//! against each other (`Screen`), so pieces side by side cost no probe
-//! and record no decision. A probe reads a ray that crosses nothing off
+//! one, so a shell nothing asks about is probed once. The boolean hands
+//! over its sweep's certified face boxes, and two shells whose boxes are
+//! apart cannot nest and are never probed against each other (`Screen`),
+//! so its pieces side by side cost no probe and record no decision;
+//! `split` and `shell` hand none, and every pair of theirs is probed.
+//! A probe reads a ray that crosses nothing off
 //! the shell's role, already decided ([`ShellRead`]), rather than off a
 //! closed-form volume a curved face may not certify.
 //!
