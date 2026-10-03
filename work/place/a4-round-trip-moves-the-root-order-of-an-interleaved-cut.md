@@ -4,9 +4,7 @@ kind: issue
 title: A4's round trip moves the root order of a cut whose roots a kept root separates
 status: open
 opened: 2026-10-03
-needs_ev: true
-design: true
-cost: M
+cost: E
 priority: P1
 ---
 
@@ -47,3 +45,15 @@ pins the disagreement as the comparator's only line.
   interleaving of the cut's roots with kept ones").
 
 This needs Ev's ruling on which A4 means.
+
+## RULED (2026-10-03, Ev on `[ev]` #3939)
+
+- **The regrouping stands and A4 states it.** Split brings the cut's roots together where the first of them was, and inline-of-split returns the document up to node ids and that one regrouping. No refusal.
+- **The anchor is A10's existing rule.** A node that replaces roots goes where the first of them was. Ev: either anchor works, so take "whichever rule is simpler or more elegant". The orchestrator took the existing rule, which needs no code change.
+
+## What remains (the build, cost E)
+
+- `refactor.rs`'s module docs state the rule in place of "rider (i) … adjudicated at review ordinal 40 … D-4's ratified identity".
+- `tests/fixture/round_trip.rs`'s module docs cite A10's replacement rule.
+- `p2_split::r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order` asserts the expected regrouped roots, and that a second round trip changes nothing.
+- `asm4_split_inline::root_interleaving_collapses_onto_the_instance_at_d4_identity` drops "D-4 identity" from its name.

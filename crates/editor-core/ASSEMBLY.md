@@ -249,12 +249,12 @@ placement's steps in front of each dependent's own; cutting the content
 and leaving the gauge behind mounts the part on it. Split and
 inline are pure, returning values plus edit lists. Acceptance:
 split-then-evaluate equals unsplit evaluation at structural and
-name-resolution identity, not bit identity, except that the cut's solids
-come as one block where the first of them was (A10's replacement rule:
-one instance sits at one place in the list), so split keeps the solid
-order exactly when the cut's solids are adjacent in it; and
-inline-of-split returns the document split was given, up to node ids and
-that one regrouping. A mate whose two
+name-resolution identity, not bit identity, except that the cut's roots
+come together where the first of them was (A10's replacement rule: one
+instance sits at one place in the list), so split keeps the root order
+exactly when the cut's roots are adjacent in it; and inline-of-split
+returns the document split was given, up to node ids and that one
+regrouping. A mate whose two
 `InstantiatePart` heads fall on opposite sides of a cut is an
 `InterfaceCrossing::Mate` in the instance's `InterfaceRecord`, which
 feeds the content key; evaluation refuses
@@ -372,11 +372,11 @@ node ids, document data. Invariants (`roots::check`): coverage (every
 live node is ancestor-of-or-equal-to some root) and ancestor-freedom
 (no root is a strict ancestor of another); together the root set is
 exactly the DAG's sink set and the list adds only the solid order.
-Maintenance: a new sink appends; a node that replaces roots (an insert
-consuming them, or split's instance) goes where the first body-denoting
-one among them was, or where the first one was if none denotes a body;
-removing it (a delete, or inline) puts its roots back at its position,
-in their own order; `DocEdit::SetRoots` states
+Maintenance: a new sink appends; a node that replaces roots (an
+insert consuming them, or split's instance) goes where the first of
+them was; removing it puts what it replaced back at its position (a
+delete's orphaned inputs in document order, an inline's spliced roots in
+the part's root order); `DocEdit::SetRoots` states
 the list outright. `product::product` gathers, in list order, every
 body-denoting root (`Body`/`Boolean` solids, `Instances` as placed
 solids with no boolean implied, `Split` as both pieces); non-body roots
