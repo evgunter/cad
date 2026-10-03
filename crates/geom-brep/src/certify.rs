@@ -949,6 +949,32 @@ impl<T: Real> EdgeCurveSpec<T> {
         })
     }
 
+    /// The straight SCAFFOLDING spec along an existing LINE carrier
+    /// between the given parameters: carrier and interval kept verbatim,
+    /// description the start point's trajectory under the translation to
+    /// the end ([`crate::MappedCurve::ExtrudedPoint`], as
+    /// [`Self::line_between`] states it). `None` for a non-line carrier.
+    pub fn segment_of_line(carrier: Curve3<T>, t0: T, t1: T) -> Option<Self>
+    where
+        T: SpanLocate,
+    {
+        use geom_core::{Affine3, Point2, Point3};
+        let Curve3::Line { .. } = carrier else {
+            return None;
+        };
+        let start = carrier.eval(t0);
+        Some(Self {
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::ExtrudedPoint {
+                point: Point2::new(T::zero(), T::zero()),
+                place: Affine3::translation(start - Point3::origin()),
+                vec: carrier.eval(t1) - start,
+            }),
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        })
+    }
+
     /// The same spec with a SCAFFOLDING description re-stated as an
     /// image in `surface`'s chart, the pushforward demoted to the
     /// authority record it always was (U2 Q3). `seam` carries D1's
