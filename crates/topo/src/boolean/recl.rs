@@ -832,7 +832,7 @@ type Rep<T> = (Vec3<T>, super::sectors::Reach<T>);
 /// there has nothing to read it by.
 fn wedge_is_reflex<T: Decide>(
     secs: &[BoolSector<T>],
-    fl: &[(usize, Rep<T>)],
+    fl: &[(usize, Rep<T>); 2],
     arm: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
@@ -918,7 +918,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     let membership = |own_is_a: bool,
                       own_idx: usize,
                       (w, reach): Rep<T>,
-                      other: &[(usize, Rep<T>)]|
+                      other: &[(usize, Rep<T>); 2]|
      -> Result<bool, BooleanError> {
         let (own_secs, other_secs): (&[BoolSector<T>], &[BoolSector<T>]) = if own_is_a {
             (a_sectors, b_sectors)
@@ -1360,44 +1360,52 @@ mod tests {
     /// The wedge's extent is its second face's side of its first face's
     /// plane: a quarter-turn is convex, three quarters reflex, and a
     /// half-turn (the second face in the first face's plane) refuses.
+    /// Each wedge is two sectors with their own planes, flanking the
+    /// common line +z the way a site's flankers do: the first holds it
+    /// as its start, the second as its end.
     #[test]
     fn a_wedge_reads_reflex_by_its_second_faces_side_and_refuses_flat() {
         use super::super::sectors::Reach;
         use geom_brep::OutwardNormal;
         use geom_core::Tol;
         let band = Band::linear(Tol::witness()).unwrap();
-        let first = BoolSector {
+        let v = |c: [f64; 3]| Vec3::new(c[0], c[1], c[2]);
+        let axis = v([0.0, 0.0, 1.0]);
+        let sector = |start: Vec3<f64>, end: Vec3<f64>, normal: [f64; 3]| BoolSector {
             he: crate::entity::HalfEdgeKey::default(),
-            start: Vec3::new(0.0, 0.0, 1.0),
-            end: Vec3::new(1.0, 0.0, 0.0),
+            start,
+            end,
             start_reach: Reach::Bisector(1.0),
             end_reach: Reach::Bisector(1.0),
             face: crate::entity::FaceKey::default(),
-            normal: OutwardNormal::from_chart(Vec3::new(0.0, -1.0, 0.0), true),
+            normal: OutwardNormal::from_chart(v(normal), true),
             arm: 1.0,
         };
-        let secs = [first];
-        let wedge = |second: [f64; 3]| {
+        // Material lies off the first plane's +y side; `second` and its
+        // outward normal bound the wedge's other side.
+        let first_ray = v([1.0, 0.0, 0.0]);
+        let wedge = |second: [f64; 3], second_normal: [f64; 3]| {
+            let secs = [
+                sector(axis, first_ray, [0.0, -1.0, 0.0]),
+                sector(v(second), axis, second_normal),
+            ];
             let fl = [
-                (0, (Vec3::new(1.0, 0.0, 0.0), Reach::Bisector(1.0))),
-                (
-                    0,
-                    (
-                        Vec3::new(second[0], second[1], second[2]),
-                        Reach::Bisector(1.0),
-                    ),
-                ),
+                (0, (secs[0].end, Reach::Bisector(1.0))),
+                (1, (secs[1].start, Reach::Bisector(1.0))),
             ];
             wedge_is_reflex(&secs, &fl, 1.0, band)
         };
-        assert!(!wedge([0.0, 1.0, 0.0]).unwrap(), "a quarter-turn is convex");
         assert!(
-            wedge([0.0, -1.0, 0.0]).unwrap(),
+            !wedge([0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]).unwrap(),
+            "a quarter-turn is convex"
+        );
+        assert!(
+            wedge([0.0, -1.0, 0.0], [1.0, 0.0, 0.0]).unwrap(),
             "three quarters are reflex"
         );
         assert!(
             matches!(
-                wedge([-1.0, 0.0, 0.0]),
+                wedge([-1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
                 Err(BooleanError::Escalated {
                     decision: crate::boolean::BooleanDecision::Coincidence(Coincide::Sectors, _),
                     diag,

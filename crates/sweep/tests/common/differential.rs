@@ -6,8 +6,12 @@
 //!
 //! **Deliberately not absorbed**, and the whole of it:
 //! [`super::oracles`]' closed forms, which are swept-solid volumes with
-//! nothing polygonal to share; and the per-battery operands of
-//! `join1_r1_probes.rs` (prisms, rods, revolves), each one battery's.
+//! nothing polygonal to share; the per-battery operands of
+//! `join1_r1_probes.rs` (prisms, rods, revolves), each one battery's;
+//! and `join_reflex_wedge_probes.rs`' fan-wedge `Pose`, whose operands
+//! are both parametrized by wedge angle and whose six runs each carry
+//! the flush declarations of their own operand order, which
+//! [`ReflexPose`]'s one fixed corner and single `d` do not.
 
 use geom_core::{Point3, Tol};
 use topo::test_support::{
