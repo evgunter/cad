@@ -1339,7 +1339,9 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         },
     );
     // The boolean's operands are the instances the delete leaves; its
-    // declared pair names the one it takes, which is not an edge.
+    // declared pair names the one it takes, which is not an edge. The
+    // side is read at operand `ids[2]`, the instance the rebind below
+    // moves the name onto.
     let (doc, boolean_id) = mint(
         doc,
         DocEdit::InsertNode {
@@ -1349,7 +1351,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
                 b: ids[2],
                 declare: vec![(
                     (
-                        SitedRef::new(ids[1], in_part(ids[1], body, CapEnd::Start)),
+                        SitedRef::new(ids[2], in_part(ids[1], body, CapEnd::Start)),
                         SitedRef::new(ids[0], in_part(ids[0], body, CapEnd::Start)),
                     ),
                     BooleanCoincidence::REST,
@@ -1377,7 +1379,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         "the declaration's NAME was rewritten"
     );
     assert_eq!(
-        pairs[0].0.0.at, ids[1],
+        pairs[0].0.0.at, ids[2],
         "and its site was not — a site is an authored fact, not a repair target"
     );
     assert_eq!(
