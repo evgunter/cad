@@ -1431,7 +1431,7 @@ fn ball_against_plane<T: Decide>(
     band: Band,
 ) -> Result<(NonzeroSign, T), geom_core::Indeterminate> {
     let s = (center - origin).dot(normal);
-    let sign = crate::validate::decide_nonzero_reported(
+    let sign = crate::validate::decide_nonzero(
         "bool_sphere_extent_gap",
         Margin::of(radius - s.abs()),
         band,
@@ -3130,7 +3130,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         // A decided zero is band-decided: the spheres
                         // touch within the tolerance, and a positive gap
                         // there is one a smaller tolerance decides apart.
-                        let gap = match crate::validate::decide_nonzero_reported(
+                        // Where the faces may meet at the touch, it refuses
+                        // as the question's in-band arm does, with its
+                        // decided margin.
+                        let gap = match crate::validate::decide_nonzero(
                             "bool_sphere_sphere_gap",
                             Margin::of(d - (radius + r2)),
                             band,
@@ -3357,7 +3360,7 @@ pub(super) fn recut_lean<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<(), BooleanError> {
-    crate::validate::decide_nonzero_reported(
+    crate::validate::decide_nonzero(
         "bool_sphere_recut_align",
         Margin::levered(axis.cross(align).norm(), radius),
         band,

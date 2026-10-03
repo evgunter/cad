@@ -16,7 +16,7 @@
 //!
 //! A mate's alignment frames are in each member's own part
 //! coordinates, and this tool authors each one AS THE PICKED FACE
-//! (`MateFrame::FromFace`), which names nothing: the side's frame is
+//! (`MateFrame::from_face`), which names nothing: the side's frame is
 //! its own head's face — the head's name with the walk's
 //! qualification stripped (`head_face`), the row of the part's own
 //! table the instance placed — so the solve resolves the frame from
@@ -584,7 +584,7 @@ impl MateTool {
 
     /// Derive the committed edit from the two held picks and the
     /// user's choice: each pick's member, and its head's face as the
-    /// side's frame (`MateFrame::FromFace`), after the face's pose has
+    /// side's frame (`MateFrame::from_face`), after the face's pose has
     /// been read once through the shipped interrogation door as a
     /// pre-check that stores nothing.
     ///
@@ -660,7 +660,7 @@ impl MateTool {
                 let held = held_by(&error, doc);
                 MateToolError::Frame { side, error, held }
             })?;
-            Ok(MateFrame::FromFace)
+            Ok(MateFrame::from_face())
         };
         let frame_a = frame_of(MateSide::A, &member_a, &placed_a)?;
         let frame_b = frame_of(MateSide::B, &member_b, &placed_b)?;

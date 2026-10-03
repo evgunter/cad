@@ -213,12 +213,10 @@ pub fn classify_neighborhood<T: Decide>(
     band: Band,
 ) -> Result<Vec<SectorEntry>, SplitReduceError> {
     let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let anchor = body
-        .get_vertex(vertex)
-        .ok_or_else(corrupt)?
-        .emanating
+    let orbit = body
+        .vertex_orbit_of(vertex)
+        .filter(|orbit| !orbit.is_empty())
         .ok_or_else(corrupt)?;
-    let orbit = body.vertex_orbit(anchor).ok_or_else(corrupt)?;
 
     let mut entries = Vec::with_capacity(orbit.len());
     for (i, &he) in orbit.iter().enumerate() {

@@ -307,8 +307,20 @@ fn mate(
         b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(
+                origin,
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: None,
@@ -317,7 +329,7 @@ fn mate(
 }
 
 /// **A mate the edit door cannot decide on is refused there.** The
-/// alignment is authored numbers; a coordinate that is not a number
+/// rider is an authored number; a number that is not one
 /// leaves every downstream predicate — the coset solve, the rest
 /// classification — with nothing to read.
 ///
@@ -331,10 +343,14 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
     // Finite, the same mate is accepted — so the refusal below is the
     // coordinate's and not the fixture's.
     let (doc, _) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
+    let mut non_finite = mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]);
+    if let Node::Mate { alignment, .. } = &mut non_finite {
+        alignment.clocking = Some(f64::NAN);
+    }
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(mate(body, ids[0], ids[1], [f64::NAN, 0.0, 0.0])),
+            node: Box::new(non_finite),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

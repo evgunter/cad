@@ -314,15 +314,14 @@ fn a_contradictory_second_mate_fails_typed_and_undo_recovers() {
             .affine::<f64>();
         let pose =
             pncad::select::face_frame(eval, b.node, &b.name).expect("the underside has a pose");
-        let authored = asm::authored_from_world(
+        let [mut origin, axis, reference] = asm::vectors_from_world(
             &placed,
             &pose,
             pose.u_ref.expect("the cap fixes a reference"),
         );
-        let vectors = authored.authored_vectors().expect("authored");
-        let mut origin = vectors.origin;
         origin[0] += 0.01;
-        pncad::document::MateFrame::authored(origin, vectors.axis, vectors.reference)
+        pncad::document::MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
+            .expect("a definite frame")
     };
     let outcome = session.perform(SessionOp::AddMate {
         a: proposal.a.clone(),
