@@ -1,0 +1,2 @@
+        FAIL [   0.157s] (1190/2200) topo tier3_tests::check_10_reads_every_shell_s_role_or_refuses_the_solid
+     Summary [ 103.378s] 2200 tests run: 2199 passed, 1 failed, 120 skipped

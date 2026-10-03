@@ -1,0 +1,7 @@
+        FAIL [   0.125s] (1176/2200) topo tier3_tests::an_inside_out_slab_just_past_the_band_is_refused
+        FAIL [   0.132s] (1173/2200) topo tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding
+        FAIL [   0.136s] (1178/2200) topo tier3_tests::check_10_reads_every_shell_s_role_or_refuses_the_solid
+        FAIL [   0.200s] (1424/2200) topo::all contact9_side_codes::a_pierce_reads_a_dipping_edge_at_its_far_vertex
+        FAIL [   0.202s] (1426/2200) topo::all contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex
+        FAIL [   1.352s] (2096/2200) topo::all rigid_map_near_eps_plane_nurbs::the_certificate_re_derives_within_rounding_under_the_map
+     Summary [  87.631s] 2200 tests run: 2194 passed, 6 failed, 120 skipped

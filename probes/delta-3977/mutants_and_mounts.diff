@@ -1,0 +1,113 @@
+diff --git a/crates/sweep/tests/all.rs b/crates/sweep/tests/all.rs
+index 2d5fc0a04..1878078e2 100644
+--- a/crates/sweep/tests/all.rs
++++ b/crates/sweep/tests/all.rs
+@@ -874,3 +874,11 @@ mod witness_ladder;
+ 
+ #[path = "join1_delta2_harness.rs"]
+ mod join1_delta2_harness;
++#[path = "probe_d_disc.rs"]
++mod probe_d_disc;
++#[path = "probe_d_disc2.rs"]
++mod probe_d_disc2;
++#[path = "probe_d_disc3.rs"]
++mod probe_d_disc3;
++#[path = "probe_d_void.rs"]
++mod probe_d_void;
+diff --git a/crates/topo/src/boolean/solid_contain.rs b/crates/topo/src/boolean/solid_contain.rs
+index b50862598..7c79bde65 100644
+--- a/crates/topo/src/boolean/solid_contain.rs
++++ b/crates/topo/src/boolean/solid_contain.rs
+@@ -5452,7 +5452,7 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
+         band,
+         tol,
+         None,
+-        T::quad_lane(),
++        if std::env::var("DMUT").as_deref() == Ok("inflane") { None } else { T::quad_lane() },
+         |round| match round.certify(AT_INFINITY, AT_INFINITY_ENCLOSURE) {
+             Certified::Role(role) => Some(Ok(role)),
+             Certified::Refused(source) => Some(Err(refused(source))),
+diff --git a/crates/topo/src/lib.rs b/crates/topo/src/lib.rs
+index 115b645b3..759b8ce9e 100644
+--- a/crates/topo/src/lib.rs
++++ b/crates/topo/src/lib.rs
+@@ -729,3 +729,9 @@ pub use validate::{
+     validate_pseudomanifold, validate_pseudomanifold_certificate,
+     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
+ };
++#[cfg(test)]
++mod probe_r1_slab;
++#[cfg(test)]
++mod probe_r2_inverted;
++#[cfg(test)]
++mod probe_d_attack;
+diff --git a/crates/topo/src/props.rs b/crates/topo/src/props.rs
+index be01c41a4..79d542718 100644
+--- a/crates/topo/src/props.rs
++++ b/crates/topo/src/props.rs
+@@ -963,7 +963,7 @@ fn rederive<T: Decide>(
+             && resolve_face(body, run.face)
+                 .is_ok_and(|(_, surface)| matches!(surface, Surface::Plane { .. }))
+     };
+-    let centre = if !runs.is_empty() && runs.iter().all(planar) {
++    let centre = if std::env::var("DMUT").as_deref() != Ok("oldenc") && !runs.is_empty() && runs.iter().all(planar) {
+         centroid_of(body, lane, runs)?
+     } else {
+         Point3::origin()
+@@ -987,7 +987,12 @@ fn rederive<T: Decide>(
+         flux = flux + f;
+         area = area + a;
+     }
+-    Ok((flux / Interval::from_f64(3.0), area))
++    let v = flux / Interval::from_f64(3.0);
++    if std::env::var("DPRINT").is_ok() {
++        use geom_core::Bounds as _;
++        println!("DIV [{:e}, {:e}] width {:e}", v.lo(), v.hi(), v.hi() - v.lo());
++    }
++    Ok((v, area))
+ }
+ 
+ /// The centroid of the runs' loop points, lifted through `lane`: a box
+diff --git a/crates/topo/src/props/quad_lane.rs b/crates/topo/src/props/quad_lane.rs
+index 37574b2bb..74f60e2d8 100644
+--- a/crates/topo/src/props/quad_lane.rs
++++ b/crates/topo/src/props/quad_lane.rs
+@@ -161,6 +161,7 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
+         .collect();
+     let surface = surface.map_scalar(Interval::from_certified);
+     match surface {
++        Surface::Plane { .. } if std::env::var("DMUT").as_deref() == Ok("oldenc") => super::closed_form_of(&surface, &loops, sense, band),
+         Surface::Plane { origin, normal, .. } => planar_face_about(origin, normal, &loops, centre),
+         _ => super::closed_form_of(&surface, &loops, sense, band),
+     }
+diff --git a/crates/topo/src/validate.rs b/crates/topo/src/validate.rs
+index 14bc73cae..0937c8f96 100644
+--- a/crates/topo/src/validate.rs
++++ b/crates/topo/src/validate.rs
+@@ -4641,8 +4641,10 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
+                 |&shell| match ShellRead::of(body, shell, band, tol, quad)? {
+                     Ok(read) => Some(read),
+                     Err(error) => {
+-                        errors.push(ValidationError::ShellRoleUndecided { solid, error });
+-                        undecided = true;
++                        if std::env::var("DMUT").as_deref() != Ok("c10skip") {
++                            errors.push(ValidationError::ShellRoleUndecided { solid, error });
++                            undecided = true;
++                        }
+                         None
+                     }
+                 },
+diff --git a/crates/topo/tests/all.rs b/crates/topo/tests/all.rs
+index 0cf761807..39a1f93de 100644
+--- a/crates/topo/tests/all.rs
++++ b/crates/topo/tests/all.rs
+@@ -344,3 +344,9 @@ mod door_backstop_settled_residue;
+ mod review_cleave_mint_doors;
+ #[path = "split_tangent_edge.rs"]
+ mod split_tangent_edge;
++#[path = "probe_r1_booleans.rs"]
++mod probe_r1_booleans;
++#[path = "probe_r2_e2e.rs"]
++mod probe_r2_e2e;
++#[path = "probe_r2_reuse.rs"]
++mod probe_r2_reuse;

@@ -1,0 +1,4 @@
+        FAIL [   0.139s] (1178/2200) topo tier3_tests::check_10_reads_every_shell_s_role_or_refuses_the_solid
+        FAIL [   0.142s] (1179/2200) topo tier3_tests::an_inside_out_slab_just_past_the_band_is_refused
+        FAIL [   0.157s] (1175/2200) topo tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding
+     Summary [ 103.674s] 2200 tests run: 2197 passed, 3 failed, 120 skipped

@@ -1,0 +1,3 @@
+        FAIL [   0.201s] (1426/2200) topo::all contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex
+        FAIL [   1.353s] (2116/2200) topo::all rigid_map_near_eps_plane_nurbs::the_certificate_re_derives_within_rounding_under_the_map
+     Summary [  84.507s] 2200 tests run: 2198 passed, 2 failed, 120 skipped
