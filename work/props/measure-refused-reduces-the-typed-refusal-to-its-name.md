@@ -2,8 +2,10 @@
 id: measure-refused-reduces-the-typed-refusal-to-its-name
 kind: issue
 title: RefusalReason::MeasureRefused carries a measure's typed refusal as its name, mixing the wiring's and the clearance engine's vocabularies
-status: open
+status: review
 opened: 2026-09-24
+branch: props/recourse-grammar
+pr: 3942
 ---
 
 
@@ -33,3 +35,20 @@ rendered, on the stated ground that `NodeErrorKind` is neither `Clone` nor
 Found by PR #3188's review. That PR's sweep for the shape grepped
 `pub (class|kind|name): &'static str` — a struct-variant field has no
 `pub`, so the pattern could not match this arm.
+
+## Resolved (props/recourse-grammar)
+
+`RefusalReason::MeasureRefused` now carries
+`drive::MeasureRefusalClass`, a closed type with the two vocabularies
+apart: `SelectionKind` is the wiring's own arm, and
+`Clearance(clearance::ClearanceRefusal)` holds the engine's typed
+refusal itself. `box_independent_measure_class` returns that type.
+
+The serialized form is unchanged — `measure_refused {node} {class}`
+reads `MeasureRefusalClass::name()`, which is the wiring's own name for
+its arm and `ClearanceRefusal::name()` for the engine's — so no receipt
+golden moved.
+
+Not taken here, and filed: `stackup.rs`'s `MeasureRefused { cause: String }`,
+whose stated ground is that `NodeErrorKind` is neither `Clone` nor
+`PartialEq` — typing it is that derive work, not this hop.

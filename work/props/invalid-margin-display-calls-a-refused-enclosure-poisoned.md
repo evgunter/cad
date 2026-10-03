@@ -2,10 +2,12 @@
 id: invalid-margin-display-calls-a-refused-enclosure-poisoned
 kind: issue
 title: MarginDiag's Invalid rendering calls an interval's certification refusal a 'poisoned enclosure'
-status: open
+status: review
 opened: 2026-09-29
 priority: P4
 cost: E
+branch: props/recourse-grammar
+pr: 3942
 ---
 
 ## Finding
@@ -45,3 +47,17 @@ was poisoned") are the lane-agnostic reading and are right as the
 
 Re-word the enclosure clause ("NaN or a refused enclosure") at every
 site above in one change, moving each pinned assertion with its text.
+
+## Resolved (props/recourse-grammar)
+
+"NaN or a poisoned enclosure" → "NaN or a refused enclosure" at every
+site the finding lists: `MarginDiag`'s `render` (so `Display` and
+`LowerExp` both), the `Display` doc (which now says why — the enclosure
+half is the certification refusal, `Trv` clamp included, and poison
+stays the `f64` lane's word for a NaN margin), `IndeterminatePayload`'s
+`Invalid` arm, the pinned texts in `predicate.rs`'s own tests,
+`sweep::blend`'s two display twins, and
+`editor-core/tests/refusal_concision_chains.rs`'s asserted message.
+
+`MarginDiag::INVALID`'s own doc and `is_invalid`'s keep "poisoned": they
+are the lane-agnostic reading and the finding says so.

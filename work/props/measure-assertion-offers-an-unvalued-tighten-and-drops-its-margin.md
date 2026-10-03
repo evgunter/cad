@@ -2,10 +2,12 @@
 id: measure-assertion-offers-an-unvalued-tighten-and-drops-its-margin
 kind: issue
 title: editor-core: a measure assertion's undecided verdict offers "tighten the tolerance" with no value, and drops the escalation (and its margin) it was decided on
-status: open
+status: review
 priority: P3
 cost: M
 opened: 2026-09-29
+branch: props/recourse-grammar
+pr: 3942
 ---
 
 
@@ -18,3 +20,21 @@ opened: 2026-09-29
 - An enclosure straddling zero is told to tighten too, where only subdivision or moving the bound helps.
 
 Fix shape: keep the `Indeterminate` on the verdict and end it through `MarginDiag::sized_recourse` (lever "move the bound"), as `geom_brep::recourse::SizedDecision` does.
+
+## Resolved (props/recourse-grammar)
+
+`UnevaluatedReason::Indeterminate` now CARRIES the escalation
+(`cause: geom_core::Indeterminate`), and its `Display` ends through
+`measure::ASSERT_BOUND_DECISION`, a `geom_brep::recourse::SizedDecision`
+with lever "move the bound", size "difference" and
+`SizedPass::AnySign` — both definite signs are verdicts, since at the
+bound exactly a non-strict relation holds, so the only refused arm is
+the undecided one and a smaller tolerance does decide it.
+
+The three readings the row names now part company, from one table:
+an in-band margin is offered the tolerance its own margin gives; a
+poisoned margin gets the lever and the unreadable-margin note, no
+tolerance; an enclosure straddling zero gets the lever alone.
+
+`UnevaluatedReason` loses its derived `Eq` (the escalation's reporting
+margin is floating point); `PartialEq` stays.

@@ -2,8 +2,10 @@
 id: fit-error-delegates-to-two-carriers-that-name-no-recourse
 kind: issue
 title: FitError's Lsq and KnotAlgebra arms delegate to LsqError and KnotAlgebraError, neither of which names a repair
-status: open
+status: review
 opened: 2026-09-21
+branch: props/recourse-grammar
+pr: 3942
 ---
 
 
@@ -53,3 +55,39 @@ assertions into transitive ones.
 ## Fence
 
 Both files are **PROPS's**.
+
+## Resolved (props/recourse-grammar)
+
+Counts re-derived as the row asks. `LsqError` has five arms and
+`KnotAlgebraError` six (one of them `Structure`, delegating further to
+`SplineError`, which has its own enforcement row); every one of the
+eleven stated its condition and stopped.
+
+Each now names a repair, grounded in the variant's or the module's own
+doc:
+
+- `LsqError::LsqDegenerate` — supply rows that determine the unknowns; a
+  zero pivot means two do not, a non-finite one means a value upstream
+  is not a number (the variant's doc: "including the NaN both become on
+  non-finite input"). No reorder is offered: D9, no magnitude pivoting.
+- `RowLengthMismatch`, `RhsShapeMismatch`, `Empty` — supply the shape
+  the solve takes.
+- `Underdetermined` — supply at least as many rows as columns, with the
+  variant's own note that `solve_square` reuses it for any non-square
+  shape.
+- `KnotAlgebraError::ParameterOutsideDomain`, `KnotNotPresent`,
+  `MultiplicityOverflow` (which now names how many more copies are left),
+  `RemovalExceedsMultiplicity` — ask for a value the knot vector admits.
+- `WeightCollapse` — drop this removal; the curve the chain would leave
+  is not a valid rational one.
+
+Two enforcement rows added, proved red by mutation before they were
+accepted: `every_lsq_error_arm_names_a_recourse` and
+`every_knot_algebra_error_arm_names_a_recourse`, each counting exactly
+one labelled repair per arm through
+`test_utils::refusal::recourse_markers` plus a vocabulary floor.
+
+`every_fit_error_arm_names_a_recourse`'s two DELEGATION assertions are
+now TRANSITIVE, and it additionally reads that the carrier's repair
+survives into the message the public fit door's caller sees — `"fit: "`
+adds no second marker.

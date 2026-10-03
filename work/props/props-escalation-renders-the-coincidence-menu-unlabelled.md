@@ -2,8 +2,10 @@
 id: props-escalation-renders-the-coincidence-menu-unlabelled
 kind: issue
 title: geom-brep: PropsError::Escalated forwards Indeterminate's coincidence menu, unlabelled, where one face's contribution leaves nothing to declare
-status: open
+status: review
 opened: 2026-09-28
+branch: props/recourse-grammar
+pr: 3942
 ---
 
 (ENCL implementer, from the §5 sweep of
@@ -47,3 +49,36 @@ its ending table beside it (`geom_brep::recourse::SizedDecision` /
 `Unsized`), so both this `Display` and `classify_mass_props` read one
 ending per decision.
 
+## Resolved (props/recourse-grammar)
+
+**The variant now carries its decision, as a closed type.**
+`PropsError::Escalated { cause, check: PropsCheck }`, with `PropsCheck`
+a four-row closed enum and one ending per row out of
+`geom_brep::recourse`'s table:
+
+| check | what it decides | ending |
+|---|---|---|
+| `OnSurface` | a premise an exact construction establishes | `Unsized::Defect` |
+| `Inventory` | a premise of a lane's certified inventory | `recourse::not_yet` |
+| `Extent` | the face's parameter extent, a size the user may intend | `props::FACE_EXTENT` (`SizedDecision`) |
+| `Converged` | the quadrature's convergence meter | `Unsized::LastResort` |
+
+So the arm no longer forwards the coincidence menu at all: nothing
+offers "declare the coincidence" where one face's own contribution
+leaves nothing to declare, the ending is labelled (or is a dead end that
+says so plainly), and `recourse_markers` counts 1.
+
+The stage prefix is gone, and the arm now opens with the question that
+escalated (`PropsCheck::subject`), so
+`test_utils::refusal::subjectless_escalations` reads a subject.
+
+`topo::validate`'s `classify_mass_props` reads the SAME check for both
+halves — its clause and its recourse — so TOPO's PR 3398 placeholder
+("There is no way through yet" until props carries its decision) is
+discharged: that ending is now what `PropsCheck::Inventory` composes, out
+of one home (`geom_brep::recourse::not_yet`), and the other three checks
+have their own.
+
+`DegenerateFace`, the definite arm of the same face-extent decision,
+ends in `FACE_EXTENT` too (D4 ¶1 (iv)), which drops the coincidence menu
+from it as well.

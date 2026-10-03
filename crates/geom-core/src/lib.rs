@@ -41,13 +41,12 @@ pub use linalg::{
     decide_unit_direction,
 };
 pub use predicate::{
-    Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, DEFINITE_COINCIDENCE_RECOURSE,
-    DIRECTION_LENGTH_SUBJECT, Decide, Decided, ErrorTextReading, Indeterminate,
-    IndeterminatePayload, IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING,
-    KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin,
-    MarginDiag, MarginKind, MissingRecourse, NO_DECLARATION_RECOURSE, NOT_YET_ENDING,
-    RANGE_RECOURSE, SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords, SupSpeed, UNNAMED_DECISION,
-    UNREADABLE_MARGIN_NOTE,
+    Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, DIRECTION_LENGTH_SUBJECT, Decide,
+    Decided, ErrorTextReading, Indeterminate, IndeterminatePayload, IndeterminateUnder, InfSpeed,
+    KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE,
+    KERNEL_OR_FILE_DEFECT_ENDING, Margin, MarginDiag, MarginKind, MissingRecourse,
+    NO_DECLARATION_RECOURSE, NOT_YET_ENDING, RANGE_RECOURSE, SPLIT_PLANE_RECOURSE, Sign, SizedPass,
+    SizedWords, SupSpeed, UNNAMED_DECISION, UNREADABLE_MARGIN_NOTE,
 };
 pub use readable::Readable;
 pub use real::{
