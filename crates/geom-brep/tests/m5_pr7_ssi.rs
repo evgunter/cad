@@ -4673,6 +4673,48 @@ fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
     }
 }
 
+/// **A seed is deduplicated where Newton lands it, so a loop is found
+/// once.** The plane `y = −d/4 + δ` cuts the dome `W(1)` in a small
+/// loop round its apex, radius about `√δ`. The cap inside the loop lies
+/// within δ of the plane, so the subdivision seeds it, and those cell
+/// centres lie outside the loop's chart tube while Newton carries them
+/// onto the loop. Tested where it starts, each such seed re-marches the
+/// loop: 499 closed branches at `δ = 0.005`, where the landing point
+/// gives one.
+///
+/// The band is the row's own 1e-6, as for the dome's other cuts.
+#[test]
+fn a_loop_whose_seeds_newton_carries_into_its_tube_is_found_once() {
+    let d = 1.0;
+    let apex = Point3::new(0.5, -d / 4.0 + 0.005, 0.5);
+    let level = Surface::Plane {
+        origin: apex,
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let dom = SsiDomain {
+        center: apex,
+        half_extent: 2.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let out = match ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(1e-6)) {
+        Ok(out) => out,
+        Err(e) => panic!("the apex loop does not certify: {e:?}"),
+    };
+    assert_eq!(
+        out.branches.len(),
+        1,
+        "the apex loop, from {} seeds, is one branch",
+        out.seeds
+    );
+    assert_eq!(
+        out.branches[0].end,
+        BranchEnd::Closed,
+        "the apex loop is closed"
+    );
+}
+
 /// **A spent step budget ends by the rung that held the steps short.**
 ///
 /// - Curvature: the planted fixture at a thousand times its size, at
@@ -4814,8 +4856,9 @@ fn a_step_budget_both_rungs_held_names_both_levers() {
 
 /// **A branch whose last marched state lands a hair inside the wall
 /// certifies.** The plane `x = 0.5` across the flat wall of height
-/// `(31/32 + δ)·256/255`, which puts a marched state `δ` short of the
-/// top edge at the 1 m extent's step. The march ends at the crossing
+/// `31/32 + δ`: marched from the bottom edge's crossing in the 1 m
+/// extent's steps of 1/32 m, the branch's 31st state lands `δ` short of
+/// the top edge. The march ends at the crossing
 /// the boundary pass certified there, and a last state nearer that
 /// crossing than half its own step gives way to it, so the fit never
 /// reads a final chord far shorter than the steps before it. Every δ
@@ -4825,7 +4868,7 @@ fn a_step_budget_both_rungs_held_names_both_levers() {
 fn a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies() {
     let across = edge_plane(0.5);
     for delta in [1e-11, 2e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-4, 1e-3] {
-        let h = (31.0 / 32.0 + delta) * 256.0 / 255.0;
+        let h = 31.0 / 32.0 + delta;
         let at = format!("δ = {delta:e} at ε {:e}", band().zero());
         let out = ssi::plane_nurbs_ssi(&across, &flat_wall(1.0, h), wall_box(1.0, 1.0), band())
             .unwrap_or_else(|e| panic!("{at}: {e}"));
