@@ -154,7 +154,7 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
         py,
         ErrorClass::Frame,
         // `FrameError` implements `Display`, so the human message is
-        // the kernel's own prose (including its coincidence recourse);
+        // the kernel's own prose (including its recourse);
         // the machine payload is the `variant` tag and the fields.
         err.to_string(),
         &[
@@ -458,7 +458,11 @@ impl PatternKind {
     /// Instances stepped along `direction`, `spacing` apart.
     ///
     /// The direction's three slots are dimensionless
-    /// (`SlotId::Direction` is `Scalar`); the spacing's is a `Length`.
+    /// (`SlotId::Direction` is `Scalar`); the spacing's is a `Length`,
+    /// and a size: the direction says which way the copies step, so a
+    /// spacing below zero refuses at `evaluate` (`negative_spacing`,
+    /// naming the direction negated) and a zero one too
+    /// (`degenerate_spacing`), wherever a second copy reads it.
     #[staticmethod]
     fn linear(py: Python<'_>, direction: (Expr, Expr, Expr), spacing: &Expr) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Linear {
@@ -469,6 +473,11 @@ impl PatternKind {
 
     /// Instances stepped `step` apart around `axis`, an upstream
     /// `datum_axis` node.
+    ///
+    /// The step is signed by the right-hand rule about the axis and
+    /// lies within a turn: a zero step refuses at `evaluate`
+    /// (`degenerate_step`), and so does one at or past a full turn
+    /// (`full_range_step`), wherever a second copy reads it.
     #[staticmethod]
     fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Expr) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {
@@ -534,6 +543,13 @@ impl Placement {
             }
             .into(),
         )
+    }
+
+    /// The empty chain: the identity, and the unit of `compose` — the
+    /// offset an inserted instance carries on the world.
+    #[staticmethod]
+    fn identity() -> Self {
+        Self(d::Placement::IDENTITY)
     }
 
     /// One literal step: exactly `frame`, bit for bit.

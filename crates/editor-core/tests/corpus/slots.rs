@@ -4,7 +4,7 @@
 //! second tool's floor is coplanar with the first cavity's floor — a
 //! contact the recipe DECLARES by name.
 //!
-//! Vocabulary: Profile, Extrude, Declare, Boolean (Subtract),
+//! Vocabulary: Profile, Extrude, Boolean (Subtract, declared),
 //! `InsertNode`, `SetParam`.
 //!
 //! Geometry (dyadic): plate `[0,3]² × [0,1]`; slot 1
@@ -23,6 +23,7 @@
 //! D2 bump: slot 1's `Distance` (mid-DAG — its cone is that extrude
 //! plus both subtracts).
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId,
     StableName,
@@ -53,6 +54,7 @@ pub fn document() -> CorpusDoc {
     let plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
 
     // Slot 1: runs in y, floor at z = 0.5.
@@ -65,6 +67,7 @@ pub fn document() -> CorpusDoc {
     let slot1 = r.insert(Node::Extrude {
         profile: slot1_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // Nothing is coincident yet (the tool pierces the plate top and
     // overhangs both ends), so this subtract declares nothing.
@@ -72,7 +75,7 @@ pub fn document() -> CorpusDoc {
         op: BooleanOp::Subtract,
         a: plate,
         b: slot1,
-        declare: None,
+        declare: Vec::new(),
     });
 
     // Slot 2: runs in x, SAME floor plane z = 0.5 — the declared
@@ -86,6 +89,7 @@ pub fn document() -> CorpusDoc {
     let slot2 = r.insert(Node::Extrude {
         profile: slot2_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // The first cavity's floor is slot 1's start cap, reversed onto
     // the B side of `sub1`; slot 2's start cap is its own.
@@ -94,15 +98,15 @@ pub fn document() -> CorpusDoc {
         node: sub1,
         path: vec![RoleSeg::FromB(cap(slot1, CapEnd::Start).into())],
     };
-    let decl = r.insert(Node::declare_rest(vec![(
+    let decl = editor_core::declare_rest(vec![(
         SitedRef::new(sub1, cavity_floor),
         SitedRef::new(slot2, cap(slot2, CapEnd::Start)),
-    )]));
+    )]);
     let sub2 = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
         a: sub1,
         b: slot2,
-        declare: Some(decl),
+        declare: decl,
     });
 
     CorpusDoc {

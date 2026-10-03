@@ -28,8 +28,9 @@
 //! the missing [`geom_core::CertifiedEnclosure`] impl (DL1) and a
 //! different fact about a different thing.
 //!
-//! The shape is the injected plane × NURBS lane's ([`crate::NurbsLane`]),
-//! for the same reason and with the same discipline: a caller that can
+//! The shape is the one the fitted-pcurve door and the plane × NURBS
+//! lane share ([`crate::FittedLane`], [`crate::NurbsLane`]), for the
+//! same reason and with the same discipline: a caller that can
 //! derive hands the door in, a caller that cannot hands `None` and gets
 //! the typed refusal its pass already had. Under H5's ratified ruling 3
 //! (PR 2701) the door is the parameter a mixed pass takes;

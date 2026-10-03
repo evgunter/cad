@@ -30,7 +30,7 @@ fn a_placed_copy_grafts_and_the_union_certifies() {
     // 10 mm clear of the unit cube: disjoint, so the union is a body.
     let map = Affine3::translation(Vec3::new(10.0, 0.0, 0.0));
     let placed = topo::transform_rigid(&src, &map, Tol::witness()).expect("a rigid map");
-    let key = topo::graft_disjoint(&mut dst, &placed, Tol::witness()).expect("a placed graft");
+    let key = topo::graft_disjoint(&mut dst, &placed).expect("a placed graft");
 
     assert_eq!(dst.solids().count(), 2, "two solids, not one fused");
     assert_eq!(dst.faces().count(), 12);
@@ -96,7 +96,7 @@ fn two_placed_copies_of_one_source_are_two_independent_solids() {
             Tol::witness(),
         )
         .expect("a rigid map");
-        topo::graft_disjoint(&mut dst, &placed, Tol::witness()).expect("a graft");
+        topo::graft_disjoint(&mut dst, &placed).expect("a graft");
     }
     assert_eq!(dst.solids().count(), 3);
     assert_eq!(dst.faces().count(), 18);
@@ -131,7 +131,7 @@ fn two_solid_source(dx: f64) -> topo::Body<f64> {
         Tol::witness(),
     )
     .expect("a rigid map");
-    topo::graft_disjoint(&mut a, &b, Tol::witness()).expect("a two-solid source");
+    topo::graft_disjoint(&mut a, &b).expect("a two-solid source");
     a
 }
 
@@ -196,15 +196,14 @@ fn a_multi_solid_graft_equals_sequential_single_solid_grafts() {
 
     let mut at_once = geometric_cube::<f64>(Tol::witness()).body;
     describe_as_intersections(&mut at_once, Tol::witness());
-    let keys =
-        topo::graft_disjoint_all(&mut at_once, &multi, Tol::witness()).expect("the N-solid graft");
+    let keys = topo::graft_disjoint_all(&mut at_once, &multi).expect("the N-solid graft");
     assert_eq!(keys.len(), 2, "one key per source solid");
 
     let mut one_by_one = geometric_cube::<f64>(Tol::witness()).body;
     describe_as_intersections(&mut one_by_one, Tol::witness());
     let seq: Vec<_> = pieces
         .iter()
-        .map(|p| topo::graft_disjoint(&mut one_by_one, p, Tol::witness()).expect("a single graft"))
+        .map(|p| topo::graft_disjoint(&mut one_by_one, p).expect("a single graft"))
         .collect();
 
     assert_eq!(census(&at_once), census(&one_by_one), "same census");
@@ -282,9 +281,9 @@ fn two_grafts_of_one_multi_solid_source_share_no_key() {
     describe_as_intersections(&mut dst, Tol::witness());
     let base: std::collections::BTreeSet<_> = dst.faces().map(|(k, _)| k).collect();
 
-    let first = topo::graft_disjoint_all(&mut dst, &multi, Tol::witness()).expect("graft one");
+    let first = topo::graft_disjoint_all(&mut dst, &multi).expect("graft one");
     let after_first: std::collections::BTreeSet<_> = dst.faces().map(|(k, _)| k).collect();
-    let second = topo::graft_disjoint_all(&mut dst, &far, Tol::witness()).expect("graft two");
+    let second = topo::graft_disjoint_all(&mut dst, &far).expect("graft two");
     let all: std::collections::BTreeSet<_> = dst.faces().map(|(k, _)| k).collect();
 
     assert_eq!(first.len(), 2);
@@ -339,11 +338,10 @@ fn per_solid_and_aggregate_gates_both_still_bite_on_a_multi_solid_source() {
     // Grafted anyway, the aggregate gate still bites — the defect
     // travelled with the entity, it was not laundered by the graft.
     let mut bad = good.clone();
-    topo::graft_disjoint(&mut bad, &raw, Tol::witness()).expect("a graft is not a gate");
+    topo::graft_disjoint(&mut bad, &raw).expect("a graft is not a gate");
     let mut dst = geometric_cube::<f64>(Tol::witness()).body;
     describe_as_intersections(&mut dst, Tol::witness());
-    topo::graft_disjoint_all(&mut dst, &bad, Tol::witness())
-        .expect("the transplant itself succeeds");
+    topo::graft_disjoint_all(&mut dst, &bad).expect("the transplant itself succeeds");
     assert!(
         topo::validate_geometric(&dst, Tol::witness()).is_err(),
         "the aggregate gate must still refuse"
@@ -359,7 +357,7 @@ fn per_solid_and_aggregate_gates_both_still_bite_on_a_multi_solid_source() {
         Tol::witness(),
     )
     .expect("a rigid map");
-    topo::graft_disjoint(&mut clean, &far, Tol::witness()).expect("a graft");
+    topo::graft_disjoint(&mut clean, &far).expect("a graft");
     let clean = topo::transform_rigid(
         &clean,
         &Affine3::translation(Vec3::new(0.0, 40.0, 0.0)),
@@ -368,7 +366,7 @@ fn per_solid_and_aggregate_gates_both_still_bite_on_a_multi_solid_source() {
     .expect("a rigid map");
     let mut dst = geometric_cube::<f64>(Tol::witness()).body;
     describe_as_intersections(&mut dst, Tol::witness());
-    topo::graft_disjoint_all(&mut dst, &clean, Tol::witness()).expect("the N-solid door");
+    topo::graft_disjoint_all(&mut dst, &clean).expect("the N-solid door");
     assert_eq!(dst.solids().count(), 3);
     assert_eq!(
         topo::validate_geometric(&dst, Tol::witness()),
@@ -384,19 +382,18 @@ fn per_solid_and_aggregate_gates_both_still_bite_on_a_multi_solid_source() {
 #[test]
 fn the_n_solid_door_refuses_an_empty_source_and_the_single_door_still_refuses_n() {
     let mut dst = geometric_cube::<f64>(Tol::witness()).body;
-    let err = topo::graft_disjoint_all(&mut dst, &topo::Body::<f64>::new(), Tol::witness())
+    let err = topo::graft_disjoint_all(&mut dst, &topo::Body::<f64>::new())
         .expect_err("no solid to graft");
     assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
     assert_eq!(dst.solids().count(), 1, "and nothing was written");
 
     let multi = two_solid_source(10.0);
-    let err = topo::graft_disjoint(&mut dst, &multi, Tol::witness())
-        .expect_err("N solids at the single door");
+    let err = topo::graft_disjoint(&mut dst, &multi).expect_err("N solids at the single door");
     assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
     assert_eq!(dst.solids().count(), 1, "and nothing was written");
     // The same source, at the door that is FOR it, succeeds.
     assert_eq!(
-        topo::graft_disjoint_all(&mut dst, &multi, Tol::witness())
+        topo::graft_disjoint_all(&mut dst, &multi)
             .expect("the N-solid door")
             .len(),
         2
@@ -414,8 +411,7 @@ fn each_grafted_solid_carries_its_own_source_provenance() {
         .map(|(k, _)| format!("{:?}", multi.provenance(topo::EntityId::Solid(k)).unwrap()))
         .collect();
     let mut dst = topo::Body::<f64>::new();
-    let keys =
-        topo::graft_disjoint_all(&mut dst, &multi, Tol::witness()).expect("the N-solid door");
+    let keys = topo::graft_disjoint_all(&mut dst, &multi).expect("the N-solid door");
     let got: Vec<String> = keys
         .iter()
         .map(|&k| format!("{:?}", dst.provenance(topo::EntityId::Solid(k)).unwrap()))
@@ -433,8 +429,7 @@ fn the_keyed_door_bridges_every_source_entity_into_the_destination() {
     let mut dst = geometric_cube::<f64>(Tol::witness()).body;
     describe_as_intersections(&mut dst, Tol::witness());
 
-    let keys = topo::graft_disjoint_all_keyed(&mut dst, &src, Tol::witness())
-        .expect("the keyed N-solid graft");
+    let keys = topo::graft_disjoint_all_keyed(&mut dst, &src).expect("the keyed N-solid graft");
     assert_eq!(keys.solids().len(), 2, "one key per source solid");
 
     for (k, _) in src.faces() {
@@ -469,66 +464,8 @@ fn the_keyed_door_bridges_every_source_entity_into_the_destination() {
 }
 
 // ---------------------------------------------------------------------
-// LIB-PLACEDUNION: the fuse-onto door and the placement certificate
+// LIB-PLACEDUNION: the placement certificate
 // ---------------------------------------------------------------------
-
-/// **The `onto` door puts shells in an EXISTING solid.** Same
-/// transplant, same census, one solid — the representation a UNION of
-/// separated bodies already has in this kernel, and the one the seamed
-/// boolean path accepts as an operand.
-#[test]
-fn the_onto_door_fuses_into_one_solid_without_changing_the_census() {
-    let mut src = geometric_cube::<f64>(Tol::witness()).body;
-    describe_as_intersections(&mut src, Tol::witness());
-    let placed = topo::transform_rigid(
-        &src,
-        &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
-        Tol::witness(),
-    )
-    .expect("a rigid map");
-
-    let mut separate = topo::Body::<f64>::new();
-    let first = topo::graft_disjoint_all_keyed(&mut separate, &src, Tol::witness())
-        .expect("the first graft");
-    topo::graft_disjoint_all_keyed(&mut separate, &placed, Tol::witness())
-        .expect("the second, as its own solid");
-
-    let mut fused = topo::Body::<f64>::new();
-    let keys =
-        topo::graft_disjoint_all_keyed(&mut fused, &src, Tol::witness()).expect("the first graft");
-    let onto =
-        topo::graft_disjoint_all_onto_keyed(&mut fused, keys.solids(), &placed, Tol::witness())
-            .expect("the second, onto the first's solid");
-
-    assert_eq!(separate.solids().count(), 2, "the sibling door mints");
-    assert_eq!(fused.solids().count(), 1, "the onto door does not");
-    assert_eq!(fused.shells().count(), separate.shells().count());
-    assert_eq!(fused.faces().count(), separate.faces().count());
-    assert_eq!(fused.edges().count(), separate.edges().count());
-    assert_eq!(fused.vertices().count(), separate.vertices().count());
-    assert_eq!(onto.solids(), first.solids(), "the echo is positional");
-    // The bridge is still total over the source — the name carry does
-    // not care which door placed the shells.
-    for (k, _) in placed.faces() {
-        assert!(onto.face(k).is_some_and(|f| fused.get_face(f).is_some()));
-    }
-    assert_eq!(topo::validate_geometric(&fused, Tol::witness()), Ok(()));
-}
-
-/// **A dead destination refuses, typed** — the door never invents a
-/// solid to land in.
-#[test]
-fn the_onto_door_refuses_a_destination_that_is_not_there() {
-    let mut src = geometric_cube::<f64>(Tol::witness()).body;
-    describe_as_intersections(&mut src, Tol::witness());
-    let mut a = topo::Body::<f64>::new();
-    let keys = topo::graft_disjoint_all_keyed(&mut a, &src, Tol::witness()).expect("a graft");
-    // `keys`' solids belong to `a`, not to this fresh destination.
-    let mut b = topo::Body::<f64>::new();
-    assert!(
-        topo::graft_disjoint_all_onto_keyed(&mut b, keys.solids(), &src, Tol::witness()).is_err()
-    );
-}
 
 /// **The certificate separates, and refuses when it cannot.** One
 /// prototype, three placements: two clear of each other certify, and

@@ -225,11 +225,20 @@ fn offset_square_prism() -> topo::Body<f64> {
 ///   NURBS side through the boundary-column iso image.
 ///
 /// **The ε posture is the honest one, not a gap.** This seam's
-/// certified between-samples sup is ~6.2e-12 m, so the first-class
-/// import holds at ε_in = 1e-9 (default) and 1e-6, and at the 1e-12
-/// matrix row the SAME geometry refuses TYPED during ADOPTION,
+/// certified between-samples sup is ~3.55e-14 m, so the first-class
+/// import holds at ε_in = 1e-9 (default), 1e-6 and 1e-12, and below
+/// ε_in = 1e-13 the SAME geometry refuses TYPED during ADOPTION,
 /// carrying that number in its payload. Both cells are pinned; neither
 /// is widened.
+///
+/// **The boundary moved from 1e-9 to 1e-13 when `insert_once_ring` took
+/// the convex insertion form** (the sup was ~6.2e-12 m, 178x wider):
+/// the sup is assembled over a Bézier decomposition, and the lerp form
+/// multiplied each coefficient's own dust up once per insertion. So the
+/// 1e-12 matrix row now takes the first-class cell where it took the
+/// refusal; the refusal cell is measured at ε_in = 1e-14 and no row the
+/// gate or the nightly runs reaches it, which is filed rather than
+/// absorbed.
 #[test]
 fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     let native = offset_square_prism();
@@ -286,7 +295,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     match import_step(&foreign, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
             assert!(
-                eps >= 1e-9,
+                eps >= 1e-13,
                 "the seam's certified sup does not fit inside an ε_in finer than its own \
                  rounding — a first-class import there would be a widened gate"
             );
@@ -331,12 +340,14 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
             );
         }
         // The ε-fine cell, pinned as a REFUSAL with its own number:
-        // this seam's certified between-samples sup is ~6.2e-12 m, so
-        // at ε_in = 1e-12 the carrier refuses during ADOPTION and never
-        // reaches the pcurve stage. Measured, not widened.
+        // this seam's certified between-samples sup is ~3.55e-14 m, so
+        // below ε_in = 1e-13 the carrier refuses during ADOPTION and
+        // never reaches the pcurve stage. Measured, not widened. (It was
+        // ~6.2e-12 m and refused at 1e-12, before `insert_once_ring`
+        // took the convex insertion form.)
         Err(refusal) => {
             assert!(
-                eps < 1e-9,
+                eps < 1e-13,
                 "the only refusing cell is the ε-fine one: {refusal:?}"
             );
             let shown = format!("{refusal:?}");
@@ -377,11 +388,14 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 /// imports first-class — rational patch flux and all.
 ///
 /// **The flip is ε-dependent, and that is the honest answer, not a
-/// gap.** This seam's certified between-samples sup is ~6.3e-12 m —
+/// gap.** This seam's certified between-samples sup is ~3.55e-14 m —
+/// it was ~6.3e-12 m before `insert_once_ring` took the convex
+/// insertion form, 178x wider, so the ε boundary below moved from 1e-9
+/// to 1e-13 —
 /// the two columns agree only to the arc endpoint's rounding and the
 /// first-order envelope cannot say better. So the body imports at ε_in
-/// = 1e-9 (default) and 1e-6, and at the 1e-12 matrix row the SAME
-/// geometry refuses TYPED during adoption, carrying that 6.3e-12 in
+/// = 1e-9 (default), 1e-6 and 1e-12, and below ε_in = 1e-13 the SAME
+/// geometry refuses TYPED during adoption, carrying that 3.55e-14 in
 /// the payload. A bound too loose at ε refuses with its number, never
 /// through a widened gate. Every posture is pinned below, including
 /// the fixed schedule's own quadrature-budget frontier.
@@ -400,7 +414,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
         // **First-class, end to end.** The three exactly-planar walls
         // promote, the arc wall stays NURBS under the honest envelope,
         // every face charts, and the seam posture is the band's own:
-        // at 1e-9 the seam certifies through the declare-and-check
+        // at 1e-13 and coarser the seam certifies through the declare-and-check
         // plane × NURBS rung; at a coarser ε_in the straight corner
         // carriers additionally promote to LINE (#388 — their Greville
         // map fold is ~1.3e-7 at unit scale, between the two bands)
@@ -413,8 +427,8 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
             ..
         }) => {
             assert!(
-                eps >= 1e-9,
-                "the seam's certified sup is ~6.3e-12 m — a first-class import at a \
+                eps >= 1e-13,
+                "the seam's certified sup is ~3.55e-14 m — a first-class import at a \
                  finer ε_in would be a widened gate"
             );
             topo::validate_geometric(&body, Tol::witness())
@@ -509,12 +523,14 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 );
             }
         }
-        // The ε-fine posture, UNCHANGED by the gate: at 1e-12 the
-        // envelope's own slack refuses during adoption, so the body
-        // never reaches the at-rest pass at all.
+        // The ε-fine posture, UNCHANGED by the gate: below ε_in = 1e-13
+        // the envelope's own slack refuses during adoption, so the body
+        // never reaches the at-rest pass at all. (The boundary was 1e-9
+        // before the convex insertion form; 1e-12 used to be this cell
+        // and is now the first-class one.)
         Err(StepImportError::Adoption { id, attempts }) => {
             assert!(
-                eps < 1e-9,
+                eps < 1e-13,
                 "adoption itself only refuses at the ε-fine row: {attempts:?}"
             );
             assert_eq!(id, 130, "the seam, named");
@@ -671,8 +687,11 @@ fn plane_nurbs_seams(
 }
 
 // The seam's own certified NUMBERS are pinned where they are measured
-// rather than re-derived here: the ε-fine branches above assert this
-// seam's certified sup (6.3156e-12 m) from the refusal payload, and
+// rather than re-derived here. What the ε-fine branches above assert
+// about the payload is only that its number EXPLAINS the refusal
+// (`sup > eps`) — not the number itself, which would be a second copy
+// of a measured quantity. Its value at the finest row measured is
+// 3.5528237131349995e-14 m, and
 // geom-brep's `m7_8_plane_nurbs_edge` rows measure the same
 // quarter-cylinder-meets-plane geometry at the lane and at the door.
 // What the rows above add is the CONSEQUENCE — the certified seam

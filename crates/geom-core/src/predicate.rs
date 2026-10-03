@@ -384,6 +384,16 @@ impl Band {
         Ok(Self { zero, escalate })
     }
 
+    /// **The tolerance below which `margin` is decided**, `|m|/K`: below
+    /// it the band's escalation edge falls under `|m|`. The one home of
+    /// the value every sized recourse offers to tighten below
+    /// ([`MarginDiag::sized_recourse`]) and of every reader that checks
+    /// an offer against its margin.
+    #[must_use]
+    pub fn tolerance_deciding(self, margin: f64) -> f64 {
+        margin.abs() / (self.escalate / self.zero)
+    }
+
     /// The band for **linear** margins (meters): (ε, K·ε) from the run's
     /// global [`Tolerance`](crate::tolerance::Tolerance) (its ε and its K).
     ///
@@ -1135,9 +1145,9 @@ impl SizedPass {
 
     /// The tolerance every margin in `[lo, hi]` is decided passing below,
     /// where both ends tighten on one side.
-    fn below(self, lo: f64, hi: f64, k: f64) -> Option<f64> {
+    fn below(self, lo: f64, hi: f64, band: Band) -> Option<f64> {
         (self.tightens(lo) && self.tightens(hi) && (lo > 0.0) == (hi > 0.0))
-            .then(|| lo.abs().min(hi.abs()) / k)
+            .then(|| band.tolerance_deciding(lo.abs().min(hi.abs())))
     }
 }
 
@@ -1232,10 +1242,9 @@ impl MarginDiag {
             may_tighten,
             otherwise,
         } = words;
-        let k = band.escalate() / band.zero();
         let below = match self.0 {
-            Reading::Value(m) => passes.tightens(m).then(|| m.abs() / k),
-            Reading::Enclosure { lo, hi } => passes.below(lo, hi, k),
+            Reading::Value(m) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
+            Reading::Enclosure { lo, hi } => passes.below(lo, hi, band),
             Reading::Invalid => return format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}"),
         };
         match (below, otherwise) {
@@ -1264,13 +1273,20 @@ impl MarginDiag {
                 num(&hi, f)?;
                 f.write_str("]")
             }
-            Reading::Invalid => f.write_str("invalid (NaN or a poisoned enclosure)"),
+            Reading::Invalid => f.write_str("invalid (NaN or a refused enclosure)"),
         }
     }
 }
 
 /// The reading as text: `m`, `[lo, hi]`, or
-/// `invalid (NaN or a poisoned enclosure)`.
+/// `invalid (NaN or a refused enclosure)`.
+///
+/// **"Refused", not "poisoned", on the enclosure half.** The one way an
+/// enclosure reads [`MarginKind::Invalid`] is interval classification's
+/// uncertified arm, which a `Trv` clamp with ordinary endpoints reaches
+/// and which `Interval::is_poison` answers `false` for. Poison is the
+/// `f64` lane's word ([`crate::Real::is_poison`], a NaN margin), and it
+/// stays this reading's own name.
 impl fmt::Display for MarginDiag {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.render(f, fmt::Display::fmt)
@@ -1349,17 +1365,25 @@ pub struct Indeterminate {
 /// principle, D4 ¶1 addendum, #129): below ε_input, "exactly on the
 /// coincidence" and "in the ambiguity band" are ONE user situation —
 /// coincident at any precision the user could care about — with one
-/// three-lever recourse, phrased once, here. The margin rides the
-/// error payload as data; kernel semantics keep the distinction.
+/// recourse, phrased once, here. The margin rides the error payload as
+/// data; kernel semantics keep the distinction.
 ///
-/// Every site that refuses on a too-close-to-a-coincidence situation
-/// composes this fragment into its Display output — directly for
-/// definite arms (exactly-on refusals with no [`Indeterminate`]
-/// payload), or through [`Indeterminate`]'s own Display for escalated
-/// arms. Message-pinning tests pin the fragment with `contains`, never
-/// with full-string pins that rot.
-pub const COINCIDENCE_RECOURSE: &str =
-    "declare the coincidence, move the geometry, or lower the tolerance";
+/// **The levers, and only the levers.** D4 ¶1 (i) offers *tighten the
+/// tolerance* on the band-decided arms alone, "phrased conditionally
+/// and with the value the margin gives", so no tolerance arm can be a
+/// `&'static str`: the value comes from the margin. A site holding the
+/// escalation composes the whole ending through
+/// [`Indeterminate::ending`], which adds that arm where the margin
+/// gives one; a site whose verdict is definite has no size to tighten
+/// below and composes this fragment alone.
+///
+/// Message-pinning tests pin the fragment with `contains`, never with
+/// full-string pins that rot.
+pub const COINCIDENCE_RECOURSE: &str = concat!(
+    crate::coincidence_declare_arm!(),
+    ", or ",
+    crate::coincidence_move_arm!()
+);
 
 /// The one recourse for a quantity the floating-point format cannot
 /// hold — a length that overflows the norm or underflows to zero while
@@ -1370,16 +1394,22 @@ pub const COINCIDENCE_RECOURSE: &str =
 pub const RANGE_RECOURSE: &str = "scale the geometry into the session's range";
 
 /// [`COINCIDENCE_RECOURSE`] at a door that takes no declaration: the
-/// two levers left, the geometry and the tolerance. The chord join
-/// that a split and a Boolean share composes it, since the join cannot
-/// know whether its caller declares; the Boolean's own wrapper adds the
-/// declaration back (`topo::BooleanError::Join`).
-pub const NO_DECLARATION_RECOURSE: &str = "move the geometry, or lower the tolerance";
+/// one lever left, the geometry. The chord join that a split and a
+/// Boolean share composes it, since the join cannot know whether its
+/// caller declares; the Boolean's own wrapper adds the declaration
+/// back (`topo::BooleanError::Join`).
+pub const NO_DECLARATION_RECOURSE: &str = crate::coincidence_move_arm!();
+
+/// What a direction-length decision decides, in words: the one subject
+/// every door that asks whether a direction vector has any length
+/// renders (`UnitVec3Error::Escalated`, and the decision-word tables of
+/// `topo`'s Boolean, `profile`'s path validation and `editor-core`'s
+/// evaluation), so the question reads the same wherever it escalates.
+pub const DIRECTION_LENGTH_SUBJECT: &str = "whether a direction has any length";
 
 /// [`NO_DECLARATION_RECOURSE`] at a split, whose plane is the first
 /// lever: a split takes no declarations (`topo::split`'s signature).
-pub const SPLIT_PLANE_RECOURSE: &str =
-    "move the split plane or the geometry, or lower the tolerance";
+pub const SPLIT_PLANE_RECOURSE: &str = "move the split plane or the geometry";
 
 /// The one ending of a refusal that only a kernel defect reaches:
 /// nothing the user changes in the model is a way through, so the
@@ -1455,6 +1485,26 @@ pub const KERNEL_LIMIT_RECOURSE: &str = concat!(
 macro_rules! kernel_defect_ending {
     () => {
         "There is no way through: this is a kernel defect; report it"
+    };
+}
+
+/// [`COINCIDENCE_RECOURSE`]'s declaration arm as a literal, for
+/// `concat!`; see `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! coincidence_declare_arm {
+    () => {
+        "declare the coincidence"
+    };
+}
+
+/// [`COINCIDENCE_RECOURSE`]'s geometry arm as a literal, for `concat!`;
+/// see `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! coincidence_move_arm {
+    () => {
+        "move the geometry"
     };
 }
 
@@ -1541,6 +1591,12 @@ impl fmt::Display for IndeterminatePayload<'_> {
                     "enclosure {margin:e} lies within the zero band (±{zero:e})"
                 )
             }
+            // A bound reported where it stands past the band (a
+            // declared pair's reach, read above as no sign passes).
+            Reading::Value(m) if m.abs() >= escalate => write!(
+                f,
+                "margin {margin:e} lies past the ambiguity band ({zero:e}, {escalate:e})"
+            ),
             Reading::Value(_) => write!(
                 f,
                 "margin {margin:e} lies inside the ambiguity band ({zero:e}, {escalate:e})"
@@ -1552,7 +1608,7 @@ impl fmt::Display for IndeterminatePayload<'_> {
             ),
             Reading::Invalid => write!(
                 f,
-                "margin is invalid (NaN or a poisoned enclosure) against the ambiguity \
+                "margin is invalid (NaN or a refused enclosure) against the ambiguity \
                  band ({zero:e}, {escalate:e})"
             ),
         }
@@ -1585,6 +1641,33 @@ impl Indeterminate {
     pub fn payload(&self) -> IndeterminatePayload<'_> {
         IndeterminatePayload(self)
     }
+
+    /// **The whole ending this escalation's refusal carries** (D4 ¶1
+    /// (i)): `levers` — the ones the door holding it has, such as
+    /// [`COINCIDENCE_RECOURSE`] — labelled `Recourse:`, and, where the
+    /// margin gives a value, the conditional tolerance arm below which
+    /// a smaller tolerance decides the margin passing.
+    ///
+    /// An escalation is a band-decided arm by construction (the margin
+    /// lies inside the ambiguity band, or is unreadable) and the
+    /// decision it refused passes on a nonzero sign — a coincidence it
+    /// could not rule out — so the arm belongs here and its value is
+    /// the margin's. The words are [`MarginDiag::sized_recourse`]'s,
+    /// which is also where a straddling enclosure and an unreadable
+    /// margin lose the offer: neither names a tolerance that decides.
+    #[must_use]
+    pub fn ending(&self, levers: &str) -> String {
+        self.margin.sized_recourse(
+            self.band,
+            SizedWords {
+                lever: levers,
+                size: "size",
+                passes: SizedPass::NonZero,
+                may_tighten: true,
+                otherwise: None,
+            },
+        )
+    }
 }
 
 impl fmt::Display for Indeterminate {
@@ -1594,10 +1677,12 @@ impl fmt::Display for Indeterminate {
 }
 
 /// An [`Indeterminate`] rendered with its margin kind's own advice and
-/// a recourse the door supplies in place of [`COINCIDENCE_RECOURSE`] —
+/// the LEVERS the door supplies in place of [`COINCIDENCE_RECOURSE`] —
 /// for a door that takes no declaration
-/// ([`NO_DECLARATION_RECOURSE`]). The bare [`Indeterminate`] Display
-/// is this view under [`COINCIDENCE_RECOURSE`].
+/// ([`NO_DECLARATION_RECOURSE`]). The ending itself, label and valued
+/// tolerance arm, is [`Indeterminate::ending`]'s; the bare
+/// [`Indeterminate`] Display is this view under
+/// [`COINCIDENCE_RECOURSE`].
 #[derive(Debug, Clone, Copy)]
 pub struct IndeterminateUnder<'a> {
     diag: &'a Indeterminate,
@@ -1617,20 +1702,29 @@ impl Indeterminate {
 
 impl fmt::Display for IndeterminateUnder<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let recourse = self.recourse;
+        let levers = self.recourse;
         write!(f, "{}", self.diag.payload())?;
+        // Each kind's own first lever joins the door's, so everything
+        // the reader can act on sits under the one `Recourse:` label
+        // the ending carries: an enclosure can be subdivided, and a
+        // margin nobody could read is a question about the inputs.
         match self.diag.margin.kind() {
-            MarginKind::Value => write!(f, " — a near-coincidence; {recourse}"),
+            MarginKind::Value => {
+                write!(f, " — a near-coincidence; {}", self.diag.ending(levers))
+            }
             MarginKind::Enclosure => write!(
                 f,
-                " — subdivide the parameter box for a tighter enclosure, or {recourse}"
+                " — {}",
+                self.diag.ending(&format!(
+                    "subdivide the parameter box for a tighter enclosure, or {levers}"
+                ))
             ),
-            // Poison explains WHY the sign is indeterminate, but the
-            // user's levers at a coincidence site are unchanged — the
-            // Invalid arm carries the recourse like the others.
             MarginKind::Invalid => write!(
                 f,
-                " — check the operation's inputs upstream, then {recourse}"
+                " — {}",
+                self.diag.ending(&format!(
+                    "check the operation's inputs upstream, then {levers}"
+                ))
             ),
         }
     }
@@ -1841,7 +1935,7 @@ mod tests {
     #[test]
     fn an_enclosure_tightens_only_with_both_ends_on_one_side() {
         use SizedPass::{Negative, NonZero, Positive};
-        let k = 10.0;
+        let band = Band::new(1e-9, 1e-8).unwrap();
         let rows = [
             (NonZero, 2e-9, 5e-9, Some(2e-10)),
             (NonZero, -5e-9, -2e-9, Some(2e-10)),
@@ -1856,7 +1950,7 @@ mod tests {
         ];
         for (pass, lo, hi, want) in rows {
             assert_eq!(
-                pass.below(lo, hi, k),
+                pass.below(lo, hi, band),
                 want,
                 "{pass:?} over [{lo:e}, {hi:e}]"
             );
@@ -1930,7 +2024,7 @@ mod tests {
         assert_eq!(format!("{}", MarginDiag::value(0.5)), "0.5");
         assert_eq!(
             MarginDiag::INVALID.to_string(),
-            "invalid (NaN or a poisoned enclosure)"
+            "invalid (NaN or a refused enclosure)"
         );
         assert_eq!(
             e.diagnostic_f64_for_error_text(),
@@ -2334,6 +2428,11 @@ mod tests {
 
     /// Golden strings: the Display output is the D4 ¶3 actionable error a
     /// user sees, so its exact wording is under test.
+    ///
+    /// An escalation is a band-decided arm, so its ending carries the
+    /// tolerance arm with THE VALUE ITS MARGIN GIVES (D4 ¶1 (i)) —
+    /// `|m|/K`, which at `K = 10` is `5e-10` for both margins here. The
+    /// levers are the constant's; the number is not, and cannot be.
     #[test]
     fn indeterminate_display_golden_strings() {
         let band = band_1e9();
@@ -2345,7 +2444,8 @@ mod tests {
             bare.to_string(),
             format!(
                 "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a \
-                 near-coincidence; {COINCIDENCE_RECOURSE}"
+                 near-coincidence; Recourse: {COINCIDENCE_RECOURSE}, or, if this size is \
+                 intended, tighten the tolerance below 5e-10 m"
             )
         );
 
@@ -2357,7 +2457,8 @@ mod tests {
             named.to_string(),
             format!(
                 "margin -5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a \
-                 near-coincidence; {COINCIDENCE_RECOURSE}"
+                 near-coincidence; Recourse: {COINCIDENCE_RECOURSE}, or, if this size is \
+                 intended, tighten the tolerance below 5e-10 m"
             )
         );
         // The payload view is the same message minus the shared tail —
@@ -2371,11 +2472,15 @@ mod tests {
             .sign_within(band)
             .expect_err("NaN margin must be indeterminate")
             .with_predicate("transversality");
+        // An unreadable margin names no tolerance — no smaller one
+        // reads it — and the input check it wants first joins the levers
+        // under the one label.
         assert_eq!(
             invalid.to_string(),
             format!(
-                "margin is invalid (NaN or a poisoned enclosure) against the ambiguity \
-                 band (1e-9, 1e-8) — check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
+                "margin is invalid (NaN or a refused enclosure) against the ambiguity \
+                 band (1e-9, 1e-8) — Recourse: check the operation's inputs upstream, then \
+                 {COINCIDENCE_RECOURSE}; {UNREADABLE_MARGIN_NOTE}"
             )
         );
 
@@ -2388,12 +2493,15 @@ mod tests {
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         };
+        // An enclosure straddling zero names no tolerance either (no
+        // smaller one decides BOTH ends onto the passing side), and
+        // subdividing is the lever that joins the door's.
         assert_eq!(
             enclosure.to_string(),
             format!(
                 "enclosure [-2e-9, 5e-9] cannot be classified against the ambiguity \
-                 band (1e-9, 1e-8) — subdivide the parameter box for a tighter enclosure, or \
-                 {COINCIDENCE_RECOURSE}"
+                 band (1e-9, 1e-8) — Recourse: subdivide the parameter box for a tighter \
+                 enclosure, or {COINCIDENCE_RECOURSE}"
             )
         );
     }

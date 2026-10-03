@@ -24,45 +24,40 @@ use topo::{BooleanDeclarations, BooleanResult};
 /// Same mate as the unit's `threaded_collar_partial_engagement_unions`
 /// in every respect except that the peg's three-arc split starts at 60
 /// degrees instead of 0, so the two bodies' seams interleave. Every
-/// bore rim arc now CROSSES a peg wall face's seam in its interior
-/// rather than meeting it at an endpoint: for the pair (bore rim arc
-/// at z = 2 spanning [0,120], peg wall face spanning [60,180]) one
-/// endpoint is `In` (recorded) and the other is a certified `Out`, so
-/// the widened rung returns `Recorded` — while the crossing at
-/// theta = 60, z = 2, where the rim arc meets the peg's meridian seam
-/// edge, is recorded by NOBODY.
-///
-/// This test does not assert an outcome. It reports one, so the two
-/// trees can be compared.
+/// bore rim arc now CROSSES a peg seam ruling in its interior rather
+/// than meeting it at an endpoint (the rim arc at z = 2 spanning
+/// [0, 120] and the ruling at theta = 60). The ruling also crosses the
+/// collar's flat top cap there, transversally, and the planar sweep
+/// records the crossing at that face; the bore × peg-wall pair then
+/// places only endpoints. The mate unions: the closed form is the
+/// annulus `π(1.5² − 0.5²)·1` plus the disc `π·0.5²·2`.
 #[test]
-fn probe_misaligned_azimuth_split_reports_its_outcome() {
+fn probe_misaligned_azimuth_split_unions() {
     let c = collar();
     let p = peg_at(60.0, 0.5, 2.0);
     let decls = wall_decls(&c, &p);
     assert_eq!(decls.coincident_faces.len(), 9, "3 bore faces against 3");
-    let out = topo::union_with(&c, &p, &decls, Tol::witness());
-    match out {
-        Err(e) => println!("PROBE1 REFUSED: {e:?}"),
-        Ok(BooleanResult::Empty) => println!("PROBE1 EMPTY"),
-        Ok(BooleanResult::Body(bb)) => {
-            let body = bb.body;
-            let (v, vc, vp) = (volume(&body), volume(&c), volume(&p));
-            println!(
-                "PROBE1 UNIONED: volume {v} vs {vc} + {vp} = {} (err {:e})",
-                vc + vp,
-                (v - (vc + vp)).abs()
-            );
-            println!("PROBE1 shells {}", body.shells().count());
-            println!(
-                "PROBE1 tier3 {:?}",
-                topo::validate_geometric(&body, Tol::witness()).err()
-            );
-            println!(
-                "PROBE1 pseudomanifold {:?}",
-                topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()).err()
-            );
-        }
-    }
+    let bb = boolean_body(
+        topo::union_with(&c, &p, &decls, Tol::witness()).expect("the misaligned mate unions"),
+    );
+    let pi = core::f64::consts::PI;
+    let want = pi * (1.5f64.powi(2) - 0.5f64.powi(2)) + pi * 0.5f64.powi(2) * 2.0;
+    let got = volume(&bb.body);
+    assert!(
+        (got - want).abs() <= 1e-12 * want,
+        "the union's volume is the closed form: {got} vs {want}"
+    );
+    assert_eq!(bb.body.shells().count(), 1, "one shell");
+    assert_eq!(
+        topo::validate_geometric(&bb.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+        Ok(()),
+        "the census"
+    );
 }
 
 /// PROBE 2 — an endpoint certified `Out` by the chart's HEIGHT window.

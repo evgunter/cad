@@ -33,6 +33,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
@@ -59,6 +60,7 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
         Node::Extrude {
             profile: cube_p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     // A second, ROTATED cutter well inside the cube: rotation angle 0.5 rad
@@ -81,6 +83,7 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
         Node::Extrude {
             profile: cut_p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, placed) = insert(
@@ -100,7 +103,7 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
             op: BooleanOp::Subtract,
             a: cube,
             b: placed,
-            declare: None,
+            declare: Vec::new(),
         },
     );
 
@@ -203,6 +206,7 @@ fn a_degenerate_document_refuses_typed_end_to_end() {
         Node::Extrude {
             profile: prof,
             distance: len(0.0),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = evaluate::<Interval>(

@@ -6,22 +6,23 @@
 //! pipeline runs on a clone), and both results come back as
 //! independent [`Body`] values.
 //!
-//! # Section-face orientation (derived from `enters_material`, F3)
+//! # Section-face orientation
 //!
-//! A face's outward normal `m` points OUT of material: direction `d`
-//! enters material iff `d·m < 0`. The above body's section face has
-//! the above material on its `+n_SP` side, so `+n_SP` must ENTER ⇒
-//! `n_SP·m < 0` ⇒ **m = −n_SP**; symmetrically the below body's
-//! section face carries **m = +n_SP**. Both faces carry the SAME split
-//! plane (same origin, same in-plane `u_ref` derived from the below
-//! loop's first chord — deterministic data, no comparisons) with
-//! opposite normals; the mirror test pins both signs bitwise.
+//! The above body's section face carries **m = −n_SP**, the below
+//! body's **m = +n_SP** (derived at [`section_loops`]). Both faces
+//! carry the SAME split plane (same origin, same in-plane `u_ref`, the
+//! below loop's first chord) with opposite normals; the mirror test
+//! pins both signs bitwise.
 //!
 //! That is each face's CHART normal. Its sense is its loop's winding
 //! about it, the reading tier 3's check 6 makes: a section's outer
-//! boundary winds counter-clockwise (`true`), and a section that is a
-//! hole in another — the disc over a bore, beside the face over the
-//! whole outline — winds clockwise (`false`).
+//! boundary winds counter-clockwise (`true`). A section polygon that
+//! is a hole in another — the bore's outline inside the cut through a
+//! bored block — winds clockwise (`false`), and becomes a ring of the
+//! section face of its side that encloses it by the section nesting
+//! rule (`section_loops::nest`, applied in `nest_hole_sections`), so a
+//! holed section is one face; where nothing decides it, the hole keeps
+//! a face of its own that cancels the face around it.
 //!
 //! The book's "the 'inner' loop should appear in the part Above, and
 //! the 'outer' loop in the part Below" is list-position convention
@@ -35,9 +36,9 @@
 //! knowledge, Program 14.12) — mixed above/below section faces in one
 //! shell is a typed kernel-bug error; a shell with NO section face
 //! (an uncut component) falls back to its first vertex's cached side.
-//! A shell consisting **only** of section faces bounds no volume —
-//! the second half of the one-sided-tangency net (the join's
-//! zero-area check is the first) — and is refused typed
+//! A shell consisting **only** of section faces bounds no volume. The
+//! join's zero-area check refuses every section that could make one, so
+//! such a shell is a kernel defect, refused loudly
 //! ([`SplitFinishError::DegenerateSide`]).
 //!
 //! # Coplanar artifacts (documented, F7)
@@ -62,7 +63,7 @@ use geom_core::{Decide, Real, Vec3};
 use slotmap::SecondaryMap;
 
 use super::join::{CompletedSection, loop_points_of};
-use super::{PlaneSide, SplitReduction};
+use super::{PlaneSide, SplitReduction, section_loops};
 use crate::attach::Rechart;
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
@@ -116,36 +117,36 @@ pub struct SplitResult<T: Real> {
 /// neither side (discarded scaffolding) simply resolve nowhere.
 #[derive(Debug, Default)]
 pub struct SplitNaming {
-    /// The section faces with their side, in section completion order
-    /// (the `order` module's total exact-order sort: reorderings are
-    /// recorded predicate verdicts, so the position is a function of
-    /// the verdict vector — N4's covariance).
+    /// The section faces each side keeps, with their side, in section
+    /// completion order (the join's sweep order and its per-face line
+    /// order are recorded predicate verdicts, so the position is a
+    /// function of the verdict vector — N4's covariance). A section
+    /// polygon nested as a ring of another (`section_loops::nest`) has
+    /// no face of its own and no row; the face that took it as a ring
+    /// keeps its own row.
     pub sections: Vec<(FaceKey, PlaneSide)>,
     /// Chord-mef fragment rows: `(new face, divided-from face)` in
     /// mint order, call-time keys ([`crate::chord_join`]'s `ChordJoiner`
     /// log). Section faces appear here too (they are minted by the
     /// same mefs); consumers exclude the keys listed in `sections`.
     pub face_fragments: Vec<(FaceKey, FaceKey)>,
-    /// Null-edge vertex pairs `(above copy, below original)` from the
-    /// reduction's F9 records, in record order: the above-side
-    /// coincident copies with the vertices they were minted at (the
-    /// naming layer derives the above copy's parentage through the
-    /// below original's birth record).
+    /// Null-edge vertex pairs `(copy, original)` from the reduction's
+    /// F9 records, in record order: each coincident copy with the
+    /// vertex it was minted at (the naming layer derives the copy's
+    /// parentage through the original's birth record). Which side
+    /// holds which is not fixed — the copy is the Above end save for
+    /// a whole-orbit strut, and the mirrored lane swaps the sides —
+    /// so consumers read a key's side from the body that holds it.
     pub vertex_pairs: Vec<(crate::entity::VertexKey, crate::entity::VertexKey)>,
 }
 
 /// Typed failure of the finish step.
 #[derive(Debug)]
 pub enum SplitFinishError {
-    /// The operand must hold exactly one solid (the split contract;
-    /// multi-solid models split solid-by-solid at the caller).
-    NotSingleSolid {
-        /// How many solids the operand holds.
-        count: usize,
-    },
-    /// A component consists only of section faces — it bounds no
-    /// volume (the one-sided tangency residue): no degenerate body is
-    /// ever emitted.
+    /// A component consists only of section faces, so it bounds no
+    /// volume (kernel bug, loudly: the join's area certificate refuses
+    /// every zero-area section before the finish runs). No degenerate
+    /// body is ever emitted.
     DegenerateSide {
         /// The offending shell (in the discarded scratch body).
         shell: ShellKey,
@@ -183,8 +184,8 @@ pub enum SplitFinishError {
     },
     /// A section loop's winding about its chart normal has no sign, so
     /// the section face's material side cannot be read: in the band
-    /// (`diag`), zero, or (`None`) a loop with an edge that states no
-    /// certified curve. The split's operand gate admits only line,
+    /// (`diag`), or (`None`) zero, or unread because the loop carries a
+    /// spiric or NURBS edge. The split's operand gate admits only line,
     /// circle and ellipse edges, so every section edge is one the
     /// winding reads.
     SectionWindingUndecided {
@@ -206,6 +207,29 @@ pub enum SplitFinishError {
         /// The operand's curved face the plane is tangent to.
         face: FaceKey,
     },
+    /// Two section faces each read as enclosing the other around a
+    /// hole: their outlines were decided disjoint, and disjoint
+    /// outlines cannot (kernel bug, loudly).
+    NestingContradiction {
+        /// The hole's section face (in the discarded scratch body).
+        hole: FaceKey,
+    },
+    /// A finished side fails tier 2 ([`crate::validate_closed`]): a
+    /// split never returns a body that is not a closed solid. Reached
+    /// by a kernel defect, or by an operand that was not a closed
+    /// solid to begin with: the operand is never validated, and the
+    /// one tier-2 finding the reduction refuses is an empty OUTER loop
+    /// on a face rule (a) measures at an ON vertex
+    /// ([`super::SplitReduceError::CorruptOperand`], via
+    /// `rules::face_extent`). Only the direct run's refusal
+    /// is ever surfaced (a mirrored run's is replaced by it), so
+    /// `side` is in the caller's orientation.
+    ResultInvalid {
+        /// The side whose body failed.
+        side: PlaneSide,
+        /// The validator's findings.
+        errors: Vec<crate::validate::ValidationError>,
+    },
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -217,20 +241,11 @@ impl From<EulerOpError> for SplitFinishError {
 impl core::fmt::Display for SplitFinishError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotSingleSolid { count } => write!(
-                f,
-                "the body holds {count} solids, and a split takes exactly one"
-            ),
             Self::DegenerateSide { side, .. } => write!(
                 f,
-                "the piece on the {} side of the plane bounds no volume (the residue of a \
-                 one-sided tangency: only section faces). Recourse: move the split plane \
-                 off the tangency",
-                match side {
-                    super::PlaneSide::Below => "below",
-                    super::PlaneSide::On => "on",
-                    super::PlaneSide::Above => "above",
-                }
+                "the piece on the {} side of the plane bounds no volume: it holds only \
+                 section faces (kernel bug)",
+                side.word()
             ),
             Self::TornComponent { shell } => write!(
                 f,
@@ -263,8 +278,13 @@ impl core::fmt::Display for SplitFinishError {
             Self::SectionWindingUndecided { diag: None, .. } => write!(
                 f,
                 "which side of a cut face is material cannot be read: its outline \
-                 encloses no area, or has an edge with no curve. Recourse: move the \
-                 split plane"
+                 encloses no area, or has a spiric or NURBS edge, whose winding the \
+                 kernel does not read. Recourse: move the split plane"
+            ),
+            Self::NestingContradiction { hole } => write!(
+                f,
+                "two cut faces each read as enclosing the other around hole {hole:?}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::SectionCusp { .. } => write!(
                 f,
@@ -272,6 +292,21 @@ impl core::fmt::Display for SplitFinishError {
                  would taper to a knife edge nobody asked for. Recourse: move the split \
                  plane off the tangency"
             ),
+            Self::ResultInvalid { side, errors } => match errors.as_slice() {
+                [first, ..] => write!(
+                    f,
+                    "the piece on the {} side of the plane is not a closed solid ({} \
+                     finding(s)); the first: {first}",
+                    side.word(),
+                    errors.len(),
+                ),
+                [] => write!(
+                    f,
+                    "the piece on the {} side of the plane is not a closed solid. {}",
+                    side.word(),
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                ),
+            },
         }
     }
 }
@@ -285,7 +320,7 @@ impl std::error::Error for SplitFinishError {}
 ///
 /// [`SplitFinishError`]; the scratch body is discarded on `Err` (the
 /// operand was never touched).
-pub(super) fn split_finish<T: Decide>(
+pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     red: SplitReduction<T>,
     completed: &[CompletedSection],
     face_fragments: Vec<(FaceKey, FaceKey)>,
@@ -326,8 +361,16 @@ pub(super) fn split_finish<T: Decide>(
         vertex_pairs: red
             .null_edges
             .iter()
-            .map(|r| (r.attr.above_end, r.attr.below_end))
-            .collect(),
+            .map(|r| {
+                if r.attr.below_end == r.at_vertex {
+                    Ok((r.attr.above_end, r.at_vertex))
+                } else if r.attr.above_end == r.at_vertex {
+                    Ok((r.attr.below_end, r.at_vertex))
+                } else {
+                    Err(SplitFinishError::Corrupt)
+                }
+            })
+            .collect::<Result<_, _>>()?,
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
@@ -347,20 +390,13 @@ pub(super) fn split_finish<T: Decide>(
         } else {
             return Err(SplitFinishError::Corrupt);
         };
-        // Deterministic in-plane u axis: the below loop's first chord.
         let u_ref = below_chord_u_ref(&body, section)?;
-        let plane_for = |side: PlaneSide| -> Surface<T> {
-            let normal = match side {
-                // Derived (module docs): above section face m = −n_SP,
-                // below section face m = +n_SP.
-                PlaneSide::Above => -red.plane.normal,
-                _ => red.plane.normal,
-            };
-            Surface::Plane {
-                origin: red.plane.origin,
-                normal,
-                u_ref,
-            }
+        let normal_of =
+            |side: PlaneSide| section_loops::section_normal(red.plane.normal.get(), side);
+        let plane_for = |side: PlaneSide| Surface::Plane {
+            origin: red.plane.origin,
+            normal: normal_of(side),
+            u_ref,
         };
         let ring_side = if ring == section.above_loop {
             PlaneSide::Above
@@ -374,8 +410,8 @@ pub(super) fn split_finish<T: Decide>(
         // Each section face's sense is its loop's winding about its
         // chart normal: tier 3's check 6 reading (`planar_loop_winding`),
         // taken before the re-chart and stated with it.
-        let ring_sense = section_sense(&body, section.face, ring, &plane_for(ring_side), band)?;
-        let outer_sense = section_sense(&body, section.face, outer, &plane_for(other_side), band)?;
+        let ring_sense = section_sense(&body, section.face, ring, normal_of(ring_side), band)?;
+        let outer_sense = section_sense(&body, section.face, outer, normal_of(other_side), band)?;
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
         body.set_face_surfaces_describing(
             vec![Rechart::new(
@@ -406,6 +442,17 @@ pub(super) fn split_finish<T: Decide>(
         naming.sections.push((promoted.face, ring_side));
         naming.sections.push((section.face, other_side));
     }
+
+    // ---- Nesting: a section that is a hole in another becomes its
+    // ring, so a holed section is one face. ----
+    nest_hole_sections(
+        &mut body,
+        &mut section_side,
+        &mut naming,
+        red.plane.normal.get(),
+        band,
+        tol,
+    )?;
 
     // ---- D6 (M3 PR 6a): honest descriptions on the section boundary,
     // AT MINT TIME — both parent surfaces are known here (the section
@@ -464,43 +511,97 @@ pub(super) fn split_finish<T: Decide>(
     })
 }
 
-/// The sense of the section face a promoted loop will bound, charted
-/// on `plane`: the loop's winding about the chart normal (interior-left
-/// ⇒ counter-clockwise about the outward normal), read by the function
-/// tier 3's check 6 falsifies the bit with. A section's outer boundary
-/// winds counter-clockwise about the normal `plane_for` gives it; a
-/// section whose region is a hole in another's (the disc over a bore,
-/// beside the square around it) winds clockwise and is `false`.
+/// Each section face that is a hole — sense `false`: its loop winds
+/// clockwise about its outward normal — becomes a ring of the section
+/// face of its side that encloses it by the section nesting rule
+/// ([`section_loops::nest`]), and the hole's face dies (`kfmrh`). A
+/// section with holes is then one face whose rings are the holes'
+/// sections, the encoding tier 3 reads, rather than a face over the
+/// whole outline plus a coplanar face per hole that cancels it. The
+/// hole moves onto that face's chart first, its boundary restated with
+/// it, so the ring rides the chart of the face that keeps it.
+///
+/// A hole joins a face only where it is decided disjoint from every
+/// hole that face took before it, in section order: tier 3 compares a
+/// ring with its face's outer loop only, so a ring that met another
+/// ring would pass it.
+///
+/// **A hole the rule leaves unplaced, or the ring guard turns away,
+/// keeps its own face** — sound by cancellation (volumes and
+/// point-in-solid read it right; tier 3 passes it).
 ///
 /// # Errors
 ///
-/// [`SplitFinishError::SectionWindingUndecided`] where the winding has
-/// no sign (in the band, zero, or a loop with an edge that states no
-/// certified curve); [`SplitFinishError::Corrupt`] on a torn loop.
-fn section_sense<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    l: crate::entity::LoopKey,
-    plane: &Surface<T>,
+/// [`SplitFinishError::NestingContradiction`]; [`SplitFinishError::Euler`]
+/// and [`SplitFinishError::Corrupt`] from the surgery.
+fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    section_side: &mut SecondaryMap<FaceKey, PlaneSide>,
+    naming: &mut SplitNaming,
+    normal: Vec3<T>,
     band: geom_core::Band,
-) -> Result<bool, SplitFinishError> {
-    let Surface::Plane { normal, .. } = *plane else {
-        return Err(SplitFinishError::Corrupt);
-    };
-    match body
-        .planar_loop_winding(l, normal, band)
-        .map_err(|_| SplitFinishError::Corrupt)?
-    {
-        Some(Ok(geom_core::Sign::Positive)) => Ok(true),
-        Some(Ok(geom_core::Sign::Negative)) => Ok(false),
-        Some(Ok(geom_core::Sign::Zero)) | None => {
-            Err(SplitFinishError::SectionWindingUndecided { face, diag: None })
+    tol: Tol,
+) -> Result<(), SplitFinishError> {
+    let corrupt = || SplitFinishError::Corrupt;
+    let mut parent_of: SecondaryMap<FaceKey, FaceKey> = SecondaryMap::new();
+    for side in [PlaneSide::Above, PlaneSide::Below] {
+        let mut outlines = Vec::new();
+        let mut holes = Vec::new();
+        for &(face, s) in &naming.sections {
+            if s != side {
+                continue;
+            }
+            let data = body.get_face(face).ok_or_else(corrupt)?;
+            if data.sense {
+                outlines.push((face, data.outer));
+            } else {
+                holes.push(((face, data.outer), data.outer));
+            }
         }
-        Some(Err(diag)) => Err(SplitFinishError::SectionWindingUndecided {
-            face,
-            diag: Some(diag),
-        }),
+        let side_normal = section_loops::section_normal(normal, side);
+        let nesting =
+            section_loops::nest(body, outlines, holes, side_normal, band).map_err(|fault| {
+                match fault {
+                    section_loops::NestFault::Torn => corrupt(),
+                    section_loops::NestFault::Contradiction((hole, _)) => {
+                        SplitFinishError::NestingContradiction { hole }
+                    }
+                }
+            })?;
+        for (parent, holes) in nesting.regions {
+            let mut rings: Vec<crate::entity::LoopKey> = Vec::new();
+            for (hole, hole_loop) in holes {
+                let mut clear = true;
+                for &r in &rings {
+                    clear = clear
+                        && section_loops::outlines_disjoint(body, r, hole_loop, side_normal, band)
+                            .map_err(|_| corrupt())?;
+                }
+                if clear {
+                    rings.push(hole_loop);
+                    parent_of.insert(hole, parent);
+                }
+            }
+        }
     }
+    let nested: Vec<(FaceKey, FaceKey)> = naming
+        .sections
+        .iter()
+        .filter_map(|&(f, _)| parent_of.get(f).map(|&p| (f, p)))
+        .collect();
+    for (hole, parent) in nested {
+        let chart = body.get_face(parent).ok_or_else(corrupt)?.surface;
+        let restated = section_plane_restatements(body, hole)?;
+        body.set_face_surfaces_describing(
+            vec![Rechart::shared(chart, hole, false)],
+            &restated,
+            tol,
+        )?;
+        body.kfmrh(parent, hole)?;
+        section_side.remove(hole);
+        naming.sections.retain(|&(f, _)| f != hole);
+    }
+    Ok(())
 }
 
 /// The re-descriptions a section face's re-chart takes: every edge of
@@ -581,7 +682,7 @@ fn section_plane_restatements<T: Decide>(
 /// opposed is a wedge end nothing declared and refuses
 /// ([`SplitFinishError::SectionCusp`]).
 /// Escalations are typed ([`SplitFinishError::DescribeEscalated`]).
-fn describe_section_boundary<T: Decide>(
+fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     band: geom_core::Band,
@@ -738,23 +839,23 @@ fn describe_section_boundary<T: Decide>(
                         body.set_edge_curve(edge, spec, tol)?;
                     }
                 }
-                Err(diag) => return Err(SplitFinishError::DescribeEscalated { edge, diag }),
+                Err(geom_brep::LeverEscalation { diag, .. }) => {
+                    return Err(SplitFinishError::DescribeEscalated { edge, diag });
+                }
             }
         }
     }
     Ok(())
 }
 
-/// The operand's single solid.
+/// The operand's single solid. The pipelines read every operand as one
+/// solid (`split` and the boolean hand them over through
+/// [`Body::merge_all_solids`]), so any other count is a desync.
 pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitFinishError> {
     let mut it = body.solids();
-    let first = it.next();
-    let extra = it.count();
-    match (first, extra) {
-        (Some((k, _)), 0) => Ok(k),
-        (first, extra) => Err(SplitFinishError::NotSingleSolid {
-            count: usize::from(first.is_some()) + extra,
-        }),
+    match (it.next(), it.next()) {
+        (Some((k, _)), None) => Ok(k),
+        _ => Err(SplitFinishError::Corrupt),
     }
 }
 
@@ -789,15 +890,16 @@ fn whole_body_side<T: Decide>(
             below: SplitPart::Body(body),
             naming: SplitNaming::default(),
         }),
-        // Every vertex ON: a zero-volume operand — nothing legal
-        // reaches here (tier 2 refused it long ago).
+        // Every vertex ON: a zero-volume operand, which no closed
+        // solid is; the operand is never validated, so this refuses
+        // here.
         None => Err(SplitFinishError::Corrupt),
     }
 }
 
-/// Deterministic in-plane u axis from the below loop's first chord
-/// (two adjacent section corners — distinct certified endpoints, so
-/// the chord is nonzero; evaluation lane, no comparisons).
+/// The section's in-plane u axis ([`section_loops::chord_u_ref`] of
+/// the below loop; two adjacent section corners are distinct certified
+/// endpoints, so the chord is nonzero).
 fn below_chord_u_ref<T: Decide>(
     body: &Body<T>,
     section: &CompletedSection,
@@ -806,10 +908,29 @@ fn below_chord_u_ref<T: Decide>(
         SplitJoinError::Euler(err) => SplitFinishError::Euler(err),
         _ => SplitFinishError::Corrupt,
     })?;
-    if points.len() < 2 {
-        return Err(SplitFinishError::Corrupt);
-    }
-    Ok((points[1] - points[0]).normalize())
+    section_loops::chord_u_ref(&points).ok_or(SplitFinishError::Corrupt)
+}
+
+/// The sense of the section face `face`'s loop `l` will bound, on a
+/// chart with outward `normal` ([`section_loops::loop_sense`]).
+///
+/// # Errors
+///
+/// [`SplitFinishError::SectionWindingUndecided`];
+/// [`SplitFinishError::Corrupt`] on a torn loop.
+fn section_sense<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    l: crate::entity::LoopKey,
+    normal: Vec3<T>,
+    band: geom_core::Band,
+) -> Result<bool, SplitFinishError> {
+    section_loops::loop_sense(body, l, normal, band).map_err(|fault| match fault {
+        section_loops::SenseFault::Torn => SplitFinishError::Corrupt,
+        section_loops::SenseFault::Undecided(diag) => {
+            SplitFinishError::SectionWindingUndecided { face, diag }
+        }
+    })
 }
 
 /// Classifies one component shell (module docs): section-face seeds,

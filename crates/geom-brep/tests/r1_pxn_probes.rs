@@ -143,28 +143,41 @@ fn an_off_plane_wiggle_must_refuse_via_the_plane_envelope() {
 /// The lane's own enclosure floor on this fixture, in metres. The
 /// `a = 0` carrier lies EXACTLY on both operands, so its true sup is
 /// zero and whatever the lane certifies for it is the envelope's own
-/// noise over the wall's rational control net — 1.099e-13 m. This is
-/// one order above that.
+/// noise over the wall's rational control net — 3.664e-15 m. This is
+/// under one order above that.
 ///
 /// It is a bound on an ENCLOSURE, not on a tolerance: `hull_sup` is
 /// bit-identical at every battery ε (only the accept/refuse decision
-/// moves), so the numerical coincidence with the finest battery ε and
-/// with `Band::linear`'s zero width at that ε is a coincidence and
-/// nothing keys on it.
+/// moves), so nothing here keys on ε.
 ///
 /// **Its defence is that it is tight**, not that it is far from
 /// disaster. Ceiling over certified sup — how much slack the ceiling
-/// leaves — is 9.10× at a = 0, 2.40× at a = 1e-13 and 1.83× at
-/// a = 1e-12. The quarter cylinder's own box (√3 m) is twelve orders
-/// away and is no part of the argument, which is why the ceilings
-/// below pass `Anchor::Unbounded`.
-const ENVELOPE_FLOOR: f64 = 1e-12;
+/// leaves — is 6.82× at a = 0 and 1.077× at a = 1e-13. The quarter
+/// cylinder's own box (√3 m) is thirteen orders away and is no part of
+/// the argument, which is why the ceilings below pass
+/// `Anchor::Unbounded`.
+const ENVELOPE_FLOOR: f64 = 2.5e-14;
+
+/// The rounding a sampled truth carries, in metres: each sample is the
+/// distance between two `f64` evaluations of points within √2 m of the
+/// origin, and one ulp there is 2.2e-16 m. Eight of them.
+const SAMPLE_ROUNDING: f64 = 8.0 * f64::EPSILON;
+
+/// The largest share of the sampled truth the additive ceiling's
+/// allowance may be on a rung the ratio arm judges: where
+/// `ENVELOPE_FLOOR` is more than 2.5% of the truth, the floor and not
+/// the envelope is what a ratio would read.
+const FLOOR_SHARE_AT_RATIO_ARM: f64 = 0.025;
 
 /// Above this sampled truth the additive form stops being the honest
-/// one and a RATIO ceiling takes over. Ten times [`ENVELOPE_FLOOR`] —
-/// an absolute constant, so which rungs make which claim never depends
-/// on the enclosure being measured.
-const RATIO_ARM_FROM: f64 = 10.0 * ENVELOPE_FLOOR;
+/// one and a RATIO ceiling takes over: the truth at which
+/// `ENVELOPE_FLOOR` is `FLOOR_SHARE_AT_RATIO_ARM` of it. An absolute
+/// constant, so which rungs make which claim never depends on the
+/// enclosure being measured.
+const RATIO_ARM_FROM: f64 = ENVELOPE_FLOOR / FLOOR_SHARE_AT_RATIO_ARM;
+
+/// The amplitude ladder, in metres.
+const AMPLITUDES: [f64; 5] = [0.0, 1e-13, 1e-12, 1e-11, 1e-10];
 
 /// ATTACK 1b: envelope soundness on the ACCEPT side — a certifying
 /// carrier's certified sup must bound its dense-sampled true sup, and
@@ -173,30 +186,37 @@ const RATIO_ARM_FROM: f64 = 10.0 * ENVELOPE_FLOOR;
 /// **The two ceilings, and why there are two.** The amplitude ladder
 /// spans four orders, and the enclosure's own floor (`ENVELOPE_FLOOR`)
 /// sits inside it. Below `RATIO_ARM_FROM` a ratio measures that floor
-/// rather than the envelope — it runs inf, 4.579, 1.096 as the
-/// amplitude rises — so those rungs take the additive form. At and
-/// above it the ratio is tight in its own right: 1.000988 at
-/// a = 1e-11 and 1.000012 at a = 1e-10. At the bottom of the ratio arm
-/// the two forms are twenty-fold apart — 0.5% admitted against the
-/// 10% an additive ceiling would allow there — and at the top they are
-/// within a factor of two, where either would do.
+/// rather than the envelope — it runs inf, 1.160 as the amplitude
+/// rises — so those rungs take the additive form. At and above it the
+/// ratio is tight in its own right: 1.00166 at a = 1e-12, and at
+/// a = 1e-11 and 1e-10 it is 1 to within the sampling's own rounding
+/// (`SAMPLE_ROUNDING`). At the bottom of the ratio arm
+/// the two forms are eight-fold apart — 0.3% admitted against the
+/// 2.5% an additive ceiling would allow there — and at the top they
+/// are within a factor of two, where either would do.
 ///
 /// **What makes both ceilings guards.** Coarsening the between-samples
-/// schedule this row exists to attack — `PXN_FIT_SAMPLES` 33 → 25,
-/// 17, 9, each still sound — moves the a = 1e-11 rung to 1.00660,
-/// 1.00899 and 1.09195, and the a = 1e-13 rung to 11.54x, 13.47x and
-/// 43.81x. Both ceilings go red at the FIRST of those, a 24%
-/// coarsening: the ratio arm at a = 1e-11 and the additive arm at
-/// a = 1e-13. The a = 1e-10 rung is admitted to be insensitive — it
-/// reads 1.00096 even at nine samples — so the ratio arm's teeth are
-/// entirely at the bottom of its range, which is where the envelope is
-/// working for its living.
+/// schedule this row exists to attack — `PXN_FIT_SAMPLES` 33 → 25 and
+/// 17, each still sound — moves the a = 1e-12 rung to 1.00372 and
+/// 1.00651, and the a = 1e-13 rung to 1.344x and 1.524x. Both ceilings
+/// go red at the FIRST of those, a 24% coarsening: the ratio arm at
+/// a = 1e-12 and the additive arm at a = 1e-13. The a = 1e-11 and
+/// 1e-10 rungs are admitted to be insensitive — they read 1.000023
+/// and 1.0000024 at 25 samples — so the ratio arm's teeth are entirely
+/// at the bottom of its range, which is where the envelope is working
+/// for its living.
+///
+/// The a = 0 rung's teeth are incidental. It reds at 25 samples
+/// (2.52e-14, just over `ENVELOPE_FLOOR`) but stays green at 17
+/// (3.66e-15, its 33-sample reading), so a coarser schedule does not
+/// move it monotonically, and the guard rests on a = 1e-13 and 1e-12.
 ///
 /// **ε moves which rungs certify, and nothing else.** `hull_sup` is
 /// bit-identical at every battery ε; what varies is the lane's
 /// accept/refuse decision, so the ladder is walked at every ε and each
-/// rung claims what it can. At ε = 1e-12 every amplitude at or above
-/// `RATIO_ARM_FROM` refuses, the ratio arm is unreachable, and the row
+/// rung claims what it can. At an ε at or under the smallest amplitude
+/// that reaches `RATIO_ARM_FROM` (1e-12 on this ladder) every such
+/// amplitude refuses, the ratio arm is unreachable, and the row
 /// stands down by name rather than reporting green over an empty
 /// claim.
 #[test]
@@ -208,22 +228,22 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
     for category in ["certified", "ratio arm", "additive arm"] {
         seen.add(category, 0);
     }
-    for a in [0.0, 1e-13, 1e-12, 1e-11, 1e-10] {
+    for a in AMPLITUDES {
         let carrier = if a == 0.0 {
             segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0))
         } else {
             wiggle_carrier(a)
         };
         let (truth, unconverged) = dense_true_sup(&carrier, &wall);
-        // The domination below is exact, which it may be only while
-        // every sample's foot point converged: a refused projection
+        // The domination below holds to the sampling's rounding only
+        // while every sample's foot point converged: a refused projection
         // contributes an OVER-estimate of the distance, and the
         // sampled sup would then no longer be a value the certified
         // sup has to dominate.
         assert!(
             unconverged == 0,
             "a={a:e}: {unconverged} of 4097 foot points did not converge, so the \
-             sampled sup is an over-estimate and the exact domination below is \
+             sampled sup is an over-estimate and the domination below is \
              no longer the right claim"
         );
         if a == 0.0 {
@@ -253,7 +273,13 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
                     "R1 sup-bound a={a:e}: certified {:e} vs true {truth:e}",
                     limbs.hull_sup
                 );
-                let claim = Sup::new("plane x NURBS envelope", limbs.hull_sup, truth).dominates();
+                let claim = Sup::new("plane x NURBS envelope", limbs.hull_sup, truth)
+                    .dominates_up_to(
+                        SAMPLE_ROUNDING,
+                        "the sampled truth is a distance between two f64 evaluations of \
+                         unit-scale points, and the envelope sits within that rounding of \
+                         it at a = 1e-11",
+                    );
                 // No box scale enters either ceiling: both are within
                 // twelve orders of the enclosure's own floor and the
                 // quarter cylinder's √3 m box bounds nothing here.
@@ -264,11 +290,11 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
                 if truth >= RATIO_ARM_FROM {
                     seen.note("ratio arm");
                     claim.within(
-                        1.005,
+                        1.003,
                         0.0,
                         anchor,
                         "the envelope is no longer residual-scaled — a 24% \
-                         coarsening of PXN_FIT_SAMPLES reads 1.00660 at a = 1e-11, \
+                         coarsening of PXN_FIT_SAMPLES reads 1.00372 at a = 1e-12, \
                          which this ceiling catches",
                     );
                 } else {
@@ -278,7 +304,7 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
                         ENVELOPE_FLOOR,
                         anchor,
                         "the envelope is no longer at its own floor — this ceiling \
-                         leaves between 1.83x and 9.10x of slack across the rungs \
+                         leaves between 1.077x and 6.82x of slack across the rungs \
                          it covers, and a 24% coarsening of PXN_FIT_SAMPLES takes \
                          a = 1e-13 past it",
                     );
@@ -296,9 +322,14 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
          compared nothing",
     );
     // The ratio arm needs an amplitude that both certifies and clears
-    // `RATIO_ARM_FROM`; the lane certifies to about ε, so a fine enough
-    // ε leaves no such rung. That is a stand-down, not a floor to meet.
-    if eps <= RATIO_ARM_FROM {
+    // `RATIO_ARM_FROM`; the lane certifies to about ε, so an ε at or
+    // under the smallest such amplitude leaves no rung to read. That is
+    // a stand-down, not a floor to meet.
+    let first_ratio_rung = AMPLITUDES
+        .into_iter()
+        .find(|&a| a >= RATIO_ARM_FROM)
+        .expect("the ladder reaches the ratio arm");
+    if eps <= first_ratio_rung {
         vacuity::stood_down(
             "pxn envelope ratio arm",
             "every amplitude at or above the ratio arm's threshold refuses at this ε, \

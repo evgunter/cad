@@ -58,3 +58,7 @@ for a TIED name, so neither of this row's two words is reached for one,
 and a tie is reported as a name that resolved to nothing. Its repair —
 ask the kind before splitting on `Unique`/`Tied` — changes which arm
 the wrong-body case here reaches, so the two want deciding together.
+
+## A third finding at the same four lines (emit, 2026-10-02)
+
+Found by `memoized-refusals-speak-inner-nodes-through-the-frame`'s sweep. Both `SelectionRefusal::Unresolved` and `NotAFace` store the name as `rendered()`, which is `format!("{name:?}")`, a `String` (`clearance.rs`, `windows_of`). So the refusal's words print the `StableName`'s derived `Debug` (`StableName { kind: Face, node: RecipeNodeId(…), path: [...] }`), and the clearance goldening form (`SelectionRefusal::payload`) prints the same dump. Every other node in that refusal is now said by the frame's speaker (`spoken::Say`), but this one cannot be: it is text, not an id. `prose_census` cannot see it either, because the field is a `String`. Holding the `StableName` itself would let the words say it with `Speaker::name` and the payload print its full id.

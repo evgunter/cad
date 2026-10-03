@@ -24,11 +24,11 @@
 use crate::common;
 
 use geom::Surface;
+use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::{
-    Body, CensusContact, ContactRecords, TangentLocus, TangentLocusError, ValidationError,
-    VvContact, tangent_locus, validate_pseudomanifold,
+    Body, CensusContact, ContactRecords, ValidationError, VvContact, validate_pseudomanifold,
 };
 
 fn band() -> Band {
@@ -46,7 +46,7 @@ fn cube_at(dx: f64, dy: f64, dz: f64) -> Body<f64> {
 /// Grafts `b`'s solid into `a` (two instances in one arena).
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 
@@ -160,6 +160,12 @@ fn the_same_touching_pair_undeclared_is_the_f1_hard_error() {
 // The tangent-locus helper (DEV-1): closed forms, three-outcome rows.
 // ---------------------------------------------------------------------
 
+/// A 1 m patch about the origin: the extent these exact-axis fixtures'
+/// locus verdicts are consumed over (no row here turns on the lever).
+fn metre_patch() -> geom_brep::ExtentBall<f64> {
+    geom_brep::ExtentBall::new(Point3::origin(), 1.0)
+}
+
 fn plane_at(z: f64) -> Surface<f64> {
     Surface::Plane {
         origin: Point3::new(0.0, 0.0, z),
@@ -187,7 +193,8 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
         radius: 1.0,
         u_ref: Vec3::unit_z(),
     };
-    let TangentLocus::Line { origin, dir } = tangent_locus(&plane_at(0.0), &cyl, band()).unwrap();
+    let TangentLocus::Line { origin, dir } =
+        tangent_locus(&plane_at(0.0), &cyl, metre_patch(), band()).unwrap();
     assert!(
         origin.z.abs() < 1e-12 && origin.y.abs() < 1e-12,
         "{origin:?}"
@@ -197,12 +204,18 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
         "the ruling is axial: {dir:?}"
     );
     // Apart and crossing refuse with the honest side named.
-    match tangent_locus(&plane_at(-0.5), &cyl, band()) {
-        Err(TangentLocusError::NotTangent { apart: true }) => {}
+    match tangent_locus(&plane_at(-0.5), &cyl, metre_patch(), band()) {
+        Err(TangentLocusError::NotTangent {
+            apart: true,
+            predicate: "pc_parallel_gap",
+        }) => {}
         other => panic!("clearance must refuse apart: {other:?}"),
     }
-    match tangent_locus(&plane_at(0.5), &cyl, band()) {
-        Err(TangentLocusError::NotTangent { apart: false }) => {}
+    match tangent_locus(&plane_at(0.5), &cyl, metre_patch(), band()) {
+        Err(TangentLocusError::NotTangent {
+            apart: false,
+            predicate: "pc_parallel_gap",
+        }) => {}
         other => panic!("a crossing must refuse crossing: {other:?}"),
     }
     // An oblique axis is outside the closed-form lane, typed.
@@ -212,12 +225,12 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
         radius: 1.0,
         u_ref: Vec3::unit_y(),
     };
-    match tangent_locus(&plane_at(0.0), &oblique, band()) {
+    match tangent_locus(&plane_at(0.0), &oblique, metre_patch(), band()) {
         Err(TangentLocusError::Unsupported { .. }) => {}
         other => panic!("oblique tangency has no closed form: {other:?}"),
     }
     // An in-band gap ESCALATES (three-outcome honesty on the row).
-    match tangent_locus(&plane_at(3e-9), &cyl, band()) {
+    match tangent_locus(&plane_at(3e-9), &cyl, metre_patch(), band()) {
         Err(TangentLocusError::Escalated(_)) => {}
         other => panic!("an in-band gap must escalate: {other:?}"),
     }
@@ -227,21 +240,27 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
 fn parallel_cylinders_mint_the_external_and_internal_generators() {
     // External: radii 1 + 1, axes 2 apart in y — generator at y = 1.
     let TangentLocus::Line { origin, dir } =
-        tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 1.0), band()).unwrap();
+        tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 1.0), metre_patch(), band()).unwrap();
     assert!((origin.y - 1.0).abs() < 1e-12, "{origin:?}");
     assert!(dir.y.abs() < 1e-12 && dir.z.abs() < 1e-12, "{dir:?}");
     // Internal: r 1 inside r 3, axes 2 apart — generator at y = -1
     // (the small cylinder touches the big one on its far side).
     let TangentLocus::Line { origin, dir: _ } =
-        tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 3.0), band()).unwrap();
+        tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 3.0), metre_patch(), band()).unwrap();
     assert!((origin.y - (-1.0)).abs() < 1e-12, "{origin:?}");
     // Definitely apart / definitely overlapping refuse.
-    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(5.0, 1.0), band()) {
-        Err(TangentLocusError::NotTangent { apart: true }) => {}
+    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(5.0, 1.0), metre_patch(), band()) {
+        Err(TangentLocusError::NotTangent {
+            apart: true,
+            predicate: "cc_parallel_gap",
+        }) => {}
         other => panic!("{other:?}"),
     }
-    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(1.0, 1.0), band()) {
-        Err(TangentLocusError::NotTangent { apart: false }) => {}
+    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(1.0, 1.0), metre_patch(), band()) {
+        Err(TangentLocusError::NotTangent {
+            apart: false,
+            predicate: "tangent_locus_internal_gap",
+        }) => {}
         other => panic!("{other:?}"),
     }
     // Skew/crossing axes and unsupported kinds are typed.
@@ -251,11 +270,11 @@ fn parallel_cylinders_mint_the_external_and_internal_generators() {
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
-    match tangent_locus(&cyl_r(0.0, 1.0), &crossed, band()) {
+    match tangent_locus(&cyl_r(0.0, 1.0), &crossed, metre_patch(), band()) {
         Err(TangentLocusError::Unsupported { .. }) => {}
         other => panic!("{other:?}"),
     }
-    match tangent_locus(&plane_at(0.0), &plane_at(1.0), band()) {
+    match tangent_locus(&plane_at(0.0), &plane_at(1.0), metre_patch(), band()) {
         Err(TangentLocusError::Unsupported { .. }) => {}
         other => panic!("plane×plane has no tangent line: {other:?}"),
     }
@@ -354,19 +373,23 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
 #[test]
 fn r1_probe_nested_clear_cylinders_are_definitely_apart() {
     // r 1 strictly inside r 3, axes 0.5 apart: clearance 1.5 m.
-    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(0.5, 3.0), band()) {
-        Err(TangentLocusError::NotTangent { apart }) => {
+    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(0.5, 3.0), metre_patch(), band()) {
+        Err(TangentLocusError::NotTangent { apart, predicate }) => {
             assert!(apart, "nested surfaces are definitely APART");
+            assert_eq!(
+                predicate, "tangent_locus_internal_gap",
+                "the internal row refuses"
+            );
         }
         other => panic!("nested clear cylinders are not tangent: {other:?}"),
     }
 }
 
-/// R1 probe (claim 4): the tangent-locus gap row is METRE data — the
-/// mm twin of an in-band metre gap decides definitely, the metre
-/// fixture escalates (scale-covariant, never scale-invariant).
+/// R1 probe (claim 4): the plane×cylinder gap row the witness reads is
+/// METRE data — the mm twin of an in-band metre gap decides definitely,
+/// the metre fixture escalates (scale-covariant, never scale-invariant).
 #[test]
-fn r1_probe_tangent_locus_gap_row_is_scale_covariant() {
+fn r1_probe_plane_cylinder_gap_row_is_scale_covariant() {
     // Metre twin: cylinder r 1 at height 1 + 3e-9 above the plane —
     // gap 3e-9, in Band{1e-9, 1e-8} ⇒ escalate.
     let cyl_m = Surface::Cylinder {
@@ -375,8 +398,14 @@ fn r1_probe_tangent_locus_gap_row_is_scale_covariant() {
         radius: 1.0,
         u_ref: Vec3::unit_z(),
     };
-    match tangent_locus(&plane_at(0.0), &cyl_m, band()) {
-        Err(TangentLocusError::Escalated(_)) => {}
+    match tangent_locus(&plane_at(0.0), &cyl_m, metre_patch(), band()) {
+        Err(TangentLocusError::Escalated(d)) => {
+            assert_eq!(
+                d.predicate,
+                Some("pc_parallel_gap"),
+                "the gap row escalates"
+            );
+        }
         other => panic!("metre twin gap 3e-9 must escalate: {other:?}"),
     }
     // mm twin (everything x 1e-3): gap 3e-12, decisively below the
@@ -388,7 +417,7 @@ fn r1_probe_tangent_locus_gap_row_is_scale_covariant() {
         radius: 1e-3,
         u_ref: Vec3::unit_z(),
     };
-    match tangent_locus(&plane_at(0.0), &cyl_mm, band()) {
+    match tangent_locus(&plane_at(0.0), &cyl_mm, metre_patch(), band()) {
         Ok(TangentLocus::Line { .. }) => {}
         other => panic!("mm twin gap 3e-12 is decisively tangent: {other:?}"),
     }

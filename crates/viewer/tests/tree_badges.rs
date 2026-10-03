@@ -17,6 +17,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
@@ -34,10 +35,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
     let rows = session.tree_rows();
     assert!(tree::has_faults(&rows));
 
-    let failed = rows
-        .iter()
-        .find(|row| row.id == extrude)
-        .expect("the extrude has a row");
+    let failed = common::row_of(&rows, extrude);
     let RowStatus::Failed { message, .. } = &failed.status else {
         panic!("expected Failed, got {:?}", failed.status);
     };
@@ -50,12 +48,9 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
     let Some(NodeResult::Failed(error)) = evaluation.result(extrude) else {
         panic!("the evaluation should report the extrude as failed");
     };
-    assert_eq!(message, &error.to_string());
+    assert_eq!(message, &error.spoken(session.committed_doc()));
 
-    let poisoned = rows
-        .iter()
-        .find(|row| row.id == moved)
-        .expect("the transform has a row");
+    let poisoned = common::row_of(&rows, moved);
     match &poisoned.status {
         RowStatus::Poisoned { through, message } => {
             assert_eq!(*through, extrude, "poison names the failure it came from");
@@ -63,8 +58,8 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
                 message.as_deref(),
                 Some(
                     format!(
-                        "upstream failure at Extrude {:012x} — that row carries the cause",
-                        extrude.0
+                        "upstream failure at Extrude {} — that row carries the cause",
+                        test_utils::refusal::tag(extrude.0)
                     )
                     .as_str()
                 ),
@@ -130,6 +125,7 @@ fn an_independent_subgraph_completes_beside_a_failure() {
         pncad::document::Node::Extrude {
             profile: other_profile,
             distance: common::len(0.005),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -155,12 +151,7 @@ fn rows_before_the_first_result_read_as_unevaluated_rather_than_ok() {
         !tree::has_faults(&rows),
         "unevaluated is not a fault; it is an absence of measurement"
     );
-    assert_eq!(
-        rows.iter()
-            .find(|row| row.id == extrude)
-            .map(|row| row.status.badge()),
-        Some("—")
-    );
+    assert_eq!(common::row_of(&rows, extrude).status.badge(), "—");
 }
 
 #[test]
@@ -199,9 +190,7 @@ fn the_tree_marks_the_documents_product_roots() {
         "the extrude is the product; the profile it consumes is not"
     );
     assert_eq!(
-        rows.iter()
-            .find(|row| row.id == profile)
-            .and_then(|row| row.spoken.kind()),
+        common::row_of(&rows, profile).spoken.kind(),
         Some("Profile")
     );
 }
@@ -629,20 +618,33 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         ),
         other => panic!("the mate tool drops its one pick, got {other:?}"),
     }
-    match viewer::session::face_frame_seat(Some((doc, ev)), Some(&face)) {
-        Err(FaceFrameFault::Unresolved {
-            error: InterrogateError::Standing(standing),
-        }) => assert_eq!(standing, post_a, "the sketch-on-face seat"),
+    // Each refusal carrying the standing whole says its nodes as the
+    // document holds them: post_a by its kind, never `node <tag>`.
+    let post_a_said = doc.spoken(bench.post_a).to_string();
+    let seat = viewer::session::face_frame_seat(Some((doc, ev)), Some(&face));
+    match &seat {
+        Err(
+            fault @ FaceFrameFault::Unresolved {
+                error: InterrogateError::Standing(standing),
+                ..
+            },
+        ) => {
+            assert_eq!(*standing, post_a, "the sketch-on-face seat");
+            assert!(
+                fault.to_string().contains(&post_a_said),
+                "the seat's refusal speaks post_a: {fault}"
+            );
+        }
         other => panic!("the seat refuses on the standing, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(ev, bench.post_a, tol) {
-        Err(DuplicateFault::NoValue(standing)) => {
+    match viewer::combine::duplicate_step(doc, ev, bench.post_a, tol) {
+        Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the duplicate door, post_a");
         }
         other => panic!("the duplicate door refuses post_a, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(ev, boolean, tol) {
-        Err(DuplicateFault::NoValue(standing)) => {
+    match viewer::combine::duplicate_step(doc, ev, boolean, tol) {
+        Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, two_hop, "the duplicate door, the boolean");
         }
         other => panic!("the duplicate door refuses the boolean, got {other:?}"),
@@ -651,7 +653,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         node: bench.post_a,
         body: 0,
     };
-    match BlendTool::new().load_all_edges(target, ev, &index) {
+    match BlendTool::new().load_all_edges(target, doc, ev, &index) {
         Some(BlendEvent::TargetHasNoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the blend loader");
         }
@@ -668,11 +670,19 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
             body: 0,
         },
     );
-    match both.proposal(doc, ev, common::asm::seat_choice()) {
-        Err(MateToolError::Frame {
-            error: InterrogateError::Standing(standing),
-            ..
-        }) => assert_eq!(standing, post_a, "the mate tool's frame read"),
+    match &both.proposal(doc, ev, common::asm::seat_choice()) {
+        Err(
+            refused @ MateToolError::Frame {
+                error: InterrogateError::Standing(standing),
+                ..
+            },
+        ) => {
+            assert_eq!(*standing, post_a, "the mate tool's frame read");
+            assert!(
+                refused.to_string().contains(&post_a_said),
+                "the mate tool's refusal speaks post_a: {refused}"
+            );
+        }
         other => panic!("the mate tool refuses the frame read, got {other:?}"),
     }
 
@@ -681,14 +691,16 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
         panic!("the index does not build over a root with no value");
     };
-    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), Some(ev))
+    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal badges");
     let detail = badge
         .detail()
         .expect("the badge defers its words to the tooltip");
     assert!(
-        detail.contains(&format!("failure at node {:012x}", offender.0))
-            && !detail.contains("ancestor"),
+        detail.contains(&format!(
+            "failure at {}",
+            session.landed_pair().expect("landed").0.spoken(offender)
+        )) && !detail.contains("ancestor"),
         "the pick index's tooltip names the offending mate: {detail}"
     );
 
@@ -1025,7 +1037,7 @@ fn child_band_refusal_rows() {
     let refused = apply(
         &asm,
         &DocEdit::InsertNode {
-            node: Node::Mate {
+            node: Box::new(Node::Mate {
                 a: face_of(a),
                 b: face_of(b),
                 class: ContactClass::Rest,
@@ -1036,7 +1048,7 @@ fn child_band_refusal_rows() {
                     sense: AxisSense::Opposed,
                     clocking: None,
                 },
-            },
+            }),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -1099,7 +1111,7 @@ fn child_band_refusal_rows() {
         };
         assert_eq!(
             status.message(),
-            Some(error.to_string().as_str()),
+            Some(error.spoken(&asm).as_str()),
             "{id:?} must carry the payload's own rendering, not a sentence this crate wrote"
         );
     }
@@ -1272,22 +1284,30 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
     );
 
     let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
-    let row = |id| {
-        rows.iter()
-            .find(|row| row.id == id)
-            .expect("every node has a row")
-    };
-    assert!(matches!(row(frame).status, RowStatus::Ok), "{rows:?}");
     assert!(
-        matches!(row(profile).status, RowStatus::Failed { .. }),
+        matches!(common::row_of(&rows, frame).status, RowStatus::Ok),
+        "{rows:?}"
+    );
+    assert!(
+        matches!(
+            common::row_of(&rows, profile).status,
+            RowStatus::Failed { .. }
+        ),
         "{rows:?}"
     );
     assert_eq!(
-        row(profile).repair_at.map(|at| at.id()),
+        common::row_of(&rows, profile)
+            .repair_at
+            .as_ref()
+            .map(|at| at.id()),
         Some(frame),
         "the profile's row links to the frame whose slot refused"
     );
-    assert_eq!(row(frame).repair_at, None, "an `Ok` row links nowhere");
+    assert_eq!(
+        common::row_of(&rows, frame).repair_at,
+        None,
+        "an `Ok` row links nowhere"
+    );
 }
 
 /// **An empty value says so on its own row, and the node that refuses
@@ -1309,19 +1329,13 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         RecipeNodeId, SplitSide, ValuePayload,
     };
     use pncad::select::SplitHalf;
-    use viewer::tree::{Emptiness, Readout, TreeRow};
+    use viewer::tree::{Emptiness, Readout};
 
     let tol = Tol::witness();
     let run = |doc: &Doc<ProfileProgram>| {
         let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
         let rows = tree::rows(doc, Some(&ev), &viewer::parts::PartFiles::default());
         (ev, rows)
-    };
-    let row = |rows: &[TreeRow], id: RecipeNodeId| -> TreeRow {
-        rows.iter()
-            .find(|row| row.id == id)
-            .cloned()
-            .expect("every node has a row")
     };
 
     let doc: Doc<ProfileProgram> = Doc::empty_derived("tree-empty-readout", tol);
@@ -1334,6 +1348,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             Node::Extrude {
                 profile,
                 distance: common::len(0.02),
+                side: ExtrudeSide::Along,
             },
             tol,
         )
@@ -1346,7 +1361,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             op: BooleanOp::Intersect,
             a: near,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -1362,7 +1377,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         "the fixture's blocks do not meet: {:?}",
         ev.result(apart)
     );
-    let root = row(&rows, apart);
+    let root = common::row_of(&rows, apart);
     assert!(root.root, "the premise: the intersect is the product");
     assert!(matches!(root.status, RowStatus::Ok), "{root:?}");
     assert_eq!(
@@ -1376,7 +1391,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         "the phrase a reader sees"
     );
     assert_eq!(
-        row(&rows, near).readout,
+        common::row_of(&rows, near).readout,
         None,
         "a body's `Ok` says everything its value does"
     );
@@ -1423,7 +1438,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             op: BooleanOp::Subtract,
             a: near,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -1507,7 +1522,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         ev.result(split)
     );
     assert_eq!(
-        row(&rows, split).readout,
+        common::row_of(&rows, split).readout,
         Some(Readout::Empty(Emptiness::Half(SplitHalf::Above))),
         "a split with an empty side says which"
     );
@@ -1536,12 +1551,12 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         );
     }
     assert_eq!(
-        row(&rows, apart).readout,
+        common::row_of(&rows, apart).readout,
         Some(Readout::Empty(Emptiness::Whole)),
         "the intersect still says so once it is no longer the root"
     );
     assert_eq!(
-        row(&rows, pattern).readout,
+        common::row_of(&rows, pattern).readout,
         None,
         "a pattern's count is authored, and the refusal's words state it"
     );
@@ -1554,7 +1569,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         ev.result(kept)
     );
     assert_eq!(
-        row(&rows, kept).readout,
+        common::row_of(&rows, kept).readout,
         None,
         "a boolean with a body says everything its value does"
     );
@@ -1570,7 +1585,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         ev.result(halved)
     );
     assert_eq!(
-        row(&rows, halved).readout,
+        common::row_of(&rows, halved).readout,
         None,
         "a split with two bodies says everything its value does"
     );
@@ -1596,7 +1611,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             "the fixture raises {arm}: {:?}",
             ev.result(id)
         );
-        let failed = row(&rows, id);
+        let failed = common::row_of(&rows, id);
         assert!(
             matches!(failed.status, RowStatus::Failed { .. }),
             "{arm}: {failed:?}"
@@ -1608,11 +1623,81 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     }
 }
 
+/// **A mate's row says whether it placed its child or only declares**,
+/// carrying the solve's own role for that mate.
+///
+/// A second shelf seated on the bench's two posts exactly where the
+/// first one is — coincident with it, which is what keeps the loop
+/// consistent. The bench shelf is the group's root, the posts hang off
+/// it, and the second shelf hangs off one post, so its seat on the
+/// other post closes the loop and the solve reads that seat as a
+/// declaration. The row of every mate reads the role the solve
+/// recorded for it; both roles are on the rows.
+///
+/// The fixture is NOT at rest: the two shelves interfere, so it is no
+/// fixture for an at-rest row.
+#[test]
+fn a_mate_row_reads_whether_it_placed_its_child() {
+    use pncad::document::{Alignment, MateRole};
+    use viewer::tree::Readout;
+
+    let tol = Tol::witness();
+    let bench = common::asm::bench("auth16-role", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let middle = common::asm::middle_seat_alignment;
+    let quarter = || common::asm::seat_alignment(common::asm::SHELF_LENGTH / 4.0, None);
+    let seat = |session: &mut DocSession, post, shelf, alignment: Alignment| {
+        common::commit_mate(
+            session,
+            common::asm::seat_op_under(&bench, post, shelf, ContactClass::Rest, alignment),
+        )
+    };
+    let a_under_shelf = seat(&mut session, bench.post_a, bench.shelf_i, middle());
+    let b_under_shelf = seat(&mut session, bench.post_b, bench.shelf_i, quarter());
+    // The second shelf is the mate's FIRST operand, so the door clears
+    // the offset its insert authored and the bench shelf stays the root.
+    let upper = common::instance_in(&mut session, bench.shelf.id);
+    let upper_on_a = common::commit_mate(
+        &mut session,
+        common::asm::shelf_on_post_op(&bench, upper, bench.post_a, ContactClass::Rest, middle()),
+    );
+    let b_under_upper = seat(&mut session, bench.post_b, upper, quarter());
+
+    let doc = session.committed_doc().clone();
+    let poses = common::solve(&session, &doc, tol);
+    let rows = session.tree_rows();
+    let mut roles = Vec::new();
+    for mate in [a_under_shelf, b_under_shelf, upper_on_a, b_under_upper] {
+        let role: MateRole = poses
+            .role(mate)
+            .unwrap_or_else(|| panic!("the premise: the solve gave {mate:?} a role"));
+        let row = common::row_of(&rows, mate);
+        assert_eq!(
+            row.status,
+            RowStatus::Ok,
+            "{mate:?}: the loop is consistent"
+        );
+        assert_eq!(
+            row.readout,
+            Some(Readout::Role(role)),
+            "{mate:?}: the row reads the role the solve recorded"
+        );
+        roles.push(role);
+    }
+    let count = |want: MateRole| roles.iter().filter(|&&role| role == want).count();
+    assert_eq!(
+        (count(MateRole::Determining), count(MateRole::Declaring)),
+        (3, 1),
+        "the premise: three seats place a child and one closes the loop: {roles:?}"
+    );
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
+
 /// What a row downstream of a refused mate says, spelled from the
 /// mate's id alone: the mate as the document speaks it.
 fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {
     format!(
-        "upstream failure at Mate {:012x} — that row carries the cause",
-        mate.0
+        "upstream failure at Mate {} — that row carries the cause",
+        test_utils::refusal::tag(mate.0)
     )
 }

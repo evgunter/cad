@@ -60,7 +60,7 @@ use pncad::authoring::p2;
 use pncad::geom::Surface;
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, FaceKey};
 
@@ -116,7 +116,7 @@ const DELTA: f64 = 1e-3;
 
 /// **The meridian**, authored through the PATHS lattice the way a user
 /// would: stations named, arcs given their centres.
-fn meridian(tol: Tol) -> ProfileLoop<f64> {
+fn meridian(tol: Tol) -> ConstructedLoop<f64> {
     Open.at(p2(R_BORE, 0.0))
         .line_to(p2(R_RIM, 0.0), tol)
         .expect("the base annulus")

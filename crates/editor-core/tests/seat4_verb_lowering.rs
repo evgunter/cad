@@ -45,6 +45,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
@@ -78,6 +79,7 @@ fn both_blends() -> BothBlends {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     let edges: Vec<StableName> = prism_edges(&r.doc, cube, 4);
     let filleted = r.insert(Node::fillet(cube, len(R), edges.clone()));
@@ -95,7 +97,7 @@ fn both_blends() -> BothBlends {
 struct BothBlends {
     snapshot: ProfileDoc,
     doc: ProfileDoc,
-    edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     blends: [RecipeNodeId; 2],
 }
 
@@ -208,19 +210,14 @@ fn both_blends_evaluate_in_one_document() {
 /// green across the change untouched.
 ///
 /// Re-blessed again when step ids became digests of the document's mint
-/// chain: the names spell different ids, and the same id-free pins held.
-///
-/// The digest COMPOSES its inputs: a change to the name table and a
-/// change to each planar carrier's stored `u_ref` each move it, and
-/// together they give a value neither gives alone. So a merge that
-/// brings one of each re-measures here rather than picking a side; the
-/// id-free body rows above are the locus receipt either way.
+/// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
+/// and with the same pins holding.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x9213_342b_e10e_9ad3_u64),
-        ("die_chamfer", 0xd0f3_a185_ca43_c5ff),
+        ("die_fillet", 0xd3bc_cb75_265e_a675u64),
+        ("die_chamfer", 0xe497_df5e_3a54_45f1),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -242,9 +239,9 @@ fn the_blend_documents_evaluate_to_their_committed_digests() {
 
 /// **A registered boolean document's bytes survive the migration**:
 /// save → load → save reproduces the file exactly. The document is
-/// `crossing_slots` — two subtracts, one carrying a `Declare` operand —
+/// `crossing_slots` — two subtracts, one carrying declared pairs —
 /// so the wire spelling under pin includes the boolean node's whole
-/// payload: the op, both operand edges and the declare edge. The
+/// payload: the op, both operand edges and the declared pairs. The
 /// corpus-wide round-trip covers the same bytes; this is the
 /// per-document form beside the digest row, so a red here names the
 /// boolean rather than the registry.
@@ -319,15 +316,15 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// green across the change untouched.
 ///
 /// Re-blessed again when step ids became digests of the document's mint
-/// chain: the names spell different ids, and the same id-free pins held.
-/// The two changes compose, as the blend row says.
+/// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
+/// and with the same pins holding.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x3a20_c6af_a99a_cd30_u64),
-        ("heat_sink", 0x1020_96ad_b1ca_6b9f),
-        ("kiss_carry", 0x5550_572b_247d_b6de),
+        ("crossing_slots", 0x788e_61b1_157c_b669u64),
+        ("heat_sink", 0xee9f_3000_1a12_d645),
+        ("kiss_carry", 0x0bad_41ce_ff6a_c1e6),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -393,6 +390,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let a = r.insert(Node::Extrude {
         profile: pa,
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     let xy_frame_2 = r.insert(xy_frame());
     let pb = r.insert(Node::Profile(ProfileProgram {
@@ -403,12 +401,13 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let b = r.insert(Node::Extrude {
         profile: pb,
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     let boolean = r.insert(Node::Boolean {
         op: editor_core::BooleanOp::Intersect,
         a,
         b,
-        declare: None,
+        declare: Vec::new(),
     });
     let ev = corpus::eval::<f64>(&r.doc);
     let failures = corpus::failures(&ev);
@@ -423,7 +422,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x79dd_4511_b64b_23d9,
+        got, 0xbfd9_320e_299c_1f44,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

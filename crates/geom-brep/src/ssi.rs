@@ -115,32 +115,46 @@
 //! lanes consume a rung-3 carrier. Zipping curved booleans end to end,
 //! and the tangency regime the σ₂ band refuses toward, are PR 9.
 
+pub mod boundary;
 pub mod certify;
 pub mod enclose;
+mod ends;
 pub mod exhaust;
 pub mod jet;
 pub mod march;
+pub mod section;
 pub mod system;
 
 use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
-use geom_core::{Band, Indeterminate, KERNEL_LIMIT_LAST_RESORT, Margin, Point3, Real, SizedPass};
+use geom_core::{
+    Band, Indeterminate, KERNEL_LIMIT_LAST_RESORT, Margin, NOT_YET_ENDING, Point3, Real, SizedPass,
+};
 
-use crate::recourse::{Reading, Refused, RefusedArm, SizedDecision, StoredDefinite};
+use crate::certify::CertCheck;
+use crate::recourse::{
+    Reading, Refused, RefusedArm, SizedDecision, StoredDefinite, Unsized, defect_ending,
+};
 
+pub use boundary::{BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SsiBoundaryContact};
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb, SsiTube};
 pub use exhaust::{
-    ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
+    ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal,
+    SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
 };
 pub use march::{
-    BranchEnd, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
-    SSI_STEP_MAX, StepperMode,
+    BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
+    SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
+    SSI_STEP_MAX, STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepFault, StepperMode,
 };
+pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
 
 use enclose::{Box3, NurbsBoxes};
-use exhaust::{RateClause, UvRect};
-use march::{MarchContext, MarchTol, Trace, march_both, trace_points};
+use exhaust::{RateClause, SweepFloor, UvRect};
+use march::{
+    MarchContext, MarchTol, Readout, RectEnd, RectExit, Trace, march, march_both, trace_points,
+};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
 /// The two chart-parameter sample sequences of an ℝ⁴ trace — the
@@ -151,7 +165,7 @@ type ChartSamples<'a> = (&'a [geom_core::Point2<f64>], &'a [geom_core::Point2<f6
 /// A fitted rung-3 branch's curves: the 3-D carrier, and the two
 /// pcurves when the trace shape produced them (the ℝ⁴ shape does; the
 /// ℝ³ shape has no chart to project onto).
-type FittedBranch = (
+pub(crate) type FittedBranch = (
     NurbsCurve3<f64>,
     Option<NurbsCurve2<f64>>,
     Option<NurbsCurve2<f64>>,
@@ -273,7 +287,8 @@ pub enum SsiError {
     ///
     /// The refused arm of the march's transversality decision
     /// (`ssi_transversality`), which passes on a positive sign; it ends
-    /// by that decision's table ([`SsiError::ending`]).
+    /// by [`CertCheck::Transversality`], as limb 3 and the edge
+    /// certifier's transversality do ([`SsiError::ending`]).
     TransversalityBand {
         /// The sine of the angle between the operand normals.
         sin_theta: f64,
@@ -312,6 +327,18 @@ pub enum SsiError {
     /// obligation firing**: there may be a branch in that cell and we
     /// decline to pretend otherwise.
     ExhaustivenessInconclusive(ExhaustivenessRefusal),
+    /// The subdivision's floor is one its domain cannot resolve: not a
+    /// positive finite width, or narrower than the finest cell bisection
+    /// can cut there. Refused where the floor is minted, before any
+    /// sweep runs, so the cell budget never answers for a floor no cell
+    /// can reach.
+    FloorUnresolvable(FloorRefusal),
+    /// The march cannot settle its states well inside the tolerance: the
+    /// coordinates its residual is read in are too coarse where they
+    /// reach furthest. Refused where the march's tolerance is minted,
+    /// before any march, so Newton never answers that the march lost its
+    /// branch in the scale's place.
+    SettlingUnresolvable(SettlingRefusal),
     /// The cell enumeration exceeded its budget — a refusal, never a
     /// silently truncated search.
     CellBudget {
@@ -324,6 +351,8 @@ pub enum SsiError {
         mode: &'static str,
         /// The budget.
         budget: usize,
+        /// Which rung held most of the branch's steps short.
+        bound: StepBound,
     },
     /// The step size collapsed into the tolerance band: the stepper
     /// cannot make progress at this ε.
@@ -332,12 +361,51 @@ pub enum SsiError {
         mode: &'static str,
         /// The collapsed step, in meters.
         step_meters: f64,
+        /// The march speed it was minted at: metres per unit of the
+        /// march parameter.
+        speed: f64,
     },
-    /// Newton refinement would not settle a state onto the surface
-    /// pair (a seed outside every basin, or poisoned arithmetic).
+    /// The stepper's step, minted from the march speed at a state, is
+    /// not one the trace can take: the speed converts no step into
+    /// metres, or the step is not finite, or it does not move the
+    /// state. Refused where the step is minted, naming the speed.
+    StepUnusable {
+        /// Which stepper.
+        mode: &'static str,
+        /// The march speed at the state: metres per unit of the march
+        /// parameter.
+        speed: f64,
+        /// What is wrong with the step.
+        fault: StepFault,
+    },
+    /// Newton refinement would not settle a seed onto the surface pair:
+    /// a seed outside every basin, or poisoned arithmetic. The seed is
+    /// then no branch, which the accounting pass decides was or was not
+    /// a miss.
     SeedRefinementFailed {
         /// Which stepper.
         mode: &'static str,
+    },
+    /// Newton refinement settled a seed onto the surface pair outside
+    /// the march domain: on the ℝ³ lane decided outside the slab, or in
+    /// the band's zero but outside its box; on the plane × NURBS lane
+    /// outside the wall's knot rectangle. The seed is then no branch,
+    /// which the accounting pass decides was or was not a miss.
+    SeedOffDomain {
+        /// Which stepper.
+        mode: &'static str,
+        /// The settled state's signed distance to the domain, in metres
+        /// (negative: outside).
+        margin: f64,
+    },
+    /// A step from a state already on the locus would not settle back
+    /// onto the surface pair, so the march lost the branch it was
+    /// tracing.
+    StepRefinementFailed {
+        /// Which stepper.
+        mode: &'static str,
+        /// The step that was taken, in metres.
+        step_meters: f64,
     },
     /// The trace arrived back at its seed running the **wrong way** —
     /// perpendicular to, or reversed from, the direction it left in.
@@ -361,18 +429,24 @@ pub enum SsiError {
     },
     /// Limb 3 never ran: the tube ladder is EMPTY. Every rung radius
     /// `SSI_TUBE_RADIUS_MAX·extent / 2^k` sits below the ladder floor
-    /// `SSI_TUBE_RADIUS·ε`, which happens when the carrier's extent is
+    /// `SSI_TUBE_RADIUS·ε`, which happens when the feature extent is
     /// small against the run's tolerance — a structural fact about the
     /// pairing of geometry and ε, decided before any box is probed.
     ///
     /// It is NOT a limb exceedance, and it does not carry a margin:
-    /// nothing was measured. This variant exists because the case used
-    /// to be reported as `CertificateLimb { limb: Tube, value: NaN }`
-    /// — a structural refusal wearing a limb-exceeded costume, whose
-    /// NaN payload then had to be laundered by every consumer that
-    /// tried to render it.
+    /// nothing was measured.
+    ///
+    /// The marched doors cannot reach it while K ≥ 2: a marched step is
+    /// at most `SSI_STEP_MAX` (1/32) of the extent and must clear the
+    /// band's K·ε, while the ladder empties only below 64ε. Its live path
+    /// is [`certify_rung3`] with a declared carrier. The pcurve cache
+    /// reports it in a sentence of its own; the plane × NURBS edge lane
+    /// folds it into `Unsupported` through its wildcard
+    /// (`work/iso/plane-nurbs-refusal-arms-with-no-ending.md`).
     TubeLadderEmpty {
-        /// The carrier extent the ladder was scaled from (meters).
+        /// The extent the ladder was scaled from (meters): the caller's
+        /// [`TubeScale`] extent at [`certify_rung3`], the domain's
+        /// feature extent at the marched doors.
         extent: f64,
         /// The floor every rung fell below (meters).
         floor: f64,
@@ -388,10 +462,11 @@ pub enum SsiError {
         rungs: u32,
     },
     /// Limb 3's transversality is not certified clear of the zero band
-    /// over the tube chain (its enclosure straddles zero, or its
-    /// clearance lies inside the band): two branches pass within the
-    /// band of each other. A genuine sliver (F6), not a resolution
-    /// failure to retry.
+    /// over the tube chain at any rung (its enclosure straddles zero, or
+    /// its clearance lies inside the band). Either two branches pass
+    /// within the band of each other, a genuine sliver (F6), or the
+    /// enclosure's remaining slack does not resolve the pair; both
+    /// escalate, typed, never retried.
     TubeStraddles {
         /// The verdict on the certified transversality clearance: a
         /// dimensionless sine-like lower bound levered by the tube
@@ -409,8 +484,89 @@ pub enum SsiError {
         /// The last distance the projection saw, in meters.
         last_distance: f64,
     },
-    /// The fitting stack refused the marched polyline.
+    /// The fitting stack refused the marched polyline. The trace is the
+    /// march's own, so the fit's prose, whose repairs are addressed to a
+    /// caller supplying samples, is not rendered; the `FitError` rides
+    /// in `Debug` for the report.
     Fit(FitError),
+    /// An ℝ³ trace too short to fit: no length to cut, or still short
+    /// after the short-branch re-march. The march cannot tell apart the
+    /// readings that reach it: the surfaces touch at a point of the
+    /// caller's slab, the branch is shorter than the slab search
+    /// resolves at the step, or it runs within the band of the slab. A
+    /// limit of the march against the caller's box, not a branch it can
+    /// fit. The plane × NURBS lane knows its branches' ends before it
+    /// marches and never reaches it.
+    TraceUnresolved {
+        /// Samples the last march produced.
+        samples: usize,
+        /// That march's longest step, in metres.
+        step: f64,
+    },
+    /// The plane grazes a boundary curve: the plane distance has a
+    /// double root along it, the intersection tangent to the wall's
+    /// edge while the surfaces still cross (`ssi_boundary_crossing`,
+    /// which passes on a positive slope).
+    BoundaryGraze {
+        /// The wall's side, where the curve is one
+        /// ([`boundary_section`] names none).
+        side: Option<ChartSide>,
+        /// The parameter interval along the curve where it grazes.
+        bracket: (f64, f64),
+        /// The verdict on the slope, levered by the feature extent.
+        verdict: BandVerdict,
+    },
+    /// A side of the wall lies within the band of the plane, and the
+    /// wall's certified slope across it over the strip beside it does
+    /// not clear the band (`ssi_boundary_strip`). The surfaces may be
+    /// tangent along the side, or the bound too loose to tell; either
+    /// way it is refused toward the C7 regime, as
+    /// [`SsiError::TransversalityBand`] is.
+    BoundaryTangent {
+        /// The side.
+        side: ChartSide,
+        /// The verdict on the slope across it, levered by the feature
+        /// extent.
+        verdict: BandVerdict,
+    },
+    /// A crossing the boundary pass isolated would not settle onto both
+    /// surfaces within the march's settling residual.
+    EndNotOnLocus {
+        /// The side it lies on.
+        side: ChartSide,
+        /// The parameter interval it was isolated to.
+        bracket: (f64, f64),
+    },
+    /// A march from a crossing left the wall where no crossing matches
+    /// its exit, or a crossing has no partner. The march is a candidate
+    /// generator, trusted for nothing, so this is its limit, not a
+    /// contradiction between certified passes.
+    CrossingUnmatched {
+        /// The crossing the branch started from, or `None` for a branch
+        /// traced through an interior seed.
+        from: Option<BoundaryPoint>,
+    },
+    /// A branch the march could not progress along, its step in the
+    /// band, took the Hermite candidate through its two ends, and the
+    /// certificate refused it.
+    ShortBranchUncertified {
+        /// The distance between the branch's ends, in metres.
+        length: f64,
+        /// The certificate's refusal.
+        limb: Box<SsiError>,
+        /// The verdict on the step it would be marched at, `length`
+        /// over the march's step count for a branch between known ends.
+        verdict: BandVerdict,
+    },
+    /// The plane's chart window does not hold the wall's image, so it
+    /// would bound the march where the wall does not.
+    WindowShortOfWall {
+        /// The domain's half-extent, in metres.
+        half_extent: f64,
+        /// How far from the plane chart's origin the wall's control
+        /// hull reaches, in metres.
+        reach: f64,
+    },
     /// One branch's marched polyline exceeded
     /// [`SSI_MAX_FIT_SAMPLES`]. The tolerance and the operand
     /// curvature together demand more samples than the (cubic) fit can
@@ -442,9 +598,14 @@ pub enum SsiError {
         /// What the arm expects.
         expected: &'static str,
     },
-    /// A trace's named trilean landed in the ambiguity band or poisoned
-    /// (F6).
-    Escalated(Indeterminate),
+    /// A trace's own decision landed in the ambiguity band or poisoned
+    /// (F6). It ends by the decision it names ([`TraceDecision::ending`]).
+    Escalated {
+        /// The decision.
+        decision: TraceDecision,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
     /// A certificate limb's trilean landed in the ambiguity band or
     /// poisoned (F6) — [`SsiError::CertificateLimb`]'s undecided
     /// sibling, ending by the same limb's decision
@@ -455,8 +616,15 @@ pub enum SsiError {
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
-    /// Band construction refused.
-    Band(geom_core::BandError),
+    /// A knob of the caller's [`SsiDomain`] is not usable: refused at
+    /// the door, before anything reads it.
+    DomainUnusable {
+        /// Which knob.
+        field: DomainField,
+        /// Its value (for the centre, the first coordinate that is not
+        /// finite).
+        value: f64,
+    },
     /// A decoupled marcher step tolerance was not a usable length.
     InvalidMarchTol {
         /// The offending value, in meters.
@@ -479,12 +647,6 @@ pub enum SsiError {
 impl From<FitError> for SsiError {
     fn from(e: FitError) -> Self {
         Self::Fit(e)
-    }
-}
-
-impl From<geom_core::BandError> for SsiError {
-    fn from(e: geom_core::BandError) -> Self {
-        Self::Band(e)
     }
 }
 
@@ -515,33 +677,62 @@ impl core::fmt::Display for SsiError {
                  surface and nothing was traced"
             ),
             Self::ExhaustivenessInconclusive(r) => {
-                let (cell_width, floor, examined) = (r.cell_width, r.floor, r.examined);
+                let (cell_width, floor) = (r.cell_width, r.floor);
                 match r.lane {
                     ExhaustLane::R3 => write!(
                         f,
-                        "ssi: exhaustiveness inconclusive on the ℝ³ lane — after \
-                         {examined} cells a cell of width {cell_width:e} m at the \
-                         refinement floor {floor:e} m could be neither excluded nor \
-                         accounted for, so a branch may be hiding in it; the \
-                         operation refuses rather than report a possibly incomplete \
-                         intersection"
+                        "ssi: exhaustiveness inconclusive on the ℝ³ lane — a cell \
+                         {cell_width:e} m wide at the refinement floor {floor:e} m is neither \
+                         excluded nor accounted for, so the search refuses"
                     ),
                     ExhaustLane::Chart { speed } => {
                         write!(
                             f,
-                            "ssi: exhaustiveness inconclusive on the chart lane — \
-                             after {examined} cells a cell of width "
+                            "ssi: exhaustiveness inconclusive on the chart lane — a cell "
                         )?;
                         exhaust::write_chart_length(f, cell_width, speed, RateClause::Omit)?;
-                        write!(f, " at the refinement floor ")?;
+                        write!(f, " wide at the refinement floor ")?;
                         exhaust::write_chart_length(f, floor, speed, RateClause::Name)?;
                         write!(
                             f,
-                            " could be neither excluded nor accounted for, so a branch \
-                             may be hiding in it; the operation refuses rather than \
-                             report a possibly incomplete intersection"
+                            " is neither excluded nor accounted for, so the search refuses"
                         )
                     }
+                }
+            }
+            Self::FloorUnresolvable(r) => write!(f, "ssi: {r}"),
+            Self::SettlingUnresolvable(r) => {
+                let SettlingRefusal {
+                    lane,
+                    reach,
+                    gap,
+                    bound,
+                    settle,
+                    tolerance,
+                } = *r;
+                let what = match bound {
+                    ReachBound::Geometry => "geometry",
+                    ReachBound::Domain => "domain",
+                };
+                write!(
+                    f,
+                    "ssi: the march can settle a state no finer than {settle:e} m, not well \
+                     inside the {tolerance:e} m tolerance: "
+                )?;
+                match lane {
+                    ExhaustLane::R3 => write!(
+                        f,
+                        "where the {what} reaches {reach:e} m from zero, adjacent coordinates \
+                         are {gap:e} m apart"
+                    ),
+                    ExhaustLane::Chart { speed } => write!(
+                        f,
+                        "where the spline face's parameters reach {reach:e} from zero, adjacent \
+                         parameters are {gap:e} apart, {:e} m at a certified chart speed of \
+                         {:e} m per chart unit",
+                        speed.to_meters(gap),
+                        speed.get()
+                    ),
                 }
             }
             Self::CellBudget { budget } => write!(
@@ -549,19 +740,68 @@ impl core::fmt::Display for SsiError {
                 "ssi: the exhaustiveness subdivision exceeded its {budget}-cell budget \
                  — refused rather than truncated"
             ),
-            Self::StepBudget { mode, budget } => write!(
+            Self::StepBudget {
+                mode,
+                budget,
+                bound,
+            } => {
+                let held = match bound {
+                    StepBound::Curvature => "the curvature against the tolerance",
+                    StepBound::Cap => "the feature extent or the domain",
+                    StepBound::Both => {
+                        "the curvature against the tolerance and by the feature extent or the \
+                         domain"
+                    }
+                };
+                write!(
+                    f,
+                    "ssi: the {mode} stepper exceeded its {budget}-step budget on one branch, \
+                     its steps held short by {held}"
+                )
+            }
+            Self::StepCollapsed {
+                mode,
+                step_meters,
+                speed,
+            } => write!(
                 f,
-                "ssi: the {mode} stepper exceeded its {budget}-step budget on one branch"
+                "ssi: the {mode} stepper's step collapsed to {step_meters:e} m at a march \
+                 speed of {speed:e} m per unit of the march parameter, inside the tolerance \
+                 band — no progress is possible at this ε"
             ),
-            Self::StepCollapsed { mode, step_meters } => write!(
-                f,
-                "ssi: the {mode} stepper's step collapsed to {step_meters:e} m, inside \
-                 the tolerance band — no progress is possible at this ε"
-            ),
+            Self::StepUnusable { mode, speed, fault } => {
+                let what = match fault {
+                    StepFault::SpeedUnusable => "converts no step into metres",
+                    StepFault::NotFinite => {
+                        "gives a step that is not a finite number in the state's coordinates"
+                    }
+                    StepFault::DoesNotMove => {
+                        "gives a step below the resolution of the state's coordinates, which \
+                         does not move the trace"
+                    }
+                };
+                write!(
+                    f,
+                    "ssi: the {mode} stepper's march speed of {speed:e} m per unit of the \
+                     march parameter {what}, so the trace cannot be advanced"
+                )
+            }
             Self::SeedRefinementFailed { mode } => write!(
                 f,
-                "ssi: Newton refinement would not settle a {mode} state onto the \
+                "ssi: Newton refinement would not settle a {mode} seed onto the \
                  surface pair"
+            ),
+            Self::SeedOffDomain { mode, margin } => write!(
+                f,
+                "ssi: Newton refinement settled a {mode} seed onto the surface pair \
+                 {:e} m outside the march domain",
+                -margin
+            ),
+            Self::StepRefinementFailed { mode, step_meters } => write!(
+                f,
+                "ssi: a {mode} step of {step_meters:e} m from a state on the locus would \
+                 not settle back onto the surface pair, so the march lost the branch it \
+                 was tracing"
             ),
             Self::SelfCrossingLocus {
                 cos_phi,
@@ -581,9 +821,8 @@ impl core::fmt::Display for SsiError {
             Self::TubeLadderEmpty { extent, floor } => write!(
                 f,
                 "ssi: the uniqueness tube's radius ladder is empty — every rung scaled \
-                 from the carrier's {extent:e} m extent falls below the {floor:e} m \
-                 ladder floor, so limb 3 never ran. The carrier is too short against \
-                 this run's tolerance to carry a certified tube; nothing was measured"
+                 from the {extent:e} m extent falls below the {floor:e} m ladder \
+                 floor the tolerance sets, so limb 3 never ran and nothing was measured"
             ),
             Self::TubeProbeSilent { rungs } => write!(
                 f,
@@ -593,10 +832,9 @@ impl core::fmt::Display for SsiError {
             ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
-                "ssi: the uniqueness tube's transversality is not certified clear of the \
-                 zero band over its {boxes}-box chain (certified clearance {:e} m) — two \
-                 branches pass within the band of each other, which is a genuine sliver \
-                 of the operand pair at this tolerance, not a resolution to refine away",
+                "ssi: over its {boxes}-box chain the uniqueness tube cannot certify the surfaces \
+                 crossing clear of the tolerance band (certified clearance {:e} m), so a second \
+                 branch may lie inside the tube",
                 verdict.margin()
             ),
             Self::FootPointInconclusive { t, last_distance } => write!(
@@ -605,7 +843,80 @@ impl core::fmt::Display for SsiError {
                  distance {last_distance:e} m), so the on-locus residual against the \
                  NURBS operand cannot be stated"
             ),
-            Self::Fit(e) => write!(f, "ssi: the fitting stack refused the marched trace: {e}"),
+            Self::Fit(FitError::TooFewPoints { have, need }) => write!(
+                f,
+                "ssi: a traced branch gave the fitting stack {have} sample{}, and it needs at \
+                 least {need}",
+                if *have == 1 { "" } else { "s" }
+            ),
+            Self::TraceUnresolved { samples, step } => write!(
+                f,
+                "ssi: a traced branch has {samples} sample{} at the march's {step:e} m step, too \
+                 few to fit — the surfaces touch at a point of the domain's slab, or the branch is \
+                 shorter than that step resolves or runs within the tolerance of the slab",
+                if *samples == 1 { "" } else { "s" }
+            ),
+            Self::BoundaryGraze {
+                side,
+                bracket,
+                verdict,
+            } => {
+                let at = side.map_or_else(|| "a boundary curve".to_owned(), |s| s.to_string());
+                write!(
+                    f,
+                    "ssi: the plane grazes {at} between parameters {:e} and {:e}: the \
+                     intersection meets it tangentially (slope margin {} m)",
+                    bracket.0,
+                    bracket.1,
+                    verdict.margin_text()
+                )
+            }
+            Self::BoundaryTangent { side, verdict } => write!(
+                f,
+                "ssi: {side} lies within the tolerance of the plane, and the wall's certified \
+                 slope across it does not clear the tolerance band (slope margin {} m): the \
+                 surfaces may be tangent along that edge, and no region is reported there",
+                verdict.margin_text()
+            ),
+            Self::EndNotOnLocus { side, bracket } => write!(
+                f,
+                "ssi: the crossing on {side} isolated between parameters {:e} and {:e} would \
+                 not settle onto both surfaces",
+                bracket.0, bracket.1
+            ),
+            Self::CrossingUnmatched { from } => {
+                match from {
+                    Some(p) => write!(f, "ssi: the branch from {} at parameter {:e}", p.side, p.t)?,
+                    None => write!(f, "ssi: the branch through the seed")?,
+                }
+                write!(
+                    f,
+                    " found no crossing of the wall's boundary to end at: the march lost the branch"
+                )
+            }
+            Self::ShortBranchUncertified { length, limb, .. } => {
+                let refused = match **limb {
+                    Self::CertificateLimb { limb, .. }
+                    | Self::CertificateEscalated { limb, .. } => limb.name(),
+                    _ => "its certificate",
+                };
+                write!(
+                    f,
+                    "ssi: a branch {length:e} m long, too short to march at this tolerance, took \
+                     the cubic through its two ends as its carrier, and {refused} refused it"
+                )
+            }
+            Self::WindowShortOfWall { half_extent, reach } => write!(
+                f,
+                "ssi: the plane's window reaches {half_extent:e} m from the plane's origin, and \
+                 the wall reaches {reach:e} m across it, so the window would bound the march \
+                 where the wall does not"
+            ),
+            Self::Fit(_) => write!(
+                f,
+                "ssi: the fitting stack could not interpolate a traced branch, which a branch the \
+                 march settled always allows"
+            ),
             Self::FitSampleBudget { samples, budget } => write!(
                 f,
                 "ssi: a branch marched {samples} samples against a {budget}-sample fit \
@@ -621,24 +932,30 @@ impl core::fmt::Display for SsiError {
                 f,
                 "ssi: wrong dispatch lane — this arm traces {expected} (caller bug)"
             ),
-            // The Indeterminate Display carries the shared two-tolerance
-            // recourse exactly once (S6).
-            Self::Escalated(diag) => write!(
+            Self::Escalated { decision, cause } => write!(
                 f,
-                "ssi: a trace trilean escalated — an ill-conditioned operand pair at \
-                 this tolerance: {diag}"
+                "ssi: whether {} is too close to call: {}",
+                decision.question(),
+                cause.payload()
             ),
             Self::CertificateEscalated { limb, cause } => write!(
                 f,
-                "ssi: the fitted carrier's {} escalated: {}",
+                "ssi: whether the fitted carrier passes {} is too close to call: {}",
                 limb.name(),
                 cause.payload()
             ),
-            Self::Band(e) => write!(f, "ssi: {e}"),
+            Self::DomainUnusable { field, value } => {
+                let (name, must) = field.words();
+                write!(
+                    f,
+                    "ssi: the domain's {name} reads {value:e}, which is not {must}, so the \
+                     domain names no region to search"
+                )
+            }
             Self::InvalidMarchTol { value } => write!(
                 f,
                 "ssi: the marcher's step tolerance {value:e} m is not a usable length \
-                 (finite and > 0); derive it from the run band with `MarchTol::from_band`"
+                 (finite and > 0)"
             ),
             Self::MarchTolMismatch { marched, band_zero } => write!(
                 f,
@@ -655,64 +972,211 @@ impl std::error::Error for SsiError {}
 
 impl SsiError {
     /// The ending this refusal's decision gives it, read at `reading`
-    /// (D4 ¶1 (i)), or `None` for a refusal with no ending yet.
+    /// (D4 ¶1 (i)). Every arm has one: the match is exhaustive, so a new
+    /// arm names its decision here before it compiles.
     ///
     /// `Display` renders the payload alone, as [`crate::CertifyError`]'s
     /// does; the door that reports the refusal appends this, or renders
     /// both through [`SsiError::render`]. No SSI door takes a
     /// declaration, so no ending offers one.
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
-        Some(match self {
+    pub fn ending(&self, reading: Reading) -> String {
+        match self {
             Self::TransversalityBand { verdict, .. } => {
-                TRANSVERSALITY.recourse(verdict.arm(), reading)
+                crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
             }
             Self::PairTangent { verdict } => PAIR_TANGENCY.recourse(verdict.arm(), reading),
+            Self::Escalated { decision, cause } => decision.ending(cause, reading),
+            // Each limb ends by its own decision on every arm.
             Self::CertificateEscalated { limb, cause } => {
                 crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), reading)
+            }
+            Self::CertificateLimb { limb, .. } => {
+                crate::certify::recourse(limb.check(), RefusedArm::SignCertain, reading)
+            }
+            Self::TubeStraddles { verdict, .. } => {
+                crate::certify::recourse(SsiLimb::Tube.check(), verdict.arm(), reading)
+            }
+            Self::SelfCrossingLocus { .. } => {
+                SELF_CROSSING.recourse(RefusedArm::SignCertain, reading)
+            }
+            // Only a certifying door edited to march at another tolerance
+            // reaches it.
+            Self::MarchTolMismatch { .. } => defect_ending(reading).to_owned(),
+            Self::InvalidMarchTol { .. } => {
+                "Recourse: name a march tolerance that is a positive finite length".to_owned()
             }
             Self::OperandNotFinite { operand, datum } => {
                 format!("Recourse: give the {operand} a finite {datum}")
             }
+            Self::DomainUnusable { field, .. } => {
+                let (name, must) = field.words();
+                format!("Recourse: give the domain a {name} that is {must}")
+            }
+            // A floor too fine for the domain is the geometry's scale,
+            // decided exactly: no band, so no tolerance to name. One that
+            // is not a length is the caller's knobs.
+            Self::FloorUnresolvable(r) => r.ending(reading),
+            // The same decision as a floor too fine for its domain: the
+            // geometry's scale, decided exactly.
+            Self::SettlingUnresolvable(r) => {
+                let scale = match (r.lane, r.bound) {
+                    (ExhaustLane::R3, ReachBound::Geometry) => exhaust::R3_SCALE,
+                    (ExhaustLane::R3, ReachBound::Domain) => DOMAIN_SCALE,
+                    (ExhaustLane::Chart { .. }, _) => exhaust::CHART_SCALE,
+                };
+                scale.recourse(RefusedArm::SignCertain, reading)
+            }
+            // The same decision, and so the same ending, as the edge
+            // lane's refusal of the same fact.
+            Self::ChartSpeed(r) => {
+                crate::certify::recourse(r.check(), RefusedArm::SignCertain, reading)
+            }
+            // A step that cannot be taken or that collapses into the
+            // band is the operands' scale against the domain the caller
+            // named, decided without a margin to name. A march speed
+            // that is not positive and finite is no input's: the chart
+            // mint refuses a degenerate chart before any march.
+            Self::StepCollapsed { .. }
+            | Self::StepUnusable {
+                fault: StepFault::NotFinite | StepFault::DoesNotMove,
+                ..
+            } => STEP_SCALE.recourse(RefusedArm::SignCertain, reading),
+            Self::StepUnusable {
+                fault: StepFault::SpeedUnusable,
+                ..
+            } => defect_ending(reading).to_owned(),
             // A kernel approximation limit: the user holds no lever but
             // the tolerance (D4 ¶1 (i)'s last resort).
             Self::FitSampleBudget { budget, .. } => format!(
                 "Recourse: loosen the tolerance until a branch needs at most {budget} samples, \
                  {KERNEL_LIMIT_LAST_RESORT}"
             ),
-            // `Escalated` still renders `Indeterminate`'s own menu
-            // (`work/ssi/ssi-trace-escalation-ends-in-the-coincidence-menu.md`).
-            Self::ExhaustivenessInconclusive(_)
-            | Self::CellBudget { .. }
-            | Self::StepBudget { .. }
-            | Self::StepCollapsed { .. }
-            | Self::SeedRefinementFailed { .. }
-            | Self::SelfCrossingLocus { .. }
-            | Self::CertificateLimb { .. }
-            | Self::TubeLadderEmpty { .. }
-            | Self::TubeProbeSilent { .. }
-            | Self::TubeStraddles { .. }
-            | Self::FootPointInconclusive { .. }
-            | Self::Fit(_)
-            | Self::UnsupportedCertificate { .. }
-            | Self::ChartSpeed(_)
-            | Self::TubeDegenerate(_)
-            | Self::WrongLane { .. }
-            | Self::Escalated(_)
-            | Self::Band(_)
-            | Self::InvalidMarchTol { .. }
-            | Self::MarchTolMismatch { .. } => return None,
-        })
+            // `march_both` hands the fit more samples than the cubic
+            // needs, or two or more whose length is not a number, which
+            // `chord_parameters` refuses as `NonFinitePoint` before the
+            // interpolation counts: a short trace reaching the count is
+            // the kernel's.
+            Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
+            // Interpolation takes no tolerance, runs no knot algebra and
+            // reads no rows: these are the approximating fits' refusals.
+            Self::Fit(
+                FitError::InvalidTolerance { .. }
+                | FitError::KnotAlgebra(_)
+                | FitError::RaggedRows { .. }
+                | FitError::BudgetExhausted { .. },
+            ) => defect_ending(reading).to_owned(),
+            // The march's states are finite and each moves the last; their
+            // 3-D images and chord parameters are computed afterwards in
+            // f64. A chord below the running total's rounding is absorbed,
+            // so two parameters tie (`ParamCountMismatch`, its knots
+            // `Structure`); a step below an image's resolution repeats a
+            // point (`DegenerateChord`); an image can overflow
+            // (`NonFinitePoint`); and the collocation solve meets the
+            // parameters as rounded (`Lsq`). Each is the approximation's
+            // limit at an extreme scale.
+            Self::Fit(
+                FitError::NonFinitePoint { .. }
+                | FitError::DegenerateChord { .. }
+                | FitError::ParamCountMismatch { .. }
+                | FitError::Structure(_)
+                | FitError::Lsq(_),
+            ) => Unsized::LastResort.recourse(RefusedArm::SignCertain, reading),
+            Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
+            Self::BoundaryGraze { side, verdict, .. } => graze_recourse(*side, verdict, reading),
+            // The surfaces' tangency along the side: the march's own
+            // transversality decision, read across the wall's edge.
+            Self::BoundaryTangent { verdict, .. } => {
+                crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
+            }
+            // The section certified a sign change in the bracket, so a
+            // root is there; one that will not settle is the settling's
+            // limit.
+            Self::EndNotOnLocus { .. } => {
+                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+            }
+            // The march is untrusted: a march that loses its branch is the
+            // march's limit, whatever it matched.
+            Self::CrossingUnmatched { .. } => {
+                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+            }
+            Self::ShortBranchUncertified { verdict, .. } => {
+                SHORT_BRANCH.recourse(verdict.arm(), reading)
+            }
+            Self::WindowShortOfWall { reach, .. } => format!(
+                "Recourse: name a domain half-extent of at least {reach:e} m, so the plane's \
+                 window holds the wall"
+            ),
+            Self::ExhaustivenessInconclusive(_) => EXHAUSTIVENESS_RECOURSE.to_owned(),
+            Self::CellBudget { .. } => CELL_BUDGET_RECOURSE.to_owned(),
+            // The extent sets the length of a capped step; the domain
+            // bounds how far an open branch runs, so it cuts the step
+            // count whichever rung sets each step. A closed loop's count
+            // is the curvature's against ε alone: `FitSampleBudget`'s
+            // physics, so the tolerance is the last resort there.
+            Self::StepBudget { bound, .. } => match bound {
+                StepBound::Cap => STEP_BUDGET_RECOURSE,
+                StepBound::Curvature => STEP_BUDGET_CURVATURE_RECOURSE,
+                StepBound::Both => STEP_BUDGET_BOTH_RECOURSE,
+            }
+            .to_owned(),
+            // The certifying doors read a seed that will not settle as no
+            // branch; only a door seeded by its caller reports it.
+            Self::SeedRefinementFailed { .. } => SEED_RECOURSE.to_owned(),
+            // A definite Negative on the settled seed, sign-certain; the
+            // certifying doors read it as no branch, so only a door seeded
+            // by its caller reports it.
+            Self::SeedOffDomain { .. } => SEED_OFF_DOMAIN_RECOURSE.to_owned(),
+            // Settling a coordinate scale cannot resolve refuses first
+            // (`SettlingUnresolvable`), so a step that still will not
+            // settle is the march's own limit.
+            Self::StepRefinementFailed { .. } => {
+                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+            }
+            // `r >= floor` is decided exactly, so the extent alone.
+            Self::TubeLadderEmpty { .. } => TUBE_EXTENT.recourse(RefusedArm::SignCertain, reading),
+            Self::TubeDegenerate(TubeDegeneracy::WallConstantAcrossLocus) => {
+                WALL_COLLAPSED_RECOURSE.to_owned()
+            }
+            // The box chain and the pcurve are the kernel's: a fitted
+            // cubic's span hulls meet at the knots it passes through, and
+            // its tangent names a direction.
+            Self::TubeProbeSilent { .. }
+            | Self::TubeDegenerate(TubeDegeneracy::PcurveTangentUnusable) => {
+                defect_ending(reading).to_owned()
+            }
+            // Limb 1 with no residual to state: its own decision.
+            Self::FootPointInconclusive { .. } => {
+                crate::certify::recourse(SsiLimb::OnLocus.check(), RefusedArm::SignCertain, reading)
+            }
+            Self::UnsupportedCertificate { .. } => NOT_YET_ENDING.to_owned(),
+            Self::WrongLane { .. } => WRONG_LANE_RECOURSE.to_owned(),
+        }
     }
 
-    /// The payload and, where its decision gives one, the ending read at
-    /// `reading` ([`SsiError::ending`]).
+    /// This refusal with the wall's `side` named, where it is a graze of
+    /// a boundary curve that names none; any other refusal unchanged.
+    #[must_use]
+    pub(crate) fn on_side(self, side: ChartSide) -> Self {
+        match self {
+            Self::BoundaryGraze {
+                side: None,
+                bracket,
+                verdict,
+            } => Self::BoundaryGraze {
+                side: Some(side),
+                bracket,
+                verdict,
+            },
+            other => other,
+        }
+    }
+
+    /// The payload and the ending read at `reading`
+    /// ([`SsiError::ending`]).
     #[must_use]
     pub fn render(&self, reading: Reading) -> String {
-        match self.ending(reading) {
-            Some(ending) => format!("{self}. {ending}"),
-            None => self.to_string(),
-        }
+        format!("{self}. {}", self.ending(reading))
     }
 }
 
@@ -769,6 +1233,17 @@ pub enum ChartSpeedRefusal {
 }
 
 impl ChartSpeedRefusal {
+    /// The decision this refusal is the sign-certain arm of, read by
+    /// every door that reports it: the mint's verdict is exact, a speed
+    /// bound that is zero or not finite, with no band between.
+    #[must_use]
+    pub fn check(self) -> CertCheck {
+        match self {
+            Self::Zero { .. } => CertCheck::PlaneNurbsChartSpeed,
+            Self::NotFinite { .. } => CertCheck::PlaneNurbsChartSpeedBound,
+        }
+    }
+
     /// The refusal's sentence, without the `ssi:` prefix — what
     /// [`SsiError`]'s `Display` renders and what a lane that reports it
     /// in its own vocabulary carries.
@@ -908,6 +1383,12 @@ pub struct SsiBranch {
 pub struct SsiOutcome {
     /// The certified branches.
     pub branches: Vec<SsiBranch>,
+    /// The regions of the domain's boundary the plane meets in the band
+    /// (the plane × NURBS lane's boundary pass; empty on the ℝ³ lane):
+    /// each certifies that the intersection there lies within its reach
+    /// of a corner or side (at a corner, at most one arc), and decides
+    /// no contact.
+    pub boundary: Vec<SsiBoundaryContact>,
     /// The subdivision's accounting — the never-silence receipt.
     pub exhaustiveness: Exhaustiveness,
     /// How many seeds the subdivision produced.
@@ -943,6 +1424,27 @@ pub struct SsiDomain {
 }
 
 impl SsiDomain {
+    /// The door every SSI operation asks first: the centre is a finite
+    /// point, and the half-extent, the feature extent and the floor
+    /// scale are positive finite numbers. A zero half-extent is an
+    /// empty domain, which no answer about it is evidence of.
+    fn check(&self) -> Result<(), SsiError> {
+        let c = self.center;
+        let fields = [
+            (
+                DomainField::Center,
+                c.to_array().into_iter().find(|v| !v.is_finite()),
+            ),
+            (DomainField::HalfExtent, positive_finite(self.half_extent)),
+            (DomainField::Extent, positive_finite(self.extent)),
+            (DomainField::FloorScale, positive_finite(self.floor_scale)),
+        ];
+        match fields.into_iter().find_map(|(f, bad)| bad.map(|v| (f, v))) {
+            Some((field, value)) => Err(SsiError::DomainUnusable { field, value }),
+            None => Ok(()),
+        }
+    }
+
     /// The slab as a enclosure box.
     fn slab(&self) -> Box3 {
         Box3::around(self.center, self.half_extent)
@@ -985,6 +1487,158 @@ impl SsiDomain {
         SSI_SEED_FLOOR * self.extent
     }
 }
+
+/// `Some(x)` when `x` is not a positive finite number.
+fn positive_finite(x: f64) -> Option<f64> {
+    (!(x.is_finite() && x > 0.0)).then_some(x)
+}
+
+/// Which knob of an [`SsiDomain`] a [`SsiError::DomainUnusable`] names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DomainField {
+    /// [`SsiDomain::center`]: a coordinate is not finite.
+    Center,
+    /// [`SsiDomain::half_extent`]: not positive and finite.
+    HalfExtent,
+    /// [`SsiDomain::extent`]: not positive and finite.
+    Extent,
+    /// [`SsiDomain::floor_scale`]: not positive and finite.
+    FloorScale,
+}
+
+impl DomainField {
+    /// The knob's name, and what it must be.
+    fn words(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Center => ("centre", "a finite point"),
+            Self::HalfExtent => ("half-extent", "a positive finite length"),
+            Self::Extent => ("feature extent", "a positive finite length"),
+            Self::FloorScale => ("floor scale", "a positive finite multiplier"),
+        }
+    }
+}
+
+/// [`SsiError::TraceUnresolved`]'s ending. The extent sets the step a
+/// short branch is resolved at, so it is the lever for a branch longer
+/// than the tolerance; a touch or a branch along the slab is the slab's,
+/// which is the caller's box (`work/ssi/ssi-r3-slab-is-not-geometry.md`).
+pub(crate) const TRACE_UNRESOLVED_RECOURSE: &str = "Recourse: for a curve longer than the \
+     tolerance, name a feature extent near its length; otherwise, name a slab that holds the \
+     intersection clear of its faces";
+
+/// The graze decision (`ssi_boundary_crossing`): a crossing of a
+/// boundary curve passes on a slope clear of the band. On a wall's
+/// side, [`graze_recourse`] names the side in its lever.
+const GRAZE: SizedDecision = SizedDecision {
+    lever: "move the plane or the curve so they cross at a clear angle",
+    size: "crossing angle",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// What [`graze_recourse`] replaces with the side's name.
+const GRAZE_SIDE: &str = "the plane or the curve so they cross";
+
+/// The graze's ending, its lever naming `side` where the curve is one.
+fn graze_recourse(side: Option<ChartSide>, verdict: &BandVerdict, reading: Reading) -> String {
+    let text = GRAZE.recourse(verdict.arm(), reading);
+    match side {
+        Some(side) => text.replacen(
+            GRAZE_SIDE,
+            &format!("the plane or the wall so the intersection crosses {side}"),
+            1,
+        ),
+        None => text,
+    }
+}
+
+/// A short branch's candidate the certificate refused
+/// ([`SsiError::ShortBranchUncertified`]): its length is a size the user
+/// may intend, and a tolerance whose band its step clears marches it.
+const SHORT_BRANCH: SizedDecision = SizedDecision {
+    lever: "move the plane or the wall so the branch it clips is longer, or clear of the wall",
+    size: "branch length",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// [`SsiError::ExhaustivenessInconclusive`]'s ending. A cell the search
+/// can neither exclude nor account for at the accounting floor
+/// (`SsiDomain::floor_scale` of ε) is one where the surfaces come
+/// within the floor of each other, met or not: a loop smaller than the
+/// seeding floor the feature extent sets, or a near-tangency.
+const EXHAUSTIVENESS_RECOURSE: &str = "Recourse: lower the floor scale, name a feature extent \
+     near the size of any small loop, or move the surfaces to cross clearly or stay clearly apart";
+
+/// [`SsiError::CellBudget`]'s ending: the cell count grows with the
+/// domain against the floors, the seeding floor is the feature
+/// extent's, and a near-tangency leaves a shell of cells no enclosure
+/// excludes.
+const CELL_BUDGET_RECOURSE: &str = "Recourse: name a domain around just the feature traced and a \
+     feature extent near its size, or move the surfaces to cross clearly or stay clearly apart";
+
+/// [`SsiError::StepBudget`]'s ending where the cap held the steps
+/// short: the feature extent caps the step, and the domain bounds how
+/// far an open branch runs.
+const STEP_BUDGET_RECOURSE: &str = "Recourse: name a feature extent near the size of the feature \
+     traced, and a domain around just that feature, so the march needs fewer steps";
+
+/// [`SsiError::StepBudget`]'s ending where the curvature held the
+/// steps short: the domain still shortens an open branch.
+const STEP_BUDGET_CURVATURE_RECOURSE: &str = concat!(
+    "Recourse: name a domain around just the feature traced, or loosen the tolerance, ",
+    geom_core::kernel_limit_last_resort!()
+);
+
+/// [`SsiError::StepBudget`]'s ending where each rung held a share of
+/// the steps: both levers.
+const STEP_BUDGET_BOTH_RECOURSE: &str = concat!(
+    "Recourse: name a feature extent near the size of the feature traced and a domain around \
+     just that feature, or loosen the tolerance, ",
+    geom_core::kernel_limit_last_resort!()
+);
+
+const _: () = assert!(
+    certify::SSI_TUBE_RADIUS_MAX * 8.0 == 1.0,
+    "TUBE_EXTENT's lever says eight times the floor"
+);
+
+/// The tube ladder's widest rung against its floor
+/// ([`SsiError::TubeLadderEmpty`]): `SSI_TUBE_RADIUS_MAX · extent`, an
+/// eighth of the extent, must reach the floor the payload names.
+/// Decided exactly, before any probe, so it ends in the lever alone.
+const TUBE_EXTENT: SizedDecision = SizedDecision {
+    lever: "name a feature extent of at least eight times the ladder floor, near the size of the \
+            feature traced",
+    size: "feature extent",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// [`SsiError::SeedRefinementFailed`]'s ending, at the doors whose
+/// caller names the seed.
+const SEED_RECOURSE: &str = "Recourse: seed the trace at a point nearer where the surfaces meet";
+
+/// [`SsiError::SeedOffDomain`]'s ending, at the doors whose caller names
+/// the seed: the seed settled definitely outside the march domain.
+const SEED_OFF_DOMAIN_RECOURSE: &str = "Recourse: seed the trace at a point that settles inside \
+     the domain, or name a domain that holds where it settles";
+
+/// [`SsiError::WrongLane`]'s ending: each door traces one pairing of
+/// kinds, and the routing table ([`crate::intersect::route`]) names
+/// the door for a pair, or says no door traces it yet.
+const WRONG_LANE_RECOURSE: &str = "Recourse: look the pair up in the routing table \
+     (`geom_brep::route`), which names the door that traces it or says none does yet";
+
+/// A spline face whose certified stretch across the traced locus is
+/// zero ([`TubeDegeneracy::WallConstantAcrossLocus`]): the face's own
+/// degeneracy. The stored face is what the lever edits, so the ending
+/// is the same at rest as at a build.
+const WALL_COLLAPSED_RECOURSE: &str = "Recourse: move the geometry so the spline face does not \
+     collapse to a point or a curve where the surfaces meet";
 
 /// Fit a marched polyline into a cubic NURBS carrier and its pcurves,
 /// on **one shared parameter** (the OQ4 contract).
@@ -1072,12 +1726,156 @@ fn branch_chart_tubes(branch: &SsiBranch) -> Vec<UvRect> {
         .collect()
 }
 
-/// The march's transversality decision (`ssi_transversality`):
-/// `sin θ · arm`, the displacement the crossing angle induces at the
-/// lever arm, which passes on a positive sign.
-const TRANSVERSALITY: SizedDecision = SizedDecision {
-    lever: "separate the surfaces, or move them so they cross at a clearer angle",
-    size: "near-tangent crossing",
+/// **The decision a trace's escalation names** ([`SsiError::Escalated`]):
+/// the march's own decisions and the cylinder × sphere door's tangency,
+/// a closed type, so the ending is an exhaustive match (D4 ¶1 (i)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TraceDecision {
+    /// `ssi_transversality_arm`: the lever arm the crossing angle is
+    /// levered by (the operands' curvature radius, or the feature
+    /// extent) is a positive length — the gate on
+    /// [`TraceDecision::Transversality`].
+    TransversalityArm,
+    /// `ssi_transversality`: the surfaces cross at a clear angle at a
+    /// marched state ([`SsiError::TransversalityBand`] is its verdict).
+    Transversality,
+    /// `ssi_step_progress`: the step clears the tolerance band
+    /// ([`SsiError::StepCollapsed`] is its verdict).
+    StepProgress,
+    /// `ssi_branch_open_end`: an ℝ³ branch has left the caller's slab.
+    /// Every definite sign passes.
+    BranchOpenEnd,
+    /// `ssi_closure_return`: the trace has come back to its start.
+    /// Every definite sign passes.
+    ClosureReturn,
+    /// `ssi_closure_tangent`: it came back running the way it left
+    /// ([`SsiError::SelfCrossingLocus`] is its verdict).
+    ClosureTangent,
+    /// `ssi_cs_tangency`: the cylinder × sphere pair's gap from a
+    /// tangent pose ([`SsiError::PairTangent`] is its verdict).
+    PairTangency,
+    /// `ssi_boundary_on_plane` and `ssi_boundary_corner`: how far a
+    /// side or a corner of the wall lies from the plane. Every arm is
+    /// reported (a region in the band), so only a poisoned distance
+    /// escalates it.
+    BoundarySection,
+}
+
+impl TraceDecision {
+    /// This decision's escalation on `cause`.
+    pub(crate) fn escalated(self, cause: Indeterminate) -> SsiError {
+        SsiError::Escalated {
+            decision: self,
+            cause,
+        }
+    }
+
+    /// The question the decision asks, as the refusal states it.
+    fn question(self) -> &'static str {
+        match self {
+            Self::TransversalityArm => {
+                "the crossing angle's lever arm (the surfaces' curvature radius, or the feature \
+                 extent) is a positive length"
+            }
+            Self::Transversality => "the surfaces cross at a clear angle along the traced locus",
+            Self::StepProgress => "the march's step clears the tolerance band",
+            Self::BranchOpenEnd => "the traced branch has left the domain's slab",
+            Self::ClosureReturn => "the trace has come back to its start",
+            Self::ClosureTangent => "the trace came back to its start running the way it left",
+            Self::PairTangency => "the sphere and the cylinder are tangent",
+            Self::BoundarySection => "the wall's boundary lies on the plane",
+        }
+    }
+
+    /// The ending this decision's escalation on `cause` carries, read at
+    /// `reading`: the one its decided verdicts carry (D4 ¶1 (iv)).
+    ///
+    /// - The transversality decision ends by [`CertCheck::Transversality`],
+    ///   and its arm gate as the decision it guards, as the edge
+    ///   certifier's does.
+    /// - The step and the closure angle are the march's own, no size a
+    ///   caller intends, so they end in their lever alone, as
+    ///   [`SsiError::StepCollapsed`] and [`SsiError::SelfCrossingLocus`] do.
+    /// - The open end passes on every definite sign, so only a marched
+    ///   state, or the settled seed, landing within the band of the
+    ///   domain's boundary refuses it: moving the boundary, or the
+    ///   geometry under it, moves that.
+    /// - The return passes on every definite sign too, so only where an
+    ///   untrusted marched sample landed against the seed refuses it,
+    ///   which no lever the caller holds moves: the last resort.
+    /// - Where the step, the closure angle or the open end read a
+    ///   poisoned margin, no lever of theirs is what refused: the march's
+    ///   own arithmetic went unreadable, which is the kernel's.
+    #[must_use]
+    pub fn ending(self, cause: &Indeterminate, reading: Reading) -> String {
+        let arm = RefusedArm::Undecided(cause);
+        match self {
+            Self::TransversalityArm | Self::Transversality => {
+                crate::certify::recourse(CertCheck::Transversality, arm, reading)
+            }
+            Self::PairTangency => PAIR_TANGENCY.recourse(arm, reading),
+            Self::StepProgress | Self::ClosureTangent | Self::BranchOpenEnd
+                if cause.margin.is_invalid() =>
+            {
+                defect_ending(reading).to_owned()
+            }
+            Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain, reading),
+            Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain, reading),
+            Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain, reading),
+            Self::ClosureReturn => Unsized::LastResort.recourse(arm, reading),
+            // Every arm is reported; a poisoned distance is no input's,
+            // since both operands are refused at the door unless finite.
+            Self::BoundarySection => defect_ending(reading).to_owned(),
+        }
+    }
+}
+
+/// The march's settling against a domain that reaches further from zero
+/// than its coordinates resolve, where no operand bounds the states
+/// nearer ([`ReachBound::Domain`]).
+const DOMAIN_SCALE: SizedDecision = SizedDecision {
+    lever: "name a domain around the feature traced, nearer the origin, or move the geometry \
+            nearer the origin, where its coordinates resolve the tolerance",
+    size: "scale",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// The ℝ³ open end (`ssi_branch_open_end`), refused only where a
+/// marched state, or the settled seed, lands within the band of the
+/// caller's slab. Read on its sign-certain arm alone: where a state
+/// lands is the march's own, no size a caller intends.
+const OPEN_END: SizedDecision = SizedDecision {
+    lever: "move the domain's slab, or the geometry, a little, so no marched state or seed \
+            lands within a few tolerances of the slab",
+    size: "boundary distance",
+    passes: SizedPass::AnySign,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// The closure's tangent decision (`ssi_closure_tangent`), refused when
+/// the trace comes back across or against the way it left: the locus
+/// cusps or crosses itself. Read on its sign-certain arm alone, since
+/// the closure angle is the march's own.
+const SELF_CROSSING: SizedDecision = SizedDecision {
+    lever: "move the surfaces so their intersection does not cusp or cross itself",
+    size: "closure angle",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// The stepper's step against the operands and the domain the caller
+/// named ([`SsiError::StepCollapsed`], [`SsiError::StepUnusable`]): a
+/// step that collapses into the band, overflows, or does not move the
+/// state comes from operands outside the model's size range or a domain
+/// far larger than the feature traced.
+const STEP_SCALE: SizedDecision = SizedDecision {
+    lever: "bring the operands within the model's size range, and name a domain and feature \
+            extent near the size of the feature traced",
+    size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
     at_zero: None,
@@ -1175,6 +1973,7 @@ pub fn cylinder_sphere_ssi(
     };
     finite_operand("sphere", sphere)?;
     finite_operand("cylinder", cyl)?;
+    domain.check()?;
     let (
         Surface::Sphere { center, radius, .. },
         &Surface::Cylinder {
@@ -1206,14 +2005,20 @@ pub fn cylinder_sphere_ssi(
                 verdict: Refused::Zero(crate::recourse::Classified { margin, band }),
             });
         }
-        Err(diag) => return Err(SsiError::Escalated(diag)),
+        Err(diag) => return Err(TraceDecision::PairTangency.escalated(diag)),
     }
 
     let sys = ImplicitPairR3 { a, b };
     let slab = domain.slab();
+    // Both floors and the march's tolerance are minted over the slab
+    // before any sweep or march runs, the proof obligation's first.
+    // The march settles to what the slab's coordinates resolve.
+    let account_floor = SweepFloor::r3(slab, domain.floor(band), FloorKind::Accounting)?;
+    let seed_floor = SweepFloor::r3(slab, domain.seed_floor(), FloorKind::Seeding)?;
+    let tol = MarchTol::from_band(band, quadric_readout(a, b, slab))?;
 
     // ---- seeds: the subdivision, asked for its seeding duty ----
-    let seeds = exhaust::seed_r3(a, b, slab, domain.seed_floor())?;
+    let seeds = exhaust::seed_r3(a, b, seed_floor)?;
     let seed_count = seeds.len() as u32;
 
     // ---- march, fit, certify ----
@@ -1224,7 +2029,7 @@ pub fn cylinder_sphere_ssi(
             [slab.z.lo(), slab.z.hi()],
         ],
         extent: domain.extent,
-        tol: MarchTol::from_band(band),
+        tol,
         max_steps: SSI_MAX_STEPS,
     };
     let mut branches: Vec<SsiBranch> = Vec::new();
@@ -1240,9 +2045,9 @@ pub fn cylinder_sphere_ssi(
         // hand back a duplicate `SsiBranch` (two carriers for one
         // component, and an exhaustiveness receipt that double-counts
         // the same tube). Refine first, then test.
-        let state = [seed.x, seed.y, seed.z];
+        let state = seed.to_array();
         let landed = march::newton_refine::<2, 3, _>(&sys, state, ctx.tol);
-        let probe = landed.map_or(*seed, |x| Point3::new(x[0], x[1], x[2]));
+        let probe = landed.map_or(*seed, Point3::from_array);
         if tubes
             .iter()
             // The band, not the marcher: this box decides whether two
@@ -1254,12 +2059,14 @@ pub fn cylinder_sphere_ssi(
         {
             continue;
         }
-        let trace = match march_both::<2, 3, _>(&sys, state, ctx, StepperMode::Realized, band) {
+        let trace = match march_both(&sys, state, ctx, StepperMode::Realized, band) {
             Ok(t) => t,
-            // A seed that will not settle is not a branch; the
-            // subdivision's accounting pass is what decides whether
-            // that was a miss. Every other refusal propagates.
-            Err(SsiError::SeedRefinementFailed { .. }) => continue,
+            // A seed that will not settle, or settles outside the
+            // domain, is not a branch; the subdivision's accounting
+            // pass is what decides whether that was a miss. Every other
+            // refusal propagates, a march that lost its branch mid-trace
+            // included.
+            Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => continue,
             Err(e) => return Err(e),
         };
         let branch = finish_r3(&sys, &trace, a, b, &domain, ctx.tol, band)?;
@@ -1270,9 +2077,10 @@ pub fn cylinder_sphere_ssi(
     // ---- accounting: the same subdivision, asked for its proof duty.
     // An empty `tubes` here means nothing was found, so nothing is
     // proved. ----
-    let exhaustiveness = exhaust::account_r3(a, b, slab, &tubes, domain.floor(band))?;
+    let exhaustiveness = exhaust::account_r3(a, b, &tubes, account_floor)?;
     Ok(SsiOutcome {
         branches,
+        boundary: Vec::new(),
         exhaustiveness,
         seeds: seed_count,
     })
@@ -1288,7 +2096,7 @@ pub fn cylinder_sphere_ssi(
 /// the divergence S25 is about. A door is maintained by someone, and a
 /// sentence in a doc comment does not stop them.
 fn seam_tol(tol: MarchTol, band: Band) -> Result<f64, SsiError> {
-    if tol != MarchTol::from_band(band) {
+    if !tol.is_of(band) {
         return Err(SsiError::MarchTolMismatch {
             marched: tol.meters(),
             band_zero: band.zero(),
@@ -1299,7 +2107,7 @@ fn seam_tol(tol: MarchTol, band: Band) -> Result<f64, SsiError> {
 
 fn finish_r3(
     sys: &ImplicitPairR3<'_>,
-    trace: &Trace<3>,
+    trace: &Trace<3, march::SlabEnd>,
     a: &Surface<f64>,
     b: &Surface<f64>,
     domain: &SsiDomain,
@@ -1307,7 +2115,7 @@ fn finish_r3(
     band: Band,
 ) -> Result<SsiBranch, SsiError> {
     let march_tol = seam_tol(tol, band)?;
-    let points = trace_points::<2, 3, _>(sys, trace);
+    let points = trace_points::<2, 3, _, _>(sys, trace);
     let (carrier, _, _) = fit_branch(&points, None)?;
     let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
     let cert = certify::certify_branch(
@@ -1324,7 +2132,7 @@ fn finish_r3(
     Ok(SsiBranch {
         carrier,
         params,
-        end: trace.end,
+        end: trace.end.branch_end(),
         certificate: cert,
         witness,
         pcurve_a: None,
@@ -1332,6 +2140,72 @@ fn finish_r3(
         min_transversality: trace.min_transversality,
         march_tol,
     })
+}
+
+/// **The quadric lane's readout**, at every door that marches an
+/// analytic pair: the domain's `slab`, cut down to the box of each
+/// operand that is bounded. Every state lies on both operands inside the
+/// slab, so their coordinates reach no further than that.
+fn quadric_readout(a: &Surface<f64>, b: &Surface<f64>, slab: Box3) -> Readout {
+    let operands = [a, b]
+        .into_iter()
+        .filter_map(analytic_box)
+        .reduce(Box3::meet);
+    Readout::spatial(slab, operands, SSI_QUADRIC_NOISE_ULPS)
+}
+
+/// The box an analytic surface lies in, where it is bounded.
+fn analytic_box(surface: &Surface<f64>) -> Option<Box3> {
+    match *surface {
+        Surface::Sphere { center, radius, .. } => Some(Box3::around(center, radius.abs())),
+        Surface::Torus {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(Box3::around(
+            center,
+            major_radius.abs() + minor_radius.abs(),
+        )),
+        _ => None,
+    }
+}
+
+/// **The spline lane's readout**, at every door that marches a plane ×
+/// NURBS pair: the plane's `window` cut down to the wall's control
+/// hull, where every state's residual is read, and the wall's chart
+/// `root`, through which Newton moves, whichever is louder.
+///
+/// The chart's spacing crosses into metres at the sup speed, which
+/// over-states its noise, so the march settles no finer than either
+/// resolves and may refuse a wall a slower axis would carry. On a
+/// rational wall the over-statement is larger: the sup speed grows with
+/// the wall's absolute coordinates
+/// (`work/ssi/rational-chart-sup-speed-grows-with-translation.md`).
+fn spline_readout(
+    window: Box3,
+    wall: &NurbsSurface<f64>,
+    root: UvRect,
+    speed: geom_core::SupSpeed<f64>,
+) -> Readout {
+    let hull = wall
+        .control()
+        .iter()
+        .map(|&p| Box3::between(p, p))
+        .reduce(Box3::hull);
+    Readout::spatial(window, hull, SSI_SPLINE_NOISE_ULPS).or_chart(
+        root,
+        speed,
+        SSI_SPLINE_NOISE_ULPS,
+    )
+}
+
+/// The ℝ³ box a plane chart's `±half` window spans: every state the ℝ⁴
+/// trace settles lies on the plane inside it.
+fn window_reach(chart: &Chart<'_>, half: f64) -> Box3 {
+    let corner = |u, v| chart.eval(u, v);
+    Box3::between(corner(-half, -half), corner(half, half))
+        .hull(Box3::between(corner(-half, half), corner(half, -half)))
 }
 
 /// **plane × NURBS wall** — the ℝ⁴ parametric×parametric arm (3×4 SVD,
@@ -1375,17 +2249,15 @@ pub fn plane_nurbs_ssi(
     // refusal arm can only name the wall's net.
     finite_operand("plane", plane)?;
     finite_net("NURBS wall", wall)?;
+    domain.check()?;
     let half = domain.half_extent;
     let Some(chart_a) = Chart::plane_of(plane, (-half, half), (-half, half)) else {
         return Err(SsiError::WrongLane {
             expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
         });
     };
+    let window = window_reach(&chart_a, half);
     let chart_b = Chart::Nurbs(wall);
-    // The march domain is the two charts' own named windows — the
-    // plane's from the caller's extent (a plane is unbounded, so a
-    // window is a caller obligation, never a guess), the wall's from
-    // its knot domain.
     let ((pu, pv), (ud, vd)) = (chart_a.domain(), chart_b.domain());
     let sys = ParametricPairR4 {
         a: chart_a,
@@ -1397,103 +2269,153 @@ pub fn plane_nurbs_ssi(
     // a zero or non-finite axis by name. The chart floors are metres ÷
     // the larger of the two, so a floor stated in metres means the same
     // thing in both lanes, and dividing by a sup UNDER-states the
-    // parameter reach — the safe side of a floor. A finite speed of
-    // ~1e150 still drives the translated floors to ~1e-152, where the
-    // budget answers: the finite-but-unusable window is issue 1238's.
+    // parameter reach — the safe side of a floor. Each floor is minted
+    // once over the wall's domain, which refuses one the domain cannot
+    // resolve, the proof obligation's first.
     let charted = ChartedNurbs::mint(wall)?;
     let speed = charted.speeds().max();
     let wall_op = SsiOperand::Nurbs(charted);
+    let account_floor = SweepFloor::chart(root, domain.floor(band), speed, FloorKind::Accounting)?;
+    let seed_floor = SweepFloor::chart(root, domain.seed_floor(), speed, FloorKind::Seeding)?;
+    let tol = MarchTol::from_band(band, spline_readout(window, wall, root, speed))?;
+    // The plane's window is the caller's (a plane is unbounded, so a
+    // window is a caller obligation, never a guess), and it holds the
+    // wall, so the march ends only at the wall's knot rectangle.
+    boundary::window_holds_wall((p0, u_ref, normal.cross(u_ref)), wall, half)?;
 
-    // ---- seeds ----
-    let seeds = exhaust::seed_chart_plane(wall, p0, normal, root, speed, domain.seed_floor())?;
+    let ctx = MarchContext::<4> {
+        domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
+        extent: domain.extent,
+        tol,
+        max_steps: SSI_MAX_STEPS,
+    };
+
+    // ---- the boundary pass: the wall's knot rectangle against the
+    // plane, before any march (C3) ----
+    let pass = boundary_pass(wall, &charted, plane, &sys, tol, &domain, band)?;
+
+    let seeds = exhaust::seed_chart_plane(wall, p0, normal, seed_floor)?;
     let seed_count = seeds.len() as u32;
 
+    // ---- the open branches, between the crossings ----
+    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, &domain, band);
+    let mut branches = ends.branches(&pass.crossings)?;
+    let mut tubes: Vec<UvRect> = branches.iter().flat_map(branch_chart_tubes).collect();
+
+    // ---- the closed loops, from the subdivision's seeds ----
     let v_ref = normal.cross(u_ref);
     let to_plane_chart = |p: Point3<f64>| {
         let q = p - p0;
         (q.dot(u_ref), q.dot(v_ref))
     };
-    let ctx = MarchContext::<4> {
-        domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
-        extent: domain.extent,
-        tol: MarchTol::from_band(band),
-        max_steps: SSI_MAX_STEPS,
-    };
-    let mut branches: Vec<SsiBranch> = Vec::new();
-    let mut tubes: Vec<UvRect> = Vec::new();
+    let cap = SSI_STEP_MAX * domain.extent;
+    let holds =
+        |r: &UvRect, x: &[f64; 4]| x[2] >= r.u.0 && x[2] <= r.u.1 && x[3] >= r.v.0 && x[3] <= r.v.1;
+    // A march that refuses from a seed some later branch's tube turns
+    // out to hold was a wasted march, not the op's refusal.
+    let mut refused: Vec<([f64; 4], SsiError)> = Vec::new();
     for (u, v) in seeds.iter() {
-        if tubes
-            .iter()
-            .any(|t| *u >= t.u.0 && *u <= t.u.1 && *v >= t.v.0 && *v <= t.v.1)
-        {
+        let (pu, pv) = to_plane_chart(wall.eval(*u, *v));
+        let state = [pu, pv, *u, *v];
+        // Dedup against where the seed lands, as the ℝ³ lane does.
+        let landed = march::newton_refine(&sys, state, tol).unwrap_or(state);
+        if tubes.iter().chain(&pass.regions).any(|r| holds(r, &landed)) {
             continue;
         }
-        let p = wall.eval(*u, *v);
-        let (pu, pv) = to_plane_chart(p);
-        let state = [pu, pv, *u, *v];
-        let trace = match march_both::<3, 4, _>(&sys, state, ctx, StepperMode::Realized, band) {
+        let trace = match march(
+            &sys,
+            &RectExit,
+            state,
+            ctx,
+            StepperMode::Realized,
+            1.0,
+            band,
+            cap,
+        ) {
             Ok(t) => t,
-            Err(SsiError::SeedRefinementFailed { .. }) => continue,
-            Err(e) => return Err(e),
+            // As in `cylinder_sphere_ssi`: only a seed that will not
+            // settle inside the domain is no branch.
+            Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => continue,
+            Err(e) => {
+                refused.push((landed, e));
+                continue;
+            }
         };
-        let branch = finish_r4(&sys, &trace, plane, &wall_op, &domain, ctx.tol, band)?;
+        // A seed on an open branch: the branch reaches the wall's
+        // boundary, where it was traced from its crossings, and the
+        // accounting pass decides whether that left anything out.
+        let RectEnd::Closed = trace.end else {
+            continue;
+        };
+        let branch = ends.finish(&trace.states, BranchEnd::Closed, trace.min_transversality)?;
         tubes.extend(branch_chart_tubes(&branch));
         branches.push(branch);
     }
+    if let Some((_, e)) = refused
+        .into_iter()
+        .find(|(x, _)| !tubes.iter().any(|r| holds(r, x)))
+    {
+        return Err(e);
+    }
 
-    let exhaustiveness =
-        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, speed, domain.floor(band))?;
+    let exhaustiveness = exhaust::account_chart_plane(
+        wall,
+        p0,
+        normal,
+        &tubes,
+        &pass.regions,
+        &pass.clear,
+        account_floor,
+    )?;
     Ok(SsiOutcome {
         branches,
+        boundary: pass.contacts,
         exhaustiveness,
         seeds: seed_count,
     })
 }
 
-fn finish_r4(
-    sys: &ParametricPairR4<'_>,
-    trace: &Trace<4>,
+/// The boundary pass over `wall`'s knot rectangle against `plane`, at
+/// the domain's floor and extent (C3), as both plane × NURBS doors run
+/// it.
+///
+/// # Errors
+///
+/// As [`boundary::Pass::run`].
+fn boundary_pass(
+    wall: &NurbsSurface<f64>,
+    charted: &ChartedNurbs<'_, f64>,
     plane: &Surface<f64>,
-    wall: &SsiOperand<'_, f64>,
-    domain: &SsiDomain,
+    sys: &ParametricPairR4<'_>,
     tol: MarchTol,
+    domain: &SsiDomain,
     band: Band,
-) -> Result<SsiBranch, SsiError> {
-    let march_tol = seam_tol(tol, band)?;
-    let points = trace_points::<3, 4, _>(sys, trace);
-    let chart_a: Vec<geom_core::Point2<f64>> = trace
-        .states
-        .iter()
-        .map(|s| geom_core::Point2::new(s[0], s[1]))
-        .collect();
-    let chart_b: Vec<geom_core::Point2<f64>> = trace
-        .states
-        .iter()
-        .map(|s| geom_core::Point2::new(s[2], s[3]))
-        .collect();
-    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a, &chart_b)))?;
-    let cert = certify::certify_branch(
-        &carrier,
-        pb.as_ref(),
-        &SsiOperand::Analytic(plane),
+) -> Result<boundary::BoundaryPass, SsiError> {
+    let Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    } = *plane
+    else {
+        return Err(SsiError::WrongLane {
+            expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
+        });
+    };
+    boundary::Pass {
         wall,
-        TubeScale::uniform(domain.extent),
+        speeds: charted.speeds(),
+        plane: boundary::PassPlane {
+            origin,
+            normal,
+            u_ref,
+        },
+        sys,
+        tol,
+        floor: domain.floor(band),
+        extent: domain.extent,
         band,
-    )?;
-    let params = carrier.domain();
-    let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
-    let witness = carrier.mid_point(params.0, params.1);
-    Ok(SsiBranch {
-        carrier,
-        params,
-        end: trace.end,
-        certificate: cert,
-        witness,
-        pcurve_a: pa,
-        pcurve_b: pb,
-        min_transversality: trace.min_transversality,
-        march_tol,
-    })
+    }
+    .run()
 }
 
 /// The ℝ⁴ trace's fitted product **without a certificate** — the OQ4
@@ -1541,7 +2463,6 @@ pub fn trace_plane_nurbs_uncertified(
     march_tol: f64,
     band: Band,
 ) -> Result<TracedTriple, SsiError> {
-    let tol = MarchTol::decoupled(march_tol)?;
     let Surface::Plane {
         origin: p0,
         normal,
@@ -1554,14 +2475,21 @@ pub fn trace_plane_nurbs_uncertified(
     };
     finite_operand("plane", plane)?;
     finite_net("NURBS wall", wall)?;
+    domain.check()?;
     let half = domain.half_extent;
     let Some(chart_a) = Chart::plane_of(plane, (-half, half), (-half, half)) else {
         return Err(SsiError::WrongLane {
             expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
         });
     };
+    let window = window_reach(&chart_a, half);
     let chart_b = Chart::Nurbs(wall);
     let ((pu, pv), (ud, vd)) = (chart_a.domain(), chart_b.domain());
+    let charted = ChartedNurbs::mint(wall)?;
+    let speed = charted.speeds().max();
+    let root = UvRect { u: ud, v: vd };
+    let tol = MarchTol::decoupled(march_tol, spline_readout(window, wall, root, speed))?;
+    boundary::window_holds_wall((p0, u_ref, normal.cross(u_ref)), wall, half)?;
     let sys = ParametricPairR4 {
         a: chart_a,
         b: chart_b,
@@ -1572,23 +2500,16 @@ pub fn trace_plane_nurbs_uncertified(
         tol,
         max_steps: SSI_MAX_STEPS,
     };
+    // A branch through the seed ends at the crossings the boundary pass
+    // certifies, as every plane × NURBS branch does.
+    let pass = boundary_pass(wall, &charted, plane, &sys, tol, &domain, band)?;
+    let wall_op = SsiOperand::Nurbs(charted);
+    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, &domain, band);
     let v_ref = normal.cross(u_ref);
-    let p = wall.eval(seed_uv.0, seed_uv.1);
-    let q = p - p0;
+    let q = wall.eval(seed_uv.0, seed_uv.1) - p0;
     let state = [q.dot(u_ref), q.dot(v_ref), seed_uv.0, seed_uv.1];
-    let trace = march_both::<3, 4, _>(&sys, state, ctx, StepperMode::Realized, band)?;
-    let points = trace_points::<3, 4, _>(&sys, &trace);
-    let chart_a_pts: Vec<geom_core::Point2<f64>> = trace
-        .states
-        .iter()
-        .map(|s| geom_core::Point2::new(s[0], s[1]))
-        .collect();
-    let chart_b_pts: Vec<geom_core::Point2<f64>> = trace
-        .states
-        .iter()
-        .map(|s| geom_core::Point2::new(s[2], s[3]))
-        .collect();
-    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a_pts, &chart_b_pts)))?;
+    let (states, _, _) = ends.through_seed(state, &pass.crossings, SSI_STEP_MAX * domain.extent)?;
+    let (carrier, pa, pb) = ends::fit_states(&sys, &states)?;
     match (pa, pb) {
         (Some(a), Some(b)) => Ok((carrier, a, b)),
         _ => Err(SsiError::UnsupportedCertificate {
@@ -1649,6 +2570,7 @@ pub fn idealized_trace_r3(
 ) -> Result<(Vec<Point3<f64>>, BranchEnd), SsiError> {
     finite_operand("first operand", a)?;
     finite_operand("second operand", b)?;
+    domain.check()?;
     let sys = ImplicitPairR3 { a, b };
     let slab = domain.slab();
     let ctx = MarchContext::<3> {
@@ -1658,35 +2580,241 @@ pub fn idealized_trace_r3(
             [slab.z.lo(), slab.z.hi()],
         ],
         extent: domain.extent,
-        tol: MarchTol::from_band(band),
+        tol: MarchTol::from_band(band, quadric_readout(a, b, slab))?,
         max_steps: SSI_MAX_STEPS,
     };
-    let trace = march_both::<2, 3, _>(
-        &sys,
-        [seed.x, seed.y, seed.z],
-        ctx,
-        StepperMode::Idealized,
-        band,
-    )?;
-    let pts = trace_points::<2, 3, _>(&sys, &trace);
-    Ok((pts, trace.end))
+    let trace = march_both(&sys, seed.to_array(), ctx, StepperMode::Idealized, band)?;
+    let pts = trace_points::<2, 3, _, _>(&sys, &trace);
+    Ok((pts, trace.end.branch_end()))
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod ending_tests {
-    use geom_core::{Band, KERNEL_LIMIT_LAST_RESORT, MarginDiag};
+    use geom_core::{
+        Band, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE,
+        KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, NOT_YET_ENDING,
+    };
 
-    use super::{SSI_MAX_FIT_SAMPLES, SsiError};
+    use super::{SSI_MAX_FIT_SAMPLES, SsiError, SsiLimb, TraceDecision};
     use crate::recourse::{Classified, Reading, Refused};
 
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// An escalation of `margin` against [`band`].
+    fn cause(margin: MarginDiag) -> Indeterminate {
+        Indeterminate {
+            margin,
+            band: band(),
+            predicate: None,
+            terminal_sliver: false,
+        }
+    }
+
+    /// The transversality decision's one lever, read at every door.
+    const CROSS: &str = "Recourse: move the geometry so the surfaces cross at a clearer angle";
+
+    /// **Every trace escalation ends by the decision it names, as that
+    /// decision's verdicts end**, and its `Display` is the payload alone,
+    /// never the coincidence menu (no SSI door takes a declaration):
+    ///
+    /// - the transversality decision, its arm gate and limb 3 — the
+    ///   march's verdict, the tube's verdict and both escalations — all
+    ///   end in the one lever, with the tolerance an in-band margin
+    ///   gives;
+    /// - the pair's tangency escalation ends as its verdict does;
+    /// - the step and the closure angle end exactly as their decided
+    ///   refusals (`StepCollapsed`, `SelfCrossingLocus`);
+    /// - the open end and the return end in the last resort.
+    #[test]
+    fn every_trace_escalation_ends_as_its_decisions_verdict() {
+        let in_band = cause(MarginDiag::value(5e-9));
+        let tighten = ", or, if this angle is intended, tighten the tolerance below 5e-10 m";
+        let escalated = |decision| SsiError::Escalated {
+            decision,
+            cause: in_band,
+        };
+        let zero = Refused::Zero(Classified {
+            margin: MarginDiag::value(5e-9),
+            band: band(),
+        });
+        let transversal = [
+            escalated(TraceDecision::Transversality),
+            escalated(TraceDecision::TransversalityArm),
+            SsiError::TransversalityBand {
+                sin_theta: 5e-9,
+                arm: 1.0,
+                sigma_min: 1e-9,
+                verdict: zero,
+            },
+            SsiError::TubeStraddles {
+                verdict: zero,
+                boxes: 4,
+            },
+            SsiError::CertificateEscalated {
+                limb: SsiLimb::Tube,
+                cause: in_band,
+            },
+        ];
+        for error in &transversal {
+            assert_eq!(
+                error.ending(Reading::Build),
+                format!("{CROSS}{tighten}"),
+                "{error:?}"
+            );
+        }
+        let pair = escalated(TraceDecision::PairTangency).ending(Reading::Build);
+        assert_eq!(
+            pair,
+            SsiError::PairTangent { verdict: zero }.ending(Reading::Build),
+            "the pair's tangency"
+        );
+        let step = SsiError::StepCollapsed {
+            mode: "realized",
+            step_meters: 5e-9,
+            speed: 1.0,
+        };
+        let crossing = SsiError::SelfCrossingLocus {
+            cos_phi: -1.0,
+            arc_length: 1.0,
+        };
+        for reading in [Reading::Build, Reading::AtRest] {
+            assert_eq!(
+                escalated(TraceDecision::StepProgress).ending(reading),
+                step.ending(reading),
+                "the step at {reading:?}"
+            );
+            assert_eq!(
+                escalated(TraceDecision::ClosureTangent).ending(reading),
+                crossing.ending(reading),
+                "the closure angle at {reading:?}"
+            );
+        }
+        assert_eq!(
+            crossing.ending(Reading::Build),
+            "Recourse: move the surfaces so their intersection does not cusp or cross itself"
+        );
+        assert_eq!(
+            escalated(TraceDecision::ClosureReturn)
+                .ending(Reading::Build)
+                .as_str(),
+            KERNEL_LIMIT_RECOURSE,
+            "the return"
+        );
+        // Every arm of the boundary pass's distances is reported, so only
+        // a poisoned one escalates, and no input reaches that.
+        assert_eq!(
+            escalated(TraceDecision::BoundarySection).ending(Reading::Build),
+            KERNEL_DEFECT_ENDING,
+            "the boundary section"
+        );
+        let open = escalated(TraceDecision::BranchOpenEnd).ending(Reading::Build);
+        assert_eq!(
+            open,
+            "Recourse: move the domain's slab, or the geometry, a little, so no marched state \
+             or seed lands within a few tolerances of the slab",
+            "the open end names the slab"
+        );
+        for decision in [
+            TraceDecision::TransversalityArm,
+            TraceDecision::Transversality,
+            TraceDecision::StepProgress,
+            TraceDecision::BranchOpenEnd,
+            TraceDecision::ClosureReturn,
+            TraceDecision::ClosureTangent,
+            TraceDecision::PairTangency,
+            TraceDecision::BoundarySection,
+        ] {
+            let error = escalated(decision);
+            let shown = error.to_string();
+            assert!(
+                shown.starts_with("ssi: whether ")
+                    && shown.ends_with(&format!("too close to call: {}", in_band.payload()))
+                    && !shown.contains("Recourse")
+                    && !shown.contains("declare"),
+                "payload only: {shown}"
+            );
+            let rendered = error.render(Reading::Build);
+            assert!(!rendered.contains("declare"), "{rendered}");
+            let words = rendered.split_whitespace().count();
+            assert!(words < 75, "{words} words: {rendered}");
+        }
+    }
+
+    /// **A certificate limb's definite refusal ends by its limb**, as its
+    /// undecided sibling does: a fitted residual's at a build is the
+    /// last resort, and over stored geometry the defect of the kernel or
+    /// the file. The tube's refusal is held to the concision standard.
+    #[test]
+    fn a_definite_limb_refusal_ends_by_its_limb() {
+        for limb in [SsiLimb::OnLocus, SsiLimb::HullSup] {
+            let refusal = SsiError::CertificateLimb { limb, value: 3e-9 };
+            assert_eq!(
+                refusal.ending(Reading::Build),
+                KERNEL_LIMIT_RECOURSE,
+                "{limb:?}"
+            );
+            assert_eq!(
+                refusal.ending(Reading::AtRest),
+                KERNEL_OR_FILE_DEFECT_ENDING,
+                "{limb:?}"
+            );
+        }
+        let tube = SsiError::TubeStraddles {
+            verdict: Refused::Zero(Classified {
+                margin: MarginDiag::value(5e-10),
+                band: band(),
+            }),
+            boxes: 12,
+        };
+        let shown = tube.to_string();
+        let literal = shown.split_whitespace().count();
+        assert!(literal < 35, "{literal} words: {shown}");
+        let rendered = tube.render(Reading::Build);
+        assert!(
+            rendered.starts_with(&format!("{shown}. {CROSS}")),
+            "{rendered}"
+        );
+        let mismatch = SsiError::MarchTolMismatch {
+            marched: 1e-9,
+            band_zero: 2e-9,
+        };
+        assert_eq!(mismatch.ending(Reading::Build), KERNEL_DEFECT_ENDING);
+    }
+
     /// The SSI refusals that end by a decision end by its table, and
-    /// `Display` is the payload alone: the transversality death and the
-    /// pair's tangency name the SSI's own levers (separating the
-    /// operands among them) and the tolerance their in-band margin gives
-    /// (`m/K`, here `K = 10`), never a declaration (the doors take
-    /// none); the spent fit budget ends in the loosening clause and the
-    /// last resort, within 50 words rendered.
+    /// `Display` is the payload alone: the transversality death names
+    /// the transversality decision's lever and the pair's tangency its
+    /// own (separating the operands among them), each with the tolerance
+    /// their in-band margin gives (`m/K`, here `K = 10`), never a
+    /// declaration (the doors take none); the spent fit budget ends in
+    /// the loosening clause and the last resort, within 50 words
+    /// rendered; the fit's sample shortfall, which `march_both` never
+    /// hands it, ends as a kernel defect with no fit recourse in its
+    /// payload; and a trace too short to fit ends as the march's limit,
+    /// with its own recourse.
+    ///
+    /// **Every arm ends, within the concision standard.** The roster
+    /// holds one representative payload per arm ([`arm`] is exhaustive,
+    /// so a new arm does not compile until it is numbered, and the
+    /// roster must then reach its number), and each renders as payload
+    /// then ending, within the 75-word budget, with exactly one recourse
+    /// or dead end (`test_utils::refusal::problems`). The arms whose
+    /// decision has no margin end by name: the search's budget and the
+    /// exhaustiveness proof by the domain, the extent, the floor scale
+    /// and the geometry; the march's budget by the rungs that held its
+    /// steps (the extent and the domain for the cap, the domain and the
+    /// last resort for the curvature, all of them for both); a caller's
+    /// seed by the seed, and one settled off the domain by the seed and
+    /// the domain; the tube ladder by the extent alone, since it is
+    /// decided exactly; a collapsed wall by the face; a step that will
+    /// not settle, and a fit the f64 images can refuse, in the last
+    /// resort; a short fit, a fit refusal interpolation cannot raise,
+    /// the tube's probe and the pcurve's tangent as the kernel's; the
+    /// foot point by limb 1; a boundary of the certificate as no way
+    /// through yet; and the wrong door by the routing table.
     #[test]
     fn each_ssi_ending_is_its_decisions() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -1705,13 +2833,27 @@ mod ending_tests {
             samples: 4 * SSI_MAX_FIT_SAMPLES,
             budget: SSI_MAX_FIT_SAMPLES,
         };
+        let short = SsiError::Fit(geom::FitError::TooFewPoints { have: 3, need: 4 });
+        let single = SsiError::Fit(geom::FitError::TooFewPoints { have: 1, need: 2 });
+        let unresolved = SsiError::TraceUnresolved {
+            samples: 1,
+            step: 3.125,
+        };
+        assert!(
+            unresolved
+                .to_string()
+                .contains("has 1 sample at the march's 3.125e0 m step"),
+            "{unresolved}"
+        );
+        assert!(single.to_string().contains(" 1 sample, "), "{single}");
         for (error, ending) in [
+            (&short, KERNEL_DEFECT_ENDING.to_owned()),
+            (&unresolved, super::TRACE_UNRESOLVED_RECOURSE.to_owned()),
             (
                 &death,
-                "Recourse: separate the surfaces, or move them so they cross at a clearer \
-                 angle, or, if this near-tangent crossing is intended, tighten the tolerance \
-                 below 5e-11 m"
-                    .to_owned(),
+                format!(
+                    "{CROSS}, or, if this angle is intended, tighten the tolerance below 5e-11 m"
+                ),
             ),
             (
                 &pair,
@@ -1741,5 +2883,559 @@ mod ending_tests {
         );
         let words = rendered.split_whitespace().count();
         assert!(words < 50, "{words} words: {rendered}");
+
+        // Sign-certain: the lever alone, never a tolerance.
+        let tube_extent = format!("Recourse: {}", super::TUBE_EXTENT.lever);
+        let roster = roster();
+        let ending_of = |name: &str| {
+            let (_, error) = roster.iter().find(|(n, _)| *n == name).unwrap();
+            (error.ending(Reading::Build), error.ending(Reading::AtRest))
+        };
+        for (name, build, at_rest) in [
+            (
+                "exhaustiveness, r3",
+                super::EXHAUSTIVENESS_RECOURSE,
+                super::EXHAUSTIVENESS_RECOURSE,
+            ),
+            (
+                "exhaustiveness, chart",
+                super::EXHAUSTIVENESS_RECOURSE,
+                super::EXHAUSTIVENESS_RECOURSE,
+            ),
+            (
+                "cell budget",
+                super::CELL_BUDGET_RECOURSE,
+                super::CELL_BUDGET_RECOURSE,
+            ),
+            (
+                "step budget, cap",
+                super::STEP_BUDGET_RECOURSE,
+                super::STEP_BUDGET_RECOURSE,
+            ),
+            (
+                "step budget, curvature",
+                super::STEP_BUDGET_CURVATURE_RECOURSE,
+                super::STEP_BUDGET_CURVATURE_RECOURSE,
+            ),
+            (
+                "step budget, both",
+                super::STEP_BUDGET_BOTH_RECOURSE,
+                super::STEP_BUDGET_BOTH_RECOURSE,
+            ),
+            ("seed", super::SEED_RECOURSE, super::SEED_RECOURSE),
+            (
+                "seed off domain",
+                super::SEED_OFF_DOMAIN_RECOURSE,
+                super::SEED_OFF_DOMAIN_RECOURSE,
+            ),
+            (
+                "step refinement",
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            ("tube ladder", tube_extent.as_str(), tube_extent.as_str()),
+            (
+                "tube probe",
+                KERNEL_DEFECT_ENDING,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "foot point",
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "fit, short",
+                KERNEL_DEFECT_ENDING,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "fit, chord",
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "fit, tolerance",
+                KERNEL_DEFECT_ENDING,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            ("unsupported, routing", NOT_YET_ENDING, NOT_YET_ENDING),
+            ("unsupported, pcurve", NOT_YET_ENDING, NOT_YET_ENDING),
+            (
+                "wall collapsed",
+                super::WALL_COLLAPSED_RECOURSE,
+                super::WALL_COLLAPSED_RECOURSE,
+            ),
+            (
+                "pcurve tangent",
+                KERNEL_DEFECT_ENDING,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "wrong lane",
+                super::WRONG_LANE_RECOURSE,
+                super::WRONG_LANE_RECOURSE,
+            ),
+            (
+                "end not on locus",
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "crossing unmatched",
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "crossing unmatched, seed",
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            ("unsupported, side", NOT_YET_ENDING, NOT_YET_ENDING),
+        ] {
+            assert_eq!(
+                ending_of(name),
+                (build.to_owned(), at_rest.to_owned()),
+                "{name}: at a build, then at rest"
+            );
+        }
+
+        let mut reached = [false; ARMS];
+        let mut problems = Vec::new();
+        for (name, error) in &roster {
+            reached[arm(error)] = true;
+            let shown = error.to_string();
+            let ending = error.ending(Reading::Build);
+            let rendered = error.render(Reading::Build);
+            assert_eq!(rendered, format!("{shown}. {ending}"), "{name}");
+            assert!(
+                !shown.contains("Recourse") && !shown.contains("no way through"),
+                "{name}: payload only: {shown}"
+            );
+            problems.extend(test_utils::refusal::problems(
+                name,
+                &rendered,
+                &["ssi"],
+                false,
+            ));
+        }
+        assert!(problems.is_empty(), "{problems:#?}");
+        let missing: Vec<usize> = (0..ARMS).filter(|i| !reached[*i]).collect();
+        assert!(missing.is_empty(), "arms with no roster row: {missing:?}");
+    }
+
+    /// **A chord the running total absorbs ties two parameters**, and
+    /// the fit refuses the trace as `ParamCountMismatch`: five finite,
+    /// distinct points whose second chord (1e-17 m) is below the
+    /// rounding of a third of the total. It ends in the last resort.
+    #[test]
+    fn an_absorbed_chord_refuses_the_fit_in_the_last_resort() {
+        use geom_core::Point3;
+        let points = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1e-17, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(3.0, 0.0, 0.0),
+        ];
+        let error = super::fit_branch(&points, None).err();
+        assert!(
+            matches!(
+                error,
+                Some(SsiError::Fit(geom::FitError::ParamCountMismatch { .. }))
+            ),
+            "{error:?}"
+        );
+        assert_eq!(
+            error.map(|e| e.ending(Reading::Build)).as_deref(),
+            Some(KERNEL_LIMIT_RECOURSE)
+        );
+    }
+
+    /// How many arms [`SsiError`] has: [`arm`]'s numbering.
+    const ARMS: usize = 37;
+
+    /// Each arm's number. No wildcard: a new arm does not compile until
+    /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
+    /// asks the roster to reach it.
+    fn arm(error: &SsiError) -> usize {
+        match error {
+            SsiError::TransversalityBand { .. } => 0,
+            SsiError::PairTangent { .. } => 1,
+            SsiError::OperandNotFinite { .. } => 2,
+            SsiError::ExhaustivenessInconclusive(_) => 3,
+            SsiError::FloorUnresolvable(_) => 4,
+            SsiError::SettlingUnresolvable(_) => 5,
+            SsiError::CellBudget { .. } => 6,
+            SsiError::StepBudget { .. } => 7,
+            SsiError::StepCollapsed { .. } => 8,
+            SsiError::StepUnusable { .. } => 9,
+            SsiError::SeedRefinementFailed { .. } => 10,
+            SsiError::StepRefinementFailed { .. } => 11,
+            SsiError::SelfCrossingLocus { .. } => 12,
+            SsiError::CertificateLimb { .. } => 13,
+            SsiError::TubeLadderEmpty { .. } => 14,
+            SsiError::TubeProbeSilent { .. } => 15,
+            SsiError::TubeStraddles { .. } => 16,
+            SsiError::FootPointInconclusive { .. } => 17,
+            SsiError::Fit(_) => 18,
+            SsiError::TraceUnresolved { .. } => 19,
+            SsiError::FitSampleBudget { .. } => 20,
+            SsiError::UnsupportedCertificate { .. } => 21,
+            SsiError::ChartSpeed(_) => 22,
+            SsiError::TubeDegenerate(_) => 23,
+            SsiError::WrongLane { .. } => 24,
+            SsiError::Escalated { .. } => 25,
+            SsiError::CertificateEscalated { .. } => 26,
+            SsiError::DomainUnusable { .. } => 27,
+            SsiError::InvalidMarchTol { .. } => 28,
+            SsiError::MarchTolMismatch { .. } => 29,
+            SsiError::SeedOffDomain { .. } => 30,
+            SsiError::BoundaryGraze { .. } => 31,
+            SsiError::BoundaryTangent { .. } => 32,
+            SsiError::EndNotOnLocus { .. } => 33,
+            SsiError::CrossingUnmatched { .. } => 34,
+            SsiError::ShortBranchUncertified { .. } => 35,
+            SsiError::WindowShortOfWall { .. } => 36,
+        }
+    }
+
+    /// One representative payload per arm, and both forms of an arm
+    /// whose payload changes the sentence: the longest a door raises
+    /// where the payload is a sentence of its own.
+    fn roster() -> Vec<(&'static str, SsiError)> {
+        use super::{
+            ChartAxis, ChartSpeedRefusal, DomainField, ExhaustLane, ExhaustivenessRefusal,
+            FloorFault, FloorKind, FloorRefusal, OperandDatum, ReachBound, SSI_MAX_CELLS,
+            SSI_MAX_STEPS, SettlingRefusal, StepBound, StepFault, TubeDegeneracy,
+        };
+        use crate::ssi::BandVerdict;
+        let zero = Refused::Zero(Classified {
+            margin: MarginDiag::value(5e-10),
+            band: band(),
+        });
+        let in_band = cause(MarginDiag::value(5e-9));
+        let inconclusive = |lane| {
+            SsiError::ExhaustivenessInconclusive(ExhaustivenessRefusal {
+                lane,
+                cell_width: 6.25e-10,
+                floor: 1e-9,
+                examined: 199_999,
+            })
+        };
+        let chart = ExhaustLane::Chart {
+            speed: geom_core::SupSpeed::new(2.0),
+        };
+        let bottom = super::ChartSide {
+            fixed: ChartAxis::V,
+            end: super::ChartEnd::Low,
+        };
+        vec![
+            (
+                "transversality",
+                SsiError::TransversalityBand {
+                    sin_theta: 5e-10,
+                    arm: 1.0,
+                    sigma_min: 1e-10,
+                    verdict: zero,
+                },
+            ),
+            ("pair tangent", SsiError::PairTangent { verdict: zero }),
+            (
+                "operand",
+                SsiError::OperandNotFinite {
+                    operand: "first operand",
+                    datum: OperandDatum::Field(geom::SurfaceDatum::Origin),
+                },
+            ),
+            ("exhaustiveness, r3", inconclusive(ExhaustLane::R3)),
+            ("exhaustiveness, chart", inconclusive(chart)),
+            (
+                "floor",
+                SsiError::FloorUnresolvable(FloorRefusal {
+                    lane: chart,
+                    floor: FloorKind::Accounting,
+                    meters: 1e-9,
+                    width: 5e-10,
+                    fault: FloorFault::BelowResolution {
+                        resolution: 2.2e-16,
+                        reach: 1.0,
+                    },
+                }),
+            ),
+            (
+                "settling",
+                SsiError::SettlingUnresolvable(SettlingRefusal {
+                    lane: chart,
+                    reach: 1e8,
+                    gap: 1.5e-8,
+                    bound: ReachBound::Domain,
+                    settle: 3e-8,
+                    tolerance: 1e-9,
+                }),
+            ),
+            (
+                "cell budget",
+                SsiError::CellBudget {
+                    budget: SSI_MAX_CELLS,
+                },
+            ),
+            (
+                "step budget, cap",
+                SsiError::StepBudget {
+                    mode: super::StepperMode::Realized.name(),
+                    budget: SSI_MAX_STEPS,
+                    bound: StepBound::Cap,
+                },
+            ),
+            (
+                "step budget, curvature",
+                SsiError::StepBudget {
+                    mode: super::StepperMode::Realized.name(),
+                    budget: SSI_MAX_STEPS,
+                    bound: StepBound::Curvature,
+                },
+            ),
+            (
+                "step budget, both",
+                SsiError::StepBudget {
+                    mode: super::StepperMode::Realized.name(),
+                    budget: SSI_MAX_STEPS,
+                    bound: StepBound::Both,
+                },
+            ),
+            (
+                "step collapsed",
+                SsiError::StepCollapsed {
+                    mode: super::StepperMode::Realized.name(),
+                    step_meters: 5e-10,
+                    speed: 1.0,
+                },
+            ),
+            (
+                "step unusable",
+                SsiError::StepUnusable {
+                    mode: super::StepperMode::Realized.name(),
+                    speed: 1e-300,
+                    fault: StepFault::DoesNotMove,
+                },
+            ),
+            (
+                "seed",
+                SsiError::SeedRefinementFailed {
+                    mode: super::StepperMode::Idealized.name(),
+                },
+            ),
+            (
+                "seed off domain",
+                SsiError::SeedOffDomain {
+                    mode: super::StepperMode::Realized.name(),
+                    margin: -1.15e-3,
+                },
+            ),
+            (
+                "step refinement",
+                SsiError::StepRefinementFailed {
+                    mode: super::StepperMode::Realized.name(),
+                    step_meters: 1e-3,
+                },
+            ),
+            (
+                "self crossing",
+                SsiError::SelfCrossingLocus {
+                    cos_phi: -1.0,
+                    arc_length: 1.0,
+                },
+            ),
+            (
+                "limb",
+                SsiError::CertificateLimb {
+                    limb: SsiLimb::HullSup,
+                    value: 3e-9,
+                },
+            ),
+            (
+                "tube ladder",
+                SsiError::TubeLadderEmpty {
+                    extent: 1e-8,
+                    floor: 8e-9,
+                },
+            ),
+            ("tube probe", SsiError::TubeProbeSilent { rungs: 6 }),
+            (
+                "tube straddles",
+                SsiError::TubeStraddles {
+                    verdict: zero,
+                    boxes: 12,
+                },
+            ),
+            (
+                "foot point",
+                SsiError::FootPointInconclusive {
+                    t: 0.5,
+                    last_distance: 1e-6,
+                },
+            ),
+            (
+                "fit, short",
+                SsiError::Fit(geom::FitError::TooFewPoints { have: 3, need: 4 }),
+            ),
+            (
+                "fit, chord",
+                SsiError::Fit(geom::FitError::DegenerateChord { index: 5 }),
+            ),
+            (
+                "fit, tolerance",
+                SsiError::Fit(geom::FitError::InvalidTolerance { tolerance: -1.0 }),
+            ),
+            (
+                "trace unresolved",
+                SsiError::TraceUnresolved {
+                    samples: 1,
+                    step: 3.125,
+                },
+            ),
+            (
+                "fit budget",
+                SsiError::FitSampleBudget {
+                    samples: 4 * SSI_MAX_FIT_SAMPLES,
+                    budget: SSI_MAX_FIT_SAMPLES,
+                },
+            ),
+            (
+                "unsupported, routing",
+                SsiError::UnsupportedCertificate {
+                    what: super::certify::CHART_TUBE_NEEDS_PLANE,
+                },
+            ),
+            (
+                "unsupported, pcurve",
+                SsiError::UnsupportedCertificate {
+                    what: super::certify::NURBS_LIMBS_NEED_PCURVE,
+                },
+            ),
+            (
+                "chart speed",
+                SsiError::ChartSpeed(ChartSpeedRefusal::NotFinite { axis: ChartAxis::V }),
+            ),
+            (
+                "wall collapsed",
+                SsiError::TubeDegenerate(TubeDegeneracy::WallConstantAcrossLocus),
+            ),
+            (
+                "pcurve tangent",
+                SsiError::TubeDegenerate(TubeDegeneracy::PcurveTangentUnusable),
+            ),
+            (
+                "wrong lane",
+                SsiError::WrongLane {
+                    expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
+                },
+            ),
+            (
+                "graze",
+                SsiError::BoundaryGraze {
+                    side: Some(bottom),
+                    bracket: (0.4999, 0.5001),
+                    verdict: BandVerdict::Refused(zero),
+                },
+            ),
+            (
+                "graze, curve",
+                SsiError::BoundaryGraze {
+                    side: None,
+                    bracket: (0.4999, 0.5001),
+                    verdict: BandVerdict::Undecided(cause(MarginDiag::value(5e-9))),
+                },
+            ),
+            (
+                "boundary tangent",
+                SsiError::BoundaryTangent {
+                    side: bottom,
+                    verdict: BandVerdict::Refused(zero),
+                },
+            ),
+            (
+                "end not on locus",
+                SsiError::EndNotOnLocus {
+                    side: bottom,
+                    bracket: (0.25, 0.25 + 1e-9),
+                },
+            ),
+            (
+                "crossing unmatched",
+                SsiError::CrossingUnmatched {
+                    from: Some(super::BoundaryPoint {
+                        side: bottom,
+                        t: 0.25,
+                    }),
+                },
+            ),
+            (
+                "crossing unmatched, seed",
+                SsiError::CrossingUnmatched { from: None },
+            ),
+            (
+                "short branch",
+                SsiError::ShortBranchUncertified {
+                    length: 3e-8,
+                    limb: Box::new(SsiError::CertificateLimb {
+                        limb: SsiLimb::OnLocus,
+                        value: 3e-9,
+                    }),
+                    verdict: BandVerdict::Undecided(cause(MarginDiag::value(6e-9))),
+                },
+            ),
+            (
+                "short branch, zero",
+                SsiError::ShortBranchUncertified {
+                    length: 3e-9,
+                    limb: Box::new(SsiError::TubeProbeSilent { rungs: 3 }),
+                    verdict: BandVerdict::Refused(zero),
+                },
+            ),
+            (
+                "window",
+                SsiError::WindowShortOfWall {
+                    half_extent: 0.25,
+                    reach: 1.06,
+                },
+            ),
+            (
+                "unsupported, side",
+                SsiError::UnsupportedCertificate {
+                    what: super::exhaust::SIDE_ENCLOSURE_REFUSED,
+                },
+            ),
+            (
+                "escalated",
+                SsiError::Escalated {
+                    decision: TraceDecision::TransversalityArm,
+                    cause: in_band,
+                },
+            ),
+            (
+                "limb escalated",
+                SsiError::CertificateEscalated {
+                    limb: SsiLimb::Tube,
+                    cause: in_band,
+                },
+            ),
+            (
+                "domain",
+                SsiError::DomainUnusable {
+                    field: DomainField::FloorScale,
+                    value: -1.0,
+                },
+            ),
+            ("march tol", SsiError::InvalidMarchTol { value: -1.0 }),
+            (
+                "march tol mismatch",
+                SsiError::MarchTolMismatch {
+                    marched: 1e-9,
+                    band_zero: 2e-9,
+                },
+            ),
+        ]
     }
 }

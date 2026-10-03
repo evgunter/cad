@@ -80,13 +80,13 @@ fn build(blocks: &[B], ops: &[Op], creation: &[usize]) -> Built {
         let node = match *op {
             Op::Union(ms) => Node::Union {
                 members: ms.iter().map(|&m| r(m, &out)).collect(),
-                declare: None,
+                declare: Vec::new(),
             },
             Op::Pair(op, a, b) => Node::Boolean {
                 op,
                 a: r(a, &out),
                 b: r(b, &out),
-                declare: None,
+                declare: Vec::new(),
             },
         };
         let (d, id) = insert(doc, node);

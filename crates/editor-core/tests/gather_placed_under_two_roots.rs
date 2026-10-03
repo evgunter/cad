@@ -11,12 +11,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Entry,
     EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, MateRole, NameTable, Node, PartSelect,
-    PatternKind, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, SplitHalf, StableName,
-    product, product_named,
+    PatternKind, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, SplitHalf,
+    StableName, product, product_named,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{head_at, insert, len, on_frame, scl, solve, step, xform};
@@ -40,6 +41,7 @@ fn block(doc: ProfileDoc, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -87,8 +89,12 @@ fn two_transforms_of_one_extrude_refuse_naming_the_extrude_and_both_roots() {
     assert_eq!(err.kind(), ProductErrorKind::PlacedUnderTwoRoots);
     let message = err.to_string();
     for needle in [
-        format!("node {:012x}'s body", extrude.0),
-        format!("two roots, {:012x} and {:012x}", t1.0, t2.0),
+        format!("node {}'s body", test_utils::refusal::tag(extrude.0)),
+        format!(
+            "two roots, node {} and node {}",
+            test_utils::refusal::tag(t1.0),
+            test_utils::refusal::tag(t2.0)
+        ),
     ] {
         assert!(
             message.contains(&needle),
@@ -179,8 +185,10 @@ fn one_half_under_two_roots_refuses_naming_the_half() {
     let ev = run(&doc);
     let err = product(&doc, &ev, Tol::witness()).expect_err("one half under two roots");
     assert!(
-        err.to_string()
-            .contains(&format!("the above half of node {:012x}", split.0)),
+        err.to_string().contains(&format!(
+            "the above half of node {}",
+            test_utils::refusal::tag(split.0)
+        )),
         "{err}"
     );
     assert_eq!(
@@ -255,8 +263,10 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
     let ev = run(&doc);
     let err = product(&doc, &ev, Tol::witness()).expect_err("instance 000000000001 twice");
     assert!(
-        err.to_string()
-            .contains(&format!("instance `1` of node {:012x}", pattern.0)),
+        err.to_string().contains(&format!(
+            "instance `1` of node {}",
+            test_utils::refusal::tag(pattern.0)
+        )),
         "{err}"
     );
     assert_eq!(
@@ -296,7 +306,7 @@ fn legal_placements_still_gather() {
         doc,
         Node::Union {
             members: vec![t1, t2],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(doc.roots(), &[union][..], "the union consumes both moves");
@@ -392,10 +402,10 @@ fn one_instance_mated_through_two_transforms_solves_and_refuses_at_the_gather() 
         let (doc, m) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat(
+                node: Box::new(seat(
                     head_at(base, in_part(base, base_body, CapEnd::End)),
                     head_at(at, in_part(top, top_body, CapEnd::Start)),
-                ),
+                )),
             },
         );
         (doc, m.expect("the mate inserts"))
@@ -514,6 +524,7 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
         Node::Extrude {
             profile,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     insert(
@@ -522,7 +533,7 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
             op: editor_core::BooleanOp::Subtract,
             a,
             b: c,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -815,4 +826,79 @@ fn halves_of_two_splits_that_overlap_still_refuse_naming() {
         }
     }
     assert!(wrong.is_empty(), "expected a Naming refusal: {wrong:#?}");
+}
+
+/// **A split through the U-cutter's pockets gathers.** The plane at
+/// `x = 3` (and at `x = 3.9`) runs through both prongs, so the Above
+/// half's section has two holes. It is one face with the prongs'
+/// sections as its two rings, beside the `x = 4` wall the prongs leave
+/// through, and the half passes the per-source gate.
+#[test]
+fn a_split_through_the_u_cutters_pockets_gathers() {
+    for x in [3.0, 3.9] {
+        let doc = ProfileDoc::empty_derived("gather-u-cutter-pockets", Tol::witness());
+        let (doc, sub) = cutter(doc, &[(1.0, 1.5), (2.5, 3.0)]);
+        let (doc, above) =
+            half_of_a_split(doc, sub, ([x, 0.0, 0.0], [1.0, 0.0, 0.0]), SplitHalf::Above);
+        assert_eq!(
+            doc.roots(),
+            &[above][..],
+            "the premise: the Above half alone"
+        );
+        let body = product(&doc, &run(&doc), Tol::witness())
+            .unwrap_or_else(|e| panic!("x = {x}: the half gathers: {e:?}"));
+        let ringed: Vec<usize> = body
+            .faces()
+            .map(|(_, f)| f.rings.len())
+            .filter(|&n| n > 0)
+            .collect();
+        assert_eq!(
+            ringed,
+            vec![2, 2],
+            "x = {x}: the x = 4 wall and the section, each holed by both prongs"
+        );
+    }
+}
+
+/// **A section with holes is one section face per side, so its name
+/// is index 0.** Splitting the U-cutter's subtract at `x = 3`, each
+/// half's section is one face holding both prongs' sections as rings;
+/// the split mints `SectionFace { side, section: 0 }` on each side and
+/// no index past it. Before the split nested holes, each side minted
+/// three, in completion order: 0 and 1 the prongs' cancelling faces,
+/// 2 the face over the whole outline.
+#[test]
+fn a_holed_section_is_named_once_per_side() {
+    let doc = ProfileDoc::empty_derived("u-cutter-section-names", Tol::witness());
+    let (doc, sub) = cutter(doc, &[(1.0, 1.5), (2.5, 3.0)]);
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(3.0), len(0.0), len(0.0)],
+            normal: [scl(1.0), scl(0.0), scl(0.0)],
+        }),
+    );
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: sub,
+            tool: plane,
+        },
+    );
+    let ev = run(&doc);
+    let names = fixture::table(&ev, split);
+    for side in [SplitHalf::Above, SplitHalf::Below] {
+        let at = |section| {
+            names.lookup(&fixture::minted(
+                EntityKind::Face,
+                split,
+                RoleSeg::SectionFace { side, section },
+            ))
+        };
+        assert!(
+            matches!(at(0), Some(Entry::Unique(_))),
+            "{side:?}: the holed section face is index 0"
+        );
+        assert!(at(1).is_none(), "{side:?}: no second section face");
+    }
 }

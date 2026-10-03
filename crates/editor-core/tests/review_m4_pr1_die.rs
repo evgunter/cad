@@ -5,22 +5,33 @@
 //!  - replay bit-identity holds for BOTH authorings;
 //!  - the two docs are payload-ISOMORPHIC under the id relabeling
 //!    induced by the authoring orders (slot floats bit-equal);
-//!  - `diff` between them is EXACTLY the relabeling residue:
-//!    Changed on every id but the shared first insert, no
-//!    Added/Removed, no order/param/ε deltas.
+//!  - `diff` between them is EXACTLY the relabeling residue: the
+//!    shared first insert unchanged, every other node of one Removed
+//!    and of the other Added (the two edit sequences part after the
+//!    first insert, so their mints do), no param/ε deltas.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{ang, len, scl};
+use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, Doc, DocEdit, DocParam, Expr, Node, NodeChange, ParamName, RecipeNodeId, eval,
 };
 use geom_core::Tol;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
-impl editor_core::ProfilePayload for FakeProfile {}
+impl editor_core::ProfilePayload for FakeProfile {
+    fn drawn_pieces(
+        &self,
+        _env: &editor_core::ParamEnv<f64>,
+        _tol: geom_core::Tol,
+    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
+    {
+        Ok(std::collections::BTreeSet::new())
+    }
+}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
@@ -112,7 +123,7 @@ fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile> {
         op: editor_core::BooleanOp::Subtract,
         a,
         b,
-        declare: None,
+        declare: Vec::new(),
     }
 }
 
@@ -144,34 +155,36 @@ fn author_theirs() -> Authored {
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("square-20mm")),
+            node: Box::new(Node::Profile(FakeProfile("square-20mm"))),
         },
     );
     let (doc, cube) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap(),
                 distance: len(2.0 * HALF),
-            },
+                side: ExtrudeSide::Along,
+            }),
         },
     );
     let (doc, pip_p) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("circle-2mm")),
+            node: Box::new(Node::Profile(FakeProfile("circle-2mm"))),
         },
     );
     let (mut doc, pip_e) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
                 distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
-            },
+                side: ExtrudeSide::Along,
+            }),
         },
     );
     let pip_e = pip_e.unwrap();
@@ -182,14 +195,14 @@ fn author_theirs() -> Authored {
             doc,
             &mut log,
             TEdit::InsertNode {
-                node: transform_node(pip_e, &p),
+                node: Box::new(transform_node(pip_e, &p)),
             },
         );
         let (d3, cut) = step(
             d2,
             &mut log,
             TEdit::InsertNode {
-                node: subtract_node(body, placed.unwrap()),
+                node: Box::new(subtract_node(body, placed.unwrap())),
             },
         );
         doc = d3;
@@ -211,14 +224,14 @@ fn author_mine() -> Authored {
         TDoc::empty_derived("review_m4_pr1_die", Tol::witness()),
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("square-20mm")),
+            node: Box::new(Node::Profile(FakeProfile("square-20mm"))),
         },
     );
     let (doc, pip_p) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("circle-2mm")),
+            node: Box::new(Node::Profile(FakeProfile("circle-2mm"))),
         },
     );
     let (doc, _) = step(doc, &mut log, depth_param());
@@ -226,20 +239,22 @@ fn author_mine() -> Authored {
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
                 distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
-            },
+                side: ExtrudeSide::Along,
+            }),
         },
     );
     let (mut doc, cube) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap(),
                 distance: len(2.0 * HALF),
-            },
+                side: ExtrudeSide::Along,
+            }),
         },
     );
     let pip_e = pip_e.unwrap();
@@ -249,7 +264,7 @@ fn author_mine() -> Authored {
             doc,
             &mut log,
             TEdit::InsertNode {
-                node: transform_node(pip_e, &p),
+                node: Box::new(transform_node(pip_e, &p)),
             },
         );
         doc = d2;
@@ -262,7 +277,7 @@ fn author_mine() -> Authored {
             doc,
             &mut log,
             TEdit::InsertNode {
-                node: subtract_node(body, t),
+                node: Box::new(subtract_node(body, t)),
             },
         );
         doc = d2;
@@ -314,38 +329,36 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // Replay identity holds for BOTH edit orders (PartialEq + the
     // stricter role-isomorphism check against self is implied).
     assert_eq!(
-        TDoc::replay(
-            theirs.doc.id(),
-            &editor_core::LoggedEdit::bare_all(&theirs.log),
-            Tol::witness()
-        )
-        .unwrap(),
+        TDoc::replay(theirs.doc.id(), &theirs.log.to_vec(), Tol::witness()).unwrap(),
         theirs.doc
     );
     assert_eq!(
-        TDoc::replay(
-            mine.doc.id(),
-            &editor_core::LoggedEdit::bare_all(&mine.log),
-            Tol::witness()
-        )
-        .unwrap(),
+        TDoc::replay(mine.doc.id(), &mine.log.to_vec(), Tol::witness()).unwrap(),
         mine.doc
     );
 
     // The two authorings are payload-isomorphic under relabeling.
     assert_role_isomorphic(&theirs, &mine);
 
-    // The diff is EXACTLY the relabeling residue: both docs mint one
-    // set of 46 ids in one order, insert #0 (cube profile) coincides in
-    // both, every other id's payload differs → each of the rest
-    // Changed, in id order, nothing else.
-    assert_eq!(theirs.doc.order(), mine.doc.order(), "one id per insert");
+    // The diff is EXACTLY the relabeling residue. The first insert is
+    // one edit from one mint in both authorings, so it is one id and
+    // unchanged; from the second on the edit sequences differ, so the
+    // two share no other id: the rest of theirs Removed in its order,
+    // the rest of mine Added in its.
+    assert_eq!(
+        theirs.doc.order()[0],
+        mine.doc.order()[0],
+        "one first edit, one first id"
+    );
     let d = theirs.doc.diff(&mine.doc);
-    let mut relabeled = theirs.doc.order()[1..].to_vec();
-    relabeled.sort();
-    let expected: Vec<NodeChange> = relabeled.into_iter().map(NodeChange::Changed).collect();
+    let expected: Vec<NodeChange> = theirs.doc.order()[1..]
+        .iter()
+        .copied()
+        .map(NodeChange::Removed)
+        .chain(mine.doc.order()[1..].iter().copied().map(NodeChange::Added))
+        .collect();
     assert_eq!(d.nodes, expected, "diff is exactly the relabeling residue");
     assert!(d.params.is_empty(), "same params");
-    assert!(!d.order_changed, "both orders are the same ids");
+    assert!(d.order_changed, "the orders share only the first id");
     assert!(!d.epsilon_changed && !d.metadata_changed);
 }

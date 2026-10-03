@@ -59,9 +59,10 @@
 //! 2026-08-19 — it carries the value channel's bracket, and that is
 //! not the right to mint a C9 certification bound). A dual does not receive a
 //! refusal here; it cannot write the call. `Bounds` stays off `topo`'s
-//! default signatures because the capability is injected at a separate
-//! door ([`crate::certify::NurbsLane`]) rather than raised into the
-//! shared machinery.
+//! default signatures because the capability is a sealed value
+//! ([`crate::certify::NurbsLane`], the shape [`crate::FittedLane`] has)
+//! that the shared machinery takes as an argument and `topo` reads off
+//! the scalar's policy, rather than a bound raised into that machinery.
 //!
 //! **The symbolic tier rides the same bound and needs no arm of its
 //! own** (`geom_core::sym`): `Sym<T>` implements
@@ -340,15 +341,7 @@ impl PlaneNurbsRefusal {
                 CertCheck::PlaneNurbsReportedTransversality,
                 RefusedArm::Undecided(cause),
             ),
-            // The mint's verdict is exact: a speed bound that is zero or
-            // not finite, with no band between.
-            Self::ChartSpeed(ChartSpeedRefusal::Zero { .. }) => {
-                (CertCheck::PlaneNurbsChartSpeed, RefusedArm::SignCertain)
-            }
-            Self::ChartSpeed(ChartSpeedRefusal::NotFinite { .. }) => (
-                CertCheck::PlaneNurbsChartSpeedBound,
-                RefusedArm::SignCertain,
-            ),
+            Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain),
             Self::FootPointInconclusive { .. }
             | Self::PcurveFit
             | Self::CarrierDomain(_)
@@ -752,17 +745,18 @@ pub const PXN_FIT_SAMPLES: u32 = 33;
 /// the algebraic route already banked with #264's envelope findings.
 pub const PXN_IMAGE_DEGREE: usize = 1;
 
-/// The wall refined so the uniqueness tube can localize.
+/// The wall refined to [`PXN_WALL_SPANS`] spans per direction before the
+/// hull and tube limbs run.
 ///
-/// The tube's chart enclosures read `NurbsBoxes` derivative boxes,
-/// which are **cell-granular**: a box narrower than a knot span still
-/// reports that whole span's derivative variation. A one-span quarter
-/// cylinder therefore reports the derivative swinging through 90° no
-/// matter how far the tube ladder halves its radius, and the enclosure
-/// straddles zero forever — a resolution artifact of the operand's
-/// knot structure, not a sliver of the pair. Knot refinement is exact
-/// in ℝ (the surface's locus and parameterization are unchanged), so
-/// spending it here buys localization for free.
+/// The hull limb's composite is hulled per span, so finer spans tighten
+/// it. The tube's chart readings (`NurbsBoxes::speed_sup` and the
+/// transversality margin) cut each span cell to the tube window and
+/// meet that with the whole cell's reading, so they localize below a
+/// span on their own. Whether the
+/// tube still gains anything from this refinement is unmeasured
+/// (`work/iso/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
+/// Knot refinement is exact in ℝ (the surface's locus and
+/// parameterization are unchanged).
 ///
 /// Already-fine patches are returned unchanged, and a refusing knot
 /// algebra falls back to the original — a coarser enclosure can only

@@ -43,25 +43,44 @@
 //! measurement rather than asserting it. See the report/PR description
 //! for the deviation this justifies.
 //!
-//! # The certified statement (spec §3, C4 verbatim)
+//! # The certified statement (C4)
 //!
 //! `|S(P(t)) − C(t)| ≤ ε` — a **3-D displacement in metres** between
-//! the surface-composed pcurve and the carrier cache, on the shared
-//! [`crate::CERT_SAMPLES`] schedule, plus a **between-samples envelope**
-//! whose own statement the certificate NAMES
-//! ([`PcurveCertificate::statement`]), because the lanes do not
-//! bound the same thing. For the closed-form lane, and for a fitted
-//! image on a NURBS chart, the envelope bounds *that same displacement*
-//! over the whole span. For a fitted image on a periodic ANALYTIC chart
-//! it cannot: `S ∘ P` is transcendental in the pcurve's azimuth channel
-//! and certification arithmetic takes no transcendental — C9's rule
-//! about what certification does, not a lack in `Interval`, the type it
-//! runs on — so the
-//! between-samples statement there is the carrier's incidence with the
-//! chart's own surface (`sup |f_S(C(t))|`) together with limb 3's
-//! uniqueness tube — [`EnvelopeStatement::OnLocusHull`] carries the
-//! argument, and the displacement itself stays certified at the
-//! schedule.
+//! the surface-composed pcurve and the carrier cache over the whole
+//! edge, bounded by an envelope whose own statement the certificate
+//! NAMES ([`PcurveCertificate::statement`]), because the lanes do not
+//! bound the same thing.
+//!
+//! - **Where `S ∘ P` has a closed form, the envelope alone is the
+//!   certified statement.** For a [`Pcurve::Harmonic`] image it is the
+//!   carrier's incidence with the chart plus the stored image's
+//!   fidelity to the image re-derived from the carrier, both on the
+//!   chart's orthonormalised frame, plus that frame's distance from the
+//!   stored one ([`EnvelopeStatement::MapResidualClosedForm`]), so a minted row's
+//!   identity is a theorem rather than a trig round trip. The shared
+//!   [`crate::CERT_SAMPLES`] schedule is the closed-form tables'
+//!   cross-check: it runs on the witness lane (a scalar whose
+//!   [`geom_core::Witness`] is `Inexact`: `f64`, `Sym<f64>`, the
+//!   driver's point witness) and as the property test
+//!   `envelope_lemma_fuzz`, and not at a certifying scalar (`Interval`,
+//!   `Sym<Interval>`), over a box or at a point alike.
+//! - **Where no closed form exists**, the certificate falls back to the
+//!   displacement at the shared schedule plus a between-samples
+//!   envelope. For a fitted image on a NURBS chart that envelope bounds
+//!   the same displacement over the whole span. For a fitted image on a
+//!   periodic ANALYTIC chart it cannot: `S ∘ P` is transcendental in
+//!   the pcurve's azimuth channel and certification arithmetic takes no
+//!   transcendental — C9's rule about what certification does, not a
+//!   lack in `Interval`, the type it runs on — so the between-samples
+//!   statement there is the carrier's incidence with the chart's own
+//!   surface (`sup |f_S(C(t))|`) together with limb 3's uniqueness tube
+//!   ([`EnvelopeStatement::OnLocusHull`]), and the displacement itself
+//!   stays certified at the schedule.
+//!   Over an exact circle on a sphere the image is a Hermite
+//!   interpolant whose displacement IS bounded over the span, by lane
+//!   arithmetic on the circle's own data
+//!   ([`EnvelopeStatement::MapResidualHermite`]).
+//!
 //! **No UV-space tolerance appears in any certified statement or in any
 //! message this module emits**: chart steps are implementation dials,
 //! the map's local stretch is the lever arm, and a certification
@@ -83,8 +102,12 @@
 //! sup |D(t)| ≤ |Δ₀| + |Δ_a| + |Δ_b| + |Δ_l|·max(|t₀|, |t₁|)
 //! ```
 //!
-//! is a certified sup bound over the *whole* span with nothing sampled
-//! — and the same SHAPE of argument, in a different function space or
+//! is a certified sup bound over the *whole* span with nothing sampled.
+//! On a periodic chart the `Δ`s are not formed from the image's angle:
+//! the bound is the carrier's INCIDENCE with the chart, read off its
+//! own coefficients, plus the image's FIDELITY to the one re-derived
+//! from the carrier ([`EnvelopeStatement::MapResidualClosedForm`]
+//! carries the lemma per chart arm). The same SHAPE of argument, in a different function space or
 //! as an outright identity, is what every other closed-form lane here
 //! states: the iso rungs' control-difference hull, the spiric cap's
 //! `span{1, f, sin t}`, and the spiric wall's algebraic identity
@@ -108,10 +131,11 @@
 //! certification admits an **ε-shell around the family** (the winding
 //! decision classifies `|pl.x − β|·r ≤ ε` as Zero), and a pcurve in
 //! that shell is not exactly of the four-coefficient shape. The
-//! envelope carries the discarded drift explicitly — the *snap slack*
-//! of [`PcurveCache::certify`] step 4 — so the stored bound dominates
-//! the true sup for every input the gate admits, not merely for the
-//! exact-in-family caches the minting lane produces.
+//! envelope's fidelity term carries that drift explicitly — every
+//! coefficient's offset from the re-derived image, metered at the
+//! chart's arm — so the stored bound dominates the true sup for every
+//! input the gate admits, not merely for the exact-in-family caches
+//! the minting lane produces.
 //!
 //! # Domain validity (spec §3)
 //!
@@ -249,9 +273,12 @@ pub enum Pcurve<T: Real> {
     },
     /// The **fitted** chart image: a 2-D NURBS curve whose parameter is
     /// the carrier's own (type docs; the OQ4 identity is the entry
-    /// requirement, not a hope). This is the rung-3 form — an SSI
-    /// trace's chart projection — and it is certified through the
-    /// control-hull machinery, never through the harmonic algebra.
+    /// requirement, not a hope). Two producers make one: an SSI
+    /// trace's chart projection over a rung-3 carrier, certified by the
+    /// C2 certificate's control hulls, and a sphere chart's general
+    /// circle's Hermite image over an exact `Curve3::Circle`, certified
+    /// by its Hermite bound ([`EnvelopeStatement`] names which) — never
+    /// through the harmonic algebra.
     Fitted(Arc<NurbsCurve2<T>>),
     /// The **general curve-in-UV** (U2's `General` arm): a 2-D NURBS
     /// chart image on the carrier's own parameter that does NOT carry
@@ -267,8 +294,9 @@ pub enum Pcurve<T: Real> {
     /// `Intersection` loci, and any chart image a future lane fits
     /// directly).
     ///
-    /// It certifies at exactly the Fitted GRADE — the same C2
-    /// certificate, hull sup-norm and uniqueness tube, through
+    /// It certifies at exactly the Fitted GRADE — the same five checks
+    /// over the same carrier kind (over a rung-3 carrier, the C2
+    /// certificate: hull sup-norm and uniqueness tube), through
     /// [`PcurveCache::certify_general`] — because the grade is a
     /// statement about what was MEASURED, and the two arms measure
     /// the same thing. What differs is what may be assumed without
@@ -389,6 +417,98 @@ pub enum Pcurve<T: Real> {
         /// chart-space coefficients.
         image: SpiricImage<T>,
     },
+    /// The **exact chart image of a plane×cone section ellipse** on its
+    /// cone chart:
+    ///
+    /// ```text
+    /// u(t) = u0 + sense·(t + 2·atan2(β·sin t, 1 − β·cos t))
+    /// v(t) = v0 + va·cos t + vb·sin t
+    /// ```
+    ///
+    /// on the carrier's own parameter `t` (the ellipse's eccentric
+    /// anomaly).
+    ///
+    /// # The map, derived
+    ///
+    /// The slant is the axial height over `cos α`, and the height is a
+    /// linear functional of the point, so `v` is harmonic. The azimuth
+    /// is not: the ellipse's projection onto the plane normal to the
+    /// axis is an ellipse with the AXIS AT A FOCUS (on the cone the
+    /// distance from the axis is `tan α` times the height, which is
+    /// affine on the cutting plane — the focus–directrix property), so
+    /// the azimuth is that ellipse's true anomaly while `t` is its
+    /// eccentric anomaly. Kepler's relation between the two, written
+    /// cut-free, is `ν = t + 2·atan2(β·sin t, 1 − β·cos t)` with
+    /// `β = e / (1 + √(1 − e²))` for the projection's eccentricity `e`,
+    /// SIGNED: positive when the vertex at `t = 0` is the one nearer
+    /// the axis. `|β| < 1`, so `1 − β·cos t > 0` and the `atan2` never
+    /// reaches its cut; `ν` is strictly increasing, which is why the
+    /// azimuth needs no branch datum beyond `u0`. At `β = 0` this is
+    /// the rim circle's `u0 + sense·t`.
+    ///
+    /// **Why a variant and not a [`Pcurve::Fitted`] net**: the image is
+    /// a closed form of the carrier's own parameter, and its check-4
+    /// statement is closed form too (`run_cone_section_checks`) —
+    /// whereas a fitted image on a cone chart has no certificate at
+    /// all, since the cone's meters composite needs a root.
+    ConeSection {
+        /// The chart azimuth at `t = 0`.
+        u0: T,
+        /// The slant's constant term.
+        v0: T,
+        /// The slant's `cos t` coefficient.
+        va: T,
+        /// The slant's `sin t` coefficient (zero in ℝ on a minted
+        /// image: the minor axis is normal to the cone's axis).
+        vb: T,
+        /// The signed Kepler parameter, `|β| < 1`.
+        beta: T,
+        /// `+1` when the azimuth runs with the chart frame, `−1`
+        /// against it; exactly `±1` on every minted image.
+        sense: T,
+    },
+}
+
+/// The azimuth channel of a [`Pcurve::ConeSection`] image (variant docs).
+fn cone_section_azimuth<T: Real>(u0: T, beta: T, sense: T, t: T) -> T {
+    let (s, c) = t.sin_cos();
+    let lead = (beta * s).atan2(T::one() - beta * c);
+    u0 + sense * (t + lead + lead)
+}
+
+/// The chart box of a [`Pcurve::ConeSection`] image over `[t0, t1]`:
+/// the azimuth's endpoint hull (it is monotone) and the slant's
+/// harmonic box.
+#[allow(clippy::too_many_arguments)] // the variant's six fields and the span
+fn cone_section_span_box<T: Real>(
+    u0: T,
+    v0: T,
+    va: T,
+    vb: T,
+    beta: T,
+    sense: T,
+    t0: T,
+    t1: T,
+) -> ChartWindow<T> {
+    let zero = T::zero();
+    let slant = harmonic_span_box(
+        Point2::new(zero, v0),
+        Vec2::new(zero, va),
+        Vec2::new(zero, vb),
+        Vec2::new(zero, zero),
+        t0,
+        t1,
+    );
+    let (ua, ub) = (
+        cone_section_azimuth(u0, beta, sense, t0),
+        cone_section_azimuth(u0, beta, sense, t1),
+    );
+    ChartWindow {
+        u_min: ua.min(ub),
+        u_max: ua.max(ub),
+        v_min: slant.v_min,
+        v_max: slant.v_max,
+    }
 }
 
 /// Which chart a [`Pcurve::Spiric`] image lives on, and its chart-space
@@ -564,16 +684,26 @@ fn harmonic_span_box<T: Real>(
 }
 
 impl<T: Real> Pcurve<T> {
-    /// [`Pcurve::chart_box`] for a harmonic image, at every [`Real`]
-    /// scalar — the door for a caller with no span location, which
-    /// `chart_box` needs for its NURBS arms. `None` for every other
-    /// variant. The construction, its enclosure argument and its
-    /// restriction monotonicity are `harmonic_span_box`'s.
-    pub fn harmonic_span_box(&self, t0: T, t1: T) -> Option<ChartWindow<T>> {
-        let Pcurve::Harmonic { p0, pa, pb, pl } = *self else {
-            return None;
-        };
-        Some(harmonic_span_box(p0, pa, pb, pl, t0, t1))
+    /// [`Pcurve::chart_box`] for the closed-form images, whose box needs
+    /// no span location — [`Pcurve::Harmonic`] and
+    /// [`Pcurve::ConeSection`] — at every [`Real`] scalar: the door for
+    /// a caller with none, which `chart_box` needs for its NURBS arms.
+    /// `None` for every other variant. The construction, its enclosure
+    /// argument and its restriction monotonicity are
+    /// `harmonic_span_box`'s and `cone_section_span_box`'s.
+    pub fn closed_form_span_box(&self, t0: T, t1: T) -> Option<ChartWindow<T>> {
+        match *self {
+            Pcurve::Harmonic { p0, pa, pb, pl } => Some(harmonic_span_box(p0, pa, pb, pl, t0, t1)),
+            Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            } => Some(cone_section_span_box(u0, v0, va, vb, beta, sense, t0, t1)),
+            _ => None,
+        }
     }
 
     /// The same image with every chart-space coefficient carried
@@ -699,6 +829,31 @@ impl<T: Real> Pcurve<T> {
                     }
                 },
             },
+            // The two channels are separate functions of `t`, so a map
+            // whose linear part is `diag(1, ±1)` — both maps a cone
+            // chart's rows take, the branch translation and the `v`
+            // reflection — lands exactly: the constant pair through
+            // `point`, the `v` amplitudes through `vector`. A linear
+            // part that mixes the channels has no image of this form,
+            // and nothing hands one to a cone chart's row.
+            Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            } => {
+                let p = point(Point2::new(*u0, *v0));
+                Pcurve::ConeSection {
+                    u0: p.x,
+                    v0: p.y,
+                    va: vector(Vec2::new(T::zero(), *va)).y,
+                    vb: vector(Vec2::new(T::zero(), *vb)).y,
+                    beta: *beta,
+                    sense: *sense,
+                }
+            }
         }
     }
 
@@ -721,7 +876,8 @@ impl<T: Real> Pcurve<T> {
     /// [`crate::EdgeCurve::with_chart_v_mirrored`]) point back rather
     /// than restate. A certificate is a record of metred NORMS —
     /// sampled residuals `|S(P(tᵢ)) − C(tᵢ)|`, an envelope over the
-    /// span, a hull sup-norm and a uniqueness tube on the fitted lane —
+    /// span, and on the fitted lane over a rung-3 carrier a hull
+    /// sup-norm and a uniqueness tube —
     /// and stores nothing in a plane chart's coordinates: the one chart
     /// quantity it can hold, the chart tube's pad
     /// ([`crate::ssi::SsiTube::Chart`]), is a NURBS chart's, and the one
@@ -821,6 +977,20 @@ impl<T: SpanLocate> Pcurve<T> {
                     }
                 }
             }
+            Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            } => {
+                let (s, c) = t.sin_cos();
+                Point2::new(
+                    cone_section_azimuth(*u0, *beta, *sense, t),
+                    *v0 + *va * c + *vb * s,
+                )
+            }
         }
     }
 
@@ -828,8 +998,8 @@ impl<T: SpanLocate> Pcurve<T> {
     /// `[t₀, t₁]` — a box over-approximation (module docs), always
     /// sound in the containment direction: it can only make a
     /// containment claim harder to satisfy, never falsely satisfied.
-    /// A harmonic or iso-line image's box is
-    /// [`Pcurve::harmonic_span_box`]'s.
+    /// A harmonic or iso-line image's box is `harmonic_span_box`'s, and
+    /// a cone-section image's [`Pcurve::closed_form_span_box`]'s.
     ///
     /// **Restriction-monotone on every arm**: a sub-span's box lies
     /// inside the span's (the net and arc-segment arms ignore the span;
@@ -953,6 +1123,18 @@ impl<T: SpanLocate> Pcurve<T> {
                     }
                 }
             }
+            // The azimuth is strictly monotone in `t` (variant docs), so
+            // its two endpoint values are its exact range over the span;
+            // the slant is a harmonic channel and takes the harmonic
+            // arm's box. Both are restriction-monotone.
+            Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            } => cone_section_span_box(*u0, *v0, *va, *vb, *beta, *sense, t0, t1),
         }
     }
 
@@ -1029,6 +1211,10 @@ pub enum PcurveCheck {
     MapResidual,
     /// The closed-form between-samples envelope — metres.
     Envelope,
+    /// The closed-form envelope on a periodic chart, refused with this
+    /// one term over the band on its own ([`EnvelopeTerm`]). A refusal
+    /// no single term carries names [`PcurveCheck::Envelope`].
+    EnvelopeTerm(EnvelopeTerm),
     /// The chart winding `β` selection on a periodic chart.
     ChartWinding,
     /// The pcurve's azimuth extent against one period.
@@ -1036,6 +1222,95 @@ pub enum PcurveCheck {
     /// The pcurve's chart box against the face's window.
     TrimContainment,
 }
+
+/// One term of check 4's envelope on a periodic chart — the bound the
+/// lemma on [`EnvelopeStatement::MapResidualClosedForm`] states as
+/// their sum. The first six are **incidence**: the carrier against
+/// the chart, read off the carrier's own coefficients and the chart's
+/// data, with no image involved. The last two are **fidelity**: the
+/// stored image against the one `certify` re-derives from the carrier.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EnvelopeTerm {
+    /// The carrier's centre is off the chart's axis — off the sphere's
+    /// centre for a sphere meridian, off the spine for a torus
+    /// meridian.
+    Centre,
+    /// The carrier's radius is not the chart's where it lies: the
+    /// cylinder's radius, the cone's `|h|·tan α` at the carrier's
+    /// height, the sphere's parallel radius or its own, the torus's
+    /// minor radius about the tube's core.
+    Radius,
+    /// The carrier turns against the winding the derivation decided.
+    Orientation,
+    /// The carrier's plane is not the class's: off `⊥ axis` for a
+    /// parallel or a cone rim, off the axis's plane for a torus
+    /// meridian.
+    Tilt,
+    /// A linear term the class has no room for: a cylinder line's
+    /// radial direction, a cone ruling off its generator, any circle
+    /// class's `l`.
+    Line,
+    /// The radial motion a class admitted by its own decision: a
+    /// meridian whose radial amplitude decided Zero, a winding decided
+    /// Zero on a moving class, a sphere meridian started at a pole.
+    Drift,
+    /// The stored image's azimuth channel against the re-derived one,
+    /// up to a whole period, metered at the chart's azimuth arm.
+    FidelityU,
+    /// The stored image's second channel against the re-derived one —
+    /// up to a whole period where it is an angle — metered at its arm.
+    FidelityV,
+    /// The chart's frame is not orthonormal: its distance from its
+    /// Gram–Schmidt twin over the stored image, levered by the radius
+    /// and by the image's actual axial reach (the lemma's premise,
+    /// metered rather than assumed).
+    Frame,
+}
+
+impl EnvelopeTerm {
+    /// Every term, in the order the envelope sums them and a refusal
+    /// is attributed.
+    const ALL: [EnvelopeTerm; 9] = [
+        EnvelopeTerm::Frame,
+        EnvelopeTerm::Centre,
+        EnvelopeTerm::Radius,
+        EnvelopeTerm::Orientation,
+        EnvelopeTerm::Tilt,
+        EnvelopeTerm::Line,
+        EnvelopeTerm::Drift,
+        EnvelopeTerm::FidelityU,
+        EnvelopeTerm::FidelityV,
+    ];
+
+    /// The term's slot in [`EnvelopeTerm::ALL`]. An exhaustive match,
+    /// so a variant added to the enum does not compile until it has a
+    /// slot, and the assertion below fails the build until `ALL` lists
+    /// it there.
+    const fn slot(self) -> usize {
+        match self {
+            EnvelopeTerm::Frame => 0,
+            EnvelopeTerm::Centre => 1,
+            EnvelopeTerm::Radius => 2,
+            EnvelopeTerm::Orientation => 3,
+            EnvelopeTerm::Tilt => 4,
+            EnvelopeTerm::Line => 5,
+            EnvelopeTerm::Drift => 6,
+            EnvelopeTerm::FidelityU => 7,
+            EnvelopeTerm::FidelityV => 8,
+        }
+    }
+}
+
+const _: () = {
+    let mut i = 0;
+    while i < EnvelopeTerm::ALL.len() {
+        assert!(
+            EnvelopeTerm::ALL[i].slot() == i,
+            "EnvelopeTerm::ALL is the slot order"
+        );
+        i += 1;
+    }
+};
 /// The number a fitted-lane refusal carries, named for what it IS.
 ///
 /// The SSI door's definite refusals each measured something different,
@@ -1086,6 +1361,158 @@ pub enum FittedMagnitude {
     },
 }
 
+/// The closed kind tag of a [`Pcurve`] variant (D3), for a refusal
+/// that names the image it was handed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PcurveKind {
+    /// [`Pcurve::Harmonic`].
+    Harmonic,
+    /// [`Pcurve::IsoLine`].
+    IsoLine,
+    /// [`Pcurve::IsoArc`].
+    IsoArc,
+    /// [`Pcurve::Spiric`].
+    Spiric,
+    /// [`Pcurve::ConeSection`].
+    ConeSection,
+    /// [`Pcurve::Fitted`].
+    Fitted,
+    /// [`Pcurve::General`].
+    General,
+}
+
+impl PcurveKind {
+    /// The kind of an image.
+    pub fn of<T: Real>(p: &Pcurve<T>) -> Self {
+        match p {
+            Pcurve::Harmonic { .. } => Self::Harmonic,
+            Pcurve::IsoLine { .. } => Self::IsoLine,
+            Pcurve::IsoArc { .. } => Self::IsoArc,
+            Pcurve::Spiric { .. } => Self::Spiric,
+            Pcurve::ConeSection { .. } => Self::ConeSection,
+            Pcurve::Fitted(_) => Self::Fitted,
+            Pcurve::General(_) => Self::General,
+        }
+    }
+
+    /// The kind's display name.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Harmonic => "Harmonic",
+            Self::IsoLine => "IsoLine",
+            Self::IsoArc => "IsoArc",
+            Self::Spiric => "Spiric",
+            Self::ConeSection => "ConeSection",
+            Self::Fitted => "Fitted",
+            Self::General => "General",
+        }
+    }
+}
+
+/// The (chart, carrier) classes a chart can hold but no lane images
+/// yet — what [`PcurveCertifyError::UnsupportedCarrier`] names, one arm
+/// per raising site so a consumer can tell them apart.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum UncoveredClass {
+    /// A spline carrier at the closed-form door ([`chart_pcurve`]):
+    /// it has no `{1, cos, sin, t}` form, and the fitted lane that
+    /// certifies one is reached by no mint site from this door.
+    SplineCarrier,
+    /// A circle on a cone that is not a rim — tilted off one within
+    /// the band: azimuth-non-harmonic, and the exact section image
+    /// ([`Pcurve::ConeSection`]) is minted for an ellipse carrier only.
+    ConeSection,
+    /// A circle on a sphere that is neither polar nor meridian:
+    /// azimuth-non-harmonic, so the closed-form door has no image. Its
+    /// route is the fitted lane — the image from
+    /// [`crate::FittedLane::sphere_circle_image`], certified by
+    /// [`PcurveCache::certify_fitted`]'s Circle arm — and the pcurve
+    /// mint (`topo::mint_pcurves`) takes it, so this class is what the
+    /// closed-form door answers, not a state a minted face is left in.
+    SphereGeneralCircle,
+    /// A circle on a torus that is neither a parallel nor a meridian
+    /// (a Villarceau circle among them, or a circle ⊥ the axis centred
+    /// off it): azimuth-non-harmonic, and the torus has no fitted
+    /// certificate. No incidence test separates these from circles off
+    /// the torus (`work/issues/uncovered-chart-classes-have-no-incidence-test.md`).
+    TorusGeneralCircle,
+    /// A line, ellipse or spiric offered a fitted-grade image: no such
+    /// class exists, its images are closed-form or iso.
+    NoFittedClass,
+    /// A zero-offset spiric — a meridian circle of its torus — on a
+    /// chart that is neither its own torus nor its cutting plane.
+    ZeroOffsetSpiric,
+    /// A spiric on its torus's mirror through the cutting plane, which
+    /// holds the oval while the wall image maps only through the
+    /// carrier's own torus.
+    MirrorTorusSpiric,
+}
+
+impl UncoveredClass {
+    /// What is uncovered, in a clause.
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::SplineCarrier => {
+                "a spline carrier has no closed-form chart image, and the fitted lane that \
+                 certifies one is reached by no mint site from the closed-form door"
+            }
+            Self::ConeSection => {
+                "a circle on the cone that is not a rim is azimuth-non-harmonic, and the \
+                 cone's section image is minted for an ellipse carrier only"
+            }
+            Self::SphereGeneralCircle => {
+                "a circle on the sphere that is neither polar nor meridian is \
+                 azimuth-non-harmonic, so it has no closed-form chart image; its route is the \
+                 fitted lane (FittedLane::sphere_circle_image, then certify_fitted)"
+            }
+            Self::TorusGeneralCircle => {
+                "a circle that is neither a parallel nor a meridian of the torus (a \
+                 Villarceau circle, say) is azimuth-non-harmonic, and the torus has no \
+                 fitted certificate"
+            }
+            Self::NoFittedClass => "a line, ellipse or spiric has no fitted-grade image class",
+            Self::ZeroOffsetSpiric => {
+                "a zero-offset spiric is a meridian circle of its torus, and the spiric lane \
+                 images it only on that torus and its cutting plane"
+            }
+            Self::MirrorTorusSpiric => {
+                "the chart is the mirror of the spiric's torus through its cutting plane, \
+                 which holds the oval, and the wall image maps only through the carrier's \
+                 own torus"
+            }
+        }
+    }
+
+    /// The recourse a caller has, in a sentence.
+    pub fn recourse(self) -> &'static str {
+        match self {
+            Self::SplineCarrier => {
+                "Recourse: describe the edge with a line, circle or ellipse carrier where its \
+                 locus is one"
+            }
+            Self::ConeSection => {
+                "Recourse: describe the boundary with rims and rulings of the cone, or \
+                 state a tilted section as the Ellipse carrier it is"
+            }
+            Self::SphereGeneralCircle => {
+                "Recourse: mint the face (mint_pcurves) at a scalar that holds the fitted \
+                 door, which images the circle through the fitted lane; an arc that lane \
+                 refuses runs over a pole of the chart — re-aim the sphere's chart away \
+                 from it"
+            }
+            Self::TorusGeneralCircle => {
+                "Recourse: describe the boundary with parallels and meridians of the torus"
+            }
+            Self::NoFittedClass => {
+                "Recourse: state the edge's image in its closed-form or iso class rather \
+                 than as a Fitted or General one"
+            }
+            Self::ZeroOffsetSpiric => "Recourse: describe the edge as the Circle carrier it is",
+            Self::MirrorTorusSpiric => "Recourse: re-state the spiric about the chart's own torus",
+        }
+    }
+}
+
 /// Typed pcurve-certification failure (D4 ¶3): actionable, closed enum.
 #[derive(Clone, Debug, PartialEq)]
 // The variant roster `topo`'s sample-coverage row reads (this
@@ -1104,21 +1531,45 @@ pub enum PcurveCertifyError {
     /// This is a *routing decision*, permanent until a PR moves it —
     /// never a runtime fallback (C5).
     UnsupportedChart {
-        /// The surface kind, named.
-        chart: &'static str,
+        /// The surface kind.
+        chart: geom::SurfaceKind,
     },
-    /// The carrier kind is outside the **closed-form** lane: a
-    /// [`Pcurve::Harmonic`] image is being certified against a carrier
-    /// with no `{1, cos, sin, t}` form (a `Curve3::Nurbs`).
-    ///
-    /// **Retired for the rung-3 class at M6-2** (the S9 flip). This
-    /// variant used to be the answer for *any* fitted/marched carrier,
-    /// because the storage variant that could hold its chart image did
-    /// not exist; a rung-3 carrier now certifies through
-    /// [`Pcurve::Fitted`] and this refusal is what remains for the
-    /// genuine mismatch — a harmonic image claimed for a spline
-    /// carrier, which no constructor mints.
-    UnsupportedCarrier,
+    /// The carrier can lie on the chart, but no lane images this
+    /// (chart, carrier) pair yet: valid input the kernel has not built
+    /// a route for (DESIGN.md's frontier (c), D9 row 2's `Unsupported*`).
+    /// The only refusal the mint excuses — the face stays uncached
+    /// until the class's route lands, and tier 3 excuses it by the same
+    /// predicate.
+    UnsupportedCarrier {
+        /// The chart kind.
+        chart: geom::SurfaceKind,
+        /// The carrier kind.
+        carrier: geom::CurveKind,
+        /// The uncovered class.
+        class: UncoveredClass,
+    },
+    /// The carrier cannot lie on the chart, or is degenerate there: the
+    /// edge is not on its face, a body defect no lane will ever image.
+    CarrierOffChart {
+        /// The chart kind.
+        chart: geom::SurfaceKind,
+        /// The carrier kind.
+        carrier: geom::CurveKind,
+        /// Why the pair has no common locus, named.
+        why: &'static str,
+    },
+    /// The image offered is not the carrier's image, or not this
+    /// door's: a fitted or general image at the closed-form door, a
+    /// harmonic image for a carrier with no `{1, cos, sin, t}` form, a
+    /// spiric image whose stored scalars are not the carrier's. No
+    /// constructor mints one, so it is a wiring defect or a hand-built
+    /// image.
+    ImageMismatch {
+        /// The image kind.
+        image: PcurveKind,
+        /// What disagrees, named.
+        why: &'static str,
+    },
     /// A [`Pcurve::Fitted`] or [`Pcurve::General`] image needed the
     /// fitted door with **none in hand** — at check 4 of the fitted
     /// lane, where [`crate::FittedLane`] derives its C2 certificate, or
@@ -1132,14 +1583,23 @@ pub enum PcurveCertifyError {
         /// The scalar the check ran at ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
-    /// A [`Pcurve::Fitted`] cache was certified without the **mate
-    /// operand**: the fitted lane's certificate is the SSI one, whose
-    /// uniqueness tube is a statement about the operand PAIR whose
-    /// intersection minted the carrier. The mate is re-read from the
-    /// body at rest (never stored with the cache — a stored operand
-    /// could drift from the body's own), so a caller that has one must
-    /// supply it.
+    /// A [`Pcurve::Fitted`] cache over a rung-3 carrier was certified
+    /// without the **mate operand**: its certificate is the SSI one,
+    /// whose uniqueness tube is a statement about the operand PAIR whose
+    /// intersection minted the carrier. A Circle carrier reads no mate.
+    /// The mate is re-read from the body at rest (never stored with the
+    /// cache — a stored operand could drift from the body's own), so a
+    /// caller that has one must supply it.
     FittedMateMissing,
+    /// A general circle's arc on a sphere chart runs into, or too near,
+    /// one of the chart's poles for its image to be bounded: the azimuth
+    /// has no value at a pole, and near one a span must be short against
+    /// its distance from the pole for the certified bound to exist. The
+    /// image's refinement stopped at its caps without one short enough,
+    /// or a stored image has a span that is not (`sphere_circle`'s
+    /// docs). A cap, not an impossibility: an arc that passes very near a
+    /// pole needs spans finer than the caps allow.
+    ArcNearPole,
     /// An iso image was offered outside the iso lane's certified
     /// inventory, with the exact boundary named. The refused set is:
     /// a chart that is still the mvfs placeholder; a non-boundary ROW
@@ -1234,6 +1694,12 @@ pub enum PcurveCertifyError {
     /// the chart-side counterpart of
     /// [`crate::certify::CertifyError::WindingExceeded`].
     AzimuthPeriodExceeded,
+    /// A stored image's whole-period branch sits more than
+    /// [`MAX_BRANCH_PERIODS`] periods from the image re-derived from its
+    /// carrier, or a walked joint's from its predecessor's
+    /// ([`BranchMiss::OutOfReach`]): a branch no producer is known to
+    /// reach, refused by type rather than searched for.
+    BranchOutOfReach,
     /// A certified residual definitely exceeded the tolerance band: the
     /// pcurve does not represent the carrier through the map (D4 ¶2).
     ResidualExceeded {
@@ -1265,26 +1731,52 @@ impl core::fmt::Display for PcurveCertifyError {
         match self {
             Self::UnsupportedChart { chart } => write!(
                 f,
-                "pcurve certification: no {chart}-chart lane covers this pcurve — every \
+                "pcurve certification: no {}-chart lane covers this pcurve — every \
                  analytic chart certifies its closed-form (Harmonic) classes, a NURBS \
                  chart routes through its description-driven \
                  iso/fitted lanes instead of this door, and an image outside the chart's \
-                 harmonic family belongs to the fitted lane where one exists"
+                 harmonic family belongs to the fitted lane where one exists",
+                chart.name()
             ),
-            Self::UnsupportedCarrier => write!(
+            Self::UnsupportedCarrier {
+                chart,
+                carrier,
+                class,
+            } => write!(
                 f,
-                "pcurve certification: a closed-form (Harmonic) chart image was offered for a \
-                 carrier with no {{1, cos, sin, t}} form. The general fitted/marched rung \
-                 certifies this class through the control-hull lane, but no kernel \
-                 constructor mints one — reaching it means offering the chart image to \
-                 PcurveCache::certify_fitted yourself"
+                "pcurve certification: no lane images a {} carrier on a {} chart yet — {}. \
+                 The pair is valid input the kernel has not built a route for, so a face \
+                 bounded by it carries no stored pcurves. {}",
+                carrier.name(),
+                chart.name(),
+                class.describe(),
+                class.recourse()
+            ),
+            Self::CarrierOffChart {
+                chart,
+                carrier,
+                why,
+            } => write!(
+                f,
+                "pcurve certification: the {} carrier does not lie on the {} chart — {why}. \
+                 The edge is not on its face. Recourse: repair the body so the edge's carrier \
+                 lies on the face's surface",
+                carrier.name(),
+                chart.name()
+            ),
+            Self::ImageMismatch { image, why } => write!(
+                f,
+                "pcurve certification: the {} image offered is not its carrier's image at \
+                 this door — {why}. Recourse: re-mint the image from the carrier \
+                 (chart_pcurve, or the body's pcurve mint) rather than building it by hand, \
+                 and hand a Fitted or General image to certify_fitted or certify_general",
+                image.name()
             ),
             Self::FittedLaneUnsupported { scalar } => write!(
                 f,
-                "pcurve certification: a fitted (rung-3) chart image needs the fitted door at \
-                 the {scalar} scalar, which derives such an image and certifies its \
-                 between-samples bound (a hull in certification arithmetic, C9), and none was \
-                 in hand. Only a scalar with certification rights holds the door, {holders} \
+                "pcurve certification: a fitted chart image needs the fitted door at the \
+                 {scalar} scalar, which derives such an image and certifies its \
+                 between-samples bound, and none was in hand. Only a scalar with certification rights holds the door, {holders} \
                  (the {sym} one over a certifying base): replay the body at one, or, if the run \
                  is at one already, pass the call its door",
                 holders = crate::ScalarList(crate::FITTED_DOOR_HOLDERS),
@@ -1292,7 +1784,7 @@ impl core::fmt::Display for PcurveCertifyError {
             ),
             Self::FittedMateMissing => write!(
                 f,
-                "pcurve certification: a fitted (rung-3) chart image needs the MATE operand — \
+                "pcurve certification: a fitted image over a rung-3 carrier needs the MATE operand — \
                  its certificate is the SSI one, whose uniqueness tube is a statement about \
                  the surface PAIR whose intersection minted the carrier. Supply the mate \
                  face's surface (re-read from the body; never stored with the cache)"
@@ -1360,10 +1852,24 @@ impl core::fmt::Display for PcurveCertifyError {
                 "pcurve certification: {}, so nothing can be imaged on its chart",
                 geom::PLACEHOLDER_SURFACE
             ),
+            Self::ArcNearPole => write!(
+                f,
+                "pcurve certification: the circle's arc runs into or too near a pole of the \
+                 sphere's chart for its fitted image to be bounded within the tolerance band \
+                 by spans the refinement may make — the azimuth has no value at a pole. \
+                 Recourse: re-aim the sphere's chart so its polar axis points away from the \
+                 arc, or split the edge so no piece of it passes over a pole"
+            ),
             Self::AzimuthPeriodExceeded => write!(
                 f,
                 "pcurve certification: the pcurve winds more than one full period around \
                  the chart — split the edge first (the winding gate, chart side)"
+            ),
+            Self::BranchOutOfReach => write!(
+                f,
+                "pcurve certification: the image's whole-period branch is more than \
+                 {MAX_BRANCH_PERIODS} periods from its carrier's — a winding no producer is \
+                 known to mint, refused rather than searched for"
             ),
             Self::ResidualExceeded { check, sample } => write!(
                 f,
@@ -1412,14 +1918,18 @@ impl PcurveCertifyError {
                 return Some(Unsized::LastResort.recourse(RefusedArm::Undecided(cause), reading));
             }
             Self::UnsupportedChart { .. }
-            | Self::UnsupportedCarrier
+            | Self::UnsupportedCarrier { .. }
+            | Self::CarrierOffChart { .. }
+            | Self::ImageMismatch { .. }
             | Self::FittedLaneUnsupported { .. }
             | Self::FittedMateMissing
+            | Self::ArcNearPole
             | Self::IsoUnsupported { .. }
             | Self::ChartRow { .. }
             | Self::FittedCertificate { .. }
             | Self::CarrierDomain(_)
             | Self::ChartWindingUnsupported
+            | Self::BranchOutOfReach
             | Self::PlaceholderChart
             | Self::Band(_) => return None,
         };
@@ -1441,7 +1951,7 @@ impl PcurveCheck {
             // A map residual, its between-samples envelope and the trim
             // box are bounds on a fitted image as well as an exact one,
             // and the routing reads the check alone.
-            Self::MapResidual | Self::Envelope | Self::TrimContainment => {
+            Self::MapResidual | Self::Envelope | Self::EnvelopeTerm(_) | Self::TrimContainment => {
                 Unsized::LastResort.recourse(arm, reading)
             }
         }
@@ -1458,8 +1968,151 @@ pub enum EnvelopeStatement {
     /// the [`Pcurve::Harmonic`] lane, or `span{1, f, sin}` for the
     /// spiric CAP ([`SpiricImage::Cap`]), where the difference is a
     /// constant-coefficient combination of the same three functions
-    /// on both sides and its sup is `|k₀| + |k₁|·f_max + |k₂|`.
+    /// on both sides and its sup is `|k₀| + |k₁|·f_max + |k₂|`, or the
+    /// [`Pcurve::ConeSection`] lane, whose mapped image is a harmonic
+    /// plus a unit vector times a harmonic scalar.
     /// Nothing sampled, nothing hulled.
+    ///
+    /// On a PLANE chart the map is affine, so `S ∘ P` has the
+    /// coefficients the image maps to, and the bound is the norms of
+    /// their differences from the carrier's: `‖Δc‖ + ‖Δa‖ + ‖Δb‖ +
+    /// ‖Δl‖·T`, with `T = max(|t₀|, |t₁|)`.
+    ///
+    /// # On a periodic chart: incidence plus fidelity
+    ///
+    /// There the image's azimuth is an angle, and pushing it back
+    /// through `cos`/`sin` routes a fact about the carrier through a
+    /// trigonometric identity no arithmetic sees through. So check 4
+    /// re-derives the image `P_d` from the carrier inside `certify`
+    /// (the derivation [`chart_pcurve`] runs, with the structure it
+    /// selects: the class, `β`, `σ`, the cone's nappe) and splits
+    ///
+    /// ```text
+    /// |S(P(t)) − C(t)| ≤ |S(P(t)) − S(P_d(t))| + |S(P_d(t)) − C(t)|
+    ///                         fidelity                incidence
+    /// ```
+    ///
+    /// (on the chart's orthonormal twin, plus **frame** for the stored
+    /// chart's distance from it — the frame paragraph below).
+    ///
+    /// **Fidelity** meters the stored image against `P_d` through the
+    /// chart's sup stretch along the chart segment between them:
+    /// `arm_u·sup|Δu| + arm_v·sup|Δv|`, each channel's sup bounded by
+    /// its coefficients as above, an angular channel's constant read up
+    /// to a whole period (and a sphere's image against `P_d`'s
+    /// involution twin `(u + π, π − v)` where its azimuth sits off
+    /// `P_d`'s). It is zero, node for node, on the image the mint
+    /// stores.
+    ///
+    /// **Incidence** bounds `S(P_d(t)) − C(t)` in the carrier's own
+    /// coefficients (`C = c + a·cos t + b·sin t + l·t`) and the chart's
+    /// data, and no image angle enters it: wherever the derivation took
+    /// an azimuth `α = atan2(q·v_ref, q·u_ref)` of a radial vector `q`,
+    /// `rad(α)` is `q/‖q‖` exactly, and every polar angle's cosine and
+    /// sine are the quotients it was the `atan2` or `asin` of. Each
+    /// distance from a radius is spelled `|p − ‖q‖| = |p² − q·q|/(p +
+    /// ‖q‖)`, a polynomial numerator. With `e` the axis, `x_r = x −
+    /// e·(x·e)`, `w = c − (the chart's origin, apex or centre)`, `h =
+    /// w·e`, and `T` as above, the lemma per arm — `S(P_d(t)) − C(t)`
+    /// written out, then bounded by one triangle inequality per
+    /// coefficient:
+    ///
+    /// - **Cylinder, moving** (`β = ±1`): `−w_r + g·cos t + β·e×g·sin
+    ///   t + (β·e×a_r − b_r)·sin t − l_r·t` with `g = R·â_r − a_r`;
+    ///   `g ⊥ e×g` and `‖e×g‖ = ‖g‖` make the rotating part's norm
+    ///   `‖g‖`, so the bound is **centre** `‖w_r‖` + **radius** `|R −
+    ///   ‖a_r‖|` + **orientation** `‖b_r − β·e×a_r‖` + **line** `‖l_r‖·T`.
+    ///   The axial channel is the carrier's own and cancels.
+    /// - **Cylinder, meridian** (radial motion decided Zero — or
+    ///   undecided, the D9 tie-break): `(R·ŵ_r − w_r) − a_r·cos t −
+    ///   b_r·sin t − l_r·t` ⇒ **radius** `|R − ‖w_r‖|` + **drift**
+    ///   `‖a_r‖ + ‖b_r‖` + **line** `‖l_r‖·T`.
+    /// - **Cone, rim** (slant `ρ = |h|·tan α`; `rad(u)·v` flips with the
+    ///   nappe, so the image's radial is `ρ·â_r` on either): `−w_r +
+    ///   (g − e·(a·e))·cos t + (β·e×g + β·e×a_r − b_r − e·(b·e))·sin t
+    ///   − l·t`, `g = ρ·â_r − a_r` ⇒ **centre** `‖w_r‖` + **radius** `|ρ
+    ///   − ‖a_r‖|` + **orientation** + **tilt** `|a·e| + |b·e|` +
+    ///   **line** `‖l‖·T`.
+    /// - **Cone, ruling** (a line; `(h_ref, r_ref)` the height and
+    ///   radial of whichever datum the nappe was read off — the anchor
+    ///   `w` or the direction `l` — and `(h_o, r_o)` the other):
+    ///   `rad(α_d) = n·r̂_ref`, `h_ref·n = |h_ref|`, and the image is
+    ///   `apex + (h₀ + h_s·t)·(e + tan α·rad)`; with `ρ = |h_ref|·tan
+    ///   α`, `ρ·r̂_ref = r_ref + (ρ − ‖r_ref‖)·r̂_ref`, so the other
+    ///   datum's coefficient is `(h_o/h_ref)·r_ref − r_o` plus the
+    ///   radius defect scaled by `|h_o/h_ref|` ⇒ **radius** `|ρ −
+    ///   ‖r_ref‖|·(w_ref + |h_o/h_ref|·w_o)` + **line** (off the
+    ///   generator) `‖h_o·r_ref − h_ref·r_o‖/|h_ref|·w_o`, each weight
+    ///   `w` the slot's — `1` for the anchor, `T` for the direction.
+    /// - **Sphere, parallel** (`ρ = √(r² − h²)` is `r·cos asin(h/r)`):
+    ///   the cone rim's form with `ρ` ⇒ **centre** `‖w_r‖` + **radius**
+    ///   `|r² − h² − a_r·a_r|/(ρ + ‖a_r‖)` + **orientation** + **tilt** +
+    ///   **line**.
+    /// - **Sphere, meridian** (`δ = atan2(a·e, ‖a_r‖)`, so
+    ///   `r·(cos δ·â_r + sin δ·e) = r·â`): `−w + (r − ‖a‖)·(â·cos t +
+    ///   σ·Ĵa·sin t) + (σ·Ja − b)·sin t − l·t`, `Ja = ‖a_r‖·e − (a·e)·â_r` the quarter
+    ///   turn of `a` in its meridian plane ⇒ **centre** `‖w‖` + **radius**
+    ///   `|r − ‖a‖|` + **orientation** `‖σ·Ja − b‖` + **line**. Started
+    ///   at a pole (`a_r` decided Zero, the azimuth read off `b_r`): the
+    ///   same with `a' = ‖a_r‖·b̂_r + (a·e)·e`, `b' = ‖a_r‖·e − (a·e)·b̂_r`,
+    ///   so **drift** `3·‖a_r‖` and **orientation**
+    ///   `|b·e| + |σ·(a·e) + ‖b_r‖|`.
+    /// - **Torus, parallel** (`m = √(h² + (‖a_r‖ − R)²)`, the distance to
+    ///   the tube's core; the image's radius and height are `R +
+    ///   r·(‖a_r‖ − R)/m` and `r·h/m`): their defects are
+    ///   `(‖a_r‖ − R, h)·(r − m)/m`, orthogonal to each other's motion,
+    ///   so together they cost `|r − m|` ⇒ **centre** `‖w_r‖` +
+    ///   **radius** `|r² − m²|/(r + m)` + **orientation** + **tilt** +
+    ///   **line**.
+    /// - **Torus, meridian** (`α` the azimuth of `w_r`; `x = a·ŵ_r`,
+    ///   `n = √(x² + (a·e)²)`, `a* = x·ŵ_r + (a·e)·e`, `b* = σ·(x·e −
+    ///   (a·e)·ŵ_r)`, `a* ⊥ b*`, both of norm `n`): `(R·ŵ_r − w) + (r/n
+    ///   − 1)·(a*·cos t + b*·sin t) + (a* − a)·cos t + (b* − b)·sin t −
+    ///   l·t` ⇒ **centre** `|R − ‖w_r‖| + |h|` + **radius** `|r² −
+    ///   n²|/(r + n)` + **tilt** (off the axis's plane) `‖a_r −
+    ///   x·ŵ_r‖` + **orientation** `‖b* − b‖` + **line**.
+    ///
+    /// A winding decided Zero on a moving class (a carrier whose radial
+    /// part does not turn — no carrier of the chart) takes the image's
+    /// constant radial `ρ·rad(α)` at its full length: **radius** `ρ`
+    /// (the torus's `R + r` plus the tube) and **drift** the radial
+    /// coefficients, so even that class is bounded rather than refused
+    /// unmeasured.
+    ///
+    /// **The frame.** Every arm above is a lemma about an orthonormal
+    /// frame (`axis` and `u_ref` unit, `u_ref ⊥ axis`), as every meter
+    /// in this lane is ([`chart_stretch_sup`]'s arms, `azimuth_lever`).
+    /// Nothing at rest makes the stored chart's frame one: the cone
+    /// carries no frame margins, and where
+    /// `Surface::representability_margins` does carry them it meters
+    /// them at the radius, while an axis's defect moves a point by the
+    /// defect times its HEIGHT. So check 4 applies the lemma, and
+    /// derives `P_d`, on the chart's Gram–Schmidt twin `Ŝ` (`n̂ =
+    /// axis/‖axis‖`, `ê₁` the normalised part of `u_ref` normal to it,
+    /// `ê₂ = n̂ × ê₁`), and adds **frame**: `sup |S − Ŝ|` over the
+    /// stored image's chart box. The two maps share every scalar, so
+    /// the radial direction differs by at most `‖u_ref − ê₁‖ + ‖v_ref −
+    /// ê₂‖` and the axis by `‖axis − n̂‖`, each levered by what
+    /// multiplies it in the map: the radius, the torus's `R + r` and
+    /// `r`, and on a cylinder's axis and both of a cone's channels the
+    /// image's own `sup |v|`. Then `|S(P) − C| ≤ |S(P) − Ŝ(P)| + |Ŝ(P) −
+    /// C|`, the second bounded by the arms above on `Ŝ`. On a literal
+    /// unit frame the twin is the frame itself and the term is the zero
+    /// form.
+    ///
+    /// The terms are summed and decided once as `pcurve_envelope`; a
+    /// refusal names the first term that is over the band on its own
+    /// ([`EnvelopeTerm`]). `envelope_lemma_fuzz` sweeps every arm: the
+    /// sum dominates the sampled residual of carriers and images moved
+    /// off in one respect at a time, and on an exact carrier the
+    /// closed-form tables compose back to the carrier.
+    ///
+    /// **On a harmonic row this envelope is the whole certified
+    /// statement** (C4): the lemma above is proven once and pinned by
+    /// that sweep, and the schedule that used to re-check it on every
+    /// body runs only on the witness lane (`Witness::Inexact`), as a cross-check
+    /// whose verdicts are not part of the certificate
+    /// ([`PcurveCache::certify`] step 3).
     MapResidualClosedForm,
     /// `sup |S(P(t)) − C(t)|`, by the **tensor Bernstein composite**
     /// (`geom_core::spline::compose::tensor`) — the [`Pcurve::Fitted`]
@@ -1480,13 +2133,25 @@ pub enum EnvelopeStatement {
     /// enclose, exactly and tightly, is the carrier's incidence with
     /// the chart's own surface: `f_S ∘ C` is a polynomial composite.
     /// So the fitted analytic certificate proves, between the samples,
-    /// that **the carrier never leaves the surface** — and pairs that
+    /// that **the carrier never leaves the surface**, and pairs that
     /// with limb 3's uniqueness tube, which proves the locus near the
-    /// carrier is a single arc, so there is no second branch for the
-    /// chart image to have drifted onto. The map residual itself is
-    /// certified at the [`CERT_SAMPLES`] schedule, as
-    /// [`PcurveCertificate::max_residual`] records.
+    /// carrier is a single arc. It is the statement of a fitted image
+    /// over a RUNG-3 carrier; an exact Circle carrier's image states
+    /// [`Self::MapResidualHermite`] instead. The map
+    /// residual itself is certified at the [`CERT_SAMPLES`] schedule,
+    /// as [`PcurveCertificate::max_residual`] records — and between the
+    /// samples it is bounded by nothing this statement says.
     OnLocusHull,
+    /// `sup |S(P(t)) − C(t)|` for a [`Pcurve::Fitted`] image of an exact
+    /// `Curve3::Circle` on a sphere chart, by the **Hermite remainder**:
+    /// the circle's distance from the sphere, plus on every span the
+    /// image's control-point distance from the Hermite data of the
+    /// circle's true chart image and the quintic Hermite remainder of that
+    /// image, both through the chart map's derivative bound
+    /// (`crate::sphere_circle`'s docs). The same quantity as
+    /// [`Self::MapResidualClosedForm`], over the whole span — a bound
+    /// on the image, not only on the carrier.
+    MapResidualHermite,
     /// `sup |S(P(t)) − C(t)|` for the two NURBS-chart iso rungs —
     /// [`Pcurve::IsoLine`] (M6-3) and [`Pcurve::IsoArc`] (M8-3, whose
     /// chart column is rational by construction) — by the traversed
@@ -1507,7 +2172,8 @@ pub enum EnvelopeStatement {
     /// slacks (the trilean-admitted ε-shell around the exact
     /// axis-aligned family, metered through the chart's derivative-net
     /// stretch bounds) are folded in explicitly, exactly as the
-    /// cylinder lane's winding snap slack is; a boundary row pays its
+    /// harmonic lane's fidelity term carries its winding drift; a
+    /// boundary row pays its
     /// snap to the domain end, a collapsed row is taken at the stored
     /// parameter itself and pays the channel's drift alone. Every slack
     /// is exactly zero on the minted path.
@@ -1573,10 +2239,15 @@ pub enum EnvelopeStatement {
 /// construction (D9).
 #[derive(Clone, Copy, Debug)]
 pub struct PcurveCertificate<T: Real> {
-    /// The sample count of the schedule that ran ([`CERT_SAMPLES`]).
+    /// The sample count of the schedule that ran ([`CERT_SAMPLES`]), or
+    /// `0` where none ran: a [`Pcurve::Harmonic`] row certified at a
+    /// scalar whose [`geom_core::Witness`] is `Exact` (`Interval`,
+    /// `Sym<Interval>`), at a point or over a box alike. Its envelope
+    /// is its whole certified statement; the schedule cross-checks it on
+    /// the witness lane only.
     pub samples: u32,
-    /// The maximum `|S(P(tᵢ)) − C(tᵢ)|` over the schedule (metres) —
-    /// **the sampled max only**. The between-samples statement is
+    /// The maximum `|S(P(tᵢ)) − C(tᵢ)|` over the schedule (metres), `0`
+    /// where none ran — **the sampled max only**. The between-samples statement is
     /// [`Self::envelope`], deliberately a separate field: folding them
     /// into one number would let a reader mistake a sup bound for a
     /// measurement or the reverse.
@@ -1584,9 +2255,9 @@ pub struct PcurveCertificate<T: Real> {
     /// The certified sup bound on `|S(P(t)) − C(t)|` over the whole
     /// span (metres) — the C2.2 between-samples limb (module docs).
     /// Always ≥ the true sup, hence ≥ [`Self::max_residual`] for an
-    /// exact-in-family pcurve; it additionally carries the winding
-    /// snap's slack (see [`PcurveCache::certify`] step 4), so it is the
-    /// number to quote for "how far can this cache be from its
+    /// exact-in-family pcurve; it additionally carries the drift the
+    /// winding gate admits (see [`PcurveCache::certify`] step 4), so it
+    /// is the number to quote for "how far can this cache be from its
     /// carrier".
     ///
     /// For a [`Pcurve::Fitted`] cache the *quantity* changes with the
@@ -1594,12 +2265,14 @@ pub struct PcurveCertificate<T: Real> {
     pub envelope: T,
     /// Which sup-norm [`Self::envelope`] bounds.
     pub statement: EnvelopeStatement,
-    /// The **full C2 certificate** of a [`Pcurve::Fitted`] cache: hull
-    /// sup-norm and uniqueness tube, re-derived (never trusted) by
-    /// [`PcurveCache::recertify`] through `geom_brep::ssi::certify`.
-    /// `None` for the closed-form lane, which discharges C2.2 by
-    /// algebra and has no locus tube to prove — its one arc is the
-    /// carrier itself.
+    /// The **full C2 certificate** of a fitted cache over a rung-3
+    /// carrier: hull sup-norm and uniqueness tube, re-derived (never
+    /// trusted) by [`PcurveCache::recertify`] through
+    /// `geom_brep::ssi::certify`. `None` wherever the carrier is exact —
+    /// the closed-form lane, which discharges C2.2 by algebra, and a
+    /// fitted image over a Circle carrier, whose envelope is its
+    /// Hermite bound — since there is no locus tube to prove: the one
+    /// arc is the carrier itself.
     pub ssi: Option<SsiCertificate<T>>,
 }
 
@@ -1658,6 +2331,94 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
     })
 }
 
+/// **The chart image of a general circle on a sphere chart** — the
+/// image producer's body, shared by every certifying scalar
+/// ([`crate::FittedLane::sphere_circle_image`]).
+///
+/// The piecewise quintic Hermite interpolant of the circle's chart image
+/// on the carrier's own parameter (the OQ4 identity), refined by
+/// trisection until every span's certified bound is a quarter of the
+/// band (`crate::sphere_circle`'s docs, which carry the bound and why
+/// no node is a certification sample). Structure is `f64` (C6), read
+/// from the data's bracket midpoints; the control points are lifted to
+/// `T`. The azimuth is continued along the arc, so the image is one
+/// branch; the walk then pins which.
+///
+/// Evidence, not a certificate: the caller's next move is
+/// [`PcurveCache::certify_fitted`], whose Circle arm re-derives the
+/// bound on whatever image it is handed.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::UnsupportedChart`] off a sphere chart, and the
+/// no-fitted-class refusal for a carrier that is not a circle — the
+/// mint reaches neither, a public caller can.
+/// [`PcurveCertifyError::ArcNearPole`] when the arc runs into or near a
+/// pole of the chart, so close that no span within the refinement's
+/// caps is short enough for the bound to land in the band;
+/// [`PcurveCertifyError::IntervalNotForward`] for a span that is not.
+pub(crate) fn sphere_circle_image_lane<
+    T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
+>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
+    let mid = |x: T| 0.5 * (x.lo() + x.hi());
+    let mid3 = |v: Vec3<T>| Vec3::new(mid(v.x), mid(v.y), mid(v.z));
+    let midp = |p: Point3<T>| Point3::origin() + mid3(p - Point3::origin());
+    let &Surface::Sphere {
+        center: s_center,
+        radius: s_radius,
+        axis: s_axis,
+        u_ref: s_u_ref,
+    } = surface
+    else {
+        return Err(PcurveCertifyError::UnsupportedChart {
+            chart: surface.kind(),
+        });
+    };
+    let &Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = carrier
+    else {
+        return Err(NoImage::Uncovered(UncoveredClass::NoFittedClass).refusal(surface, carrier));
+    };
+    let circle = Curve3::Circle {
+        center: midp(center),
+        axis: mid3(axis),
+        radius: mid(radius),
+        u_ref: mid3(u_ref),
+    };
+    let sphere = Surface::Sphere {
+        center: midp(s_center),
+        radius: mid(s_radius),
+        axis: mid3(s_axis),
+        u_ref: mid3(s_u_ref),
+    };
+    let Some(frame) = crate::sphere_circle::ChartFrame::of(&circle, &sphere) else {
+        unreachable!("sphere_circle_image_lane: the pair was matched as (Circle, Sphere) above")
+    };
+    let image = crate::sphere_circle::hermite_image(&frame, mid(t0), mid(t1), 0.25 * band.zero())
+        .map_err(|refusal| match refusal {
+        crate::sphere_circle::ImageRefusal::NearPole => PcurveCertifyError::ArcNearPole,
+        crate::sphere_circle::ImageRefusal::Structure => PcurveCertifyError::IntervalNotForward,
+    })?;
+    let control = image.control().iter().map(|p| p.map(T::from_f64)).collect();
+    NurbsCurve2::new(image.knots().clone(), control, image.weights().to_vec()).map_err(|_| {
+        PcurveCertifyError::FittedCertificate {
+            limb: None,
+            what: "the general circle's chart image would not lift to the run's scalar",
+            magnitude: None,
+        }
+    })
+}
+
 /// The foot producer's body, shared by every certifying scalar
 /// ([`crate::FittedLane::chart_foot`]).
 pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
@@ -1678,23 +2439,49 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
     }
 }
 
+/// What check 4 of the fitted lane derived: the envelope it bands, and
+/// the full C2 certificate where the carrier is a fitted one.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FittedEnvelope<T: Real> {
+    /// The certified hull sup (metres) — the cache's envelope.
+    pub(crate) hull_sup: T,
+    /// Which sup the hull bound is.
+    pub(crate) statement: EnvelopeStatement,
+    /// The C2 certificate against the operand pair: `Some` for a
+    /// `Curve3::Nurbs` carrier, `None` for an exact circle.
+    pub(crate) ssi: Option<SsiCertificate<T>>,
+}
+
 /// The certified lane's body, shared by every bracket-carrying scalar.
 ///
-/// The operand ORDER is load-bearing: the face's own surface is
-/// operand **b**, because `certify_branch` reads the traced pcurve of
-/// `b` — and the cache's image is exactly that pcurve, on the
-/// carrier's own parameter (the OQ4 identity). A NURBS *mate* has no
-/// stored image to offer, so that pairing refuses typed inside the SSI
-/// door rather than being invented here.
+/// **A rung-3 (`Curve3::Nurbs`) carrier** certifies against its
+/// operand pair, the full C2 certificate. The operand ORDER is
+/// load-bearing: the face's own surface is operand **b**, because
+/// `certify_branch` reads the traced pcurve of `b` — and the cache's
+/// image is exactly that pcurve, on the carrier's own parameter (the
+/// OQ4 identity). A NURBS *mate* has no stored image to offer, so that
+/// pairing refuses typed inside the SSI door rather than being
+/// invented here.
+///
+/// **An exact `Curve3::Circle` carrier** (the sphere chart's general
+/// circle) certifies against the chart ALONE: the image's distance from
+/// the circle through the chart map, bounded over the whole span
+/// ([`circle_image_envelope`]). No mate is read and no tube is proved:
+/// the carrier is the locus itself, not a fit of it, so there is no
+/// branch for a tube to select — and the junctions that mint such
+/// circles are often TANGENT (a fillet's corner ball against its
+/// bands), where no transversality, hence no tube, exists. Any other
+/// chart refuses: the sphere is the one chart whose general circles
+/// take this lane.
 pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     t0: T,
     t1: T,
     image: &NurbsCurve2<T>,
     surface: &Surface<T>,
-    mate: &Surface<T>,
+    mate: Option<&Surface<T>>,
     band: Band,
-) -> Result<SsiCertificate<T>, PcurveCertifyError> {
+) -> Result<FittedEnvelope<T>, PcurveCertifyError> {
     fn operand<T: geom_core::CertifiedBounds>(
         s: &Surface<T>,
     ) -> Result<SsiOperand<'_, T>, PcurveCertifyError> {
@@ -1713,54 +2500,28 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         }
     }
     let spline_operand = |s: &Surface<T>| matches!(s, Surface::Nurbs(_) | Surface::Approx(_));
-    // The certificate's carrier spline: a rung-3 carrier IS one; an
-    // exact circle converts to its locus-exact rational-quadratic
-    // chain (`FittedLane::fitted_certificate`'s docs — the limbs are
-    // locus statements, so the chain's rational parameter never enters
-    // the claim). The chain conversion is only honest against ANALYTIC
-    // operands: the NURBS
-    // limbs warm-start foot points from the traced pcurve at the SAME
-    // parameter, which a synthetic chain cannot offer.
-    let chain;
-    let spline: &NurbsCurve3<T> = match carrier {
+    let carrier = match carrier {
         Curve3::Nurbs(spline) => spline,
-        Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => {
-            // `Approx` is included, and it has to be: `operand` above
-            // routes it to `SsiOperand::Nurbs(a.fit())`, so
-            // the very limbs this guard's premise is about — the
-            // parameter-coupled NURBS limbs — are the ones an `Approx`
-            // operand would run. The guard reads the SAME roster its
-            // premise names.
-            if spline_operand(surface) || spline_operand(mate) {
-                return Err(PcurveCertifyError::FittedCertificate {
-                    limb: None,
-                    what: "a Circle carrier's rational-chain certificate is written for \
-                           analytic operand pairs only (the spline limbs — a Nurbs \
-                           payload's or an approximating surface's fit — are \
-                           parameter-coupled to a traced pcurve)",
-                    magnitude: None,
-                });
-            }
-            chain = rational_arc_chain(*center, *axis, *radius, *u_ref, t0, t1).ok_or(
-                PcurveCertifyError::FittedCertificate {
-                    limb: None,
-                    what: "the circle arc's rational-quadratic chain refused to build \
-                           (degenerate span or malformed structure)",
-                    magnitude: None,
-                },
-            )?;
-            &chain
+        Curve3::Circle { .. } => {
+            return circle_image_envelope(carrier, t0, t1, image, surface).map(|hull_sup| {
+                FittedEnvelope {
+                    hull_sup,
+                    statement: EnvelopeStatement::MapResidualHermite,
+                    ssi: None,
+                }
+            });
         }
-        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
-            return Err(PcurveCertifyError::UnsupportedCarrier);
-        }
+        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => unreachable!(
+            "fitted_lane: the one caller, `run_fitted_checks`, admits only Nurbs and Circle \
+             carriers at its check 1"
+        ),
     };
-    let carrier = spline;
+    let Some(mate) = mate else {
+        unreachable!(
+            "fitted_lane: `run_fitted_checks` refuses a Nurbs carrier with no mate at its \
+             check 1"
+        )
+    };
     // The lever arm and the tube ladder's widest rung, both from the
     // OBJECT BEING CERTIFIED rather than passed down a call chain that
     // has no better number: the carrier's own control-net diameter is
@@ -1785,7 +2546,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
             what,
         }));
     }
-    crate::ssi::certify_rung3(
+    let ssi = crate::ssi::certify_rung3(
         carrier,
         Some(image),
         &operand(mate)?,
@@ -1793,74 +2554,86 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         crate::ssi::TubeScale::uniform(arm),
         band,
     )
-    .map_err(ssi_refusal)
+    .map_err(ssi_refusal)?;
+    // The catch-all is SPLIT: an approximating surface's limbs are the
+    // spline composite's, exactly as a `Nurbs` chart's, because the
+    // limbs run against its fit.
+    let statement = match surface {
+        Surface::Nurbs(_) | Surface::Approx(_) => EnvelopeStatement::MapResidualComposite,
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => EnvelopeStatement::OnLocusHull,
+    };
+    Ok(FittedEnvelope {
+        hull_sup: ssi.hull_sup,
+        statement,
+        ssi: Some(ssi),
+    })
 }
 
-/// The **locus-exact rational-quadratic chain** of a circle arc (Book
-/// §7.3): ≤ 90° Bézier segments, middle weight `cos(θ/2)`, middle
-/// point the tangent intersection `center + radial(m)·r/cos(θ/2)`.
+/// **Check 4 for a Circle carrier on a sphere chart**: the certified
+/// bound on `sup |S(P(t)) − C(t)|` over the image's whole span
+/// (`crate::sphere_circle`'s docs) — the circle's distance from the
+/// sphere, plus, on every span of the image's Hermite form, the image's
+/// distance from the circle's true chart image through the chart map.
 ///
-/// The chain's LOCUS is the circle arc exactly (positive weights, the
-/// classic construction); its rational parameter is NOT the angle, so
-/// callers may consult it for locus statements only (the fitted
-/// certificate's on-locus hull and uniqueness tube —
-/// [`crate::FittedLane::fitted_certificate`]'s docs).
-/// Knot structure is `f64` (C6), read from the angular span's bracket
-/// midpoints; control points are exact at `T`. `None` for a
-/// degenerate (non-forward) span — the certificate's own forward-span
-/// check refuses those before this door is consulted.
-fn rational_arc_chain<T: Decide + geom_core::Bounds>(
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
+/// # Errors
+///
+/// [`PcurveCertifyError::FittedCertificate`] off a sphere chart, for
+/// an image not in the Hermite form (quintic, unit weights, interior
+/// knots of multiplicity five), or for one whose knot domain is not the
+/// edge's `[t0, t1]`; [`PcurveCertifyError::ArcNearPole`] for a span too
+/// long against its distance from the chart's poles for the bound to
+/// exist.
+fn circle_image_envelope<T: geom_core::Bounds>(
+    carrier: &Curve3<T>,
     t0: T,
     t1: T,
-) -> Option<NurbsCurve3<T>> {
-    let mid = |x: T| 0.5 * (x.lo() + x.hi());
-    let (f0, f1) = (mid(t0), mid(t1));
-    let span = f1 - f0;
-    // NaN-catching by design: only a definitely-forward finite span
-    // builds a chain.
-    if !(span > 0.0 && span.is_finite()) {
-        return None;
-    }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let n = (span / core::f64::consts::FRAC_PI_2).ceil().max(1.0) as usize;
-    let cv = axis.cross(u_ref);
-    let at = |t: f64| -> Point3<T> {
-        let (s, c) = T::from_f64(t).sin_cos();
-        center + (u_ref * c + cv * s) * radius
+    image: &NurbsCurve2<T>,
+    surface: &Surface<T>,
+) -> Result<T, PcurveCertifyError> {
+    let refuse = |what| PcurveCertifyError::FittedCertificate {
+        limb: None,
+        what,
+        magnitude: None,
     };
-    let seg = span / n as f64;
-    let w_mid = (seg / 2.0).cos();
-    let mut control: Vec<Point3<T>> = Vec::with_capacity(2 * n + 1);
-    let mut weights: Vec<f64> = Vec::with_capacity(2 * n + 1);
-    let mut knots: Vec<f64> = Vec::with_capacity(2 * n + 4);
-    knots.extend([f0, f0, f0]);
-    control.push(at(f0));
-    weights.push(1.0);
-    for i in 0..n {
-        let a = f0 + seg * i as f64;
-        let b = if i + 1 == n {
-            f1
-        } else {
-            f0 + seg * (i + 1) as f64
-        };
-        let m = 0.5 * (a + b);
-        let (s, c) = T::from_f64(m).sin_cos();
-        control.push(center + (u_ref * c + cv * s) * (radius / T::from_f64(w_mid)));
-        weights.push(w_mid);
-        control.push(at(b));
-        weights.push(1.0);
-        if i + 1 == n {
-            knots.extend([b, b, b]);
-        } else {
-            knots.extend([b, b]);
-        }
+    let frame = crate::sphere_circle::ChartFrame::of(carrier, surface).ok_or(refuse(
+        "a Circle carrier's fitted certificate is written for the sphere chart, the one \
+         chart whose general circles take the fitted lane",
+    ))?;
+    let spans = crate::sphere_circle::hermite_spans(image).ok_or(refuse(
+        "a general circle's image certifies in its Hermite form — a quintic with unit \
+         weights whose interior knots have multiplicity five — and this one is not",
+    ))?;
+    // The image's domain IS the edge's interval, as structure (C6): the
+    // bound covers the image's own spans, and a sample outside them
+    // would read an extrapolation of the end span that nothing bounds.
+    // An end of the domain must lie inside the bracket of the edge's
+    // matching end (a point at `f64`, the edge's enclosure at the
+    // interval scalar).
+    let (first, last) = (spans.first().map(|s| s.0), spans.last().map(|s| s.1));
+    let inside = |k: Option<f64>, t: T| k.is_some_and(|k| t.lo() <= k && k <= t.hi());
+    if !(inside(first, t0) && inside(last, t1)) {
+        return Err(refuse(
+            "a general circle's image certifies over the edge's own interval, and this \
+             image's knot domain is not that interval",
+        ));
     }
-    let kv = geom_core::spline::KnotVector::clamped(knots, 2).ok()?;
-    NurbsCurve3::new(kv, control, weights).ok()
+    // `|S(P) − C| ≤ |S(P) − S(g)| + |S(g) − C|`: the span bound and the
+    // circle's distance from the sphere, SUMMED.
+    let mut span_sup = T::zero();
+    for (a, b, p) in &spans {
+        let bound = crate::sphere_circle::span_bound(&frame, T::from_f64(*a), T::from_f64(*b), p);
+        // The Cauchy radius is the bound's own premise, read as
+        // structure: a span it does not clear has no bound at all.
+        if bound.radius.lo().partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
+            return Err(PcurveCertifyError::ArcNearPole);
+        }
+        span_sup = span_sup.max(bound.metres);
+    }
+    Ok(frame.off_sphere() + span_sup)
 }
 
 /// The control-net diameter of a carrier, in metres — a convexity fact
@@ -1899,7 +2672,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         // An escalation is the ONE refusal that carries a classified
         // margin, and it leaves through its own door with the
         // classifier's diagnostic whole.
-        E::Escalated(cause) | E::CertificateEscalated { cause, .. } => {
+        E::Escalated { cause, .. } | E::CertificateEscalated { cause, .. } => {
             return PcurveCertifyError::FittedEscalated { cause };
         }
         E::CertificateLimb { limb, value } => (
@@ -1948,13 +2721,25 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::ExhaustivenessInconclusive(_)
         | E::CellBudget { .. }
         | E::StepBudget { .. }
+        | E::FloorUnresolvable(_)
+        | E::SettlingUnresolvable(_)
         | E::StepCollapsed { .. }
+        | E::StepUnusable { .. }
         | E::SeedRefinementFailed { .. }
+        | E::SeedOffDomain { .. }
+        | E::StepRefinementFailed { .. }
         | E::SelfCrossingLocus { .. }
         | E::Fit(_)
+        | E::TraceUnresolved { .. }
+        | E::BoundaryGraze { .. }
+        | E::BoundaryTangent { .. }
+        | E::EndNotOnLocus { .. }
+        | E::CrossingUnmatched { .. }
+        | E::ShortBranchUncertified { .. }
+        | E::WindowShortOfWall { .. }
         | E::FitSampleBudget { .. }
+        | E::DomainUnusable { .. }
         | E::WrongLane { .. }
-        | E::Band(_)
         | E::InvalidMarchTol { .. }
         | E::MarchTolMismatch { .. } => (
             None,
@@ -2037,12 +2822,12 @@ impl<T: Real> PcurveCache<T> {
 
 impl<T: Decide> PcurveCache<T> {
     /// Certifies a **closed-form** image — [`Pcurve::Harmonic`],
-    /// [`Pcurve::IsoLine`], [`Pcurve::IsoArc`] or [`Pcurve::Spiric`] —
-    /// of `carrier` on `surface` over `[t0, t1]`, inside the face's
-    /// chart `window`: the minting lane's door, at every `Decide`
-    /// scalar. Which of the four is being certified selects the
-    /// check-4 statement and nothing else; the other four checks are
-    /// one sequence.
+    /// [`Pcurve::IsoLine`], [`Pcurve::IsoArc`], [`Pcurve::Spiric`] or
+    /// [`Pcurve::ConeSection`] — of `carrier` on `surface` over
+    /// `[t0, t1]`, inside the face's chart `window`: the minting lane's
+    /// door, at every `Decide` scalar. Which of the five is being
+    /// certified selects the check-4 statement and nothing else; the
+    /// other four checks are one sequence.
     ///
     /// A [`Pcurve::Fitted`] image refuses here, naming
     /// [`PcurveCache::certify_fitted`]: the fitted lane's certificate
@@ -2063,18 +2848,27 @@ impl<T: Decide> PcurveCache<T> {
     ///    does not definitely exceed one period.
     /// 3. **Schedule**: `|S(P(tᵢ)) − C(tᵢ)| ≤ ε` at the
     ///    [`CERT_SAMPLES`] schedule — evaluated through
-    ///    `Surface::eval` and `Curve3::eval` directly, so the harmonic
-    ///    decomposition step 4 uses is *verified*, never trusted.
+    ///    `Surface::eval` and `Curve3::eval` directly, so the closed
+    ///    form step 4 states is *verified* at the samples, never
+    ///    trusted. On a [`Pcurve::Harmonic`] image step 4 is the whole
+    ///    certified statement and this step is its cross-check: it runs
+    ///    on the witness lane ([`geom_core::Witness::Inexact`]: `f64`,
+    ///    `Sym<f64>`), records no verdict, and is not run at an
+    ///    exact-witness scalar (`Interval`, `Sym<Interval>`), at a point
+    ///    or over a box.
     /// 4. **Envelope**: the between-samples sup bound over the whole
     ///    span ≤ ε, by the lane the variant selects.
-    ///    - [`Pcurve::Harmonic`]: the closed-form bound (module docs),
-    ///      **plus the winding snap's slack** — step 1 admits an
-    ///      ε-shell around the exact harmonic family, and the stored
-    ///      envelope must bound the pcurve that was actually certified,
-    ///      not the snapped one the closed form describes. Zero on
-    ///      every minted cache (they are exact in family); the term
-    ///      exists so the certificate is honest for every input
-    ///      `certify` admits, including attach-path ones.
+    ///    - [`Pcurve::Harmonic`]: the closed-form bound
+    ///      ([`EnvelopeStatement::MapResidualClosedForm`]) — on a
+    ///      periodic chart the carrier's incidence with the chart plus
+    ///      the stored image's fidelity to the image re-derived from the
+    ///      carrier. Fidelity carries every drift step 1 admits (an
+    ///      ε-shell around the exact harmonic family), so the stored
+    ///      envelope bounds the pcurve actually certified; it is zero on
+    ///      every minted cache, and exists so the certificate is honest
+    ///      for every input `certify` admits, attach-path ones
+    ///      included. A refusal names its term
+    ///      ([`PcurveCheck::EnvelopeTerm`]).
     ///    - [`Pcurve::IsoLine`] / [`Pcurve::IsoArc`]: the traversed
     ///      row's control-difference hull
     ///      ([`EnvelopeStatement::MapResidualIsoHull`]).
@@ -2082,15 +2876,18 @@ impl<T: Decide> PcurveCache<T> {
     ///      a cap image, and an algebraic IDENTITY for a wall image
     ///      ([`EnvelopeStatement::SpiricIdentity`]) — each plus the
     ///      drift its own check 1 admitted, and each zero on every
-    ///      minted image, for the same reason the snap slack is.
+    ///      minted image, for the same reason fidelity is.
+    ///    - [`Pcurve::ConeSection`]: the harmonic closed form of the
+    ///      image's Kepler decomposition plus its remainder term
+    ///      (`run_cone_section_checks`).
     /// 5. **Trim containment**: the pcurve's chart box lies inside
     ///    `window`.
     ///
     /// # Errors
     ///
     /// The first failing check, as a typed [`PcurveCertifyError`];
-    /// [`PcurveCertifyError::UnsupportedCarrier`] for a fitted image
-    /// offered to this door.
+    /// [`PcurveCertifyError::ImageMismatch`] for a fitted or general
+    /// image offered to this door.
     pub fn certify(
         pcurve: Pcurve<T>,
         t0: T,
@@ -2102,7 +2899,11 @@ impl<T: Decide> PcurveCache<T> {
     ) -> Result<Self, PcurveCertifyError> {
         let certificate = match &pcurve {
             Pcurve::Fitted(_) | Pcurve::General(_) => {
-                return Err(PcurveCertifyError::UnsupportedCarrier);
+                return Err(PcurveCertifyError::ImageMismatch {
+                    image: PcurveKind::of(&pcurve),
+                    why: "a fitted-grade image certifies at certify_fitted or certify_general, \
+                          never at the closed-form door",
+                });
             }
             // The iso lane (M6-3): closed-form like the harmonic one —
             // no mate operand, no bracket obligation — so it shares
@@ -2133,6 +2934,9 @@ impl<T: Decide> PcurveCache<T> {
             spiric @ Pcurve::Spiric { .. } => {
                 run_spiric_checks(spiric, t0, t1, carrier, surface, window, band)?
             }
+            section @ Pcurve::ConeSection { .. } => {
+                run_cone_section_checks(section, t0, t1, carrier, surface, window, band)?
+            }
         };
         Ok(Self {
             pcurve,
@@ -2144,57 +2948,47 @@ impl<T: Decide> PcurveCache<T> {
 }
 
 impl<T: Decide> PcurveCache<T> {
-    /// Certifies a **fitted** (rung-3) chart image.
+    /// Certifies a **fitted** chart image.
     ///
-    /// **This door has no `src` caller** — the certified route exists,
-    /// and no kernel constructor mints a `Fitted` cache into a body.
-    /// It is nonetheless the lane's only callerless ITEM: the rest is
-    /// reached through [`PcurveCache::recertify`], whose `Fitted` arm
-    /// the tier-3 validator dispatches per half-edge, which is why
-    /// `topo::validate_pcurves` reads the fitted door off the scalar's
-    /// policy at all. That arm cannot execute on a body this workspace
-    /// builds, since this door is the variant's sole origin; it is
-    /// live for a caller who attaches a `Fitted` cache through
-    /// `topo::Body::attach_pcurve`.
+    /// Its `src` caller is the pcurve mint (`topo::mint_pcurves`), for a
+    /// sphere chart's GENERAL circle — a circle neither polar nor
+    /// meridian, whose image no closed form holds. The mint derives the
+    /// image through [`crate::FittedLane::sphere_circle_image`] and
+    /// certifies it here; the tier-3 validator re-derives the
+    /// certificate per half-edge through [`PcurveCache::recertify`].
+    /// The remaining consumer still waiting on a rung-3 carrier is the
+    /// cyl×sphere germ-chord lane, banked with the join-lane analog.
     ///
     /// `lane` is the door itself, not an `Option`: only a scalar that
     /// may certify can hold one ([`crate::FittedLane`]), so this door
     /// cannot be called at a scalar that may not.
     ///
-    /// Two consumers are waiting on it, in decreasing firmness:
-    ///
-    /// 1. **Mint-side wiring of the general-circle route** — the
-    ///    oblique-trihedron octant faces whose boundary circles are
-    ///    GENERAL sphere circles stay legally uncached. The door is not
-    ///    what blocks it: `topo::mint_pcurves` holds the fitted door
-    ///    (`topo::AtRestPolicy::fitted_lane`) and wires
-    ///    [`PcurveCache::certify_general`] through it. What is left is
-    ///    this door's own wiring for a Circle carrier, which no mint
-    ///    site reaches. Named as an open frontier in `docs/DESIGN.md`,
-    ///    and in **no** milestone plan and no carried-items register.
-    /// 2. The cyl×sphere germ-chord lane, banked with the join-lane
-    ///    analog.
-    ///
     /// The `General` curve-in-UV arm of the ratified pcurve unification
-    /// (`docs/PCURVE-UNIFY-DESIGN.md` U2) is no longer among them: it
-    /// certifies through [`PcurveCache::certify_general`] beside this
-    /// door, and `topo::mint_pcurves` mints it.
+    /// (`docs/PCURVE-UNIFY-DESIGN.md` U2) certifies through
+    /// [`PcurveCache::certify_general`] beside this door.
     ///
     /// Same five checks in the same fixed order as
     /// [`PcurveCache::certify`], with two differences that are the
-    /// whole content of the lane: check 1 admits a `Curve3::Nurbs`
-    /// carrier (the closed-form lane's `UnsupportedCarrier` retires for
-    /// this class), and check 4 is the **full C2 certificate** — hull
-    /// sup-norm AND uniqueness tube — derived through
-    /// `geom_brep::ssi::certify` against the operand pair
-    /// (`surface`, `mate`). [`PcurveCertificate::statement`] records
-    /// which sup the resulting envelope bounds.
+    /// whole content of the lane: check 1 admits a `Curve3::Nurbs` or
+    /// an exact `Curve3::Circle` carrier, and check 4 is a hull bound
+    /// derived through `geom_brep::ssi::certify`. Over a rung-3
+    /// carrier it is the **full C2 certificate** — hull sup-norm AND
+    /// uniqueness tube — against the operand pair (`surface`, `mate`).
+    /// Over a Circle carrier it is the image's Hermite bound against the
+    /// sphere `surface` alone, over the whole span
+    /// ([`EnvelopeStatement::MapResidualHermite`]): the carrier is the
+    /// locus, not a fit of it, so there is no
+    /// branch for a tube to select, and the junctions that mint such
+    /// circles are often tangent (a fillet's corner ball against its
+    /// bands), where no tube exists. [`PcurveCertificate::statement`]
+    /// records which sup the resulting envelope bounds.
     ///
     /// `mate` is the other operand of the pair whose intersection
-    /// minted the carrier: the uniqueness tube is a statement about the
-    /// PAIR, so a single surface cannot produce one. It is a parameter
-    /// rather than stored data precisely so that re-certification
-    /// re-reads the body's own geometry.
+    /// minted a rung-3 carrier: the uniqueness tube is a statement about
+    /// the PAIR, so a single surface cannot produce one. It is a
+    /// parameter rather than stored data precisely so that
+    /// re-certification re-reads the body's own geometry. A Circle
+    /// carrier does not read it.
     ///
     /// # Errors
     ///
@@ -2234,7 +3028,7 @@ impl<T: Decide> PcurveCache<T> {
     /// arm) at the FITTED GRADE: the identical five checks in the
     /// identical order as [`PcurveCache::certify_fitted`], against the
     /// identical `(surface, mate)` operand pair, producing the
-    /// identical C2 certificate.
+    /// identical certificate.
     ///
     /// The two doors are separate because their ENTRY requirements
     /// differ, not their statements: `certify_fitted` is entered by a
@@ -2244,8 +3038,8 @@ impl<T: Decide> PcurveCache<T> {
     /// outcomes are the fitted lane's verbatim:
     ///
     /// - **certify**: every sampled map residual is coincident with
-    ///   zero, the hull sup bound is within ε, and the uniqueness
-    ///   tube is definitely positive;
+    ///   zero and the envelope is within ε — over a rung-3 carrier the
+    ///   hull sup bound, with the uniqueness tube definitely positive;
     /// - **refuse**: [`PcurveCertifyError::FittedCertificate`] (a
     ///   definite limb failure) or [`PcurveCertifyError::
     ///   IntervalNotForward`];
@@ -2297,8 +3091,9 @@ impl<T: Decide> PcurveCache<T> {
     /// per-half-edge pass, for EITHER lane. Same checks, same schedule,
     /// same errors; the stored certificate is not consulted
     /// (re-certification re-derives, it does not trust — and for a
-    /// fitted cache that means re-deriving the whole C2 certificate,
-    /// hull bound and uniqueness tube included).
+    /// fitted cache that means re-deriving its whole envelope: over a
+    /// rung-3 carrier the C2 certificate, hull bound and uniqueness tube
+    /// included; over an exact circle its Hermite bound).
     ///
     /// `lane` is the pass's fitted door (`topo::AtRestPolicy::fitted_lane`),
     /// or `None` where the scalar may not certify or the caller
@@ -2366,6 +3161,15 @@ impl<T: Decide> PcurveCache<T> {
             ),
             spiric @ Pcurve::Spiric { .. } => run_spiric_checks(
                 spiric,
+                self.param_start,
+                self.param_end,
+                carrier,
+                surface,
+                window,
+                band,
+            ),
+            section @ Pcurve::ConeSection { .. } => run_cone_section_checks(
+                section,
                 self.param_start,
                 self.param_end,
                 carrier,
@@ -2455,6 +3259,15 @@ enum Winding {
 }
 
 impl Winding {
+    /// The winding a decided orientation names, sign for sign.
+    fn of(sign: Sign) -> Self {
+        match sign {
+            Sign::Negative => Winding::Neg,
+            Sign::Zero => Winding::Zero,
+            Sign::Positive => Winding::Pos,
+        }
+    }
+
     fn value<T: Real>(self) -> T {
         match self {
             Winding::Neg => T::zero() - T::one(),
@@ -2529,9 +3342,7 @@ fn chart_image_harmonic<T: Real>(
         }
         // The M6-3 completion (walk row 4): the cone/sphere/torus
         // closed-form tables. Every arm below is the SNAPPED image —
-        // affine angular channels with winding-valued slopes — and the
-        // drift the snap discarded is carried back into the envelope
-        // by check 4's snap slacks, exactly the cylinder discipline.
+        // affine angular channels with winding-valued slopes.
         Surface::Cone {
             apex,
             axis,
@@ -2682,12 +3493,12 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
         // Non-periodic charts have no azimuth, so there is no lever to
         // answer — not even 1. Every caller asks on a periodic chart
         // only: `chart_windings` and `chart_arms_at` on the cone arm,
-        // the harmonic lane's angular gates and snap slack behind their
-        // own non-periodic exclusion.
+        // the harmonic lane's angular gates and fidelity term behind
+        // their own non-periodic exclusion.
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => unreachable!(
             "azimuth_lever: a {} chart has no azimuth, and every caller asks on a \
              periodic chart only",
-            chart_name(surface)
+            surface.kind().name()
         ),
     }
 }
@@ -2700,14 +3511,11 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
 /// is `sup |v|` over the pcurve's span, the cone's azimuth lever
 /// needing it.
 fn chart_windings<T: Decide>(
-    pcurve: &Pcurve<T>,
+    (pa, pb, pl): (Vec2<T>, Vec2<T>, Vec2<T>),
     surface: &Surface<T>,
     v_sup: T,
     band: Band,
 ) -> Result<ChartWindings, PcurveCertifyError> {
-    let Pcurve::Harmonic { pa, pb, pl, .. } = *pcurve else {
-        return Err(PcurveCertifyError::UnsupportedCarrier);
-    };
     // Which arms, per chart kind: the azimuth arm always exists on a
     // periodic chart; the v arm exists exactly where v is an angle.
     let (u_arm, v_arm) = match *surface {
@@ -2724,11 +3532,7 @@ fn chart_windings<T: Decide>(
         } => (major_radius + minor_radius, Some(minor_radius)),
         Surface::Cone { .. } => (azimuth_lever(surface, v_sup), None),
     };
-    let esc = |cause: Indeterminate| PcurveCertifyError::Escalated {
-        check: PcurveCheck::ChartWinding,
-        sample: 0,
-        cause,
-    };
+    let esc = winding_escalated;
     let classify = |trig: [T; 2],
                     slope: T,
                     arm: T,
@@ -2796,7 +3600,9 @@ fn param_rate<T: Real>(carrier: &Curve3<T>) -> InfSpeed<T> {
         Curve3::Line { .. } => InfSpeed::new(T::one()),
         Curve3::Nurbs(ref n) => n.speed_lower_bound(),
         Curve3::Circle { radius, .. } => InfSpeed::new(radius),
-        Curve3::Ellipse { minor, .. } => InfSpeed::new(minor),
+        // The smaller semi-axis MAGNITUDE: the semi-axes carry no order
+        // and no sign (`Conic`); `minor` for the ordinary order.
+        Curve3::Ellipse { major, minor, .. } => InfSpeed::new(major.abs().min(minor.abs())),
         Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
     }
 }
@@ -2836,6 +3642,18 @@ fn param_rate_gate<T: Decide>(
     Ok(rate)
 }
 
+/// How a residual's decision is recorded: as a verdict of the
+/// certified statement ([`decide`]), or as check 4's cross-check on a
+/// harmonic row, which refuses as a verdict would and records none
+/// (`k_stats::check_unlogged`, audit row F20: a point build would
+/// otherwise log rows a box build cannot, and the driver compares the
+/// two row for row).
+#[derive(Clone, Copy)]
+enum Record {
+    Verdict,
+    CrossCheck,
+}
+
 /// Folds a residual into the running max and classifies it against the
 /// band (the `certify::check_residual` idiom, one module over).
 fn check_residual<T: Decide>(
@@ -2846,8 +3664,35 @@ fn check_residual<T: Decide>(
     band: Band,
     max_residual: &mut T,
 ) -> Result<(), PcurveCertifyError> {
+    check_residual_as(
+        Record::Verdict,
+        name,
+        check,
+        sample,
+        residual,
+        band,
+        max_residual,
+    )
+}
+
+/// [`check_residual`], recorded as `record` says.
+fn check_residual_as<T: Decide>(
+    record: Record,
+    name: &'static str,
+    check: PcurveCheck,
+    sample: u32,
+    residual: Margin<T>,
+    band: Band,
+    max_residual: &mut T,
+) -> Result<(), PcurveCertifyError> {
     *max_residual = max_residual.max(residual.value().abs());
-    match decide(name, residual, band) {
+    let decided = match record {
+        Record::Verdict => decide(name, residual, band),
+        Record::CrossCheck => {
+            geom_core::k_stats::check_unlogged(name, residual.value(), band, "F20")
+        }
+    };
+    match decided {
         Ok(Sign::Zero) => Ok(()),
         Ok(Sign::Positive | Sign::Negative) => {
             Err(PcurveCertifyError::ResidualExceeded { check, sample })
@@ -2871,27 +3716,37 @@ fn run_harmonic_checks<T: Decide>(
     window: ChartWindow<T>,
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+    let Pcurve::Harmonic { p0, pa, pb, pl } = *pcurve else {
+        unreachable!("run_harmonic_checks: both callers match `Pcurve::Harmonic` to reach it")
+    };
     // ---- Check 1: the certified lane. ----
-    let chart = chart_name(surface);
+    let chart = surface.kind();
     // The closed-form lane is the analytic charts'; a spline chart —
     // the payload's or an approximating surface's fit — goes through
     // the fitted lane instead.
     if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
         return Err(PcurveCertifyError::UnsupportedChart { chart });
     }
+    // `chart_pcurve` mints a harmonic image only from a carrier's own
+    // harmonic form, so a carrier without one (a spline, a spiric) was
+    // handed an image it never had.
     let Some(carrier_form) = carrier_harmonic(carrier) else {
-        return Err(PcurveCertifyError::UnsupportedCarrier);
+        return Err(PcurveCertifyError::ImageMismatch {
+            image: PcurveKind::Harmonic,
+            why: "the carrier has no {1, cos, sin, t} form, so no harmonic image is its own",
+        });
     };
-    let Some(boxed) = pcurve.harmonic_span_box(t0, t1) else {
-        return Err(PcurveCertifyError::UnsupportedCarrier);
-    };
-    let v_sup = boxed.v_reach();
+    let v_sup = harmonic_span_box(p0, pa, pb, pl, t0, t1).v_reach();
     let reach = t0.abs().max(t1.abs());
-    let windings = chart_windings(pcurve, surface, v_sup, band)?;
-    let winding = windings.u;
-    let Some(image_form) = chart_image_harmonic(pcurve, surface, windings) else {
+    let windings = chart_windings((pa, pb, pl), surface, v_sup, band)?;
+    // Both angular channels moving is the sphere's general circle and
+    // the torus's Villarceau class: azimuth-non-harmonic, so no closed
+    // form exists and the fitted lane or a typed refusal owns it.
+    if let (Winding::Pos | Winding::Neg, Some(Winding::Pos | Winding::Neg)) =
+        (windings.u, windings.v)
+    {
         return Err(PcurveCertifyError::UnsupportedChart { chart });
-    };
+    }
 
     let mut max_residual = T::zero();
 
@@ -2917,9 +3772,6 @@ fn run_harmonic_checks<T: Decide>(
         surface,
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_)
     ) {
-        let Pcurve::Harmonic { pl, .. } = *pcurve else {
-            return Err(PcurveCertifyError::UnsupportedCarrier);
-        };
         let mut gates = vec![(pl.x, azimuth_lever(surface, v_sup))];
         match *surface {
             Surface::Sphere { radius, .. } => gates.push((pl.y, radius)),
@@ -2942,74 +3794,979 @@ fn run_harmonic_checks<T: Decide>(
         }
     }
 
-    // ---- Check 3: the schedule, in metres through the map. ----
-    schedule_residuals(pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    // ---- Check 3: the schedule, the closed form's cross-check. ----
+    // Check 4's envelope is the whole certified statement of a harmonic
+    // row (C4); the schedule cross-checks its tables on the witness lane
+    // (`Witness::Inexact`), and is not run at an exact-witness scalar.
+    let samples = match T::WITNESS {
+        geom_core::Witness::Inexact => {
+            schedule_residuals(
+                Record::CrossCheck,
+                pcurve,
+                t0,
+                t1,
+                carrier,
+                surface,
+                band,
+                &mut max_residual,
+            )?;
+            CERT_SAMPLES
+        }
+        geom_core::Witness::Exact => 0,
+    };
 
     // ---- Check 4: the closed-form between-samples envelope. ----
-    let d_c = image_form.c - carrier_form.c;
-    let d_a = image_form.a - carrier_form.a;
-    let d_b = image_form.b - carrier_form.b;
-    let d_l = image_form.l - carrier_form.l;
-    // **The snap slack.** Check 1's winding trilean classifies
-    // `|pa.x|·r`, `|pb.x|·r` and `|pl.x − β|·r` as Zero anywhere inside
-    // the band, so `certify` admits pcurves in an ε-shell OUTSIDE the
-    // exact harmonic family — and `image_form` above is built from the
-    // SNAPPED azimuth channel `α + β·t`. The envelope of the snapped
-    // image would therefore under-report the true sup of the pcurve
-    // actually being certified, by exactly the drift the snap discarded
-    // (measured at 7 orders on an attach-path `pl.x = 1 + 0.6e-9` — the
-    // reviewer's probe, now `envelope_dominates_a_winding_snapped_pcurve`).
-    // Add it back: the discarded channel is
-    // `δu(t) = pa.x·cos t + pb.x·sin t + (pl.x − β)·t`, and moving the
-    // azimuth by `δu` moves the mapped point by `2r·|sin(δu/2)| ≤ r·|δu|`
-    // — so `r·(|pa.x| + |pb.x| + |pl.x − β|·reach)` bounds it. Minted
-    // caches are exact in family (`pa.x = pb.x = 0`, `pl.x ∈ {−1,0,1}`
-    // bitwise), so this term is exactly zero on the ship path.
-    // Per angular channel: the discarded drift metered at that
-    // channel's lever arm (azimuth: the chart's safe over-arm; polar:
-    // r / minor r; the cone's snapped-constant v: the unit ruling
-    // arm). Every term is exactly zero on the minted path.
-    let snap_slack = match (surface, pcurve) {
-        (_, Pcurve::Harmonic { pa, pb, pl, .. })
-            if !matches!(
-                surface,
-                Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_)
-            ) =>
-        {
-            let u_arm = azimuth_lever(surface, v_sup);
-            let u_slack =
-                (pa.x.abs() + pb.x.abs() + (pl.x - winding.value::<T>()).abs() * reach) * u_arm;
-            let v_slack = match *surface {
-                // The v channel maps exactly on these charts wherever
-                // the image exists: cylinder always; cone in the
-                // fixed-azimuth class. The cone's MOVING-azimuth class
-                // snapped v to the constant p0.y — |∂S/∂v| = 1.
-                Surface::Cylinder { .. } => T::zero(),
-                Surface::Cone { .. } => match winding {
-                    Winding::Zero => T::zero(),
-                    Winding::Pos | Winding::Neg => pa.y.abs() + pb.y.abs() + pl.y.abs() * reach,
-                },
-                Surface::Sphere { radius, .. } => {
-                    let sigma = windings.v.unwrap_or(Winding::Zero);
-                    (pa.y.abs() + pb.y.abs() + (pl.y - sigma.value::<T>()).abs() * reach) * radius
-                }
-                Surface::Torus { minor_radius, .. } => {
-                    let sigma = windings.v.unwrap_or(Winding::Zero);
-                    (pa.y.abs() + pb.y.abs() + (pl.y - sigma.value::<T>()).abs() * reach)
-                        * minor_radius
-                }
-                // Non-periodic charts snap nothing in v.
-                Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => T::zero(),
-            };
-            u_slack + v_slack
-        }
-        _ => T::zero(),
+    // A plane chart is affine, so the image's coefficients map through
+    // and their differences from the carrier's are the bound. A
+    // periodic chart's is frame plus incidence plus fidelity (the lemma
+    // on `EnvelopeStatement::MapResidualClosedForm`).
+    let terms = match surface {
+        Surface::Plane { .. } => None,
+        _ => Some(periodic_envelope(
+            pcurve,
+            carrier,
+            carrier_form,
+            surface,
+            (t0, t1),
+            reach,
+            band,
+        )?),
     };
-    let envelope = d_c.norm() + d_a.norm() + d_b.norm() + d_l.norm() * reach + snap_slack;
-    // The envelope is classified against the band like every other
-    // residual, but it is NOT folded into `max_residual`: that field is
-    // the sampled max, and the two statements stay separate (the
-    // certificate's field docs).
+    let envelope = match terms {
+        Some(terms) => terms.total(),
+        None => {
+            let Some(image_form) = chart_image_harmonic(pcurve, surface, windings) else {
+                unreachable!("chart_image_harmonic: a plane chart images every harmonic pcurve")
+            };
+            let d_c = image_form.c - carrier_form.c;
+            let d_a = image_form.a - carrier_form.a;
+            let d_b = image_form.b - carrier_form.b;
+            let d_l = image_form.l - carrier_form.l;
+            d_c.norm() + d_a.norm() + d_b.norm() + d_l.norm() * reach
+        }
+    };
+    // Not folded into `max_residual`: that field is the sampled max,
+    // and the two statements stay separate (the certificate's field
+    // docs).
+    match decide("pcurve_envelope", Margin::of(envelope), band) {
+        Ok(Sign::Zero) => {}
+        refused => {
+            let check = terms
+                .and_then(|terms| terms.first_over(band))
+                .map_or(PcurveCheck::Envelope, PcurveCheck::EnvelopeTerm);
+            return Err(match refused {
+                Err(cause) => PcurveCertifyError::Escalated {
+                    check,
+                    sample: 0,
+                    cause,
+                },
+                Ok(_) => PcurveCertifyError::ResidualExceeded { check, sample: 0 },
+            });
+        }
+    }
+
+    // ---- Check 5: trim containment (the chart-box limb). ----
+    trim_containment(pcurve, t0, t1, surface, window, band)?;
+
+    Ok(PcurveCertificate {
+        samples,
+        max_residual,
+        envelope,
+        statement: EnvelopeStatement::MapResidualClosedForm,
+        ssi: None,
+    })
+}
+
+/// What [`derive_harmonic`] selected beside the image it built: the
+/// class arm and its decided windings. Check 4 states incidence for
+/// this structure, so the structure is the derivation's own and is
+/// never decided a second time.
+#[derive(Clone, Copy, Debug)]
+enum Derivation {
+    Plane,
+    CylinderMoving {
+        beta: Winding,
+    },
+    CylinderMeridian,
+    /// `anchored`: the nappe was read off the anchor's height, not the
+    /// direction's. `nappe` is its sign, `Pos` or `Neg`.
+    ConeRuling {
+        anchored: bool,
+        nappe: Winding,
+    },
+    ConeRim {
+        nappe: Winding,
+        beta: Winding,
+    },
+    SphereParallel {
+        beta: Winding,
+    },
+    /// `pole`: the azimuth was read off `b`'s radial part, `a`'s having
+    /// decided Zero.
+    SphereMeridian {
+        pole: bool,
+        sigma: Winding,
+    },
+    TorusParallel {
+        beta: Winding,
+    },
+    TorusMeridian {
+        sigma: Winding,
+    },
+    /// An ellipse on a cone: the image is a [`Pcurve::ConeSection`],
+    /// which its own lane certifies, never a harmonic one.
+    ConeSection,
+}
+
+/// Check 4's envelope on a periodic chart, one running sum per
+/// [`EnvelopeTerm`]; the certified bound is their total.
+#[derive(Clone, Copy)]
+struct EnvelopeTerms<T: Real>([T; EnvelopeTerm::ALL.len()]);
+
+impl<T: Decide> EnvelopeTerms<T> {
+    fn new() -> Self {
+        Self([T::zero(); EnvelopeTerm::ALL.len()])
+    }
+
+    fn add(&mut self, term: EnvelopeTerm, value: T) {
+        let slot = &mut self.0[term.slot()];
+        *slot = *slot + value;
+    }
+
+    fn total(&self) -> T {
+        self.0.iter().fold(T::zero(), |sum, &term| sum + term)
+    }
+
+    /// The first term, in [`EnvelopeTerm::ALL`]'s order, that does not
+    /// decide Zero on its own — what a refused envelope names. `None`
+    /// when every term fits the band alone and only their sum does not.
+    fn first_over(&self, band: Band) -> Option<EnvelopeTerm> {
+        EnvelopeTerm::ALL.into_iter().find(|&term| {
+            !matches!(
+                decide(
+                    "pcurve_envelope_term",
+                    Margin::of(self.0[term.slot()]),
+                    band
+                ),
+                Ok(Sign::Zero)
+            )
+        })
+    }
+}
+
+/// Check 4 on a periodic chart: the carrier's incidence under the
+/// structure [`derive_harmonic`] selects for it, plus the stored
+/// image's fidelity to the image it derives.
+fn periodic_envelope<T: Decide>(
+    pcurve: &Pcurve<T>,
+    carrier: &Curve3<T>,
+    carrier_form: Harmonic3<T>,
+    surface: &Surface<T>,
+    span: (T, T),
+    reach: T,
+    band: Band,
+) -> Result<EnvelopeTerms<T>, PcurveCertifyError> {
+    // The lemma's premise is an orthonormal frame. The stored chart's
+    // need not be one over a box (or at all), so the lemma is applied
+    // on the chart's orthonormalised twin and the two maps' distance
+    // over the stored image is its own term (`Frame`).
+    let ideal = orthonormal_chart(surface);
+    let (derived, derivation) = derive_harmonic(carrier, &ideal, band)?;
+    if matches!(derivation, Derivation::ConeSection) {
+        return Err(PcurveCertifyError::ImageMismatch {
+            image: PcurveKind::Harmonic,
+            why: "an ellipse on a cone images as a cone section, not a harmonic",
+        });
+    }
+    let mut terms = EnvelopeTerms::new();
+    let Pcurve::Harmonic { p0, pa, pb, pl } = *pcurve else {
+        unreachable!("periodic_envelope: check 4's periodic arm reads a harmonic image")
+    };
+    let v_reach = harmonic_span_box(p0, pa, pb, pl, span.0, span.1).v_reach();
+    terms.add(EnvelopeTerm::Frame, frame_defect(surface, v_reach));
+    incidence(carrier_form, &ideal, derivation, reach, &mut terms);
+    fidelity(pcurve, &derived, &ideal, span, reach, band, &mut terms)?;
+    Ok(terms)
+}
+
+/// The chart with its frame made orthonormal by Gram–Schmidt:
+/// `n̂ = axis/‖axis‖`, and `ê₁` the part of `u_ref` normal to `n̂`,
+/// normalised (the map's `v_ref` is then `n̂ × ê₁`). In exact
+/// arithmetic it is the frame the lemma on
+/// [`EnvelopeStatement::MapResidualClosedForm`] assumes; a literal
+/// unit frame is its own twin, and its twin's forms reduce to its own.
+fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
+    let frame = |axis: Vec3<T>, u_ref: Vec3<T>| {
+        let n = axis / axis.norm();
+        let e1 = u_ref - n * n.dot(u_ref);
+        (n, e1 / e1.norm())
+    };
+    match *surface {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => {
+            let (axis, u_ref) = frame(axis, u_ref);
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            }
+        }
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => {
+            let (axis, u_ref) = frame(axis, u_ref);
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            }
+        }
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => {
+            let (axis, u_ref) = frame(axis, u_ref);
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            }
+        }
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => {
+            let (axis, u_ref) = frame(axis, u_ref);
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            }
+        }
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!(
+                "orthonormal_chart: check 4's periodic arm reads an analytic periodic chart"
+            )
+        }
+    }
+}
+
+/// `sup |S(u, v) − Ŝ(u, v)|` over an image whose `|v|` stays within
+/// `v_reach`, `Ŝ` the chart's orthonormal twin ([`orthonormal_chart`]).
+/// Both maps share the chart's scalars and differ only in their frame:
+/// the radial direction moves by at most `‖u_ref − ê₁‖ + ‖v_ref − ê₂‖`
+/// at any azimuth (`ρ(u) − ρ̂(u)` is that pair's difference under
+/// `cos u`, `sin u`), and the axis by `‖axis − n̂‖`. Each is levered by
+/// what multiplies it in the chart's own map: the radius, or the
+/// slant `v` on a cylinder's axis and a cone's two channels — the
+/// actual axial reach, not the radius.
+///
+/// The distances are bounded in the frame's own invariants, never by
+/// differencing the normalised vectors (whose enclosures widen by the
+/// radius times a few ulps at the interval scalar — the wide-arc
+/// widening check 4 was restated to remove). With `A = axis·axis`,
+/// `U = u_ref·u_ref` and `θ = |axis·u_ref|/√A = |n̂·u_ref|`, and since
+/// `|x − 1| ≤ |x² − 1|` for `x ≥ 0`:
+///
+/// - `‖axis − n̂‖ = |√A − 1| ≤ |A − 1|`;
+/// - `‖u_ref − ê₁‖ ≤ ‖u_ref − u⊥‖ + ‖u⊥ − ê₁‖ ≤ θ + |U − θ² − 1| ≤
+///   θ + |U − 1| + θ²`, `u⊥ = u_ref − n̂·θ` its part normal to `n̂`;
+/// - `‖axis × u_ref − n̂ × ê₁‖ ≤ ‖axis − n̂‖·√U + ‖u_ref − ê₁‖`.
+///
+/// On a literal unit frame every one is the zero form.
+fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
+    let defect = |axis: Vec3<T>, u_ref: Vec3<T>| {
+        let (a2, u2) = (axis.dot(axis), u_ref.dot(u_ref));
+        let one = T::one();
+        let d_axis = (a2 - one).abs();
+        let tilt = axis.dot(u_ref).abs() / a2.sqrt();
+        let d_u = tilt + (u2 - one).abs() + tilt.powi(2);
+        (d_axis, d_u + d_u + d_axis * u2.sqrt())
+    };
+    match *surface {
+        Surface::Cylinder {
+            axis,
+            radius,
+            u_ref,
+            ..
+        } => {
+            let (d_axis, d_radial) = defect(axis, u_ref);
+            d_radial * radius + d_axis * v_reach
+        }
+        Surface::Cone {
+            axis,
+            half_angle,
+            u_ref,
+            ..
+        } => {
+            let (s_a, c_a) = half_angle.sin_cos();
+            let (d_axis, d_radial) = defect(axis, u_ref);
+            (d_axis * c_a.abs() + d_radial * s_a.abs()) * v_reach
+        }
+        Surface::Sphere {
+            radius,
+            axis,
+            u_ref,
+            ..
+        } => {
+            let (d_axis, d_radial) = defect(axis, u_ref);
+            (d_radial + d_axis) * radius
+        }
+        Surface::Torus {
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+            ..
+        } => {
+            let (d_axis, d_radial) = defect(axis, u_ref);
+            d_radial * (major_radius + minor_radius) + d_axis * minor_radius
+        }
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("frame_defect: check 4's periodic arm reads an analytic periodic chart")
+        }
+    }
+}
+
+/// `|p − ‖q‖|`, spelled `|p² − q·q| / (p + ‖q‖)` so the numerator is a
+/// polynomial in the carrier's and the chart's data and `√(p²) = p` is
+/// never asked of the arithmetic. `p_sq` is `p²` in the caller's own
+/// spelling; `p ≥ 0`.
+fn norm_gap<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
+    (p_sq - q.dot(q)).abs() / (p + q.norm())
+}
+
+/// Check 4's **incidence** terms: a bound on `sup |S(P_d(t)) − C(t)|`
+/// for the image `P_d` that [`derive_harmonic`] builds from `form`
+/// under `derivation`, in the carrier's own coefficients and the
+/// chart's data alone — no image angle enters it. The lemma per arm
+/// is on [`EnvelopeStatement::MapResidualClosedForm`].
+fn incidence<T: Decide>(
+    form: Harmonic3<T>,
+    surface: &Surface<T>,
+    derivation: Derivation,
+    reach: T,
+    terms: &mut EnvelopeTerms<T>,
+) {
+    use EnvelopeTerm::{Centre, Drift, Line, Orientation, Radius, Tilt};
+    let Harmonic3 { c, a, b, l } = form;
+    match (surface, derivation) {
+        (
+            &Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            },
+            Derivation::CylinderMoving { .. } | Derivation::CylinderMeridian,
+        ) => {
+            let radial = |v: Vec3<T>| v - axis * v.dot(axis);
+            let (w_r, a_r, b_r) = (radial(c - origin), radial(a), radial(b));
+            terms.add(Line, radial(l).norm() * reach);
+            match derivation {
+                Derivation::CylinderMoving {
+                    beta: beta @ (Winding::Pos | Winding::Neg),
+                } => {
+                    terms.add(Centre, w_r.norm());
+                    terms.add(Radius, norm_gap(radius, radius.powi(2), a_r));
+                    terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
+                }
+                Derivation::CylinderMoving {
+                    beta: Winding::Zero,
+                } => {
+                    terms.add(Centre, w_r.norm());
+                    terms.add(Radius, radius);
+                    terms.add(Drift, a_r.norm() + b_r.norm());
+                }
+                _ => {
+                    terms.add(Radius, norm_gap(radius, radius.powi(2), w_r));
+                    terms.add(Drift, a_r.norm() + b_r.norm());
+                }
+            }
+        }
+        (
+            &Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            },
+            Derivation::ConeRuling { .. } | Derivation::ConeRim { .. },
+        ) => {
+            let (s_ha, c_ha) = half_angle.sin_cos();
+            let slope = s_ha / c_ha;
+            let radial = |v: Vec3<T>| v - axis * v.dot(axis);
+            let w = c - apex;
+            let (h, w_r) = (w.dot(axis), radial(w));
+            match derivation {
+                Derivation::ConeRuling { anchored, nappe } => {
+                    // The reference datum the nappe was read off, and the
+                    // other one; each with the weight its slot carries
+                    // in the envelope (the constant's 1, the linear
+                    // term's reach).
+                    let anchor = (h, w_r, T::one());
+                    let direction = (l.dot(axis), radial(l), reach);
+                    let ((h_ref, r_ref, w_ref), (h_o, r_o, w_o)) = if anchored {
+                        (anchor, direction)
+                    } else {
+                        (direction, anchor)
+                    };
+                    let h_abs = h_ref * nappe.value();
+                    let rho = h_abs * slope;
+                    let lever = h_o.abs() / h_abs;
+                    terms.add(
+                        Radius,
+                        norm_gap(rho, rho.powi(2), r_ref) * (w_ref + lever * w_o),
+                    );
+                    terms.add(Line, (r_ref * h_o - r_o * h_ref).norm() / h_abs * w_o);
+                }
+                Derivation::ConeRim { nappe, beta } => {
+                    let rho = h * nappe.value() * slope;
+                    let (a_r, b_r) = (radial(a), radial(b));
+                    terms.add(Centre, w_r.norm());
+                    terms.add(Tilt, a.dot(axis).abs() + b.dot(axis).abs());
+                    terms.add(Line, l.norm() * reach);
+                    match beta {
+                        Winding::Pos | Winding::Neg => {
+                            terms.add(Radius, norm_gap(rho, rho.powi(2), a_r));
+                            terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
+                        }
+                        Winding::Zero => {
+                            terms.add(Radius, rho);
+                            terms.add(Drift, a_r.norm() + b_r.norm());
+                        }
+                    }
+                }
+                _ => unreachable!("incidence: the cone arm matched its own derivations"),
+            }
+        }
+        (
+            &Surface::Sphere {
+                center,
+                radius,
+                axis,
+                ..
+            },
+            Derivation::SphereParallel { .. } | Derivation::SphereMeridian { .. },
+        ) => {
+            let radial = |v: Vec3<T>| v - axis * v.dot(axis);
+            let w = c - center;
+            let (h, w_r) = (w.dot(axis), radial(w));
+            let (a_r, b_r) = (radial(a), radial(b));
+            let (aa, bb) = (a.dot(axis), b.dot(axis));
+            terms.add(Line, l.norm() * reach);
+            match derivation {
+                Derivation::SphereParallel { beta } => {
+                    let rho_sq = radius.powi(2) - h.powi(2);
+                    let rho = rho_sq.sqrt();
+                    terms.add(Centre, w_r.norm());
+                    terms.add(Tilt, aa.abs() + bb.abs());
+                    match beta {
+                        Winding::Pos | Winding::Neg => {
+                            terms.add(Radius, norm_gap(rho, rho_sq, a_r));
+                            terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
+                        }
+                        Winding::Zero => {
+                            terms.add(Radius, rho);
+                            terms.add(Drift, a_r.norm() + b_r.norm());
+                        }
+                    }
+                }
+                Derivation::SphereMeridian { pole: false, sigma } => {
+                    // `J·a`: `a` turned a quarter in its meridian plane,
+                    // `(‖a_r‖·axis − aa·â_r)·‖a‖/‖a‖`.
+                    let ja = (axis * a_r.dot(a_r) - a_r * aa) / a_r.norm();
+                    terms.add(Centre, w.norm());
+                    terms.add(Radius, norm_gap(radius, radius.powi(2), a));
+                    terms.add(Orientation, (ja * sigma.value() - b).norm());
+                }
+                Derivation::SphereMeridian { pole: true, sigma } => {
+                    terms.add(Centre, w.norm());
+                    terms.add(Radius, norm_gap(radius, radius.powi(2), a));
+                    terms.add(Drift, a_r.norm() * T::from_f64(3.0));
+                    terms.add(
+                        Orientation,
+                        bb.abs() + (aa * sigma.value() + b_r.norm()).abs(),
+                    );
+                }
+                _ => unreachable!("incidence: the sphere arm matched its own derivations"),
+            }
+        }
+        (
+            &Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            },
+            Derivation::TorusParallel { .. } | Derivation::TorusMeridian { .. },
+        ) => {
+            let radial = |v: Vec3<T>| v - axis * v.dot(axis);
+            let w = c - center;
+            let (h, w_r) = (w.dot(axis), radial(w));
+            let (a_r, b_r) = (radial(a), radial(b));
+            let aa = a.dot(axis);
+            let minor_sq = minor_radius.powi(2);
+            terms.add(Line, l.norm() * reach);
+            match derivation {
+                Derivation::TorusParallel { beta } => {
+                    let core = a_r.norm() - major_radius;
+                    let m_sq = h.powi(2) + core.powi(2);
+                    let tube = (minor_sq - m_sq).abs() / (minor_radius + m_sq.sqrt());
+                    terms.add(Centre, w_r.norm());
+                    terms.add(Tilt, aa.abs() + b.dot(axis).abs());
+                    match beta {
+                        Winding::Pos | Winding::Neg => {
+                            terms.add(Radius, tube);
+                            terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
+                        }
+                        Winding::Zero => {
+                            terms.add(Radius, tube + major_radius + minor_radius);
+                            terms.add(Drift, a_r.norm() + b_r.norm());
+                        }
+                    }
+                }
+                Derivation::TorusMeridian { sigma } => {
+                    let wr_sq = w_r.dot(w_r);
+                    let aw = a.dot(w_r);
+                    let n_sq = aw.powi(2) / wr_sq + aa.powi(2);
+                    let tube = (minor_sq - n_sq).abs() / (minor_radius + n_sq.sqrt());
+                    terms.add(
+                        Centre,
+                        norm_gap(major_radius, major_radius.powi(2), w_r) + h.abs(),
+                    );
+                    terms.add(Radius, tube);
+                    terms.add(Tilt, (a_r - w_r * (aw / wr_sq)).norm());
+                    terms.add(
+                        Orientation,
+                        ((axis * aw - w_r * aa) / wr_sq.sqrt() * sigma.value() - b).norm(),
+                    );
+                }
+                _ => unreachable!("incidence: the torus arm matched its own derivations"),
+            }
+        }
+        _ => unreachable!(
+            "incidence: derive_harmonic answers a {} chart with that chart's own derivations, \
+             and the plane's envelope is not incidence",
+            surface.kind().name()
+        ),
+    }
+}
+
+/// The furthest a branch may sit from the one it is read against, in
+/// whole periods, before [`whole_periods`] refuses it
+/// ([`BranchMiss::OutOfReach`]).
+///
+/// **Why a cap, and why four.** The search steps one period at a time
+/// from `k = 0`, two sign decisions a step, so an uncapped search over
+/// a gap of `n` periods costs `2n` decisions and over an unbounded box
+/// would not terminate. Four is not derived from a bound. It is room
+/// above the branches producers are known to reach: the derivation
+/// answers on the principal branch, a row's azimuth extent is gated to
+/// one period (`AzimuthPeriodExceeded`), and a closed loop's walk
+/// closes through at most one period at its seam. A helical producer,
+/// whose rows legitimately sit further out, would need the cap raised
+/// or its branch read off its winding. The refusal says so by type
+/// rather than as a residual
+/// (`work/pcert/whole-periods-caps-a-branch-at-four-periods.md`).
+pub const MAX_BRANCH_PERIODS: i32 = 4;
+
+/// Why [`whole_periods`] decided no branch.
+#[derive(Clone, Debug)]
+pub enum BranchMiss {
+    /// A half-period mark is undecided: the gap is not resolved to one
+    /// branch at this width (D4 ¶3, escalate-never-guess).
+    Undecided(Indeterminate),
+    /// The gap sits ON a half-period mark (the mark decided Zero): it
+    /// is half a period from two branches and is the gap of neither —
+    /// a stored image a half period off, or a sphere's involution twin
+    /// read with period `τ`.
+    OnMark,
+    /// The gap is more than [`MAX_BRANCH_PERIODS`] periods out.
+    OutOfReach,
+}
+
+/// **A branch, decided as structure**: the whole number of periods `k`
+/// with `|gap − k·period| < period/2`, returned as the LITERAL `k`. It
+/// is read off the half period of room a branch has, by sign decisions
+/// against the half-period marks (`name`, metered through `meter`),
+/// never by rounding the gap — so a chart image shifted by it carries
+/// `α + k·τ` with `k` a constant rather than an opaque function of the
+/// parameters (C4: "the branch per face is chosen once by the loop
+/// walk"). The loop walk pins each row's branch with it
+/// (`topo::pcurves`), and check 4's fidelity reads a stored image's
+/// branch, and a sphere image's twin, against its re-derivation with
+/// it.
+///
+/// # Errors
+///
+/// [`BranchMiss`]: a mark undecided, the gap on a mark, or the gap out
+/// of reach.
+pub fn whole_periods<T: Decide>(
+    name: &'static str,
+    gap: T,
+    period: T,
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<T, BranchMiss> {
+    let half = T::from_f64(0.5);
+    let mark = |k: i32, side: T| {
+        decide(
+            name,
+            meter(gap - (T::from_f64(f64::from(k)) + side) * period),
+            band,
+        )
+    };
+    let mut k = 0;
+    // What is already known about the marks either side of `k`: moving
+    // up one period learns the lower mark, moving down the upper.
+    let (mut below, mut above) = (false, false);
+    loop {
+        if !above {
+            match mark(k, half).map_err(BranchMiss::Undecided)? {
+                Sign::Negative => {}
+                Sign::Zero => return Err(BranchMiss::OnMark),
+                Sign::Positive => {
+                    k += 1;
+                    (below, above) = (true, false);
+                    if k > MAX_BRANCH_PERIODS {
+                        return Err(BranchMiss::OutOfReach);
+                    }
+                    continue;
+                }
+            }
+        }
+        if !below {
+            match mark(k, T::zero() - half).map_err(BranchMiss::Undecided)? {
+                Sign::Positive => {}
+                Sign::Zero => return Err(BranchMiss::OnMark),
+                Sign::Negative => {
+                    k -= 1;
+                    (below, above) = (false, true);
+                    if k < -MAX_BRANCH_PERIODS {
+                        return Err(BranchMiss::OutOfReach);
+                    }
+                    continue;
+                }
+            }
+        }
+        return Ok(T::from_f64(f64::from(k)));
+    }
+}
+
+/// Check 4's **fidelity** terms: the stored image `P` against the
+/// re-derived `P_d`, channel by channel, metered at the chart's sup
+/// stretch — `|S(P(t)) − S(P_d(t))| ≤ arm_u·sup|Δu| + arm_v·sup|Δv|`
+/// along the chart segment between the two (`S` is periodic in an
+/// angular channel, so each angular offset is read up to a whole
+/// period). A sphere point has two harmonic names, `P_d` and its
+/// involution twin `(u + π, π − v)`, and the stored image is measured
+/// against the one its azimuth sits nearer.
+fn fidelity<T: Decide>(
+    stored: &Pcurve<T>,
+    derived: &Pcurve<T>,
+    surface: &Surface<T>,
+    (t0, t1): (T, T),
+    reach: T,
+    band: Band,
+    terms: &mut EnvelopeTerms<T>,
+) -> Result<(), PcurveCertifyError> {
+    let (
+        &Pcurve::Harmonic { p0, pa, pb, pl },
+        &Pcurve::Harmonic {
+            p0: q0,
+            pa: qa,
+            pb: qb,
+            pl: ql,
+        },
+    ) = (stored, derived)
+    else {
+        unreachable!("fidelity: check 4 compares two harmonic images")
+    };
+    let (arm_u, arm_v) = match chart_stretch_sup(surface) {
+        Ok(arms) => arms,
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => {
+            // `S(u, v) = apex + v·g(u)` with `|g(u₁) − g(u₂)| = sin α·
+            // chord(u₁ − u₂)`, so `|S(u₁, v₁) − S(u₂, v₂)| ≤ |v₁ − v₂| +
+            // min(|v₁|, |v₂|)·sin α·|u₁ − u₂|`: either image's slant
+            // levers the azimuth, and the nearer one's is enough.
+            let v_sup = harmonic_span_box(p0, pa, pb, pl, t0, t1)
+                .v_reach()
+                .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach());
+            (
+                SupSpeed::new(azimuth_lever(surface, v_sup)),
+                SupSpeed::new(T::one()),
+            )
+        }
+        Err(NoChartSup::Placeholder) => return Err(PcurveCertifyError::PlaceholderChart),
+    };
+    let tau = T::tau();
+    let angular_v = matches!(surface, Surface::Sphere { .. } | Surface::Torus { .. });
+    // A channel's branch, decided as the literal it is (`whole_periods`).
+    let branch = |name: &'static str, offset: T, arm: SupSpeed<T>| {
+        whole_periods(
+            name,
+            offset,
+            tau,
+            |gap| Margin::levered(gap, arm.get()),
+            band,
+        )
+    };
+    // The azimuth's branch, and on a sphere whether the stored image is
+    // `P_d` or its involution twin `(u + π, π − v)`: both are branches
+    // of the same offset, `P_d`'s at `kτ` and the twin's at `π + kτ`, so
+    // the twin is read as the second branch rather than off a fold's
+    // cut (an exact twin's offset is the centred fold's jump, which a
+    // box encloses on both sides). The twin is asked only where `P_d`'s
+    // branch decides none, so an image on `P_d`'s branch never pays for
+    // it.
+    let (k_u, (q0, qa, qb, ql)) = match branch("pcurve_fidelity_branch", p0.x - q0.x, arm_u) {
+        Ok(k) => (Some(k), (q0, qa, qb, ql)),
+        Err(BranchMiss::OutOfReach) => return Err(PcurveCertifyError::BranchOutOfReach),
+        Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => match surface {
+            Surface::Sphere { .. } => {
+                let flip = |v: Vec2<T>| Vec2::new(v.x, T::zero() - v.y);
+                let twin = (
+                    Point2::new(q0.x + T::pi(), T::pi() - q0.y),
+                    flip(qa),
+                    flip(qb),
+                    flip(ql),
+                );
+                match branch("pcurve_fidelity_twin", p0.x - twin.0.x, arm_u) {
+                    Ok(k) => (Some(k), twin),
+                    Err(BranchMiss::OutOfReach) => {
+                        return Err(PcurveCertifyError::BranchOutOfReach);
+                    }
+                    // Neither name's branch decides: `P_d` is kept
+                    // (D9), read raw.
+                    Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => (None, (q0, qa, qb, ql)),
+                }
+            }
+            _ => (None, (q0, qa, qb, ql)),
+        },
+    };
+    // The constant's offset less its branch. Where NO branch decides —
+    // the offset on a half-period mark, or a mark undecided at this
+    // width — the raw offset is read instead: every whole period bounds
+    // the same distance, so the raw offset is a bound too, only a
+    // looser one, and a branch that genuinely mattered leaves an offset
+    // of a half period or more that refuses as this channel's term.
+    let less_branch = |offset: T, k: Option<T>| match k {
+        Some(k) => (offset - k * tau).abs(),
+        None => offset.abs(),
+    };
+    let k_v = if angular_v {
+        match branch("pcurve_fidelity_branch", p0.y - q0.y, arm_v) {
+            Ok(k) => Some(k),
+            Err(BranchMiss::OutOfReach) => return Err(PcurveCertifyError::BranchOutOfReach),
+            Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => None,
+        }
+    } else {
+        Some(T::zero())
+    };
+    let du = less_branch(p0.x - q0.x, k_u)
+        + (pa.x - qa.x).abs()
+        + (pb.x - qb.x).abs()
+        + (pl.x - ql.x).abs() * reach;
+    let dv = less_branch(p0.y - q0.y, k_v)
+        + (pa.y - qa.y).abs()
+        + (pb.y - qb.y).abs()
+        + (pl.y - ql.y).abs() * reach;
+    terms.add(EnvelopeTerm::FidelityU, arm_u.to_meters(du));
+    terms.add(EnvelopeTerm::FidelityV, arm_v.to_meters(dv));
+    Ok(())
+}
+
+/// **The cone-section lane's five checks** — the harmonic lane's order
+/// and meters, with check 4 the harmonic lane's closed form plus one
+/// remainder term.
+///
+/// 1. **Lane**: the carrier is a [`geom::Curve3::Ellipse`] and the
+///    chart a cone; `sense` is a unit sign (`pcurve_cone_section_sense`,
+///    levered at the chart's azimuth arm) and `β` is definitely inside
+///    `(−1, 1)` (`pcurve_cone_section_beta`) — the premise of the
+///    cut-free azimuth.
+/// 2. **Interval**: `t₁ − t₀` definitely forward, metered through the
+///    carrier's rate; the azimuth's extent — its endpoint difference,
+///    since it is monotone — gated against one period at the chart's
+///    azimuth arm.
+/// 3. **Schedule**: the shared [`CERT_SAMPLES`] residuals.
+/// 4. **Envelope**: with `e = 2β/(1 + β²)`, so that
+///    `√(1 − e²) = (1 − β²)/(1 + β²)`, Kepler's identities
+///    `cos ν = (cos t − e)/(1 − e·cos t)` and
+///    `sin ν = √(1 − e²)·sin t/(1 − e·cos t)` split the mapped image
+///    as `S(P(t)) = H(t) + E(t)` with
+///    `H(t) = apex + axis·cos α·v(t) + sin α·v0·((cos t − e)·d0 + √(1 − e²)·sin t·d1)`
+///    harmonic (`d0` the chart radial at `u0`, `d1` the one a quarter
+///    turn on in `sense`) and
+///    `E(t) = sin α·(v(t) − v0·(1 − e·cos t))·r̂(u(t))` a unit vector
+///    times a harmonic scalar. So
+///    `sup |S(P(t)) − C(t)| ≤ |H − C|ₕ + sin α·(|va + e·v0| + |vb|)`,
+///    `|·|ₕ` the harmonic lane's coefficient bound —
+///    [`EnvelopeStatement::MapResidualClosedForm`]. Both terms are
+///    rounding-scale on a minted image (the remainder vanishes in ℝ
+///    exactly when the image is a section of this cone), and the drift
+///    a banded `sense` admitted rides on top.
+/// 5. **Trim containment**: the shared chart-box limb.
+fn run_cone_section_checks<T: Decide>(
+    pcurve: &Pcurve<T>,
+    t0: T,
+    t1: T,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    window: ChartWindow<T>,
+    band: Band,
+) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+    let esc = |check| {
+        move |cause| PcurveCertifyError::Escalated {
+            check,
+            sample: 0,
+            cause,
+        }
+    };
+    // ---- Check 1: the lane. ----
+    let Pcurve::ConeSection {
+        u0,
+        v0,
+        va,
+        vb,
+        beta,
+        sense,
+    } = *pcurve
+    else {
+        unreachable!(
+            "run_cone_section_checks: both callers match `Pcurve::ConeSection` to reach it"
+        )
+    };
+    let &Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        u_ref,
+    } = surface
+    else {
+        return Err(PcurveCertifyError::UnsupportedChart {
+            chart: surface.kind(),
+        });
+    };
+    let (Curve3::Ellipse { .. }, Some(carrier_form)) = (carrier, carrier_harmonic(carrier)) else {
+        return Err(PcurveCertifyError::ImageMismatch {
+            image: PcurveKind::ConeSection,
+            why: "a cone-section image is an ellipse's, and the carrier is not one",
+        });
+    };
+    let boxed = pcurve.chart_box(t0, t1);
+    let v_sup = boxed.v_reach();
+    let reach = t0.abs().max(t1.abs());
+    let arm = azimuth_lever(surface, v_sup);
+    let sense_residue = sense.abs() - T::one();
+    match decide(
+        "pcurve_cone_section_sense",
+        Margin::levered(sense_residue, arm),
+        band,
+    )
+    .map_err(esc(PcurveCheck::ChartWinding))?
+    {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            return Err(PcurveCertifyError::ImageMismatch {
+                image: PcurveKind::ConeSection,
+                why: "the stored sense is not ±1, so the image winds no section",
+            });
+        }
+    }
+    match decide(
+        "pcurve_cone_section_beta",
+        Margin::levered(T::one() - beta.abs(), arm),
+        band,
+    )
+    .map_err(esc(PcurveCheck::ChartWinding))?
+    {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(PcurveCertifyError::ImageMismatch {
+                image: PcurveKind::ConeSection,
+                why: "the stored |β| is not below 1, so the true-anomaly map is not cut-free",
+            });
+        }
+    }
+
+    let mut max_residual = T::zero();
+
+    // ---- Check 2: the parameter interval, metered into metres. ----
+    let rate = param_rate(carrier);
+    let span = t1 - t0;
+    match decide("pcurve_interval_forward", Margin::metered(span, rate), band)
+        .map_err(esc(PcurveCheck::ParamSpan))?
+    {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
+    }
+    let extent = boxed.u_max - boxed.u_min;
+    match decide(
+        "pcurve_azimuth_period",
+        Margin::levered(T::tau() - extent, arm),
+        band,
+    )
+    .map_err(esc(PcurveCheck::AzimuthPeriod))?
+    {
+        Sign::Positive | Sign::Zero => {}
+        Sign::Negative => return Err(PcurveCertifyError::AzimuthPeriodExceeded),
+    }
+
+    // ---- Check 3: the schedule, in metres through the map. ----
+    schedule_residuals(
+        Record::Verdict,
+        pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
+
+    // ---- Check 4: the closed-form between-samples envelope. ----
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    let cv = axis.cross(u_ref);
+    let (su, cu) = u0.sin_cos();
+    let d0 = u_ref * cu + cv * su;
+    let d1 = (cv * cu - u_ref * su) * sense;
+    let bb = beta.powi(2);
+    let ecc = (beta + beta) / (T::one() + bb);
+    let root = (T::one() - bb) / (T::one() + bb);
+    let h_c = apex + axis * (cos_a * v0) - d0 * (sin_a * v0 * ecc);
+    let h_a = axis * (cos_a * va) + d0 * (sin_a * v0);
+    let h_b = axis * (cos_a * vb) + d1 * (sin_a * v0 * root);
+    let remainder = sin_a * ((va + ecc * v0).abs() + vb.abs());
+    // A `sense` the band admitted off `±1` moves the azimuth by
+    // `||sense| − 1|·|ν|` with `|ν| ≤ |t| + π`, and `d1` by the same
+    // factor; each moves a point by at most `sin α·|v|` per radian.
+    let sense_drift = sin_a * v_sup * sense_residue.abs() * (reach + T::pi() + T::one());
+    let envelope = (h_c - carrier_form.c).norm()
+        + (h_a - carrier_form.a).norm()
+        + (h_b - carrier_form.b).norm()
+        + carrier_form.l.norm() * reach
+        + remainder
+        + sense_drift;
     let mut envelope_margin = T::zero();
     check_residual(
         "pcurve_envelope",
@@ -3093,7 +4850,7 @@ fn run_spiric_checks<T: Decide>(
         ref image,
     } = pcurve
     else {
-        return Err(PcurveCertifyError::UnsupportedCarrier);
+        unreachable!("run_spiric_checks: both callers match `Pcurve::Spiric` to reach it")
     };
     // ---- Check 1: the certified lane. ----
     let Curve3::Spiric {
@@ -3105,9 +4862,12 @@ fn run_spiric_checks<T: Decide>(
         offset: c_offset,
     } = *carrier
     else {
-        return Err(PcurveCertifyError::UnsupportedCarrier);
+        return Err(PcurveCertifyError::ImageMismatch {
+            image: PcurveKind::Spiric,
+            why: "the carrier is not a spiric, so no spiric image is its own",
+        });
     };
-    let chart = chart_name(surface);
+    let chart = surface.kind();
     let esc = |check: PcurveCheck| {
         move |cause| PcurveCertifyError::Escalated {
             check,
@@ -3135,7 +4895,12 @@ fn run_spiric_checks<T: Decide>(
     ] {
         match decide(name, Margin::of(diff), band).map_err(esc(PcurveCheck::ChartWinding))? {
             Sign::Zero => {}
-            Sign::Positive | Sign::Negative => return Err(PcurveCertifyError::UnsupportedCarrier),
+            Sign::Positive | Sign::Negative => {
+                return Err(PcurveCertifyError::ImageMismatch {
+                    image: PcurveKind::Spiric,
+                    why: "the image's major radius, minor radius or offset is not the carrier's",
+                });
+            }
         }
     }
     let reach = t0.abs().max(t1.abs());
@@ -3178,11 +4943,41 @@ fn run_spiric_checks<T: Decide>(
                 ("pcurve_spiric_chart_minor", Margin::of(s_minor - r_minor)),
                 ("pcurve_spiric_chart_tilt", Margin::levered(sin_tilt, arm)),
             ];
-            for (name, margin) in gates {
-                match decide(name, margin, band).map_err(esc(PcurveCheck::ChartWinding))? {
+            for (i, (name, margin)) in gates.into_iter().enumerate() {
+                match decide(name, margin, band).map_err(winding_escalated)? {
                     Sign::Zero => {}
                     Sign::Positive | Sign::Negative => {
-                        return Err(PcurveCertifyError::UnsupportedCarrier);
+                        // Not the carrier's own torus. The one other
+                        // torus holding the oval is its MIRROR through
+                        // the cutting plane (centre moved `2·offset`
+                        // along `n`; `spiric_off_own_chart`'s docs):
+                        // only a CENTRE that fails can be it, and the
+                        // gates after it, not yet decided, must hold.
+                        let mut on_mirror = i == 0;
+                        if on_mirror {
+                            let mirror = s_center - (c_c + n_c * (c_offset + c_offset));
+                            for (name, margin) in gates
+                                .into_iter()
+                                .skip(1)
+                                .chain([("pcurve_spiric_chart_mirror", Margin::norm3(mirror))])
+                            {
+                                if decide(name, margin, band).map_err(winding_escalated)?
+                                    != Sign::Zero
+                                {
+                                    on_mirror = false;
+                                    break;
+                                }
+                            }
+                        }
+                        let verdict = spiric_off_own_chart(
+                            c_offset,
+                            on_mirror,
+                            "the chart torus is neither the carrier's own nor its mirror \
+                             through the cutting plane, and a spiric oval of nonzero offset \
+                             lies on no other torus",
+                            band,
+                        )?;
+                        return Err(verdict.refusal(surface, carrier));
                     }
                 }
             }
@@ -3217,7 +5012,10 @@ fn run_spiric_checks<T: Decide>(
             {
                 Sign::Zero => residue.abs(),
                 Sign::Positive | Sign::Negative => {
-                    return Err(PcurveCertifyError::UnsupportedCarrier);
+                    return Err(PcurveCertifyError::ImageMismatch {
+                        image: PcurveKind::Spiric,
+                        why: "the wall image's sense is not a unit sign",
+                    });
                 }
             }
         }
@@ -3273,7 +5071,16 @@ fn run_spiric_checks<T: Decide>(
     }
 
     // ---- Check 3: the schedule, in metres through the map. ----
-    schedule_residuals(pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the between-samples statement, one per image. ----
     //
@@ -3384,19 +5191,6 @@ fn run_spiric_checks<T: Decide>(
         },
         ssi: None,
     })
-}
-
-/// The chart kind, named — shared by both lanes' refusal texts.
-pub(crate) fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
-    match surface {
-        Surface::Plane { .. } => "plane",
-        Surface::Cylinder { .. } => "cylinder",
-        Surface::Cone { .. } => "cone",
-        Surface::Sphere { .. } => "sphere",
-        Surface::Torus { .. } => "torus",
-        Surface::Nurbs(_) => "Nurbs",
-        Surface::Approx(_) => "Approx",
-    }
 }
 
 /// Why a chart kind has no surface-level sup pair — the refusal
@@ -3905,9 +5699,13 @@ fn weight_ratio_factor<T: Real>(weights: &[f64]) -> T {
     T::from_f64((hi / lo).powi(2))
 }
 
-/// Check 3 for either lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
-/// schedule, in metres through the map.
+/// Check 3 for every lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
+/// schedule, in metres through the map, recorded as `record` says: a
+/// verdict on every lane whose statement it is part of, and the
+/// cross-check of check 4's closed form on a harmonic row.
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity
 fn schedule_residuals<T: Decide>(
+    record: Record,
     pcurve: &Pcurve<T>,
     t0: T,
     t1: T,
@@ -3921,7 +5719,8 @@ fn schedule_residuals<T: Decide>(
         let chart_point = pcurve.eval(t);
         let mapped = surface.eval(chart_point.x, chart_point.y);
         let on_carrier = carrier.eval(t);
-        check_residual(
+        check_residual_as(
+            record,
             "pcurve_map_residual",
             PcurveCheck::MapResidual,
             i,
@@ -3972,8 +5771,9 @@ fn trim_containment<T: Decide>(
 /// the closed-form lane's — what differs is check 1's admission rule
 /// and check 4's mechanism.
 ///
-/// 1. **Lane**: the carrier is a rung-3 (`Curve3::Nurbs`) one, which is
-///    what a fitted chart image is the image OF. The chart kind is not
+/// 1. **Lane**: the carrier is a rung-3 (`Curve3::Nurbs`) one with its
+///    mate, or an exact `Curve3::Circle` (the sphere chart's general
+///    circle), which reads none. The chart kind is not
 ///    restricted here: whether a certificate exists for it is decided
 ///    by the SSI machinery in check 4, which refuses typed per kind
 ///    (cone/torus have no ring-computable meters composite) rather than
@@ -3982,10 +5782,11 @@ fn trim_containment<T: Decide>(
 ///    chart's azimuth gate — taken over the CONTROL-NET box (the hull
 ///    property) instead of a closed-form extent.
 /// 3. **Schedule**: identical, and shared code.
-/// 4. **Envelope**: the full C2 certificate from
+/// 4. **Envelope**: for a rung-3 carrier, the full C2 certificate from
 ///    `geom_brep::ssi::certify` — hull sup-norm AND uniqueness tube —
-///    re-derived here at rest, never trusted from storage. The stored
-///    envelope is that certificate's `hull_sup`, and
+///    against the operand pair; for a Circle carrier, the image's
+///    Hermite bound against the sphere chart. Re-derived here at rest, never trusted
+///    from storage. The stored envelope is the hull sup, and
 ///    [`PcurveCertificate::statement`] records which sup it bounds.
 ///    `lane` is the fitted door that derives it; `None` refuses HERE
 ///    ([`PcurveCertifyError::FittedLaneUnsupported`]) and nowhere
@@ -4005,22 +5806,22 @@ fn run_fitted_checks<T: Decide>(
     lane: Option<crate::FittedLane<T>>,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the lane. ----
-    // Rung-3 NURBS carriers feed the SSI door directly; exact CIRCLE
-    // carriers are the sphere chart's general-circle class (M6-3,
-    // walk row 4) and enter through their locus-exact rational chain
-    // inside the lane (`FittedLane::fitted_certificate`'s docs).
-    // Lines/ellipses have no fitted class anywhere — every line and
-    // every conic-on-its-own-chart is a closed-form citizen or a named
-    // refusal.
+    // Rung-3 NURBS carriers feed the SSI door directly, against their
+    // operand pair; exact CIRCLE carriers are the sphere chart's
+    // general-circle class and are bounded against the sphere alone,
+    // through the image's Hermite form, so they read no mate
+    // (`FittedLane::fitted_certificate`'s docs). Lines/ellipses have no
+    // fitted class anywhere — every line and every conic-on-its-own-
+    // chart is a closed-form citizen or a named refusal.
     if !matches!(carrier, Curve3::Nurbs(_) | Curve3::Circle { .. }) {
-        return Err(PcurveCertifyError::UnsupportedCarrier);
+        return Err(NoImage::Uncovered(UncoveredClass::NoFittedClass).refusal(surface, carrier));
     }
     if surface.is_placeholder_chart() {
         return Err(PcurveCertifyError::PlaceholderChart);
     }
-    let Some(mate) = mate else {
+    if matches!(carrier, Curve3::Nurbs(_)) && mate.is_none() {
         return Err(PcurveCertifyError::FittedMateMissing);
-    };
+    }
     let pcurve = Pcurve::Fitted(Arc::clone(image));
 
     // ---- Check 2: the parameter interval, metered into metres. ----
@@ -4072,30 +5873,51 @@ fn run_fitted_checks<T: Decide>(
 
     // ---- Check 3: the schedule, in metres through the map. ----
     let mut max_residual = T::zero();
-    schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        &pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
-    // ---- Check 4: the full C2 certificate, RE-DERIVED. ----
+    // ---- Check 4: the envelope, RE-DERIVED. ----
     let lane = lane.ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
-    let ssi = lane.fitted_certificate(carrier, t0, t1, image, surface, mate, band)?;
-    let envelope = ssi.hull_sup;
-    // The catch-all is SPLIT: an approximating surface's limbs are the
-    // spline composite's, exactly as a `Nurbs` chart's, because the
-    // limbs run against its fit.
-    let statement = match surface {
-        Surface::Nurbs(_) | Surface::Approx(_) => EnvelopeStatement::MapResidualComposite,
-        Surface::Plane { .. }
-        | Surface::Cylinder { .. }
-        | Surface::Cone { .. }
-        | Surface::Sphere { .. }
-        | Surface::Torus { .. } => EnvelopeStatement::OnLocusHull,
-    };
+    let FittedEnvelope {
+        hull_sup: envelope,
+        statement,
+        ssi,
+    } = lane.fitted_certificate(carrier, t0, t1, image, surface, mate, band)?;
     // The envelope is banded exactly as the closed-form lane's is, and
     // for the same reason: a certificate whose own bound exceeds ε is
     // not a certificate. It is NOT folded into `max_residual` (the
     // sampled max and the sup bound stay separate statements).
+    //
+    // **The Hermite construction's envelope is recorded under its own
+    // name**, keyed on the statement the lane returns, not on the
+    // carrier kind. `fitted_lane` states `MapResidualHermite` for the
+    // image `sphere_circle_image_lane` refines until the Hermite bound
+    // is a quarter of the band, so this margin sits just under `ε/4` at
+    // every ε by construction: it scales with ε, unlike the closed-form
+    // and composite envelopes, which are rounding-sized. The K lint
+    // judges it against that target (`tools/k-lint`'s
+    // `CONSTRUCTION_COUPLED`, whose pin reads this match). Another
+    // construction states its own statement and keeps the shared name
+    // until it is ruled.
+    let envelope_name = match statement {
+        EnvelopeStatement::MapResidualHermite => "pcurve_envelope_hermite",
+        EnvelopeStatement::MapResidualClosedForm
+        | EnvelopeStatement::MapResidualComposite
+        | EnvelopeStatement::OnLocusHull
+        | EnvelopeStatement::MapResidualIsoHull
+        | EnvelopeStatement::SpiricIdentity => "pcurve_envelope",
+    };
     let mut envelope_margin = T::zero();
     check_residual(
-        "pcurve_envelope",
+        envelope_name,
         PcurveCheck::Envelope,
         0,
         Margin::of(envelope),
@@ -4111,7 +5933,7 @@ fn run_fitted_checks<T: Decide>(
         max_residual,
         envelope,
         statement,
-        ssi: Some(ssi),
+        ssi,
     })
 }
 
@@ -4170,7 +5992,7 @@ fn run_iso_arc_checks<T: Decide>(
     // being refused as an unimplemented chart.
     let Some(payload) = surface.spline_chart() else {
         return Err(PcurveCertifyError::UnsupportedChart {
-            chart: chart_name(surface),
+            chart: surface.kind(),
         });
     };
     if surface.is_placeholder_chart() {
@@ -4219,7 +6041,16 @@ fn run_iso_arc_checks<T: Decide>(
         breaks: breaks.clone(),
     };
     let mut max_residual = T::zero();
-    schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        &pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the rational control-difference hull. ----
     let esc = |cause| PcurveCertifyError::Escalated {
@@ -4432,7 +6263,7 @@ fn run_iso_arc_checks<T: Decide>(
     // its sup is at an endpoint — `max(|p0.x|, |p0.x + pd.x − 1|)` —
     // and `stretch_u` meters it into metres. Identically zero on the
     // minted path, exactly as the iso-line class's `slack_param` and
-    // the harmonic class's winding snap are.
+    // the harmonic class's fidelity term are.
     let far = if forward {
         (p0.x + pd.x - cu1).abs()
     } else {
@@ -4528,8 +6359,8 @@ fn constant_weights(w: &[f64]) -> bool {
 /// still needs weights of exactly 1, for linear precision). Check 4's
 /// sup bound is the traversed row's control-difference hull
 /// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
-/// axis/side/domain snap slacks folded in — the cylinder lane's
-/// winding-snap idiom transposed. Every slack is exactly zero on the
+/// axis/side/domain snap slacks folded in — the harmonic lane's
+/// fidelity idiom transposed. Every slack is exactly zero on the
 /// minted path (the builder mints exact `0`/`1` chart values).
 #[allow(clippy::too_many_lines)] // one check sequence, kept whole like its two siblings
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity (the siblings' shape)
@@ -4549,7 +6380,7 @@ fn run_iso_checks<T: Decide>(
     // being refused as an unimplemented chart.
     let Some(payload) = surface.spline_chart() else {
         return Err(PcurveCertifyError::UnsupportedChart {
-            chart: chart_name(surface),
+            chart: surface.kind(),
         });
     };
     if surface.is_placeholder_chart() {
@@ -4576,7 +6407,16 @@ fn run_iso_checks<T: Decide>(
     // ---- Check 3: the schedule, in metres through the map. ----
     let pcurve = Pcurve::IsoLine { p0, pl };
     let mut max_residual = T::zero();
-    schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        &pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the control-difference hull envelope, by class. ----
     let esc = |cause| PcurveCertifyError::Escalated {
@@ -5007,9 +6847,13 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::UnsupportedChart`] / `UnsupportedCarrier` for
-/// kinds outside the certified lane; `Escalated` when the orientation
-/// trilean lands in the sliver band.
+/// [`PcurveCertifyError::UnsupportedChart`] for a spline chart;
+/// [`PcurveCertifyError::UnsupportedCarrier`] for a pair the chart can
+/// hold but no closed form covers (a spline carrier, a cone's tilted
+/// section, a sphere's general circle, a torus's oblique circle);
+/// [`PcurveCertifyError::CarrierOffChart`] for a carrier that cannot
+/// lie on the chart; `Escalated` when a class trilean lands in the
+/// sliver band.
 pub fn chart_pcurve<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -5022,8 +6866,21 @@ pub fn chart_pcurve<T: Decide>(
     if matches!(carrier, Curve3::Spiric { .. }) {
         return spiric_chart_pcurve(carrier, surface, band);
     }
+    derive_harmonic(carrier, surface, band).map(|(image, _)| image)
+}
+
+/// [`chart_pcurve`]'s harmonic arms, answering the image together with
+/// the structure selections that produced it ([`Derivation`]) — the
+/// one body both the mint and check 4's re-derivation run.
+fn derive_harmonic<T: Decide>(
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(Pcurve<T>, Derivation), PcurveCertifyError> {
+    let no_image = |verdict: NoImage| verdict.refusal(surface, carrier);
+    let off_chart = |why| no_image(NoImage::OffChart(why));
     let Some(form) = carrier_harmonic(carrier) else {
-        return Err(PcurveCertifyError::UnsupportedCarrier);
+        return Err(no_image(NoImage::Uncovered(UncoveredClass::SplineCarrier)));
     };
     match *surface {
         Surface::Plane {
@@ -5035,12 +6892,15 @@ pub fn chart_pcurve<T: Decide>(
             let v_ref = normal.cross(u_ref);
             let chart = |v: Vec3<T>| Vec2::new(v.dot(u_ref), v.dot(v_ref));
             let w = form.c - origin;
-            Ok(Pcurve::Harmonic {
-                p0: Point2::new(w.dot(u_ref), w.dot(v_ref)),
-                pa: chart(form.a),
-                pb: chart(form.b),
-                pl: chart(form.l),
-            })
+            Ok((
+                Pcurve::Harmonic {
+                    p0: Point2::new(w.dot(u_ref), w.dot(v_ref)),
+                    pa: chart(form.a),
+                    pb: chart(form.b),
+                    pl: chart(form.l),
+                },
+                Derivation::Plane,
+            ))
         }
         Surface::Cylinder {
             origin,
@@ -5084,12 +6944,15 @@ pub fn chart_pcurve<T: Decide>(
                 // refuses there in metres. (The executed case: a wild
                 // NIST import whose near-meridian line carries a
                 // few-nanometre radial tilt.)
-                Ok(Sign::Zero) | Err(_) => Ok(Pcurve::Harmonic {
-                    p0: Point2::new(alpha_const, w.dot(axis)),
-                    pa: Vec2::new(T::zero(), form.a.dot(axis)),
-                    pb: Vec2::new(T::zero(), form.b.dot(axis)),
-                    pl: Vec2::new(T::zero(), form.l.dot(axis)),
-                }),
+                Ok(Sign::Zero) | Err(_) => Ok((
+                    Pcurve::Harmonic {
+                        p0: Point2::new(alpha_const, w.dot(axis)),
+                        pa: Vec2::new(T::zero(), form.a.dot(axis)),
+                        pb: Vec2::new(T::zero(), form.b.dot(axis)),
+                        pl: Vec2::new(T::zero(), form.l.dot(axis)),
+                    },
+                    Derivation::CylinderMeridian,
+                )),
                 Ok(Sign::Positive | Sign::Negative) => {
                     // The moving case: radial(t) = a_r·cos t + b_r·sin t
                     // (a linear radial part would not close a chart
@@ -5104,35 +6967,30 @@ pub fn chart_pcurve<T: Decide>(
                         Margin::over_lever(orient, radius),
                         band,
                     ) {
-                        Ok(Sign::Positive) => T::one(),
-                        Ok(Sign::Negative) => T::zero() - T::one(),
-                        Ok(Sign::Zero) => T::zero(),
-                        Err(cause) => {
-                            return Err(PcurveCertifyError::Escalated {
-                                check: PcurveCheck::ChartWinding,
-                                sample: 0,
-                                cause,
-                            });
-                        }
+                        Ok(sign) => Winding::of(sign),
+                        Err(cause) => return Err(winding_escalated(cause)),
                     };
-                    Ok(Pcurve::Harmonic {
-                        p0: Point2::new(alpha, w.dot(axis)),
-                        pa: Vec2::new(T::zero(), form.a.dot(axis)),
-                        pb: Vec2::new(T::zero(), form.b.dot(axis)),
-                        pl: Vec2::new(beta, form.l.dot(axis)),
-                    })
+                    Ok((
+                        Pcurve::Harmonic {
+                            p0: Point2::new(alpha, w.dot(axis)),
+                            pa: Vec2::new(T::zero(), form.a.dot(axis)),
+                            pb: Vec2::new(T::zero(), form.b.dot(axis)),
+                            pl: Vec2::new(beta.value(), form.l.dot(axis)),
+                        },
+                        Derivation::CylinderMoving { beta },
+                    ))
                 }
             }
         }
-        // The cone chart (M6-3, walk row 4): closed forms for the two
+        // The cone chart (M6-3, walk row 4): closed forms for the three
         // classes a cone carries at rest — RIM circles (⊥ axis,
-        // centred on it: azimuth `α + β·t`, slant constant) and RULING
+        // centred on it: azimuth `α + β·t`, slant constant), RULING
         // lines (azimuth constant, slant affine — `v` is a length, so
-        // its slope is unconstrained). A general conic on a cone chart
-        // (a tilted plane×cone section ellipse) is azimuth-NON-harmonic
-        // and refuses typed. Derivations are structure selection; the
-        // full residual certification follows every derivation and is
-        // what makes a wrong pick fail loudly.
+        // its slope is unconstrained) and tilted SECTION ellipses
+        // (azimuth-non-harmonic: the [`Pcurve::ConeSection`] image).
+        // Derivations are structure selection; the full residual
+        // certification follows every derivation and is what makes a
+        // wrong pick fail loudly.
         Surface::Cone {
             apex,
             axis,
@@ -5141,11 +6999,7 @@ pub fn chart_pcurve<T: Decide>(
         } => {
             let c_ha = half_angle.cos();
             let cv = axis.cross(u_ref);
-            let esc = |cause| PcurveCertifyError::Escalated {
-                check: PcurveCheck::ChartWinding,
-                sample: 0,
-                cause,
-            };
+            let esc = winding_escalated;
             match *carrier {
                 Curve3::Line { origin, dir } => {
                     // The RULING class. The `v` channel is exact and
@@ -5163,12 +7017,12 @@ pub fn chart_pcurve<T: Decide>(
                     let w = origin - apex;
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
                     let (h0, hs) = (w.dot(axis), dir.dot(axis));
-                    let (r_ref, h_sign) =
+                    let (r_ref, h_sign, anchored) =
                         match decide("pcurve_cone_chart_nappe", Margin::of(h0), band)
                             .map_err(esc)?
                         {
-                            Sign::Positive => (radial(w), T::one()),
-                            Sign::Negative => (radial(w), T::zero() - T::one()),
+                            Sign::Positive => (radial(w), Winding::Pos, true),
+                            Sign::Negative => (radial(w), Winding::Neg, true),
                             Sign::Zero => {
                                 match geom_core::k_stats::decide_flagged(
                                     "pcurve_cone_chart_nappe",
@@ -5178,50 +7032,77 @@ pub fn chart_pcurve<T: Decide>(
                                 )
                                 .map_err(esc)?
                                 {
-                                    Sign::Positive => (radial(dir), T::one()),
-                                    Sign::Negative => (radial(dir), T::zero() - T::one()),
+                                    Sign::Positive => (radial(dir), Winding::Pos, false),
+                                    Sign::Negative => (radial(dir), Winding::Neg, false),
+                                    // The apex plane meets the cone at
+                                    // its radius `h·tan α = 0`: the apex
+                                    // alone.
                                     Sign::Zero => {
-                                        return Err(PcurveCertifyError::UnsupportedCarrier);
+                                        return Err(off_chart(
+                                            "a line in the plane through the apex ⊥ the axis \
+                                             meets the cone only at the apex",
+                                        ));
                                     }
                                 }
                             }
                         };
-                    let r_dir = r_ref * h_sign;
+                    let r_dir = r_ref * h_sign.value();
                     let alpha = stable_azimuth(r_dir.dot(cv), r_dir.dot(u_ref), band);
-                    Ok(Pcurve::Harmonic {
-                        p0: Point2::new(alpha, h0 / c_ha),
-                        pa: Vec2::new(T::zero(), T::zero()),
-                        pb: Vec2::new(T::zero(), T::zero()),
-                        pl: Vec2::new(T::zero(), hs / c_ha),
-                    })
+                    Ok((
+                        Pcurve::Harmonic {
+                            p0: Point2::new(alpha, h0 / c_ha),
+                            pa: Vec2::new(T::zero(), T::zero()),
+                            pb: Vec2::new(T::zero(), T::zero()),
+                            pl: Vec2::new(T::zero(), hs / c_ha),
+                        },
+                        Derivation::ConeRuling {
+                            anchored,
+                            nappe: h_sign,
+                        },
+                    ))
                 }
                 Curve3::Circle { center, .. } => {
-                    let Some(form) = carrier_harmonic(carrier) else {
-                        return Err(PcurveCertifyError::UnsupportedCarrier);
-                    };
                     // Rim class: carrier plane ⊥ axis (a, b axial parts
                     // zero — already metres) and centred on the axis.
+                    // Those are the only circles on a right circular
+                    // cone: a plane section at angle β to the axis has
+                    // eccentricity cos β / cos α, zero only at β = 90°,
+                    // and the section ⊥ the axis at height `h` is the
+                    // circle of radius `|h|·tan α` centred on it.
+                    //
+                    // The two gates read first-order quantities — the
+                    // tilt at the radius, the centre's offset — while a
+                    // circle tilted off a rim leaves the cone only to
+                    // second order (`ρθ²`), and on a wide cone a rim's
+                    // in-band tilt moves its centre by `tan α` times
+                    // the axial margin. So a failure is not a verdict:
+                    // the incidence test decides it.
                     let (aa, ba) = (form.a.dot(axis), form.b.dot(axis));
-                    match decide(
+                    let radial = |v: Vec3<T>| v - axis * v.dot(axis);
+                    let w_r = radial(center - apex);
+                    let rim = match decide(
                         "pcurve_cone_chart_axial",
                         Margin::of(aa.abs() + ba.abs()),
                         band,
                     )
                     .map_err(esc)?
                     {
-                        Sign::Zero => {}
-                        Sign::Positive | Sign::Negative => {
-                            return Err(PcurveCertifyError::UnsupportedCarrier);
+                        Sign::Zero => {
+                            decide("pcurve_cone_chart_centered", Margin::norm3(w_r), band)
+                                .map_err(esc)?
                         }
-                    }
-                    let radial = |v: Vec3<T>| v - axis * v.dot(axis);
-                    let w_r = radial(center - apex);
-                    match decide("pcurve_cone_chart_centered", Margin::norm3(w_r), band)
-                        .map_err(esc)?
-                    {
+                        tilted @ (Sign::Positive | Sign::Negative) => tilted,
+                    };
+                    match rim {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return Err(PcurveCertifyError::UnsupportedCarrier);
+                            return Err(no_image(cone_conic_incidence(
+                                form,
+                                center - apex,
+                                axis,
+                                half_angle,
+                                band,
+                            )?));
                         }
                     }
                     let a_r = radial(form.a);
@@ -5232,16 +7113,21 @@ pub fn chart_pcurve<T: Decide>(
                     // as the ruling arm, decided on the height.
                     let h = (center - apex).dot(axis);
                     let v0 = h / c_ha;
-                    let n_sign = match decide("pcurve_cone_chart_nappe", Margin::of(h), band)
+                    let nappe = match decide("pcurve_cone_chart_nappe", Margin::of(h), band)
                         .map_err(esc)?
                     {
-                        Sign::Positive => T::one(),
-                        Sign::Negative => T::zero() - T::one(),
+                        Sign::Positive => Winding::Pos,
+                        Sign::Negative => Winding::Neg,
                         // An apex-level "rim" is the apex point itself;
                         // no circle lies there.
-                        Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
+                        Sign::Zero => {
+                            return Err(off_chart(
+                                "the apex plane meets the cone only at the apex, so no rim \
+                                 lies there",
+                            ));
+                        }
                     };
-                    let a_dir = a_r * n_sign;
+                    let a_dir = a_r * nappe.value();
                     let alpha = stable_azimuth(a_dir.dot(cv), a_dir.dot(u_ref), band);
                     let orient = a_r.cross(radial(form.b)).dot(axis);
                     // β metered at the rim's own radius — the honest
@@ -5249,34 +7135,107 @@ pub fn chart_pcurve<T: Decide>(
                     // the chart azimuth rate on either nappe (the +π
                     // offset is constant), so β needs no nappe sign.
                     let rho = a_r.norm();
-                    let beta = match decide(
+                    let beta = Winding::of(
+                        decide(
+                            "pcurve_chart_orientation",
+                            Margin::over_lever(orient, rho),
+                            band,
+                        )
+                        .map_err(esc)?,
+                    );
+                    Ok((
+                        Pcurve::Harmonic {
+                            p0: Point2::new(alpha, v0),
+                            pa: Vec2::new(T::zero(), T::zero()),
+                            pb: Vec2::new(T::zero(), T::zero()),
+                            pl: Vec2::new(beta.value(), T::zero()),
+                        },
+                        Derivation::ConeRim { nappe, beta },
+                    ))
+                }
+                Curve3::Ellipse {
+                    center,
+                    axis: e_axis,
+                    major,
+                    minor,
+                    u_ref: e_u,
+                } => {
+                    // The tilted-section class: the exact
+                    // [`Pcurve::ConeSection`] image (variant docs for
+                    // the derivation). The slant is the axial height
+                    // over cos α; the azimuth is the true anomaly of
+                    // the radial projection `r0 + ra·cos t + rb·sin t`,
+                    // whose focus is the axis.
+                    //
+                    // The incidence test decides first: an ellipse off
+                    // this cone is no section of it, and its refusal
+                    // names that rather than an image's residual.
+                    match cone_conic_incidence(form, center - apex, axis, half_angle, band)? {
+                        NoImage::Uncovered(_) => {}
+                        off @ NoImage::OffChart(_) => return Err(no_image(off)),
+                    }
+                    let e_v = e_axis.cross(e_u);
+                    let radial = |v: Vec3<T>| v - axis * v.dot(axis);
+                    let w = center - apex;
+                    let h = w.dot(axis);
+                    let ns = match decide("pcurve_cone_chart_nappe", Margin::of(h), band)
+                        .map_err(esc)?
+                    {
+                        Sign::Positive => T::one(),
+                        Sign::Negative => T::zero() - T::one(),
+                        // A section ellipse is centred off the apex
+                        // level on its own nappe; one centred on it
+                        // lies on no cone.
+                        Sign::Zero => {
+                            return Err(off_chart(
+                                "an ellipse centred at the apex's height lies on no nappe",
+                            ));
+                        }
+                    };
+                    let (r0, ra, rb) = (radial(w), radial(e_u * major), radial(e_v * minor));
+                    // Signed eccentricity: positive when the axis (the
+                    // focus, at `−r0` from the projection's centre) is
+                    // on the `t = 0` side. Total arithmetic: a carrier
+                    // that is no section of this cone yields a `β`
+                    // the schedule and envelope refuse in metres.
+                    let ecc = (T::zero() - r0.dot(ra)) / ra.dot(ra);
+                    let beta = ecc / (T::one() + (T::one() - ecc.powi(2)).sqrt());
+                    let orient = ra.cross(rb).dot(axis);
+                    let sense = match decide(
                         "pcurve_chart_orientation",
-                        Margin::over_lever(orient, rho),
+                        Margin::over_lever(orient, ra.norm()),
                         band,
                     )
                     .map_err(esc)?
                     {
                         Sign::Positive => T::one(),
                         Sign::Negative => T::zero() - T::one(),
-                        Sign::Zero => T::zero(),
+                        // A section that does not wind about the axis
+                        // is no ellipse of this cone.
+                        Sign::Zero => {
+                            return Err(off_chart(
+                                "an ellipse that does not wind about the axis is no section of \
+                                 the cone",
+                            ));
+                        }
                     };
-                    Ok(Pcurve::Harmonic {
-                        p0: Point2::new(alpha, v0),
-                        pa: Vec2::new(T::zero(), T::zero()),
-                        pb: Vec2::new(T::zero(), T::zero()),
-                        pl: Vec2::new(beta, T::zero()),
-                    })
+                    let start = (r0 + ra) * ns;
+                    Ok((
+                        Pcurve::ConeSection {
+                            u0: stable_azimuth(start.dot(cv), start.dot(u_ref), band),
+                            v0: h / c_ha,
+                            va: e_u.dot(axis) * major / c_ha,
+                            vb: e_v.dot(axis) * minor / c_ha,
+                            beta,
+                            sense,
+                        },
+                        Derivation::ConeSection,
+                    ))
                 }
-                Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. } => {
-                    // The tilted-section class: azimuth-non-harmonic
-                    // on a cone chart (the section's angle is not the
-                    // chart azimuth), and no ring-computable meters
-                    // composite exists for the cone (ssi/certify docs)
-                    // — neither route is honest, so the class refuses.
-                    // A spiric lies on no cone at all, and
-                    // `carrier_harmonic` has already refused it above.
-                    Err(PcurveCertifyError::UnsupportedCarrier)
-                }
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } => unreachable!(
+                    "chart_pcurve: spirics route to spiric_chart_pcurve and splines refuse \
+                     at carrier_harmonic, both before the chart match"
+                ),
             }
         }
         // The sphere chart (M5 S13, certified since M6-3): closed
@@ -5286,9 +7245,9 @@ pub fn chart_pcurve<T: Decide>(
         // plane contains the polar axis: azimuth constant, polar
         // `δ + σ·t`). The GENERAL circle (neither class) is
         // azimuth-non-harmonic: it refuses HERE, and its chart image
-        // lives in the fitted lane (`certify_fitted`'s Circle-carrier
-        // arm, `EnvelopeStatement::OnLocusHull`) — walk row 4's
-        // remaining route.
+        // lives in the fitted lane (`FittedLane::sphere_circle_image`,
+        // certified by `certify_fitted`'s Circle-carrier arm,
+        // `EnvelopeStatement::MapResidualHermite`).
         //
         // Since M6-3 this arm is CERTIFIED (run_harmonic_checks admits
         // the sphere chart) and sphere faces mint stored caches. The
@@ -5310,20 +7269,21 @@ pub fn chart_pcurve<T: Decide>(
             axis,
             u_ref,
         } => {
-            // Structural carrier gate: only circles lie on a sphere.
+            // Structural carrier gate: only circles lie on a sphere — a
+            // bounded algebraic surface holds no line, and its plane
+            // sections are circles, which an `Ellipse` (major > minor)
+            // is not.
             if !matches!(carrier, Curve3::Circle { .. }) {
-                return Err(PcurveCertifyError::UnsupportedCarrier);
+                return Err(off_chart(
+                    "a sphere holds no line, and its plane sections are circles",
+                ));
             }
             let cv = axis.cross(u_ref);
             let w = form.c - center;
             let (aa, ba, wa) = (form.a.dot(axis), form.b.dot(axis), w.dot(axis));
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (a_r, b_r, w_r) = (radial(form.a), radial(form.b), radial(w));
-            let esc = |cause| PcurveCertifyError::Escalated {
-                check: PcurveCheck::ChartWinding,
-                sample: 0,
-                cause,
-            };
+            let esc = winding_escalated;
             // Branch-stabilized azimuth (M5 S13): atan2's cut sits on
             // the negative-x axis, and an interval y touching zero
             // there (a seam meridian's angle-π copy) explodes the
@@ -5343,54 +7303,62 @@ pub fn chart_pcurve<T: Decide>(
             .map_err(esc)?
             {
                 Sign::Zero => {
-                    // POLAR-circle class: a,b ⊥ axis. On the sphere the
-                    // center then sits on the axis (its radial part is
-                    // zero) — checked, not assumed.
+                    // POLAR-circle class: a,b ⊥ axis, and the centre on
+                    // the axis — checked, not assumed. Failing that, the
+                    // circle is a general one, and the incidence test
+                    // decides: the axial gate reads the tilt at the
+                    // circle's radius `ρ` and this one at its height
+                    // `h`, so near a pole an on-sphere circle tilted
+                    // inside the first band fails the second.
                     match decide("pcurve_sphere_chart_centered", Margin::norm3(w_r), band)
                         .map_err(esc)?
                     {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return Err(PcurveCertifyError::UnsupportedCarrier);
+                            return Err(no_image(sphere_circle_incidence(form, w, radius, band)?));
                         }
                     }
                     let alpha = stable_az(a_r.dot(cv), a_r.dot(u_ref));
                     let orient = a_r.cross(b_r).dot(axis);
-                    let beta = match decide(
-                        "pcurve_chart_orientation",
-                        Margin::over_lever(orient, radius),
-                        band,
-                    )
-                    .map_err(esc)?
-                    {
-                        Sign::Positive => T::one(),
-                        Sign::Negative => T::zero() - T::one(),
-                        Sign::Zero => T::zero(),
-                    };
+                    let beta = Winding::of(
+                        decide(
+                            "pcurve_chart_orientation",
+                            Margin::over_lever(orient, radius),
+                            band,
+                        )
+                        .map_err(esc)?,
+                    );
                     let polar = (wa / radius).asin();
-                    Ok(Pcurve::Harmonic {
-                        p0: Point2::new(alpha, polar),
-                        pa: Vec2::new(T::zero(), T::zero()),
-                        pb: Vec2::new(T::zero(), T::zero()),
-                        pl: Vec2::new(beta, T::zero()),
-                    })
+                    Ok((
+                        Pcurve::Harmonic {
+                            p0: Point2::new(alpha, polar),
+                            pa: Vec2::new(T::zero(), T::zero()),
+                            pb: Vec2::new(T::zero(), T::zero()),
+                            pl: Vec2::new(beta.value(), T::zero()),
+                        },
+                        Derivation::SphereParallel { beta },
+                    ))
                 }
                 Sign::Positive | Sign::Negative => {
                     // MERIDIAN class: the carrier plane must contain the
                     // axis (its own axis ⊥ polar) and be centered.
+                    // Failing either, the circle is a GENERAL one —
+                    // on the sphere or off it, which the incidence
+                    // test decides.
                     let coax = Margin::over_lever(form.a.cross(form.b).dot(axis), radius);
-                    match decide("pcurve_sphere_chart_meridian", coax, band).map_err(esc)? {
-                        Sign::Zero => {}
-                        Sign::Positive | Sign::Negative => {
-                            return Err(PcurveCertifyError::UnsupportedCarrier);
+                    let meridian =
+                        decide("pcurve_sphere_chart_meridian", coax, band).map_err(esc)?;
+                    let centred = match meridian {
+                        Sign::Zero => {
+                            decide("pcurve_sphere_chart_centered", Margin::norm3(w), band)
+                                .map_err(esc)?
                         }
-                    }
-                    match decide("pcurve_sphere_chart_centered", Margin::norm3(w), band)
-                        .map_err(esc)?
-                    {
+                        Sign::Positive | Sign::Negative => meridian,
+                    };
+                    match centred {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return Err(PcurveCertifyError::UnsupportedCarrier);
+                            return Err(no_image(sphere_circle_incidence(form, w, radius, band)?));
                         }
                     }
                     // v(t) = σ·t + δ with sin δ = aa/r, cos δ = ‖a_r‖/r
@@ -5427,17 +7395,31 @@ pub fn chart_pcurve<T: Decide>(
                     )
                     .map_err(esc)?
                     {
-                        Sign::Positive => T::one(),
-                        Sign::Negative => T::zero() - T::one(),
-                        Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
+                        Sign::Positive => Winding::Pos,
+                        Sign::Negative => Winding::Neg,
+                        // A great circle in a plane holding the axis
+                        // moves along the meridian at every point, at
+                        // rate `r`: a zero rate is no such circle.
+                        Sign::Zero => {
+                            return Err(off_chart(
+                                "a centred circle in a plane holding the polar axis that does \
+                                 not move along the meridian is no great circle of the sphere",
+                            ));
+                        }
                     };
                     let alpha = stable_az(d_hat.dot(cv), d_hat.dot(u_ref));
-                    Ok(Pcurve::Harmonic {
-                        p0: Point2::new(alpha, delta),
-                        pa: Vec2::new(T::zero(), T::zero()),
-                        pb: Vec2::new(T::zero(), T::zero()),
-                        pl: Vec2::new(T::zero(), sigma),
-                    })
+                    Ok((
+                        Pcurve::Harmonic {
+                            p0: Point2::new(alpha, delta),
+                            pa: Vec2::new(T::zero(), T::zero()),
+                            pb: Vec2::new(T::zero(), T::zero()),
+                            pl: Vec2::new(T::zero(), sigma.value()),
+                        },
+                        Derivation::SphereMeridian {
+                            pole: !use_a,
+                            sigma,
+                        },
+                    ))
                 }
             }
         }
@@ -5458,13 +7440,14 @@ pub fn chart_pcurve<T: Decide>(
             u_ref,
         } => {
             let cv = axis.cross(u_ref);
-            let esc = |cause| PcurveCertifyError::Escalated {
-                check: PcurveCheck::ChartWinding,
-                sample: 0,
-                cause,
-            };
+            let esc = winding_escalated;
+            // A bounded surface holds no line, and a torus's plane
+            // sections are bicircular quartics, whose conic components
+            // are circles — never an `Ellipse` (major > minor).
             if !matches!(carrier, Curve3::Circle { .. }) {
-                return Err(PcurveCertifyError::UnsupportedCarrier);
+                return Err(off_chart(
+                    "a torus holds no line, and the conics among its plane sections are circles",
+                ));
             }
             let w = form.c - t_center;
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
@@ -5480,40 +7463,48 @@ pub fn chart_pcurve<T: Decide>(
             .map_err(esc)?
             {
                 Sign::Zero => {
-                    // PARALLEL: centred on the axis, checked.
+                    // PARALLEL: centred on the axis, checked. Failing it,
+                    // the circle is not a parallel, but it is not shown
+                    // off the torus either: near the tube's top a
+                    // centre offset `δ` leaves the torus only by
+                    // `δ²/2r`, so a definite offset can sit on the
+                    // chart within the band. With no incidence test for
+                    // the quartic, the class is uncovered.
                     match decide("pcurve_torus_chart_centered", Margin::norm3(w_r), band)
                         .map_err(esc)?
                     {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return Err(PcurveCertifyError::UnsupportedCarrier);
+                            return Err(no_image(NoImage::Uncovered(
+                                UncoveredClass::TorusGeneralCircle,
+                            )));
                         }
                     }
                     let alpha = stable_azimuth(a_r.dot(cv), a_r.dot(u_ref), band);
                     let rho = a_r.norm();
                     let orient = a_r.cross(b_r).dot(axis);
-                    let beta = match decide(
-                        "pcurve_chart_orientation",
-                        Margin::over_lever(orient, rho),
-                        band,
-                    )
-                    .map_err(esc)?
-                    {
-                        Sign::Positive => T::one(),
-                        Sign::Negative => T::zero() - T::one(),
-                        Sign::Zero => T::zero(),
-                    };
+                    let beta = Winding::of(
+                        decide(
+                            "pcurve_chart_orientation",
+                            Margin::over_lever(orient, rho),
+                            band,
+                        )
+                        .map_err(esc)?,
+                    );
                     // v₀ from the height/radius pair: R + r·cos v =
                     // ρ, r·sin v = h — atan2 of the two residual-
                     // certified coordinates (inner equator lands at
                     // v = π exactly as the chart states it).
                     let v0 = w.dot(axis).atan2(rho - major_radius);
-                    Ok(Pcurve::Harmonic {
-                        p0: Point2::new(alpha, v0),
-                        pa: Vec2::new(T::zero(), T::zero()),
-                        pb: Vec2::new(T::zero(), T::zero()),
-                        pl: Vec2::new(beta, T::zero()),
-                    })
+                    Ok((
+                        Pcurve::Harmonic {
+                            p0: Point2::new(alpha, v0),
+                            pa: Vec2::new(T::zero(), T::zero()),
+                            pb: Vec2::new(T::zero(), T::zero()),
+                            pl: Vec2::new(beta.value(), T::zero()),
+                        },
+                        Derivation::TorusParallel { beta },
+                    ))
                 }
                 Sign::Positive | Sign::Negative => {
                     // MERIDIAN: the carrier plane must contain the
@@ -5524,8 +7515,13 @@ pub fn chart_pcurve<T: Decide>(
                     let coax = Margin::over_lever(form.a.cross(form.b).dot(axis), minor_radius);
                     match decide("pcurve_torus_chart_meridian", coax, band).map_err(esc)? {
                         Sign::Zero => {}
+                        // Oblique circles DO lie on a torus (the
+                        // Villarceau class), and no incidence test
+                        // here separates one from a circle off it.
                         Sign::Positive | Sign::Negative => {
-                            return Err(PcurveCertifyError::UnsupportedCarrier);
+                            return Err(no_image(NoImage::Uncovered(
+                                UncoveredClass::TorusGeneralCircle,
+                            )));
                         }
                     }
                     let alpha = stable_azimuth(w_r.dot(cv), w_r.dot(u_ref), band);
@@ -5548,29 +7544,119 @@ pub fn chart_pcurve<T: Decide>(
                     )
                     .map_err(esc)?
                     {
-                        Sign::Positive => T::one(),
-                        Sign::Negative => T::zero() - T::one(),
-                        Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
+                        Sign::Positive => Winding::Pos,
+                        Sign::Negative => Winding::Neg,
+                        // A meridian circle moves along the meridian at
+                        // every point, at rate `r`: a zero rate is no
+                        // meridian.
+                        Sign::Zero => {
+                            return Err(off_chart(
+                                "a circle in a plane holding the axis that does not move along \
+                                 the meridian is no meridian of the torus",
+                            ));
+                        }
                     };
-                    Ok(Pcurve::Harmonic {
-                        p0: Point2::new(alpha, delta),
-                        pa: Vec2::new(T::zero(), T::zero()),
-                        pb: Vec2::new(T::zero(), T::zero()),
-                        pl: Vec2::new(T::zero(), sigma),
-                    })
+                    Ok((
+                        Pcurve::Harmonic {
+                            p0: Point2::new(alpha, delta),
+                            pa: Vec2::new(T::zero(), T::zero()),
+                            pb: Vec2::new(T::zero(), T::zero()),
+                            pl: Vec2::new(T::zero(), sigma.value()),
+                        },
+                        Derivation::TorusMeridian { sigma },
+                    ))
                 }
             }
         }
         Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: "Nurbs (representable-unimplemented)",
+            chart: geom::SurfaceKind::Nurbs,
         }),
         // The closed-form pcurve mint is the analytic charts'. An
         // approximating surface's chart is a spline's, so it has no
         // harmonic image to mint — the fitted lane owns it.
         Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: "Approx (fitted chart — no closed-form image)",
+            chart: geom::SurfaceKind::Approx,
         }),
     }
+}
+
+/// What a closed-form arm concluded about a carrier it has no image
+/// for: the chart can hold it ([`PcurveCertifyError::UnsupportedCarrier`])
+/// or cannot ([`PcurveCertifyError::CarrierOffChart`], with why).
+#[derive(Clone, Copy, Debug)]
+enum NoImage {
+    Uncovered(UncoveredClass),
+    OffChart(&'static str),
+}
+
+impl NoImage {
+    fn refusal<T: Real>(self, surface: &Surface<T>, carrier: &Curve3<T>) -> PcurveCertifyError {
+        let (chart, carrier) = (surface.kind(), carrier.kind());
+        match self {
+            Self::Uncovered(class) => PcurveCertifyError::UnsupportedCarrier {
+                chart,
+                carrier,
+                class,
+            },
+            Self::OffChart(why) => PcurveCertifyError::CarrierOffChart {
+                chart,
+                carrier,
+                why,
+            },
+        }
+    }
+}
+
+/// The escalation every class trilean of the closed-form image arms
+/// raises.
+fn winding_escalated(cause: Indeterminate) -> PcurveCertifyError {
+    PcurveCertifyError::Escalated {
+        check: PcurveCheck::ChartWinding,
+        sample: 0,
+        cause,
+    }
+}
+
+/// A circle on a sphere chart that is neither polar nor meridian lies
+/// on the sphere or off it, and this decides which.
+///
+/// The carrier is `c + a·cos t + b·sin t`, so with `w = c − centre`,
+/// `|C(t) − centre|² − R²` is a trigonometric polynomial of degree 2 in
+/// `t` whose five coefficients are `crate::sphere_circle`'s
+/// (`off_sphere_coefficients`, the one home of that expansion), zero for
+/// every `t` exactly when they all are. Each is metered over the `R`
+/// lever: `|P − O| − R = (|P − O|² − R²)/(|P − O| + R)` and the
+/// denominator is at least `R`, inside the sphere and out, so the
+/// reading never under-states the distance. One trilean,
+/// `pcurve_sphere_chart_incident`, read over the five in fixed order.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::Escalated`] when a coefficient lands in the
+/// sliver band.
+fn sphere_circle_incidence<T: Decide>(
+    form: Harmonic3<T>,
+    w: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<NoImage, PcurveCertifyError> {
+    for coefficient in crate::sphere_circle::off_sphere_coefficients(w, form.a, form.b, radius) {
+        match decide(
+            "pcurve_sphere_chart_incident",
+            Margin::over_lever(coefficient, radius),
+            band,
+        )
+        .map_err(winding_escalated)?
+        {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => {
+                return Ok(NoImage::OffChart(
+                    "the circle is not at the sphere's radius from its centre",
+                ));
+            }
+        }
+    }
+    Ok(NoImage::Uncovered(UncoveredClass::SphereGeneralCircle))
 }
 
 /// The exact chart image of a [`geom::Curve3::Spiric`] — the two charts
@@ -5590,7 +7676,7 @@ pub fn chart_pcurve<T: Decide>(
 /// `u₀ + atan2(f, d)` and the chart height `a·(r sin t)` gives `v = t`.
 /// `−1` when they oppose: the same two readings flip together.
 /// Zero refuses — a torus whose axis is perpendicular to the carrier's
-/// is not the torus this spiric sections. `u₀` is one `atan2` of `n` in
+/// is not the torus this spiric sections ([`spiric_off_own_chart`]). `u₀` is one `atan2` of `n` in
 /// the chart frame, `v₀` is zero at the mint and gains `k·τ` only from
 /// the loop walk's branch shift.
 ///
@@ -5602,9 +7688,8 @@ pub fn chart_pcurve<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::UnsupportedCarrier`] for a cylinder, cone or
-/// sphere chart — a spiric lies on none of the three — and for a chart
-/// axis the sign gate cannot read;
+/// [`spiric_off_own_chart`]'s refusal for a cylinder, cone or sphere
+/// chart and for a torus whose axis is perpendicular to the carrier's;
 /// [`PcurveCertifyError::UnsupportedChart`] for a spline or
 /// approximating chart, whose images are description-driven.
 fn spiric_chart_pcurve<T: Decide>(
@@ -5621,7 +7706,7 @@ fn spiric_chart_pcurve<T: Decide>(
         offset,
     } = *carrier
     else {
-        return Err(PcurveCertifyError::UnsupportedCarrier);
+        unreachable!("spiric_chart_pcurve: the one caller, `chart_pcurve`, routes spirics only")
     };
     let spiric = |image| Pcurve::Spiric {
         major: major_radius,
@@ -5662,14 +7747,20 @@ fn spiric_chart_pcurve<T: Decide>(
                 Margin::levered(chart_axis.dot(axis), chart_major),
                 band,
             )
-            .map_err(|cause| PcurveCertifyError::Escalated {
-                check: PcurveCheck::ChartWinding,
-                sample: 0,
-                cause,
-            })? {
+            .map_err(winding_escalated)?
+            {
                 Sign::Positive => T::one(),
                 Sign::Negative => T::zero() - T::one(),
-                Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
+                Sign::Zero => {
+                    let verdict = spiric_off_own_chart(
+                        offset,
+                        false,
+                        "the chart torus's axis is perpendicular to the carrier's, and a \
+                         spiric oval of nonzero offset lies only on tori parallel to its own",
+                        band,
+                    )?;
+                    return Err(verdict.refusal(surface, carrier));
+                }
             };
             Ok(spiric(SpiricImage::Wall {
                 u0: stable_azimuth(n.dot(cv), n.dot(chart_u), band),
@@ -5677,20 +7768,154 @@ fn spiric_chart_pcurve<T: Decide>(
                 sense,
             }))
         }
-        // A spiric is a plane section of a torus: it lies on no
-        // cylinder, cone or sphere at all, so there is no image to
-        // mint and none of these is a frontier waiting on a lane.
         Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => {
-            Err(PcurveCertifyError::UnsupportedCarrier)
+            let verdict = spiric_off_own_chart(
+                offset,
+                false,
+                "a spiric oval of nonzero offset is an irreducible quartic, and every \
+                 planar curve on a cylinder, cone or sphere is a conic",
+                band,
+            )?;
+            Err(verdict.refusal(surface, carrier))
         }
         Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: "Nurbs (representable-unimplemented)",
+            chart: geom::SurfaceKind::Nurbs,
         }),
         Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: "Approx (fitted chart — no closed-form image)",
+            chart: geom::SurfaceKind::Approx,
         }),
     }
 }
+
+/// A conic carrier on a cone chart that is not a rim lies on the cone
+/// or off it, and this decides which.
+///
+/// Relative to the apex, the (double) cone is
+/// `Q(p) = cos²α·|p|² − (p·â)² = 0`, and along
+/// `p(t) = w + a·cos t + b·sin t` the residual is the trigonometric
+/// polynomial `k₀ + k₁·cos t + k₂·sin t + k₃·cos 2t + k₄·sin 2t`:
+///
+/// - `k₀ = cos²α·(|w|² + (|a|² + |b|²)/2) − w_z² − (a_z² + b_z²)/2`
+/// - `k₁ = 2(cos²α·w·a − w_z·a_z)`, `k₂ = 2(cos²α·w·b − w_z·b_z)`
+/// - `k₃ = (cos²α·(|a|² − |b|²) − (a_z² − b_z²))/2`, `k₄ = cos²α·a·b − a_z·b_z`
+///
+/// zero for every `t` exactly when all five are, and
+/// `sup_t |Q| ≤ |k₀| + |(k₁, k₂)| + |(k₃, k₄)|` (each harmonic pair's
+/// amplitude) — the ONE margin decided, so it bounds the residual at
+/// every point at once.
+///
+/// With `r = |p_r|`, `z = |p·â|`: `Q = (r·cos α − z·sin α)(r·cos α + z·sin α)`,
+/// the first factor the distance `d` to the cone and the second
+/// `2·z·sin α + d`. Along the conic `z ≥ z_min = |w_z| − |(a_z, b_z)|`,
+/// so `|d| ≤ sup|Q| / (2·sin α·z_min − |d|)`: the margin is metered over
+/// the lever `2·sin α·z_min`, which reads the distance to within a
+/// factor `1 + O(ε/z_min)` — at the conic's LOWEST point, not its
+/// centre, where an elongated section's reading would be loose by
+/// `z_centre/z_min`.
+///
+/// `z_min > 0` is decided first (`pcurve_cone_chart_nappe`): a conic
+/// that reaches the apex's height leaves its nappe, and the apex plane
+/// meets the cone only at the apex, so no circle or ellipse on the
+/// cone does. The lever is then never zero.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::Escalated`] when `z_min` or the margin lands
+/// in the sliver band.
+fn cone_conic_incidence<T: Decide>(
+    form: Harmonic3<T>,
+    w: Vec3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+    band: Band,
+) -> Result<NoImage, PcurveCertifyError> {
+    let (a, b) = (form.a, form.b);
+    let (wz, az, bz) = (w.dot(axis), a.dot(axis), b.dot(axis));
+    let amplitude = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
+    let z_min = wz.abs() - amplitude(az, bz);
+    match decide("pcurve_cone_chart_nappe", Margin::of(z_min), band).map_err(winding_escalated)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Ok(NoImage::OffChart(
+                "the conic reaches the apex's height, and the apex plane meets the cone only \
+                 at the apex",
+            ));
+        }
+    }
+    let c2 = half_angle.cos().powi(2);
+    let two = T::from_f64(2.0);
+    let half = T::from_f64(0.5);
+    let k0 = c2 * (w.dot(w) + (a.dot(a) + b.dot(b)) * half)
+        - wz.powi(2)
+        - (az.powi(2) + bz.powi(2)) * half;
+    let (k1, k2) = (
+        (c2 * w.dot(a) - wz * az) * two,
+        (c2 * w.dot(b) - wz * bz) * two,
+    );
+    let (k3, k4) = (
+        (c2 * (a.dot(a) - b.dot(b)) - (az.powi(2) - bz.powi(2))) * half,
+        c2 * a.dot(b) - az * bz,
+    );
+    let sup = k0.abs() + amplitude(k1, k2) + amplitude(k3, k4);
+    match decide(
+        "pcurve_cone_chart_incident",
+        Margin::over_lever(sup, two * half_angle.sin() * z_min),
+        band,
+    )
+    .map_err(winding_escalated)?
+    {
+        Sign::Zero => Ok(NoImage::Uncovered(UncoveredClass::ConeSection)),
+        Sign::Positive | Sign::Negative => Ok(NoImage::OffChart(
+            "the conic's points are not on the cone (its implicit residual along the carrier is \
+             not zero)",
+        )),
+    }
+}
+
+/// A spiric met with a chart that is neither its own torus nor its own
+/// cutting plane: off the chart unless the oval can still lie on it.
+///
+/// For `offset ≠ 0` the section is an irreducible bicircular quartic
+/// (genus 1, the variant docs), so a curve containing one oval of it
+/// contains all of it (Bézout). A cylinder, cone or sphere meets the
+/// cutting plane in a conic, which holds no such quartic. Another
+/// torus meets it in a bicircular quartic too, and matching the two
+/// equations coefficient by coefficient in the plane's frame forces
+/// a parallel axis, the same `R` and `r`, and a centre either the
+/// carrier's or its MIRROR through the plane (`center + 2·offset·n`)
+/// — the caller says whether the chart is that mirror (`on_mirror`).
+/// For `offset = 0` the oval is a meridian circle, which lies on many
+/// charts; whether it lies on THIS one is not tested, so the pair is
+/// called uncovered unchecked
+/// (`work/issues/uncovered-chart-classes-have-no-incidence-test.md`).
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::Escalated`] when `pcurve_spiric_offset_circle`
+/// lands in the sliver band.
+fn spiric_off_own_chart<T: Decide>(
+    offset: T,
+    on_mirror: bool,
+    why: &'static str,
+    band: Band,
+) -> Result<NoImage, PcurveCertifyError> {
+    if on_mirror {
+        return Ok(NoImage::Uncovered(UncoveredClass::MirrorTorusSpiric));
+    }
+    Ok(
+        match decide("pcurve_spiric_offset_circle", Margin::of(offset), band)
+            .map_err(winding_escalated)?
+        {
+            Sign::Zero => NoImage::Uncovered(UncoveredClass::ZeroOffsetSpiric),
+            Sign::Positive | Sign::Negative => NoImage::OffChart(why),
+        },
+    )
+}
+
+// Check 4's per-arm lemma, swept, in a module of its own so the per-file
+// test gate can skip the sweep without skipping the deterministic rows.
+#[cfg(test)]
+mod envelope_lemma_fuzz;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -6295,6 +8520,165 @@ mod tests {
         }
     }
 
+    /// The term [`EnvelopeTerms::first_over`] names for a carrier or an
+    /// image moved by `100·ε` in one respect — what a refused check 4
+    /// carries on a periodic chart.
+    fn named_term(stored: &Pcurve<f64>, carrier: &Curve3<f64>, s: &Surface<f64>) -> EnvelopeTerm {
+        let form = carrier_harmonic(carrier).unwrap();
+        let terms = periodic_envelope(stored, carrier, form, s, (0.0, PI), PI, band()).unwrap();
+        terms
+            .first_over(band())
+            .unwrap_or_else(|| panic!("no term over the band alone: {:?}", terms.0))
+    }
+
+    /// **A refused envelope names the incidence that failed.** Each row
+    /// moves the carrier off the cylinder, or the stored image off the
+    /// one derived from it, in exactly one respect, and the term the
+    /// refusal carries is that respect's.
+    #[test]
+    fn a_refused_envelope_names_the_incidence_that_failed() {
+        let r = 0.5;
+        let cyl = cylinder(r);
+        let d = 100.0 * Tol::witness().eps();
+        let rim = |center: Point3<f64>, axis: Vec3<f64>, radius: f64| Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref: Vec3::unit_x(),
+        };
+        let own = |carrier: &Curve3<f64>| chart_pcurve(carrier, &cyl, band()).unwrap();
+        // `b` short of `a`'s quarter turn by `d`, `a` on the chart.
+        let squashed = Curve3::Ellipse {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major: r,
+            minor: r - d,
+            u_ref: Vec3::unit_x(),
+        };
+        let rows = [
+            (
+                rim(Point3::new(d, 0.0, 0.0), Vec3::unit_z(), r),
+                EnvelopeTerm::Centre,
+            ),
+            (
+                rim(Point3::origin(), Vec3::unit_z(), r + d),
+                EnvelopeTerm::Radius,
+            ),
+            (squashed, EnvelopeTerm::Orientation),
+            // A radial slope over the band reads as a moving carrier;
+            // one inside the escalation band takes the meridian (the
+            // D9 tie-break) and lands in the line's own term.
+            (
+                Curve3::Line {
+                    origin: Point3::new(r, 0.0, 0.0),
+                    dir: Vec3::new(2.0 * Tol::witness().eps(), 0.0, 1.0),
+                },
+                EnvelopeTerm::Line,
+            ),
+        ];
+        for (carrier, term) in rows {
+            assert_eq!(
+                named_term(&own(&carrier), &carrier, &cyl),
+                term,
+                "{carrier:?}"
+            );
+        }
+        let carrier = rim(Point3::origin(), Vec3::unit_z(), r);
+        let Pcurve::Harmonic { p0, pa, pb, pl } = own(&carrier) else {
+            panic!("the closed-form lane stores harmonic images")
+        };
+        for (moved, term) in [
+            (Point2::new(p0.x + d, p0.y), EnvelopeTerm::FidelityU),
+            (Point2::new(p0.x, p0.y + d), EnvelopeTerm::FidelityV),
+        ] {
+            let stored = Pcurve::Harmonic {
+                p0: moved,
+                pa,
+                pb,
+                pl,
+            };
+            assert_eq!(named_term(&stored, &carrier, &cyl), term);
+        }
+    }
+
+    /// **Check 4 refusing on its own carries its term.** The stored
+    /// azimuth is `0.6·ε/r` behind the carrier's and runs `0.6·ε/(r·π)`
+    /// per radian fast, so the two drifts cancel at the end of the span
+    /// and no schedule sample sees more than `0.6·ε`; the envelope adds
+    /// them, `1.2·ε`, and refuses naming the azimuth channel's
+    /// fidelity.
+    #[test]
+    fn an_envelope_over_the_band_between_samples_names_its_term() {
+        let r = 0.5;
+        let cyl = cylinder(r);
+        let carrier = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap()
+        else {
+            panic!("the closed-form lane stores harmonic images")
+        };
+        let off = 0.6 * Tol::witness().eps() / r;
+        let stored = Pcurve::Harmonic {
+            p0: Point2::new(p0.x - off, p0.y),
+            pa,
+            pb,
+            pl: Vec2::new(pl.x + off / PI, pl.y),
+        };
+        let out = PcurveCache::certify(stored, 0.0, PI, &carrier, &cyl, wide_window(), band());
+        assert!(
+            matches!(
+                out,
+                Err(PcurveCertifyError::Escalated {
+                    check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityU),
+                    ..
+                } | PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityU),
+                    ..
+                })
+            ),
+            "{out:?}"
+        );
+    }
+
+    /// A circle in a plane holding the cylinder's axis is no carrier of
+    /// the cylinder, and its radial parts are parallel, so the
+    /// derivation decides it MOVING with a zero winding — the one
+    /// moving class whose image does not turn. The envelope still
+    /// bounds the residual of the image it derives, and refuses.
+    #[test]
+    fn a_moving_carrier_with_no_winding_is_still_bounded() {
+        let r = 0.5;
+        let cyl = cylinder(r);
+        let carrier = Curve3::Circle {
+            center: Point3::new(r, 0.0, 0.0),
+            axis: Vec3::unit_y(),
+            radius: 0.1,
+            u_ref: Vec3::unit_x(),
+        };
+        let (image, derivation) = derive_harmonic(&carrier, &cyl, band()).unwrap();
+        assert!(
+            matches!(
+                derivation,
+                Derivation::CylinderMoving {
+                    beta: Winding::Zero
+                }
+            ),
+            "{derivation:?}"
+        );
+        let form = carrier_harmonic(&carrier).unwrap();
+        let envelope = periodic_envelope(&image, &carrier, form, &cyl, (0.0, PI), PI, band())
+            .unwrap()
+            .total();
+        assert!(envelope >= true_sup(&image, &cyl, &carrier, 0.0, PI));
+        assert!(
+            PcurveCache::certify(image, 0.0, PI, &carrier, &cyl, wide_window(), band()).is_err()
+        );
+    }
+
     /// The chart-derivation pins across the frontier's two flips
     /// (S9 lineage: `frontier_charts_refuse_typed` until M6-3): the
     /// sphere and cone closed-form classes DERIVE, and the surviving
@@ -6335,7 +8719,67 @@ mod tests {
             u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
         };
         let err = chart_pcurve(&tilted, &sphere, band()).unwrap_err();
-        assert!(matches!(err, PcurveCertifyError::UnsupportedCarrier));
+        assert!(
+            matches!(
+                err,
+                PcurveCertifyError::UnsupportedCarrier {
+                    class: UncoveredClass::SphereGeneralCircle,
+                    ..
+                }
+            ),
+            "a tilted great circle lies on the sphere: {err:?}"
+        );
+        // The incidence test splits the two gates' failures: a
+        // vertical SMALL circle (plane x = 0.6, radius 0.8) lies on
+        // the unit sphere and fails only the centring gate; the same
+        // tilted plane's circle at radius 0.5 lies off it.
+        let vertical = Curve3::Circle {
+            center: Point3::new(0.6, 0.0, 0.0),
+            axis: Vec3::unit_x(),
+            radius: 0.8,
+            u_ref: Vec3::unit_z(),
+        };
+        let err = chart_pcurve(&vertical, &sphere, band()).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                PcurveCertifyError::UnsupportedCarrier {
+                    class: UncoveredClass::SphereGeneralCircle,
+                    ..
+                }
+            ),
+            "a vertical small circle lies on the sphere: {err:?}"
+        );
+        for (what, off) in [
+            (
+                "tilted, wrong radius",
+                Curve3::Circle {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+                    radius: 0.5,
+                    u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+                },
+            ),
+            (
+                "vertical, wrong radius",
+                Curve3::Circle {
+                    center: Point3::new(0.6, 0.0, 0.0),
+                    axis: Vec3::unit_x(),
+                    radius: 0.7,
+                    u_ref: Vec3::unit_z(),
+                },
+            ),
+        ] {
+            let err = chart_pcurve(&off, &sphere, band()).unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    PcurveCertifyError::CarrierOffChart { why, .. }
+                        if why.contains("the sphere's radius")
+                ),
+                "{what}: the incidence test answers: {err:?}"
+            );
+        }
         // SECOND flip (M6-3, the S9 pattern again): the cone chart's
         // frontier refusal is retired — a genuine rim circle now
         // derives its closed form (azimuth `α + β·t`, slant constant
@@ -6359,20 +8803,279 @@ mod tests {
         };
         assert!(p0.x.abs() < 1e-15 && (p0.y - h / ha.cos()).abs() < 1e-12);
         assert!((pl.x - 1.0).abs() < 1e-15 && pl.y.abs() < 1e-15);
-        // What stays refused on the cone chart, TYPED and class-named:
-        // a tilted-section ELLIPSE — azimuth-non-harmonic, and the
-        // cone has no ring-computable meters composite for a fitted
-        // certificate either (ssi/certify docs), so neither route is
-        // honest.
-        let section = Curve3::Ellipse {
+        // What stays refused on the cone chart, TYPED: an ellipse is
+        // not a rim, and the incidence test says whether it is a
+        // section (uncovered — `tests/chart_incidence.rs` builds one)
+        // or off the cone, as this hand-placed one is.
+        let ellipse = Curve3::Ellipse {
             center: Point3::new(0.2, 0.0, 2.0),
             axis: Vec3::new(0.3_f64.sin(), 0.0, 0.3_f64.cos()),
             major: 1.2,
             minor: 1.0,
             u_ref: Vec3::new(0.3_f64.cos(), 0.0, -0.3_f64.sin()),
         };
-        let err = chart_pcurve(&section, &cone, band()).unwrap_err();
-        assert!(matches!(err, PcurveCertifyError::UnsupportedCarrier));
+        let err = chart_pcurve(&ellipse, &cone, band()).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                PcurveCertifyError::CarrierOffChart {
+                    chart: geom::SurfaceKind::Cone,
+                    carrier: geom::CurveKind::Ellipse,
+                    why,
+                } if why.contains("not on the cone")
+            ),
+            "{err:?}"
+        );
+    }
+
+    /// **The carrier refusals split by meaning**: a pair the chart can
+    /// hold but no closed form covers is `UnsupportedCarrier`; a
+    /// carrier that cannot lie on the chart is `CarrierOffChart`. Each
+    /// row builds its case, and the off-chart rows' geometric claims
+    /// are argued at their sites in `chart_pcurve`.
+    #[test]
+    fn uncovered_and_off_chart_carriers_refuse_apart() {
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let (major, minor) = (2.0_f64, 1.0_f64);
+        let torus = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: major,
+            minor_radius: minor,
+            u_ref: Vec3::unit_x(),
+        };
+        let circle =
+            |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            };
+        // Each row names its site by a word only that site's `why`
+        // carries, so a row answered by a different site goes red.
+        let off: [(&str, &str, Curve3<f64>, &Surface<f64>); 6] = [
+            (
+                "a line in the cone's apex plane",
+                "a line in the plane through the apex",
+                Curve3::Line {
+                    origin: Point3::new(1.0, 0.0, 0.0),
+                    dir: Vec3::unit_y(),
+                },
+                &cone,
+            ),
+            (
+                "a tilted circle on a cone",
+                "not on the cone",
+                circle(
+                    Point3::new(0.0, 0.0, 2.0),
+                    Vec3::new(0.3_f64.sin(), 0.0, 0.3_f64.cos()),
+                    1.0,
+                    Vec3::unit_y(),
+                ),
+                &cone,
+            ),
+            (
+                "a cone rim centred off the axis",
+                "not on the cone",
+                circle(
+                    Point3::new(0.1, 0.0, 2.0),
+                    Vec3::unit_z(),
+                    1.0,
+                    Vec3::unit_x(),
+                ),
+                &cone,
+            ),
+            (
+                "a line on a sphere",
+                "a sphere holds no line",
+                Curve3::Line {
+                    origin: Point3::origin(),
+                    dir: Vec3::unit_x(),
+                },
+                &sphere,
+            ),
+            (
+                "a polar circle centred off the sphere's axis",
+                "the sphere's radius",
+                circle(
+                    Point3::new(0.1, 0.0, 0.5),
+                    Vec3::unit_z(),
+                    0.5,
+                    Vec3::unit_x(),
+                ),
+                &sphere,
+            ),
+            (
+                "an ellipse on a torus",
+                "a torus holds no line",
+                Curve3::Ellipse {
+                    center: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    major: 2.5,
+                    minor: 2.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                &torus,
+            ),
+        ];
+        for (what, site, carrier, surface) in off {
+            let err = chart_pcurve(&carrier, surface, band()).unwrap_err();
+            assert!(
+                matches!(err, PcurveCertifyError::CarrierOffChart { why, .. } if why.contains(site)),
+                "{what}: expected the site saying {site:?}, got {err:?}"
+            );
+        }
+
+        // A Villarceau circle: the bitangent plane through the centre,
+        // tilted by asin(r/R), cuts the torus in two circles of radius
+        // R centred ±r off the axis. It lies on the torus — measured
+        // here — and is neither a parallel nor a meridian.
+        let tilt = (minor / major).asin();
+        let villarceau = circle(
+            Point3::new(minor, 0.0, 0.0),
+            Vec3::new(0.0, -tilt.sin(), tilt.cos()),
+            major,
+            Vec3::unit_x(),
+        );
+        for k in 0..16 {
+            let p = villarceau.eval(f64::from(k) * TAU / 16.0);
+            let rho = p.x.hypot(p.y);
+            let implicit = (rho - major).powi(2) + p.z.powi(2) - minor * minor;
+            assert!(implicit.abs() < 1e-12, "on the torus: {implicit:e}");
+        }
+        let nurbs = Curve3::Nurbs(Arc::new(
+            NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                vec![Point3::origin(), Point3::new(1.0, 0.0, 0.0)],
+                vec![1.0, 1.0],
+            )
+            .unwrap(),
+        ));
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        for (what, class, carrier, surface) in [
+            (
+                "a Villarceau circle",
+                UncoveredClass::TorusGeneralCircle,
+                villarceau,
+                &torus,
+            ),
+            (
+                "a spline on a plane",
+                UncoveredClass::SplineCarrier,
+                nurbs,
+                &plane,
+            ),
+            // Near the tube's top an off-axis centre leaves the torus
+            // only to second order, so a circle ⊥ the axis centred off
+            // it is not shown off the chart.
+            (
+                "a torus parallel centred off the axis",
+                UncoveredClass::TorusGeneralCircle,
+                circle(
+                    Point3::new(0.1, 0.0, 0.0),
+                    Vec3::unit_z(),
+                    major,
+                    Vec3::unit_x(),
+                ),
+                &torus,
+            ),
+        ] {
+            let err = chart_pcurve(&carrier, surface, band()).unwrap_err();
+            assert!(
+                matches!(err, PcurveCertifyError::UnsupportedCarrier { class: c, .. } if c == class),
+                "{what}: {err:?}"
+            );
+        }
+    }
+
+    /// Each split arm names its condition, the pair it was raised on,
+    /// and a recourse — every uncovered class its own — a floor on the
+    /// vocabulary, as the sibling `every_*_arm_names_a_recourse` rows
+    /// are.
+    #[test]
+    fn every_carrier_refusal_arm_names_its_pair_and_a_recourse() {
+        use geom::{CurveKind, SurfaceKind};
+        // Exhaustive by construction: a new class fails to compile here
+        // until it has a row.
+        let classes = [
+            UncoveredClass::SplineCarrier,
+            UncoveredClass::ConeSection,
+            UncoveredClass::SphereGeneralCircle,
+            UncoveredClass::TorusGeneralCircle,
+            UncoveredClass::NoFittedClass,
+            UncoveredClass::ZeroOffsetSpiric,
+            UncoveredClass::MirrorTorusSpiric,
+        ];
+        for class in classes {
+            match class {
+                UncoveredClass::SplineCarrier
+                | UncoveredClass::ConeSection
+                | UncoveredClass::SphereGeneralCircle
+                | UncoveredClass::TorusGeneralCircle
+                | UncoveredClass::NoFittedClass
+                | UncoveredClass::ZeroOffsetSpiric
+                | UncoveredClass::MirrorTorusSpiric => {}
+            }
+        }
+        let mut recourses: Vec<&str> = classes.iter().map(|c| c.recourse()).collect();
+        recourses.sort_unstable();
+        recourses.dedup();
+        assert_eq!(
+            recourses.len(),
+            classes.len(),
+            "each class has its own recourse"
+        );
+        let mut rows: Vec<(PcurveCertifyError, Vec<&str>)> = classes
+            .iter()
+            .map(|&class| {
+                (
+                    PcurveCertifyError::UnsupportedCarrier {
+                        chart: SurfaceKind::Torus,
+                        carrier: CurveKind::Circle,
+                        class,
+                    },
+                    vec!["torus", "circle", class.describe(), class.recourse()],
+                )
+            })
+            .collect();
+        rows.push((
+            PcurveCertifyError::CarrierOffChart {
+                chart: SurfaceKind::Sphere,
+                carrier: CurveKind::Line,
+                why: "WHY",
+            },
+            vec!["sphere", "line", "WHY"],
+        ));
+        rows.push((
+            PcurveCertifyError::ImageMismatch {
+                image: PcurveKind::Spiric,
+                why: "WHY",
+            },
+            vec!["Spiric", "WHY"],
+        ));
+        for (err, payload) in rows {
+            let msg = err.to_string();
+            for word in payload {
+                assert!(msg.contains(word), "{word} missing from: {msg}");
+            }
+            assert!(msg.contains("Recourse: "), "no recourse in: {msg}");
+            assert_eq!(err.ending(Reading::AtRest), None, "{msg}");
+        }
     }
 
     /// A pcurve that winds more than one full period around the chart
@@ -6982,7 +9685,7 @@ mod fitted_lane_routing_tests {
                 CHART_TUBE_NEEDS_PLANE,
             ),
         ] {
-            match fitted_lane(&carrier, 0.0, 1.0, &image, &surface, &mate, band) {
+            match fitted_lane(&carrier, 0.0, 1.0, &image, &surface, Some(&mate), band) {
                 Err(PcurveCertifyError::FittedCertificate { what, .. }) => {
                     assert_eq!(what, want, "{name}: answered {what}");
                 }

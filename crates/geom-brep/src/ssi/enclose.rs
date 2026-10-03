@@ -22,14 +22,15 @@
 //!   the 2×2 system `(f₁, f₂)` has non-singular Jacobian, so by the
 //!   implicit function theorem the solution set inside the box is a
 //!   **graph over the `e` axis** — one arc, no branch, no loop, no
-//!   second component. Straddling zero at the floor is the genuine
-//!   sliver (F6).
+//!   second component. Straddling zero escalates: either a genuine
+//!   sliver (F6) or the enclosure's remaining slack.
 //! - [`NurbsBoxes`] — the same three readings for a NURBS chart,
 //!   assembled from control-net hulls: the rational surface's point box
 //!   is the *Cartesian* control hull over a span cell (positive weights
 //!   ⇒ convex combination), and the derivative box comes from the
 //!   homogeneous derivative net through the quotient rule
-//!   `S_u = (A_u − S·w_u)/w`, all in certification arithmetic. (`geom_core::spline::
+//!   `S_u = (A_u − S·w_u)/w`, over each cell cut to the rectangle's
+//!   part of it, all in certification arithmetic. (`geom_core::spline::
 //!   hull` deliberately has no rational derivative path; this is that
 //!   path, assembled at the consumer from the primitives it does have,
 //!   which is where the surface-shaped bookkeeping belongs.)
@@ -71,7 +72,8 @@
 use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, norm_sq, norm_sup};
+use geom_core::interval::{div_down, max_bound, min_bound, norm_sq, norm_sup};
+use geom_core::spline::Span;
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
 use super::{ChartAxis, ChartSpeedRefusal, SsiError, TubeDegeneracy};
@@ -117,6 +119,34 @@ impl Box3 {
         }
     }
 
+    /// The componentwise meet of two enclosures of the same set:
+    /// [`Certification::meet`] per axis, so a refused side, or two sides
+    /// sharing no point, refuses that axis rather than keeping either.
+    pub(crate) fn meet_enclosure(self, o: Self) -> Self {
+        Self {
+            x: self.x.meet(o.x),
+            y: self.y.meet(o.y),
+            z: self.z.meet(o.z),
+        }
+    }
+
+    /// The componentwise intersection, or `self` where the two share no
+    /// point or either side refused: a reach for what lies in both, which
+    /// an empty meet has nothing of. Not a certified enclosure.
+    pub(crate) fn meet(self, o: Self) -> Self {
+        let side = |a: Interval, b: Interval| {
+            if !(a.is_certified() && b.is_certified()) {
+                return None;
+            }
+            let (lo, hi) = (a.lo().max(b.lo()), a.hi().min(b.hi()));
+            (lo <= hi).then(|| Interval::from_bounds(lo, hi))
+        };
+        match (side(self.x, o.x), side(self.y, o.y), side(self.z, o.z)) {
+            (Some(x), Some(y), Some(z)) => Self { x, y, z },
+            _ => self,
+        }
+    }
+
     /// Grow every side by `r` (the certified tube radius).
     pub(crate) fn pad<T: CertifiedBounds>(self, r: T) -> Self {
         let g = pad_interval(r);
@@ -146,9 +176,13 @@ impl Box3 {
         inside(self.x, o.x) && inside(self.y, o.y) && inside(self.z, o.z)
     }
 
-    /// The largest side length (the cell's size, for the floor test).
+    /// The largest side length (the cell's size, for the floor test);
+    /// `NaN` when any side is refused, so a refused axis fails the floor
+    /// test rather than dropping out of it.
     pub(crate) fn width(self) -> f64 {
-        self.x.width().max(self.y.width()).max(self.z.width())
+        [self.y.width(), self.z.width()]
+            .into_iter()
+            .fold(self.x.width(), max_bound)
     }
 
     /// The center as an f64 point (a marcher seed, never a claim).
@@ -367,13 +401,16 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
     dot3(cross3(g1, g2), constv(e))
 }
 
-/// The plane × NURBS chart probe's transversality margin over one span
-/// cell: `∇φ = (n·S_u, n·S_v)` over the derivative boxes `du`/`dv`, read
+/// The plane × NURBS chart probe's transversality margin over one
+/// chart window `rect` (`(u0, u1, v0, v1)`): `∇φ = (n·S_u, n·S_v)` read
 /// along the chart direction transverse to the pcurve's tangent, divided
 /// by the chart's stretch along that direction. `n` is the plane normal
 /// already crossed into certification arithmetic; `tangent` is
 /// `(t.x, t.y, ‖t‖)`, the tangent's bracket tops and a positive finite
-/// norm, which select the direction (structure, not a bound). `Ok(None)`
+/// norm, which select the direction (structure, not a bound). Both
+/// readings come from the derivative numerators' vector terms
+/// ([`CellNet::transverse_readings`]), so a rigid map that carries `n`
+/// with the wall moves the margin by its rounding width. `Ok(None)`
 /// when the stretch has no finite bound.
 ///
 /// # Errors
@@ -381,15 +418,13 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 /// [`TubeDegeneracy::WallConstantAcrossLocus`] when the stretch is
 /// zero: the chart is constant along e⊥ over this window, and a narrower
 /// window (a smaller rung) lies inside it, so it cannot cure that.
-pub(super) fn chart_transverse_margin(
+pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
     n: [Interval; 3],
-    du: Box3,
-    dv: Box3,
+    rect: (f64, f64, f64, f64),
     tangent: (f64, f64, f64),
 ) -> Result<Option<f64>, SsiError> {
     let (tx, ty, tn) = tangent;
-    let phi_u = n[0] * du.x + n[1] * du.y + n[2] * du.z;
-    let phi_v = n[0] * dv.x + n[1] * dv.y + n[2] * dv.z;
     // e⊥ = (−t.y, t.x)/‖t‖; the transverse derivative of φ.
     let ex = Interval::point(-ty / tn);
     let ey = Interval::point(tx / tn);
@@ -402,16 +437,12 @@ pub(super) fn chart_transverse_margin(
     // lane's `(∇f₁×∇f₂)·e` already is. An UPPER bound on the
     // stretch is used, which can only shrink the margin: the safe
     // direction.
-    let vt = Box3 {
-        x: du.x * ex + dv.x * ey,
-        y: du.y * ex + dv.y * ey,
-        z: du.z * ex + dv.z * ey,
-    };
-    let stretch = norm_sup(&[vt.x, vt.y, vt.z]);
+    let (phi, stretch) = boxes.transverse_readings(rect, n, ex, ey);
     // An admitted `+∞` stretch divides the margin to an exact `0`,
     // which the caller's fold then records as the certificate's worst
     // transversality — a number manufactured from an overflow, not a
-    // measurement. `norm_sup` is never negative, so `<= 0` is zero.
+    // measurement. A `NaN` stretch is refused the same way, and a
+    // finite one is never negative, so `<= 0` is zero.
     if !stretch.is_finite() {
         return Ok(None);
     }
@@ -421,10 +452,7 @@ pub(super) fn chart_transverse_margin(
         ));
     }
     // A lower bound over an upper bound stays one only rounded down.
-    Ok(Some(div_down(
-        zero_free_lower_bound(phi_u * ex + phi_v * ey),
-        stretch,
-    )))
+    Ok(Some(div_down(zero_free_lower_bound(phi), stretch)))
 }
 
 /// The certified distance of an enclosure from zero: `0` when it
@@ -488,7 +516,9 @@ fn ordered_window(u0: f64, u1: f64, v0: f64, v1: f64) -> bool {
 /// shrinks it. The point box uses the Cartesian net directly (positive
 /// weights make `S` a convex combination of the local control points,
 /// which is exactly the rational hull property); the derivative box
-/// goes through the homogeneous quotient rule.
+/// goes through the homogeneous quotient rule over each cell's net cut
+/// to the rectangle ([`CellNet::cut`]), so it shrinks with the
+/// rectangle below a span cell too.
 pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
     surface: &'a NurbsSurface<T>,
 }
@@ -499,8 +529,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         Self { surface }
     }
 
-    /// The wall's `{u, v}` chart speeds over its whole domain: the
-    /// outward norm ([`norm_sup`]) of each derivative box.
+    /// The wall's `{u, v}` chart speeds over its whole domain, each
+    /// [`NurbsBoxes::speed_sup`]: a function of the geometry, which a
+    /// rigid map moves by its rounding width.
     ///
     /// # Errors
     ///
@@ -513,8 +544,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             self.surface.knots_v().domain(),
         );
         let speed = |axis: ChartAxis| {
-            let b = self.deriv_box(ud.0, ud.1, vd.0, vd.1, axis == ChartAxis::U);
-            let m = norm_sup(&[b.x, b.y, b.z]);
+            let m = self.speed_sup(ud.0, ud.1, vd.0, vd.1, axis == ChartAxis::U);
             if !m.is_finite() {
                 Err(SsiError::ChartSpeed(ChartSpeedRefusal::NotFinite { axis }))
             } else if m <= 0.0 {
@@ -529,10 +559,10 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         })
     }
 
-    /// The (span_u, span_v) cell range touched by the rectangle, or
-    /// `None` for a window with a NaN or inverted end: such a window
-    /// names no region, and clamping it would land a NaN end on the
-    /// first span.
+    /// The (span_u, span_v) cell range touched by the rectangle, with
+    /// the rectangle as clamped, or `None` for a window with a NaN or
+    /// inverted end: such a window names no region, and clamping it
+    /// would land a NaN end on the first span.
     ///
     /// The rectangle is **clamped to the knot domains** first. Callers
     /// pad windows by a tube radius, which routinely pushes them past
@@ -541,13 +571,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// that reaches a surface edge fail its own uniqueness tube. The
     /// clamp is sound because the objects being enclosed — a pcurve, a
     /// foot point — cannot leave the domain either.
-    fn cells(
-        &self,
-        u0: f64,
-        u1: f64,
-        v0: f64,
-        v1: f64,
-    ) -> Option<((usize, usize), (usize, usize))> {
+    fn cells(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> Option<CellRange> {
         if !ordered_window(u0, u1, v0, v1) {
             return None;
         }
@@ -564,225 +588,149 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         // indices here, and the pair read back out.
         let (u_lo, u_hi) = ku.span_range(cu.0, cu.1);
         let (v_lo, v_hi) = kv.span_range(cv.0, cv.1);
-        Some(((u_lo.index(), u_hi.index()), (v_lo.index(), v_hi.index())))
-    }
-
-    /// The hull of the Cartesian control block of one span cell.
-    ///
-    /// The cell is a [`SurfaceWindow`]: its two `Span`s carry
-    /// `index ≥ degree` and `index ≤ last_span()` from their
-    /// construction, and the net below is the window's OWN surface, so
-    /// every `row(i) + j` is in range. The `ctl.get` arm is therefore
-    /// unreachable — it is kept as the total spelling (D9: an
-    /// out-of-range read is a refused box, never an index panic), not as
-    /// a refusal any input can reach.
-    fn cell_point_box(&self, win: SurfaceWindow<'_, T>) -> Box3 {
-        // The net comes from the window's own surface, not from
-        // `self.surface` beside it: the window is a borrow of the
-        // surface it indexes, so reading through it is what keeps the
-        // two from being two.
-        let ctl = win.surface().control();
-        let mut out: Option<Box3> = None;
-        // Same ascending walk as the open-coded `(su − pu)..=su` pair
-        // (D9): `row(i) + j` IS `iu·nv + iv` over the same indices.
-        for i in 0..=win.span_u().degree() {
-            let row = win.row(i);
-            for j in 0..=win.span_v().degree() {
-                let Some(p) = ctl.get(row + j) else {
-                    return refused_box();
-                };
-                let b = Box3::between(*p, *p);
-                out = Some(match out {
-                    None => b,
-                    Some(acc) => acc.hull(b),
-                });
-            }
-        }
-        out.unwrap_or_else(refused_box)
-    }
-
-    /// The homogeneous derivative-net hull in one direction, plus the
-    /// weight and weight-derivative hulls, over one span cell:
-    /// `(A_d hull, w_d hull, w hull)`.
-    ///
-    /// The window's invariants carry the range (`index ≥ degree`,
-    /// `index ≤ last_span()`) and `KnotVector::clamped` refuses degree
-    /// 0, so no constructible window reaches `pu == 0 || pv == 0`. The
-    /// `.get` arms below — against `ctl`, `wts` and the raw knot
-    /// slices — are the total spelling for reads the differencing
-    /// ladder shifts by one index, where the shift, not the window,
-    /// decides the bound.
-    fn cell_homogeneous_deriv(
-        &self,
-        win: SurfaceWindow<'_, T>,
-        along_u: bool,
-    ) -> (Box3, Interval, Interval) {
-        // As in `cell_point_box`: everything is read through the
-        // window's own borrow.
-        let s = win.surface();
-        let (pu, pv) = (win.span_u().degree(), win.span_v().degree());
-        let nv = win.stride();
-        let ctl = s.control();
-        let wts = s.weights();
-        let (ku, kv) = (s.knots_u().knots(), s.knots_v().knots());
-        let mut abox: Option<Box3> = None;
-        let mut wd: Option<Interval> = None;
-        let mut w: Option<Interval> = None;
-        // The derivative spline in direction d has degree p−1 and its
-        // local block on this cell is the divided differences over the
-        // Cartesian block shifted by one index in d.
-        // Differencing drops the window's top index in the direction it
-        // acts on, which is exactly `Span::first_derived_window` — so
-        // the `su − pu` / `su − 1` pairs are not subtractions here any
-        // more, and the pair that is NOT differenced keeps the full
-        // window.
-        let (uw, vw) = if along_u {
-            (win.span_u().first_derived_window(), win.span_v().window())
-        } else {
-            (win.span_u().window(), win.span_v().first_derived_window())
-        };
-        for iu in uw {
-            for iv in vw.clone() {
-                let idx0 = iu * nv + iv;
-                let idx1 = if along_u {
-                    (iu + 1) * nv + iv
-                } else {
-                    iu * nv + iv + 1
-                };
-                let (Some(p0), Some(p1), Some(&w0), Some(&w1)) =
-                    (ctl.get(idx0), ctl.get(idx1), wts.get(idx0), wts.get(idx1))
-                else {
-                    return (refused_box(), Interval::refused(), Interval::refused());
-                };
-                // Homogeneous coefficients A = w·P. The weight is `f64`
-                // structure and the control point is the caller's
-                // scalar, so the product is formed IN INTERVAL ARITHMETIC — the
-                // seam, not a collapse.
-                let (rw0, rw1) = (Interval::from_certified(w0), Interval::from_certified(w1));
-                let a0 = [
-                    rw0 * Interval::from_certified(p0.x),
-                    rw0 * Interval::from_certified(p0.y),
-                    rw0 * Interval::from_certified(p0.z),
-                ];
-                let a1 = [
-                    rw1 * Interval::from_certified(p1.x),
-                    rw1 * Interval::from_certified(p1.y),
-                    rw1 * Interval::from_certified(p1.z),
-                ];
-                let (deg, span_lo, span_hi) = if along_u {
-                    let Some((&lo, &hi)) = ku.get(iu + 1).zip(ku.get(iu + pu + 1)) else {
-                        return (refused_box(), Interval::refused(), Interval::refused());
-                    };
-                    (pu as f64, lo, hi)
-                } else {
-                    let Some((&lo, &hi)) = kv.get(iv + 1).zip(kv.get(iv + pv + 1)) else {
-                        return (refused_box(), Interval::refused(), Interval::refused());
-                    };
-                    (pv as f64, lo, hi)
-                };
-                let denom = Interval::from_certified(span_hi - span_lo);
-                let scale = Interval::from_certified(deg) / denom;
-                let d = Box3 {
-                    x: (a1[0] - a0[0]) * scale,
-                    y: (a1[1] - a0[1]) * scale,
-                    z: (a1[2] - a0[2]) * scale,
-                };
-                abox = Some(match abox {
-                    None => d,
-                    Some(acc) => acc.hull(d),
-                });
-                let dw = (Interval::from_certified(w1) - Interval::from_certified(w0)) * scale;
-                wd = Some(match wd {
-                    None => dw,
-                    Some(acc) => Interval::hull(acc, dw),
-                });
-                for wv in [Interval::from_certified(w0), Interval::from_certified(w1)] {
-                    w = Some(match w {
-                        None => wv,
-                        Some(acc) => Interval::hull(acc, wv),
-                    });
-                }
-            }
-        }
-        (
-            abox.unwrap_or_else(refused_box),
-            wd.unwrap_or_else(Interval::refused),
-            w.unwrap_or_else(Interval::refused),
-        )
-    }
-
-    /// A certified box for `S` over the parameter rectangle — the hull
-    /// of the touched span cells' control blocks. Refused for a window
-    /// with a NaN or inverted end.
-    pub(crate) fn point_box(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> Box3 {
-        let Some(((su0, su1), (sv0, sv1))) = self.cells(u0, u1, v0, v1) else {
-            return refused_box();
-        };
-        let mut out: Option<Box3> = None;
-        for su in su0..=su1 {
-            for sv in sv0..=sv1 {
-                // An EMPTY span cell covers no parameters, so its
-                // control block is not part of what this box must
-                // contain — skipping it is sound and strictly tighter.
-                // The corner cell is always nonempty (`cells` locates
-                // its ends with `span_at`), so the hull is never left
-                // unseeded by this skip.
-                let Some(win) = self.surface.window(su, sv) else {
-                    continue;
-                };
-                let b = self.cell_point_box(win);
-                out = Some(match out {
-                    None => b,
-                    Some(acc) => acc.hull(b),
-                });
-            }
-        }
-        out.unwrap_or_else(refused_box)
+        Some(CellRange {
+            u: (u_lo.index(), u_hi.index()),
+            v: (v_lo.index(), v_hi.index()),
+            clamped_u: cu,
+            clamped_v: cv,
+        })
     }
 
     /// A certified box for `∂S/∂u` (or `∂S/∂v`) over the rectangle, via
     /// the quotient rule `S_d = (A_d − S·w_d)/w` evaluated entirely on
-    /// hulls. Refused when the weight hull touches zero (interval arithmetic
-    /// refuses the divisor), the net is malformed, or the window has a
-    /// NaN or inverted end.
+    /// hulls, per span cell, with `S` in that cell's point box
+    /// ([`CellNet::quotient_numerator`] gives the numerator's form).
+    /// Each cell is also cut to the part of the rectangle inside it
+    /// ([`CellNet::cut`]) and the two boxes met, so the box shrinks with
+    /// the rectangle below a span cell and is never wider than the whole
+    /// cell's. Refused
+    /// when the weight hull touches zero (interval arithmetic refuses
+    /// the divisor), the net is malformed, or the window has a NaN or
+    /// inverted end. The boundary pass reads a directional partial off
+    /// it; the chart readings take norms from the same cut
+    /// ([`NurbsBoxes::speed_sup`]).
     pub(crate) fn deriv_box(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> Box3 {
-        let Some(((su0, su1), (sv0, sv1))) = self.cells(u0, u1, v0, v1) else {
-            return refused_box();
-        };
-        let sbox = self.point_box(u0, u1, v0, v1);
-        let mut out: Option<Box3> = None;
-        for su in su0..=su1 {
-            for sv in sv0..=sv1 {
-                // Empty cells contribute nothing here either — see
-                // [`NurbsBoxes::point_box`]'s note.
+        self.deriv_hull(u0, u1, v0, v1, along_u, true)
+    }
+
+    /// [`NurbsBoxes::deriv_box`] read off every touched cell's whole net,
+    /// without the cut: the exhaustiveness sweep's derivative box, whose
+    /// slack the sweep's seeding is pinned against
+    /// (`work/ssi/the-chart-sweeps-first-order-box-reads-its-derivative-off-the-whole-span-cell.md`).
+    fn cell_deriv_box(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> Box3 {
+        self.deriv_hull(u0, u1, v0, v1, along_u, false)
+    }
+
+    /// The derivative box over the rectangle, each touched cell's net cut
+    /// to it or read whole.
+    fn deriv_hull(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool, cut: bool) -> Box3 {
+        // Both boxes enclose `S_d` over the window's part of the cell,
+        // so their meet does, and it is never wider than the whole
+        // cell's: a zero the whole cell reads exactly stays exact.
+        self.fold_cells(
+            (u0, u1, v0, v1),
+            cut,
+            |net| net.derivative_box(along_u),
+            Box3::meet_enclosure,
+            Box3::hull,
+        )
+        .unwrap_or_else(refused_box)
+    }
+
+    /// An upper bound on `‖∂S/∂u‖` (or `‖∂S/∂v‖`) over the rectangle,
+    /// read per span cell from the quotient numerator's vector terms
+    /// ([`CellNet::derivative_norm_sup`]), each cell cut to the rectangle
+    /// as [`NurbsBoxes::deriv_box`] cuts it. A function of the geometry:
+    /// a rigid map moves it by its rounding width, where the norm of
+    /// [`NurbsBoxes::deriv_box`] reads between 1× and √3× it depending on
+    /// how the field sits against the axes. Per net it is never above
+    /// that box's norm in real arithmetic; the box meets the cut and
+    /// whole readings per axis, though, and the norm of a per-axis meet
+    /// can sit below both nets' norms, so over a cut window it is not
+    /// bounded by the box's. `NaN` when refused.
+    pub(crate) fn speed_sup(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> f64 {
+        self.fold_cells(
+            (u0, u1, v0, v1),
+            true,
+            |net| net.derivative_norm_sup(along_u),
+            min_bound,
+            max_bound,
+        )
+        .unwrap_or(f64::NAN)
+    }
+
+    /// The chart probe's readings over the rectangle along the chart
+    /// direction `(ex, ey)`: an enclosure of `n·(S_u·ex + S_v·ey)` and an
+    /// upper bound on `‖S_u·ex + S_v·ey‖` ([`CellNet::transverse_readings`]),
+    /// each cell cut to the rectangle and met with its whole net.
+    fn transverse_readings(
+        &self,
+        (u0, u1, v0, v1): (f64, f64, f64, f64),
+        n: [Interval; 3],
+        ex: Interval,
+        ey: Interval,
+    ) -> (Interval, f64) {
+        self.fold_cells(
+            (u0, u1, v0, v1),
+            true,
+            |net| net.transverse_readings(n, ex, ey),
+            |(a, s), (b, t)| (a.meet(b), min_bound(s, t)),
+            |(a, s), (b, t)| (Interval::hull(a, b), max_bound(s, t)),
+        )
+        .unwrap_or((Interval::refused(), f64::NAN))
+    }
+
+    /// `read` over every nonempty span cell the rectangle touches,
+    /// `join`ed across cells. With `cut`, each cell's net is also cut to
+    /// the rectangle ([`CellNet::cut`]) and the two readings `meet`:
+    /// both hold over the rectangle's part of the cell. `None` for a
+    /// window with a NaN or inverted end or a malformed net.
+    fn fold_cells<R>(
+        &self,
+        (u0, u1, v0, v1): (f64, f64, f64, f64),
+        cut: bool,
+        read: impl Fn(&CellNet) -> R,
+        meet: impl Fn(R, R) -> R,
+        join: impl Fn(R, R) -> R,
+    ) -> Option<R> {
+        let range = self.cells(u0, u1, v0, v1)?;
+        let mut out: Option<R> = None;
+        for su in range.u.0..=range.u.1 {
+            for sv in range.v.0..=range.v.1 {
+                // An EMPTY span cell covers no parameters, so skipping
+                // it is sound and strictly tighter. The corner cell is
+                // always nonempty (`cells` locates its ends with
+                // `span_at`), so the fold is never left unseeded.
                 let Some(win) = self.surface.window(su, sv) else {
                     continue;
                 };
-                let (ad, wd, w) = self.cell_homogeneous_deriv(win, along_u);
-                let d = Box3 {
-                    x: (ad.x - sbox.x * wd) / w,
-                    y: (ad.y - sbox.y * wd) / w,
-                    z: (ad.z - sbox.z * wd) / w,
+                let whole = CellNet::of_cell(win)?;
+                let r = read(&whole);
+                let r = match cut
+                    .then(|| whole.cut(win, range.clamped_u, range.clamped_v))
+                    .flatten()
+                {
+                    Some(net) => meet(r, read(&net)),
+                    None => r,
                 };
                 out = Some(match out {
-                    None => d,
-                    Some(acc) => acc.hull(d),
+                    None => r,
+                    Some(acc) => join(acc, r),
                 });
             }
         }
-        out.unwrap_or_else(refused_box)
+        out
     }
 
     /// A **first-order** certified box for `S` over an arbitrary
     /// sub-rectangle: `S(mid) ⊕ S_u·[−h_u, h_u] ⊕ S_v·[−h_v, h_v]`
-    /// with the derivative boxes taken over the whole rectangle.
+    /// with the derivative boxes taken over the whole span cells the
+    /// rectangle touches ([`NurbsBoxes::cell_deriv_box`]).
     ///
-    /// Sound by the mean value theorem componentwise, and — unlike
-    /// [`NurbsBoxes::point_box`] — it **keeps shrinking below the span
+    /// Sound by the mean value theorem componentwise, and — unlike a
+    /// span cell's control hull — it **keeps shrinking below the span
     /// cell**, which is what makes the exhaustiveness subdivision
-    /// terminate on a surface with few spans. The tighter of the two is
-    /// the intersection, but only containment is load-bearing, so the
-    /// caller takes whichever it needs and never both.
+    /// terminate on a surface with few spans.
     pub(crate) fn rect_box(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> Box3 {
         // The window door, before the clamp below: clamping an inverted
         // window past a domain end makes it an ordered point.
@@ -810,8 +758,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             .surface
             .window_at(um, vm)
             .eval_in_span(T::from_f64(um), T::from_f64(vm));
-        let du = self.deriv_box(u0, u1, v0, v1, true);
-        let dv = self.deriv_box(u0, u1, v0, v1, false);
+        let du = self.cell_deriv_box(u0, u1, v0, v1, true);
+        let dv = self.cell_deriv_box(u0, u1, v0, v1, false);
         let ru = Interval::from_bounds(-hu, hu);
         let rv = Interval::from_bounds(-hv, hv);
         Box3 {
@@ -820,6 +768,642 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             z: Interval::from_certified(c.z) + du.z * ru + dv.z * rv,
         }
     }
+}
+
+/// The span cells a rectangle touches, and the rectangle clamped to
+/// the knot domains ([`NurbsBoxes::cells`]).
+struct CellRange {
+    u: (usize, usize),
+    v: (usize, usize),
+    clamped_u: (f64, f64),
+    clamped_v: (f64, f64),
+}
+
+/// One span cell's control block in certification arithmetic, cut to
+/// a sub-rectangle or whole: the Cartesian points and weights,
+/// `(pu + 1) × (pv + 1)` row-major, and the derivative scale
+/// `degree / (knot span)` of each adjacent pair along `u` and along `v`.
+/// The points may sit in a translated frame; every reading of a block
+/// is a difference of two of its points or of a point with `S` in its
+/// own point box, so the frame drops out.
+#[derive(Debug)]
+struct CellNet {
+    nv: usize,
+    pts: Vec<[Interval; 3]>,
+    wts: Vec<Interval>,
+    scale_u: Vec<Interval>,
+    scale_v: Vec<Interval>,
+}
+
+impl CellNet {
+    /// The cell's own control block. `None` when a read leaves the net
+    /// or the knots: the window's invariants (`index ≥ degree`,
+    /// `index ≤ last_span()`) put every read in range, so this is the
+    /// total spelling (D9: an out-of-range read is a refused box, never
+    /// an index panic), not a refusal any input reaches.
+    fn of_cell<T: CertifiedBounds>(win: SurfaceWindow<'_, T>) -> Option<Self> {
+        let s = win.surface();
+        let (ctl, wts) = (s.control(), s.weights());
+        let (spu, spv) = (win.span_u(), win.span_v());
+        let (pu, pv) = (spu.degree(), spv.degree());
+        let mut pts = Vec::with_capacity((pu + 1) * (pv + 1));
+        let mut ws = Vec::with_capacity((pu + 1) * (pv + 1));
+        for i in 0..=pu {
+            let row = win.row(i);
+            for j in 0..=pv {
+                let (p, &w) = ctl.get(row + j).zip(wts.get(row + j))?;
+                pts.push([
+                    Interval::from_certified(p.x),
+                    Interval::from_certified(p.y),
+                    Interval::from_certified(p.z),
+                ]);
+                ws.push(Interval::from_certified(w));
+            }
+        }
+        Some(Self {
+            nv: pv + 1,
+            pts,
+            wts: ws,
+            scale_u: pair_scales(spu)?,
+            scale_v: pair_scales(spv)?,
+        })
+    }
+
+    /// This cell block cut to `wu × wv`: along each axis whose window
+    /// falls strictly inside the cell's span with positive width, the
+    /// block is replaced by the Bézier block of the same polynomial
+    /// piece over the window's part of the span, so its hulls enclose
+    /// that part alone. `None` when no axis is cut (the window covers
+    /// the span whole, or meets it in at most a point), or when a read
+    /// leaves the window, which its invariants rule out: the whole block
+    /// is the caller's answer either way, and a sound one.
+    ///
+    /// The cut is blossoming, `b_k = f(a, …, a, b, …, b)` with `k` of the
+    /// `b`s, run by de Boor's recurrence in certification arithmetic on
+    /// the homogeneous net `(w·(P − c), w)`, and the Cartesian block is
+    /// read back as the quotient. `c` is the block's first point's lower
+    /// bracket end, translating the net so the products are formed on
+    /// differences; the cut block's points are in that frame.
+    ///
+    /// The cut block's boxes are not always narrower than the whole
+    /// block's. The recurrence's rounding can outgrow what the cut saves:
+    /// on a net constant along the cut whose `P − c` does not round
+    /// exactly, `d₁ − d₀` of two equal non-point intervals is a
+    /// symmetric interval rather than zero, and on a window a few ulps
+    /// wide the `degree / (b − a)` scale amplifies every such width. So
+    /// the caller meets the two ([`NurbsBoxes::deriv_box`]).
+    fn cut<T: CertifiedBounds>(
+        &self,
+        win: SurfaceWindow<'_, T>,
+        wu: (f64, f64),
+        wv: (f64, f64),
+    ) -> Option<Self> {
+        let (cut_u, cut_v) = (inside(win.span_u(), wu), inside(win.span_v(), wv));
+        if cut_u.is_none() && cut_v.is_none() {
+            return None;
+        }
+        let nv = self.nv;
+        let nu = self.pts.len() / nv;
+        let (mut scale_u, mut scale_v) = (self.scale_u.clone(), self.scale_v.clone());
+        let origin = self.pts.first()?.map(Interval::lo);
+        // Four channels per control point: `w·(P − c)` and `w`.
+        let mut h: Vec<[Interval; 4]> = self
+            .pts
+            .iter()
+            .zip(&self.wts)
+            .map(|(p, &w)| {
+                let at = |k: usize| w * (p[k] - Interval::point(origin[k]));
+                [at(0), at(1), at(2), w]
+            })
+            .collect();
+        if let Some(cut) = cut_u {
+            for j in 0..nv {
+                let line: Vec<[Interval; 4]> = (0..nu).map(|i| h[i * nv + j]).collect();
+                for (i, c) in bezier_on(&line, win.span_u(), cut)?.into_iter().enumerate() {
+                    h[i * nv + j] = c;
+                }
+            }
+            scale_u = bezier_scales(win.span_u().degree(), cut);
+        }
+        if let Some(cut) = cut_v {
+            for i in 0..nu {
+                let line = &h[i * nv..(i + 1) * nv];
+                let cut_line = bezier_on(line, win.span_v(), cut)?;
+                h[i * nv..(i + 1) * nv].copy_from_slice(&cut_line);
+            }
+            scale_v = bezier_scales(win.span_v().degree(), cut);
+        }
+        Some(Self {
+            nv,
+            pts: h
+                .iter()
+                .map(|c| [c[0] / c[3], c[1] / c[3], c[2] / c[3]])
+                .collect(),
+            wts: h.iter().map(|c| c[3]).collect(),
+            scale_u,
+            scale_v,
+        })
+    }
+
+    /// The box for `S_d` over the block's region: the quotient numerator
+    /// over the block's own point box, divided by its weight hull. Both
+    /// are read in the block's own frame, the only frame a cut block's
+    /// points are good for.
+    fn derivative_box(&self, along_u: bool) -> Box3 {
+        let (num, w) = self.quotient_numerator(along_u, self.point_box());
+        Box3 {
+            x: num.x / w,
+            y: num.y / w,
+            z: num.z / w,
+        }
+    }
+
+    /// The hull of the block's Cartesian points: a box for `S` over the
+    /// block's region (positive weights make `S` a convex combination of
+    /// them, the rational hull property), in the block's frame. That is
+    /// the absolute frame for [`CellNet::of_cell`]; for a [`CellNet::cut`]
+    /// block it is a box for `S − c`, good only as the `S` of that
+    /// block's own pair terms.
+    fn point_box(&self) -> Box3 {
+        let mut out: Option<Box3> = None;
+        for p in &self.pts {
+            let b = Box3 {
+                x: p[0],
+                y: p[1],
+                z: p[2],
+            };
+            out = Some(match out {
+                None => b,
+                Some(acc) => acc.hull(b),
+            });
+        }
+        out.unwrap_or_else(refused_box)
+    }
+
+    /// The quotient rule's numerator `A_d − S·w_d` and the weight hull
+    /// over the block, `(numerator hull, w hull)`, with `S` ranging over
+    /// `sbox`, which is in the block's frame ([`CellNet::point_box`]):
+    /// the hull of every [`PairTerm`] at `sbox`.
+    fn quotient_numerator(&self, along_u: bool, sbox: Box3) -> (Box3, Interval) {
+        let Some(terms) = self.pair_terms(along_u) else {
+            return (refused_box(), Interval::refused());
+        };
+        let num = terms
+            .iter()
+            .map(|t| {
+                let [x, y, z] = t.at([sbox.x, sbox.y, sbox.z]);
+                Box3 { x, y, z }
+            })
+            .reduce(Box3::hull);
+        (
+            num.unwrap_or_else(refused_box),
+            self.weight_hull().unwrap_or_else(Interval::refused),
+        )
+    }
+
+    /// The numerator's terms, one per adjacent pair of the net in
+    /// direction `d`. `None` when a read leaves the net, which the
+    /// block's own construction rules out.
+    ///
+    /// The numerator is a convex combination, under the degree-`p−1`
+    /// basis, of these terms with `S` the surface point itself, so its
+    /// hull is theirs with `S` anywhere `S` can be. No term holds an
+    /// absolute coordinate: every point enters as a difference with
+    /// another, so a translation moves a reading by its rounding width
+    /// alone, and a net constant along `d` (equal points, equal weights)
+    /// reads an exact zero.
+    fn pair_terms(&self, along_u: bool) -> Option<Vec<PairTerm>> {
+        let nv = self.nv;
+        let nu = self.pts.len() / nv;
+        let mut pairs = Vec::new();
+        if along_u {
+            for (k, &s) in self.scale_u.iter().enumerate() {
+                for j in 0..nv {
+                    pairs.push((k * nv + j, (k + 1) * nv + j, s));
+                }
+            }
+        } else {
+            for i in 0..nu {
+                for (k, &s) in self.scale_v.iter().enumerate() {
+                    pairs.push((i * nv + k, i * nv + k + 1, s));
+                }
+            }
+        }
+        pairs
+            .into_iter()
+            .map(|(i0, i1, scale)| {
+                let (p0, p1) = (*self.pts.get(i0)?, *self.pts.get(i1)?);
+                let (w0, w1) = (*self.wts.get(i0)?, *self.wts.get(i1)?);
+                Some(PairTerm {
+                    scale,
+                    lever: core::array::from_fn(|k| w1 * (p1[k] - p0[k])),
+                    dw: w1 - w0,
+                    p0,
+                })
+            })
+            .collect()
+    }
+
+    /// The hull of the block's weights, which holds the weight function
+    /// over the block's region; `None` for an empty block.
+    fn weight_hull(&self) -> Option<Interval> {
+        self.wts.iter().copied().reduce(Interval::hull)
+    }
+
+    /// The weight hull and its lower end, the divisor every chart norm
+    /// reads; `None` unless the hull is certified positive.
+    fn weight_floor(&self) -> Option<(Interval, Interval)> {
+        let w = self.weight_hull()?;
+        (w.is_certified() && w.lo() > 0.0).then(|| (w, Interval::point(w.lo())))
+    }
+
+    /// The block's first point `c` and the offsets `P_j − c` that
+    /// `S − c` must range over for `terms`: only the zero offset when no
+    /// term reads `S` at all (every weight step an exact zero, as on a
+    /// polynomial net, and every point certified, so no refusal is
+    /// skipped).
+    fn s_offsets(&self, terms: &[&[PairTerm]]) -> Option<([Interval; 3], Vec<[Interval; 3]>)> {
+        let c = *self.pts.first()?;
+        let flat = terms
+            .iter()
+            .flat_map(|t| t.iter())
+            .all(|t| t.dw.is_certified() && t.dw.lo() == 0.0 && t.dw.hi() == 0.0)
+            && self.pts.iter().flatten().all(|x| x.is_certified());
+        if flat {
+            return Some((c, vec![[Interval::point(0.0); 3]]));
+        }
+        let qs: Vec<[Interval; 3]> = self
+            .pts
+            .iter()
+            .map(|p| core::array::from_fn(|k| p[k] - c[k]))
+            .collect();
+        Some((c, qs))
+    }
+
+    /// An upper bound on `‖S_d‖` over the block's region, read from the
+    /// norms of the quotient numerator's vector terms over the weight
+    /// function's lower bound, rounded outward; `NaN` when the weight
+    /// hull is not positive or a read refuses.
+    ///
+    /// Each [`PairTerm`] is affine in `S`, and `S` lies in the convex
+    /// hull of the block's points, so a term's norm, being convex in
+    /// `S`, is largest at one of those points: `max ‖term(P_j)‖` over
+    /// the pairs and the points is the numerator's norm bound with no
+    /// box in it, and a rigid map carries every `term(P_j)` to its image.
+    /// In real arithmetic it is never above the norm of the box
+    /// [`CellNet::derivative_box`] reads, which holds every `term(P_j)`.
+    /// The terms are divided by the weight's lower bound before any norm
+    /// squares them, so a subnormal weight's products are not squared
+    /// away, and the maximum is read through [`pair_norm_sup`].
+    fn derivative_norm_sup(&self, along_u: bool) -> f64 {
+        let Some((terms, (_, floor))) = self.pair_terms(along_u).zip(self.weight_floor()) else {
+            return f64::NAN;
+        };
+        let Some((c, qs)) = self.s_offsets(&[&terms]) else {
+            return f64::NAN;
+        };
+        // Divided after scaling: `scale / floor` alone overflows on a
+        // subnormal weight, where the scaled term over it does not.
+        let ts: Vec<Affine> = terms.iter().map(|t| t.about(c).per(floor)).collect();
+        let zero = [Affine {
+            k: [Interval::point(0.0); 3],
+            g: Interval::point(0.0),
+        }];
+        pair_norm_sup(&qs, &ts, &zero)
+    }
+
+    /// The chart probe's two readings along the chart direction
+    /// `e = (ex, ey)` over the block's region:
+    /// `(n·(S_u·ex + S_v·ey), sup ‖S_u·ex + S_v·ey‖)`, the first an
+    /// enclosure and the second an upper bound rounded outward (`NaN`
+    /// when refused).
+    ///
+    /// `S_u·ex + S_v·ey` is `(ex·N_u + ey·N_v)/w`, and since each
+    /// numerator's basis sums to one, `ex·N_u + ey·N_v` is a convex
+    /// combination of `ex·a(S) + ey·b(S)` over every `u` pair term `a`
+    /// and `v` pair term `b`. Each is affine in `S`, so `n·` of it is
+    /// extreme, and its norm largest, at one of the block's points: both
+    /// readings are read from the vectors `ex·a(P_j) + ey·b(P_j)` alone,
+    /// and a rigid map that carries `n` with the wall moves them by
+    /// their rounding width.
+    fn transverse_readings(&self, n: [Interval; 3], ex: Interval, ey: Interval) -> (Interval, f64) {
+        let (Some(tu), Some(tv), Some((w, floor))) = (
+            self.pair_terms(true),
+            self.pair_terms(false),
+            self.weight_floor(),
+        ) else {
+            return (Interval::refused(), f64::NAN);
+        };
+        let Some((c, qs)) = self.s_offsets(&[&tu, &tv]) else {
+            return (Interval::refused(), f64::NAN);
+        };
+        let side = |terms: &[PairTerm], e: Interval| -> Vec<Affine> {
+            terms.iter().map(|t| t.about(c).times(e)).collect()
+        };
+        let (au, bv) = (side(&tu, ex), side(&tv, ey));
+        // Each term's `n·` is affine in the scalar `d = n·(S − c)`:
+        // `n·k − g·d`. At one `S` the pairs' range is the sum of each
+        // side's, so its top, `maxᵢ(n·aᵢ) + maxⱼ(n·bⱼ)`, is convex in `d`
+        // and its bottom concave: over the block's points both are
+        // extreme at the ends of the hull of their `d`, where they are
+        // read.
+        let dots = |a: &[Affine]| -> Vec<(Interval, Interval)> {
+            a.iter().map(|t| (dot3(n, t.k), t.g)).collect()
+        };
+        let (du, dv) = (dots(&au), dots(&bv));
+        let along = qs
+            .iter()
+            .map(|q| dot3(n, *q))
+            .reduce(Interval::hull)
+            .filter(|d| d.is_certified())
+            .and_then(|d| {
+                [d.lo(), d.hi()]
+                    .into_iter()
+                    .filter_map(|end| {
+                        let d = Interval::point(end);
+                        let range = |ts: &[(Interval, Interval)]| {
+                            ts.iter().map(|&(k, g)| k - g * d).reduce(Interval::hull)
+                        };
+                        range(&du).zip(range(&dv)).map(|(a, b)| a + b)
+                    })
+                    .reduce(Interval::hull)
+            });
+        let (au, bv): (Vec<Affine>, Vec<Affine>) = (
+            au.iter().map(|a| a.per(floor)).collect(),
+            bv.iter().map(|b| b.per(floor)).collect(),
+        );
+        let sup = pair_norm_sup(&qs, &au, &bv);
+        (along.map_or_else(Interval::refused, |a| a / w), sup)
+    }
+}
+
+/// One adjacent pair's term of the quotient numerator `A_d − S·w_d`,
+/// `k·(w₁·(P₁ − P₀) + (w₁ − w₀)·(P₀ − S))` as a function of `S`: the
+/// scale `k`, the lever `w₁·(P₁ − P₀)`, the weight step `w₁ − w₀` and
+/// `P₀`.
+#[derive(Clone, Copy, Debug)]
+struct PairTerm {
+    scale: Interval,
+    lever: [Interval; 3],
+    dw: Interval,
+    p0: [Interval; 3],
+}
+
+impl PairTerm {
+    /// The term as a function of the offset `S − c`:
+    /// `k·(lever + dw·(P₀ − c)) − k·dw·(S − c)`. Every point still enters
+    /// as a difference with another.
+    fn about(&self, c: [Interval; 3]) -> Affine {
+        Affine {
+            k: core::array::from_fn(|i| {
+                (self.lever[i] + self.dw * (self.p0[i] - c[i])) * self.scale
+            }),
+            g: self.dw * self.scale,
+        }
+    }
+
+    /// The term at `S = s`: [`PairTerm::about`] `s` itself.
+    fn at(&self, s: [Interval; 3]) -> [Interval; 3] {
+        self.about(s).k
+    }
+}
+
+/// A vector affine in the offset `q = S − c`: `k − g·q`.
+#[derive(Clone, Copy, Debug)]
+struct Affine {
+    k: [Interval; 3],
+    g: Interval,
+}
+
+impl Affine {
+    fn at(&self, q: [Interval; 3]) -> [Interval; 3] {
+        core::array::from_fn(|i| self.k[i] - self.g * q[i])
+    }
+
+    fn times(&self, e: Interval) -> Self {
+        Self {
+            k: self.k.map(|x| x * e),
+            g: self.g * e,
+        }
+    }
+
+    fn per(&self, floor: Interval) -> Self {
+        Self {
+            k: self.k.map(|x| x / floor),
+            g: self.g / floor,
+        }
+    }
+}
+
+/// `max ‖x(q) + y(q)‖` over the terms `x` of `xs`, `y` of `ys` and
+/// the offsets `q`, rounded outward; `NaN` when a read refuses.
+///
+/// Every pair is screened in `f64` first ([`Centred::of_affine`], then
+/// [`screen_bound`]: an upper bound on the sum's norm from centres and
+/// radii), and only the best-screened pair, and then each pair whose
+/// screen is above the maximum read so far, is read in certification
+/// arithmetic. A pair skipped has a real norm at most that maximum, so
+/// the result is at most the full enumeration's and below it only by
+/// rounding. A screen that is `+∞` or `NaN` (an unbounded or
+/// unformable radius or centre) rules nothing out, so such a pair is
+/// read. Every input is asked for its refusal first, as the full
+/// enumeration's `norm_sup` would ask every pair.
+fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine]) -> f64 {
+    let certified = |a: &Affine| a.g.is_certified() && a.k.iter().all(|c| c.is_certified());
+    if !(xs.iter().all(certified)
+        && ys.iter().all(certified)
+        && qs.iter().flatten().all(|c| c.is_certified()))
+    {
+        return f64::NAN;
+    }
+    let xa: Vec<(Centred, Centred)> = xs.iter().map(Centred::affine_parts).collect();
+    let ya: Vec<(Centred, Centred)> = ys.iter().map(Centred::affine_parts).collect();
+    let at = |parts: &[(Centred, Centred)], q: &Centred| -> Vec<Centred> {
+        parts
+            .iter()
+            .map(|(k, g)| Centred::of_affine(k, g, q))
+            .collect()
+    };
+    let per_q: Vec<(Vec<Centred>, Vec<Centred>)> = qs
+        .iter()
+        .map(|q| {
+            let q = Centred::of(q);
+            (at(&xa, &q), at(&ya, &q))
+        })
+        .collect();
+    let screens: Vec<(f64, (usize, usize, usize))> = per_q
+        .iter()
+        .enumerate()
+        .flat_map(|(p, (cx, cy))| {
+            cx.iter().enumerate().flat_map(move |(i, a)| {
+                cy.iter()
+                    .enumerate()
+                    .map(move |(j, b)| (screen_bound(a, b), (p, i, j)))
+            })
+        })
+        .collect();
+    let norm = |(p, i, j): (usize, usize, usize)| {
+        let (x, y) = (xs[i].at(qs[p]), ys[j].at(qs[p]));
+        norm_sup(&core::array::from_fn(|k| x[k] + y[k]))
+    };
+    let Some(&(_, best)) = screens.iter().max_by(|a, b| a.0.total_cmp(&b.0)) else {
+        return f64::NAN;
+    };
+    let mut sup = norm(best);
+    for &(bound, pair) in &screens {
+        // A `NaN` screen or maximum rules nothing out.
+        let ruled_out = bound <= sup;
+        if !ruled_out && pair != best {
+            sup = max_bound(sup, norm(pair));
+        }
+    }
+    sup
+}
+
+/// An enclosure as an `f64` centre and a radius rounded up: every
+/// point of it is within the radius of the centre on each axis. A
+/// radius that overflowed reads `+∞` and one that cannot be formed
+/// reads `NaN`; [`screen_bound`] screens nothing out on either.
+#[derive(Clone, Copy)]
+struct Centred {
+    mid: [f64; 3],
+    rad: f64,
+}
+
+impl Centred {
+    /// A certified interval vector's centre and radius.
+    fn of(v: &[Interval; 3]) -> Self {
+        let mid = v.map(|c| 0.5 * c.lo() + 0.5 * c.hi());
+        let rad = (0..3)
+            .map(|k| max_bound(v[k].hi() - mid[k], mid[k] - v[k].lo()).next_up())
+            .fold(0.0, max_bound);
+        Self { mid, rad }
+    }
+
+    /// An affine term's `k` and `g` (the scalar in the first axis).
+    fn affine_parts(a: &Affine) -> (Self, Self) {
+        (Self::of(&a.k), Self::of(&[a.g, a.g, a.g]))
+    }
+
+    /// `k − g·q` from the parts' centres and radii, in `f64`. A point of
+    /// the image is within `r_k + |g_c|·r_q + r_g·(|q_c| + r_q)` of
+    /// `k_c − g_c·q_c` on each axis, and computing that centre rounds
+    /// it by at most `3u·(|k_c| + |g_c·q_c|)`; the radius is that sum
+    /// with `4ε` for the centre's rounding, enlarged by `1 + 8ε` for
+    /// its own and by the smallest normal for any subnormal step. A zero
+    /// factor is an exact zero ([`times_or_zero`]), so an unbounded offset beside
+    /// a term that does not read it adds nothing rather than `0·∞`.
+    fn of_affine(k: &Self, g: &Self, q: &Self) -> Self {
+        let (gm, gr) = (g.mid[0], g.rad);
+        let mid: [f64; 3] = core::array::from_fn(|i| k.mid[i] - times_or_zero(gm, q.mid[i]));
+        let rad = (0..3)
+            .map(|i| {
+                let qa = q.mid[i].abs();
+                k.rad
+                    + times_or_zero(gm.abs(), q.rad)
+                    + times_or_zero(gr, qa + q.rad)
+                    + 4.0 * f64::EPSILON * (k.mid[i].abs() + times_or_zero(gm.abs(), qa))
+            })
+            .fold(0.0, max_bound);
+        Self {
+            mid,
+            rad: rad * (1.0 + 8.0 * f64::EPSILON) + f64::MIN_POSITIVE,
+        }
+    }
+}
+
+/// `a·b` with a zero factor an exact zero: a bound times a factor that
+/// is exactly zero contributes nothing, whatever the bound.
+fn times_or_zero(a: f64, b: f64) -> f64 {
+    if a == 0.0 || b == 0.0 { 0.0 } else { a * b }
+}
+
+/// An upper bound on `‖x + y‖` over `x` and `y` in the two boxes,
+/// computed in `f64`: `(‖m‖ + √3·(r_x + r_y))·(1 + 32ε)`, with `m` the
+/// rounded sum of the centres. The roundings it covers — the sum of the
+/// centres (`u` relative), the three-term norm away from underflow (at
+/// most `4u`), the radius sum and its product with `√3`, and the final
+/// sum and product — total well under `32ε`. `+∞`, which screens
+/// nothing out, wherever that argument does not hold: a `NaN` or
+/// infinite centre or radius, or a norm below `1e-150` (squares near
+/// the subnormal range, which can read `0` for a centre that is not)
+/// unless the centre sum is exactly zero, or a norm above `1e150`.
+fn screen_bound(a: &Centred, b: &Centred) -> f64 {
+    const SQRT_3_UP: f64 = 1.732_050_807_568_877_4;
+    const SLACK: f64 = 1.0 + 32.0 * f64::EPSILON;
+    let m: [f64; 3] = core::array::from_fn(|k| a.mid[k] + b.mid[k]);
+    let n = m.iter().map(|c| c.powi(2)).sum::<f64>().sqrt();
+    let rad = a.rad + b.rad;
+    let zero = m.iter().all(|&c| c == 0.0);
+    if !(n.is_finite() && rad.is_finite()) || (!zero && n < 1e-150) || n > 1e150 {
+        return f64::INFINITY;
+    }
+    (n + SQRT_3_UP * rad) * SLACK
+}
+
+/// The derivative scale `degree / (t_{i+degree+1} − t_{i+1})` of each
+/// adjacent pair in a span's window, the B-spline derivative's
+/// coefficient factor (The NURBS Book Eq. 3.4).
+fn pair_scales(span: Span<'_>) -> Option<Vec<Interval>> {
+    let (p, t) = (span.degree(), span.knots().knots());
+    span.first_derived_window()
+        .map(|i| {
+            let (&lo, &hi) = t.get(i + 1).zip(t.get(i + p + 1))?;
+            let deg = Interval::point(p as f64);
+            Some(deg / (Interval::point(hi) - Interval::point(lo)))
+        })
+        .collect()
+}
+
+/// The derivative scale of a Bézier block over `[a, b]`: `degree / (b − a)`
+/// for every pair.
+fn bezier_scales(degree: usize, (a, b): (f64, f64)) -> Vec<Interval> {
+    let deg = Interval::point(degree as f64);
+    vec![deg / (Interval::point(b) - Interval::point(a)); degree]
+}
+
+/// The part of `span`'s knot interval inside `(lo, hi)`, when it is a
+/// proper part of positive width; `None` when the window covers the
+/// span whole or meets it in at most a point.
+fn inside(span: Span<'_>, (lo, hi): (f64, f64)) -> Option<(f64, f64)> {
+    let t = span.knots().knots();
+    let (&ta, &tb) = t.get(span.index()).zip(t.get(span.index() + 1))?;
+    let (a, b) = (lo.max(ta), hi.min(tb));
+    (a < b && (a > ta || b < tb)).then_some((a, b))
+}
+
+/// The Bézier coefficients over `[a, b]` of the polynomial piece that
+/// `line` (the `degree + 1` coefficients of `span`'s window) defines on
+/// that span: the blossom `f(a^{p−k}, b^k)` for each `k`, by de Boor's
+/// recurrence with the `r`-th level at its own argument. `None` when the
+/// line is not one window long or a knot read leaves the vector.
+fn bezier_on(
+    line: &[[Interval; 4]],
+    span: Span<'_>,
+    (a, b): (f64, f64),
+) -> Option<Vec<[Interval; 4]>> {
+    let (p, s, t) = (span.degree(), span.index(), span.knots().knots());
+    if line.len() != p + 1 {
+        return None;
+    }
+    (0..=p)
+        .map(|k| {
+            let mut d = line.to_vec();
+            for r in 1..=p {
+                let x = Interval::point(if r <= p - k { a } else { b });
+                for i in (r..=p).rev() {
+                    // `s ≥ p` (the span's invariant), so `s + i − p` and
+                    // `s + i + 1 − r` are in the window's knot range.
+                    let (&lo, &hi) = t.get(s + i - p).zip(t.get(s + i + 1 - r))?;
+                    let lo = Interval::point(lo);
+                    let alpha = (x - lo) / (Interval::point(hi) - lo);
+                    let (d0, d1) = (d[i - 1], d[i]);
+                    d[i] = core::array::from_fn(|c| d0[c] + alpha * (d1[c] - d0[c]));
+                }
+            }
+            Some(d[p])
+        })
+        .collect()
 }
 
 fn refused_box() -> Box3 {
@@ -890,7 +1474,6 @@ mod tests {
         let certified = |b: Box3| b.x.is_certified() && b.y.is_certified() && b.z.is_certified();
         let all = |(u0, u1, v0, v1): (f64, f64, f64, f64)| {
             [
-                ("point_box", boxes.point_box(u0, u1, v0, v1)),
                 ("deriv_box u", boxes.deriv_box(u0, u1, v0, v1, true)),
                 ("deriv_box v", boxes.deriv_box(u0, u1, v0, v1, false)),
                 ("rect_box", boxes.rect_box(u0, u1, v0, v1)),
@@ -923,7 +1506,6 @@ mod tests {
         let s = multiplicity_2_patch();
         let b = NurbsBoxes::new(&s);
         let c = |x: Box3| x.x.is_certified() && x.y.is_certified() && x.z.is_certified();
-        assert!(!c(b.point_box(1.5, 1.2, 0.0, 1.0)));
         assert!(
             !c(b.rect_box(1.5, 1.2, 0.0, 1.0)),
             "rect_box clamps an inverted window to a point"
@@ -931,26 +1513,13 @@ mod tests {
         assert!(!c(b.rect_box(-0.2, -0.5, 0.0, 1.0)));
     }
 
-    /// The box loops now SKIP an empty span cell instead of hulling its
-    /// control block. This pins that the skip loses nothing: the box is
-    /// exactly the hull of the control points the surviving (nonempty)
-    /// cells name — computed here from the two `Span` windows directly,
-    /// never from the loop under test.
-    ///
-    /// Exact equality is available because a hull is min/max over `f64`
-    /// points: order-independent, no rounding. That is deliberately a
-    /// stronger and cheaper claim than sampling would give — sampled
-    /// containment against this box is NOT exact, because `ders`' f64
-    /// evaluation can land an ulp outside the true control hull at a
-    /// domain edge (measured on this fixture: `S(0.55, 1).y` exceeds the
-    /// largest control `y` by 3e-16). The box bounds the real surface;
-    /// consumers pad by the certified tube radius before comparing an
-    /// evaluated point to it, and this row tests the window, not that
-    /// pad.
+    /// The derivative box SKIPS an empty span cell, and the skip never
+    /// leaves its hull unseeded: a rectangle straddling the empty cell
+    /// still reads a certified box in both directions.
     #[test]
-    fn a_skipped_empty_span_cell_removes_nothing_from_the_box() {
+    fn a_skipped_empty_span_cell_leaves_the_derivative_box_seeded() {
         let s = multiplicity_2_patch();
-        let (ku, kv) = (s.knots_u(), s.knots_v());
+        let ku = s.knots_u();
         // Anti-slack: the fixture must really present an empty cell, or
         // this row covers nothing.
         let empty: Vec<usize> = (ku.first_span()..=ku.last_span())
@@ -963,56 +1532,1058 @@ mod tests {
         );
         let boxes = NurbsBoxes::new(&s);
         let (u0, u1, v0, v1) = (0.2, 0.8, 0.0, 1.0);
-        let ((su0, su1), (sv0, sv1)) = boxes.cells(u0, u1, v0, v1).expect("an ordered window");
+        let (su0, su1) = boxes.cells(u0, u1, v0, v1).expect("an ordered window").u;
         assert!(
             (su0..=su1).contains(&3),
             "the rectangle must straddle the empty cell, got {su0}..={su1}"
         );
-        // The expected hull, taken off the `Span` windows themselves.
-        let nv = kv.control_count();
-        let mut expect: Option<Box3> = None;
-        for su in su0..=su1 {
-            for sv in sv0..=sv1 {
-                let (Some(a), Some(b)) = (ku.span(su), kv.span(sv)) else {
-                    continue;
-                };
-                for iu in a.window() {
-                    for iv in b.window() {
-                        let p = s.control()[iu * nv + iv];
-                        let one = Box3::between(p, p);
-                        expect = Some(match expect {
-                            None => one,
-                            Some(acc) => acc.hull(one),
-                        });
-                    }
-                }
-            }
-        }
-        let expect = expect.expect("at least one nonempty cell");
-        let pb = boxes.point_box(u0, u1, v0, v1);
-        for (got, want, axis) in [
-            (pb.x, expect.x, "x"),
-            (pb.y, expect.y, "y"),
-            (pb.z, expect.z, "z"),
-        ] {
-            assert!(
-                got.lo().to_bits() == want.lo().to_bits()
-                    && got.hi().to_bits() == want.hi().to_bits(),
-                "{axis}: box [{}, {}] is not the surviving cells' hull [{}, {}]",
-                got.lo(),
-                got.hi(),
-                want.lo(),
-                want.hi()
-            );
-        }
-        // The derivative boxes survive the same skip — a refusal here would
-        // mean it left their hulls unseeded.
         for along_u in [true, false] {
             let d = boxes.deriv_box(u0, u1, v0, v1, along_u);
             assert!(
                 d.x.is_certified() && d.y.is_certified() && d.z.is_certified(),
                 "deriv box (along_u = {along_u}) refused across the empty cell"
             );
+        }
+    }
+
+    /// A strongly rational cubic × linear wall (weights 1.8 and 0.7 on
+    /// the inner columns), its net translated by `t` along `(1, 1, 1)`.
+    fn rational_wall(t: f64) -> NurbsSurface<f64> {
+        let ku =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
+                .expect("clamped cubic");
+        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1)
+            .expect("clamped linear");
+        let mut control = Vec::with_capacity(8);
+        for (x, y) in [(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)] {
+            control.push(Point3::new(x + t, y + t, t));
+            control.push(Point3::new(x + t, y + t, 0.8 + t));
+        }
+        let weights = vec![1.0, 1.0, 1.8, 1.8, 0.7, 0.7, 1.0, 1.0];
+        NurbsSurface::new(ku, kv, control, weights).expect("valid wall")
+    }
+
+    /// A window strictly inside one span cell of every net the rows
+    /// below build, in both directions: a cut below the span on each.
+    const INSIDE_ONE_CELL: (f64, f64, f64, f64) = (0.41, 0.43, 0.62, 0.635);
+
+    /// The translations the invariance rows read: the origin, a
+    /// building's reach and the edge of a site.
+    const TRANSLATIONS: [f64; 3] = [0.0, 100.0, 1.0e5];
+
+    /// **A rational wall's chart speeds move under a translation by
+    /// their rounding width alone, and every floor minted from them
+    /// certifies or refuses as it does at the origin.** The derivative
+    /// enclosure reads every control point as a difference with
+    /// another, so the coordinates' magnitude enters only through the
+    /// rounding of those differences: a few ulps of the translation,
+    /// scaled by the weight ratio and the knot scale. Assembled in the
+    /// absolute frame instead, this wall read about `t·|w_d|/w` too
+    /// fast (1420 at 100 m, 1.4e6 at 1e5 m), and the 1e-12 m floor
+    /// refused at 1e5 m on the width alone.
+    #[test]
+    fn a_translated_rational_wall_reads_the_origins_chart_speed_and_floors() {
+        use super::super::exhaust::{FloorKind, SweepFloor, UvRect};
+
+        let at0 = NurbsBoxes::new(&rational_wall(0.0))
+            .chart_speeds()
+            .expect("the origin wall mints");
+        let root = UvRect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        };
+        let floors = |speed: SupSpeed<f64>| {
+            [1e-16, 1e-15, 1e-13, 1e-12, 1e-9, 1e-3]
+                .map(|m| SweepFloor::chart(root, m, speed, FloorKind::Accounting).is_ok())
+        };
+        let origin_floors = floors(at0.max());
+        // Static witness, not a search: the scan straddles the floor's
+        // boundary at the origin, so "identical" below compares both arms.
+        assert!(
+            origin_floors.contains(&true) && origin_floors.contains(&false),
+            "the meter scan must reach both sides of the floor at the origin: {origin_floors:?}"
+        );
+        for t in TRANSLATIONS {
+            let got = NurbsBoxes::new(&rational_wall(t))
+                .chart_speeds()
+                .unwrap_or_else(|e| panic!("at {t} m the wall refused its chart speed: {e:?}"));
+            // The rounding width: 64 ulps of the coordinates' magnitude
+            // per unit of `k·max|Δw|/w_min` (3·1.1/0.7 on this wall).
+            let width = 64.0 * f64::EPSILON * (t + 1.05) * (3.0 * 1.1 / 0.7);
+            for (axis, s, s0) in [("u", got.u, at0.u), ("v", got.v, at0.v)] {
+                assert!(
+                    (s.get() - s0.get()).abs() <= width,
+                    "at {t} m the {axis} speed reads {} against the origin's {} \
+                     (rounding width {width:e})",
+                    s.get(),
+                    s0.get()
+                );
+            }
+            assert_eq!(
+                floors(got.max()),
+                origin_floors,
+                "at {t} m a chart floor decides differently from the origin's"
+            );
+        }
+    }
+
+    /// The chart readings a rigid map must carry: both speeds, the pads
+    /// and floor decisions minted from them, and the transversality
+    /// margin over three windows of one chart direction against the
+    /// plane normal `n`.
+    #[derive(Debug, PartialEq)]
+    struct ChartReadings {
+        speeds: [f64; 2],
+        pads: [f64; 2],
+        floors: [bool; 6],
+        margins: Vec<f64>,
+    }
+
+    /// The windows [`chart_readings`] reads the margin over: the whole
+    /// domain, a sub-rectangle across span cells, and one cut inside a
+    /// cell.
+    const MARGIN_WINDOWS: [(f64, f64, f64, f64); 3] = [
+        (0.0, 1.0, 0.0, 1.0),
+        (0.0, 0.34, 0.2, 0.55),
+        INSIDE_ONE_CELL,
+    ];
+
+    fn chart_readings(wall: &NurbsSurface<f64>, n: Vec3<f64>) -> ChartReadings {
+        use super::super::exhaust::{FloorKind, SweepFloor, UvRect};
+        let boxes = NurbsBoxes::new(wall);
+        let speeds = boxes.chart_speeds().expect("the wall mints");
+        let root = UvRect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        };
+        let (pu, pv) = speeds.pad(1e-3);
+        let n = [n.x, n.y, n.z].map(Interval::point);
+        let (tx, ty) = (1.0_f64, 0.3_f64);
+        let tangent = (tx, ty, tx.hypot(ty));
+        let margins = MARGIN_WINDOWS
+            .into_iter()
+            .map(|rect| {
+                chart_transverse_margin(&boxes, n, rect, tangent)
+                    .expect("no window is degenerate")
+                    .expect("every stretch is finite")
+            })
+            .collect();
+        ChartReadings {
+            speeds: [speeds.u.get(), speeds.v.get()],
+            pads: [pu, pv],
+            floors: [1e-16, 1e-15, 1e-13, 1e-12, 1e-9, 1e-3]
+                .map(|m| SweepFloor::chart(root, m, speeds.max(), FloorKind::Accounting).is_ok()),
+            margins,
+        }
+    }
+
+    /// Whether a rigid map moved a seated reading `a` to `b` by its
+    /// rounding width alone: a few hundred ulps of the coordinates'
+    /// `reach`, relative, times the window's `scale`.
+    fn within_rounding(a: f64, b: f64, reach: f64, scale: f64) -> bool {
+        (a - b).abs() <= 256.0 * f64::EPSILON * (1.0 + reach) * scale * a.abs().max(b.abs())
+    }
+
+    /// A rigid map of the rotation row's kind: a rotation by `angle`
+    /// about the unit `axis` through `pivot`, with the reach its
+    /// [`within_rounding`] reads.
+    fn rigid_map(
+        axis: Vec3<f64>,
+        pivot: Point3<f64>,
+        angle: f64,
+    ) -> (geom_core::Affine3<f64>, f64) {
+        let map = geom_core::Affine3::rotation_about_axis(pivot, axis.normalize(), angle);
+        (map, 2.0 * (pivot - Point3::origin()).norm() + 4.0)
+    }
+
+    /// **A rigid map moves a wall's chart readings by their rounding
+    /// width alone, and every floor and tube decision minted from them
+    /// stands as it does seated.** Each reading is a norm or a dot with
+    /// the plane normal of a vector built from differences of control
+    /// points, and a rigid map carries each such vector to its image, so
+    /// only the rounding of the image's coordinates enters: a few hundred
+    /// ulps of the coordinates' reach, relative, scaled up on a window by
+    /// the cut's `1 / width` (a cut net's differences are divided by the
+    /// window's width, and its coordinates round at the reach). A norm
+    /// read off a
+    /// per-coordinate box would move by up to √3 instead (5.88 to 8.20
+    /// over 32 maps of the 1.8 / 0.7 wall's `u` speed).
+    #[test]
+    fn a_rigidly_mapped_wall_reads_the_seated_chart_speeds_floors_and_tube() {
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("enclose::rigid_map_chart_readings");
+        let mut walls = vec![
+            ("rational wall", rational_wall(0.0)),
+            ("two-span patch", multiplicity_2_patch()),
+        ];
+        walls.extend(varied_nets());
+        let n0 = Vec3::new(0.2, -0.5, 0.84).normalize();
+        let seated: Vec<ChartReadings> = walls.iter().map(|(_, w)| chart_readings(w, n0)).collect();
+        // Static witness, not a search: the margin rows compare a
+        // nonzero reading on some seated wall.
+        assert!(
+            seated.iter().any(|r| r.margins.iter().any(|&m| m > 0.0)),
+            "some seated margin must be zero-free: {seated:?}"
+        );
+        let window_scale = MARGIN_WINDOWS.map(|(u0, u1, v0, v1)| 1.0 / (u1 - u0).min(v1 - v0));
+        for _ in 0..fuzz::scaled(32) {
+            let axis = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            let pivot = Point3::new(
+                rng.range(-10.0, 10.0),
+                rng.range(-10.0, 10.0),
+                rng.range(-10.0, 10.0),
+            );
+            let angle = rng.range(0.0, core::f64::consts::TAU);
+            let (map, reach) = rigid_map(axis, pivot, angle);
+            for ((name, wall), at) in walls.iter().zip(&seated) {
+                let image = chart_readings(
+                    &wall.map_points(|p| map.transform_point(p)),
+                    map.linear * n0,
+                );
+                let pairs = at
+                    .speeds
+                    .iter()
+                    .zip(&image.speeds)
+                    .chain(at.pads.iter().zip(&image.pads))
+                    .map(|(&a, &b)| (a, b, 1.0))
+                    .chain(
+                        at.margins
+                            .iter()
+                            .zip(&image.margins)
+                            .zip(window_scale)
+                            .map(|((&a, &b), k)| (a, b, k)),
+                    );
+                for (a, b, scale) in pairs {
+                    assert!(
+                        within_rounding(a, b, reach, scale),
+                        "{name}: a rigid map about {axis:?} through {pivot:?} by {angle} moved \
+                         a chart reading {a} to {b}: seated {at:?}, mapped {image:?} — {}",
+                        fuzz::replay()
+                    );
+                }
+                assert_eq!(
+                    image.floors,
+                    at.floors,
+                    "{name}: a chart floor decides differently under the map about {axis:?} \
+                     by {angle} — {}",
+                    fuzz::replay()
+                );
+            }
+        }
+    }
+
+    /// **The rotation row goes red on a per-coordinate fold.** The
+    /// mutation of the reading the row pins: the outward norm of the
+    /// derivative box (and of the transverse stretch's box), the fold
+    /// the chart readings took before. Under two written-down rotations
+    /// of the 1.8 / 0.7 wall the fold moves far past
+    /// [`within_rounding`] while [`NurbsBoxes::speed_sup`] and the
+    /// transverse stretch stay inside it, so the row's comparator tells
+    /// the two apart on these maps alone. The `v` fold stays too: that
+    /// field keeps one direction, and a box of one direction scaled by
+    /// an interval reads the same norm in any frame.
+    #[test]
+    fn the_rotation_row_reads_red_on_a_per_coordinate_fold() {
+        let tangent: (f64, f64) = (1.0, 0.3);
+        let tn = tangent.0.hypot(tangent.1);
+        let (ex, ey) = (
+            Interval::point(-tangent.1 / tn),
+            Interval::point(tangent.0 / tn),
+        );
+        let n = Vec3::new(0.2, -0.5, 0.84).normalize();
+        let whole = (0.0, 1.0, 0.0, 1.0);
+        // `[fold u, fold v, fold stretch, speed u, speed v, stretch]`.
+        let readings = |wall: &NurbsSurface<f64>, n: Vec3<f64>| {
+            let boxes = NurbsBoxes::new(wall);
+            let fold = |b: Box3| norm_sup(&[b.x, b.y, b.z]);
+            let (du, dv) = (
+                boxes.deriv_box(0.0, 1.0, 0.0, 1.0, true),
+                boxes.deriv_box(0.0, 1.0, 0.0, 1.0, false),
+            );
+            let fold_stretch = fold(Box3 {
+                x: du.x * ex + dv.x * ey,
+                y: du.y * ex + dv.y * ey,
+                z: du.z * ex + dv.z * ey,
+            });
+            let n = [n.x, n.y, n.z].map(Interval::point);
+            [
+                fold(du),
+                fold(dv),
+                fold_stretch,
+                boxes.speed_sup(0.0, 1.0, 0.0, 1.0, true),
+                boxes.speed_sup(0.0, 1.0, 0.0, 1.0, false),
+                boxes.transverse_readings(whole, n, ex, ey).1,
+            ]
+        };
+        let wall = rational_wall(0.0);
+        let seated = readings(&wall, n);
+        for (axis, pivot, angle) in [
+            (
+                Vec3::new(0.0, 0.0, 1.0),
+                Point3::origin(),
+                core::f64::consts::FRAC_PI_4,
+            ),
+            (Vec3::new(1.0, 1.0, 1.0), Point3::new(3.0, -2.0, 5.0), 1.0),
+        ] {
+            let (map, reach) = rigid_map(axis, pivot, angle);
+            let image = readings(&wall.map_points(|p| map.transform_point(p)), map.linear * n);
+            let moved: Vec<bool> = seated
+                .iter()
+                .zip(&image)
+                .map(|(&a, &b)| !within_rounding(a, b, reach, 1.0))
+                .collect();
+            assert_eq!(
+                moved,
+                [true, false, true, false, false, false],
+                "about {axis:?} by {angle}: which readings moved past the rounding width \
+                 (fold u, fold v, fold stretch, speed u, speed v, stretch); seated {seated:?}, \
+                 mapped {image:?}"
+            );
+        }
+    }
+
+    /// **The screened pair norm is the full enumeration's.** Random
+    /// affine terms and offsets, some with enclosures a tenth wide so the
+    /// screen's radius terms carry weight, some with near-tied terms: the
+    /// screened maximum is never above the enumeration's `norm_sup` over
+    /// every pair (it reads a subset) and never below it by more than
+    /// rounding (what it skips is bounded by what it read). One refused
+    /// coordinate anywhere refuses the read, as the enumeration does.
+    #[test]
+    fn the_screened_pair_norm_is_the_full_enumerations() {
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("enclose::screened_pair_norm");
+        let iv = |rng: &mut fuzz::Rng, scale: f64, wide: bool| {
+            let c = rng.range(-scale, scale);
+            let r = if wide {
+                rng.range(0.0, 0.1 * scale)
+            } else {
+                0.0
+            };
+            Interval::from_bounds(c - r, c + r)
+        };
+        for case in 0..fuzz::scaled(400) {
+            let wide = case % 2 == 0;
+            let tie = case % 3 == 0;
+            let affine = |rng: &mut fuzz::Rng| Affine {
+                k: core::array::from_fn(|_| iv(rng, 3.0, wide)),
+                g: iv(rng, if tie { 1e-3 } else { 2.0 }, wide),
+            };
+            let (nx, ny, nq) = (1 + rng.below(12), 1 + rng.below(12), 1 + rng.below(16));
+            let xs: Vec<Affine> = (0..nx).map(|_| affine(&mut rng)).collect();
+            let ys: Vec<Affine> = (0..ny).map(|_| affine(&mut rng)).collect();
+            let qs: Vec<[Interval; 3]> = (0..nq)
+                .map(|_| core::array::from_fn(|_| iv(&mut rng, 0.5, wide)))
+                .collect();
+            let got = pair_norm_sup(&qs, &xs, &ys);
+            let mut all = f64::NEG_INFINITY;
+            for q in &qs {
+                for x in &xs {
+                    for y in &ys {
+                        let (a, b) = (x.at(*q), y.at(*q));
+                        all = all.max(norm_sup(&core::array::from_fn(|k| a[k] + b[k])));
+                    }
+                }
+            }
+            assert!(
+                got <= all && got >= all * (1.0 - 64.0 * f64::EPSILON),
+                "case {case} (wide {wide}, tied {tie}, {nx}×{ny} terms at {nq} points): \
+                 screened {got} against the enumeration's {all} — {}",
+                fuzz::replay()
+            );
+            let mut refused = xs.clone();
+            refused[0].k[1] = Interval::refused();
+            assert!(
+                pair_norm_sup(&qs, &refused, &ys).is_nan(),
+                "case {case}: a refused coordinate must refuse the read — {}",
+                fuzz::replay()
+            );
+        }
+    }
+
+    /// The full enumeration [`pair_norm_sup`] screens: `norm_sup` of every
+    /// pair at every offset, folded keeping `NaN`.
+    fn enumerated_pair_norm(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine]) -> f64 {
+        let mut all: Option<f64> = None;
+        for q in qs {
+            for x in xs {
+                for y in ys {
+                    let (a, b) = (x.at(*q), y.at(*q));
+                    let m = norm_sup(&core::array::from_fn(|k| a[k] + b[k]));
+                    all = Some(all.map_or(m, |s| max_bound(s, m)));
+                }
+            }
+        }
+        all.unwrap_or(f64::NAN)
+    }
+
+    /// **An unbounded or unformable radius screens nothing out.** Written
+    /// down, not searched: offsets spanning the whole finite range (whose
+    /// radius overflows to `+∞`) beside terms that do not read them
+    /// (`g` exactly zero, where `0·∞` would be `NaN` and a `NaN`-dropping
+    /// fold would shrink the radius to nothing); the same with terms that
+    /// do read them; offsets near overflow; and terms whose own enclosure
+    /// is unbounded. On each the screened read must be the enumeration's:
+    /// both refused, or the screened one at most the enumeration's and
+    /// below it only by rounding.
+    #[test]
+    fn an_unbounded_radius_screens_nothing_out() {
+        let iv = Interval::from_bounds;
+        let pt = Interval::point;
+        let zero = Affine {
+            k: [pt(0.0); 3],
+            g: pt(0.0),
+        };
+        let big = f64::MAX;
+        let whole = [[iv(-big, big); 3]];
+        let near = [[iv(-big / 4.0, big / 4.0); 3], [pt(0.0); 3]];
+        let wide_k = Affine {
+            k: [iv(-10.0, 10.0), pt(0.0), pt(0.0)],
+            g: pt(0.0),
+        };
+        let unit_k = Affine {
+            k: [pt(1.0), pt(0.0), pt(0.0)],
+            g: pt(0.0),
+        };
+        let reads_q = Affine {
+            k: [pt(1.0), pt(0.0), pt(0.0)],
+            g: pt(1e-300),
+        };
+        let unbounded_k = Affine {
+            k: [iv(-big, big), pt(0.0), pt(0.0)],
+            g: pt(0.0),
+        };
+        type Case<'a> = (&'a str, &'a [[Interval; 3]], Vec<Affine>);
+        let cases: [Case<'_>; 5] = [
+            (
+                "whole-range offsets, terms that do not read them",
+                &whole,
+                vec![wide_k, unit_k],
+            ),
+            ("the same, the wide term last", &whole, vec![unit_k, wide_k]),
+            (
+                "whole-range offsets, a term that reads them",
+                &whole,
+                vec![unit_k, reads_q],
+            ),
+            (
+                "offsets near overflow",
+                &near,
+                vec![unit_k, wide_k, reads_q],
+            ),
+            ("an unbounded term", &near, vec![unit_k, unbounded_k]),
+        ];
+        for (name, qs, xs) in cases {
+            let got = pair_norm_sup(qs, &xs, &[zero]);
+            let all = enumerated_pair_norm(qs, &xs, &[zero]);
+            assert!(
+                (got.is_nan() && all.is_nan())
+                    || (got <= all && got >= all * (1.0 - 64.0 * f64::EPSILON)),
+                "{name}: screened {got} against the enumeration's {all}"
+            );
+        }
+    }
+
+    /// `a + b` exactly, as an unevaluated sum.
+    fn two_sum(a: f64, b: f64) -> (f64, f64) {
+        let s = a + b;
+        let v = s - a;
+        (s, (a - (s - v)) + (b - v))
+    }
+
+    /// `a·b` exactly, as an unevaluated sum.
+    fn two_prod(a: f64, b: f64) -> (f64, f64) {
+        let p = a * b;
+        (p, a.mul_add(b, -p))
+    }
+
+    /// The sign of `Σ terms` read in double-double, with anything within
+    /// `1e-28` of the largest term's magnitude called zero: far below
+    /// the one-ulp misses the checks below are built to see.
+    fn dd_sign(terms: &[f64]) -> core::cmp::Ordering {
+        let (mut hi, mut lo) = (0.0_f64, 0.0_f64);
+        for &t in terms {
+            let (s, e) = two_sum(hi, t);
+            hi = s;
+            lo += e;
+        }
+        let total = hi + lo;
+        let scale = terms.iter().fold(0.0_f64, |m, t| m.max(t.abs()));
+        if total.abs() <= 1e-28 * scale {
+            core::cmp::Ordering::Equal
+        } else {
+            total.total_cmp(&0.0)
+        }
+    }
+
+    /// **The `f64` screen's centres, radii and bound hold against exact
+    /// arithmetic.** Random enclosures over magnitudes from `1e-100` to
+    /// `1e100`, with near-tie cases (the bound's own rounding the only
+    /// margin):
+    ///
+    /// * [`Centred::of`]: both ends of every axis lie within the radius
+    ///   of the centre, checked exactly;
+    /// * [`Centred::of_affine`]: every corner `k − g·q` of the three
+    ///   enclosures (the extremes of a bilinear form), formed exactly
+    ///   with a fused multiply, lies within its radius of its centre;
+    /// * [`screen_bound`]: its square is at least the exact squared norm
+    ///   of the far corner of the two boxes' sum, `Σ(|m_k| + r)²`, with
+    ///   the centres' sum formed exactly.
+    ///
+    /// What a pure-`f64` row can and cannot see: dropping the screen's
+    /// `1 + 32ε`, `Centred::of`'s rounding up, or the screen's refusal
+    /// of a nonzero centre whose norm underflows to `0` goes red here
+    /// (the mutations were run). [`Centred::of_affine`]'s `1 + 8ε` and its
+    /// smallest-normal term sit beside a `4ε` centre term that already
+    /// covers the rounding they guard on every normal-range input, so
+    /// dropping either one alone stays green: they guard against the
+    /// radius sum's own rounding, which this row cannot isolate.
+    #[test]
+    fn the_screen_holds_against_exact_arithmetic() {
+        use core::cmp::Ordering::Less;
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("enclose::screen_exact");
+        let mag = |rng: &mut fuzz::Rng| {
+            let m = 10f64.powf(rng.range(-100.0, 100.0));
+            if rng.below(2) == 0 { m } else { -m }
+        };
+        for case in 0..fuzz::scaled(4000) {
+            let tie = case % 3 == 0;
+            // Components whose squares underflow to zero: a norm that
+            // reads `0` for a centre that is not.
+            let tiny = case % 7 == 0;
+            let scale = 10f64.powf(rng.range(-100.0, 100.0));
+            let side = |rng: &mut fuzz::Rng| {
+                if tiny {
+                    return Interval::point(rng.range(-1.0, 1.0) * 1e-165);
+                }
+                let c = if tie {
+                    scale * rng.range(0.5, 1.0)
+                } else {
+                    mag(rng)
+                };
+                match case % 4 {
+                    0 => Interval::point(c),
+                    1 => Interval::from_bounds(c - c.abs() * 1e-17, c + c.abs() * 1e-17),
+                    // Ends of unrelated magnitude, where `hi − mid` rounds.
+                    2 => {
+                        let d = mag(rng);
+                        Interval::from_bounds(c.min(d), c.max(d))
+                    }
+                    _ => {
+                        let r = c.abs() * rng.range(0.0, 0.5);
+                        Interval::from_bounds(c - r, c + r)
+                    }
+                }
+            };
+            let k: [Interval; 3] = core::array::from_fn(|_| side(&mut rng));
+            let g = if tiny {
+                Interval::point(0.0)
+            } else {
+                side(&mut rng)
+            };
+            let q: [Interval; 3] = core::array::from_fn(|_| side(&mut rng));
+            if !(k.iter().chain(&q).all(|c| c.is_certified()) && g.is_certified()) {
+                continue;
+            }
+            let (ck, cg, cq) = (Centred::of(&k), Centred::of(&[g, g, g]), Centred::of(&q));
+            for (v, c) in [(&k, &ck), (&q, &cq)] {
+                for (i, (vi, mid)) in v.iter().zip(c.mid).enumerate() {
+                    for end in [vi.lo(), vi.hi()] {
+                        let (d, e) = two_sum(end, -mid);
+                        assert!(
+                            dd_sign(&[c.rad, -d.abs(), -e * d.signum()]) != Less,
+                            "case {case}: end {end} of axis {i} is outside {:?} ± {} — {}",
+                            c.mid,
+                            c.rad,
+                            fuzz::replay()
+                        );
+                    }
+                }
+            }
+            let img = Centred::of_affine(&ck, &cg, &cq);
+            for i in 0..3 {
+                for kv in [k[i].lo(), k[i].hi()] {
+                    for gv in [g.lo(), g.hi()] {
+                        for qv in [q[i].lo(), q[i].hi()] {
+                            let (p, pe) = two_prod(gv, qv);
+                            let (d, de) = two_sum(kv, -p);
+                            let (d2, de2) = two_sum(d, -img.mid[i]);
+                            let lo_part = de - pe + de2;
+                            let sign = if d2 + lo_part < 0.0 { -1.0 } else { 1.0 };
+                            assert!(
+                                dd_sign(&[img.rad, -sign * d2, -sign * de, sign * pe, -sign * de2])
+                                    != Less,
+                                "case {case}: corner k {kv} − g {gv}·q {qv} on axis {i} is \
+                                 outside {} ± {} — {}",
+                                img.mid[i],
+                                img.rad,
+                                fuzz::replay()
+                            );
+                        }
+                    }
+                }
+            }
+            let other = if tiny {
+                Centred {
+                    mid: [0.0; 3],
+                    rad: 0.0,
+                }
+            } else {
+                Centred::of(&core::array::from_fn(|_| side(&mut rng)))
+            };
+            let bound = screen_bound(&img, &other);
+            if !bound.is_finite() {
+                continue;
+            }
+            // Scaled up by an exact power of two so no square below
+            // underflows: the comparison is homogeneous.
+            let top = img
+                .mid
+                .iter()
+                .chain(&other.mid)
+                .chain([&img.rad, &other.rad, &bound])
+                .fold(0.0_f64, |m, x| m.max(x.abs()));
+            let up = if top > 0.0 && top < 1.0 {
+                2f64.powi(-(top.log2().floor() as i32))
+            } else {
+                1.0
+            };
+            let (b2, b2e) = two_prod(bound * up, bound * up);
+            let (r, re) = two_sum(img.rad * up, other.rad * up);
+            let mut terms = vec![b2, b2e];
+            for i in 0..3 {
+                let (m, me) = two_sum(img.mid[i] * up, other.mid[i] * up);
+                let (a, ae) = two_sum(m.abs(), r);
+                let ae = ae + me * m.signum() + re;
+                let (s, se) = two_prod(a, a);
+                terms.extend([-s, -se, -2.0 * a * ae]);
+            }
+            assert!(
+                dd_sign(&terms) != Less,
+                "case {case}: the screen {bound} is below the far corner of {:?} ± {} \
+                 plus {:?} ± {} — {}",
+                img.mid,
+                img.rad,
+                other.mid,
+                other.rad,
+                fuzz::replay()
+            );
+        }
+    }
+
+    /// A net of degree `pu × pv` over the given clamped knots: a curved
+    /// sheet, with weights `1 + spread·((3i + 2j) mod 5 − 2)/2`, so
+    /// `spread` near 0 is nearly polynomial and larger is strongly
+    /// rational.
+    fn varied_net(
+        pu: usize,
+        ku: Vec<f64>,
+        pv: usize,
+        kv: Vec<f64>,
+        spread: f64,
+    ) -> NurbsSurface<f64> {
+        let ku = geom_core::spline::KnotVector::clamped(ku, pu).expect("clamped u");
+        let kv = geom_core::spline::KnotVector::clamped(kv, pv).expect("clamped v");
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let mut control = Vec::with_capacity(nu * nv);
+        let mut weights = Vec::with_capacity(nu * nv);
+        for iu in 0..nu {
+            for iv in 0..nv {
+                let (a, b) = (iu as f64, iv as f64);
+                control.push(Point3::new(
+                    0.4 * a + 0.05 * b * b,
+                    0.5 * b + 0.1 * a * a,
+                    0.2 * ((iu * 7 + iv * 3) % 5) as f64 - 0.3 * a,
+                ));
+                weights.push(1.0 + spread * (((3 * iu + 2 * iv) % 5) as f64 - 2.0) / 2.0);
+            }
+        }
+        NurbsSurface::new(ku, kv, control, weights).expect("valid net")
+    }
+
+    /// The nets the dominance rows read beyond the rational wall and
+    /// the two-span patch: polynomial and near-polynomial weights,
+    /// non-uniform knots, and higher degree, where the quotient's own
+    /// slack is small.
+    fn varied_nets() -> Vec<(&'static str, NurbsSurface<f64>)> {
+        let cubic_nonuniform = vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.45, 1.0, 1.0, 1.0, 1.0];
+        let quadratic_nonuniform = vec![0.0, 0.0, 0.0, 0.6, 1.0, 1.0, 1.0];
+        let quartic = vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.35, 1.0, 1.0, 1.0, 1.0, 1.0];
+        let linear = vec![0.0, 0.0, 1.0, 1.0];
+        vec![
+            (
+                "cubic × quadratic, non-uniform, polynomial",
+                varied_net(
+                    3,
+                    cubic_nonuniform.clone(),
+                    2,
+                    quadratic_nonuniform.clone(),
+                    0.0,
+                ),
+            ),
+            (
+                "cubic × quadratic, non-uniform, weights within 2% of 1",
+                varied_net(
+                    3,
+                    cubic_nonuniform.clone(),
+                    2,
+                    quadratic_nonuniform.clone(),
+                    0.02,
+                ),
+            ),
+            (
+                "cubic × quadratic, non-uniform, weights 0.7 to 1.3",
+                varied_net(3, cubic_nonuniform, 2, quadratic_nonuniform, 0.3),
+            ),
+            (
+                "quartic × linear, weights within 10% of 1",
+                varied_net(4, quartic.clone(), 1, linear.clone(), 0.1),
+            ),
+            (
+                "quartic × linear, weights 0.4 to 1.6",
+                varied_net(4, quartic, 1, linear, 0.6),
+            ),
+        ]
+    }
+
+    /// **The quotient numerator box holds the true numerator, with no
+    /// quotient slack in between.** `S_d = (A_d − S·w_d)/w`, so the
+    /// numerator at a parameter is `S_d·w`, read here from `ders` and
+    /// from the weight function evaluated as a polynomial net. Each
+    /// span cell's numerator box, assembled over that cell's own point
+    /// box, must contain it at a dense grid of the cell's parameters
+    /// (ends included, where the numerator is a single pair's term),
+    /// and so must the box assembled with `S` pinned to the sample's
+    /// own point. The slack is the f64 rounding of `ders` and of the
+    /// product.
+    #[test]
+    fn the_quotient_numerator_box_holds_the_sampled_numerator() {
+        let mut nets = varied_nets();
+        nets.push(("rational wall", rational_wall(0.0)));
+        nets.push(("two-span patch", multiplicity_2_patch()));
+        let n = 16;
+        for (name, s) in &nets {
+            // The weight function as a polynomial net: `x` carries `w`.
+            let wnet: Vec<Point3<f64>> = s
+                .weights()
+                .iter()
+                .map(|w| Point3::new(*w, 0.0, 0.0))
+                .collect();
+            let wsurf = NurbsSurface::new(
+                s.knots_u().clone(),
+                s.knots_v().clone(),
+                wnet,
+                vec![1.0; s.weights().len()],
+            )
+            .expect("the weight net");
+            let (ku, kv) = (s.knots_u(), s.knots_v());
+            for su in ku.first_span()..=ku.last_span() {
+                for sv in kv.first_span()..=kv.last_span() {
+                    let Some(win) = s.window(su, sv) else {
+                        continue;
+                    };
+                    let (ua, ub) = (ku.knots()[su], ku.knots()[su + 1]);
+                    let (va, vb) = (kv.knots()[sv], kv.knots()[sv + 1]);
+                    let net = CellNet::of_cell(win).expect("the cell's block");
+                    for along_u in [true, false] {
+                        let (num, _) = net.quotient_numerator(along_u, net.point_box());
+                        // A cell's far end belongs to the next span (`ders`
+                        // reads the span starting there), so it is sampled
+                        // only where it is the domain's end.
+                        let iu_end = if ub == ku.domain().1 { n } else { n - 1 };
+                        let jv_end = if vb == kv.domain().1 { n } else { n - 1 };
+                        for i in 0..=iu_end {
+                            for j in 0..=jv_end {
+                                let u = ua + (ub - ua) * f64::from(i) / f64::from(n);
+                                let v = va + (vb - va) * f64::from(j) / f64::from(n);
+                                let jet = s.ders(u, v);
+                                let w = wsurf.eval(u, v).x;
+                                let d = if along_u { jet.du } else { jet.dv };
+                                // The same form with `S` pinned to this
+                                // parameter's own point: no point-box slack
+                                // is left for a wrong pair term to hide in.
+                                let (thin, _) = net.quotient_numerator(
+                                    along_u,
+                                    Box3::between(jet.point, jet.point),
+                                );
+                                for (which, b) in [("cell box", num), ("S pinned", thin)] {
+                                    for (c, x) in [(b.x, d.x * w), (b.y, d.y * w), (b.z, d.z * w)] {
+                                        let slack = 32.0 * f64::EPSILON * x.abs().max(1.0);
+                                        assert!(
+                                            c.lo() - slack <= x && x <= c.hi() + slack,
+                                            "{name}: numerator ({which}, along_u = {along_u}) \
+                                             {x} at ({u}, {v}) outside [{}, {}] on cell \
+                                             ({su}, {sv})",
+                                            c.lo(),
+                                            c.hi()
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// **The derivative box dominates the true derivative, sampled
+    /// densely**, over the whole domain and over sub-rectangles, on the
+    /// rational wall and the two-span patch at every translation, and on
+    /// [`varied_nets`]: each
+    /// sampled component lies in the box, and the chart speed and the
+    /// window's [`NurbsBoxes::speed_sup`] are at least every sampled
+    /// speed. The chart probe's readings along a chart direction `e`
+    /// dominate too: `n·(S_u·e.x + S_v·e.y)` lies in their enclosure and
+    /// `‖S_u·e.x + S_v·e.y‖` is at most their stretch. The true derivative is evaluated on
+    /// the origin wall, so the samples carry no rounding of the far
+    /// coordinates. The translated net is not exactly the origin's
+    /// moved, though: each control point rounds to an ulp of `t` as it
+    /// is built, and a derivative box tight at a cell corner (one cut
+    /// below its span) reads that rounding times the knot scale and
+    /// the weight ratio. So the slack is `ders`' own f64 rounding at
+    /// the origin plus `64·ε_mach·t`.
+    #[test]
+    fn the_derivative_box_dominates_the_dense_sampled_true_derivative() {
+        let patch = multiplicity_2_patch();
+        let mut cases: Vec<(String, NurbsSurface<f64>, NurbsSurface<f64>, f64)> = TRANSLATIONS
+            .iter()
+            .map(|&t| {
+                (
+                    format!("rational wall at {t} m"),
+                    rational_wall(t),
+                    rational_wall(0.0),
+                    t,
+                )
+            })
+            .collect();
+        for t in TRANSLATIONS {
+            let shifted = patch.map_points(|p| Point3::new(p.x + t, p.y + t, p.z + t));
+            cases.push((
+                format!("two-span patch at {t} m"),
+                shifted,
+                patch.clone(),
+                t,
+            ));
+        }
+        for (name, net) in varied_nets() {
+            cases.push((name.to_string(), net.clone(), net, 0.0));
+        }
+        let n = 16;
+        let plane_n = [0.2, -0.5, 0.84];
+        let e = (-0.3 / 1.0_f64.hypot(0.3), 1.0 / 1.0_f64.hypot(0.3));
+        for (name, wall, origin, t) in &cases {
+            let slack = |x: f64| 8.0 * f64::EPSILON * x.abs().max(1.0) + 64.0 * f64::EPSILON * t;
+            let boxes = NurbsBoxes::new(wall);
+            let speeds = boxes.chart_speeds().expect("mints");
+            // The whole domain, a narrow window inside one span cell,
+            // then a 3×3 grid of sub-rectangles.
+            let mut rects = vec![(0.0, 1.0, 0.0, 1.0), INSIDE_ONE_CELL];
+            for i in 0..3 {
+                for j in 0..3 {
+                    let (a, b) = (f64::from(i) / 3.0, f64::from(j) / 3.0);
+                    rects.push((a, a + 1.0 / 3.0, b, b + 1.0 / 3.0));
+                }
+            }
+            for (u0, u1, v0, v1) in rects {
+                let du = boxes.deriv_box(u0, u1, v0, v1, true);
+                let dv = boxes.deriv_box(u0, u1, v0, v1, false);
+                let sup = [true, false].map(|along_u| boxes.speed_sup(u0, u1, v0, v1, along_u));
+                let (phi, stretch) = boxes.transverse_readings(
+                    (u0, u1, v0, v1),
+                    plane_n.map(Interval::point),
+                    Interval::point(e.0),
+                    Interval::point(e.1),
+                );
+                for i in 0..=n {
+                    for j in 0..=n {
+                        let u = u0 + (u1 - u0) * f64::from(i) / f64::from(n);
+                        let v = v0 + (v1 - v0) * f64::from(j) / f64::from(n);
+                        let jet = origin.ders(u, v);
+                        let along = jet.du * e.0 + jet.dv * e.1;
+                        let dot =
+                            plane_n[0] * along.x + plane_n[1] * along.y + plane_n[2] * along.z;
+                        assert!(
+                            phi.lo() - slack(dot) <= dot && dot <= phi.hi() + slack(dot),
+                            "{name}: n·(S_u·e.x + S_v·e.y)({u}, {v}) = {dot} outside [{}, {}] \
+                             over [{u0}, {u1}]×[{v0}, {v1}]",
+                            phi.lo(),
+                            phi.hi()
+                        );
+                        assert!(
+                            along.norm() <= stretch + slack(along.norm()),
+                            "{name}: |S_u·e.x + S_v·e.y|({u}, {v}) = {} above the stretch \
+                             {stretch} over [{u0}, {u1}]×[{v0}, {v1}]",
+                            along.norm()
+                        );
+                        for (which, b, d, s) in
+                            [("u", du, jet.du, speeds.u), ("v", dv, jet.dv, speeds.v)]
+                        {
+                            for (c, x) in [(b.x, d.x), (b.y, d.y), (b.z, d.z)] {
+                                assert!(
+                                    c.lo() - slack(x) <= x && x <= c.hi() + slack(x),
+                                    "{name}: S_{which}({u}, {v}) component {x} outside \
+                                     [{}, {}] over [{u0}, {u1}]×[{v0}, {v1}]",
+                                    c.lo(),
+                                    c.hi()
+                                );
+                            }
+                            let speed = d.norm();
+                            let window = sup[usize::from(which == "v")];
+                            assert!(
+                                speed <= s.get().min(window) + slack(speed),
+                                "{name}: |S_{which}({u}, {v})| = {speed} above the chart \
+                                 speed {} or the window's {window} over \
+                                 [{u0}, {u1}]×[{v0}, {v1}]",
+                                s.get()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// **The derivative box shrinks with its window below a span cell.**
+    /// The dome `x = s, z = t, y = −4d·s(1−s)·t(1−t)` is one quadratic
+    /// Bézier patch, so every window touches the same single cell, whose
+    /// net puts `S_u.y` in `[−2d, 2d]`. Over a window cut to
+    /// `[0.41, 0.43] × [0.62, 0.635]`, `S_u.y = −4d(1−2s)·t(1−t)` stays in
+    /// about `[−0.17d, −0.13d]`, and `S_v.y = −4d·s(1−s)(1−2t)` in about
+    /// `[0.23d, 0.25d]`: the box must hold every sampled value and keep
+    /// both zero-free, which a box read off the whole cell cannot.
+    #[test]
+    fn the_derivative_box_shrinks_with_its_window_below_a_span_cell() {
+        let d = 1.5;
+        let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+            .expect("clamped quadratic");
+        let mut control = Vec::with_capacity(9);
+        for i in 0..3u8 {
+            for j in 0..3u8 {
+                let y = if i == 1 && j == 1 { -d } else { 0.0 };
+                control.push(Point3::new(f64::from(i) / 2.0, y, f64::from(j) / 2.0));
+            }
+        }
+        let dome = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).expect("the dome");
+        let boxes = NurbsBoxes::new(&dome);
+        let (u0, u1, v0, v1) = INSIDE_ONE_CELL;
+        let du = boxes.deriv_box(u0, u1, v0, v1, true);
+        let dv = boxes.deriv_box(u0, u1, v0, v1, false);
+        assert!(
+            du.y.hi() < 0.0 && dv.y.lo() > 0.0,
+            "S_u.y in [{}, {}] and S_v.y in [{}, {}] must be zero-free over the window",
+            du.y.lo(),
+            du.y.hi(),
+            dv.y.lo(),
+            dv.y.hi()
+        );
+        let n = 8;
+        for i in 0..=n {
+            for j in 0..=n {
+                let u = u0 + (u1 - u0) * f64::from(i) / f64::from(n);
+                let v = v0 + (v1 - v0) * f64::from(j) / f64::from(n);
+                let jet = dome.ders(u, v);
+                for (which, b, x) in [("S_u.y", du.y, jet.du.y), ("S_v.y", dv.y, jet.dv.y)] {
+                    assert!(
+                        b.contains(x),
+                        "{which}({u}, {v}) = {x} outside [{}, {}]",
+                        b.lo(),
+                        b.hi()
+                    );
+                }
+            }
+        }
+    }
+
+    /// **The derivative box over a window is never wider than the whole
+    /// cells' box.** Random nets (degree 1 to 3 per axis, 1 to 3 spans,
+    /// weights 0.5 to 2, every other one constant along `v`) and random
+    /// windows from a few ulps to the whole domain, some placed far from
+    /// the origin: on every axis the box `deriv_box` reads must lie
+    /// inside the one `cell_deriv_box` reads over the same rectangle. The
+    /// cut alone is not: its recurrence rounds, and a window a few ulps
+    /// wide divides that rounding by its width.
+    #[test]
+    fn the_derivative_box_is_never_wider_than_the_whole_cells() {
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("enclose::deriv_box_within_cell_deriv_box");
+        let clamped = |rng: &mut fuzz::Rng, p: usize, spans: usize| {
+            let mut k = vec![0.0; p + 1];
+            let mut inner: Vec<f64> = (1..spans).map(|_| rng.range(0.05, 0.95)).collect();
+            inner.sort_by(f64::total_cmp);
+            k.extend(inner);
+            k.extend(vec![1.0; p + 1]);
+            geom_core::spline::KnotVector::clamped(k, p).expect("clamped")
+        };
+        for case in 0..fuzz::scaled(40) {
+            let (pu, pv) = (1 + rng.below(3), 1 + rng.below(3));
+            let (su, sv) = (1 + rng.below(3), 1 + rng.below(3));
+            let (ku, kv) = (clamped(&mut rng, pu, su), clamped(&mut rng, pv, sv));
+            let (nu, nv) = (ku.knots().len() - pu - 1, kv.knots().len() - pv - 1);
+            let far = if case % 3 == 0 { 100.0 } else { 0.0 };
+            let flat_v = case % 2 == 0;
+            let mut control = Vec::with_capacity(nu * nv);
+            let mut weights = Vec::with_capacity(nu * nv);
+            for _ in 0..nu {
+                let row = Point3::new(
+                    far + rng.range(-1.0, 1.0),
+                    far + rng.range(-1.0, 1.0),
+                    far + rng.range(-1.0, 1.0),
+                );
+                let w = rng.range(0.5, 2.0);
+                for _ in 0..nv {
+                    let p = if flat_v {
+                        row
+                    } else {
+                        Point3::new(
+                            far + rng.range(-1.0, 1.0),
+                            far + rng.range(-1.0, 1.0),
+                            far + rng.range(-1.0, 1.0),
+                        )
+                    };
+                    control.push(p);
+                    weights.push(if flat_v { w } else { rng.range(0.5, 2.0) });
+                }
+            }
+            let net = NurbsSurface::new(ku, kv, control, weights).expect("a valid net");
+            let boxes = NurbsBoxes::new(&net);
+            for _ in 0..8 {
+                let side = |rng: &mut fuzz::Rng| {
+                    let width = 10f64.powf(rng.range(-15.0, 0.0));
+                    let lo = rng.range(0.0, 1.0 - width);
+                    (lo, lo + width)
+                };
+                let ((u0, u1), (v0, v1)) = (side(&mut rng), side(&mut rng));
+                for along_u in [true, false] {
+                    let cut = boxes.deriv_box(u0, u1, v0, v1, along_u);
+                    let whole = boxes.cell_deriv_box(u0, u1, v0, v1, along_u);
+                    for (axis, c, w) in [
+                        ("x", cut.x, whole.x),
+                        ("y", cut.y, whole.y),
+                        ("z", cut.z, whole.z),
+                    ] {
+                        assert!(
+                            c.is_certified()
+                                && w.is_certified()
+                                && w.lo() <= c.lo()
+                                && c.hi() <= w.hi(),
+                            "case {case} (degrees {pu}×{pv}, flat along v: {flat_v}, at {far} m), \
+                             along_u = {along_u}, axis {axis}: [{}, {}] not inside the whole \
+                             cells' [{}, {}] over [{u0}, {u1}]×[{v0}, {v1}]; {}",
+                            c.lo(),
+                            c.hi(),
+                            w.lo(),
+                            w.hi(),
+                            fuzz::replay()
+                        );
+                    }
+                }
+            }
         }
     }
 
@@ -1048,7 +2619,7 @@ mod tests {
         for s in [sphere(), cylinder()] {
             let g = implicit_gradient_enclosure(&s, b);
             let at = implicit_gradient(&s, b.center());
-            for (i, v) in [at.x, at.y, at.z].iter().enumerate() {
+            for (i, v) in at.to_array().iter().enumerate() {
                 assert!(
                     g[i].contains(*v),
                     "{v} not in [{}, {}]",

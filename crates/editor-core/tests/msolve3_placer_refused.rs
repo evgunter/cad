@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::sync::Arc;
 
@@ -52,6 +53,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -191,7 +193,12 @@ where
         // puts the placer on the walk's chain.
         *a = crate::fixture::head_at(placer, (*a.name).clone());
     }
-    let (doc, mate) = step(doc, DocEdit::InsertNode { node });
+    let (doc, mate) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+    );
     (
         Scene {
             doc,
@@ -634,7 +641,8 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
         "{kind}"
     );
     assert!(
-        f.to_string().contains(&format!("node {:012x}", datum.0)),
+        f.to_string()
+            .contains(&format!("node {}", test_utils::refusal::tag(datum.0))),
         "and the message names that node: {f}"
     );
     // Off the chain, the datum is not poisoned by the fault: its own
@@ -694,6 +702,106 @@ fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
     );
 }
 
+/// **The derived offset refuses the value the evaluation refuses.** A
+/// negative or zero spacing, and a zero step or one past a full turn,
+/// reach the mate solve through the same operand constructor the
+/// pattern node steps by, so the fault carries the kind the twin's own
+/// evaluation raises, word for word. A mate onto copy 0 reads no step
+/// at all: the master is the identity on both roads, so its solve
+/// records no fault while the pattern itself still refuses.
+#[test]
+fn a1_a_spacing_or_step_the_evaluation_refuses_the_solve_refuses() {
+    let linear = |spacing: f64| PatternKind::Linear {
+        direction: [scl(1.0), scl(0.0), scl(0.0)],
+        spacing: len(spacing),
+    };
+    for (label, kind, class) in [
+        (
+            "msolve3-negative-spacing",
+            Rule::Plain(linear(-2.0)),
+            NodeErrorClass::NegativeSpacing,
+        ),
+        (
+            "msolve3-zero-spacing",
+            Rule::Plain(linear(0.0)),
+            NodeErrorClass::DegenerateSpacing,
+        ),
+        (
+            "msolve3-zero-step",
+            Rule::Turning(0.0),
+            NodeErrorClass::DegenerateStep,
+        ),
+        (
+            "msolve3-step-past-a-turn",
+            Rule::Turning(7.0),
+            NodeErrorClass::FullRangeStep,
+        ),
+    ] {
+        let scene = kind.scene(label, 1);
+        let f = scene.fault();
+        let (placer, refused) = carried(&f);
+        assert_eq!(placer, scene.placer, "{label}: the pattern is named: {f:?}");
+        assert_eq!(refused, scene.own_refusal(), "{label}: the twin's own kind");
+        assert_eq!(carried_class(&f), class, "{label}: {refused}");
+
+        let master = kind.scene(&format!("{label}-copy-0"), 0);
+        assert!(
+            solve(&master.doc, &master.opts(), Tol::witness())
+                .fault(master.mate)
+                .is_none(),
+            "{label}: a mate onto copy 0 reads no step"
+        );
+        assert!(
+            master.own_refusal().contains(&format!("{class:?}")),
+            "{label}: the pattern refuses on its own all the same: {}",
+            master.own_refusal()
+        );
+    }
+}
+
+/// A stepped rule [`a1_a_spacing_or_step_the_evaluation_refuses_the_solve_refuses`]
+/// mates through: a linear rule as written, or a circular one at a
+/// step about a z-axis datum the scene inserts.
+#[derive(Clone)]
+enum Rule {
+    Plain(PatternKind),
+    Turning(f64),
+}
+
+impl Rule {
+    /// The rule's scene at four copies, mated onto copy `i`.
+    fn scene(&self, label: &str, i: u32) -> Scene {
+        match self {
+            Self::Plain(kind) => patterned(label, kind.clone(), 4, i),
+            Self::Turning(step) => {
+                build(label, |doc, legs, leg_body| {
+                    let (doc, axis) = insert(
+                        doc,
+                        Node::Datum(Datum::Axis {
+                            origin: [len(0.0), len(0.0), len(0.0)],
+                            direction: [scl(0.0), scl(0.0), scl(1.0)],
+                        }),
+                    );
+                    let (doc, pattern) = insert(
+                        doc,
+                        Node::Pattern {
+                            input: legs,
+                            count: Expr::count(4),
+                            kind: PatternKind::Circular {
+                                axis,
+                                step: ang(*step),
+                            },
+                        },
+                    );
+                    let name = in_copy(pattern, i, in_part(legs, leg_body, CapEnd::End));
+                    (doc, pattern, name, vec![axis])
+                })
+                .0
+            }
+        }
+    }
+}
+
 /// **The explicit rule, measured where it can be reached.** A
 /// `Node::Pattern` carries its count as a slot, so an explicit
 /// placement list is a second spelling of the same number and the
@@ -710,14 +818,14 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
     let refused = editor_core::apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Pattern {
+            node: Box::new(Node::Pattern {
                 input: legs,
                 count: Expr::count(2),
                 kind: PatternKind::Explicit(vec![
                     Frame::IDENTITY,
                     Frame::translation([2.0, 0.0, 0.0]),
                 ]),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -810,9 +918,9 @@ fn the_placement_axis_refuses_in_its_own_voice() {
         let frame = Frame::rotate_then_translate(axis, 0.5, [1.0, 2.0, 3.0], fixture::band())?;
         Ok(editor_core::apply(
             &doc,
-            &DocEdit::SetPlacement {
-                node: instance,
-                frame,
+            &DocEdit::SetOffset {
+                instance,
+                offset: Some(editor_core::Placement::literal(&frame)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

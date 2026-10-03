@@ -53,12 +53,13 @@ Four things the guard does NOT see, named rather than summarised:
    the_material_the_tour_asserts` and the placement row below pin the
    consequences a body can show; a change that moves neither is not
    caught here.
-2. The ONE DELIBERATE difference between this scene and the tour's,
-   which is `bench_scene`'s own subject: the tour's prisms are
-   parametric where Python's are drawn from literals. The guard would
-   red if it compared recipes, and it does not compare recipes. (The
-   flat-pack's placed family used to be a second such difference; it
-   is `Node.pattern` on both sides now.)
+2. The two differences between this scene and the tour's, which are
+   `bench_scene`'s own subject: the tour's prisms are parametric where
+   Python's are drawn from literals, and the tour stands its stand on
+   a turntable gauge and sets a crate on the shelf where Python stands
+   it on the world. The guard would red if it compared recipes, and it
+   does not compare recipes. (The flat-pack's placed family used to be
+   a third such difference; it is `Node.pattern` on both sides now.)
 3. Anything in `assembly.rs` outside its constant block, `layout_doc`
    and `stand_doc` — the tour's own assertions above all.
 4. A rename or a reformat in the tour, which reds this guard as a false
@@ -97,7 +98,7 @@ from bench_scene import (
     ROOT_OFFSET_Y,
     PATTERN_COUNT,
     PATTERN_SPACING,
-    POST_CAP,
+    OWN_FACE,
     POST_HEIGHT,
     POST_SECTION,
     POST_VOLUME,
@@ -693,12 +694,13 @@ class TestNestingPastTheBound(unittest.TestCase):
         self.assertNotIn("lost sys.stderr", child.stderr)
         self.assertIn(f"deeper than {DEPTH_BOUND} documents", child.stderr)
         self.assertEqual(
-            child.stderr.count("the part's node 000000000000 failed"),
+            len(re.findall(r"the part's node [0-9a-f]{12} failed", child.stderr)),
             DEPTH_BOUND,
             "one line for the instance and one for each document above the bound",
         )
-        self.assertTrue(
-            child.stderr.rstrip().splitlines()[-1].startswith("pncad.EvaluationError: node 000000000000 failed"),
+        self.assertRegex(
+            child.stderr.rstrip().splitlines()[-1],
+            r"^pncad\.EvaluationError: InstantiatePart [0-9a-f]{12} failed",
             "the traceback ends at the refusal that was raised",
         )
 
@@ -821,6 +823,8 @@ class TestTheMemoIsObservable(CorpusCase):
         store, docs = opened()
         layout = evaluate(docs["layout"], resolver=store)
         stand = evaluate(docs["stand"], resolver=store, prior=layout)
+        shared = [n for n in stand.order() if n in layout.order()]
+        self.assertTrue(shared, "the two share an id, so the memo could have hit")
         self.assertEqual(failures(stand), {})
         self.assertEqual(stand.reused, 0, "no cross-document reuse, by construction")
         self.assertEqual(stand.recomputed, len(stand.order()))
@@ -1204,13 +1208,13 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
             "the root post's offset",
         )
         # A seat is an authored point (`mate_frame(NAME)`) or the
-        # post's cap face (`post_seat(post_top)`), read in document
-        # order.
+        # side's own head face (`MateFrame::FromFace`, the post's cap),
+        # read in document order.
         seats = re.findall(
-            r"^\s+[ab]: (?:mate_frame\((\w+)\)|(post_seat)\(post_top\)),$", stand, re.M
+            r"^\s+[ab]: (?:mate_frame\((\w+)\)|(MateFrame::FromFace)),$", stand, re.M
         )
         self.assertEqual(len(seats), 4, "the stand no longer authors exactly two mates")
-        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "post_seat": POST_CAP}
+        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "MateFrame::FromFace": OWN_FACE}
         self.assertScene(
             tuple(named[point or face] for point, face in seats),
             tuple(seat for mate in STAND_SEATS for seat in mate),

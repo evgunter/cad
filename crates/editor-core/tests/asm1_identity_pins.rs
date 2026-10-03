@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Attr, CapEnd, Dimension, DocEdit, DocParam, DocRef, DocumentId, EntityKind, MetaValue, Node,
@@ -42,6 +43,7 @@ fn exemplar(
         Node::Extrude {
             profile,
             distance: len(0.5),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = step(
@@ -113,22 +115,12 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     }];
     log_b.extend(log_a.clone());
     let loaded_a = load(
-        &save(
-            &origin,
-            &editor_core::LoggedEdit::bare_all(&log_a),
-            Tol::witness(),
-        )
-        .unwrap(),
+        &save(&origin, &log_a.to_vec(), Tol::witness()).unwrap(),
         Tol::witness(),
     )
     .unwrap();
     let loaded_b = load(
-        &save(
-            &origin,
-            &editor_core::LoggedEdit::bare_all(&log_b),
-            Tol::witness(),
-        )
-        .unwrap(),
+        &save(&origin, &log_b.to_vec(), Tol::witness()).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -280,7 +272,7 @@ fn row4_metadata_edit_moves_pin() {
         DocEdit::SetAppearanceMeta {
             name: body,
             key: "tool.example/pin-row".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
     );
     assert_ne!(content_pin(&annotated, Tol::witness()).unwrap(), before);
@@ -398,13 +390,14 @@ fn row4_doc_metadata_in_preimage_via_crafted_save() {
     );
 }
 
-/// The spec's stated `next_id` consequence (D-3 as amended; R2
-/// MINOR-3, ruled compliant): an undone INSERT moves the pin —
-/// delete never decrements the monotone counter, and the counter is
-/// document state in the include-by-default preimage. "Undo must not
-/// move pins" holds exactly for value edits (row 2b); structural
-/// insert/delete pairs leave counter residue. Documented behavior,
-/// pinned so a silent preimage change is caught in both directions.
+/// The spec's stated mint consequence (D-3 as amended; R2 MINOR-3,
+/// ruled compliant): an undone INSERT moves the pin — the insert
+/// extended the mint's chain and log, a delete takes neither back, and
+/// the mint is document state in the include-by-default preimage.
+/// "Undo must not move pins" holds exactly for value edits (row 2b);
+/// structural insert/delete pairs leave mint residue. Documented
+/// behavior, pinned so a silent preimage change is caught in both
+/// directions.
 #[test]
 fn stated_consequence_undone_insert_moves_pin() {
     let (doc, _, _) = exemplar("asm1-next-id");
@@ -426,6 +419,6 @@ fn stated_consequence_undone_insert_moves_pin() {
     assert_ne!(
         content_pin(&undone, Tol::witness()).unwrap(),
         before,
-        "counter residue pins as a new version — the spec's stated consequence"
+        "mint residue pins as a new version — the spec's stated consequence"
     );
 }

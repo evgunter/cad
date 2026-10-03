@@ -28,6 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind,
@@ -55,6 +56,7 @@ fn part_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -143,7 +145,15 @@ fn an_instances_payload_names_are_its_crossing_outers_in_record_order() {
             crossing(outers[1].clone(), part_side(body, CapEnd::End)),
         ],
     };
-    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, instance) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
 
     let node = doc.node(instance).expect("the instance is live");
     // EQUALITY, not containment: the two `inner`s are faces of a node
@@ -192,7 +202,15 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
 
     // The control: live, so the door accepts the same record — and
     // the record it accepted is the one the fixture wrote.
-    let (live, live_instance) = insert(doc.clone(), Node::instantiate_part_with(doc_ref, record()));
+    let (live, live_instance) = insert(
+        doc.clone(),
+        Node::instantiate_part_with(
+            doc_ref,
+            record(),
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
     assert_eq!(
         record_of(&live, live_instance),
         record(),
@@ -205,13 +223,19 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::instantiate_part_with(doc_ref, record()),
+            node: Box::new(Node::instantiate_part_with(
+                doc_ref,
+                record(),
+                None,
+                Some(editor_core::Placement::IDENTITY),
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => assert_eq!(
-            name, outer,
+            name.name(),
+            &outer,
             "the refusal names the crossing's `outer`, which is the reference that died"
         ),
         other => panic!("a record naming a dead node must refuse at the insert door: {other:?}"),
@@ -233,7 +257,15 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
     let record = InterfaceRecord {
         crossings: vec![crossing(from.clone(), part_side(body, CapEnd::Start))],
     };
-    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, instance) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
 
     let (rebound, _) = step(
         doc,
@@ -273,7 +305,15 @@ fn a_rebind_of_an_unrelated_name_leaves_the_record_untouched() {
     let record = InterfaceRecord {
         crossings: vec![crossing(outer.clone(), part_side(body, CapEnd::Start))],
     };
-    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, instance) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
     let before = record_of(&doc, instance);
 
     let (rebound, _) = step(
@@ -317,7 +357,15 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
     let record = InterfaceRecord {
         crossings: vec![crossing(outer.clone(), part_side(body, CapEnd::Start))],
     };
-    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, instance) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
 
     let opts = fixture::resolver::with_resolver(store);
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
@@ -332,10 +380,10 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
         .maintenance
         .iter()
         .filter_map(|row| match row {
-            Maintenance::Strand { node, name } => Some((*node, name.clone())),
-            Maintenance::Cluster(_)
+            Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
+            Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
-            | Maintenance::OrphanedDeclare { .. } => None,
+            | Maintenance::LabelDropped { .. } => None,
         })
         .collect();
     assert_eq!(
@@ -377,7 +425,15 @@ fn a_rebind_of_a_name_equal_to_an_inner_leaves_the_inner_alone() {
     let record = InterfaceRecord {
         crossings: vec![crossing(in_part(zero, body, CapEnd::End), inner.clone())],
     };
-    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, instance) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
     let before = record_of(&doc, instance);
 
     let (rebound, _) = step(
@@ -436,7 +492,15 @@ fn an_instances_record_answers_no_read_site() {
             ),
         ],
     };
-    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, instance) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
 
     let node = doc.node(instance).expect("the instance is live");
     assert!(
@@ -486,7 +550,15 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
     let record = InterfaceRecord {
         crossings: vec![crossing(outer.clone(), part_side(body, CapEnd::End))],
     };
-    let (doc, carrier) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, carrier) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
 
     let cut: std::collections::BTreeSet<RecipeNodeId> = [carrier].into_iter().collect();
     let refused = split(
@@ -506,12 +578,13 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
         panic!("the seam name is what refuses, not another precondition: {refused:?}");
     };
     assert_eq!(
-        (node, *name),
-        (carrier, outer),
+        (node, name.name()),
+        (doc.spoken(carrier), &outer),
         "the refusal names the instance and the crossing `outer` it carries"
     );
     assert_eq!(
-        missing, keeper,
+        missing,
+        doc.spoken(keeper),
         "and the node it reaches: the `InPart` argument is another document's id space, so \
          the one LOCAL node the name derives from is the kept instance"
     );
@@ -540,7 +613,15 @@ fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
     let record = InterfaceRecord {
         crossings: vec![crossing(outer, part_side(body, CapEnd::End))],
     };
-    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, instance) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
     let before = doc.order().len();
 
     let back = inline(

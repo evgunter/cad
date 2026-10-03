@@ -1,7 +1,8 @@
-//! Closed-form flux/area for the curved M2 surfaces (cylinder, cone,
-//! sphere, torus) over structurally verified iso-parameter rectangles
-//! (see [`super`] module docs for the formulation and the stored-data
-//! discipline).
+//! Closed-form flux/area for the curved M2 surfaces: a cylinder face
+//! bounded by rims and rulings in any shape, holes included (its chart
+//! Green form, [`curved_face_loops`]), and cone, sphere and torus faces
+//! over structurally verified iso-parameter rectangles (see [`super`]
+//! module docs for the formulation and the stored-data discipline).
 //!
 //! **Not everything public here serves that lane, and one item must
 //! NOT be cited by it.** This module hosts two structural predicates
@@ -28,15 +29,19 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Decide, LeveredUnitError, Margin, OrthoFrame, Point3, Real, Sign, UNIT_DIRECTION_ARM,
+    UnitVec3, UnitVec3Error, Vec3,
+};
 
-use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
+use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
+use crate::enters::OutwardNormal;
 
-/// The flux and area of a curved face from its **outer** loop (curved
-/// M2 faces carry no rings — the owning body refuses ringed curved
-/// faces before calling). Dispatches on the surface kind; `band` is
-/// the run's linear band, built once at operation entry.
+/// The flux and area of a curved face from its **outer** loop
+/// ([`curved_face_loops`] takes a cylinder face's rings too).
+/// Dispatches on the surface kind; `band` is the run's linear band,
+/// built once at operation entry.
 ///
 /// `sense` is the face's orientation BIT (`topo::Face::sense`): `true`
 /// where the surface's chart normal already points out of the
@@ -46,9 +51,13 @@ use crate::dihedral::decide;
 /// which the interior-left rule already ties to the outward normal —
 /// `revert` reverses loops and flips `sense` together, so signing
 /// those terms by the sense as well would double-count and negate the
-/// volume twice. `sense` is consumed at exactly one place, the
-/// **rimless** sphere face, for the reason [`SphereFluxSide::Sense`]'s
-/// doc states (the one home of that fact).
+/// volume twice. `sense` is consumed by the sphere faces whose radial
+/// term no rim encodes — the **rimless** face and the face bounded by
+/// a tilted circle ([`sphere_circle_loop`]) — for the reason
+/// [`SphereFluxSide::Sense`]'s doc states (the one home of that fact);
+/// the second also reads its area against the outward normal the bit
+/// gives, paired with the stored traversal as sector algebra pairs
+/// them ([`OutwardNormal::vec`]).
 ///
 /// # Errors
 ///
@@ -75,7 +84,7 @@ pub fn curved_face<T: Decide>(
             axis,
             half_angle,
             ..
-        } => cone(apex, axis, half_angle, outer, band),
+        } => cone_face_closed_form(apex, axis, half_angle, outer, band),
         Surface::Sphere {
             center,
             radius,
@@ -140,24 +149,29 @@ pub enum MaterialSign {
 /// traversal** says the material lies on — the boundary's own encoding
 /// of the orientation fact `Face::sense` (M5 S10) also encodes. Tier
 /// 3's curved check-6 arm compares the two encodings; this fn re-runs
-/// the exact sub-derivations the flux lanes consume
-/// ([`linear_rim_side`] for cylinder/cone/rim-bearing sphere,
-/// anchor-rim traversal × chart orientation for the torus) — and with
-/// each of them **the iso-rectangle premise it rests on, on all four
-/// kinds**. The torus is not exempt: its side cancels the anchor-end
-/// choice against `dv/dt` only when the two rims FLANKING the anchor
-/// meridian carry opposite `d_u`, which every corner of a rectangle
-/// gives and a reflex corner does not. All four go through the same
-/// already-length-metered
-/// named decides (`props_rim_side`, `props_rim_level`,
-/// `props_circle_axis_class`, `props_meridian_orient`, …) — no new
-/// comparand, no new margin.
+/// the exact sub-derivations the flux lanes consume:
 ///
-/// **This refuses faces it used to answer for**, and that is the
-/// point: on a domain that is not an iso-rectangle the linearly-
-/// leveled derivation returns a definite ±1 that depends on where the
-/// loop flattening started, not on the face. Gating callers treat an
-/// error as exempt, so what they get instead is an exemption.
+/// - **cylinder**: the sign of the chart Green form's area
+///   ([`cylinder_chart`], the flux's own reading), over whatever loops
+///   the caller hands in — [`boundary_material_sign_loops`] takes a
+///   face's rings too. No iso-rectangle premise: a notched or ringed
+///   wall encodes its side like a rectangle does;
+/// - **cone and rim-bearing sphere**: [`linear_rim_side`];
+/// - **torus**: anchor-rim traversal × chart orientation.
+///
+/// The last two carry **the iso-rectangle premise they rest on**. The
+/// torus is not exempt: its side cancels the anchor-end choice against
+/// `dv/dt` only when the two rims FLANKING the anchor meridian carry
+/// opposite `d_u`, which every corner of a rectangle gives and a reflex
+/// corner does not. All go through already-length-metered named decides
+/// (`props_chart_area_side`, `props_rim_side`, `props_rim_level`,
+/// `props_circle_axis_class`, `props_meridian_orient`, …).
+///
+/// **The iso arms refuse faces they used to answer for**, and that is
+/// the point: on a domain that is not an iso-rectangle the
+/// linearly-leveled derivation returns a definite ±1 that depends on
+/// where the loop flattening started, not on the face. Gating callers
+/// treat an error as exempt, so what they get instead is an exemption.
 ///
 /// The derivation is chart-generic: with `n_chart = ∂u × ∂v`, the
 /// interior-left rule makes "traversal direction on the extreme rim"
@@ -187,11 +201,7 @@ pub fn boundary_material_sign<T: Decide>(
             axis,
             radius,
             ..
-        } => {
-            let b = cylinder_boundary(origin, axis, radius, outer, band)?;
-            let (lo, hi) = min_max(&b.levels)?;
-            Ok(MaterialSign::Encoded(linear_rim_side(&b, (lo, hi), band)?))
-        }
+        } => cylinder_material_sign(origin, axis, radius, &[outer], band),
         Surface::Cone {
             apex,
             axis,
@@ -216,6 +226,12 @@ pub fn boundary_material_sign<T: Decide>(
             axis,
             ..
         } => {
+            // A face bounded by a circle tilted against the chart is
+            // no iso rectangle; its loop encodes its side the way
+            // [`sphere_circle_loop_side`] reads it.
+            if let Some(tilted) = sphere_tilted_circle(center, radius, axis, outer, band)? {
+                return sphere_circle_loop_side(center, radius, axis, outer, tilted, band);
+            }
             let (b, meridian_axes) = sphere_boundary(center, radius, axis, outer, band)?;
             let (lo, hi) = min_max(&b.levels)?;
             // The rim-only cap: the levels carry no extent, so "which
@@ -232,6 +248,7 @@ pub fn boundary_material_sign<T: Decide>(
                     "props_rim_only_extent",
                     sphere_extent_margin(lo, hi, radius),
                     band,
+                    PropsCheck::Extent,
                 )? == Sign::Zero
             {
                 return Ok(MaterialSign::Unencoded);
@@ -276,6 +293,37 @@ pub fn boundary_material_sign<T: Decide>(
         // As `curved_face`: no closed-form rim inventory for a spline
         // or for an offset description over one.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
+    }
+}
+
+/// [`boundary_material_sign`] over a face's outer loop AND its rings: a
+/// cylinder face reads its side off every loop's chart Green form, as
+/// its flux does ([`curved_face_loops`]); every other kind reads one
+/// loop, and a ringed face of another kind refuses, exempt at a gating
+/// caller.
+///
+/// # Errors
+///
+/// As [`boundary_material_sign`].
+pub fn boundary_material_sign_loops<T: Decide>(
+    surface: &Surface<T>,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    match (surface, loops) {
+        (
+            &Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            },
+            _,
+        ) => cylinder_material_sign(origin, axis, radius, loops, band),
+        (_, [outer]) => boundary_material_sign(surface, outer, band),
+        _ => Err(PropsError::NotIsoRectangle {
+            what: "a ringed curved face other than a cylinder encodes no side here",
+        }),
     }
 }
 
@@ -628,6 +676,7 @@ pub fn require_one_chart_branch<T: Decide>(
                     "props_meridian_apex",
                     Margin::norm3((apex - e.p0()).cross(dir)),
                     band,
+                    PropsCheck::Exact,
                 )? != Sign::Zero
                 {
                     continue;
@@ -675,6 +724,7 @@ pub fn require_one_chart_branch<T: Decide>(
                     "props_circle_axis_class",
                     Margin::levered(n_c.dot(axis), r_c),
                     band,
+                    PropsCheck::Inventory,
                 )? != Sign::Zero
                 {
                     continue;
@@ -834,24 +884,71 @@ fn sign_mul(a: Sign, b: Sign) -> Sign {
 }
 
 /// Funnel wrapper: classify, mapping an escalation to the typed
-/// [`PropsError::Escalated`].
+/// [`PropsError::Escalated`] under the `check` whose ending it carries.
+///
+/// `name` is the recording channel (the K stream, and
+/// `docs/predicate-dimension-audit.md`'s rows); `check` is what the
+/// decision was, which is what the refusal's recourse follows. Two
+/// arguments and not one: the same name is one check on one surface and
+/// another on another, so a table keyed by name could not say which.
+///
+/// `check` comes LAST, after the decide's own `(name, margin, band)`,
+/// because it is about the REFUSAL and not the decision — and because
+/// `tools/k-lint`'s `predicate_roster` reads a mint's margin as the
+/// funnel call's second argument, deliberately by spelling.
 fn classify<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
+    check: PropsCheck,
 ) -> Result<Sign, PropsError> {
-    decide(name, margin, band).map_err(|cause| PropsError::Escalated { cause })
+    decide(name, margin, band).map_err(|cause| PropsError::Escalated { cause, check })
 }
 
-/// Require a consistency residual to be coincident with zero.
+/// **Which premise a consistency residual checks** — the split
+/// [`require_zero`] takes at every raising site, because the two
+/// readings of a nonzero residual are not one fact and no consumer can
+/// tell them apart from the variant.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Premise {
+    /// The edge lies on the face's own surface. No valid body violates
+    /// it, so a miss is [`PropsError::OffSurface`] — a defect.
+    OnSurface,
+    /// The face's boundary is one the closed-form inventory folds. A
+    /// valid face can violate it, so a miss is
+    /// [`PropsError::NotIsoRectangle`] — a lane not built.
+    Inventory,
+}
+
+impl Premise {
+    /// The refusal a definitely-nonzero residual of this premise is.
+    fn refusal(self, what: &'static str) -> PropsError {
+        match self {
+            Self::OnSurface => PropsError::OffSurface { what },
+            Self::Inventory => PropsError::NotIsoRectangle { what },
+        }
+    }
+
+    /// The check an escalation of this residual names.
+    fn check(self) -> PropsCheck {
+        match self {
+            Self::OnSurface => PropsCheck::Exact,
+            Self::Inventory => PropsCheck::Inventory,
+        }
+    }
+}
+
+/// Require a consistency residual of `premise` to be coincident with
+/// zero.
 fn require_zero<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
+    premise: Premise,
 ) -> Result<(), PropsError> {
-    match classify(name, margin, band)? {
+    match classify(name, margin, band, premise.check())? {
         Sign::Zero => Ok(()),
-        Sign::Positive | Sign::Negative => Err(PropsError::NotIsoRectangle { what: name }),
+        Sign::Positive | Sign::Negative => Err(premise.refusal(name)),
     }
 }
 
@@ -881,7 +978,7 @@ fn sphere_extent_margin<T: Real>(lo: T, hi: T, radius: T) -> Margin<T> {
 
 /// Require a definitely-positive extent (degenerate ⇒ typed error).
 fn require_extent<T: Decide>(margin: Margin<T>, band: Band) -> Result<(), PropsError> {
-    match classify("props_face_extent", margin, band)? {
+    match classify("props_face_extent", margin, band, PropsCheck::Extent)? {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(PropsError::DegenerateFace),
     }
@@ -900,22 +997,34 @@ fn require_extent<T: Decide>(margin: Margin<T>, band: Band) -> Result<(), PropsE
 ///
 /// Together with the per-surface radius/level fit these pin the rim
 /// circle pointwise onto the surface.
+///
+/// **`premise` varies by surface and that is the point** (row 7's
+/// split). On a cylinder or a cone the only circles on the surface are
+/// its cross-sections, so these two residuals are incidence: a miss is
+/// [`PropsError::OffSurface`]. On a sphere and a torus they are not —
+/// the radius fit alone already places the circle on the surface, and
+/// these ask the further question whether it is the iso-v rim, which a
+/// sphere circle cut by an oblique plane and a torus Villarceau circle
+/// fail while lying on the surface. There a miss is the inventory's.
 fn require_rim_incidence<T: Decide>(
     w: Vec3<T>,
     n_c: Vec3<T>,
     r_c: T,
     axis: Vec3<T>,
     band: Band,
+    premise: Premise,
 ) -> Result<(), PropsError> {
     require_zero(
         "props_rim_axis_parallel",
         Margin::levered(n_c.cross(axis).norm(), r_c),
         band,
+        premise,
     )?;
     require_zero(
         "props_rim_center_on_axis",
         Margin::norm3(w - axis * w.dot(axis)),
         band,
+        premise,
     )
 }
 
@@ -1080,7 +1189,7 @@ fn level_coincides<T: Decide>(
         RimLevel::Length(_) => Margin::of(gap),
         RimLevel::Unit(..) => Margin::levered(gap, arms.level),
     };
-    Ok(classify(name, margin, band)? == Sign::Zero)
+    Ok(classify(name, margin, band, PropsCheck::Inventory)? == Sign::Zero)
 }
 
 /// How far apart two rim levels are, **in the level's own units**:
@@ -1281,6 +1390,7 @@ fn du_of_rims<T: Decide>(rims: &[Rim<T>], arms: RimArms<T>, band: Band) -> Resul
             "props_du_consistent",
             Margin::levered(g.2 - total, arms.azimuth),
             band,
+            Premise::Inventory,
         )?;
     }
     Ok(total)
@@ -1386,6 +1496,7 @@ fn rim_side<T: Decide>(
         "props_rim_side",
         rim_offset_margin(rim.level, lo, hi, arms, Sign::Positive),
         band,
+        PropsCheck::Inventory,
     )? {
         Sign::Positive => Ok(rim.d_u_sign),
         Sign::Negative => Ok(rim.d_u_sign.flip()),
@@ -1473,10 +1584,8 @@ fn rim_offset_margin<T: Real>(
 // Cylinder
 // ---------------------------------------------------------------------
 
-/// Cylinder face: rims are circles of the cylinder's radius centered
-/// on the axis; meridians are axial lines. `v = (p − origin)·axis`
-/// (meters), `Area = r·Δu·(v_hi − v_lo)`,
-/// `∮(p−o)·n_chart dA = r·Area` ⇒ flux `= s_f·r·Area + o·A⃗`.
+/// Cylinder face from its outer loop alone: [`cylinder_face`] over one
+/// loop.
 fn cylinder<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
@@ -1484,21 +1593,248 @@ fn cylinder<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let b = cylinder_boundary(origin, axis, radius, edges, band)?;
-    let (lo, hi) = min_max(&b.levels)?;
+    cylinder_face(origin, axis, radius, &[edges], band)
+}
+
+/// **A cylinder face's flux and area over ALL its loops**, in closed
+/// form, by Green's theorem on the chart ([`cylinder_chart`]).
+///
+/// `p·n = R` on the face and the chart's area element is `R du dv`, so
+/// with `A` the signed chart area the flux is `R·(R·A) + origin·A⃗` and
+/// the area `R·|A|` — `R²·(−Σ∮ v du) + origin·A⃗`, each ring summed with
+/// its own winding, no sense bit read (the traversal carries the side).
+fn cylinder_face<T: Decide>(
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<FaceContribution<T>, PropsError> {
+    let chart = cylinder_chart(origin, axis, radius, loops, band)?;
+    let mut va = Vec3::new(T::zero(), T::zero(), T::zero());
+    for edges in loops {
+        va = va + loop_vector_area(edges, origin)?;
+    }
+    let flux = radius.powi(2) * chart.area + (origin - Point3::origin()).dot(va);
+    Ok(FaceContribution {
+        flux,
+        area: radius * chart.area.abs(),
+    })
+}
+
+/// A cylinder face's signed chart area and boundary length
+/// ([`cylinder_chart`]).
+struct CylinderChart<T> {
+    /// `A = −Σ∮ v du`, in rad·m: positive exactly when the stored
+    /// traversal winds the region about the chart normal `+r̂`.
+    area: T,
+    /// The boundary's length in metres: `R·|Δu|` per rim, the length of
+    /// each ruling.
+    length: T,
+}
+
+/// **The one home of a cylinder face's chart Green form.**
+///
+/// `v du` is a global 1-form on the cylinder (the azimuth is periodic,
+/// its differential is not), so the face's signed chart area is
+/// `A = −Σ_loops ∮ v du` whatever the region's shape: a notched wall, a
+/// wall with holes, a full-period band bounded by two whole rims. A
+/// rim at level `v` traversed through `Δu` contributes `−v·Δu`; a
+/// ruling has no `du` and contributes nothing. The stored traversal is
+/// interior-left about the outward normal and the chart is right-handed
+/// about the outward radial (`∂u × ∂v = R·r̂`), so `A` is positive
+/// exactly when the outward normal is `+r̂`.
+///
+/// **Closure is checked, not assumed.** Each loop must close (every
+/// traversal end meets the next edge's start, `props_loop_closed`), and
+/// the face's loops together must wind the cylinder zero times
+/// (`Σ∮ du = 0`, `props_chart_loops_closed`): a closed face's boundary
+/// bounds it. That check catches a face handed without a ring that
+/// WINDS the cylinder (a band's second rim); a contractible ring left
+/// out leaves a closed boundary of its own and cannot be seen here —
+/// the callers hand every loop. A contractible ring wound the same way
+/// as its face refuses (`props_ring_winding`,
+/// [`require_holes_wound_against`]). That second fact is what makes the sum anchor-free, and
+/// the sum is formed against the anchor `v_m` at the middle of the
+/// face's level range — `−Σ (v − v_m)·Δu`, equal to `−Σ v·Δu` in exact
+/// arithmetic — so a short face far along the axis keeps the
+/// conditioning of `Δu·(v₁ − v₀)` instead of cancelling `v₀·Δu`
+/// against `v₁·Δu`.
+///
+/// Every edge is admitted by [`cylinder_boundary`]'s decisions (an
+/// axial line on the surface, a rim on it); the level extent must be
+/// definite, and a face with no rim bounds no area.
+fn cylinder_chart<T: Decide>(
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<CylinderChart<T>, PropsError> {
+    let mut rims = Vec::new();
+    let mut levels = Vec::new();
+    let mut length = T::zero();
+    // Per loop: its first rim's index in `rims`, and its line length.
+    let mut spans: Vec<(usize, T)> = Vec::with_capacity(loops.len());
+    for edges in loops {
+        let first_rim = rims.len();
+        let length_before = length;
+        // The carriers first: an edge off the surface, or one this
+        // closed form has no arm for, refuses as itself.
+        let b = cylinder_boundary(origin, axis, radius, edges, band)?;
+        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
+            require_zero(
+                "props_loop_closed",
+                Margin::of((e.traversal_ends().1 - next.traversal_ends().0).norm()),
+                band,
+                Premise::Inventory,
+            )?;
+            if let Curve3::Line { .. } = e.carrier {
+                length = length + (e.p1() - e.p0()).norm();
+            }
+        }
+        for rim in &b.rims {
+            let RimLevel::Length(v) = rim.level else {
+                return Err(PropsError::NotIsoRectangle {
+                    what: "a cylinder rim carried a non-length level",
+                });
+            };
+            rims.push((v, t_sign::<T>(rim.d_u_sign) * rim.dt));
+        }
+        levels.extend(b.levels);
+        spans.push((first_rim, length - length_before));
+    }
+    let (lo, hi) = min_max(&levels)?;
     require_extent(Margin::of(hi - lo), band)?;
-    // The iso-rectangle premise, before anything integrates against it
-    // (S58/#649), inside `linear_rim_side` with the side it underwrites.
-    // A rim-free wall whose meridian endpoints all sit at one level
-    // reports `DegenerateFace` (zero extent) rather than `du_of_rims`'
-    // "curved face without a rim (non-sphere)": both are typed refusals
-    // of the same input, and the second named the cause better.
-    let s_f = t_sign::<T>(linear_rim_side(&b, (lo, hi), band)?);
-    let du = du_of_rims(&b.rims, b.arms, band)?;
-    let area = radius * du * (hi - lo);
-    let va = loop_vector_area(edges, origin)?;
-    let flux = s_f * (radius * area) + (origin - Point3::origin()).dot(va);
-    Ok(FaceContribution { flux, area })
+    if rims.is_empty() {
+        return Err(PropsError::NotIsoRectangle {
+            what: "curved face without a rim (non-sphere)",
+        });
+    }
+    let winding = rims.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
+    require_zero(
+        "props_chart_loops_closed",
+        Margin::levered(winding, radius),
+        band,
+        Premise::Inventory,
+    )?;
+    let anchor = lo + (hi - lo) * T::from_f64(0.5);
+    // One loop's anchored chart area and boundary length.
+    let loop_chart = |rims: &[(T, T)], lines: T| {
+        rims.iter().fold((T::zero(), lines), |(a, l), &(v, du)| {
+            (a - (v - anchor) * du, l + radius * du.abs())
+        })
+    };
+    let (area, length) = loop_chart(&rims, length);
+    if spans.len() > 1 {
+        require_holes_wound_against(&rims, &spans, (area, length), loop_chart, radius, band)?;
+    }
+    Ok(CylinderChart { area, length })
+}
+
+/// **A contractible ring winds against its face.** A hole's boundary is
+/// traversed opposite to the region it is cut from, so a ring that does
+/// not wind the cylinder (`props_ring_contractible` Zero) must carry a
+/// chart area of the opposite sign to the face's whole
+/// (`props_ring_winding`), each metered as a mean width `2·R·A/P`. A ring
+/// wound the same way would be ADDED to the face's area, silently. A
+/// ring that winds the cylinder is a band's second rim, whose sign alone
+/// depends on the anchor: the face's zero-winding check
+/// (`props_chart_loops_closed`) is what guards it.
+fn require_holes_wound_against<T: Decide>(
+    rims: &[(T, T)],
+    spans: &[(usize, T)],
+    (area, length): (T, T),
+    loop_chart: impl Fn(&[(T, T)], T) -> (T, T),
+    radius: T,
+    band: Band,
+) -> Result<(), PropsError> {
+    let two = T::from_f64(2.0);
+    let whole = classify(
+        "props_chart_area_side",
+        Margin::over_lever(radius * area * two, length),
+        band,
+        PropsCheck::Inventory,
+    )?;
+    for (i, &(start, lines)) in spans.iter().enumerate().skip(1) {
+        let end = spans.get(i + 1).map_or(rims.len(), |&(next, _)| next);
+        let ring = &rims[start..end];
+        let winding = ring.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
+        if classify(
+            "props_ring_contractible",
+            Margin::levered(winding, radius),
+            band,
+            PropsCheck::Inventory,
+        )? != Sign::Zero
+        {
+            continue;
+        }
+        let (a, l) = loop_chart(ring, lines);
+        let side = classify(
+            "props_ring_winding",
+            Margin::over_lever(radius * a * two, l),
+            band,
+            PropsCheck::Inventory,
+        )?;
+        if side == Sign::Zero || whole == Sign::Zero || side == whole {
+            return Err(PropsError::NotIsoRectangle {
+                what: "props_ring_winding",
+            });
+        }
+    }
+    Ok(())
+}
+
+/// The material side a cylinder face's loops encode: the sign of its
+/// chart area ([`cylinder_chart`]), metered as the mean width `2·R·A/P`.
+fn cylinder_material_sign<T: Decide>(
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let chart = cylinder_chart(origin, axis, radius, loops, band)?;
+    match classify(
+        "props_chart_area_side",
+        Margin::over_lever(radius * chart.area * T::from_f64(2.0), chart.length),
+        band,
+        PropsCheck::Inventory,
+    )? {
+        Sign::Zero => Err(PropsError::DegenerateFace),
+        side => Ok(MaterialSign::Encoded(side)),
+    }
+}
+
+/// [`curved_face`] over a face's outer loop AND its rings. A cylinder
+/// face takes every loop into its chart Green form
+/// ([`cylinder_face`]); every other kind reads one loop, so a ring
+/// there is refused by the owning body before this is called.
+///
+/// # Errors
+///
+/// As [`curved_face`].
+pub fn curved_face_loops<T: Decide>(
+    surface: &Surface<T>,
+    loops: &[&[LoopEdge<T>]],
+    sense: bool,
+    band: Band,
+) -> Result<FaceContribution<T>, PropsError> {
+    match (surface, loops) {
+        (
+            &Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            },
+            _,
+        ) => cylinder_face(origin, axis, radius, loops, band),
+        (_, [outer]) => curved_face(surface, outer, sense, band),
+        _ => Err(PropsError::NotIsoRectangle {
+            what: "a ringed curved face other than a cylinder has no closed form",
+        }),
+    }
 }
 
 /// Classify a cylinder face's boundary into (rims, iso-levels) — the
@@ -1520,6 +1856,7 @@ fn cylinder_boundary<T: Decide>(
                     "props_meridian_axial",
                     Margin::levered(dir.cross(axis).norm(), e.t1 - e.t0),
                     band,
+                    Premise::OnSurface,
                 )?;
                 // Incidence: the (certified-axial) line lies on the
                 // cylinder iff one of its points does — radial distance
@@ -1530,6 +1867,7 @@ fn cylinder_boundary<T: Decide>(
                     "props_meridian_on_surface",
                     Margin::of((w0 - axis * w0.dot(axis)).norm() - radius),
                     band,
+                    Premise::OnSurface,
                 )?;
                 levels.push((e.p0() - origin).dot(axis));
                 levels.push((e.p1() - origin).dot(axis));
@@ -1544,14 +1882,20 @@ fn cylinder_boundary<T: Decide>(
                     "props_circle_axis_class",
                     Margin::levered(n_c.dot(axis), r_c),
                     band,
+                    PropsCheck::Inventory,
                 )?;
                 if s == Sign::Zero {
                     return Err(PropsError::NotIsoRectangle {
                         what: "cylinder boundary circle is not a rim",
                     });
                 }
-                require_zero("props_rim_fit", Margin::of(r_c - radius), band)?;
-                require_rim_incidence(center - origin, n_c, r_c, axis, band)?;
+                require_zero(
+                    "props_rim_fit",
+                    Margin::of(r_c - radius),
+                    band,
+                    Premise::OnSurface,
+                )?;
+                require_rim_incidence(center - origin, n_c, r_c, axis, band, Premise::OnSurface)?;
                 let v = (center - origin).dot(axis);
                 rims.push(Rim {
                     d_u_sign: rim_dir(s, e.forward),
@@ -1612,13 +1956,37 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 // Cone
 // ---------------------------------------------------------------------
 
-/// Cone face: rims are axis-centered circles of radius `|v|·sin α`;
-/// meridians are generator lines (`|dir·axis| = cos α`). `v` is the
-/// signed slant parameter `((p − apex)·axis)/cos α`; the face must not
-/// definitely span both nappes. `Area = sin α·Δu·|v_hi² − v_lo²|/2`;
-/// `(p − apex)·n_chart = 0` along generators, so the anchored term
-/// vanishes and flux `= apex·A⃗` — no orientation sign is needed.
-fn cone<T: Decide>(
+/// **A cone face's flux and area, in closed form** — no quadrature, and
+/// the one home of both for every cone face, iso-bounded or trimmed by a
+/// plane section.
+///
+/// Every point of a cone lies on a generator through the apex, and the
+/// generator lies in the tangent plane, so `(p − apex)·n = 0` on the
+/// whole face. The flux is therefore `∮ p·n dA = apex·∮ n dA = apex·A⃗`,
+/// with `A⃗` the boundary's vector area (Stokes; [`loop_vector_area`]).
+/// The normal makes the constant angle `n·axis = ∓sin α` with the axis
+/// on each nappe, so the area is `|axis·A⃗| / sin α` — for a face on ONE
+/// nappe. The traversal's winding orients `A⃗`, so no sense bit is read.
+///
+/// What admits the boundary, and decides its nappe, is per class:
+///
+/// - **Rims and generators** take the shared iso parse
+///   ([`cone_boundary`], the apex folded in): a positive extent, the
+///   rims at its extremes, one azimuth span, and the nappe read off the
+///   extent's two ends.
+/// - **A boundary with a plane-section ellipse** has no iso reading. Its
+///   nappe is read off the edges' endpoints, which bound each edge for
+///   the carriers such a face carries: a generator runs between its
+///   ends, a rim holds one height, and a plane section that is an
+///   ellipse lies on one nappe whole. A spline or spiric edge could
+///   cross the apex between its ends, so it refuses.
+///
+/// # Errors
+///
+/// The iso parse's refusals; [`PropsError::Unimplemented`] for a spline
+/// or spiric edge; [`PropsError::NappeSpanning`] for a face on both
+/// nappes; [`PropsError::Escalated`] for an in-band decision.
+pub fn cone_face_closed_form<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
     half_angle: T,
@@ -1626,48 +1994,58 @@ fn cone<T: Decide>(
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let (sin_a, cos_a) = half_angle.sin_cos();
-    // A generator-free cone boundary of rims alone carries no extent of
-    // its own: every level it touches is a rim's slant, and where those
-    // coincide the face's missing extreme is the APEX
-    // ([`cone_apex_level`], folded inside the shared parse — with its
-    // closure guard — so all three doors read the same extent).
-    let b = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
-    let (lo, hi) = min_max(&b.levels)?;
-    require_extent(Margin::of(hi - lo), band)?;
-    // The iso-rectangle premise (S58/#649). Cone levels are the signed
-    // SLANT arc length — `Length`, so bare — and the arm (the first
-    // rim's own radius) meters only the dimensionless margins
-    // downstream. The premise alone here: a cone's flux needs no `s_f`
-    // (generators run through the apex, so the anchored term
-    // vanishes), and metering a side this lane does not read would be
-    // a decide for nobody. `boundary_material_sign`'s cone arm, which
-    // DOES read one, reaches it through `linear_rim_side` and gets the
-    // premise with it.
-    require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
-    let du = du_of_rims(&b.rims, b.arms, band)?;
-    // Single-nappe check: definitely-negative low AND definitely-positive
-    // high would straddle the apex through both nappes.
-    let s_lo = classify("props_cone_nappe", Margin::of(lo), band)?;
-    let s_hi = classify("props_cone_nappe", Margin::of(hi), band)?;
+    let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
+    let (lo, hi) = if edges
+        .iter()
+        .any(|e| matches!(e.carrier, Curve3::Ellipse { .. }))
+    {
+        let mut ends = Vec::with_capacity(2 * edges.len());
+        for e in edges {
+            match e.carrier {
+                Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => {}
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
+            }
+            ends.push(slant(e.carrier.eval(e.t0)));
+            ends.push(slant(e.carrier.eval(e.t1)));
+        }
+        min_max(&ends)?
+    } else {
+        // A generator-free cone boundary of rims alone carries no extent
+        // of its own: every level it touches is a rim's slant, and where
+        // those coincide the face's missing extreme is the APEX
+        // ([`cone_apex_level`], folded inside the shared parse — with its
+        // closure guard — so every door reads the same extent).
+        let b = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
+        let (lo, hi) = min_max(&b.levels)?;
+        require_extent(Margin::of(hi - lo), band)?;
+        // The iso-rectangle premise (S58/#649), and one azimuth span.
+        require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
+        du_of_rims(&b.rims, b.arms, band)?;
+        (lo, hi)
+    };
+    // Single-nappe check: a definitely-negative low AND a
+    // definitely-positive high straddle the apex through both nappes.
+    let s_lo = classify("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?;
+    let s_hi = classify("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?;
     if s_lo == Sign::Negative && s_hi == Sign::Positive {
         return Err(PropsError::NappeSpanning);
     }
-    let half = T::from_f64(0.5);
-    let area = sin_a * du * ((hi.powi(2) - lo.powi(2)) * half).abs();
     let va = loop_vector_area(edges, apex)?;
-    let flux = (apex - Point3::origin()).dot(va);
-    Ok(FaceContribution { flux, area })
+    Ok(FaceContribution {
+        flux: (apex - Point3::origin()).dot(va),
+        area: (axis.dot(va) / sin_a).abs(),
+    })
 }
 
 /// Classify a cone face's boundary into (rims, signed slant levels) —
-/// the shared parse consumed by the flux closed form,
+/// the shared parse consumed by [`cone_face_closed_form`],
 /// [`boundary_material_sign`] and [`require_iso_rectangle`] — **with
 /// the apex folded in where the boundary needs it**
 /// ([`cone_apex_level`]).
 ///
-/// The fold lives here rather than in the flux lane because the cone's
-/// missing extreme needs no sense bit, so all three doors can and must
-/// read the SAME extent: the gate's `Encoded` side for an apex cap is
+/// The fold lives here because the cone's missing extreme needs no
+/// sense bit, so all three doors can and must read the SAME extent: the
+/// gate's `Encoded` side for an apex cap is
 /// what catches the inverted traversal at tier 3's check 6, and it can
 /// only be read against an extent the parse supplies. The sphere's
 /// pole fold is the other shape — it reads `Face::sense`, so it sits
@@ -1676,10 +2054,7 @@ fn cone<T: Decide>(
 /// **A folded extent carries its guard with it**, so there is no flag
 /// to return and no caller that can forget one: the fold refuses a rim
 /// that does not close around the apex ([`require_rim_only_closed`])
-/// rather than folding and leaving the check to whoever asked. Two of
-/// this fn's three callers did forget it — a half rim only answered
-/// `Ok(())` at the shape door and a definite `Encoded` side at the
-/// gate, for a boundary the flux lane refused.
+/// rather than folding and leaving the check to whoever asked.
 fn cone_boundary<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1699,6 +2074,7 @@ fn cone_boundary<T: Decide>(
                     "props_meridian_generator",
                     Margin::levered(dir.dot(axis).abs() - cos_a, e.t1 - e.t0),
                     band,
+                    Premise::OnSurface,
                 )?;
                 // Incidence: a line at the generator angle is a
                 // generator iff it passes through the apex — the
@@ -1708,6 +2084,7 @@ fn cone_boundary<T: Decide>(
                     "props_meridian_apex",
                     Margin::norm3((apex - e.p0()).cross(dir)),
                     band,
+                    Premise::OnSurface,
                 )?;
                 levels.push((e.p0() - apex).dot(axis) / cos_a);
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
@@ -1722,6 +2099,7 @@ fn cone_boundary<T: Decide>(
                     "props_circle_axis_class",
                     Margin::levered(n_c.dot(axis), r_c),
                     band,
+                    PropsCheck::Inventory,
                 )?;
                 if s == Sign::Zero {
                     return Err(PropsError::NotIsoRectangle {
@@ -1729,8 +2107,13 @@ fn cone_boundary<T: Decide>(
                     });
                 }
                 let v = (center - apex).dot(axis) / cos_a;
-                require_zero("props_rim_fit", Margin::of(r_c - v.abs() * sin_a), band)?;
-                require_rim_incidence(center - apex, n_c, r_c, axis, band)?;
+                require_zero(
+                    "props_rim_fit",
+                    Margin::of(r_c - v.abs() * sin_a),
+                    band,
+                    Premise::OnSurface,
+                )?;
+                require_rim_incidence(center - apex, n_c, r_c, axis, band, Premise::OnSurface)?;
                 rims.push(Rim {
                     d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
@@ -1742,10 +2125,10 @@ fn cone_boundary<T: Decide>(
             }
             Curve3::Ellipse { .. } => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: "cone boundary carries an ellipse arc (a tilted-section cut) — the \
-                           class has no cone-chart image at all (azimuth-non-harmonic, \
-                           and no ring-computable fitted certificate either), so the \
-                           quadrature lane has nothing to consume",
+                    what: "cone boundary carries an ellipse arc (a tilted-section cut) — \
+                           not a rim or a generator, so this iso parse has no reading of \
+                           it (`cone_face_closed_form` admits such a face by its \
+                           edge endpoints instead)",
                 });
             }
             // A spiric lies on no cylinder or cone: refused beside the
@@ -1803,7 +2186,13 @@ fn cone_apex_level<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let (lo, hi) = min_max(&b.levels)?;
-    if classify("props_rim_only_extent", Margin::of(hi - lo), band)? != Sign::Zero {
+    if classify(
+        "props_rim_only_extent",
+        Margin::of(hi - lo),
+        band,
+        PropsCheck::Extent,
+    )? != Sign::Zero
+    {
         return Ok(());
     }
     if unanimous_rim_dir(&b.rims).is_none() {
@@ -1974,6 +2363,9 @@ fn sphere<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    if let Some(tilted) = sphere_tilted_circle(center, radius, axis, edges, band)? {
+        return sphere_circle_loop(center, radius, axis, edges, tilted, sense, band);
+    }
     let (mut b, meridian_axes) = sphere_boundary(center, radius, axis, edges, band)?;
     // A boundary of rims alone can carry no extent of its own: every
     // level it touches is a rim latitude, and where those coincide the
@@ -2001,6 +2393,7 @@ fn sphere<T: Decide>(
                 "props_band_coplanar",
                 Margin::levered(n.cross(first).norm(), radius),
                 band,
+                PropsCheck::Inventory,
             )? != Sign::Zero
             {
                 coplanar = false;
@@ -2042,6 +2435,500 @@ fn sphere<T: Decide>(
     Ok(FaceContribution { flux, area })
 }
 
+/// Whether some boundary circle of a sphere face is neither a rim
+/// (carrier axis parallel to the sphere axis) nor a meridian great
+/// circle (axis perpendicular, centred on the sphere): a circle tilted
+/// against the chart, which no iso-parameter rectangle has on its
+/// boundary and [`sphere_circle_loop`] measures instead. Decided per
+/// circle under `props_sphere_circle_tilt` (the axis tilt metered at
+/// the circle radius) and, for an axis perpendicular to the sphere
+/// axis, `props_sphere_circle_great` (the centre offset). Non-circle
+/// edges are left to [`sphere_boundary`]'s refusal. The answer is the
+/// first such circle's index in the loop.
+fn sphere_tilted_circle<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    edges: &[LoopEdge<T>],
+    band: Band,
+) -> Result<Option<usize>, PropsError> {
+    for (i, e) in edges.iter().enumerate() {
+        let Curve3::Circle {
+            center: c_c,
+            axis: n_c,
+            radius: r_c,
+            ..
+        } = e.carrier
+        else {
+            continue;
+        };
+        if classify(
+            "props_sphere_circle_tilt",
+            Margin::levered(n_c.cross(axis).norm(), r_c),
+            band,
+            PropsCheck::Inventory,
+        )? == Sign::Zero
+        {
+            continue;
+        }
+        if classify(
+            "props_circle_axis_class",
+            Margin::levered(n_c.dot(axis), r_c),
+            band,
+            PropsCheck::Inventory,
+        )? == Sign::Zero
+            && classify(
+                "props_sphere_circle_great",
+                Margin::of((c_c - center).norm().max((r_c - radius).abs())),
+                band,
+                PropsCheck::Inventory,
+            )? == Sign::Zero
+        {
+            continue;
+        }
+        return Ok(Some(i));
+    }
+    Ok(None)
+}
+
+/// **A sphere face bounded by circle arcs of any tilt** — closed form,
+/// no chart. The radial flux term needs the face's area, and on a
+/// sphere of radius `R` Gauss–Bonnet gives it from the boundary alone:
+///
+/// ```text
+/// Area / R²  =  2π  −  Σ_arcs ∫κ_g ds  −  Σ_vertices ε
+/// ```
+///
+/// for a face whose one loop bounds a disc (the curved faces this
+/// lane reads carry no rings), with `κ_g` the geodesic curvature
+/// against the face's OUTWARD normal `N = σ·(p − c)/R` (`σ` the sense
+/// bit) and `ε` the signed turning angle at each vertex. A circle arc
+/// on the sphere has constant geodesic curvature: with carrier centre
+/// `C`, unit axis `â`, radius `ρ` and a traversal of `Δt` in the
+/// direction `s = ±1` (the `forward` bit),
+///
+/// ```text
+/// ∫κ_g ds  =  s·σ·((C − c)·â / R)·Δt
+/// ```
+///
+/// (the curvature vector of the circle is `−(p − C)/ρ²` and its
+/// component along `N × T` is `s·σ·((C − c)·â)/(ρR)`, since `p − C ⊥ â`).
+/// The turning angle at a vertex is the angle from the arriving
+/// traversal tangent to the departing one about `N` there, in
+/// `(−π, π)`; a cusp (the two antiparallel) has no turning angle and is
+/// refused, `props_sphere_loop_cusp`. Every quantity is stored data:
+/// the arcs' certified spans and carriers, nothing inverted through a
+/// chart. The flux is then `σ·R·Area + c·A⃗` as on every sphere face.
+///
+/// Verified before integrating: each edge is a circle ON the sphere —
+/// its centre offset parallel to its axis (`props_sphere_circle_on`)
+/// and its radius fitting (`props_rim_fit`) — each arc ends where the
+/// next begins (`props_sphere_loop_closed`: Gauss–Bonnet reads the loop
+/// as a closed curve, so its closure is checked here rather than
+/// trusted from the vertex tags), and the area is no degenerate one —
+/// strictly between 0 and the whole sphere (`props_sphere_loop_area`).
+/// That range check sees degeneracy only: a loop read under the wrong
+/// sense bit measures the complement `4πR² − A`, which is in range too.
+/// What reads the bit against the boundary is
+/// [`sphere_circle_loop_side`], first: where the loop encodes its side,
+/// a bit that contradicts it refuses.
+///
+/// # Errors
+///
+/// [`PropsError::SphereLoop`] naming the failed premise,
+/// [`PropsError::SenseContradicted`] for a bit the boundary contradicts,
+/// [`PropsError::Unimplemented`] for a spline or spiric edge,
+/// [`PropsError::Escalated`] in the band.
+fn sphere_circle_loop<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    edges: &[LoopEdge<T>],
+    tilted: usize,
+    sense: bool,
+    band: Band,
+) -> Result<FaceContribution<T>, PropsError> {
+    if let MaterialSign::Encoded(side) =
+        sphere_circle_loop_side(center, radius, axis, edges, tilted, band)?
+        && (side == Sign::Positive) != sense
+    {
+        return Err(PropsError::SenseContradicted);
+    }
+    let outward = |p: Point3<T>| OutwardNormal::from_chart((p - center) / radius, sense).vec();
+    let tau = T::pi() + T::pi();
+    let mut turning = T::zero();
+    // Each arc's traversal tangent and point at its start and its end,
+    // for the vertex turning angles and the loop's closure.
+    let mut ends: Vec<ArcEnds<T>> = Vec::with_capacity(edges.len());
+    for e in edges {
+        let Curve3::Circle {
+            center: c_c,
+            axis: n_c,
+            radius: r_c,
+            ..
+        } = e.carrier
+        else {
+            return Err(match e.carrier {
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
+                _ => PropsError::SphereLoop {
+                    what: "sphere boundary edge is not a circle",
+                },
+            });
+        };
+        let w = c_c - center;
+        require_on_loop(
+            "props_sphere_circle_on",
+            Margin::of(w.cross(n_c).norm()),
+            band,
+        )?;
+        require_on_loop(
+            "props_sphere_circle_fit",
+            Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
+            band,
+        )?;
+        let (p_start, p_end) = e.traversal_ends();
+        // `N·â` is the same at every point of the arc, `(C − c)·â` over
+        // `R` under the sense bit; read at the traversal start.
+        let curvature = outward(p_start).dot(n_c) * (e.t1 - e.t0);
+        turning = if e.forward {
+            turning + curvature
+        } else {
+            turning - curvature
+        };
+        let tangent = |p: Point3<T>| {
+            let d = n_c.cross(p - c_c);
+            let d = d / d.norm();
+            if e.forward { d } else { -d }
+        };
+        ends.push(ArcEnds {
+            depart: tangent(p_start),
+            from: p_start,
+            arrive: tangent(p_end),
+            at: p_end,
+        });
+    }
+    for (i, end) in ends.iter().enumerate() {
+        let next = &ends[(i + 1) % ends.len()];
+        let (arrive, at, depart) = (end.arrive, end.at, next.depart);
+        require_on_loop(
+            "props_sphere_loop_closed",
+            Margin::of((next.from - at).norm()),
+            band,
+        )?;
+        let normal = outward(at);
+        require_cusp_free(arrive, depart, radius, band)?;
+        turning = turning + normal.dot(arrive.cross(depart)).atan2(arrive.dot(depart));
+    }
+    let area = radius.powi(2) * (tau - turning);
+    match classify(
+        "props_sphere_loop_area",
+        // The smaller of the face's and its complement's solid angles,
+        // metered at the sphere radius (angle × radius, metres).
+        Margin::levered((tau - turning).min(tau + turning), radius),
+        band,
+        PropsCheck::Inventory,
+    )? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(PropsError::SphereLoop {
+                what: "props_sphere_loop_area",
+            });
+        }
+    }
+    let va = loop_vector_area(edges, center)?;
+    let flux =
+        SphereFluxSide::Sense(sense).signed(radius * area) + (center - Point3::origin()).dot(va);
+    Ok(FaceContribution { flux, area })
+}
+
+/// Require a premise of [`sphere_circle_loop`] to read zero, refusing
+/// as [`PropsError::SphereLoop`] named by the predicate.
+fn require_on_loop<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), PropsError> {
+    match classify(name, margin, band, PropsCheck::Inventory)? {
+        Sign::Zero => Ok(()),
+        Sign::Positive | Sign::Negative => Err(PropsError::SphereLoop { what: name }),
+    }
+}
+
+/// **Which side of its loop a sphere face bounded by a tilted circle
+/// lies on, read without its sense bit** — the boundary's own encoding
+/// of the side, for [`sphere_circle_loop`] and [`boundary_material_sign`]
+/// to hold the bit against.
+///
+/// A face of this kernel holds no chart singularity in its interior (a
+/// pole inside a face is a vertex of it), so the face is whichever side
+/// of its loop holds neither pole. Which side holds the north pole is
+/// read off the meridian through a point of the loop: walking down it
+/// from the pole, the FIRST crossing with the loop is where the walk
+/// leaves the pole's side, and at that crossing the loop's traversal
+/// says which side that is. `L` below is the side to the loop's left
+/// under the CHART normal — the face, if its bit is `true`.
+///
+/// 1. The meridian half-plane through a point of the `tilted` edge (a
+///    circle tilted against the chart crosses its own meridian there
+///    transversally unless the point is an azimuth extreme of it, so a
+///    fixed schedule of points is tried in order; a point at a pole is
+///    `props_sphere_side_meridian`).
+/// 2. Every edge's crossings with that half-plane, in closed form: a
+///    circle `C + ρ(cos t·û + sin t·v̂)` meets the plane `k·(p − c) = 0`
+///    where `a·cos t + b·sin t = −d`, `a = ρ k·û`, `b = ρ k·v̂`,
+///    `d = k·(C − c)` — none, a tangency, or two roots
+///    (`props_sphere_side_roots`, `√(a² + b²) − |d|` in metres). A
+///    circle in a plane parallel to the meridian's
+///    (`props_sphere_side_plane`) has none, or lies in it. Each root
+///    counts when it is inside the edge's stored span
+///    (`props_sphere_side_in_arc`, at the circle's radius) and on the
+///    half-plane's side of the axis (`props_sphere_side_half`).
+/// 3. The highest crossing (`props_sphere_side_order` between heights)
+///    and, at it, the sign of the loop's left direction against south
+///    (`props_sphere_side_enter`): entering `L` going south means the
+///    pole is not in `L`. The same from the south pole, going north.
+///
+/// The answer is `Encoded(Positive)` when the face is `L` (neither
+/// pole in it), `Encoded(Negative)` when it is the other side. A loop
+/// that passes through a pole, a crossing on a vertex or a tangency, a
+/// tie in height, an edge lying in the meridian plane, or two poles
+/// read on opposite sides answer `Unencoded`: the boundary does not say,
+/// as on the rimless band, and the bit stands alone there.
+///
+/// An in-band reading on one meridian leaves it unanswered and the
+/// next point is tried; none answering is `Unencoded`.
+///
+/// # Errors
+///
+/// [`PropsError::SphereLoop`] for a non-circle edge.
+fn sphere_circle_loop_side<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    edges: &[LoopEdge<T>],
+    tilted: usize,
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let Some(e) = edges.get(tilted) else {
+        return Ok(MaterialSign::Unencoded);
+    };
+    // A meridian through an azimuth extreme of the circle is tangent
+    // to it there, so the reading is tried at a fixed schedule of
+    // points along the edge and the first that answers is taken.
+    // An in-band reading leaves that meridian unanswered and never
+    // refuses the face: the side is a cross-check on the bit, and an
+    // unanswered one checks nothing.
+    for fraction in [0.5, 0.25, 0.75, 0.125, 0.875] {
+        let at = e.t0 + (e.t1 - e.t0) * T::from_f64(fraction);
+        match side_on_meridian(center, radius, axis, edges, e.carrier.eval(at), band) {
+            Ok(MaterialSign::Encoded(side)) => return Ok(MaterialSign::Encoded(side)),
+            Ok(MaterialSign::Unencoded) | Err(PropsError::Escalated { .. }) => {}
+            Err(other) => return Err(other),
+        }
+    }
+    Ok(MaterialSign::Unencoded)
+}
+
+/// [`sphere_circle_loop_side`] on the one meridian through `through`.
+fn side_on_meridian<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    edges: &[LoopEdge<T>],
+    through: Point3<T>,
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let tau = T::pi() + T::pi();
+    let up = axis / axis.norm();
+    let m = through - center;
+    let radial = m - up * m.dot(up);
+    if classify(
+        "props_sphere_side_meridian",
+        Margin::of(radial.norm()),
+        band,
+        PropsCheck::Inventory,
+    )? != Sign::Positive
+    {
+        return Ok(MaterialSign::Unencoded);
+    }
+    let out = radial / radial.norm();
+    let k = up.cross(out);
+    // Every crossing of the loop with the half-plane: its height and
+    // the loop's unit traversal tangent there.
+    let mut crossings: Vec<(T, Point3<T>, Vec3<T>)> = Vec::new();
+    for e in edges {
+        let Curve3::Circle {
+            center: c_c,
+            axis: n_c,
+            radius: rho,
+            u_ref,
+        } = e.carrier
+        else {
+            return Err(PropsError::SphereLoop {
+                what: "sphere boundary edge is not a circle",
+            });
+        };
+        let v_ref = n_c.cross(u_ref);
+        let (a, b, d) = (k.dot(u_ref) * rho, k.dot(v_ref) * rho, k.dot(c_c - center));
+        let amp = (a.powi(2) + b.powi(2)).sqrt();
+        if classify(
+            "props_sphere_side_plane",
+            Margin::of(amp),
+            band,
+            PropsCheck::Inventory,
+        )? == Sign::Zero
+        {
+            if classify(
+                "props_sphere_side_plane",
+                Margin::of(d),
+                band,
+                PropsCheck::Inventory,
+            )? == Sign::Zero
+            {
+                return Ok(MaterialSign::Unencoded);
+            }
+            continue;
+        }
+        match classify(
+            "props_sphere_side_roots",
+            Margin::of(amp - d.abs()),
+            band,
+            PropsCheck::Inventory,
+        )? {
+            Sign::Negative => continue,
+            Sign::Zero => return Ok(MaterialSign::Unencoded),
+            Sign::Positive => {}
+        }
+        let psi = b.atan2(a);
+        let w = (-(d / amp)).acos();
+        for t in [psi + w, psi - w] {
+            // Folded about the span's midpoint, so the fold's jump
+            // sits half a period from it and off the span.
+            let mid = (e.t0 + e.t1) * T::from_f64(0.5);
+            let s = mid + (t - mid).reduce_periodic_centred(tau);
+            let from_start = classify(
+                "props_sphere_side_in_arc",
+                Margin::levered(s - e.t0, rho),
+                band,
+                PropsCheck::Inventory,
+            )?;
+            let to_end = classify(
+                "props_sphere_side_in_arc",
+                Margin::levered(e.t1 - s, rho),
+                band,
+                PropsCheck::Inventory,
+            )?;
+            match (from_start, to_end) {
+                (Sign::Zero, _) | (_, Sign::Zero) => return Ok(MaterialSign::Unencoded),
+                (Sign::Negative, _) | (_, Sign::Negative) => continue,
+                (Sign::Positive, Sign::Positive) => {}
+            }
+            let p = e.carrier.eval(s);
+            match classify(
+                "props_sphere_side_half",
+                Margin::of((p - center).dot(out)),
+                band,
+                PropsCheck::Inventory,
+            )? {
+                Sign::Negative => continue,
+                Sign::Zero => return Ok(MaterialSign::Unencoded),
+                Sign::Positive => {}
+            }
+            let d_t = n_c.cross(p - c_c);
+            let d_t = d_t / d_t.norm();
+            let tangent = if e.forward { d_t } else { -d_t };
+            crossings.push(((p - center).dot(up), p, tangent));
+        }
+    }
+    // From each pole: the crossing nearest it, and whether the walk
+    // away from the pole enters the loop's left side there.
+    let mut sides = [None, None];
+    for (slot, from_north) in [(0, true), (1, false)] {
+        let mut nearest: Option<&(T, Point3<T>, Vec3<T>)> = None;
+        for c in &crossings {
+            let Some(best) = nearest else {
+                nearest = Some(c);
+                continue;
+            };
+            let gap = if from_north {
+                c.0 - best.0
+            } else {
+                best.0 - c.0
+            };
+            match classify(
+                "props_sphere_side_order",
+                Margin::of(gap),
+                band,
+                PropsCheck::Inventory,
+            )? {
+                Sign::Positive => nearest = Some(c),
+                Sign::Negative => {}
+                Sign::Zero => return Ok(MaterialSign::Unencoded),
+            }
+        }
+        let Some(&(_, p, tangent)) = nearest else {
+            continue;
+        };
+        let r_hat = (p - center) / radius;
+        let toward_pole = up - r_hat * r_hat.dot(up);
+        let away = if from_north {
+            -toward_pole
+        } else {
+            toward_pole
+        };
+        let left = r_hat.cross(tangent);
+        let enter = left.dot(away) / away.norm();
+        sides[slot] = match classify(
+            "props_sphere_side_enter",
+            Margin::levered(enter, radius),
+            band,
+            PropsCheck::Inventory,
+        )? {
+            // Entering `L` away from the pole: the pole is not in `L`.
+            Sign::Positive => Some(Sign::Positive),
+            Sign::Negative => Some(Sign::Negative),
+            Sign::Zero => None,
+        };
+    }
+    Ok(match sides {
+        [Some(n), Some(s)] if n == s => MaterialSign::Encoded(n),
+        [Some(n), None] | [None, Some(n)] => MaterialSign::Encoded(n),
+        _ => MaterialSign::Unencoded,
+    })
+}
+
+/// One arc of a [`sphere_circle_loop`] boundary at its two traversal
+/// ends: the unit traversal tangent and the point at each.
+struct ArcEnds<T: Real> {
+    depart: Vec3<T>,
+    from: Point3<T>,
+    arrive: Vec3<T>,
+    at: Point3<T>,
+}
+
+/// A loop junction whose arriving and departing tangents are
+/// antiparallel turns by ±π, which no signed angle decides:
+/// `props_sphere_loop_cusp`, the chord between the departing tangent
+/// and the reversed arriving one, metered at the sphere radius.
+fn require_cusp_free<T: Decide>(
+    arrive: Vec3<T>,
+    depart: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<(), PropsError> {
+    match classify(
+        "props_sphere_loop_cusp",
+        Margin::levered((depart + arrive).norm(), radius),
+        band,
+        PropsCheck::Exact,
+    )? {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(PropsError::SphereLoop {
+            what: "props_sphere_loop_cusp",
+        }),
+    }
+}
+
 /// Which way a sphere face's material faces, for the radial term of
 /// its flux — the one quantity [`sphere`]'s two branches establish
 /// from different evidence, kept apart so neither reads as the other.
@@ -2054,13 +2941,16 @@ fn sphere<T: Decide>(
 /// carries the bit rather than declining to answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SphereFluxSide {
-    /// The rimless face, two-band or wedge: the face's `Face::sense`
-    /// BIT is its flux side. **This is the one home of that fact.** It
-    /// is the only flux sign in the props module that the boundary does
-    /// not encode: with no rim there is no traversal to read a side off,
-    /// and a rimless face's meridians are traversed the same way
-    /// whichever side is material, so [`MaterialSign`] answers
-    /// `Unencoded` for it and nothing cross-checks the bit. `Face::sense`
+    /// The rimless face, two-band or wedge, and the face bounded by a
+    /// tilted circle: the face's `Face::sense` BIT is its flux side.
+    /// **This is the one home of that fact.** It is the only flux sign
+    /// in the props module that the boundary does not encode: with no
+    /// rim there is no traversal to read a side off, and a rimless
+    /// face's meridians are traversed the same way whichever side is
+    /// material, so [`MaterialSign`] answers `Unencoded` for it and
+    /// nothing cross-checks the bit. A tilted circle is no rim either,
+    /// and [`sphere_circle_loop`] does not read the rims a face of that
+    /// kind may also carry: one encoding, on every face it measures. `Face::sense`
     /// (M5 S10) is exactly the missing bit — `true` where the chart
     /// normal already points out of the material — and an inward-facing
     /// rimless band is representable only through it. The wedge arm
@@ -2146,6 +3036,7 @@ fn require_band_opposite<T: Decide>(
             "props_band_opposite",
             Margin::levered((t_start - t_end).norm(), radius),
             band,
+            PropsCheck::Inventory,
         )? != Sign::Zero
         {
             return Err(PropsError::NotIsoRectangle {
@@ -2294,7 +3185,12 @@ fn sphere_wedge_azimuth<T: Decide>(
     let i_a = crate::enters::OutwardNormal::from_chart(*n_a, sense).vec()
         * if a.forward { T::one() } else { -T::one() };
     let phi = d_b.dot(i_a).atan2(d_b.dot(d_a));
-    match classify("props_wedge_azimuth", Margin::levered(phi, radius), band)? {
+    match classify(
+        "props_wedge_azimuth",
+        Margin::levered(phi, radius),
+        band,
+        PropsCheck::Extent,
+    )? {
         Sign::Positive => Ok(phi),
         Sign::Negative => Ok(phi + T::tau()),
         Sign::Zero => Err(PropsError::DegenerateFace),
@@ -2339,6 +3235,7 @@ fn require_meridian_span_within_period<T: Decide>(
         "props_meridian_span_forward",
         Margin::levered(dt, radius),
         band,
+        PropsCheck::Inventory,
     )? != Sign::Positive
     {
         return Err(PropsError::NotIsoRectangle {
@@ -2349,6 +3246,7 @@ fn require_meridian_span_within_period<T: Decide>(
         "props_meridian_span_winding",
         Margin::levered(T::tau() - dt, radius),
         band,
+        PropsCheck::Inventory,
     )? == Sign::Negative
     {
         return Err(PropsError::NotIsoRectangle {
@@ -2621,6 +3519,7 @@ fn require_rim_interior_sides<T: Decide>(
             "props_rim_interior_side",
             rim_offset_margin(rim.level, lo, hi, b.arms, sigma),
             band,
+            PropsCheck::Inventory,
         )? {
             Sign::Positive => None,
             Sign::Negative => Some(PropsError::NotIsoRectangle {
@@ -2675,6 +3574,7 @@ fn sphere_rim_only_pole_level<T: Decide>(
         "props_rim_only_extent",
         sphere_extent_margin(lo, hi, radius),
         band,
+        PropsCheck::Extent,
     )? != Sign::Zero
     {
         return Ok(());
@@ -2783,6 +3683,7 @@ fn require_rim_only_closed<T: Decide>(
         "props_rim_only_closed",
         Margin::levered(du - T::tau(), arm),
         band,
+        Premise::Inventory,
     )?;
     // The joins, in the loop's own order: edge `i`'s traversal END is
     // edge `i + 1`'s traversal START, cyclically. A point deviation in
@@ -2794,6 +3695,7 @@ fn require_rim_only_closed<T: Decide>(
             "props_rim_only_join",
             Margin::norm3(e.traversal_ends().1 - next.traversal_ends().0),
             band,
+            Premise::Inventory,
         )?;
     }
     Ok(())
@@ -2834,6 +3736,7 @@ fn sphere_boundary<T: Decide>(
             "props_circle_axis_class",
             Margin::levered(n_c.dot(axis), r_c),
             band,
+            PropsCheck::Inventory,
         )?;
         match s {
             Sign::Positive | Sign::Negative => {
@@ -2842,12 +3745,13 @@ fn sphere_boundary<T: Decide>(
                     "props_rim_fit",
                     Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
                     band,
+                    Premise::OnSurface,
                 )?;
                 // Incidence: the fit above only fixes ‖w‖; the offset
                 // must also point ALONG the axis (w ∥ â) with the
                 // carrier axis parallel — together they place the
                 // circle on the sphere as the iso-v rim.
-                require_rim_incidence(w, n_c, r_c, axis, band)?;
+                require_rim_incidence(w, n_c, r_c, axis, band, Premise::Inventory)?;
                 let sin_v = w.dot(axis) / radius;
                 let cos_v = r_c / radius;
                 rims.push(Rim {
@@ -2871,6 +3775,7 @@ fn sphere_boundary<T: Decide>(
                     "props_meridian_great",
                     Margin::of((c_c - center).norm().max((r_c - radius).abs())),
                     band,
+                    Premise::Inventory,
                 )?;
                 meridian_axes.push(n_c);
                 levels.push((e.p0() - center).dot(axis) / radius);
@@ -3092,6 +3997,7 @@ fn torus_boundary<T: Decide>(
             "props_circle_axis_class",
             Margin::levered(n_c.dot(axis), r_c),
             band,
+            PropsCheck::Inventory,
         )?;
         match s {
             Sign::Positive | Sign::Negative => {
@@ -3102,8 +4008,9 @@ fn torus_boundary<T: Decide>(
                     "props_rim_fit",
                     Margin::levered((sin_v.powi(2) + cos_v.powi(2)).sqrt() - T::one(), minor),
                     band,
+                    Premise::Inventory,
                 )?;
-                require_rim_incidence(c_c - center, n_c, r_c, axis, band)?;
+                require_rim_incidence(c_c - center, n_c, r_c, axis, band, Premise::Inventory)?;
                 classified.push(TorusEdge::Rim(Rim {
                     d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
@@ -3120,6 +4027,7 @@ fn torus_boundary<T: Decide>(
                     "props_meridian_fit",
                     Margin::of((rho - major).abs().max(h.abs()).max((r_c - minor).abs())),
                     band,
+                    Premise::Inventory,
                 )?;
                 // Incidence: the minor circle's plane must CONTAIN the
                 // torus axis direction — its normal `n_c` has no radial
@@ -3131,6 +4039,7 @@ fn torus_boundary<T: Decide>(
                     "props_meridian_plane",
                     Margin::of(n_c.dot(w - axis * h)),
                     band,
+                    Premise::Inventory,
                 )?;
                 classified.push(TorusEdge::Arc(TorusArc { edge: e, n_c, c_c }));
             }
@@ -3282,6 +4191,7 @@ fn fold_chain<T: Decide>(
                 "props_meridian_pieces_meet",
                 Margin::levered(gap, minor),
                 exact,
+                PropsCheck::Inventory,
             )? != Sign::Zero
             {
                 return Err(PropsError::NotIsoRectangle {
@@ -3301,6 +4211,7 @@ fn fold_chain<T: Decide>(
             "props_meridian_pieces_forward",
             Margin::levered(dt, minor),
             band,
+            PropsCheck::Inventory,
         )? != Sign::Positive
         {
             return Err(PropsError::NotIsoRectangle {
@@ -3311,6 +4222,7 @@ fn fold_chain<T: Decide>(
             "props_meridian_pieces_winding",
             Margin::levered(T::tau() - dt, minor),
             band,
+            PropsCheck::Inventory,
         )? == Sign::Negative
         {
             return Err(PropsError::NotIsoRectangle {
@@ -3330,6 +4242,13 @@ fn fold_chain<T: Decide>(
 /// Chart orientation of the anchor meridian: `v` winds right-handed
 /// about `−τ̂` at its minor center, so `dv/dt = −orient`. Definite by
 /// construction (the `Zero` arm refuses typed).
+///
+/// `τ̂ = â × ρ̂` is the frame [`OrthoFrame::from_aim_and_reference`]
+/// mints about the torus axis with the meridian centre's offset as the
+/// reference, so both lengths are decided before the orientation is:
+/// the axis under `props_torus_axis`, the radial under
+/// `props_meridian_radial`. A meridian centred on the axis has no
+/// radial, and refuses as that.
 fn torus_meridian_orient<T: Decide>(
     m0: &TorusMeridian<T>,
     center: Point3<T>,
@@ -3337,13 +4256,41 @@ fn torus_meridian_orient<T: Decide>(
     minor: T,
     band: Band,
 ) -> Result<Sign, PropsError> {
-    let w = m0.c_c - center;
-    let rho_hat = (w - axis * w.dot(axis)).normalize();
-    let tau = axis.cross(rho_hat);
+    // The axis is a pure number, levered by the anchor meridian's reach
+    // from the torus centre, where the frame it aims is consumed.
+    let reach = (m0.c_c - center).norm() + minor;
+    let aim = UnitVec3::levered(axis, "props_torus_axis", band, reach).map_err(|e| match e {
+        LeveredUnitError::Direction(e) => {
+            torus_frame_refused(e, "props_torus_axis", "torus axis length not measurable")
+        }
+        LeveredUnitError::Arm(Some(cause)) => PropsError::Escalated {
+            cause,
+            check: PropsCheck::Inventory,
+        },
+        LeveredUnitError::Arm(None) => PropsError::NotIsoRectangle {
+            what: UNIT_DIRECTION_ARM,
+        },
+    })?;
+    let frame = OrthoFrame::from_aim_and_reference(
+        center,
+        aim,
+        m0.c_c - center,
+        "props_meridian_radial",
+        band,
+    )
+    .map_err(|e| {
+        torus_frame_refused(
+            e.error,
+            "props_meridian_radial",
+            "torus meridian radial length not measurable",
+        )
+    })?;
+    let tau = frame.v().get();
     let orient = classify(
         "props_meridian_orient",
         Margin::levered(m0.n_c.dot(tau), minor),
         band,
+        PropsCheck::Inventory,
     )?;
     if orient == Sign::Zero {
         return Err(PropsError::NotIsoRectangle {
@@ -3351,6 +4298,28 @@ fn torus_meridian_orient<T: Decide>(
         });
     }
     Ok(orient)
+}
+
+/// A torus frame leg's refusal under [`PropsError::NotIsoRectangle`]'s
+/// convention: a length the funnel decided to zero is named by the
+/// predicate that decided it (`decided`); a length refused before any
+/// margin was decided — not a finite number, or underflowed out of the
+/// format — gets the structural sentence (`unmeasured`).
+fn torus_frame_refused(
+    e: UnitVec3Error,
+    decided: &'static str,
+    unmeasured: &'static str,
+) -> PropsError {
+    match e {
+        UnitVec3Error::Escalated(cause) => PropsError::Escalated {
+            cause,
+            check: PropsCheck::Inventory,
+        },
+        UnitVec3Error::Degenerate => PropsError::NotIsoRectangle { what: decided },
+        UnitVec3Error::NonFiniteLength | UnitVec3Error::UnderflowedLength => {
+            PropsError::NotIsoRectangle { what: unmeasured }
+        }
+    }
 }
 
 /// The rim topologically adjacent to the anchor meridian's `t0`

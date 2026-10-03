@@ -28,12 +28,13 @@
 
 use crate::fixture;
 use crate::wire;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
-    EditError, EvalOptions, FacePoseRefusal, Lever, LeverRefusal, LoggedEdit, MateFault, MateFrame,
-    MatePrimitive, MateReach, MateRole, MateSide, Node, PartFault, PersistError, ProfileDoc,
-    ReachRefusal, RecipeNodeId, RefusingReach, load, mate_reach, root_of, save,
+    Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
+    FacePoseRefusal, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach, MateRole,
+    MateSide, Node, PartFault, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId, RefusingReach,
+    load, mate_reach, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
@@ -58,6 +59,7 @@ fn box_part(label: &str, half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -70,8 +72,15 @@ fn instances(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptio
         store.insert_part(box_part(&format!("{label}-part"), 0.5, 1.0), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
-    for _ in 0..n {
-        let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
+    for i in 0..n {
+        // The first roots every group the rows' mates make; the rest
+        // sit where their mates put them.
+        let node = if i == 0 {
+            Node::instantiate_part(doc_ref)
+        } else {
+            crate::fixture::mated_instance(doc_ref)
+        };
+        let (next, id) = insert(doc, node);
         doc = next;
         ids.push(id);
     }
@@ -244,15 +253,14 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
         lever_of(&doc, &opts, &ids, &alignment).to_bits(),
         "the door's lever is the solve's, to the bit"
     );
-    // The id the door named is the one a mate inserted next mints.
-    let (_, minted) =
-        at_the_door(&doc, &reach, mate(body, ids[0], ids[1], seat(None))).expect("admitted");
-    assert_eq!(minted, named);
+    // The id the door named is the one the insert would have minted:
+    // drawn for this mate, and none the document holds.
+    assert!(!doc.has_minted(named), "the named id is not the document's");
     // The refusal's sentence names the node and forwards the fault's.
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: mate(body, ids[0], ids[1], alignment),
+                node: Box::new(mate(body, ids[0], ids[1], alignment)),
             },
             Tol::witness(),
             &reach,
@@ -262,11 +270,16 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
         panic!("{err:?}");
     };
     let sentence = err.to_string();
+    let t = test_utils::refusal::tag(named.0);
     assert!(
-        sentence.contains(&format!("node {:012x}", named.0))
-            && sentence.contains(&fault.to_string()),
-        "{sentence}"
+        sentence.contains(&format!(
+            "Mate {t} is refused by the solve on its own datum: this mate contradicts itself"
+        )) && fault
+            .to_string()
+            .starts_with(&format!("mate {t} contradicts itself")),
+        "the door names the mate once, and the fault's own sentence names it: {sentence}"
     );
+    assert_eq!(sentence.matches(&t).count(), 1, "{sentence}");
 }
 
 /// **A rider inside the band is admitted, and the solve places the
@@ -356,10 +369,12 @@ fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
 /// **A rider through the refusing reach refuses `Unleverable`** in the
 /// resolver's own voice — exactly as the solve answers it — and a
 /// coincidence WITHOUT a rider through the same reach is admitted with
-/// no ask at all: the door levers only what the table decides.
+/// no ask at all: the door levers only what the table decides. The id
+/// the refusal names is the one the same mate mints through the store's
+/// reach, which admits it.
 #[test]
 fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
-    let (doc, ids, _, body) = instances("msolve10-a4-reach", 2);
+    let (doc, ids, opts, body) = instances("msolve10-a4-reach", 2);
     let counting = Counting::over(&RefusingReach);
     let (named, fault) = at_the_door(&doc, &counting, mate(body, ids[0], ids[1], seat(Some(0.0))))
         .expect_err("refused");
@@ -384,7 +399,11 @@ fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
     let (_, plain) =
         at_the_door(&doc, &counting, mate(body, ids[0], ids[1], seat(None))).expect("admitted");
     assert_eq!(counting.0.get(), 1, "no rider, no ask");
-    assert_eq!(plain, named);
+    assert_ne!(plain, named, "another mate, another id");
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let (_, admitted) = at_the_door(&doc, &reach, mate(body, ids[0], ids[1], seat(Some(0.0))))
+        .expect("the store's reach admits the rider");
+    assert_eq!(admitted, named, "the refusal named the id the mate mints");
 }
 
 // ---- A `FromFace` side at the door, and on replay ----
@@ -399,17 +418,10 @@ fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
     let (doc, ids, opts, body) = instances("msolve10-from-face-asks", 2);
     let store_reach = mate_reach::<f64>(&opts, Tol::witness());
     let counting = Counting::over(&store_reach);
-    let cap = |end: CapEnd| editor_core::StableName {
-        kind: editor_core::EntityKind::Face,
-        node: body,
-        path: vec![editor_core::RoleSeg::Cap(end)],
-    };
-    let face =
-        |end: CapEnd| MateFrame::from_face(editor_core::FaceName::new(cap(end)).expect("a face"));
     // One face side, one authored side, no rider: one face ask, no
     // reach ask.
     let one_side = Alignment {
-        a: face(CapEnd::End),
+        a: MateFrame::FromFace,
         ..seat(None)
     };
     at_the_door(&doc, &counting, mate(body, ids[0], ids[1], one_side)).expect("admitted");
@@ -417,8 +429,8 @@ fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
     assert_eq!(counting.0.get(), 0, "no rider, no reach");
     // Two face sides, no rider: two face asks, still no reach ask.
     let both = Alignment {
-        a: face(CapEnd::End),
-        b: face(CapEnd::Start),
+        a: MateFrame::FromFace,
+        b: MateFrame::FromFace,
         ..seat(None)
     };
     at_the_door(&doc, &counting, mate(body, ids[0], ids[1], both)).expect("admitted");
@@ -441,23 +453,15 @@ fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
     let (doc, ids, opts, body) = instances("msolve10-from-face-replay", 2);
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let snapshot = doc.clone();
-    let cap = editor_core::StableName {
-        kind: editor_core::EntityKind::Face,
-        node: body,
-        path: vec![editor_core::RoleSeg::Cap(CapEnd::End)],
-    };
     let alignment = Alignment {
-        a: MateFrame::from_face(editor_core::FaceName::new(cap).expect("a face")),
+        a: MateFrame::FromFace,
         ..seat(Some(0.0))
     };
     let edit = DocEdit::InsertNode {
-        node: mate(body, ids[0], ids[1], alignment),
+        node: Box::new(mate(body, ids[0], ids[1], alignment)),
     };
     let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
-    let log = vec![LoggedEdit {
-        edit: edit.clone(),
-        maintenance: applied.cluster_rows(),
-    }];
+    let log = vec![edit.clone()];
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("a FromFace insert replays with no store");
     assert_eq!(loaded.doc.order(), applied.doc.order());
@@ -480,8 +484,7 @@ fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
 // ---- The history and the log ----
 
 /// **A refused insert leaves no entry**: the document is the one it
-/// was, and the next insert mints the id the refused one was named
-/// with.
+/// was, and the next insert mints one id, not the refused one's.
 #[test]
 fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     let (doc, ids, _, body) = instances("msolve10-a1-history", 2);
@@ -495,8 +498,18 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     assert_eq!(doc.order(), before.order());
     assert_eq!(doc.node(named), None);
     let (after, minted) = insert(doc, mate(body, ids[0], ids[1], seat(None)));
-    assert_eq!(minted, named, "nothing was minted for the refusal");
+    assert_ne!(minted, named, "another mate, another id");
+    assert!(
+        !after.has_minted(named),
+        "nothing was minted for the refusal"
+    );
     assert_eq!(after.order().len(), before.order().len() + 1);
+    let (unasked, _) = insert(before, mate(body, ids[0], ids[1], seat(None)));
+    assert_eq!(
+        after.mint(),
+        unasked.mint(),
+        "the refusal left the chain and the log as though it was never asked"
+    );
 }
 
 /// **Replay re-applies what the recording door decided, and refuses
@@ -515,13 +528,10 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let snapshot = doc.clone();
     let edit = DocEdit::InsertNode {
-        node: mate(body, ids[0], ids[1], seat(Some(0.0))),
+        node: Box::new(mate(body, ids[0], ids[1], seat(Some(0.0)))),
     };
     let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
-    let log = vec![LoggedEdit {
-        edit: edit.clone(),
-        maintenance: applied.cluster_rows(),
-    }];
+    let log = vec![edit.clone()];
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("a log the door admitted loads with no store");
     assert_eq!(loaded.doc.order(), applied.doc.order());
@@ -529,8 +539,8 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
 
     // The hand-edited entry: a rider on a planar rest, spliced in as
     // a bare entry at index 1.
-    let gap = LoggedEdit::bare(DocEdit::InsertNode {
-        node: mate(
+    let gap = DocEdit::InsertNode {
+        node: Box::new(mate(
             body,
             ids[0],
             ids[1],
@@ -538,8 +548,8 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
                 primitive: MatePrimitive::PlanarRest { offset: 0.0 },
                 ..seat(Some(0.3))
             },
-        ),
-    });
+        )),
+    };
     let gap_wire = serde_json::to_value(&gap).expect("an entry serializes");
     let doctored = wire::doctored(&text, |wire| {
         wire["edits"]
@@ -567,14 +577,14 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
 
     // A contradictory rider, hand-edited in, replays: no reach, no
     // decision, and the evaluation's solve refuses it as before.
-    let contradictory = LoggedEdit::bare(DocEdit::InsertNode {
-        node: mate(
+    let contradictory = DocEdit::InsertNode {
+        node: Box::new(mate(
             body,
             ids[0],
             ids[1],
             seat(Some(core::f64::consts::FRAC_PI_2)),
-        ),
-    });
+        )),
+    };
     let wire_entry = serde_json::to_value(&contradictory).expect("serializes");
     let doctored = wire::doctored(&text, |wire| {
         wire["edits"]
@@ -821,7 +831,9 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::Under { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. }
-        | MateFault::PlacerRefused { .. } => None,
+        | MateFault::PlacerRefused { .. }
+        | MateFault::OffsetDisagrees { .. }
+        | MateFault::OffsetUnchecked { .. } => None,
     }
 }
 
@@ -917,6 +929,7 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             side,
             refusal,
         },
+        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => fault,
     }
 }
 
@@ -941,7 +954,7 @@ fn corpus() -> Vec<Row> {
         let (doc, _) = step_with(
             doc,
             DocEdit::InsertNode {
-                node: mate(body, ids[0], ids[1], alignment),
+                node: Box::new(mate(body, ids[0], ids[1], alignment)),
             },
             &reach,
         );
@@ -1038,6 +1051,7 @@ fn corpus() -> Vec<Row> {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let local_cap = editor_core::StableName {
@@ -1066,7 +1080,7 @@ fn corpus() -> Vec<Row> {
         let (doc, _) = step_with(
             doc,
             DocEdit::InsertNode {
-                node: mate(body, ids[0], ids[1], seat(None)),
+                node: Box::new(mate(body, ids[0], ids[1], seat(None))),
             },
             &reach,
         );
@@ -1140,7 +1154,11 @@ fn corpus() -> Vec<Row> {
         let (doc, _) = step_with(
             doc,
             DocEdit::InsertNode {
-                node: mate_across((ids[0], body), (lost, lost_body), seat(Some(0.0))),
+                node: Box::new(mate_across(
+                    (ids[0], body),
+                    (lost, lost_body),
+                    seat(Some(0.0)),
+                )),
             },
             &reach,
         );
@@ -1151,23 +1169,16 @@ fn corpus() -> Vec<Row> {
         // re-decides nothing, so the document holds it.
         let (doc, ids, opts, body) = instances("msolve10-corpus-hand-edited", 2);
         let text = save(&doc, &[], Tol::witness()).expect("saves");
-        // The mate joins the two instances' groups, and a log entry
-        // carries the rows its edit performs — so the hand-edited entry
-        // records the join, as the save door would have.
-        let entry = LoggedEdit {
-            edit: DocEdit::InsertNode {
-                node: mate(
-                    body,
-                    ids[0],
-                    ids[1],
-                    seat(Some(core::f64::consts::FRAC_PI_2)),
-                ),
-            },
-            maintenance: vec![ClusterMaintenance::Join {
-                survived: ids[0],
-                absorbed: ids[1],
-                absorbed_frame: doc.placements().get(&ids[1]).copied(),
-            }],
+        // The mate joins the two instances' groups, and replay applies
+        // the edit through the same door, which re-decides nothing it
+        // levers through a reach.
+        let entry = DocEdit::InsertNode {
+            node: Box::new(mate(
+                body,
+                ids[0],
+                ids[1],
+                seat(Some(core::f64::consts::FRAC_PI_2)),
+            )),
         };
         let entry = serde_json::to_value(&entry).expect("serializes");
         let doctored = wire::doctored(&text, |wire| {
@@ -1213,8 +1224,8 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                 None => {
                     assert!(
                         twin.is_ok(),
-                        "{label}: the solve admits mate {:012x}; the door refused its twin: {:?}",
-                        id.0,
+                        "{label}: the solve admits mate {}; the door refused its twin: {:?}",
+                        test_utils::refusal::tag(id.0),
                         twin.err()
                     );
                     admitted += 1;
@@ -1223,16 +1234,16 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                     let (named, got) = match twin {
                         Err(refusal) => refusal,
                         Ok(_) => panic!(
-                            "{label}: the solve refuses mate {:012x} on its own datum ({fault}); \
+                            "{label}: the solve refuses mate {} on its own datum ({fault}); \
                              the door admitted its twin",
-                            id.0
+                            test_utils::refusal::tag(id.0)
                         ),
                     };
                     assert_eq!(
                         renamed(got, named, id),
                         *fault,
-                        "{label}: mate {:012x} — the door's fault is the solve's",
-                        id.0
+                        "{label}: mate {} — the door's fault is the solve's",
+                        test_utils::refusal::tag(id.0)
                     );
                     refused += 1;
                 }

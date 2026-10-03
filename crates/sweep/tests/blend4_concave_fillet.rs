@@ -23,6 +23,7 @@ use geom::Surface;
 use geom_brep::OutwardNormal;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, Convexity, CornerConfig, FILLET3_CORNER_RECOURSE};
@@ -374,9 +375,16 @@ fn the_corner_recourse_is_followable_on_both_sides() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the L is a valid profile");
-    let bracket = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .expect("the bracket extrudes")
-        .body;
+    let bracket = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the bracket extrudes")
+    .body;
     let on_reflex = |q: Point3<f64>| (q.x - 1.0).abs() < 1e-12 && (q.y - 1.0).abs() < 1e-12;
     let reflex: Vec<EdgeKey> = bracket
         .edges()

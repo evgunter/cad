@@ -14,11 +14,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Node, PatternKind, PersistError,
     ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, RootFault, SnapshotError,
-    content_pin, evaluate, load, save,
+    SpokenNode, content_pin, evaluate, load, save,
 };
 use fixture::{desc, insert, len, on_frame, scl, square, step, xy_frame};
 use geom_core::Tol;
@@ -47,6 +48,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, extrude)
@@ -79,6 +81,7 @@ fn row1a_no_consumer_insert_appends() {
         Node::Extrude {
             profile: p0,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     assert_eq!(
@@ -112,7 +115,7 @@ fn row1b_consuming_insert_replaces_at_earliest_position() {
             a: b,
             b: c,
             op: editor_core::BooleanOp::Union,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(
@@ -139,7 +142,7 @@ fn row1c_root_delete_rereoots_orphans_in_document_order() {
             a,
             b,
             op: editor_core::BooleanOp::Union,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(doc.roots(), &[keep, u][..]);
@@ -183,12 +186,12 @@ fn row1e_undo_restores_the_prior_root_list() {
     for edit in [
         DocEdit::SetRoots { roots: vec![b, a] },
         DocEdit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 a,
                 b,
                 op: editor_core::BooleanOp::Union,
-                declare: None,
-            },
+                declare: Vec::new(),
+            }),
         },
         DocEdit::DeleteNode { id: b },
     ] {
@@ -227,16 +230,22 @@ fn row2a_ancestor_freedom_names_both() {
     assert_eq!(
         err,
         editor_core::EditError::Roots(RootFault::Ancestor {
-            ancestor: profile,
-            descendant: extrude,
+            ancestor: doc.spoken(profile),
+            descendant: doc.spoken(extrude),
         })
     );
-    // The prose names both too (the bindings' message surface).
+    // The prose speaks both too (the bindings' message surface), by
+    // kind and tag.
     let text = format!("{err}");
     assert!(
-        text.contains(&format!("root {:012x}", profile.0))
-            && text.contains(&format!("root {:012x}", extrude.0)),
-        "both nodes must be named: {text}"
+        text.contains(&format!(
+            "root Profile {}",
+            test_utils::refusal::tag(profile.0)
+        )) && text.contains(&format!(
+            "root Extrude {}",
+            test_utils::refusal::tag(extrude.0)
+        )),
+        "both nodes must be spoken: {text}"
     );
 }
 
@@ -261,9 +270,15 @@ fn row2b_coverage_refuses_on_a_crafted_save() {
     match load(&crafted, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::Roots(RootFault::Uncovered { node }))) => {
             assert!(
-                node != a,
-                "the stranded chain is b's, not a's (got node {})",
-                node.0
+                node.id() != a,
+                "the stranded chain is b's, not a's (got {node})"
+            );
+            // The validator holds the document it judges, and speaks
+            // the node from it.
+            assert_eq!(node, doc.spoken(node.id()), "{node}");
+            assert!(
+                node.kind().is_some(),
+                "a held node is spoken by its kind: {node}"
             );
         }
         other => panic!("a crafted uncovered document must refuse, got {other:?}"),
@@ -287,7 +302,9 @@ fn row2c_duplicate_entry_refuses() {
         .expect_err("a duplicate must refuse");
     assert_eq!(
         err,
-        editor_core::EditError::Roots(RootFault::Duplicate { root: a })
+        editor_core::EditError::Roots(RootFault::Duplicate {
+            root: doc.spoken(a)
+        })
     );
     // And a dead entry refuses too.
     let ghost = RecipeNodeId(9_999);
@@ -298,7 +315,9 @@ fn row2c_duplicate_entry_refuses() {
             &editor_core::RefusingReach
         )
         .expect_err("a dead entry must refuse"),
-        editor_core::EditError::Roots(RootFault::NotLive { root: ghost })
+        editor_core::EditError::Roots(RootFault::NotLive {
+            root: SpokenNode::absent(ghost)
+        })
     );
 }
 
@@ -578,18 +597,19 @@ fn row6c_replay_rebuilds_the_root_list() {
         log.push(edit);
         applied.record.minted.expect("an insert mints")
     };
-    let plane = insert(&mut doc, xy_frame());
+    let plane = insert(&mut doc, Box::new(xy_frame()));
     for cx in [0.0, 5.0] {
         let profile = insert(
             &mut doc,
-            Node::Profile(desc(plane, vec![square(cx, 0.0, 0.5)])),
+            Box::new(Node::Profile(desc(plane, vec![square(cx, 0.0, 0.5)]))),
         );
         insert(
             &mut doc,
-            Node::Extrude {
+            Box::new(Node::Extrude {
                 profile,
                 distance: len(1.0),
-            },
+                side: ExtrudeSide::Along,
+            }),
         );
     }
     let swap = DocEdit::SetRoots {
@@ -600,8 +620,7 @@ fn row6c_replay_rebuilds_the_root_list() {
         .expect("set roots")
         .doc;
     log.push(swap);
-    let replayed = Doc::replay(id, &editor_core::LoggedEdit::bare_all(&log), Tol::witness())
-        .expect("the log replays");
+    let replayed = Doc::replay(id, &log.to_vec(), Tol::witness()).expect("the log replays");
     assert_eq!(replayed.roots(), doc.roots());
     assert!(replayed.bit_eq(&doc));
 }

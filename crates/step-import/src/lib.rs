@@ -304,10 +304,13 @@ pub enum PromotedKind {
 
 impl core::fmt::Display for PromotedKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            Self::Plane => "plane",
-            Self::Cylinder => "cylinder",
-        })
+        f.write_str(
+            match self {
+                Self::Plane => geom::SurfaceKind::Plane,
+                Self::Cylinder => geom::SurfaceKind::Cylinder,
+            }
+            .name(),
+        )
     }
 }
 
@@ -431,10 +434,13 @@ pub enum PromotedCurveKind {
 
 impl core::fmt::Display for PromotedCurveKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            Self::Circle => "circle",
-            Self::Line => "line",
-        })
+        f.write_str(
+            match self {
+                Self::Circle => geom::CurveKind::Circle,
+                Self::Line => geom::CurveKind::Line,
+            }
+            .name(),
+        )
     }
 }
 
@@ -806,7 +812,7 @@ pub fn import_step(
                 if topo::per_part_gate_owed(model.instances.len()) {
                     gate(&one, Some(spec.id), tol)?;
                 }
-                topo::graft_disjoint(&mut body, &one, tol).map_err(|source| {
+                topo::graft_disjoint(&mut body, &one).map_err(|source| {
                     StepImportError::Instance {
                         solid: spec.id,
                         source: Box::new(source),

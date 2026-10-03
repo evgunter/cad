@@ -15,6 +15,7 @@
 
 use geom_core::{Affine3, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::readback::euler_counts;
 use topo::{
@@ -82,7 +83,7 @@ fn with_void(mut dst: Body<f64>, cavity: Body<f64>) -> Body<f64> {
             })
             .collect(),
     };
-    insert_void(&mut dst, solid, cavity, &evidence, tol()).expect("the void inserts");
+    insert_void(&mut dst, solid, cavity, &evidence).expect("the void inserts");
     dst
 }
 
@@ -348,9 +349,16 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
             return;
         }
     };
-    let holed = extrude(&profile, Extrusion::Distance(2.0), tol())
-        .expect("the holed box extrudes")
-        .body;
+    let holed = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the holed box extrudes")
+    .body;
     let holed_counts = euler_counts(&holed);
     println!(
         "[measured] holed box: faces={} rings={}",

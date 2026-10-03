@@ -36,6 +36,7 @@
 #![allow(clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
@@ -57,8 +58,10 @@ fn ngon(n: u32) -> Vec<(f64, f64)> {
         .collect()
 }
 
-/// One recipe under one identity: an `n`-gon extruded to a prism.
-/// Returns the document and its extrude node.
+/// One recipe under one identity: a square extruded to a prism, its
+/// program then replaced by an `n`-gon's. Every document this builds
+/// inserts the same nodes, so they mint one set of node ids whatever
+/// `n` is. Returns the document and its extrude node.
 fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(id), Tol::witness());
     let (doc, profile) = on_frame(
@@ -66,15 +69,33 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        vec![ngon(n)],
+        vec![ngon(4)],
     );
-    insert(
+    let (doc, extrude) = insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
-    )
+    );
+    if n == 4 {
+        return (doc, extrude);
+    }
+    let loops = fixture::desc(profile, vec![ngon(n)]).loops;
+    let ids = loops
+        .iter()
+        .map(|lp| vec![None; lp.authored_steps()])
+        .collect();
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::SetProgram {
+            node: profile,
+            loops,
+            ids,
+        },
+    );
+    (doc, extrude)
 }
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -129,7 +150,7 @@ impl Twins {
             RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
         );
         let edit = DocEdit::InsertNode {
-            node: Node::fillet(sq, len(0.1), vec![fourth.clone()]),
+            node: Box::new(Node::fillet(sq, len(0.1), vec![fourth.clone()])),
         };
         Self {
             square,
@@ -192,7 +213,9 @@ fn a_document_against_its_own_evaluation_answers_as_it_always_did() {
             &editor_core::RefusingReach
         )
         .expect_err("the triangle has no fourth outer segment"),
-        EditError::NameUnresolvedInEvaluation { name: t.fourth },
+        EditError::NameUnresolvedInEvaluation {
+            name: t.triangle.spoken_name(&t.fourth)
+        },
         "the triangle's own tables do not"
     );
 }
@@ -304,7 +327,7 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
         RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
     );
     let edit = DocEdit::InsertNode {
-        node: Node::fillet(sq, len(0.1), vec![fourth]),
+        node: Box::new(Node::fillet(sq, len(0.1), vec![fourth])),
     };
     assert!(
         apply_with_names(&moved, &edit, &ev_square, tol, &editor_core::RefusingReach).is_ok(),

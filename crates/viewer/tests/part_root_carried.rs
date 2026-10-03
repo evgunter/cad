@@ -15,6 +15,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -60,13 +61,7 @@ fn opened(path: std::path::PathBuf, instance: RecipeNodeId, tol: Tol) -> (TreeRo
     let mut session = DocSession::inline(Doc::empty_derived("partroot-boot", tol), tol);
     let outcome = session.perform(SessionOp::Open(path));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let row = |session: &DocSession| {
-        session
-            .tree_rows()
-            .into_iter()
-            .find(|row| row.id == instance)
-            .expect("the instance has a row")
-    };
+    let row = |session: &DocSession| common::row_of(&session.tree_rows(), instance).clone();
     let before = row(&session);
     session.pump();
     (before, row(&session))
@@ -130,6 +125,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
             profile,
             distance: Expr::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -194,16 +190,22 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
          byte for byte as its part's own tree draws it"
     );
     assert!(
-        message.contains(&format!("repair node {:012x}", bracket_root.0))
-            && carried[0]
-                .line
-                .contains(&format!("repair node {:012x}", boss_root.0)),
+        message.contains(&format!(
+            "repair node {}",
+            test_utils::refusal::tag(bracket_root.0)
+        )) && carried[0].line.contains(&format!(
+            "repair node {}",
+            test_utils::refusal::tag(boss_root.0)
+        )),
         "each carrying line points at the node the level under it names: {message} / {}",
         carried[0].line
     );
     let refusal = carried[1]
         .line
-        .strip_prefix(&format!("node {:012x} failed: ", boss_root.0))
+        .strip_prefix(&format!(
+            "node {} failed: ",
+            test_utils::refusal::tag(boss_root.0)
+        ))
         .expect("the boss's line opens with its node");
     for line in [message, &carried[0].line] {
         assert!(
@@ -300,8 +302,13 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
         (&carried[0].line, broken_root, extrude),
     ] {
         assert!(
-            line.contains(&format!("its root, node {:012x}", root.0))
-                && line.contains(&format!("repair node {:012x}", failed.0)),
+            line.contains(&format!(
+                "its root, node {}",
+                test_utils::refusal::tag(root.0)
+            )) && line.contains(&format!(
+                "repair node {}",
+                test_utils::refusal::tag(failed.0)
+            )),
             "each carrying line names the root it cost and points at the node that failed: \
              {line}"
         );
@@ -319,6 +326,7 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: common::len(0.02),
+            side: ExtrudeSide::Along,
         },
         tol,
     )
@@ -415,9 +423,10 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         "the cap's level is sub.pncad's own line for it"
     );
     assert!(
-        carried[1]
-            .line
-            .starts_with(&format!("node {:012x} failed: ", pattern.0)),
+        carried[1].line.starts_with(&format!(
+            "node {} failed: ",
+            test_utils::refusal::tag(pattern.0)
+        )),
         "the carried level is the pattern's refusal: {}",
         carried[1].line
     );

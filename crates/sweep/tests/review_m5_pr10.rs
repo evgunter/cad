@@ -296,6 +296,12 @@ fn review_skin_on_refuses_unclamped_params() {
 /// frame choice a named angular predicate with a real margin (see
 /// `sweep_geometry`'s C6 note for why this fix pass declined to
 /// invent one), this row flips to the refusal and says so loudly.
+///
+/// A consumer stands on this executed behaviour: the `demos/tour`
+/// klein bottle's top loop is a half-turn sweep that builds only off
+/// it, and its exact spine refuses (klein's wall 9,
+/// `work/carve/a-half-turn-spine-sweeps-only-off-its-exact-tangents`).
+/// Flip this row and that scene refuses with it.
 #[test]
 fn review_half_turn_path_builds_on_the_float_knife_edge() {
     use sweep::skin::sweep_geometry;
@@ -445,8 +451,8 @@ fn a_sub_tolerance_arc_lofts_as_a_line() {
         ];
         for (got, want) in [(control[0], want[0]), (control[control.len() - 1], want[1])] {
             assert_eq!(
-                [got.x, got.y, got.z].map(f64::to_bits),
-                [want.x, want.y, want.z].map(f64::to_bits),
+                got.to_array().map(f64::to_bits),
+                want.to_array().map(f64::to_bits),
                 "section {i}: {got:?} vs {want:?}"
             );
         }

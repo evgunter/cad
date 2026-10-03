@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, EvalOptions, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, evaluate,
@@ -42,6 +43,7 @@ fn cube_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, cube)
@@ -99,7 +101,9 @@ fn messages(
     let ghost = editor_core::StableName {
         kind: editor_core::EntityKind::Edge,
         node: cube,
-        path: vec![editor_core::RoleSeg::Lateral(fixture::no_piece_of(&doc))],
+        path: vec![editor_core::RoleSeg::Lateral(
+            fixture::no_piece_of(&doc).into(),
+        )],
     };
     let (d, n) = fixture::insert(doc, blend(cube, size, vec![ghost]));
     out.push(("resolve", msg_of(&d, n)));
@@ -141,7 +145,7 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
              recipe as it stands on the derivation path (node {cube}'s payload differs)",
         ),
     ];
-    let cube = format!("{:012x}", cube_doc().1.0);
+    let cube = test_utils::refusal::tag(cube_doc().1.0);
     for ((label, actual), (wl, expected)) in got.iter().zip(want.iter()) {
         assert_eq!(label, wl);
         let expected = expected.replace("{cube}", &cube);

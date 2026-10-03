@@ -16,6 +16,7 @@ refusals — `set_members_on_non_list`, `too_few_members`,
 them.
 """
 
+import json
 import unittest
 
 from pncad import (
@@ -25,7 +26,9 @@ from pncad import (
     EditError,
     Expr,
     Node,
+    PersistError,
     evaluate,
+    load,
     m,
 )
 
@@ -128,6 +131,28 @@ class TestTheNaryUnion(unittest.TestCase):
         self.assertEqual(refusal.variant, "duplicate_input")
         self.assertEqual(refusal.input, a)
         self.assertIsNone(refusal.count)
+
+    def test_a_file_repeating_a_member_refuses_with_the_same_word(self):
+        """The load door names a repeated member in the edit door's
+        word: a file whose union lists one member twice refuses as
+        `duplicate_input` under the snapshot stage."""
+        doc = Doc()
+        a, b, _c = self.members(doc)
+        doc.insert(Node.union([a, b]))
+        header, body = doc.save().split("\n", 1)
+        wire = json.loads(body)
+        (members,) = [
+            node["Union"]["members"]
+            for node in wire["snapshot"]["nodes"].values()
+            if "Union" in node
+        ]
+        members.append(members[0])
+        with self.assertRaises(PersistError) as caught:
+            load(f"{header}\n{json.dumps(wire)}")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "snapshot")
+        self.assertEqual(refusal.inner_variant, "duplicate_input")
+        self.assertIn("is taken as an input twice", str(refusal))
 
 
 class TestSetMembers(unittest.TestCase):

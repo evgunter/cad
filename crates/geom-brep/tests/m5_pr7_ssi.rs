@@ -99,8 +99,9 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
-    self, ChartAxis, ChartSpeedRefusal, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES,
-    SSI_SEED_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale,
+    self, ChartAxis, ChartCorner, ChartEnd, ChartSide, ChartSpeedRefusal, SSI_FLOOR, SSI_MAX_CELLS,
+    SSI_MAX_FIT_SAMPLES, SSI_SEED_FLOOR, SSI_SETTLE_MAX, SSI_TUBE_RADIUS, SettlingRefusal,
+    SsiBoundaryContact, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale,
 };
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
@@ -1070,7 +1071,12 @@ fn nurbs_wall() -> NurbsSurface<f64> {
 /// acceptance wall is the one the step rule's own documented
 /// assumption (slowly-varying curvature) actually covers.
 fn certifiable_wall() -> NurbsSurface<f64> {
-    wall_from_cols([(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)])
+    wall_from_cols(certifiable_cols())
+}
+
+/// [`certifiable_wall`]'s columns.
+fn certifiable_cols() -> [(f64, f64); 4] {
+    [(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)]
 }
 
 /// A plane slicing the wall at mid height, tilted so the cut is not a
@@ -1278,7 +1284,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
 /// Pure table lookup — no geometry, no ε — so it is stated whether or not
 /// the wall fixture fitted at this ε.
 fn assert_c5_plane_nurbs_retired() {
-    let r = geom_brep::route(geom_brep::SurfaceKind::Plane, geom_brep::SurfaceKind::Nurbs);
+    let r = geom_brep::route(geom::SurfaceKind::Plane, geom::SurfaceKind::Nurbs);
     assert!(r.implemented, "TABLE: plane×NURBS is implemented");
     assert!(
         r.note.contains("certifies the whole chain"),
@@ -2544,7 +2550,8 @@ fn a_clipped_domain_ends_the_branch_on_the_boundary() {
 
 #[test]
 fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
-    use geom_brep::{Rung, SurfaceKind, route};
+    use geom::SurfaceKind;
+    use geom_brep::{Rung, route};
     // Retired: all three C2 limbs certify.
     for (a, b) in [
         (SurfaceKind::Cylinder, SurfaceKind::Sphere),
@@ -2842,10 +2849,19 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
     .unwrap();
     for (name, wall, want) in cases {
         match ssi::plane_nurbs_ssi(&cutting_plane(), &wall, wall_domain(), band()) {
-            Err(SsiError::ChartSpeed(got)) => {
+            Err(ref err @ SsiError::ChartSpeed(got)) => {
                 assert_eq!(
                     got, want,
                     "{name}: plane_nurbs_ssi refused on the wrong axis"
+                );
+                // The same fact of the face ends alike at both doors.
+                let ending = err.ending(geom_brep::recourse::Reading::Build);
+                let edge = geom_brep::PlaneNurbsRefusal::ChartSpeed(got)
+                    .ending(geom_brep::recourse::Reading::Build);
+                assert_eq!(
+                    Some(ending.as_str()),
+                    edge.as_deref(),
+                    "{name}: the two doors' endings"
                 );
             }
             other => panic!("{name}: plane_nurbs_ssi expected {want:?}, got {other:?}"),
@@ -2862,28 +2878,1961 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
     }
 }
 
-/// A tiny net the plane DOES meet never answers `Ok` with no branch:
-/// whatever the chart speed reads at these spreads, the sweep either
-/// finds the crossing or refuses. Paired with the row above, whose
-/// `Ok`-empty answers are honest only because its plane misses.
+/// **A tiny net the plane DOES meet traces, reports the region it lies
+/// in, or refuses by the kind its size earns**, never `Ok` with nothing
+/// in it. Paired with the row above, whose `Ok`-empty answers are honest
+/// only because its plane misses.
+///
+/// The net is `3·spread` long and `spread/2` tall, and the plane runs
+/// along it a quarter of the spread above its bottom edge. Three
+/// regions, placed against ε so every ε of the battery reads the same
+/// kinds:
+///
+/// - where that quarter spread is past ε, the locus is coincident with
+///   neither long side, and the branch is traced and certified end to
+///   end, between the crossings on the two short sides. It is far
+///   shorter than the march's longest step of `SSI_STEP_MAX · 1.5` m,
+///   so the step is cut from the crossings' distance;
+/// - where it is within ε, the locus is coincident with both long
+///   sides, and the answer is the two sides' regions;
+/// - from `1e-200` down, the chart speed's certified sup reads far above
+///   the wall's true speed (its squares round up from below the
+///   subnormal range), so the wall's slope across its side reads as
+///   zero and the strip refuses as the surfaces' tangency along it, the
+///   transversality decision's ending.
 #[test]
-fn a_tiny_net_the_plane_meets_never_answers_ok_empty() {
+fn a_tiny_net_the_plane_meets_traces_or_refuses_by_the_kind_its_size_earns() {
     let dom = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
         half_extent: 2.0,
         extent: 1.5,
         floor_scale: 1.0,
     };
+    let bottom = ChartSide {
+        fixed: ChartAxis::V,
+        end: ChartEnd::Low,
+    };
+    let top = ChartSide {
+        fixed: ChartAxis::V,
+        end: ChartEnd::High,
+    };
     for s in [
-        1.0e-8f64, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-260, 1.0e-300, 1.0e-315,
+        1.0e-2f64, 1.0e-3, 1.0e-4, 1.0e-5, 1.0e-6, 1.0e-7, 1.0e-8, 1.0e-9, 1.0e-10, 1.0e-11,
+        1.0e-12, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-260, 1.0e-300, 1.0e-315,
     ] {
         let plane = Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.25 * s),
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        if let Ok(out) = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band()) {
-            assert!(!out.branches.is_empty(), "spread {s:e}: silent miss");
+        let r = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band());
+        let at = format!("spread {s:e} at ε {:e}", band().zero());
+        if s <= 1.0e-200 {
+            assert!(
+                matches!(&r, Err(SsiError::BoundaryTangent { side, .. }) if *side == bottom),
+                "{at}: {r:?}"
+            );
+        } else if 0.25 * s > band().zero() {
+            let out = r.unwrap_or_else(|e| panic!("{at}: the branch is not traced: {e}"));
+            assert_eq!(out.branches.len(), 1, "{at}");
+            assert!(out.boundary.is_empty(), "{at}: {:?}", out.boundary);
+            let b = &out.branches[0];
+            let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+            // The net's columns run from 0 to 3·spread along x.
+            assert!(
+                (span - 3.0 * s).abs() <= 1.0e-6 * s,
+                "{at}: the carrier spans {span:e} m"
+            );
+        } else {
+            let out = r.unwrap_or_else(|e| panic!("{at}: expected the regions: {e}"));
+            assert!(out.branches.is_empty(), "{at}");
+            let sides: Vec<ChartSide> = out
+                .boundary
+                .iter()
+                .map(|c| match c {
+                    SsiBoundaryContact::Side { side, .. } => *side,
+                    SsiBoundaryContact::Corner { .. } => panic!("{at}: a corner: {c:?}"),
+                })
+                .collect();
+            assert_eq!(sides, [bottom, top], "{at}");
         }
+    }
+}
+
+/// **An unusable domain refuses at the door, by its knob**, at every
+/// SSI door's rule (`SsiDomain::check`): never routed into the floor
+/// door, where an unreadable slab used to read as a scale and end
+/// "move the geometry nearer the origin". A zero half-extent is an
+/// empty domain, and refuses too: an `Ok` with no branch over it would
+/// be evidence of nothing.
+#[test]
+fn an_unusable_domain_refuses_by_its_knob_at_the_door() {
+    use geom_brep::DomainField;
+    use geom_brep::recourse::Reading;
+
+    let rows = [
+        (
+            SsiDomain {
+                half_extent: f64::NAN,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                half_extent: f64::INFINITY,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                half_extent: -1.0,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                half_extent: 0.0,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                center: Point3::new(f64::NAN, 0.0, 0.0),
+                ..slab()
+            },
+            DomainField::Center,
+        ),
+        (
+            SsiDomain {
+                extent: 0.0,
+                ..slab()
+            },
+            DomainField::Extent,
+        ),
+        (
+            SsiDomain {
+                floor_scale: f64::NAN,
+                ..slab()
+            },
+            DomainField::FloorScale,
+        ),
+    ];
+    for (d, want) in rows {
+        let r3 = ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, band());
+        let chart = ssi::plane_nurbs_ssi(&cutting_plane(), &certifiable_wall(), d, band());
+        for r in [r3, chart] {
+            let Err(ref e @ SsiError::DomainUnusable { field, .. }) = r else {
+                panic!("{d:?}: expected the domain door, got {r:?}");
+            };
+            assert_eq!(field, want, "{d:?}");
+            let shown = e.render(Reading::Build);
+            assert!(
+                !shown.contains("nearer the origin") && shown.contains("Recourse: give the domain"),
+                "{shown}"
+            );
+        }
+    }
+}
+
+/// **A floor no bisection of its domain can reach refuses by name, on
+/// both lanes, before any sweep runs.**
+///
+/// Chart lane: the certifiable wall scaled to `1e150` m has a finite
+/// certified chart speed of about `1e150` m per chart unit, so the
+/// accounting floor of ε metres is about `ε·1e-150` chart units, far
+/// below the `[0, 1]` domain's finest cell. The sweep used to refine
+/// toward it until the cell budget answered in the floor's place.
+///
+/// ℝ³ lane: D4 ¶1 claims micron-to-kilometre coverage with ~4 orders of
+/// f64 headroom at km scale; this is that claim as a check. A slab at
+/// `1e8` m with a `1e-8` m accounting floor (stated in metres, so the
+/// same width at every ε of the battery) cannot be resolved, because
+/// two adjacent floats there are `1.49e-8` m apart.
+#[test]
+fn a_floor_no_bisection_reaches_refuses_by_name_on_both_lanes() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{ExhaustLane, FloorFault, FloorKind};
+
+    let m = 1.0e150;
+    let wall = wall_from_cols([
+        (0.0, 0.0),
+        (0.35 * m, 0.14 * m),
+        (0.70 * m, 0.24 * m),
+        (1.05 * m, 0.30 * m),
+    ]);
+    let chart = ssi::plane_nurbs_ssi(&cutting_plane(), &wall, wall_domain(), band());
+    let Err(ref err @ SsiError::FloorUnresolvable(r)) = chart else {
+        panic!("the 1e150 m wall: expected the floor door, got {chart:?}");
+    };
+    assert_eq!(r.floor, FloorKind::Accounting);
+    let ExhaustLane::Chart { speed } = r.lane else {
+        panic!("the chart lane refused on the ℝ³ lane: {r:?}");
+    };
+    assert!(
+        speed.get() > 1.0e150 && speed.get() < 1.0e151,
+        "{:e}",
+        speed.get()
+    );
+    assert_eq!(
+        r.meters,
+        SSI_FLOOR * band().zero(),
+        "the caller's own metres"
+    );
+    let gap = 1.0 - 1.0f64.next_down();
+    assert_eq!(
+        r.fault,
+        FloorFault::BelowResolution {
+            resolution: gap,
+            reach: 1.0
+        }
+    );
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains(&format!(
+            "m is {:e} chart units at a certified chart speed of {:e} m per chart unit, \
+             which the domain cannot resolve",
+            r.width,
+            speed.get()
+        )) && shown.contains("Recourse: bring the spline face within the model's size range"),
+        "{shown}"
+    );
+
+    let at = Point3::new(1.0e8, 0.0, 0.0);
+    let far = Surface::Sphere {
+        center: at,
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let cylinder = match threaded_cylinder() {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Surface::Cylinder {
+            origin: Point3::new(origin.x + at.x, origin.y, origin.z),
+            axis,
+            radius,
+            u_ref,
+        },
+        other => panic!("{other:?}"),
+    };
+    let domain = SsiDomain {
+        center: at,
+        floor_scale: SsiDomain::floor_scale_for(1.0e-8, band()),
+        ..slab()
+    };
+    let r3 = ssi::cylinder_sphere_ssi(&cylinder, &far, domain, band());
+    let Err(ref err @ SsiError::FloorUnresolvable(r)) = r3 else {
+        panic!("the slab at 1e8 m: expected the floor door, got {r3:?}");
+    };
+    assert!(matches!(r.lane, ExhaustLane::R3), "{r:?}");
+    assert_eq!(r.floor, FloorKind::Accounting);
+    let reach = 1.0e8 + slab().half_extent;
+    let FloorFault::BelowResolution {
+        resolution,
+        reach: got,
+    } = r.fault
+    else {
+        panic!("{r:?}");
+    };
+    assert!(
+        got >= reach && resolution > r.width && resolution < 2.0e-8,
+        "{r:?}"
+    );
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains("Recourse: move the geometry nearer the origin"),
+        "{shown}"
+    );
+}
+
+/// The threaded cylinder × unit sphere, both translated to `x` along the
+/// first axis, with the slab centred there.
+fn far_cylinder_sphere(x: f64) -> (Surface<f64>, Surface<f64>, SsiDomain) {
+    let at = Point3::new(x, 0.0, 0.0);
+    let far = Surface::Sphere {
+        center: at,
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let cylinder = match threaded_cylinder() {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Surface::Cylinder {
+            origin: Point3::new(origin.x + x, origin.y, origin.z),
+            axis,
+            radius,
+            u_ref,
+        },
+        other => panic!("{other:?}"),
+    };
+    let domain = SsiDomain {
+        center: at,
+        ..slab()
+    };
+    (cylinder, far, domain)
+}
+
+/// The cutting plane and the certifiable wall, both translated to `x`
+/// along the first axis.
+fn far_plane_wall(x: f64) -> (Surface<f64>, NurbsSurface<f64>) {
+    let wall = wall_from_cols(certifiable_cols().map(|(u, v)| (u + x, v)));
+    let plane = match cutting_plane() {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => Surface::Plane {
+            origin: Point3::new(origin.x + x, origin.y, origin.z),
+            normal,
+            u_ref,
+        },
+        other => panic!("{other:?}"),
+    };
+    (plane, wall)
+}
+
+/// The run's band shape at tolerance `eps`: the same `K`.
+fn band_at(eps: f64) -> geom_core::Band {
+    geom_core::Band::new(eps, eps * band().escalate() / band().zero()).unwrap()
+}
+
+/// `r`'s settling refusal, read on `lane`, with the scale's ending.
+fn settling_refusal(what: &str, r: Result<geom_brep::SsiOutcome, SsiError>) -> SettlingRefusal {
+    use geom_brep::recourse::Reading;
+    let Err(ref err @ SsiError::SettlingUnresolvable(s)) = r else {
+        panic!("{what}: expected the settling door, got {r:?}");
+    };
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains(&format!(
+            "the march can settle a state no finer than {:e} m",
+            s.settle
+        )) && shown.contains("Recourse: "),
+        "{what}: {shown}"
+    );
+    s
+}
+
+/// **A quadric pair far from the origin certifies wherever its
+/// coordinates resolve the march, and refuses by its scale past that.**
+/// The march settles to the larger of `SSI_NEWTON_TOL`·ε and
+/// `SSI_QUADRIC_NOISE_ULPS` of the coordinates' spacing, and refuses
+/// where that passes `SSI_SETTLE_MAX`·ε: at ε = `1e-9`, from reach
+/// `2²¹` m (2.1e6). Measured at the merge base, which settled to
+/// `SSI_NEWTON_TOL`·ε alone: 1e5 and 1.3e5 m certified, and from 3e5 m
+/// the march "lost the branch" (`StepRefinementFailed`).
+///
+/// The pins either side of the boundary: at 2e6 m the states settle to
+/// 0.47ε and both branches certify; at 2.2e6 m they would settle to
+/// 0.93ε, which escalated limb 2 (the hull bound) when let through.
+#[test]
+fn a_far_quadric_pair_certifies_where_its_coordinates_resolve_the_march() {
+    let b = band_at(1.0e-9);
+    for x in [1.0e5, 1.3e5, 2.0e6] {
+        let (c, s, d) = far_cylinder_sphere(x);
+        match ssi::cylinder_sphere_ssi(&c, &s, d, b) {
+            Ok(o) => assert_eq!(o.branches.len(), 2, "at {x:e} m"),
+            Err(e) => panic!("at {x:e} m: expected both loops certified, got {e:?}"),
+        }
+    }
+}
+
+/// **The same pair past the boundary, and at `1e8` m, refuses by its
+/// scale**, never "lost the branch". At `1e8` m the accounting floor is
+/// stated as `1e-7` m so the floor door passes and the march's own door
+/// is what refuses.
+#[test]
+fn a_far_quadric_pair_past_what_its_coordinates_resolve_refuses_by_scale() {
+    let b = band_at(1.0e-9);
+    let (c, s, d) = far_cylinder_sphere(2.2e6);
+    let r = settling_refusal("2.2e6 m", ssi::cylinder_sphere_ssi(&c, &s, d, b));
+    assert!(matches!(r.lane, geom_brep::ExhaustLane::R3), "{r:?}");
+    assert!(
+        r.settle > SSI_SETTLE_MAX * b.zero() && r.settle <= b.zero(),
+        "just past the boundary: {r:?}"
+    );
+    let (c, s, d) = far_cylinder_sphere(1.0e8);
+    let d = SsiDomain {
+        floor_scale: SsiDomain::floor_scale_for(1.0e-7, b),
+        ..d
+    };
+    let r = settling_refusal("1e8 m", ssi::cylinder_sphere_ssi(&c, &s, d, b));
+    assert!(r.reach > 1.0e8 && r.gap > 1.0e-8, "{r:?}");
+}
+
+/// **An oversized domain around geometry at the origin settles where
+/// the geometry is**, not at the domain's far corner: the march's
+/// states lie on the operands, so the readout's reach is the domain cut
+/// down to the bounded operand's box (the sphere's here). Both loops
+/// certified at the merge base with these half-extents.
+#[test]
+fn a_wide_slab_around_a_quadric_pair_at_the_origin_settles_where_the_pair_is() {
+    let b = band_at(1.0e-9);
+    for half_extent in [3.0e6, 6.0e6] {
+        let d = SsiDomain {
+            half_extent,
+            ..slab()
+        };
+        let out = ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, b)
+            .unwrap_or_else(|e| panic!("half-extent {half_extent:e} m: {e:?}"));
+        assert_eq!(out.branches.len(), 2, "half-extent {half_extent:e} m");
+    }
+}
+
+/// The spline lane's twin: the readout's reach is the plane window cut
+/// down to the wall's control hull.
+#[test]
+fn a_wide_window_around_a_wall_at_the_origin_settles_where_the_wall_is() {
+    let b = band_at(1.0e-12);
+    let d = SsiDomain {
+        half_extent: 1000.0,
+        ..wall_domain()
+    };
+    let out = ssi::plane_nurbs_ssi(&cutting_plane(), &certifiable_wall(), d, b)
+        .expect("certified at the merge base: the wall sits at the origin");
+    assert_eq!(out.branches.len(), 1);
+}
+
+/// **Where no operand is bounded, the domain is what reaches, and the
+/// refusal names it.** The threaded cylinder against a plane through
+/// it, both unbounded, traced over a 3e6 m domain at ε = `1e-9`: the
+/// states may lie anywhere in it, so the march settles to the domain's
+/// spacing and refuses naming the domain, with the domain as a lever.
+#[test]
+fn a_domain_no_operand_bounds_refuses_naming_the_domain() {
+    use geom_brep::ReachBound;
+    use geom_brep::recourse::Reading;
+
+    let b = band_at(1.0e-9);
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.5),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let d = SsiDomain {
+        half_extent: 3.0e6,
+        ..slab()
+    };
+    let r = ssi::idealized_trace_r3(
+        &threaded_cylinder(),
+        &plane,
+        Point3::new(0.11, 0.0, 0.5),
+        d,
+        b,
+    );
+    let Err(ref err @ SsiError::SettlingUnresolvable(s)) = r else {
+        panic!("expected the settling door, got {r:?}");
+    };
+    assert_eq!(s.bound, ReachBound::Domain, "{s:?}");
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains("where the domain reaches") && shown.contains("Recourse: name a domain"),
+        "{shown}"
+    );
+}
+
+/// **A plane × NURBS wall far from the origin traces and certifies
+/// where its coordinates resolve the march, and refuses by its scale
+/// past that**, never "lost the branch". The spline lane settles to
+/// `SSI_SPLINE_NOISE_ULPS` of the spacing, so at ε = `1e-12` it refuses
+/// from reach `2⁹` m. Measured at the merge base: from 20 m the march
+/// refused `StepRefinementFailed`.
+///
+/// The pins either side of the boundary: at 500 m the states settle to
+/// 0.45ε and the branch certifies; at 520 m they would settle to 0.91ε,
+/// which escalated limb 2 (the hull bound) when let through.
+#[test]
+fn a_far_plane_wall_pair_certifies_or_refuses_by_scale() {
+    let b = band_at(1.0e-12);
+    for x in [20.0, 40.0, 60.0, 500.0] {
+        let (p, w) = far_plane_wall(x);
+        match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), b) {
+            Ok(o) => assert_eq!(o.branches.len(), 1, "at {x} m"),
+            Err(e) => panic!("at {x} m: expected the branch certified, got {e:?}"),
+        }
+    }
+    for x in [520.0, 1.0e8] {
+        let (p, w) = far_plane_wall(x);
+        let r = settling_refusal(
+            &format!("{x:e} m"),
+            ssi::plane_nurbs_ssi(&p, &w, wall_domain(), b),
+        );
+        assert!(
+            matches!(r.lane, geom_brep::ExhaustLane::R3) && r.reach > x,
+            "{r:?}"
+        );
+    }
+}
+
+/// **A wall whose own chart is too coarse for the march refuses by that
+/// chart's scale.** A wall near the origin scaled to `ε·1e15` m moves
+/// about `3ε·1e15` m per chart unit, so the accounting floor of ε is a
+/// third of `1e-15` chart units, which `[0, 1]` resolves, while a chart
+/// step there is several ε in metres.
+#[test]
+fn a_wall_whose_chart_cannot_settle_the_march_refuses_by_its_chart() {
+    use geom_brep::recourse::Reading;
+
+    let m = band().zero() * 1.0e15;
+    let wide = wall_from_cols(certifiable_cols().map(|(u, v)| (u * m, v * m)));
+    let r = ssi::plane_nurbs_ssi(&cutting_plane(), &wide, wall_domain(), band());
+    let Err(ref err @ SsiError::SettlingUnresolvable(s)) = r else {
+        panic!("the {m:e} m wall: expected the settling door, got {r:?}");
+    };
+    let geom_brep::ExhaustLane::Chart { speed } = s.lane else {
+        panic!("the chart's settling refused on the ℝ³ lane: {s:?}");
+    };
+    assert_eq!(s.reach, 1.0, "the wall's knot domain");
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains(&format!(
+            "at a certified chart speed of {:e} m per chart unit",
+            speed.get()
+        )) && shown.contains("Recourse: bring the spline face within the model's size range"),
+        "{shown}"
+    );
+}
+
+/// **A short branch traces at the caller's extent.** The collapsed net
+/// at spread `1e-2`, against a plane that meets it, has a branch 3 cm
+/// long. The march's longest step at the domain's 1.5 m extent is
+/// `SSI_STEP_MAX · 1.5` m, about 4.7 cm, longer than the branch. Its two
+/// ends are the boundary pass's crossings, so the march's step is cut
+/// from their distance and the branch certifies without the caller
+/// naming a smaller extent.
+#[test]
+fn a_short_branch_traces_at_the_callers_extent() {
+    let spread = 1.0e-2;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.25 * spread),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0,
+        extent: 1.5,
+        floor_scale: 1.0,
+    };
+    let out = ssi::plane_nurbs_ssi(&plane, &collapsed_net(spread), dom, band())
+        .unwrap_or_else(|e| panic!("the short branch is not traced: {e}"));
+    assert_eq!(out.branches.len(), 1);
+    let b = &out.branches[0];
+    let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+    assert!(
+        (span - 3.0 * spread).abs() < 1.0e-6,
+        "the carrier spans {span:e} m"
+    );
+}
+
+/// A flat bilinear wall in `y = 0`, `width` wide along `x` and `height`
+/// tall along `z`.
+fn flat_wall(width: f64, height: f64) -> NurbsSurface<f64> {
+    let knots = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    NurbsSurface::new(
+        knots(),
+        knots(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, height),
+            Point3::new(width, 0.0, 0.0),
+            Point3::new(width, 0.0, height),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap()
+}
+
+/// **A plane clipping a wall's corner traces the clip, however short.**
+/// A flat square wall of side `w` cut by the plane `x + z = d`: the
+/// branch is the segment from `(d, 0, 0)` to `(0, 0, d)`, `d·√2` long.
+///
+/// On the 1 m wall, from `d = 0.01` (1.4 cm) to `0.2` (28 cm) at extents
+/// of 1 m and 1.5 m, and on the 100 m wall at a 200 m extent, every clip
+/// certifies as one branch end to end, marched between the two
+/// crossings the boundary pass certifies, at a step cut from their
+/// distance. A boolean meets clips like these routinely, and no one
+/// extent serves both them and the body they are cut from.
+#[test]
+fn a_plane_clipping_a_walls_corner_traces_the_clip_however_short() {
+    let s2 = std::f64::consts::FRAC_1_SQRT_2;
+    let mut rows = Vec::new();
+    for d in [0.01, 0.02, 0.03, 0.05, 0.08, 0.1, 0.15, 0.2] {
+        for extent in [1.0, 1.5] {
+            rows.push((1.0, d, extent));
+        }
+    }
+    rows.extend([(100.0, 1.0, 200.0), (100.0, 2.5, 200.0)]);
+    for (w, d, extent) in rows {
+        let clip = Surface::Plane {
+            origin: Point3::new(d, 0.0, 0.0),
+            normal: Vec3::new(s2, 0.0, s2),
+            u_ref: Vec3::new(s2, 0.0, -s2),
+        };
+        let dom = SsiDomain {
+            center: Point3::new(0.0, 0.0, 0.0),
+            half_extent: 2.0 * w,
+            extent,
+            floor_scale: 1.0,
+        };
+        let at = format!(
+            "d = {d} on the {w} m wall at extent {extent} m, ε {:e}",
+            band().zero()
+        );
+        let out = ssi::plane_nurbs_ssi(&clip, &flat_wall(w, w), dom, band())
+            .unwrap_or_else(|e| panic!("{at}: the clip is not traced: {e}"));
+        assert_eq!(out.branches.len(), 1, "{at}");
+        let b = &out.branches[0];
+        let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+        assert!(
+            (span - d * std::f64::consts::SQRT_2).abs() < 1.0e-6 * d,
+            "{at}: the carrier spans {span:e} m"
+        );
+    }
+}
+
+/// A plane through the corner `(0, 0, 0)` of the flat `w` wall along
+/// the normal `(1, 0, 1)/√2`, moved `d` into the wall (`x + z = d`).
+fn corner_clip(d: f64) -> Surface<f64> {
+    let s2 = std::f64::consts::FRAC_1_SQRT_2;
+    Surface::Plane {
+        origin: Point3::new(d, 0.0, 0.0),
+        normal: Vec3::new(s2, 0.0, s2),
+        u_ref: Vec3::new(s2, 0.0, -s2),
+    }
+}
+
+/// The plane `x = off`, parallel to the flat wall's `u = 0` edge and
+/// `off` inside it.
+fn edge_plane(off: f64) -> Surface<f64> {
+    Surface::Plane {
+        origin: Point3::new(off, 0.0, 0.0),
+        normal: Vec3::new(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    }
+}
+
+/// The domain around a `w` wall at the origin, at feature extent
+/// `extent`.
+fn wall_box(w: f64, extent: f64) -> SsiDomain {
+    SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0 * w,
+        extent,
+        floor_scale: 1.0,
+    }
+}
+
+/// The one region an outcome reports and no branch, with its rendered
+/// text checked to say "region".
+fn one_region(what: &str, r: Result<geom_brep::SsiOutcome, SsiError>) -> SsiBoundaryContact {
+    let out = r.unwrap_or_else(|e| panic!("{what}: expected a region, got {e}"));
+    assert!(out.branches.is_empty(), "{what}: no branch: {out:?}");
+    let [region] = out.boundary.as_slice() else {
+        panic!("{what}: expected one region, got {:?}", out.boundary);
+    };
+    assert!(
+        out.exhaustiveness.contact > 0,
+        "{what}: the receipt banks the region: {}",
+        out.exhaustiveness
+    );
+    let shown = region.to_string();
+    assert!(
+        shown.contains("a region") && shown.contains("m of the"),
+        "{what}: {shown}"
+    );
+    *region
+}
+
+/// **A plane through a wall's corner vertex reports the corner's
+/// region.** The flat 1 m wall cut by `x + z = 0` meets the plane at
+/// the corner `(0, 0, 0)` alone. The boundary pass reads the corner's
+/// distance from the plane as zero and the plane distance's two inward
+/// partials as one-signed and of one sign over a corner cell, so the
+/// locus leaves the domain there: the answer is a `Corner` region
+/// whose reach is the band, no branch, and the receipt banks the cell.
+#[test]
+fn a_plane_through_a_walls_corner_vertex_reports_a_corner_region() {
+    let eps = band().zero();
+    let r = ssi::plane_nurbs_ssi(
+        &corner_clip(0.0),
+        &flat_wall(1.0, 1.0),
+        wall_box(1.0, 1.0),
+        band(),
+    );
+    match one_region("the corner touch", r) {
+        SsiBoundaryContact::Corner { corner, reach } => {
+            assert_eq!(
+                corner,
+                ChartCorner {
+                    u: ChartEnd::Low,
+                    v: ChartEnd::Low
+                }
+            );
+            assert!(reach >= eps && reach <= 2.0 * eps, "reach {reach:e}");
+        }
+        other => panic!("the corner touch: expected the corner, got {other:?}"),
+    }
+}
+
+/// **A plane flush with a wall's edge reports the side's region.** The
+/// flat 1 m wall meets the plane `z = 0` along its bottom edge, and the
+/// plane `x = off` along its `u = 0` edge for `off` up to just under ε.
+/// The side lies within the band of the plane, and the wall's slope
+/// across it is one-signed over a strip beside it, so the answer is a
+/// `Side` region, with no fitted copy of the wall's own edge.
+#[test]
+fn a_plane_flush_with_a_walls_edge_reports_a_side_region() {
+    let eps = band().zero();
+    let bottom = Surface::Plane {
+        origin: Point3::new(0.7, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let mut rows = vec![(
+        "the bottom edge".to_owned(),
+        bottom,
+        ChartSide {
+            fixed: ChartAxis::V,
+            end: ChartEnd::Low,
+        },
+        0.0,
+    )];
+    for off in [0.0, 0.3 * eps, 0.9 * eps] {
+        rows.push((
+            format!("the u = 0 edge, offset {off:e} m"),
+            edge_plane(off),
+            ChartSide {
+                fixed: ChartAxis::U,
+                end: ChartEnd::Low,
+            },
+            off,
+        ));
+    }
+    for (what, plane, want, off) in rows {
+        let r = ssi::plane_nurbs_ssi(&plane, &flat_wall(1.0, 1.0), wall_box(1.0, 1.0), band());
+        match one_region(&what, r) {
+            SsiBoundaryContact::Side { side, reach } => {
+                assert_eq!(side, want, "{what}");
+                assert!(
+                    reach >= off + eps && reach <= off + 2.0 * eps,
+                    "{what}: reach {reach:e}"
+                );
+            }
+            other => panic!("{what}: expected the side, got {other:?}"),
+        }
+    }
+}
+
+/// **No answer inside the band forks on its sign, and a region is
+/// reported only where the locus is within ε of the boundary.** The
+/// corner clip `x + z = d` and the edge plane `x = d` on the 1 m wall,
+/// half an ε, three ε and four fifths of `Kε` inside and outside it.
+/// Inside, half an ε is coincident with the corner or side, and the
+/// answer is its region, with a reach that holds the crossings; three ε
+/// and `0.8Kε` are not, and the answer is the branch: the clip's
+/// `d·√2` between its crossings, the edge plane's 1 m along the side.
+/// Outside, the plane misses the domain, and the exact empty answer
+/// stands. Every ε.
+#[test]
+fn an_offset_inside_the_band_answers_by_its_distance_never_by_its_sign() {
+    let eps = band().zero();
+    let wall = flat_wall(1.0, 1.0);
+    for k in [0.5, 3.0, 0.8 * band().escalate() / eps] {
+        let d = k * eps;
+        for (what, plane, span) in [
+            (
+                format!("the corner clip {k}ε"),
+                corner_clip(d),
+                d * std::f64::consts::SQRT_2,
+            ),
+            (format!("the edge plane {k}ε"), edge_plane(d), 1.0),
+        ] {
+            let what = format!("{what} inside");
+            let inside = ssi::plane_nurbs_ssi(&plane, &wall, wall_box(1.0, 1.0), band());
+            if d <= eps {
+                let reach = region_reach(one_region(&what, inside));
+                // The crossings lie `d` from the corner, `d` from the side.
+                assert!(
+                    reach >= d && reach <= d + 2.0 * eps,
+                    "{what}: reach {reach:e}"
+                );
+            } else {
+                let (_, got) = one_branch(&what, inside);
+                assert!((got - span).abs() <= 1.0e-2 * span, "{what}: spans {got:e}");
+            }
+        }
+        for (what, plane) in [
+            (format!("the corner clip −{k}ε"), corner_clip(-d)),
+            (format!("the edge plane −{k}ε"), edge_plane(-d)),
+        ] {
+            let out = ssi::plane_nurbs_ssi(&plane, &wall, wall_box(1.0, 1.0), band())
+                .unwrap_or_else(|e| panic!("{what} outside: {e}"));
+            assert!(
+                out.branches.is_empty() && out.boundary.is_empty(),
+                "{what} outside: the empty answer, got {out:?}"
+            );
+            assert_eq!(out.exhaustiveness.contact, 0, "{what} outside");
+        }
+    }
+}
+
+/// The flat `w` wall of [`flat_wall`] with the control weights `weights`
+/// (in the net's order): the same square, reparametrised.
+fn weighted_wall(w: f64, weights: [f64; 4]) -> NurbsSurface<f64> {
+    let knots = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    NurbsSurface::new(
+        knots(),
+        knots(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, w),
+            Point3::new(w, 0.0, 0.0),
+            Point3::new(w, 0.0, w),
+        ],
+        weights.to_vec(),
+    )
+    .unwrap()
+}
+
+/// The reach of the one region `out` reports.
+fn region_reach(region: SsiBoundaryContact) -> f64 {
+    match region {
+        SsiBoundaryContact::Corner { reach, .. } | SsiBoundaryContact::Side { reach, .. } => reach,
+    }
+}
+
+/// The one branch `out` reports, with no region, and its end-to-end span.
+fn one_branch(
+    what: &str,
+    r: Result<geom_brep::SsiOutcome, SsiError>,
+) -> (geom_brep::SsiOutcome, f64) {
+    let out = r.unwrap_or_else(|e| panic!("{what}: expected a branch, got {e}"));
+    assert!(
+        out.boundary.is_empty(),
+        "{what}: no region: {:?}",
+        out.boundary
+    );
+    let [b] = out.branches.as_slice() else {
+        panic!("{what}: expected one branch, got {}", out.branches.len());
+    };
+    let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+    (out, span)
+}
+
+/// **A wall's weights move no answer.** The flat 1 m wall with uniform
+/// weights ¼, 2, 4 and 8 and two mixed nets is the same square
+/// reparametrised, so the truth is the unit-weight wall's, exactly: the
+/// edge plane `x = d` meets it along the segment `d` from its `u = 0`
+/// side, the corner clip `x + z = d` in the segment `d` from its
+/// corner. Within ε of the corner or side the answer is its region,
+/// with a reach that holds those crossings; past ε the clip is the
+/// branch `d·√2` long, and on a uniform net the edge plane is the
+/// branch a metre long; outside the wall, nothing. Every ε.
+///
+/// A mixed net's edge plane past `0.3ε` is left out: its side's
+/// certified distance reads loose with those weights, so it traces the
+/// metre-long branch along the edge, which the certificate refuses as
+/// it refuses the same branch mid-wall
+/// (`a_rational_walls_plane_three_eps_off_its_edge_meets_the_certificate_limit`).
+#[test]
+fn a_walls_weights_move_no_answer() {
+    let eps = band().zero();
+    let k_eps = band().escalate();
+    let nets: [(&str, [f64; 4]); 6] = [
+        ("weights ¼", [0.25; 4]),
+        ("weights 2", [2.0; 4]),
+        ("weights 4", [4.0; 4]),
+        ("weights 8", [8.0; 4]),
+        ("weights 1, 3, ½, 2.5", [1.0, 3.0, 0.5, 2.5]),
+        ("weights 2, ½, 1, 4", [2.0, 0.5, 1.0, 4.0]),
+    ];
+    for (net, weights) in nets {
+        let wall = weighted_wall(1.0, weights);
+        let mixed = weights.iter().any(|w| *w != weights[0]);
+        for d in [0.3 * eps, 0.9 * eps, 3.0 * eps, 0.8 * k_eps] {
+            let mut planes = vec![(
+                format!("{net}: the corner clip at {d:e} m"),
+                corner_clip(d),
+                d * std::f64::consts::SQRT_2,
+            )];
+            if !mixed || d < 0.5 * eps {
+                planes.push((
+                    format!("{net}: the edge plane at {d:e} m"),
+                    edge_plane(d),
+                    1.0,
+                ));
+            }
+            for (what, plane, span) in planes {
+                let r = ssi::plane_nurbs_ssi(&plane, &wall, wall_box(1.0, 1.0), band());
+                if d <= eps {
+                    let reach = region_reach(one_region(&what, r));
+                    assert!(
+                        reach >= d && reach <= d + 2.0 * eps,
+                        "{what}: reach {reach:e}"
+                    );
+                } else {
+                    let (_, got) = one_branch(&what, r);
+                    assert!((got - span).abs() <= 1.0e-2 * span, "{what}: spans {got:e}");
+                }
+            }
+            for (what, plane) in [
+                (format!("{net}: the edge plane at −{d:e} m"), edge_plane(-d)),
+                (
+                    format!("{net}: the corner clip at −{d:e} m"),
+                    corner_clip(-d),
+                ),
+            ] {
+                let out = ssi::plane_nurbs_ssi(&plane, &wall, wall_box(1.0, 1.0), band())
+                    .unwrap_or_else(|e| panic!("{what}: {e}"));
+                assert!(
+                    out.branches.is_empty() && out.boundary.is_empty(),
+                    "{what}: the empty answer, got {out:?}"
+                );
+            }
+        }
+        if mixed {
+            continue;
+        }
+        for d in [3.0 * k_eps, 6.0 * k_eps] {
+            let what = format!("{net}: the edge plane at {d:e} m");
+            let r = ssi::plane_nurbs_ssi(&edge_plane(d), &wall, wall_box(1.0, 1.0), band());
+            let (_, span) = one_branch(&what, r);
+            assert!((span - 1.0).abs() < 1.0e-6, "{what}: spans {span:e}");
+            let what = format!("{net}: the corner clip at {d:e} m");
+            let r = ssi::plane_nurbs_ssi(&corner_clip(d), &wall, wall_box(1.0, 1.0), band());
+            let (_, span) = one_branch(&what, r);
+            let want = d * std::f64::consts::SQRT_2;
+            assert!(
+                (span - want).abs() < 1.0e-2 * want,
+                "{what}: spans {span:e}"
+            );
+        }
+    }
+}
+
+/// The plane through `at + off·n̂` normal to `n`.
+fn plane_off(at: Point3<f64>, n: Vec3<f64>, off: f64) -> Surface<f64> {
+    let n = n * (1.0 / n.norm());
+    let seed = if n.x.abs() < 0.9 {
+        Vec3::new(1.0, 0.0, 0.0)
+    } else {
+        Vec3::new(0.0, 1.0, 0.0)
+    };
+    let u_ref = seed - n * seed.dot(n);
+    Surface::Plane {
+        origin: at + n * off,
+        normal: n,
+        u_ref: u_ref * (1.0 / u_ref.norm()),
+    }
+}
+
+/// **A region is reported only where the locus is within ε of the
+/// corner or side, and elsewhere the roots decide.** On the flat 1 m
+/// wall in `y = 0`, each plane lies within the band of a corner or side
+/// but its locus runs past ε from it, so no region is reported and the
+/// branch between the roots is traced:
+///
+/// - `x + 100Kε·z = ½Kε` meets the `u = 0` side 5 mm up it; the
+///   corner's cell is banked by the branch's tube, not as a contact.
+/// - `sθ·x + y + 0.1Kε·z = 0.1Kε` for `sθ = 2Kε, 20Kε` lies within the
+///   band along the whole `u = 0` side, whose slope across is `sθ`, and
+///   meets it at the top corner: a branch a metre long.
+/// - Planes of normal `(1, 2, 0.05)` and `(1, 0, 0.2)`, `0.3Kε` inside
+///   the corner, cross the `u = 0` side `13Kε` and `1.5Kε` up it.
+/// - A plane of normal `(0.02, 1, 0)` `0.3Kε` off the `u = 0` side lies
+///   within the band along all of it, its locus `15Kε` in from it: the
+///   metre-long branch across the wall.
+///
+/// Every ε.
+#[test]
+fn a_region_is_reported_only_where_the_locus_is_within_eps() {
+    let k_eps = band().escalate();
+    let wall = flat_wall(1.0, 1.0);
+    let origin = Point3::new(0.0, 0.0, 0.0);
+    let run = |plane: &Surface<f64>| ssi::plane_nurbs_ssi(plane, &wall, wall_box(1.0, 1.0), band());
+
+    let what = "x + 100Kε·z = ½Kε";
+    let plane = plane_off(
+        Point3::new(0.5 * k_eps, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 100.0 * k_eps),
+        0.0,
+    );
+    let (out, span) = one_branch(what, run(&plane));
+    let want = (0.25 * k_eps * k_eps + 25.0e-6_f64).sqrt();
+    assert!(
+        (span - want).abs() < 1.0e-3 * want,
+        "{what}: spans {span:e}"
+    );
+    assert!(
+        out.exhaustiveness.contact == 0 && out.exhaustiveness.accounted > 0,
+        "{what}: the corner's cell is the branch's tube's: {}",
+        out.exhaustiveness
+    );
+
+    for s_theta in [2.0, 20.0] {
+        let what = format!("{s_theta}Kε·x + y + 0.1Kε·z = 0.1Kε");
+        let n = Vec3::new(s_theta * k_eps, 1.0, 0.1 * k_eps);
+        let plane = plane_off(Point3::new(0.1 / s_theta, 0.0, 0.0), n, 0.0);
+        let (_, span) = one_branch(&what, run(&plane));
+        let want = (1.0 + (0.1 / s_theta) * (0.1 / s_theta)).sqrt();
+        assert!((span - want).abs() < 1.0e-6, "{what}: spans {span:e}");
+    }
+
+    // On the wall: `x + a·z = 0.3Kε·|n|`, from `(c, 0)` to `(0, c/a)`.
+    for (n, a) in [
+        (Vec3::new(1.0, 2.0, 0.05), 0.05_f64),
+        (Vec3::new(1.0, 0.0, 0.2), 0.2),
+    ] {
+        let what = format!("normal {n:?}, 0.3Kε inside the corner");
+        let (_, span) = one_branch(&what, run(&plane_off(origin, n, 0.3 * k_eps)));
+        let c = 0.3 * k_eps * n.norm();
+        let want = c * (1.0 + 1.0 / (a * a)).sqrt();
+        assert!(
+            (span - want).abs() < 1.0e-2 * want,
+            "{what}: spans {span:e}"
+        );
+    }
+
+    let what = "normal (0.02, 1, 0), 0.3Kε off the u = 0 side";
+    let n = Vec3::new(0.02, 1.0, 0.0);
+    let (_, span) = one_branch(
+        what,
+        run(&plane_off(Point3::new(0.0, 0.0, 0.5), n, 0.3 * k_eps)),
+    );
+    assert!((span - 1.0).abs() < 1.0e-6, "{what}: spans {span:e}");
+}
+
+/// A rational biquadratic wall over the unit square in `x, z`, bulging
+/// `b` along `y` at its middle, with control weights `weights`.
+fn rational_biquad(b: f64, weights: [f64; 9]) -> NurbsSurface<f64> {
+    let knots = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut net = Vec::new();
+    for i in 0..3 {
+        for j in 0..3 {
+            let y = match (i, j) {
+                (1, 1) => b,
+                (1, _) | (_, 1) => 0.5 * b,
+                _ => 0.0,
+            };
+            net.push(Point3::new(0.5 * f64::from(i), y, 0.5 * f64::from(j)));
+        }
+    }
+    NurbsSurface::new(knots(), knots(), net, weights.to_vec()).unwrap()
+}
+
+/// The twisted bilinear wall of weights `1, 3, ½, 2.5` and two rational
+/// biquadratic walls, of centre weight ½ and 9, each with its `u = 0`
+/// side straight in `x = 0`.
+fn rational_walls() -> [(&'static str, NurbsSurface<f64>); 3] {
+    let knots = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let twisted = NurbsSurface::new(
+        knots(),
+        knots(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0e-3, 1.0),
+            Point3::new(1.0, -1.0e-3, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+        ],
+        vec![1.0, 3.0, 0.5, 2.5],
+    )
+    .unwrap();
+    [
+        ("the twisted wall", twisted),
+        (
+            "the biquadratic of centre weight ½",
+            rational_biquad(0.01, [1.0, 0.7, 1.0, 0.7, 0.5, 0.7, 1.0, 0.7, 1.0]),
+        ),
+        (
+            "the biquadratic of centre weight 9",
+            rational_biquad(0.01, [1.0, 3.0, 1.0, 3.0, 9.0, 3.0, 1.0, 3.0, 1.0]),
+        ),
+    ]
+}
+
+/// **A rational wall's corner and side inside the band answer a region
+/// only where coincident, and nothing outside.** On
+/// [`rational_walls`], a plane of normal `(1, 0.2, 1)` through the
+/// `(0, 0)` corner and the plane `x = off` along the `u = 0` side, each
+/// moved `off` into the wall and out of it. Into the wall, a plane on
+/// the corner or side or `0.3ε` from it is coincident, and the answer
+/// is its region, whose reach holds the offset; the corner plane from
+/// `0.9ε` is not, and the answer is the short branch between the
+/// corner's crossings. Out of the wall, nothing, from zero to `0.8Kε`.
+/// Every ε. The side plane past `0.3ε` in is
+/// `a_rational_walls_plane_three_eps_off_its_edge_meets_the_certificate_limit`'s.
+#[test]
+fn a_rational_walls_corner_and_side_in_band_answer_a_region_only_where_coincident() {
+    let (eps, k_eps) = (band().zero(), band().escalate());
+    let origin = Point3::new(0.0, 0.0, 0.0);
+    for (name, wall) in &rational_walls() {
+        for off in [0.0, 0.3 * eps, 0.9 * eps, 3.0 * eps, 0.8 * k_eps] {
+            let corner = |o: f64| plane_off(origin, Vec3::new(1.0, 0.2, 1.0), o);
+            let run = |plane: &Surface<f64>| {
+                ssi::plane_nurbs_ssi(plane, wall, wall_box(1.0, 1.0), band())
+            };
+            if off > 0.0 {
+                for (what, plane) in [
+                    (format!("{name}, the corner plane −{off:e} m"), corner(-off)),
+                    (
+                        format!("{name}, the side plane −{off:e} m"),
+                        edge_plane(-off),
+                    ),
+                ] {
+                    let out = run(&plane).unwrap_or_else(|e| panic!("{what}: {e}"));
+                    assert!(
+                        out.branches.is_empty() && out.boundary.is_empty(),
+                        "{what}: the empty answer, got {out:?}"
+                    );
+                }
+            }
+            let what = format!("{name}, the corner plane +{off:e} m");
+            if off <= 0.3 * eps {
+                let region = one_region(&what, run(&corner(off)));
+                assert!(
+                    matches!(region, SsiBoundaryContact::Corner { .. }),
+                    "{what}: {region:?}"
+                );
+                let reach = region_reach(region);
+                assert!(
+                    reach >= off && reach <= off + 2.0 * eps,
+                    "{what}: reach {reach:e}"
+                );
+                let what = format!("{name}, the side plane +{off:e} m");
+                let region = one_region(&what, run(&edge_plane(off)));
+                assert!(
+                    matches!(region, SsiBoundaryContact::Side { .. }),
+                    "{what}: {region:?}"
+                );
+                let reach = region_reach(region);
+                assert!(
+                    reach >= off + eps && reach <= off + 2.0 * eps,
+                    "{what}: reach {reach:e}"
+                );
+            } else {
+                let (_, span) = one_branch(&what, run(&corner(off)));
+                assert!(span < 10.0 * k_eps, "{what}: spans {span:e}");
+            }
+        }
+    }
+}
+
+/// Whether `e` is the certificate's own limit on a fitted branch: a limb
+/// refused or too close to call, or the fit's sample budget spent.
+fn certificate_limit(e: &SsiError) -> bool {
+    matches!(
+        e,
+        SsiError::CertificateLimb { .. }
+            | SsiError::CertificateEscalated { .. }
+            | SsiError::FitSampleBudget { .. }
+    )
+}
+
+/// **A rational wall's plane three ε off its edge traces the edge-long
+/// branch, and meets the certificate's limit there as it does
+/// mid-wall.** On [`rational_walls`] and the two mixed-weight squares
+/// of [`weighted_wall`], the plane `x = 3ε` lies within the band along
+/// the `u = 0` side, but no rung certifies its locus within ε of it, so
+/// no region is reported and the metre-long branch along the edge is
+/// traced. Each wall's answer there is of the kind the plane `x = 1 mm`
+/// gets mid-wall: the branch, or a refusal by the certificate's limit
+/// on a metre-long rational carrier, never a boundary refusal; the
+/// centre-weight-9 biquadratic refuses at every ε. The remedy is the
+/// wall's own boundary iso-curve as the carrier
+/// (`work/ssi/ssi-a-near-side-locus-could-take-the-walls-own-iso-curve.md`).
+#[test]
+fn a_rational_walls_plane_three_eps_off_its_edge_meets_the_certificate_limit() {
+    let eps = band().zero();
+    let mut walls = Vec::from(rational_walls());
+    walls.push((
+        "weights 1, 3, ½, 2.5",
+        weighted_wall(1.0, [1.0, 3.0, 0.5, 2.5]),
+    ));
+    walls.push((
+        "weights 2, ½, 1, 4",
+        weighted_wall(1.0, [2.0, 0.5, 1.0, 4.0]),
+    ));
+    for (name, wall) in &walls {
+        let run = |x: f64| ssi::plane_nurbs_ssi(&edge_plane(x), wall, wall_box(1.0, 1.0), band());
+        let at = format!("{name}, the plane 3ε off its edge at ε {eps:e}");
+        let edge = run(3.0 * eps);
+        let mid = run(1.0e-3);
+        if name.contains("weight 9") {
+            assert!(edge.is_err(), "{at}: the limit is reached: {edge:?}");
+        }
+        match (&edge, &mid) {
+            (Ok(_), Ok(_)) => {
+                let (_, span) = one_branch(&at, edge);
+                assert!((span - 1.0).abs() < 1.0e-6, "{at}: spans {span:e}");
+            }
+            (Err(e), Err(m)) => assert!(
+                certificate_limit(e) && certificate_limit(m),
+                "{at}: the certificate's limit at the edge and mid-wall: {e:?}; {m:?}"
+            ),
+            _ => panic!("{at}: the edge and mid-wall answers differ: {edge:?}; {mid:?}"),
+        }
+    }
+}
+
+/// **A clip the march cannot progress along takes the Hermite
+/// candidate, and certifies.** The corner clip `x + z = d` on the 1 m
+/// wall has ends `d` from the corner and `|AB| = d·√2`, swept from
+/// `½Kε` to `6½Kε`; every `d` is past ε, so no region is reported and
+/// the branch is traced. Below `5Kε` the march's step of `|AB|/5` falls
+/// in the band, the march refuses, and the branch is the cubic through
+/// the two crossings and their tangents: one Bézier span, four control
+/// points. From `5Kε` the march traces it, its fit holding more. Every
+/// ε.
+#[test]
+fn a_short_clip_takes_the_hermite_candidate_and_certifies() {
+    let (eps, k_eps) = (band().zero(), band().escalate());
+    let mut hermites = 0;
+    let mut marched = 0;
+    for i in 0..=24 {
+        let length = (0.5 + 0.25 * f64::from(i)) * k_eps;
+        if (length - 5.0 * k_eps).abs() < 0.1 * k_eps {
+            // The march's step at the band's edge: either candidate.
+            continue;
+        }
+        let d = length / std::f64::consts::SQRT_2;
+        let at = format!("|AB| = {:.3} Kε at ε {eps:e}", length / k_eps);
+        let r = ssi::plane_nurbs_ssi(
+            &corner_clip(d),
+            &flat_wall(1.0, 1.0),
+            wall_box(1.0, 1.0),
+            band(),
+        );
+        let (out, span) = one_branch(&at, r);
+        assert!(
+            (span - length).abs() <= 1.0e-2 * length,
+            "{at}: spans {span:e}"
+        );
+        let b = &out.branches[0];
+        let BranchEnd::Crossings { from, to } = b.end else {
+            panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
+        };
+        assert_ne!(
+            from.side, to.side,
+            "{at}: one end on each side of the corner"
+        );
+        let geom::Curve3::Nurbs(carrier) = &b.carrier else {
+            panic!("{at}: a NURBS carrier, got {:?}", b.carrier);
+        };
+        let hermite = carrier.control().len() == 4 && carrier.knots().knots().len() == 8;
+        assert_eq!(
+            hermite,
+            length < 5.0 * k_eps,
+            "{at}: the Hermite cubic exactly below 5Kε, got {} control points",
+            carrier.control().len()
+        );
+        if hermite {
+            hermites += 1;
+        } else {
+            marched += 1;
+        }
+    }
+    assert!(
+        hermites > 0 && marched > 0,
+        "both candidates reached: {hermites}, {marched}"
+    );
+}
+
+/// **A plane three ε off a flat wall's edge traces the edge-long
+/// branch.** The plane `x = 3ε` lies within the band along the 1 m
+/// wall's `u = 0` side, and the boundary pass certifies its locus inside
+/// a strip beside the side but not within ε of it, so no region is
+/// reported: the branch from the bottom side's crossing to the top
+/// side's is traced, a metre long, and stays on `x = 3ε` to within ε
+/// along its length. Every ε.
+#[test]
+fn a_plane_three_eps_off_a_flat_walls_edge_traces_the_edge_long_branch() {
+    let eps = band().zero();
+    let what = format!("x = 3ε at ε {eps:e}");
+    let r = ssi::plane_nurbs_ssi(
+        &edge_plane(3.0 * eps),
+        &flat_wall(1.0, 1.0),
+        wall_box(1.0, 1.0),
+        band(),
+    );
+    let (out, span) = one_branch(&what, r);
+    assert!((span - 1.0).abs() < 1.0e-6, "{what}: spans {span:e}");
+    assert_eq!(out.exhaustiveness.contact, 0, "{what}: no region banked");
+    let b = &out.branches[0];
+    let BranchEnd::Crossings { from, to } = b.end else {
+        panic!("{what}: the branch ends at its crossings, got {:?}", b.end);
+    };
+    assert!(
+        from.side.fixed == ChartAxis::V && to.side.fixed == ChartAxis::V && from.side != to.side,
+        "{what}: from the bottom side to the top: {from:?} → {to:?}"
+    );
+    for i in 0..=16 {
+        let t = b.params.0 + (b.params.1 - b.params.0) * f64::from(i) / 16.0;
+        let p = b.carrier.eval(t);
+        assert!(
+            (p.x - 3.0 * eps).abs() <= eps && p.y.abs() <= eps,
+            "{what}: the carrier at {t} is {p:?}"
+        );
+    }
+}
+
+/// **A line a tenth off a side's direction traces, however near the
+/// band its side lies.** The plane of normal `(0.1, 1, 0)` through
+/// `(r·Kε, 0, ½)`, `r` = 5 and 8, meets the flat 1 m wall in the line
+/// `x = r·Kε`, while the wall's `u = 0` side lies `r·Kε/10` from it,
+/// within the band along all of it. The side's strip certifies the
+/// locus inside it but not within ε of the side, so no region is
+/// reported, and the metre-long branch between the bottom and top
+/// sides' crossings is traced. Every ε.
+#[test]
+fn a_line_a_tenth_off_a_sides_direction_traces_however_near_the_band() {
+    let k_eps = band().escalate();
+    for r in [5.0, 8.0] {
+        let what = format!("the line x = {r}Kε");
+        let plane = plane_off(
+            Point3::new(r * k_eps, 0.0, 0.5),
+            Vec3::new(0.1, 1.0, 0.0),
+            0.0,
+        );
+        let out = ssi::plane_nurbs_ssi(&plane, &flat_wall(1.0, 1.0), wall_box(1.0, 1.0), band());
+        let (out, span) = one_branch(&what, out);
+        assert!((span - 1.0).abs() < 1.0e-6, "{what}: spans {span:e}");
+        let mid = out.branches[0].witness;
+        assert!(
+            (mid.x - r * k_eps).abs() <= band().zero(),
+            "{what}: the branch lies on the line: {mid:?}"
+        );
+    }
+}
+
+/// **A side the plane crosses inside the band ends its arc at its own
+/// root.** The plane `x = c·(1 − 2z)` crosses the flat 1 m wall's
+/// `u = 0` side at its middle, while the side lies within the band of
+/// it along all its length and its locus within a strip beside it, not
+/// within ε of it. The side's own root ends the arc: at `c = 3ε` the
+/// locus meets the side at a sine of `6ε`, inside the band, and the
+/// crossing refuses as a graze naming the side; at `c = 8ε` it clears
+/// the band, and the branch from the bottom side to the `u = 0` side
+/// is traced, half a metre long. Every ε.
+#[test]
+fn a_side_the_plane_crosses_inside_the_band_ends_its_arc_at_its_own_root() {
+    let eps = band().zero();
+    let u_low = ChartSide {
+        fixed: ChartAxis::U,
+        end: ChartEnd::Low,
+    };
+    let run = |c: f64| {
+        let plane = plane_off(Point3::new(c, 0.0, 0.0), Vec3::new(1.0, 0.0, 2.0 * c), 0.0);
+        ssi::plane_nurbs_ssi(&plane, &flat_wall(1.0, 1.0), wall_box(1.0, 1.0), band())
+    };
+    let r = run(3.0 * eps);
+    let Err(SsiError::BoundaryGraze { side, bracket, .. }) = r else {
+        panic!("c = 3ε: expected the graze, got {r:?}");
+    };
+    assert_eq!(side, Some(u_low), "c = 3ε");
+    assert!(bracket.0 <= 0.5 && 0.5 <= bracket.1, "c = 3ε: {bracket:?}");
+    let (out, span) = one_branch("c = 8ε", run(8.0 * eps));
+    assert!((span - 0.5).abs() < 1.0e-6, "c = 8ε: spans {span:e}");
+    let BranchEnd::Crossings { from, to } = out.branches[0].end else {
+        panic!("c = 8ε: the branch ends at its crossings");
+    };
+    assert!(
+        from.side == u_low || to.side == u_low,
+        "c = 8ε: one end on the u = 0 side: {from:?} → {to:?}"
+    );
+}
+
+/// **A corner both of whose sides lie apart from the locus ends its
+/// arc.** On a flat wall 5 cm square, at extent 1 m, the widest strip
+/// spans the whole domain, so a nearly coplanar plane leaves every side
+/// within the band and its locus inside each side's strip, not within
+/// ε of it: every side is apart. The plane `y = a·(x − k·z)`, the
+/// wall's least slope across a side `a·min(1, k)` from `2Kε` to `5Kε`
+/// (so it clears the band) and its distance at most `Kε/2` over the
+/// wall, meets the wall in the line `x = k·z` from the
+/// `(0, 0)` corner, whose two sides are both apart; that corner is
+/// classified as a corner on no decided side, a branch starts there,
+/// and the branch to the far side's crossing is traced: for `k = ½` to
+/// the top side, for `k = 2` to the `u = high` side, for `k = 1` along
+/// the diagonal to the opposite corner. Every ε.
+#[test]
+fn a_corner_both_of_whose_sides_lie_apart_from_the_locus_ends_its_arc() {
+    let k_eps = band().escalate();
+    let w = 0.05;
+    for slope in [2.0 * k_eps, 3.5 * k_eps, 5.0 * k_eps] {
+        for k in [0.5_f64, 2.0, 1.0] {
+            // The wall's least slope across a side, `a·min(1, k)`.
+            let a = slope / k.min(1.0);
+            let what = format!("least slope {:.1}Kε, k = {k}", slope / k_eps);
+            let plane = plane_off(Point3::new(0.0, 0.0, 0.0), Vec3::new(-a, 1.0, a * k), 0.0);
+            let r = ssi::plane_nurbs_ssi(&plane, &flat_wall(w, w), wall_box(w, 1.0), band());
+            let (_, span) = one_branch(&what, r);
+            let want = if k <= 1.0 {
+                w * (1.0 + k * k).sqrt()
+            } else {
+                w * (1.0 + 1.0 / (k * k)).sqrt()
+            };
+            // Its ends are settled to within the band's zero.
+            assert!(
+                (span - want).abs() <= 2.0 * band().zero(),
+                "{what}: spans {span:e}, want {want:e}"
+            );
+        }
+    }
+}
+
+/// The half cylinder of radius `r` about the `z` axis, `x ≥ 0`, a
+/// metre tall: two rational quadratic quarter arcs in `u`, its `u`
+/// sides the lines `(0, ∓r, z)`.
+fn half_cylinder(r: f64) -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let s = std::f64::consts::FRAC_1_SQRT_2;
+    let (mut control, mut weights) = (Vec::new(), Vec::new());
+    for (x, y, w) in [
+        (0.0, -r, 1.0),
+        (r, -r, s),
+        (r, 0.0, 1.0),
+        (r, r, s),
+        (0.0, r, 1.0),
+    ] {
+        for z in [0.0, 1.0] {
+            control.push(Point3::new(x, y, z));
+            weights.push(w);
+        }
+    }
+    NurbsSurface::new(ku, kv, control, weights).unwrap()
+}
+
+/// **A semicircle too short to march whose cubic misses it refuses by
+/// its length.** The plane `z = ½` cuts the half cylinder of radius
+/// `r` in a semicircle whose ends, on its two `u` sides, are `2r`
+/// apart. At `r = 2Kε` the march's step of `2r/5` falls in the band, so
+/// the march cannot progress; the Hermite cubic through the ends and
+/// their antiparallel tangents runs half a radius inside the arc at its
+/// middle, limb 1 refuses it or cannot call it, and the answer is the
+/// sized refusal in the branch's length. At `r = 5Kε` the march's step
+/// clears the band, and the march traces the semicircle. Every ε.
+#[test]
+fn a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length() {
+    let k_eps = band().escalate();
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.5),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.5),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(2.0 * k_eps), dom, band());
+    let Err(SsiError::ShortBranchUncertified { length, limb, .. }) = r else {
+        panic!("r = 2Kε: expected the short branch's refusal, got {r:?}");
+    };
+    assert!(
+        (length - 4.0 * k_eps).abs() <= 1.0e-6 * k_eps,
+        "r = 2Kε: |AB| {length:e}"
+    );
+    assert!(
+        matches!(
+            *limb,
+            SsiError::CertificateLimb {
+                limb: SsiLimb::OnLocus,
+                ..
+            } | SsiError::CertificateEscalated {
+                limb: SsiLimb::OnLocus,
+                ..
+            }
+        ),
+        "r = 2Kε: limb 1 refuses the cubic: {limb:?}"
+    );
+    let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(5.0 * k_eps), dom, band());
+    let (out, span) = one_branch("r = 5Kε", r);
+    assert!(
+        (span - 10.0 * k_eps).abs() <= 1.0e-3 * k_eps,
+        "r = 5Kε: spans {span:e}"
+    );
+    let mid = out.branches[0].witness;
+    assert!(
+        (mid.x - 5.0 * k_eps).abs() <= band().zero(),
+        "r = 5Kε: the branch runs round the arc: {mid:?}"
+    );
+}
+
+/// **A wall turning back short of a plane within the band of its side
+/// answers the certified empty.** The wall `y = s·u − c·u²` over the
+/// unit square, `s = 6Kε`, `c = 16Kε`, rises off its `u = 0` side
+/// toward the plane `y = 0.9Kε + 0.05Kε·z` and turns back at most
+/// `0.5625Kε` from it. The side lies within the band of the plane, and
+/// its strip's cover reaches past the widest rung, so the side is no
+/// region and decides by its own roots, of which it has none; no side
+/// is crossed. Nothing is traced, and the exhaustiveness sweep excludes
+/// every cell: the exact empty answer. Every ε.
+#[test]
+fn a_wall_turning_back_short_of_a_plane_in_band_answers_empty() {
+    let k_eps = band().escalate();
+    let (slope, c) = (6.0 * k_eps, 16.0 * k_eps);
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::new();
+    for (x, y) in [(0.0, 0.0), (0.5, 0.5 * slope), (1.0, slope - c)] {
+        control.push(Point3::new(x, y, 0.0));
+        control.push(Point3::new(x, y, 1.0));
+    }
+    let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+    let plane = plane_off(
+        Point3::new(0.0, 0.9 * k_eps, 0.0),
+        Vec3::new(0.0, 1.0, -0.05 * k_eps),
+        0.0,
+    );
+    let out = ssi::plane_nurbs_ssi(&plane, &wall, wall_box(1.0, 1.0), band())
+        .unwrap_or_else(|e| panic!("the turning wall: {e}"));
+    assert!(
+        out.branches.is_empty() && out.boundary.is_empty(),
+        "the turning wall: the empty answer, got {out:?}"
+    );
+    assert!(
+        out.exhaustiveness.excluded > 0 && out.exhaustiveness.contact == 0,
+        "the turning wall: {}",
+        out.exhaustiveness
+    );
+}
+
+/// **A plane tangent to a wall's edge refuses as a graze naming the
+/// side.** A planar wall in `y = 0` whose bottom edge is the parabola
+/// `z = 0.4·(u − ½)²` touches the plane `z = 0` at `u = ½`: the plane
+/// distance has a double root along the side while the surfaces cross
+/// at right angles. The boundary pass refuses it, and its ending names
+/// that side and the geometry, not the tangency regime.
+#[test]
+fn a_plane_tangent_to_a_walls_edge_refuses_as_a_graze_naming_the_side() {
+    use geom_brep::recourse::Reading;
+    let knots_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let knots_v = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = vec![
+        Point3::new(0.0, 0.0, 0.1),
+        Point3::new(0.0, 0.0, 1.0),
+        Point3::new(0.5, 0.0, -0.1),
+        Point3::new(0.5, 0.0, 1.0),
+        Point3::new(1.0, 0.0, 0.1),
+        Point3::new(1.0, 0.0, 1.0),
+    ];
+    let wall = NurbsSurface::new(knots_u, knots_v, control, vec![1.0; 6]).unwrap();
+    let floor = Surface::Plane {
+        origin: Point3::new(0.5, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let r = ssi::plane_nurbs_ssi(&floor, &wall, wall_box(1.0, 1.0), band());
+    let Err(ref err @ SsiError::BoundaryGraze { side, bracket, .. }) = r else {
+        panic!("expected the graze, got {r:?}");
+    };
+    assert_eq!(
+        side,
+        Some(ChartSide {
+            fixed: ChartAxis::V,
+            end: ChartEnd::Low
+        })
+    );
+    assert!(bracket.0 <= 0.5 && 0.5 <= bracket.1, "{bracket:?}");
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains("grazes the wall's v = low side")
+            && shown.contains("crosses the wall's v = low side at a clear angle")
+            && !shown.contains("TangentIntersection"),
+        "{shown}"
+    );
+}
+
+/// **A wall reaching past the plane's window refuses, naming the
+/// half-extent that holds it.** The plane × NURBS march ends only at
+/// the wall's knot rectangle, so the plane's chart window must hold the
+/// wall's image: a window that would bound the march where the wall
+/// does not, here a corner of the 1 m wall a metre outside a 0.25 m
+/// window, refuses rather than letting the window clip a branch.
+#[test]
+fn a_wall_corner_outside_the_planes_window_refuses() {
+    let mut dom = wall_box(1.0, 1.0);
+    dom.half_extent = 0.25;
+    let r = ssi::plane_nurbs_ssi(&corner_clip(0.3), &flat_wall(1.0, 1.0), dom, band());
+    let Err(ref err @ SsiError::WindowShortOfWall { half_extent, reach }) = r else {
+        panic!("expected the window's refusal, got {r:?}");
+    };
+    assert_eq!(half_extent, 0.25);
+    assert!(
+        reach > 0.9,
+        "the wall reaches {reach:e} m across the window"
+    );
+    let shown = err.render(geom_brep::recourse::Reading::Build);
+    assert!(
+        shown.contains("name a domain half-extent of at least"),
+        "{shown}"
+    );
+}
+
+/// **The ℝ³ lane drops a seed Newton settles outside the slab, and
+/// still finds the branch.** The slab's top face `z = 0.996` cuts the
+/// planted north loop, whose height runs from 0.9939 to 0.9988, at a
+/// shallow angle. Near the crossing the curve runs almost along the
+/// face, so min-norm Newton settles the subdivision's cell centre
+/// `(0.0378125, −0.08046875, 0.9944375)` on the loop about 0.1 mm above
+/// the face. That seed is no branch. A seed further in marches the arc
+/// below the face, which certifies as the one branch, ending on the
+/// boundary.
+#[test]
+fn a_seed_settled_outside_the_slab_is_no_branch_and_the_arc_is_still_found() {
+    let d = SsiDomain {
+        center: Point3::new(0.03, 0.0, 0.896),
+        half_extent: 0.1,
+        extent: 0.2,
+        floor_scale: 1.0,
+    };
+    let seed = Point3::new(0.0378125, -0.08046875, 0.9944375);
+    match ssi::idealized_trace_r3(&threaded_cylinder(), &sphere(), seed, d, band()) {
+        Err(SsiError::SeedOffDomain { margin, .. }) => assert!(
+            margin < -1.0e-5,
+            "the seed settles outside the slab: {margin:e} m"
+        ),
+        other => panic!("the seed at {seed:?} is no branch, got {other:?}"),
+    }
+    let out = match ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, band()) {
+        Ok(out) => out,
+        Err(SsiError::FitSampleBudget { .. }) => {
+            vacuity::stood_down(
+                &format!("the clipped north loop, ε {:e}", eps()),
+                "the arc wants more samples than the fit budget allows, so the door's \
+                 handling of the off-slab seed is not asserted at this ε",
+            );
+            return;
+        }
+        Err(e) => panic!("the clipped north loop does not certify: {e:?}"),
+    };
+    assert_eq!(out.branches.len(), 1, "the arc below the face");
+    assert_ne!(
+        out.branches[0].end,
+        BranchEnd::Closed,
+        "the arc ends on the face"
+    );
+}
+
+/// The dome `W(d)`: a clamped quadratic 3×3 net, weights 1, control
+/// points `(i/2, 0, j/2)` with the centre one moved to `y = −d`. Its
+/// surface is `x = s, z = t, y = −4d·s(1−s)·t(1−t)`, with section
+/// curvature `2d` per metre at the centre.
+fn dome_wall(d: f64) -> NurbsSurface<f64> {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::with_capacity(9);
+    for i in 0..3u8 {
+        for j in 0..3u8 {
+            let y = if i == 1 && j == 1 { -d } else { 0.0 };
+            control.push(Point3::new(f64::from(i) / 2.0, y, f64::from(j) / 2.0));
+        }
+    }
+    NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap()
+}
+
+/// The plane `x + y = 0.5 − d/8` across the dome's dip, and the domain
+/// centred on it.
+fn dome_tilt(d: f64) -> (Surface<f64>, SsiDomain) {
+    let s2 = std::f64::consts::FRAC_1_SQRT_2;
+    let at = Point3::new(0.5, -d / 8.0, 0.5);
+    let plane = Surface::Plane {
+        origin: at,
+        normal: Vec3::new(s2, s2, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let dom = SsiDomain {
+        center: at,
+        half_extent: 2.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    (plane, dom)
+}
+
+/// **A seed Newton settles off the wall's chart is no branch.** The
+/// subdivision hands the tilt cut of the dome `W(d)` a seed one cell
+/// from the wall's `t = 0` edge, at `(0.369, 0.00195)` for `d = 1` and
+/// `(0.243, 0.00098)` for `d = 2`, and min-norm Newton settles it at
+/// `t ≈ −1e-3`. Marched from there, the out-of-chart seed reached the
+/// fit, and the cut refused limb 1 by millimetres (1.6 mm and 3.4 mm)
+/// or as a trace of one sample. Settled outside, the seed is no
+/// branch, and a seed further in marches the branch to the edge.
+///
+/// What the cut does is pinned by ε:
+/// - at 1e-6 it certifies, one branch;
+/// - at 1e-9 it refuses limb 2, inferred but not traced to be cause 4
+///   of `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`;
+/// - at 1e-12 it refuses the fit budget, that row's cause 2.
+///
+/// None of them is a carrier off the wall.
+#[test]
+fn a_seed_settled_off_the_walls_chart_is_no_branch() {
+    let b = band();
+    for (d, seed) in [(1.0, (0.369, 0.00195)), (2.0, (0.243, 0.00098))] {
+        let (plane, dom) = dome_tilt(d);
+        let wall = dome_wall(d);
+        match ssi::trace_plane_nurbs_uncertified(&plane, &wall, seed, dom, b.zero(), b) {
+            Err(SsiError::SeedOffDomain { margin, .. }) => assert!(
+                margin < -1.0e-4,
+                "d = {d}: the seed settles a millimetre off the chart: {margin:e} m"
+            ),
+            other => panic!("d = {d}: the seed {seed:?} is no branch, got {other:?}"),
+        }
+        let r = ssi::plane_nurbs_ssi(&plane, &wall, dom, b);
+        let at = format!("d = {d}, ε {:e}", eps());
+        if let Err(
+            SsiError::CertificateLimb {
+                limb: SsiLimb::OnLocus,
+                ..
+            }
+            | SsiError::TraceUnresolved { .. },
+        ) = r
+        {
+            panic!("{at}: a carrier off the wall's chart: {r:?}");
+        }
+        let pinned = match eps() {
+            1.0e-6 => matches!(r, Ok(ref o) if o.branches.len() == 1),
+            1.0e-9 => matches!(
+                r,
+                Err(SsiError::CertificateLimb {
+                    limb: SsiLimb::HullSup,
+                    ..
+                } | SsiError::CertificateEscalated {
+                    limb: SsiLimb::HullSup,
+                    ..
+                })
+            ),
+            1.0e-12 => matches!(r, Err(SsiError::FitSampleBudget { .. })),
+            _ => {
+                vacuity::stood_down(
+                    &at,
+                    "the cut's remaining refusal is measured at ε 1e-6, 1e-9 and 1e-12 only, \
+                     so which cause refuses it here is not pinned",
+                );
+                true
+            }
+        };
+        assert!(pinned, "{at}: the cut's outcome moved: {r:?}");
+    }
+}
+
+/// **A curved dome's cuts prove their tube at the widest rung.** The
+/// dome `W(d)` is one quadratic Bézier patch, so every tube window lies
+/// in its one span cell. Limb 3 reads the wall's derivative over each
+/// window cut to that window, and the plane's gradient along the chart
+/// stays zero-free there: the tilt cut (an open arc) and the level cut
+/// (an interior loop) certify at d = 1 and d = 3, each at the widest
+/// rung, `SSI_TUBE_RADIUS_MAX` of the extent. Read off the whole cell
+/// instead, `S_u.y` and `S_v.y` span `[−2d, 2d]`, and every rung down to
+/// the floor straddles.
+///
+/// The band is the row's own 1e-6: limbs 1 and 2 refuse these cuts at
+/// 1e-9 and the fit budget at 1e-12 before limb 3 runs.
+#[test]
+fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
+    let b = band_at(1e-6);
+    for d in [1.0, 3.0] {
+        let (tilt, dom) = dome_tilt(d);
+        let level = Surface::Plane {
+            origin: dom.center,
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let wall = dome_wall(d);
+        for (cut, plane) in [("tilt", tilt), ("level", level)] {
+            let at = format!("{cut} cut, d = {d}");
+            let out = match ssi::plane_nurbs_ssi(&plane, &wall, dom, b) {
+                Ok(out) => out,
+                Err(e) => panic!("{at}: expected one certified branch, got {e:?}"),
+            };
+            assert_eq!(out.branches.len(), 1, "{at}: {out:?}");
+            let cert = &out.branches[0].certificate;
+            match cert.tube {
+                SsiTube::Chart { rung, .. } => assert_eq!(
+                    rung,
+                    geom_brep::ssi::certify::SSI_TUBE_RADIUS_MAX * dom.extent,
+                    "{at}: the tube certified below the widest rung"
+                ),
+                SsiTube::Spatial { .. } => panic!("{at}: the chart arm proved a spatial tube"),
+            }
+        }
+    }
+}
+
+/// **A spent step budget ends by the rung that held the steps short.**
+///
+/// - Curvature: the planted fixture at a thousand times its size, at
+///   ε = 1e-12. The fit's between-sample rung `(ε/κ³)^¼` binds every
+///   step, which no extent lengthens: it names the domain, which cuts an
+///   open branch's step count, and the tolerance as the last resort,
+///   and no extent.
+/// - Cap: the substrate wall traced from its seed with a feature extent
+///   of 1e-4 m, whose `SSI_STEP_MAX` share caps every step far below
+///   the curvature rung at ε = 1e-9. The extent is the lever.
+///
+/// Both run at a band of their own, so the rung under test does not
+/// move with the run's ε.
+#[test]
+fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::ssi::StepBound;
+    let s = 1000.0;
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: s,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let cylinder = Surface::Cylinder {
+        origin: Point3::new(0.03 * s, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.08 * s,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let domain = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 1.5 * s,
+        extent: 2.0 * s,
+        floor_scale: 1.0,
+    };
+    match ssi::cylinder_sphere_ssi(&cylinder, &sphere, domain, band_at(1e-12)) {
+        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
+            assert_eq!(bound, StepBound::Curvature, "{err}");
+            let shown = err.render(Reading::Build);
+            assert!(
+                shown.contains("held short by the curvature against the tolerance")
+                    && shown.contains(
+                        "Recourse: name a domain around just the feature traced, or loosen \
+                         the tolerance",
+                    )
+                    && shown.ends_with(geom_core::KERNEL_LIMIT_LAST_RESORT)
+                    && !shown.contains("feature extent"),
+                "{shown}"
+            );
+        }
+        other => panic!("the scaled planted fixture: expected the step budget, got {other:?}"),
+    }
+
+    let domain = SsiDomain {
+        extent: 1e-4,
+        ..wall_domain()
+    };
+    let (p, w) = (cutting_plane(), certifiable_wall());
+    match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), domain, 1e-9, band_at(1e-9)) {
+        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
+            assert_eq!(bound, StepBound::Cap, "{err}");
+            let shown = err.render(Reading::Build);
+            assert!(
+                shown.contains("held short by the feature extent or the domain")
+                    && shown
+                        .contains("Recourse: name a feature extent near the size of the feature"),
+                "{shown}"
+            );
+        }
+        other => panic!("the capped wall trace: expected the step budget, got {other:?}"),
+    }
+}
+
+/// A zigzag wall: 41 columns 0.05 m apart along `x`, alternating
+/// ±0.15 m in `y`, cubic in `u`, extruded 0.8 m along `z`. Its section's
+/// curvature swings at every column, so a march along it is held short
+/// by the curvature near the turns and by the cap between them.
+fn zigzag_wall() -> NurbsSurface<f64> {
+    const COLUMNS: usize = 41;
+    let degree = 3;
+    let mut knots = vec![0.0; degree + 1];
+    let spans = COLUMNS - degree;
+    #[allow(clippy::cast_precision_loss)]
+    knots.extend((1..spans).map(|i| i as f64 / spans as f64));
+    knots.extend(vec![1.0; degree + 1]);
+    let ku = KnotVector::clamped(knots, degree).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::with_capacity(2 * COLUMNS);
+    for i in 0..COLUMNS {
+        #[allow(clippy::cast_precision_loss)]
+        let x = 0.05 * i as f64;
+        let y = if i % 2 == 0 { 0.15 } else { -0.15 };
+        control.push(Point3::new(x, y, 0.0));
+        control.push(Point3::new(x, y, 0.8));
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 2 * COLUMNS]).unwrap()
+}
+
+/// **A branch whose steps both rungs held names both levers.** The
+/// zigzag wall traced from its seed at a feature extent of 3e-3 m and
+/// ε = 1e-12: the cap binds between the turns and the curvature at
+/// them, each for well over a quarter of the steps
+/// (`STEP_BOUND_MINORITY`), so a majority vote would name one lever
+/// and miss the other.
+#[test]
+fn a_step_budget_both_rungs_held_names_both_levers() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::ssi::StepBound;
+    // The plane's window holds the 2 m wall (`WindowShortOfWall`).
+    let domain = SsiDomain {
+        center: Point3::new(1.0, 0.0, 0.4),
+        half_extent: 2.5,
+        extent: 3e-3,
+        floor_scale: 1.0,
+    };
+    let wall = zigzag_wall();
+    match ssi::trace_plane_nurbs_uncertified(
+        &cutting_plane(),
+        &wall,
+        (0.5, 0.5),
+        domain,
+        1e-12,
+        band_at(1e-12),
+    ) {
+        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
+            assert_eq!(bound, StepBound::Both, "{err}");
+            let shown = err.render(Reading::Build);
+            assert!(
+                shown.contains("the curvature against the tolerance and by the feature extent")
+                    && shown.contains("name a feature extent near the size of the feature traced")
+                    && shown.contains("loosen the tolerance"),
+                "{shown}"
+            );
+        }
+        other => panic!("the zigzag wall trace: expected the step budget, got {other:?}"),
+    }
+}
+
+/// **A branch whose last marched state lands a hair inside the wall
+/// certifies.** The plane `x = 0.5` across the flat wall of height
+/// `(31/32 + δ)·256/255`, which puts a marched state `δ` short of the
+/// top edge at the 1 m extent's step. The march ends at the crossing
+/// the boundary pass certified there, and a last state nearer that
+/// crossing than half its own step gives way to it, so the fit never
+/// reads a final chord far shorter than the steps before it. Every δ
+/// from 1e-11 m to 1e-3 m certifies, at every ε
+/// (`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
+#[test]
+fn a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies() {
+    let across = edge_plane(0.5);
+    for delta in [1e-11, 2e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-4, 1e-3] {
+        let h = (31.0 / 32.0 + delta) * 256.0 / 255.0;
+        let at = format!("δ = {delta:e} at ε {:e}", band().zero());
+        let out = ssi::plane_nurbs_ssi(&across, &flat_wall(1.0, h), wall_box(1.0, 1.0), band())
+            .unwrap_or_else(|e| panic!("{at}: {e}"));
+        let [b] = out.branches.as_slice() else {
+            panic!("{at}: expected one branch, got {}", out.branches.len());
+        };
+        let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+        assert!((span - h).abs() < 1.0e-6, "{at}: spans {span:e} of {h:e}");
     }
 }

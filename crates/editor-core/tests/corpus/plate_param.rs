@@ -27,6 +27,7 @@
 //!   INTO the program is refused at the door, while `SetDocParam` — by
 //!   design — is not.
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, Dimension, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, SlotId,
@@ -105,6 +106,7 @@ pub fn document() -> CorpusDoc {
     let plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(PLATE_DEPTH),
+        side: ExtrudeSide::Along,
     });
 
     // A plain tab on its own branch: the incremental probe bumps this
@@ -124,13 +126,14 @@ pub fn document() -> CorpusDoc {
     let tab = r.insert(Node::Extrude {
         profile: tab_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
 
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: plate,
         b: tab,
-        declare: None,
+        declare: Vec::new(),
     });
 
     CorpusDoc {

@@ -164,6 +164,39 @@ pub enum SymRegistration {
     Unwitnessed,
 }
 
+impl SymRegistration {
+    /// **What a registrant does with the door's answer**, by arm, in
+    /// one place for every registrant.
+    ///
+    /// - [`SymRegistration::Contradicted`] is the EXACT witness's proof
+    ///   that `what` is false on the values the registrant built, and is
+    ///   loud: either the registrant's theorem is false for the
+    ///   configuration it was handed, or an upstream enclosure does not
+    ///   contain its real. Live in release (the arm's own doc).
+    /// - [`SymRegistration::Disputed`] is an inexact witness's refusal,
+    ///   counted in the session's receipt and never asserted on.
+    /// - Every other arm is a record, a no-op, or nothing to record, and
+    ///   none of them is a defect.
+    ///
+    /// Exhaustive by hand, so a new arm is a compile error here.
+    pub fn handle(self, what: &str) {
+        match self {
+            Self::Contradicted => debug_assert!(
+                !matches!(self, Self::Contradicted),
+                "the EXACT witness separated {what}: either the registrant's theorem is \
+                 false for the configuration it was handed, or an upstream enclosure does \
+                 not contain its real"
+            ),
+            Self::Disputed
+            | Self::Recorded
+            | Self::Already
+            | Self::Witnessed
+            | Self::Unwitnessed
+            | Self::Cyclic => {}
+        }
+    }
+}
+
 /// **What a comparison at this scalar PROVES** — the property that
 /// decides, per lane scalar, whether a disagreement between the value
 /// channel and a symbolic form is a soundness defect or a dispute.
@@ -1327,11 +1360,12 @@ pub mod bounds_allowlist {
     //! extension of M6-2: it DELEGATES to the already-listed `certify_rung3`
     //! door with a **declared** carrier instead of a marched one, inheriting
     //! that door's signature rather than widening the rule's reach. It
-    //! is what keeps `Bounds` off `topo`'s DEFAULT doors: the lane is a
-    //! SEPARATE door whose own impl block carries the lane bound
-    //! (`Body::set_edge_curve_nurbs_lane`), with `_via(…, f)` parameterising
-    //! the shared machinery. Injection moves a bound onto a narrower
-    //! signature; it does not remove one.
+    //! is what keeps `Bounds` off `topo`'s doors: the lane is a sealed
+    //! VALUE (`geom_brep::NurbsLane`) whose one constructor carries the
+    //! lane bound, handed to the shared machinery as `_via(…, lane)`'s
+    //! argument, and `topo`'s doors read it off the scalar's policy
+    //! (`AtRestPolicy::nurbs_lane`). Injection moves a bound onto a
+    //! narrower signature; it does not remove one.
     //!
     //! **2026-09-02, amending the entry above rather than adding a row — the
     //! lane's split is a BOUND, not a trait.** This lane's static split was
@@ -1339,11 +1373,10 @@ pub mod bounds_allowlist {
     //! refusing `Dual` one. The trait is deleted: the shared certified body
     //! is the free function `geom_brep::plane_nurbs_limbs`, at
     //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
-    //! exactly as before, and the two DOORS that name it carry
-    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) —
-    //! `geom_brep::certify`'s `certify_nurbs_lane`/`recertify_nurbs_lane`
-    //! impl block and `topo::euler`'s `set_edge_curve_nurbs_lane` door. Both
-    //! files join this allowlist for that reason and no other; the
+    //! exactly as before, and the one DOOR that names it carries
+    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) — the lane's
+    //! sealed value, `geom_brep::certify`'s `NurbsLane::certified`. That
+    //! file joins this allowlist for that reason and no other; the
     //! per-file scope consequence is real and is the price of writing the
     //! obligation where a grep can read it, which is the whole point of
     //! retiring the trait name. **The compound is forced rather than
@@ -1355,15 +1388,19 @@ pub mod bounds_allowlist {
     //! strictness**: a dual reached the trait and got
     //! `PlaneNurbsRefusal::LaneUnsupported` at run time; now it cannot form
     //! the call, and the refusal variant is retired with the impl that raised
-    //! it. **What a mixed pass does instead** is take the lane as an
-    //! ARGUMENT: `topo::validate`'s check 2 re-certifies through
-    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` every door
+    //! it. **What a mixed pass does instead**: `geom_brep`'s
+    //! `certify_via`/`recertify_via` take `Option<NurbsLane>` as the
+    //! shared body's argument — `NurbsLane` a sealed value whose one
+    //! constructor carries the bound above — and `topo`'s operations
+    //! fill it from the scalar's policy (`AtRestPolicy::nurbs_lane`,
+    //! `None` at a dual). The validators keep their shape: check 2
+    //! re-certifies through `recertify_via`, whose argument every door
     //! bounded on the certification right fills (`validate_geometric`,
     //! `validate_pseudomanifold`, `contact_marks` and their certificate and
     //! declared forms) and every `_structural` door leaves empty — the M7-8
-    //! class is then not re-derived
-    //! and, being outside those doors' rights, not reported either
-    //! (`EdgeCurve::needs_nurbs_lane` is where that question is asked).
+    //! class is then not re-derived and, being outside those doors'
+    //! rights, not reported either (the lane's absence is its own
+    //! refusal, `CertifyError::NurbsLaneNotSupplied`).
     //! **The symbolic tier needs no arm of its own and gains none**:
     //! `Sym<T>` implements [`Bounds`](super::Bounds),
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure) and

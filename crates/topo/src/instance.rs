@@ -75,7 +75,6 @@
 use crate::body::Body;
 use crate::boolean::BooleanError;
 use crate::entity::SolidKey;
-use geom_core::Tol;
 
 /// Grafts `src`'s single solid into `dst` as a NEW solid, returning its
 /// key (module docs).
@@ -97,14 +96,13 @@ use geom_core::Tol;
 pub fn graft_disjoint<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
-    tol: Tol,
 ) -> Result<SolidKey, BooleanError> {
     if src.solids().count() != 1 {
         return Err(BooleanError::JoinDesync {
             what: "graft source is not a well-formed single-solid body",
         });
     }
-    let mut keys = graft_disjoint_all(dst, src, tol)?;
+    let mut keys = graft_disjoint_all(dst, src)?;
     keys.pop().ok_or(BooleanError::JoinDesync {
         what: "graft source is not a well-formed single-solid body",
     })
@@ -152,9 +150,8 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 pub fn graft_disjoint_all<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
-    tol: Tol,
 ) -> Result<Vec<SolidKey>, BooleanError> {
-    Ok(graft_disjoint_all_keyed(dst, src, tol)?.solids)
+    Ok(graft_disjoint_all_keyed(dst, src)?.solids)
 }
 
 /// **Whether an aggregate of `aggregate_solids` solids owes its parts
@@ -248,7 +245,6 @@ impl GraftKeys {
 pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
-    tol: Tol,
 ) -> Result<GraftKeys, BooleanError> {
     if src.solids().next().is_none() {
         return Err(BooleanError::JoinDesync {
@@ -259,74 +255,9 @@ pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
         dst,
         src,
         crate::boolean::combine::Bridge::RemapKeys,
-        tol,
     )?;
     Ok(GraftKeys {
         solids: targets,
-        map,
-    })
-}
-
-/// Grafts every solid of `src` onto ALREADY-EXISTING destination
-/// solids, one target per source solid, so the source's shells join
-/// solids that are already there instead of minting new ones.
-///
-/// The same transplant as [`graft_disjoint_all_keyed`], with the one
-/// difference the caller's semantics ask for. Repeating a key in
-/// `targets` is legal and is the point: N placed copies of a
-/// single-solid prototype grafted onto the SAME target become one solid
-/// of N shells.
-///
-/// **Why this shape exists.** It is what a UNION of separated bodies
-/// already means in this kernel: the boolean pipeline's `combine` door
-/// transplants a disjoint operand's shells into the destination's
-/// EXISTING solid, so a chain of pairwise `Union`s over N separated
-/// bodies produces one solid of N shells — and the seamed boolean path
-/// accepts that result as an operand, while an N-SOLID body is refused
-/// (`setopfinish`'s single-solid gate). A group union that wants to
-/// feed a later boolean must therefore produce the representation the
-/// chain it replaces produced, entity for entity.
-///
-/// Validity remains the caller's, exactly as at the sibling doors: the
-/// shells must genuinely be disjoint, and nothing here checks it
-/// ([`crate::Separation`] is the door that certifies it). Touching or
-/// overlapping shells build a body the at-rest validator cannot catch
-/// (module docs, #382).
-///
-/// The returned bridge's `solids()` is `targets`, echoed — the same
-/// positional contract, so a caller re-keying per source solid needs no
-/// special case.
-///
-/// # Errors
-///
-/// Exactly [`graft_disjoint_all_keyed`]'s, plus `JoinDesync` when a
-/// target is not a live solid of `dst` or the arity does not match the
-/// source's solid count.
-pub fn graft_disjoint_all_onto_keyed<T: geom_core::Decide>(
-    dst: &mut Body<T>,
-    targets: &[SolidKey],
-    src: &Body<T>,
-    tol: Tol,
-) -> Result<GraftKeys, BooleanError> {
-    if targets.iter().any(|&k| dst.get_solid(k).is_none()) {
-        return Err(BooleanError::JoinDesync {
-            what: "graft destination solid is not live",
-        });
-    }
-    if src.solids().next().is_none() {
-        return Err(BooleanError::JoinDesync {
-            what: "graft source holds no solid to graft",
-        });
-    }
-    let map = crate::boolean::combine::graft_solids_with(
-        dst,
-        targets,
-        src,
-        crate::boolean::combine::Bridge::RemapKeys,
-        tol,
-    )?;
-    Ok(GraftKeys {
-        solids: targets.to_vec(),
         map,
     })
 }
@@ -368,7 +299,7 @@ mod tests {
             dst.points().count(),
             dst.surfaces().count(),
         );
-        let key = graft_disjoint(&mut dst, &src, Tol::witness()).expect("a single-solid graft");
+        let key = graft_disjoint(&mut dst, &src).expect("a single-solid graft");
         assert_eq!(dst.solids().count(), before.0 + 1, "one more solid");
         assert_eq!(dst.shells().count(), before.1 + src.shells().count());
         assert_eq!(dst.faces().count(), before.2 + src.faces().count());
@@ -408,7 +339,7 @@ mod tests {
         let src = cube();
         let mut dst = cube();
         let original: std::collections::BTreeSet<_> = dst.faces().map(|(k, _)| k).collect();
-        let key = graft_disjoint(&mut dst, &src, Tol::witness()).expect("a graft");
+        let key = graft_disjoint(&mut dst, &src).expect("a graft");
 
         let grafted = dst.faces_of_solid(key).expect("the grafted solid");
         assert_eq!(grafted.len(), src.faces().count(), "every face arrived");
@@ -444,8 +375,7 @@ mod tests {
         // Empty: no solid at all.
         let mut dst = cube();
         let before = deep_snapshot(&dst);
-        let err = graft_disjoint(&mut dst, &Body::<f64>::new(), Tol::witness())
-            .expect_err("no solid to graft");
+        let err = graft_disjoint(&mut dst, &Body::<f64>::new()).expect_err("no solid to graft");
         assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
         assert_eq!(
             deep_snapshot(&dst),
@@ -456,11 +386,10 @@ mod tests {
         // Two solids: the graft transplants ONE, so a two-solid source
         // is a caller error, not a thing to guess at.
         let mut two = cube();
-        graft_disjoint(&mut two, &cube(), Tol::witness()).expect("build a two-solid body");
+        graft_disjoint(&mut two, &cube()).expect("build a two-solid body");
         let mut dst = cube();
         let before = deep_snapshot(&dst);
-        let err =
-            graft_disjoint(&mut dst, &two, Tol::witness()).expect_err("two solids in the source");
+        let err = graft_disjoint(&mut dst, &two).expect_err("two solids in the source");
         assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
         assert_eq!(
             deep_snapshot(&dst),
@@ -479,7 +408,7 @@ mod tests {
             format!("{:?}", src.solid_provenance.get(k).unwrap())
         };
         let mut dst = cube();
-        let key = graft_disjoint(&mut dst, &src, Tol::witness()).expect("a graft");
+        let key = graft_disjoint(&mut dst, &src).expect("a graft");
         assert_eq!(
             format!("{:?}", dst.solid_provenance.get(key).unwrap()),
             want
@@ -537,12 +466,11 @@ mod tests {
     /// nowhere in `dst`, shared by every piece that reached it.
     #[test]
     fn a_grafted_split_lineage_chases_inside_the_destination() {
-        let tol = Tol::witness();
         let mut src = cube();
         let e0 = src.edges().next().unwrap().0;
         let [e1, e2, e3] = split_thrice_and_kill_the_parent(&mut src, e0);
         let mut dst = cube();
-        let keys = graft_disjoint_all_keyed(&mut dst, &src, tol).expect("a graft");
+        let keys = graft_disjoint_all_keyed(&mut dst, &src).expect("a graft");
         let dead_root = *keys
             .map
             .dead_edges
@@ -578,7 +506,6 @@ mod tests {
     /// which resolves, each shared by exactly its own three pieces.
     #[test]
     fn distinct_dead_parents_keep_distinct_dead_roots_per_copy() {
-        let tol = Tol::witness();
         let mut src = cube();
         let ends = |b: &Body<f64>, e: EdgeKey| {
             let he = b.get_edge(e).unwrap().he_plus;
@@ -600,8 +527,8 @@ mod tests {
         ];
         let mut dst = cube();
         let copies = [
-            graft_disjoint_all_keyed(&mut dst, &src, tol).expect("a first graft"),
-            graft_disjoint_all_keyed(&mut dst, &src, tol).expect("a second graft"),
+            graft_disjoint_all_keyed(&mut dst, &src).expect("a first graft"),
+            graft_disjoint_all_keyed(&mut dst, &src).expect("a second graft"),
         ];
         let mut roots = Vec::new();
         for (c, keys) in copies.iter().enumerate() {
@@ -637,16 +564,15 @@ mod tests {
     /// destination, that record names the first solid's target.
     #[test]
     fn a_minted_solids_record_names_the_destination_solid() {
-        let tol = Tol::witness();
         let mut src = cube();
         let first = src.solids().next().unwrap().0;
-        crate::instance::graft_disjoint_all_onto_keyed(&mut src, &[first], &cube(), tol)
-            .expect("a second shell under the first solid");
+        graft_disjoint_all_keyed(&mut src, &cube()).expect("a second cube");
+        src.merge_all_solids().unwrap();
         let moved = src.shells_of_solid(first).unwrap()[1];
         src.move_shells_to_new_solid(&[moved])
             .expect("a second solid");
         let mut dst = cube();
-        let keys = graft_disjoint_all_keyed(&mut dst, &src, tol).expect("a graft");
+        let keys = graft_disjoint_all_keyed(&mut dst, &src).expect("a graft");
         assert_eq!(keys.solids.len(), 2);
         assert_eq!(
             dst.solid_provenance.get(keys.solids[1]),

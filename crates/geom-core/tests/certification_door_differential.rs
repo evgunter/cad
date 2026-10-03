@@ -14,14 +14,11 @@
 //! bit through [`Interval::repr_bits`], a refusal's shape as NaI, a
 //! reading's bits.
 //!
-//! **One carve-out, and why.** Where an endpoint is chosen between two
-//! zeros of opposite sign (`hull([-0, 1], [0, 1])`, a clamp of `[-0, 1]`
-//! to `[0, 1]`), the reference compares the zero by value: neither door
-//! states a sign, and `f64::min`/`max`, which both are built on, leave
-//! the sign of that choice unspecified; this build's codegen picks the
-//! second operand at the door, so `hull` is not bit-commutative there.
-//! A zero chosen against a non-zero candidate, and every other endpoint,
-//! is compared by its bits.
+//! An endpoint chosen between two zeros of opposite sign
+//! (`hull([-0, 1], [0, 1])`, a clamp of `[-0, 1]` to `[0, 1]`) is
+//! compared by its bits too: both doors take it from the backend, which
+//! decides it by rule (`-0` for a lower endpoint, `+0` for an upper, in
+//! either operand order), and the corpus reaches it in both orders.
 //!
 //! Every reference reads its door's doc (`certification.rs`). One of
 //! them agrees by definition: `DInterval::contains` is itself the
@@ -192,33 +189,34 @@ fn probes(x: DInterval) -> Vec<f64> {
 
 // ------------------------------------------------ interval-valued doors
 
-/// An expected endpoint. `zero_sign_open` marks the one case the doors
-/// leave unspecified: a choice between two zeros of opposite sign, which
-/// compare equal and differ in bits.
+/// Which end of a bracket an endpoint bounds.
 #[derive(Clone, Copy)]
-struct End {
-    v: f64,
-    zero_sign_open: bool,
+enum Side {
+    Lower,
+    Upper,
 }
 
-fn chosen(a: f64, b: f64, want_lesser: bool) -> End {
-    let v = if a < b {
+/// The lesser or greater of `a` and `b`; between zeros of opposite sign,
+/// which compare equal, `-0` for a lower endpoint and `+0` for an upper.
+fn chosen(a: f64, b: f64, want_lesser: bool, side: Side) -> f64 {
+    if a < b {
         if want_lesser { a } else { b }
     } else if b < a {
         if want_lesser { b } else { a }
+    } else if a.to_bits() != b.to_bits() {
+        match side {
+            Side::Lower => -0.0,
+            Side::Upper => 0.0,
+        }
     } else {
         a
-    };
-    End {
-        v,
-        zero_sign_open: a == b && a.to_bits() != b.to_bits(),
     }
 }
 
 /// A door's expected bracket; `None` is NaI.
 struct Want {
-    lo: End,
-    hi: End,
+    lo: f64,
+    hi: f64,
     dec: Decoration,
 }
 
@@ -230,8 +228,8 @@ fn hull_reference(a: DInterval, b: DInterval) -> Option<Want> {
         return None;
     }
     Some(Want {
-        lo: chosen(a.lo(), b.lo(), true),
-        hi: chosen(a.hi(), b.hi(), false),
+        lo: chosen(a.lo(), b.lo(), true, Side::Lower),
+        hi: chosen(a.hi(), b.hi(), false, Side::Upper),
         dec: a.decoration().min(b.decoration()),
     })
 }
@@ -243,9 +241,9 @@ fn clamp_reference(x: DInterval, lo: f64, hi: f64) -> Option<Want> {
     if refuses(x) || lo.is_nan() || hi.is_nan() {
         return None;
     }
-    let lo = chosen(x.lo(), lo, false);
-    let hi = chosen(x.hi(), hi, true);
-    if lo.v > hi.v || lo.v == f64::INFINITY || hi.v == f64::NEG_INFINITY {
+    let lo = chosen(x.lo(), lo, false, Side::Lower);
+    let hi = chosen(x.hi(), hi, true, Side::Upper);
+    if lo > hi || lo == f64::INFINITY || hi == f64::NEG_INFINITY {
         return None;
     }
     Some(Want {
@@ -253,14 +251,6 @@ fn clamp_reference(x: DInterval, lo: f64, hi: f64) -> Option<Want> {
         hi,
         dec: x.decoration(),
     })
-}
-
-fn same_end(got: f64, want: End) -> bool {
-    if want.zero_sign_open {
-        got == want.v
-    } else {
-        got.to_bits() == want.v.to_bits()
-    }
 }
 
 /// Verdict first, then NaI's shape or the bracket bit for bit.
@@ -280,10 +270,10 @@ fn assert_bracket(door: &str, case: &dyn core::fmt::Display, got: Interval, want
         ),
         Some(w) => {
             assert!(
-                same_end(lo, w.lo) && same_end(hi, w.hi),
+                lo_bits == w.lo.to_bits() && hi_bits == w.hi.to_bits(),
                 "{door}({case}): endpoints — door [{lo:e}, {hi:e}], reference [{:e}, {:e}]",
-                w.lo.v,
-                w.hi.v
+                w.lo,
+                w.hi
             );
             assert_eq!(
                 dec,

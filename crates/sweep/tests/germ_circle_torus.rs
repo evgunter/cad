@@ -152,9 +152,9 @@ fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
         .expect_err("the stem glue still refuses, at the join");
     let BooleanError::GermFrameUnsupported {
         a_face,
-        a_kind: geom_brep::SurfaceKind::Plane,
+        a_kind: geom::SurfaceKind::Plane,
         b_face,
-        b_kind: geom_brep::SurfaceKind::Torus,
+        b_kind: geom::SurfaceKind::Torus,
     } = err
     else {
         panic!("the lily's next door is the plane × torus germ frame: {err:?}");
@@ -486,9 +486,12 @@ fn a_small_tilted_seam_crosses_the_wall_on_the_quartic_arm() {
 /// radius of `B`'s outer contour at that height — a latitude circle of
 /// `B`'s carrier. (Its tube crosses `B`'s transversally, so no tangency
 /// elsewhere refuses first.) The seam's clearance is zero, the door
-/// answers `Coaxial`, `wall_crossing` answers `Constant`, and the
-/// undeclared `(Zero, Zero)` arm keeps the typed frontier door on that
-/// seam: an undeclared on-carrier circle is never a silent no-event.
+/// answers `Coaxial`, and `wall_crossing` answers `LiesOn`. Its parents
+/// are decided distinct from `B`'s carrier, so the undeclared
+/// `(Zero, Zero)` arm asks `lying_on`'s certificates, and the door holds
+/// because certificate (a) finds a crossing: `B`'s face boundary meets
+/// the seam's circle off the seam's ends. No chain of `B`'s arcs runs
+/// along it either.
 #[test]
 fn a_coaxial_seam_on_the_torus_keeps_the_door() {
     let contour = B_MAJOR + (B_MINOR.powi(2) - A_HEIGHT.powi(2)).sqrt();
