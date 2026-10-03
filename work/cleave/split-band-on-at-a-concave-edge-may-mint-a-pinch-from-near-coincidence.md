@@ -1,10 +1,10 @@
 ---
 id: split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence
 kind: issue
-title: Split's ON verdicts use Band::linear(tol), so a plane within tol of a concave edge may produce a pinch half — near-coincidence becoming contact
+title: Split's ON verdict admits a sub-ε margin its own build then refuses in kernel-defect voice (δ = 5e-10 on the notched block); the δ ≤ ε pinch itself is correct
 status: open
 opened: 2026-10-02
-priority: P1
+priority: P2
 cost: M
 refs: [3856]
 ---
@@ -53,3 +53,48 @@ rather than decide ON; which ON test is right is CLEAVE's to design.
 near-coincidence never silently becomes contact) is violated on a
 reachable input.
 
+
+## Designed (2026-10-03): the pinch below ε is correct; the residue is the δ = 5e-10 arm
+
+A designer pair (Opus and Fable; labels on `analysis/design-fork/split-band-on`,
+byte 40) weighed this row independently and converged on every point, so it
+does not go to Ev:
+
+- **No clash between ratified clauses.** Q1's vocabulary makes |m| ≤ ε
+  *coincidence* (Zero) and ε < |m| < Kε *near-coincidence* (the band). D1
+  tier 3′ (i)'s "near-coincidence NEVER silently becomes contact (escalated
+  typed error instead)" means the band, and split honours it: δ ≥ 1e-9
+  refuses typed. Both clauses were written in one commit (`e16309aa7`).
+- **δ = 0 and 0 < δ ≤ ε cannot be told apart without an exact-zero test**, which
+  the "coincidence is structural or declared" commitment forbids (an
+  equal-vs-one-ulp cliff with no band). A rule that refused the δ = 1e-13 pinch
+  would also refuse the δ = 0 pinch, and with it `notched_block_end_to_end` and
+  the D7 pinch behaviour.
+- **"Not ON" is not buildable below ε.** The true cut has prong tips 2δ apart
+  and a sliver δ thick, which the census reads as `UndeclaredContact` on
+  distinct points. The real choice is the pinch or a refusal, and refusing is
+  the ulp cliff.
+- **The pinch is tier 3′ (ii) by name**: one ON operand vertex cut into copies
+  that share its point. After PR 3856 the door is right to pass it.
+
+So the P1 premise ("a ratified never is violated") does not hold, and the
+priority drops to P2. What is owed:
+
+1. **Measure, then fix, the δ = 5e-10 arm.** The tip reads ON (5e-10 ≤ ε), then
+   an edge split builds from that verdict fails the attachment gate's chart
+   residual at 4.0e-9 (about 8δ; 8 is `NOTCHED`'s x-extent), in kernel-defect
+   voice. The designers differ only on the form of the fix, both pending a
+   trace:
+   - (a) split's ON decision should promise what its build certifies, by
+     measuring the margin the build will carry (distance × worst lever);
+   - (b) the section pcurve mint is lossy, or the residual is extent-scaled.
+
+   Find which edge and which residual, per `memories/refusal-text-is-not-cause.md`.
+2. **Pin δ ∈ {1e-13 … 1e-10} as success**: the same body as δ = 0, passing the
+   pseudomanifold door.
+3. **`SliverVertex`'s text** says "lies within tolerance of the split plane".
+   The arm fires only in the band, beyond ε, so the text says the opposite of
+   what decided it. Reword it in `SliverSector`'s manner ("too close to the
+   split plane to call").
+
+Brief correction: the fixture is `crates/topo/tests/m3_pr3_split.rs`.
