@@ -1462,19 +1462,15 @@ Cross-milestone commitments; each binds at the layer named.
   correctness proof; no dirty-flag invalidation. The key shape is
   shipped (mesh back-references, the content/naming keys); a
   finer-grained per-artifact transfer service remains future.
-- **Coincidence is a margined verdict; structure decides whether it
-  holds across the family.** Bit-equality is never the test — it would
-  make topology hinge on an UNMARGINED predicate, a razor-thin
-  equal-vs-one-ulp cliff with no escalation band, exactly what Q1
-  forbids. The ladder (D10): (a) a margin decided Zero glues, and the
-  coincidence is **structural** when the two cells are one construction
-  of the same variables, compared in canonical form — exact across the
-  whole parameter family; (b) a Zero coincidence that is not structural
-  glues too, and the `unproven-coincidence` lint, which checks every
-  coincidence inferred from values, reports it as holding only at the
-  current values; (c) a margin in the sliver band refuses typed, its
-  resolution an explicit construction or repair/adoption — D7's
-  machinery applied natively. Nothing is declared. Consequence: topology
+- **Coincidence is a margined verdict.** Bit-equality is never the
+  test — it would make topology hinge on an UNMARGINED predicate, a
+  razor-thin equal-vs-one-ulp cliff with no escalation band, exactly
+  what Q1 forbids. A margin decided Zero is a coincidence and glues; a
+  definite margin keeps the cells apart; a margin in the sliver band
+  refuses typed, its resolution an explicit construction or
+  repair/adoption — D7's machinery applied natively. Nothing is
+  declared. The `unproven-coincidence` lint (D10) checks whether each
+  coincidence so decided holds structurally. Consequence: topology
   depends only on recipe structure and margined verdicts, so predicate
   flips remain the *only* topology-change sites.
 - **The editor-core evaluation service is generic over `Real`.** M10's
