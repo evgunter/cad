@@ -1068,25 +1068,10 @@ impl Doc {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        // Applied in order on values, and taken up once, whole: the
-        // action's record is every edit's, and the funnel (`accept`)
-        // swaps the document and that record together.
-        let mut maintenance = Vec::new();
-        let mut last: Option<d::Applied<d::ProfileProgram>> = None;
-        let edits = d::regauge_then_mate(&self.inner, mate.inner.clone())
+        let applied = d::regauge_then_mate(&self.inner, mate.inner.clone(), tol, &reach)
             .map_err(|err| edit_err(py, &err))?;
-        for edit in edits {
-            let base = last.as_ref().map_or(&self.inner, |applied| &applied.doc);
-            let applied = d::apply(base, &edit, tol, &reach).map_err(|err| edit_err(py, &err))?;
-            maintenance.extend(applied.maintenance.iter().cloned());
-            last = Some(applied);
-        }
-        let Some(mut applied) = last else {
-            unreachable!("the compound door's list ends in the mate's insert")
-        };
-        applied.maintenance = maintenance;
         let Some(id) = self.accept(applied).minted else {
-            unreachable!("the compound door's last edit is an insert, which mints")
+            unreachable!("the compound door answers its mate's insert, which mints")
         };
         Ok(NodeId(id))
     }

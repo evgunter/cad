@@ -29,9 +29,9 @@ use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocParam, DocParamValue,
     DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, Maintenance, MateFault, MateFrame,
     MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, ParamName,
-    PartResolver, PersistError, Placement, ProfileDoc, RecipeNodeId, SitedFace, SitedRef,
-    StableName, Step, Unplaced, ValuePayload, apply, apply_replayed, evaluate, groups, load,
-    product, regauge_then_mate, root_of, save,
+    PartResolver, PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach, SitedFace,
+    SitedRef, StableName, Step, Unplaced, ValuePayload, apply, apply_replayed, evaluate, groups,
+    load, product, regauge_then_mate, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, seat_map};
@@ -391,33 +391,28 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
     );
     assert_eq!(groups(&plain).len(), 2, "a declaring mate joins nothing");
 
-    // The compound door.
-    let edits = regauge_then_mate(&doc, mate.clone()).expect("no other mate starts placing");
-    assert_eq!(
-        edits,
-        vec![
-            DocEdit::SetGauge {
-                node: top,
-                gauge: Some(g),
-            },
-            DocEdit::SetGauge {
-                node: upper,
-                gauge: Some(g),
-            },
-            DocEdit::InsertNode {
-                node: Box::new(mate)
-            },
-        ],
-        "every member of the first operand's group, then the mate"
+    // The compound door: one document, the whole action applied.
+    let applied = regauge_then_mate(&doc, mate, Tol::witness(), &RefusingReach)
+        .expect("no other mate starts placing");
+    let done = applied.doc;
+    let mate = applied.record.minted.expect("the mate mints");
+    assert!(
+        applied.record.structural,
+        "the action inserts a node, so it is structural"
     );
-    let mut done = doc;
-    let mut minted = None;
-    for edit in edits {
-        let (next, id) = step(done, edit);
-        done = next;
-        minted = id;
-    }
-    let mate = minted.expect("the mate mints");
+    assert_eq!(
+        applied
+            .maintenance
+            .iter()
+            .filter_map(|row| match row {
+                Maintenance::OffsetCleared { instance, .. } => Some(instance.id()),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![top],
+        "the action reports the insert's offset clear: {:?}",
+        applied.maintenance
+    );
     assert_eq!(groups(&done), vec![vec![base, top, upper]]);
     for id in [top, upper] {
         assert_eq!(done.node(id).and_then(Node::gauge_ref), Some(g));

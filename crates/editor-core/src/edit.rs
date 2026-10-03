@@ -3664,32 +3664,81 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
     Ok(())
 }
 
-/// **"Copy `b`'s gauge to `a`, then mate `a` to `b`"** (A11 (2)): the
-/// edits that put every member of the group the mate's `a` side reads
-/// onto the gauge its `b` side's instance sits on, then insert the
-/// mate — which then places, and joins the two groups: the first
-/// operand's group is placed on the second's
-/// ([`DocEdit::InsertNode`]'s mate door clears the offsets `a`'s group
-/// held). One compound edit: the caller applies the list in order, and
-/// atomicity is applying all of it, as for [`cascade_delete_order`].
+/// **"Copy `b`'s gauge to `a`, then mate `a` to `b`"** (A11 (2)), as
+/// one action: every member of the group the mate's `a` side reads is
+/// put on the gauge its `b` side's instance sits on, then the mate is
+/// inserted — which then places, and joins the two groups: the first
+/// operand's group is placed on the second's ([`DocEdit::InsertNode`]'s
+/// mate door clears the offsets `a`'s group held).
 ///
-/// The answer is the bare insert when the two sides already share a
+/// The answer is the one document the whole action produces, as
+/// [`apply`] answers one edit: [`EditRecord::minted`] is the mate's
+/// id, and [`Applied::maintenance`] is what the action performed (a
+/// re-gauge performs none, so it is the insert's). There is no
+/// intermediate document to take up and no edit list to apply in
+/// part: the re-gauges are computed against the document they apply
+/// to, and a refusal at any step refuses the whole action.
+///
+/// The action is the bare insert when the two sides already share a
 /// gauge, when a side resolves to no member — the insert door then
 /// refuses the mate in its own words — and for a node that is not a
-/// mate, which has no gauge to copy. Nothing is applied here.
+/// mate, which has no gauge to copy.
+///
+/// ```compile_fail,E0308
+/// use editor_core::{Doc, DocEdit, MateReach, Node, ProfileProgram, regauge_then_mate};
+///
+/// // This example must NOT compile: the action answers a document,
+/// // never edits for a caller to apply out of order or in part.
+/// fn the_list(
+///     doc: &Doc<ProfileProgram>,
+///     mate: Node<ProfileProgram>,
+///     tol: geom_core::Tol,
+///     reach: &dyn MateReach,
+/// ) -> Vec<DocEdit<ProfileProgram>> {
+///     regauge_then_mate(doc, mate, tol, reach).unwrap()
+/// }
+/// ```
 ///
 /// # Errors
 ///
 /// [`EditError::WouldStartPlacing`] when the re-gauge would put the
 /// two instances of a mate already in the document on one gauge: that
 /// mate declares today, and would start placing — moving a group the
-/// action never named.
+/// action never named. Otherwise [`apply`]'s, from the step that
+/// refuses.
 pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     mate: Node<P>,
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> Result<Applied<P>, EditError> {
+    let mut done = doc.clone();
+    let mut structural = false;
+    for edit in regauges_for(doc, &mate)? {
+        let applied = apply(&done, &edit, tol, reach)?;
+        structural |= applied.record.structural;
+        done = applied.doc;
+    }
+    let mut applied = apply(
+        &done,
+        &DocEdit::InsertNode {
+            node: Box::new(mate),
+        },
+        tol,
+        reach,
+    )?;
+    applied.record.structural |= structural;
+    Ok(applied)
+}
+
+/// The `SetGauge` edits [`regauge_then_mate`] applies before its
+/// insert, in order, computed against `doc`.
+fn regauges_for<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    mate: &Node<P>,
 ) -> Result<Vec<DocEdit<P>>, EditError> {
     let mut edits = Vec::new();
-    if let Node::Mate { a, b, .. } = &mate
+    if let Node::Mate { a, b, .. } = mate
         && let (Some(ma), Some(mb)) = (
             crate::mate::member_of(doc, a),
             crate::mate::member_of(doc, b),
@@ -3735,9 +3784,6 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
             }
         }
     }
-    edits.push(DocEdit::InsertNode {
-        node: Box::new(mate),
-    });
     Ok(edits)
 }
 
