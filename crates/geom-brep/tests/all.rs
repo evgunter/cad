@@ -214,6 +214,8 @@ mod s58_iso_rectangle;
 mod s81_one_rim_level_rule;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
+#[path = "ssi_limb3_one_arc.rs"]
+mod ssi_limb3_one_arc;
 
 test_utils::every_suite_file_is_aggregated!();
 
