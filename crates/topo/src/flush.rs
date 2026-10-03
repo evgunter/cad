@@ -378,3 +378,7 @@ pub fn declare_all(findings: &[FacePairFinding]) -> BooleanDeclarations {
         ..BooleanDeclarations::none()
     }
 }
+
+#[cfg(test)]
+#[path = "flush_rows.rs"]
+mod rows;
