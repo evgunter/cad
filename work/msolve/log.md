@@ -1150,3 +1150,49 @@ MSOLVE-5 and A11 (5)'s from MSOLVE-2. Ev ruled the defect, and both
 designers say no fork remains. So the fix is a unit, MSOLVE-13, and Ev
 is told rather than asked. The spec is on `msolve/13-read-at-operand`,
 and the unit dispatches once MSOLVE-12's lane frees the disk.
+## 2026-10-01 — MSOLVE-12 fix pass
+
+The review of `fc5ea8dca` came back APPROVE-WITH-FIXES, with no MAJOR,
+and C1–C5 held. The fix pass took the nine rulings:
+
+- **R1.** A lever at or below the band's zero threshold decides no
+  angle. It is refused as `LeverRefusal::BelowZeroBand` at `intersect`
+  and at the rider's roll, before any division, with the reviewer's
+  probe pinned as a row. That guard closes
+  `plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`.
+- **R2.** The table's verdict hands the translation stage the sine or
+  cosine it decided, and the stage divides by that alone. The shapes a
+  verdict called parallel or perpendicular are solved with no division.
+- **R3.** `PoseOutOfRange` names held and added, and the tree blames
+  both.
+- **R4.** C2 builds every pair around a known point, with cylinders and
+  a skew pair added.
+- **R5–R9.** `unreachable!` for the impossible arm; `undecided`'s prose;
+  the Display's distance sentence; the body's claim about
+  representatives corrected; the harness copy disclosed and the loader's
+  K derived.
+
+Friction: the first round's census missed that a lever below the zero
+band makes `parallel` and `perpendicular` both answer yes. The census
+swept arms from 1 m up, so the bottom of the lever's range was never
+probed. A sweep over a levered decision owes the arms at and under the
+band's own thresholds.
+
+
+## 2026-10-03 — MSOLVE-12 MERGED (PR 3698)
+
+Two decidably non-parallel shapes now meet in closed form. Their only
+divisor is the number the table decided; six shapes used to divide by
+its square, and `inverse3` is gone. A meeting point beyond measurement
+refuses `PoseOutOfRange`, naming both mates. A lever inside the zero
+band refuses `BelowZeroBand` before any angle is decided. A mate's
+`Band` is reached by a loaded snapshot.
+
+The single full review found no MAJOR. Fix pass R1–R9. The main merge
+dropped §3 (overtaken by #3676) and guarded main's new offset check
+with R1. Closes MSOLVE-12,
+`near-parallel-planes-refuse-under-a-false-predicate`,
+`mate-band-fault-unreachable-on-a-mate` and
+`plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`.
+Filed: `a-far-meeting-point-fails-membership-by-its-own-rounding` (P2).
+The spec was deleted, with a note in `docs/doc-ledger/msolve-12-spec.md`.
