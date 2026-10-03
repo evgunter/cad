@@ -2094,8 +2094,9 @@ pub enum BooleanError {
     /// **Two sphere faces of the two solids meet** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
     /// crossing a face: either their spheres touch within the tolerance,
-    /// the smaller inside the larger (a decided zero), or their spheres
-    /// cross and the section certificate certifies the circle they cross
+    /// the smaller inside the larger (a decided zero), at a touch the
+    /// section certificate does not certify off either face, or their
+    /// spheres cross and the certificate certifies the circle they cross
     /// in inside both faces (its R-loop). Whatever the faces share lies
     /// off every edge, so the join's sphere-pair arm (the radical plane,
     /// `join::bool_connect`) had no chord to run. A crossing whose circle

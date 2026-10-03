@@ -473,9 +473,14 @@ BOUNDS_ALLOWLIST=(
   # scan's face-scoped reading both take; `pair_verdict`, the per-pair
   # rule's driver, which builds the pair's reach from the two boxes;
   # and `sphere_faces_apart`, that face-scoped reading of a crossing
-  # sphere pair. 15 + 4 = 19. `section_cert.rs` itself, the classifier
-  # and the per-pair rule, reads no box and carries no compound bound.
-  'crates/topo/src/boolean/ops.rs 19 2026-07-29 (M5 PR 8), the driver amendment'
+  # or touching sphere pair. 15 + 4 = 19. Two more read the edge boxes
+  # of one face against a region and decide on them: `face_boundary_meets`,
+  # the walk the plane arm's whole-circle membership and a touch's
+  # clearance both take, and `boundary_clear_of`, which builds a touch's
+  # ball box from its enclosures. 19 + 2 = 21. `section_cert.rs` itself,
+  # the classifier and the per-pair rule, reads no box and carries no
+  # compound bound.
+  'crates/topo/src/boolean/ops.rs 21 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,

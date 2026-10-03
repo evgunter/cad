@@ -945,7 +945,7 @@ fn cylinder_cylinder<T: Decide>(
             return tan.touch(&["section_cylinder_pair_reach"], || {
                 let w = o1 - o2;
                 let b = d1.dot(d2);
-                let foot = o1 + d1 * ((b * d2.dot(w) - d1.dot(w)) / (sin * sin));
+                let foot = o1 + d1 * ((b * d2.dot(w) - d1.dot(w)) / sin.powi(2));
                 let mu = zero_bound(band);
                 let two = T::from_f64(2.0);
                 (
