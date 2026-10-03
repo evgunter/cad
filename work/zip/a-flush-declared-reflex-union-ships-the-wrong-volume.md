@@ -75,3 +75,18 @@ wider. Unturned `sqQ1` ∪ gives `v = 16` at 10 poses: sx ∈ {−0.75, −0.5,
 −0.3, −0.25} with sy > 0. It is the same before and after PR 3900's
 strut-order change. The bar is that `rc_wide_battery` reports no
 wrong body.
+
+## Measured on JOIN-2 (PR 3880, 2026-10-03)
+
+The zip now reads the join's own segments (`join::section_segments`)
+instead of pairing germs by its own facing test. At every wrong-volume
+pose the join's matching itself refuses `JoinDesync` "B senses agree at
+a matched pair", so the zip refuses with it rather than zipping
+`vol a + vol b`. JOIN-1's reflex battery and `rc_wide_battery`, main
+against PR 3880's head: the 11 wrong-volume unions (the battery's
+`sqQ1 (−0.5, 0.25)` and the ten above) refuse typed, and nothing else
+moves. `join_rc_probes`
+`flush_declared_reflex_unions_never_ship_the_overlap_twice` pins four of
+them as refusing or sound (red on main). The second cause, the zip
+admitting a union that is not a pure REST contact, is unchanged: it is
+no longer reached at these poses because the matching refuses first.
