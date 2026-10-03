@@ -736,7 +736,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 sb.curve(&mut red.b, b_halves, JoinLane::Planar, seg_b)?,
             ),
             Some(GermLane::PlaneWall(plane)) => {
-                let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
+                let region = wall_region(&red.b, germ.b_face, b_halves)?;
+                let window = face_azimuth_window(&red.b, &gb, region, band)
                     .map_err(BooleanError::Join)?
                     .ok_or(desync("wall germ face has no charted azimuth window"))?;
                 (
@@ -764,7 +765,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     AuxDatum::Partner(germ.b_face),
                     seg_a,
                 )?;
-                let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
+                let region = wall_region(&red.a, germ.a_face, a_halves)?;
+                let window = face_azimuth_window(&red.a, &ga, region, band)
                     .map_err(BooleanError::Join)?
                     .ok_or(desync("wall germ face has no charted azimuth window"))?;
                 let curve_b = sb.bool_planar_curve(
@@ -878,14 +880,171 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     })
 }
 
+/// **The wall region whose window bounds the segment's chord arc**:
+/// the region the segment's two null halves sit on at CALL TIME.
+///
+/// The germ's own `a_face`/`b_face` is the face the germ was RECORDED
+/// against at insertion, and `recorded` is read first because a wall's
+/// faces may share one carrier — a declared tangency's fillet faces do,
+/// and there the halves sit on two faces of that carrier with the
+/// recorded one the region the germ was taken on. What the recorded key
+/// cannot survive is an earlier segment's `mef`: the division leaves it
+/// on a fragment neither half is in any more, whose window covers a
+/// part of the wall the arc does not lie in, and the planar side then
+/// selects its arc against a window containing neither candidate. So a
+/// recorded face both halves have left hands the window to the region
+/// they are in.
+///
+/// A recorded face the halves have left, with the halves themselves on
+/// two different faces, names no region to read a window on: it is
+/// refused rather than guessed at.
+fn wall_region<T: Decide>(
+    body: &Body<T>,
+    recorded: FaceKey,
+    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+) -> Result<FaceKey, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let face_of = |he: HalfEdgeKey| -> Result<FaceKey, BooleanError> {
+        let r#loop = body
+            .get_half_edge(he)
+            .ok_or(desync("a segment half no longer resolves"))?
+            .parent_loop;
+        Ok(body
+            .get_loop(r#loop)
+            .ok_or(desync("a segment half's loop no longer resolves"))?
+            .face)
+    };
+    let (f1, f2) = (face_of(h1)?, face_of(h2)?);
+    if f1 == recorded || f2 == recorded {
+        Ok(recorded)
+    } else if f1 == f2 {
+        Ok(f1)
+    } else {
+        Err(desync(
+            "a segment's germ face holds neither of its halves and they sit on two faces of \
+             one wall (no region window)",
+        ))
+    }
+}
+
+/// **How far a partner site is along the germ line**: which half-turn of
+/// the germ's section conic it lies in, and the chord to it. Ordered by
+/// [`nearer`].
+#[derive(Clone, Copy)]
+struct Reach<T> {
+    arm: GermArm,
+    chord: T,
+}
+
+/// Which half-turn of its section conic a partner site lies in, seen
+/// from the germ and in the germ's own rotational sense. A straight germ
+/// line has one, [`GermArm::Ahead`].
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GermArm {
+    /// Within the half-turn the germ runs into.
+    Ahead,
+    /// Past it — every site here is further along the conic than every
+    /// site `Ahead`, whatever the two chords are.
+    Behind,
+}
+
+/// **Is `cand` nearer along the germ line than `best`?** The germ's
+/// half-turn decides it where the two differ, because the chord is NOT
+/// monotone in the travel along a conic: it grows to the half-turn and
+/// shrinks again, so a site a major arc away reads nearer by chord than
+/// the next site along the conic, and a chord minted to it crosses that
+/// one. Within one half-turn the chord IS monotone in the travel, and
+/// it is the margin (`bool_join_nearest`, metres), so a straight germ
+/// line and a conic one meter the same quantity.
+fn nearer<T: Decide>(cand: Reach<T>, best: Reach<T>, band: Band) -> Result<bool, BooleanError> {
+    if cand.arm != best.arm {
+        return Ok(cand.arm == GermArm::Ahead);
+    }
+    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
+    Ok(decide(
+        "bool_join_nearest",
+        Margin::of(cand.chord - best.chord),
+        band,
+    )
+    .map_err(escalate)?
+        == Sign::Negative)
+}
+
+/// **Which half-turn of the germ's section conic `p_e` lies in**, read
+/// from the germ at `p_c` in the germ's own rotational sense: the
+/// signed distance of `p_e` from the plane through the conic's axis and
+/// `p_c`, positive on the side the germ runs into. Metres — a cross
+/// product of two metre vectors projected onto the site's radius, which
+/// is that plane's own normal direction, so the band reads the margin
+/// as the deviation it is. A site ON the axis has no such plane and no
+/// radius to divide by: the margin comes back invalid and escalates
+/// there rather than being answered.
+///
+/// `Zero` reads [`GermArm::Ahead`], which is the conservative arm and
+/// not a tie-break: an in-band distance puts `p_e` within the band of
+/// the axis plane, so it sits either at `p_c`'s own azimuth (no travel
+/// at all) or at the half-turn (the furthest any `Ahead` site can be),
+/// and both of those sort ahead of every site genuinely `Behind`.
+///
+/// A straight germ line (`frame` `None`) has no turn to read, so every
+/// partner is `Ahead` and the order is the chord alone — the planar
+/// pairing, unchanged.
+fn germ_arm<T: Decide>(
+    frame: Option<(geom_core::Point3<T>, Vec3<T>)>,
+    g: &HalfGerm<T>,
+    p_c: geom_core::Point3<T>,
+    p_e: geom_core::Point3<T>,
+    band: Band,
+) -> Result<GermArm, BooleanError> {
+    let Some((center, axis)) = frame else {
+        return Ok(GermArm::Ahead);
+    };
+    let u = p_c - center;
+    let radial = u - axis * axis.dot(u);
+    // The germ's own rotational sense, the quantity
+    // [`germs_face_each_other`] has already decided definite at this
+    // germ — read again under its own name, so both readings meter into
+    // one population under one band.
+    let malformed = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::SelfCheck(SelfCheck::ArcFacing),
+        diag,
+    };
+    let sense = axis.dot(u.cross(g.dir));
+    let ahead = match decide("bool_join_arc_facing", Margin::of(sense), band).map_err(malformed)? {
+        Sign::Positive => T::one(),
+        Sign::Negative => T::zero() - T::one(),
+        Sign::Zero => {
+            return Err(BooleanError::JoinDesync {
+                what: "a conic germ has no rotational sense (radial germ direction — malformed \
+                       germ data)",
+            });
+        }
+    };
+    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
+    let reach = axis.cross(radial).dot(p_e - center) * ahead;
+    Ok(
+        match decide(
+            "bool_join_arc_ahead",
+            Margin::levered_inv(reach, radial.norm()),
+            band,
+        )
+        .map_err(escalate)?
+        {
+            Sign::Negative => GermArm::Behind,
+            Sign::Positive | Sign::Zero => GermArm::Ahead,
+        },
+    )
+}
+
 /// `scanjoin`, germ form (module docs): among all candidate/entry slot
 /// combinations whose A-side germs carry the SAME loci and whose
 /// two sites mutually FACE each other along the germ line
 /// (`bool_join_facing`, decided — the polygon edge's ends point at one
 /// another), with OPPOSED senses in both solids (the sense theorem's
-/// neighbor test), pick the NEAREST pair of sites (`bool_join_nearest`,
-/// decided — non-adjacent same-line sites must not be chorded across
-/// an intermediate one). The B side consumes the SAME slots — slot `i`
+/// neighbor test), pick the NEAREST pair of sites ([`nearer`]: the
+/// germ's own half-turn first ([`germ_arm`]), then the chord —
+/// `bool_join_nearest`, decided; non-adjacent same-line sites must not
+/// be chorded across an intermediate one). The B side consumes the SAME slots — slot `i`
 /// of the A and B germ arrays is one spatial germ (registration doc);
 /// a B-side locus or sense disagreement at matched slots is a
 /// loud desync, never an alternative pairing. Zero-distance
@@ -907,8 +1066,7 @@ fn find_match<T: Decide>(
     fn slots<T: geom_core::Real>(side: &[(HalfGerm<T>, bool); 2]) -> Vec<usize> {
         (0..2).filter(|&g| !side[g].1).collect()
     }
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
-    let mut best: Option<(T, (Slot, Slot))> = None;
+    let mut best: Option<(Reach<T>, (Slot, Slot))> = None;
     for (cand, rec) in open.iter().enumerate() {
         for (entry, e) in open.iter().enumerate() {
             if entry == cand {
@@ -916,19 +1074,18 @@ fn find_match<T: Decide>(
             }
             for &cs in &slots(&rec.a) {
                 for &es in &slots(&e.a) {
-                    let Some(dist) = partners(open, red, sa, sb, (cand, cs), (entry, es), band)?
+                    let Some(reach) = partners(open, red, sa, sb, (cand, cs), (entry, es), band)?
                     else {
                         continue;
                     };
                     let m = ((entry, es), (cand, cs));
                     best = match best {
-                        None => Some((dist, m)),
-                        Some((bd, bm)) => {
-                            match decide("bool_join_nearest", Margin::of(dist - bd), band)
-                                .map_err(escalate)?
-                            {
-                                Sign::Negative => Some((dist, m)),
-                                _ => Some((bd, bm)),
+                        None => Some((reach, m)),
+                        Some((bb, bm)) => {
+                            if nearer(reach, bb, band)? {
+                                Some((reach, m))
+                            } else {
+                                Some((bb, bm))
                             }
                         }
                     };
@@ -947,8 +1104,9 @@ fn find_match<T: Decide>(
 /// oppose in A; the sites are distinct (`bool_join_chord`) and FACE
 /// each other along the germ line (the locus-aware facing); and the B
 /// germs at the same slots mirror them — same loci, opposed senses —
-/// or the join has desynced. `Some(chord length)` when they are
-/// partners. Two slots of one record never are.
+/// or the join has desynced. `Some(reach)` when they are partners — the
+/// germ's half-turn and the chord, as [`nearer`] orders them. Two slots
+/// of one record never are.
 fn partners<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
@@ -957,7 +1115,7 @@ fn partners<T: Decide>(
     (cand, cs): (usize, usize),
     (entry, es): (usize, usize),
     band: Band,
-) -> Result<Option<T>, BooleanError> {
+) -> Result<Option<Reach<T>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     if cand == entry {
         return Ok(None);
@@ -1010,7 +1168,10 @@ fn partners<T: Decide>(
     if sb.is_up(&red.b, egb.he)? == sb.is_up(&red.b, rgb.he)? {
         return Err(desync("B senses agree at a matched pair"));
     }
-    Ok(Some(dist))
+    Ok(Some(Reach {
+        arm: germ_arm(frame, &rga, p_c, p_e, band)?,
+        chord: dist,
+    }))
 }
 
 /// An `OnEdge` germ's edge runs from the germ's site: one of its ends
@@ -1644,7 +1805,6 @@ fn loose_partners<T: Decide>(
     sb: &Sides,
     band: Band,
 ) -> Result<(LooseMap, LooseMap), BooleanError> {
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
     let loose: Vec<(usize, usize)> = open
         .iter()
         .enumerate()
@@ -1653,22 +1813,21 @@ fn loose_partners<T: Decide>(
     let mut a_map: LooseMap = SecondaryMap::new();
     let mut b_map: LooseMap = SecondaryMap::new();
     for &(i, s) in &loose {
-        let mut best: Option<(T, (usize, usize))> = None;
+        let mut best: Option<(Reach<T>, (usize, usize))> = None;
         for &(j, t) in &loose {
             // The matcher's own criterion ([`partners`]): the separation
             // constraint must count partners with the matcher's eyes or
             // roles get walled off wrongly.
-            let Some(dist) = partners(open, red, sa, sb, (i, s), (j, t), band)? else {
+            let Some(reach) = partners(open, red, sa, sb, (i, s), (j, t), band)? else {
                 continue;
             };
             best = match best {
-                None => Some((dist, (j, t))),
-                Some((bd, bm)) => {
-                    match decide("bool_join_nearest", Margin::of(dist - bd), band)
-                        .map_err(escalate)?
-                    {
-                        Sign::Negative => Some((dist, (j, t))),
-                        _ => Some((bd, bm)),
+                None => Some((reach, (j, t))),
+                Some((bb, bm)) => {
+                    if nearer(reach, bb, band)? {
+                        Some((reach, (j, t)))
+                    } else {
+                        Some((bb, bm))
                     }
                 }
             };

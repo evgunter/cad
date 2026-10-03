@@ -2219,6 +2219,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
+    ("join.rs", "germ_arm", "BooleanDecision::SelfCheck", 1),
+    ("join.rs", "germ_arm", "Coincide::Join", 1),
+    ("join.rs", "germ_arm", "SelfCheck::ArcFacing", 1),
     (
         "join.rs",
         "germs_face_each_other",
@@ -2232,7 +2235,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "SelfCheck::ArcFacing",
         1,
     ),
-    ("join.rs", "loose_partners", "Coincide::Join", 1),
+    ("join.rs", "nearer", "Coincide::Join", 1),
     ("join.rs", "partners", "Coincide::Join", 1),
     (
         "join.rs",
@@ -2241,7 +2244,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("join.rs", "ring_winding_order", "SelfCheck::RingWinding", 1),
-    ("join.rs", "slots", "Coincide::Join", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (

@@ -36,3 +36,30 @@ class of `blind-d-pocket-subtract-refuses-with-join-internal-words`.
 The re-homing needs a chart-side test for a ring on a curved face (the
 D's wall carries the pocket's rings once its section crosses the block's
 side), or a typed frontier refusal naming the face.
+
+## Built
+
+Ring re-homing was not the cause. TANG's PR 3851 wired
+`chart_ring_side`, the chart arm this row asked for, before the fix
+started: on main the 222 poses that refused `SectionInvariant` at
+`face_plane_normal` at the filing commit (the 156 this row measured plus
+their `through` siblings) reach the chart arm and refuse
+`RingHomingAmbiguous` (198) or build sound (24). The ring sat
+`OnBoundary` because the chord that walled the run off was minted to the
+wrong partner: `boolean::join`'s `find_match` ranked partner sites by
+CHORD LENGTH, which on a conic germ line grows to the half-turn and
+shrinks again, so the site a major arc away read nearer than the next
+site along the section and the chord crossed it. Nearness is the germ's
+own half-turn first (`germ_arm`), then the chord within it (`nearer`).
+
+A second cause behind it: the planar side selects its chord arc against
+the partner WALL face's azimuth window, read from the face the germ was
+recorded against at insertion, which an earlier segment's `mef` may have
+divided — the window then covers a part of the wall the arc does not lie
+in and neither candidate is contained. `wall_region` reads the region
+that owns the segment's halves at call time.
+
+All 222 poses build sound at tier 2, tier 3′, the certificate and
+`assert_legal_operand`, at their closed-form volume
+(`crates/sweep/tests/pocket_wall_crossing_a_side_face.rs`, the disc
+against the block's square clipped by the D's flat).
