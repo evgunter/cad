@@ -162,10 +162,14 @@ is a program that does not compile; `class` is the kernel
 composed with an offset, a `Placement` written in the base's frame (the
 empty chain by default): the base is the side's part frame, or
 `FromFace`, which names no face and is its side's own head face; a
-`MatePrimitive` (`FrameCoincidence`, `Coaxial`,
-`PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
-primitive), an authored `AxisSense` (so no π-flip is inferred) and an
-optional clocking rider. `Node::Pattern` replicates an instance by
+`MatePrimitive` that names only the residual subgroup and carries no
+number (`FrameCoincidence`, `Coaxial { roll: Free | Pinned }`,
+`PlanarRest`); and an authored `AxisSense` (so no π-flip is inferred).
+Every number that says where the two sides meet lives in the sides'
+offsets: the roll about a shared axis is a rotation in an offset, and
+a pinned coaxial's roll is the angle between the two sides' resolved
+references, so no primitive can be written that the table has no row
+for. `Node::Pattern` replicates an instance by
 `PatternKind::Linear`, `Circular` or `Explicit`. Evaluation mints each
 mate's declaration into the product's `ContactRecords`, the same
 currency as the boolean wrapper's; declarations are verified, never
@@ -279,13 +283,27 @@ a `MintedDeclaration` (declaring mates mint like determining ones), and
 runs the scalar's at-rest policy, `topo::validate_pseudomanifold`'s
 verdict, over body plus records. The gather's own tier-3 verdict rides
 on the product's body (`topo::AtRestBody`), so the gate runs tier 3′'s
-census over it rather than the local battery a second time. Minting resolves each reference against the
-product's table and, when that is silent, asks the operand the mate
-reads at whether the name is spelled in its own table — a name spelled
-there at a node the product does not list refuses
-`RefusedRef::ReadBelowARoot { at }` in the operand's voice, so
-`RefusedRef::Vanished` means a name nothing answers to where the mate
-reads it. The gate asks no KIND question at all: a head is a
+census over it rather than the local battery a second time. Minting
+reads each reference's name where the mate reads it — in its
+operand's table — and carries it up the operand's consumers to the
+product's roots, each consumer spelling it as it carries it
+(`names::lift`, exhaustive over node kinds: a `Part` and a split's
+target carry it verbatim, a union as its member's name, a pair boolean
+as `FromA`/`FromB`, a fillet, chamfer or shell as `FromTarget`; a
+transform, pattern or placed union places it again). Exactly one
+product face reached is the face minted on, and two refuse
+`RefusedRef::Ambiguous`. A route through a placer never succeeds:
+the product holds the face where the placer put it, not where the mate
+reads it. So when no route carries the face to the product unmoved, a
+placer on the way up refuses `RefusedRef::MovedAbove { at, by }`, whose
+recourse is to re-pick the face on `by` (naming the copy, when `by`
+places copies). A consumer that merges or cuts the face refuses
+`RefusedRef::Vanished { by }` naming it — or, when none does, a
+consumer reading the body in a seat that holds no face of it — and a
+name the operand does not spell `Vanished { by: None }`. Where the
+operand is a root, or reaches one through `Part` selections and split
+targets alone, the lift is the identity. The gate asks
+no KIND question at all: a head is a
 `SitedFace` over a `FaceName` (A3), so what the name denotes is fixed
 by the type, and the refusal vocabulary here has three arms and no
 kind arm. It runs no predicate of its own; kernel findings
@@ -395,8 +413,7 @@ Empty}` and several mates on one pair fold by exact coset intersection
 (`mate/coset.rs`): DETERMINED, UNDER or CONTRADICTORY, the last refusing
 with the added mate's measured clash. The edit door asks the same
 per-mate admission of a mate being inserted — the walk, the class,
-each frame, the table's row, the rider on a coincidence decided over
-the mate's own lever — so a mate the table refuses on its own is
+each frame, the table's row — so a mate the table refuses on its own is
 refused at the insert door (`EditError::MateRefused`, carrying the
 solve's fault); the doors decide edits and the solve decides states,
 so a verdict about the pair, and a state a mate comes to hold after
@@ -456,16 +473,21 @@ pairing doors: the document it is handed must be the one solved, else
 `MateFault::PosesOfAnotherDocument` before any frame is read. A
 reference resolves by walking from its OPERAND down to a live
 `InstantiatePart`, through any number of `Transform`s and `Part`
-instance selections and any number of `Pattern` levels (each of which
-the name qualifies `Instance(i)`); the member's frame is the composed
+instance selections, any number of `Pattern` levels (each of which
+the name qualifies `Instance(i)`) and any number of `Union`s (each of
+which the name qualifies `FromMember`, naming the member the walk
+continues at); the member's frame is the composed
 offset of every node that walk passed, evaluated as that node is
 evaluated, on that instance's pose, so mates never solve for a
 pattern's or transform's parameters or give one placed body its own
-pose. A member's identity is its instance, the
-CHAIN of copies the walk consumed (outermost first) and the operand it
-was read at: two references to one instance read at different operands
-are two members, and so are two references to sibling copies at any
-level. Nothing in the walk is evaluated, so the partitions never
+pose. A member's identity is its instance and the
+CHAIN of placing nodes the walk passed, outermost first — each pattern
+with the copy the name says, and each transform; the operand is not
+part of it. Two references through different placements are two
+members, and so are two references to sibling copies at any level;
+one placement spelled two ways — read at a transform and at a union
+above it naming that member, or at a `Part` selecting a copy and at
+the pattern naming that copy — is one member, and its mates fold. Nothing in the walk is evaluated, so the partitions never
 depend on a slot value. The solve's inputs are the document plus its
 mated parts' evaluations, at the evaluation's own scalar and over the
 evaluation's own parameters, and it reads no geometry except what each
