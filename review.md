@@ -1,0 +1,40 @@
+# Review of PR #3973, frozen head 9f8ab75a24
+
+Lane `reach-dual3973-r2`. Wall clock 16:22–18:05 UTC, 2026-10-03. **Verdict: NOT-MERGEABLE-AS-IS.** I found no wrong verdict and no wrong body. Two committed rows are red at the frozen head, and that head has no completed CI run (run 37135622449 was cancelled). Counts: **MAJOR 1 · MINOR 2 · NOTE 5.**
+
+## Claims (all by EXECUTION unless marked)
+1. **Holds.** I wrote my own probe (`probes/probe_et.rs`, an in-crate test against `ellipse_roots`) and my own oracle (`probes/oracle_et.py`: mpmath at 34 digits on the exact f64 inputs, the cross product exact, true signed distance, every extremum refined cyclically). Coverage: 3,840 poses over 8 families (coaxial 8-crossing; outer, inner and crown grazes at ±40 bands; meridian near-circle *touching* the torus; nearly-circular with δ 1e-3/1e-8/1e-14; fat torus grazed inside the zero band; random), at scales ×1e-3/×1/×1e3, 1 km out, and ε 1e-6/1e-9/1e-12. Result: **0 failures**, no `Miss` on a crossing, no certified root off a crossing. Worst certified root 0.0045 bands. The meridian-touch and in-band-graze families are 100% `Uncertain`. My oracle had a seam bug, which a kernel-vs-oracle disagreement exposed. I fixed it and re-judged every pose.
+2. **Holds.** The slack is read from `conic_torus_residual`'s running bound (`circle_roots.rs:730`). A root that cannot be placed answers `Uncertain` and the sweep refuses `CurvedPierceUnsupported`. The running-error term is load-bearing: mutant M5, `.magnitude()`→`.value.abs()`, gives 3 wrong roots in my probe, up to 44.6 bands off. Without the meter (M1), 54 of 960 poses are wrong, up to 1.4e6 bands off.
+3. **Holds: nothing moved.** I ran main and head in separate worktrees with separate target dirs. Circle × torus: 3,840 poses byte-identical. Circle × sphere, circle × wall, ellipse × sphere and ellipse × wall: 1,440 poses, identical in verdicts and root bits. The PR body is a placeholder, so it says nothing either way.
+4. **Brief premise false.** No body is built, and the unit file says so (`work/reach/ellipse-edge-crossing-a-torus-has-no-root-lane.md`, "no body reaches a build"). My e2e probe (`probes/e2e_rim_probe.rs`) covers 4 torus radii × 5 azimuths × 6 gaps × 3 scales, with all 6 ops in both orders. It built **0 bodies**: every result is a typed refusal. Accepted rim × torus pairs match the geometry in all 1,098 runs. So I could not run `point_in_solid` on a result and could not reuse results as operands.
+5. **Partly false.** See MINOR-1. Under mutants M2, M9, M11, M13 and M14 the PR's rows go red, as claimed.
+
+## Findings
+- **MAJOR-1** `crates/topo/src/boolean/ellipse_roots.rs:391` (`torus_crossings_match_the_true_distance`). At `CAD_TOLERANCE_EPS=1e-12` the row is red: "flat × ring, off the axis: certified roots, got Uncertain". topo is one of the ε-sensitive crates CI's ε 1e-6/1e-12 step runs (`ci.yml:173`). The door's refusal is conservative, not wrong; the defect is that the row demands a certificate at every ε. DEMONSTRATED on a clean worktree with its own target dir. Post-freeze commit a5e7432 (CI green) may address it; I did not review it.
+- **MINOR-1** The slack meter's calibration is pinned by no row. With mutants M5 (running error dropped), M12 (the meter 1000× lenient, `circle_roots.rs:732`), M4 (ceiling→floor, `ellipse_roots.rs:262`) and M6 (no sin/cos ulp, `implicit.rs` `conic_torus_residual`), every row the PR touches stays green. My oracle shows M5 and M12 produce wrong roots: 3 and 12 poses, up to 44.6 and 6.8 bands off. M4 raises the worst slack from 0.006 to 0.38 bands. DEMONSTRATED (`probes/mutants.py`, `probes/mutant_probe.sh`).
+- **MINOR-2** `crates/sweep/tests/ellipse_torus.rs:166` is red at ε 1e-6. The gap `1e-3·√ε` equals ε there, so the "just clear" pose sits inside the zero band and the refusal is correct; the row is wrong. CI's ε step does not run sweep unless the tier is `all`. DEMONSTRATED on a clean worktree. a5e7432's message says the gaps were fixed; not reviewed.
+- **NOTE-1** The frozen head has zero completed CI runs; all three on it and its parents were cancelled. My verdict is therefore not conditional on a gate.
+- **NOTE-2** Reach ceiling. At kilometre size (drum radius 500 m, torus 300/50 m, ε 1e-9) the door answers `Uncertain` on a 1 mm-deep rim crossing at every azimuth, because `noise/f_lo` = 1.04e-9 m is wider than the zero band. That is typed and honest, but untested: the PR's "far-out" family moves small tori 1 km out and never scales them up. DEMONSTRATED (`probe_km_rim_door`).
+- **NOTE-3** Mutants M3 and M15 (Bernstein `N`→2 on the derivatives) and M7 (torus noise ×0) survive both the rows and my oracle. They are equivalent on every pose drawn, so the degree-4 noise terms are unevidenced, not shown wrong. Rerun M3/M7 with my probe: 0 oracle failures.
+- **NOTE-4** The PR body is a placeholder ("Full description follows"). Claim 3's "or the PR body says what moved" cannot be checked against it.
+- **NOTE-5** My own process error, disclosed. A `main` worktree sharing the target dir linked stale `topo` into one head run and made the PR's sweep rows look red. I retracted that, and re-ran every affected run (rim e2e, both differentials) with separate target dirs. I also checked the binaries apart: head's ellipse × torus returned 0 errors and main's returned 96.
+
+## Style (questions exercised: Q1, Q2, Q3, Q5, Q6, Q7; Q4 by grep; Q8 partial)
+- Q3 `ellipse_roots.rs` `a_root_the_band_cannot_place_is_not_certified` hits `continue` on any non-`Certified` answer. A `Miss` on these two crossings would pass, and "the meter answers `Uncertain` for both" (its doc) is never asserted. **sure**
+- Q3 `certified_torus_answers_hold_against_the_true_distance` accepts `count >= changes`, so an invented root pair passes. It checks roots by f64 distance, not arc position, which is blind to exactly the slack defect: M1 leaves it green. **sure**
+- Q6 "two seeds of 3000 poses, no failure, worst 0.07 bands" (work item, Outcome) rests on an `#[ignore]` dump plus a script that neither `ci.yml` nor `nightly.yml` runs. No guard or register re-takes the number. **sure**
+- Q1 There are two spellings of one trig polynomial, `Harmonics` and `TrigPoly`, and two frames, `HalfAngleFrame` and `SubdivisionFrame`, copied field by field at `circle_roots.rs:360`. Harmonics along a conic also have two shapes, `ConicHarmonics` and `ConicTorusHarmonics`, while the docs call the torus one "the conic's one home". **likely**
+- Q1 The torus fixture builder (axis plus an x/y `u_ref` fallback) is written three times: `ellipse_roots.rs:335`, inline in `torus_rows::pose`, and the sweep row's `donut`. **likely**; sweep the other doors' rows for the same.
+- Q2/Q5 The clear margin divides by `f_per_metre_lo`, a *floor* on `|F|/|res|` (`circle_roots.rs:697`). That overstates residual metres by up to `4R/(R−r)`, the wrong direction for "definitely clear". Only the definite-sign cut ends save it: my in-band fat-torus family came out 96/96 `Uncertain`. The same holds in pre-existing circle × torus. **unsure**
+- Q5 `ConicTorusHarmonics::f_per_metre_hi` (`implicit.rs`) bounds the reach by `max(|a|,|b|)` while the struct says the frame "need not be orthonormal". With `|û| ≠ 1` the ceiling can be short. **unsure**
+- Q7 `HARMONIC_INDEX: [f64; 5]` is a table of the integers 0–4 used for `kʲ`, and the `match j { 1, 2, _ }` in `derivative` silently treats every `j ≥ 3` as 3. **unsure**
+- Q8 I read `circle_roots.rs` lines 89–770 and all of the `ellipse_roots.rs` diff, not either file end to end.
+
+## Probes (committed under `probes/`)
+- `probe_et.rs`: the door probe, the circle × torus and sphere/wall differentials, and the km door.
+- `oracle_et.py`: the mpmath oracle.
+- `e2e_rim_probe.rs`: the drum rim against tori.
+- `mutants.py`: the 15 mutants.
+- `mutant_probe.sh`: a mutant fed through the probe and oracle.
+
+I disclose no glimpse of another lane. I read the PR only via `get`, and saw the post-freeze commit messages only in the CI run listing.
