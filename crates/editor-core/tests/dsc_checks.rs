@@ -25,8 +25,8 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     Advisory, BooleanOp, CancelToken, CheckEvidence, CheckFinding, CheckId, CheckKind,
-    ChecksConfig, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
-    enforce_checks, run_checks, subject_body,
+    ChecksConfig, ChecksError, ChecksReport, EvalOptions, Evaluation, Node, ProductError,
+    ProfileDoc, RecipeNodeId, Severity, SourceFinding, enforce_checks, run_checks, subject_body,
 };
 use fixture::{ang, insert, len, on_frame, scl, square};
 use geom_core::Tol;
@@ -337,8 +337,11 @@ fn in_band_shell_escalates_typed_never_guessed() {
 
 /// The void side of the same decision: a 3 m box holding a unit-square
 /// cavity `(1 + K)·ε` thick. The outer shell decides; the cavity's
-/// `V/A` is negative and in band, so the sign escalates, and a margin
-/// on a side the decision accepts ends valued at `|m|/K`.
+/// `V/A` is negative and in band, so its role does not read, and the
+/// at-rest gate refuses the solid naming that shell (check 10's
+/// `ShellRoleUndecided`) — a solid whose shells cannot be wound is not
+/// passed on to the checks window. The refusal carries the escalation,
+/// and a margin on a side the decision accepts ends valued at `|m|/K`.
 ///
 /// The sheet is what a unit cube cavity leaves when a box filling all
 /// but its top `(1 + K)·ε` is united into it. Subtracting a thin tool
@@ -348,6 +351,7 @@ fn in_band_shell_escalates_typed_never_guessed() {
 #[test]
 fn in_band_void_shell_escalates_with_its_valued_ending() {
     use geom_core::{Band, ErrorTextReading};
+    use topo::ValidationError;
     let tol = Tol::witness();
     let t = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin-void", Tol::witness());
@@ -372,24 +376,33 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             declare: Vec::new(),
         },
     );
-    let report = checks(&doc, &ChecksConfig::default());
-    assert_eq!(report.findings.len(), 1, "{report}");
-    let finding = &report.findings[0];
-    assert_eq!(
-        (finding.check, finding.root, finding.output_ix),
-        (CheckId::Connectedness, root, 0),
-        "{finding}"
-    );
-    let CheckEvidence::Escalated {
-        source: ShellClassifyError::Escalated { source: ind, .. },
-    } = &finding.evidence
+    let refused = run_checks(&doc, &run(&doc), &ChecksConfig::default(), tol)
+        .expect_err("the at-rest gate refuses a solid whose cavity has no role");
+    let ChecksError::Product {
+        refusal: Some(refusal),
+    } = &refused
     else {
-        panic!("expected the typed in-band escalation, got: {finding}");
+        panic!("expected the product's refusal, got: {refused:?}");
     };
-    assert_eq!(ind.predicate, Some("chk_shell_volume_sign"), "{finding}");
+    let ProductError::RootInvalid { findings } = refusal.error() else {
+        panic!("expected the root's validity findings, got: {refused:?}");
+    };
+    let [SourceFinding { node, errors, .. }] = findings.as_slice() else {
+        panic!("expected one source, got: {findings:?}");
+    };
+    assert_eq!(*node, root);
+    let [
+        error @ ValidationError::ShellRoleUndecided {
+            error: ShellClassifyError::Escalated { source: ind, .. },
+            ..
+        },
+    ] = errors.as_slice()
+    else {
+        panic!("expected the cavity's undecided role, alone, got: {errors:?}");
+    };
     assert_eq!(ind.band, Band::linear(tol).expect("the run's band"));
     let ErrorTextReading::Value(m) = ind.margin.diagnostic_f64_for_error_text() else {
-        panic!("expected a valued margin, got: {finding}");
+        panic!("expected a valued margin, got: {error}");
     };
     // The cavity's own V/A on the void side: a unit square `h` deep,
     // `h` the sheet as its two planes are represented.
@@ -404,7 +417,7 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
         "Recourse: thicken or remove the degenerate geometry, or, if this thickness is \
          intended, tighten the tolerance below {below:e} m"
     );
-    let rendered = finding.to_string();
+    let rendered = error.to_string();
     assert!(
         rendered.ends_with(&format!(
             "margin {m:e} lies inside the ambiguity band ({:e}, {:e}). {ending}",

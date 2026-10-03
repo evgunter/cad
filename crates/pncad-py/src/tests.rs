@@ -6190,6 +6190,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",
             "shell_disconnected",
+            "shell_role_undecided",
             "shell_winding",
             "shell_without_faces",
             "sliver_dihedral",

@@ -3843,6 +3843,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::RingNestingUndecided": "ValidationFinding.variant",
     "ValidationError::ShellWinding": "ValidationFinding.variant",
     "ValidationError::SolidOuterShells": "ValidationFinding.variant",
+    "ValidationError::ShellRoleUndecided": "ValidationFinding.variant",
     "ValidationError::UndeclaredContact": "ValidationFinding.variant",
     "ValidationError::StaleContactDeclaration": "ValidationFinding.variant",
     "ValidationError::ContactContradicted": "ValidationFinding.variant",

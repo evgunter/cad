@@ -2998,6 +2998,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::RingNestingUndecided { .. } => "ring_nesting_undecided",
         ValidationError::ShellWinding { .. } => "shell_winding",
         ValidationError::SolidOuterShells { .. } => "solid_outer_shells",
+        ValidationError::ShellRoleUndecided { .. } => "shell_role_undecided",
         ValidationError::UndeclaredContact { .. } => "undeclared_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",
         ValidationError::ContactContradicted { .. } => "contact_contradicted",

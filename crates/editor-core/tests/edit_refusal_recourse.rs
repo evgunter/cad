@@ -268,7 +268,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
         // volume backstop runs on its result: the kernel checking its
         // own result through tier 3's rule, so no model question either.
         "tier 3's +V read, at the boolean door",
-        &["positive_volume", "positive_volume_enclosure"],
+        &["positive_volume"],
     ),
     (
         // Raised under two decisions — the Boolean contact sweep's
@@ -293,6 +293,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "bool_point_in_solid_advance",
             "bool_point_in_solid_denom",
             "bool_point_in_solid_infinity",
+            "bool_point_in_solid_infinity_enclosure",
             "bool_point_in_solid_order",
             "carrier_endpoint_end",
             "carrier_endpoint_start",

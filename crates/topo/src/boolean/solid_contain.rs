@@ -3547,7 +3547,7 @@ pub(crate) fn point_in_face<T: Decide>(
 ///
 /// [`PointInSolidError`] — escalation, ray exhaustion, or a
 /// non-planar/corrupt face.
-pub fn point_in_solid<T: Decide>(
+pub fn point_in_solid<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     q: Point3<T>,
     band: Band,
@@ -3572,7 +3572,7 @@ pub fn point_in_solid<T: Decide>(
 /// [`PointInSolidError`] — the core's, plus
 /// [`PointInSolidError::NoSuchSolid`] for a key the body does not hold
 /// and [`PointInSolidError::ZeroVolumeBody`] for a solid with no faces.
-pub fn point_in_solid_of<T: Decide>(
+pub fn point_in_solid_of<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     solid: SolidKey,
     q: Point3<T>,
@@ -3685,7 +3685,7 @@ impl SolidFaces {
 ///
 /// The core's ([`point_in_solid`]'s), plus
 /// [`PointInSolidError::ZeroVolumeBody`] for an empty selection.
-pub fn point_in_solid_faces<T: Decide>(
+pub fn point_in_solid_faces<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
     q: Point3<T>,
@@ -3702,7 +3702,7 @@ pub fn point_in_solid_faces<T: Decide>(
 /// names: no face means no enclosure, and the at-infinity fold would
 /// read the volume of nothing as exactly zero — there is no material
 /// side to classify against.
-fn point_in_faces<T: Decide>(
+fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
     q: Point3<T>,
@@ -4837,7 +4837,7 @@ fn ray_passes_beside<T: Decide>(
 }
 
 /// One ray of the sweep: `Some(verdict)` or `None` for a graze.
-fn cast_ray<T: Decide>(
+fn cast_ray<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
     q: Point3<T>,
@@ -5388,15 +5388,18 @@ fn cast_ray<T: Decide>(
 /// orientation — the body's total would read the other instances'
 /// volumes into this solid's side, and would refuse this solid for a
 /// neighbour's uncertifiable face.
-fn at_infinity_side<T: Decide>(
+fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     faces: &[FaceKey],
     band: Band,
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
-    // Closed-form lane: this door is `T: Decide` and holds no
-    // quadrature lane, so an obliquely trimmed face refuses here
-    // (`work/contact/at-infinity-probe-measures-in-closed-form-only`).
+    use crate::props::{Certified, ShellRole};
+    // Measured in closed form, so an obliquely trimmed face refuses here
+    // (`work/contact/at-infinity-probe-measures-in-closed-form-only`);
+    // the sign is certified through the scalar's own lane
+    // ([`crate::props::Round::certify`]), so a volume below its own
+    // rounding reads no side rather than a wrong one.
     //
     // The props refusal is READ, not flattened. `VolumeUncertified`'s
     // own message asserts that the solid itself is fine and only its
@@ -5405,58 +5408,84 @@ fn at_infinity_side<T: Decide>(
     // ill-conditioned operand at this ε (with a predicate name and a
     // band the caller can act on), and the corruption-shaped arms are
     // arena claims about a BROKEN body. Each keeps its own door.
-    let props =
-        crate::props::mass_properties_closed_form_of(body, faces, band, tol).map_err(|e| {
-            match e {
-                // An escalation stays an escalation, carrying its
-                // diagnostics and the face it happened on.
-                crate::props::MassPropsError::Face {
-                    face,
-                    source: geom_brep::props::PropsError::Escalated { cause, .. },
-                } => PointInSolidError::Escalated { face, diag: cause },
-                // Corruption-shaped: a face whose area enclosure will not
-                // certify a positive extent, a key the props walk could not
-                // resolve, or null scaffolding in a body being classified
-                // AT REST. None of these is "healthy body, missing
-                // capability".
-                crate::props::MassPropsError::Face {
-                    face,
-                    source: geom_brep::props::PropsError::DegenerateFace,
-                } => PointInSolidError::CorruptFace { face },
-                crate::props::MassPropsError::Corrupt { .. }
-                | crate::props::MassPropsError::NullScaffoldEdge { .. } => {
-                    PointInSolidError::CorruptFace { face: faces[0] }
-                }
-                // The remainder IS the capability gap the variant
-                // describes: a boundary outside the iso-rectangle
-                // inventory (the standing rimless-lune case), a ring on a
-                // curved face, an unimplemented kind, a quadrature that
-                // would not converge inside its budget, a band that would
-                // not construct. A HEALTHY body, and a missing volume.
-                crate::props::MassPropsError::Band { .. }
-                | crate::props::MassPropsError::RingOnCurvedFace { .. }
-                | crate::props::MassPropsError::Face { .. } => PointInSolidError::VolumeUncertified,
-            }
-        })?;
-    let margin = Margin::over_lever(props.volume, props.surface_area);
-    let sign = decide("bool_point_in_solid_infinity", margin, band).map_err(|diag| {
-        PointInSolidError::Escalated {
+    let refused = |e| match e {
+        // An escalation stays an escalation, carrying its
+        // diagnostics and the face it happened on.
+        crate::props::MassPropsError::Face {
+            face,
+            source: geom_brep::props::PropsError::Escalated { cause, .. },
+        } => PointInSolidError::Escalated { face, diag: cause },
+        // Corruption-shaped: a face whose area enclosure will not
+        // certify a positive extent, a key the props walk could not
+        // resolve, or null scaffolding in a body being classified
+        // AT REST. None of these is "healthy body, missing
+        // capability".
+        crate::props::MassPropsError::Face {
+            face,
+            source: geom_brep::props::PropsError::DegenerateFace,
+        } => PointInSolidError::CorruptFace { face },
+        crate::props::MassPropsError::Corrupt { .. }
+        | crate::props::MassPropsError::NullScaffoldEdge { .. } => {
+            PointInSolidError::CorruptFace { face: faces[0] }
+        }
+        // The remainder IS the capability gap the variant
+        // describes: a boundary outside the iso-rectangle
+        // inventory (the standing rimless-lune case), a ring on a
+        // curved face, an unimplemented kind, a quadrature that
+        // would not converge inside its budget, a band that would
+        // not construct. A HEALTHY body, and a missing volume.
+        crate::props::MassPropsError::Band { .. }
+        | crate::props::MassPropsError::RingOnCurvedFace { .. }
+        | crate::props::MassPropsError::Face { .. } => PointInSolidError::VolumeUncertified,
+    };
+    let undecided = |unread: crate::props::RoleUnread| match unread.escalation() {
+        Some(diag) => PointInSolidError::Escalated {
             face: faces[0],
             diag,
-        }
-    })?;
-    // The closed form carries no pad: one sign, read at both ends. An
-    // `Outer` boundary leaves infinity outside its material, a `Void`
+        },
+        None => PointInSolidError::ZeroVolumeBody,
+    };
+    let last = core::cell::Cell::new(None);
+    let (role, _) = crate::props::sign_walk(
+        body,
+        faces,
+        band,
+        tol,
+        None,
+        T::quad_lane(),
+        |round| match round.certify(AT_INFINITY, AT_INFINITY_ENCLOSURE) {
+            Certified::Role(role) => Some(Ok(role)),
+            Certified::Refused(source) => Some(Err(refused(source))),
+            Certified::Open(unread) => {
+                last.set(Some(unread));
+                None
+            }
+        },
+        |_| match last.get() {
+            Some(unread) => Err(undecided(unread)),
+            None => unreachable!("a sign walk settles every round it reads"),
+        },
+    )
+    .map_err(refused)?;
+    // An `Outer` boundary leaves infinity outside its material, a `Void`
     // one inside.
-    use crate::props::{BracketEnd, ShellRole};
-    match ShellRole::decided_at(BracketEnd::Low, sign)
-        .or_else(|| ShellRole::decided_at(BracketEnd::High, sign))
-    {
-        Some(ShellRole::Outer) => Ok(SolidContainment::Out),
-        Some(ShellRole::Void) => Ok(SolidContainment::In),
-        None => Err(PointInSolidError::ZeroVolumeBody),
+    match role? {
+        ShellRole::Outer => Ok(SolidContainment::Out),
+        ShellRole::Void => Ok(SolidContainment::In),
     }
 }
+
+/// The side-at-infinity decision's names on the walk's sums.
+const AT_INFINITY: crate::props::RoleNames = crate::props::RoleNames {
+    high: "bool_point_in_solid_infinity",
+    low: "bool_point_in_solid_infinity",
+};
+
+/// The side-at-infinity decision's name on the interval re-derivation.
+const AT_INFINITY_ENCLOSURE: crate::props::RoleNames = crate::props::RoleNames {
+    high: "bool_point_in_solid_infinity_enclosure",
+    low: "bool_point_in_solid_infinity_enclosure",
+};
 
 #[cfg(test)]
 #[path = "r1_probes.rs"]

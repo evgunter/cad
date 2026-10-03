@@ -174,7 +174,7 @@ impl std::error::Error for PieceSortError {}
 /// # Errors
 ///
 /// [`PieceSortError`], before any shell of the body moves.
-pub(crate) fn sort_into_pieces<T: Decide>(
+pub(crate) fn sort_into_pieces<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     band: Band,
     tol: Tol,
@@ -195,7 +195,7 @@ pub(crate) fn sort_into_pieces<T: Decide>(
 
 /// The pieces of `solid` that leave it, each as the shell list its new
 /// solid takes (outer shell first, then its voids in the solid's order).
-fn pieces_of<T: Decide>(
+fn pieces_of<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     solid: SolidKey,
     band: Band,
@@ -211,7 +211,7 @@ fn pieces_of<T: Decide>(
     }
     let read: Vec<Option<ShellRead>> = shells
         .iter()
-        .map(|&shell| ShellRead::of(body, shell, band, tol, quad))
+        .map(|&shell| ShellRead::of(body, shell, band, tol, quad).and_then(Result::ok))
         .collect();
     let decided_outers = read
         .iter()
@@ -262,7 +262,7 @@ fn pieces_of<T: Decide>(
 /// lies inside none. The enclosers of a shell nest, so the innermost has
 /// exactly `around.len() - 1` of them among `around`, and each depth
 /// occurs once; two at one depth are shells that cross.
-fn innermost<T: Decide>(
+fn innermost<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     i: usize,
     reads: &[ShellRead],
@@ -294,7 +294,7 @@ fn innermost<T: Decide>(
 
 /// The shells whose closed surface `reads[i]` lies inside, memoised in
 /// `memo`.
-fn read_enclosers<T: Decide>(
+fn read_enclosers<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     i: usize,
     reads: &[ShellRead],

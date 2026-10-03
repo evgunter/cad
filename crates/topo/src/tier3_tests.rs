@@ -2644,14 +2644,12 @@ fn check_10_reads_past_a_witness_where_two_shells_touch() {
     );
 }
 
-/// A 1 mm × 1 mm × 100 nm slab whose six carrier planes are re-anchored
-/// 5 km (and 1.85 km across) along themselves: the same planes, and so
-/// the same body, but each face's closed form now sums its vector area
-/// about an origin kilometres from the face, and the walk's `f64` sum
-/// reads the slab's volume as `−1.2e-12` m³ where it is exactly
-/// `+1e-13`.
-fn far_anchored_slab(tol: Tol) -> Body<f64> {
-    let mut body = crate::test_support::brick::<f64>((0.0, 1e-3), (0.0, 1e-3), (0.0, 1e-7), tol);
+/// A `w × w × t` slab at `x0` whose six carrier planes are re-anchored
+/// about `far` metres along themselves (and `0.37·far` across): the
+/// same planes, and so the same body, but each face's closed form sums
+/// its vector area about an origin that far from the face.
+fn far_anchored_slab(x0: f64, w: f64, t: f64, far: f64, tol: Tol) -> Body<f64> {
+    let mut body = crate::test_support::brick::<f64>((x0, x0 + w), (0.0, w), (0.0, t), tol);
     let surfaces: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
     for key in surfaces {
         let surface = body.surfaces.get_mut(key).unwrap();
@@ -2663,7 +2661,7 @@ fn far_anchored_slab(tol: Tol) -> Body<f64> {
         else {
             panic!("a brick's faces are planes");
         };
-        let along = u_ref * 5e3 + normal.cross(u_ref) * 1.85e3;
+        let along = (u_ref + normal.cross(u_ref) * 0.37) * far;
         *surface = Surface::Plane {
             origin: origin + along,
             normal,
@@ -2673,15 +2671,30 @@ fn far_anchored_slab(tol: Tol) -> Body<f64> {
     body
 }
 
-/// **A sign is read off the volume only where its enclosure excludes
-/// zero.** The far-anchored slab's `f64` sum is negative, beyond the
-/// band at every ε this row runs at, while its exact volume
-/// (`1e-3 · 1e-3 · 1e-7`) is positive: the sum's rounding is larger than
-/// the volume. (ε ≤ 1e-9: wider, the slab is thinner than the band.) Its interval re-derivation straddles zero, so check 7
-/// does not refuse it, check 10's role read and the shell
-/// classification read no role, and neither reads the slab as a void.
+/// `body`'s one shell's role, through check 10's read and through the
+/// shell classification.
+fn roles_of(body: &Body<f64>, tol: Tol) -> (crate::ShellRole, crate::ShellRole) {
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let (shell, _) = body.shells.iter().next().expect("one shell");
+    let solid = body.solids().next().expect("one solid").0;
+    let faces = body.faces_of_solid(solid).expect("its faces");
+    let lane = Some(crate::props::QuadLane::certified());
+    let read = crate::validate::shell_role(body, shell, &faces, band, tol, lane)
+        .expect("check 10's read decides a role");
+    let classified = crate::classify_shells(body, tol).expect("the shell classifies");
+    (read, classified[0].role)
+}
+
+/// **A sign is read off the exact volume, not off its rounding.** The
+/// slab of 1 mm × 1 mm × 100 nm anchored 5 km away: the walk's `f64`
+/// sum reads it NEGATIVE (−1.2e-12 m³) where it is exactly
+/// `1e-3 · 1e-3 · 1e-7 = +1e-13`, and reads its inside-out twin
+/// positive. Check 7, check 10's role read and the shell classification
+/// read the interval re-derivation, and give the exact answer both ways.
+/// (ε ≤ 1e-9: wider, the slab is thinner than the band.)
 #[test]
-fn a_volume_below_its_own_rounding_decides_no_sign() {
+fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
+    use crate::ShellRole::{Outer, Void};
     let tol = Tol::witness();
     if tol.eps() > 1e-9 {
         test_utils::vacuity::stood_down(
@@ -2690,36 +2703,120 @@ fn a_volume_below_its_own_rounding_decides_no_sign() {
         );
         return;
     }
-    let body = far_anchored_slab(tol);
+    let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
     let exact = 1e-3 * 1e-3 * 1e-7;
-    let read = crate::mass_properties(&body, tol).expect("the slab measures");
+    let read = crate::mass_properties(&upright, tol).expect("the slab measures");
     assert!(
         read.volume < -exact,
         "the premise: the walk's sum reads the slab negative, past its exact \
          volume {exact:e}: {read:?}"
     );
     assert_eq!(
-        validate_geometric(&body, tol),
+        validate_geometric(&upright, tol),
         Ok(()),
-        "check 7 refuses only a certified negative"
+        "upright: check 7"
     );
-    let solid = body.solids().next().expect("one solid").0;
-    let faces = body.faces_of_solid(solid).expect("the slab's faces");
-    let band = geom_core::Band::linear(tol).expect("a band");
-    let lane = Some(crate::props::QuadLane::certified());
     assert_eq!(
-        crate::validate::shell_role(&body, &faces, band, tol, lane),
-        None,
-        "check 10's role read: no sign below the rounding"
+        roles_of(&upright, tol),
+        (Outer, Outer),
+        "upright: the roles"
     );
+    let inverted = upright.revert().expect("the slab reverts");
+    let solid = inverted.solids().next().expect("one solid").0;
+    assert_eq!(
+        validate_geometric(&inverted, tol),
+        Err(vec![ValidationError::NegativeVolume { solid }]),
+        "inside-out: check 7"
+    );
+    assert_eq!(
+        roles_of(&inverted, tol),
+        (Void, Void),
+        "inside-out: the roles"
+    );
+}
+
+/// **An inside-out body just past the band is refused**, at every ε. A
+/// far-anchored 1 mm² slab whose thickness `t = 4·K·ε` puts its mean
+/// thickness `V/A ≈ t/2` at twice the band's escalation threshold:
+/// check 7 must refuse it, and an enclosure loose enough to straddle
+/// zero there (as one summed about the far carrier origins is, its
+/// width some 25× the walk's own rounding) lets it through.
+#[test]
+fn an_inside_out_slab_just_past_the_band_is_refused() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let t = 4.0 * band.escalate();
+    for far in [0.0, 1e3, 5e3] {
+        let inverted = far_anchored_slab(0.0, 1e-3, t, far, tol)
+            .revert()
+            .expect("the slab reverts");
+        let solid = inverted.solids().next().expect("one solid").0;
+        assert_eq!(
+            validate_geometric(&inverted, tol),
+            Err(vec![ValidationError::NegativeVolume { solid }]),
+            "a {t:e} m slab anchored {far} m away, inside out"
+        );
+    }
+}
+
+/// **Check 10 reads every shell's role, or refuses the solid typed.** A
+/// 1 m cube with a 1 mm × 1 mm slab filed under the same solid beside
+/// it, anchored 1 km away. With 100 nm walls the slab's role is
+/// certified: upright it is a second piece of material
+/// (`SolidOuterShells`), inside out a void outside every outer
+/// (`ShellWinding`). With walls of `1.5·K·ε`, the thinnest an edge may
+/// be, its mean thickness `V/A` is inside the band and its sign is
+/// undecided, and the solid is refused naming that shell
+/// (`ShellRoleUndecided`), never passed unwound.
+#[test]
+fn check_10_reads_every_shell_s_role_or_refuses_the_solid() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let solid_with = |t: f64, inside_out: bool| {
+        let mut body = Body::<f64>::new();
+        cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+        let mut slab = far_anchored_slab(3.0, 1e-3, t, 1e3, tol);
+        if inside_out {
+            slab = slab.revert().expect("the slab reverts");
+        }
+        crate::graft_disjoint_all_keyed(&mut body, &slab).expect("the slab grafts");
+        let [keeper, donor] = solids_of(&body)[..] else {
+            panic!("a cube and a slab are two solids");
+        };
+        refile_shells(&mut body, donor, keeper);
+        (body, keeper)
+    };
+    if tol.eps() <= 1e-9 {
+        let (body, solid) = solid_with(1e-7, false);
+        assert_eq!(
+            validate_geometric(&body, tol),
+            Err(vec![ValidationError::SolidOuterShells { solid, outer: 2 }]),
+            "an upright slab beside the cube is a second piece"
+        );
+        let (body, solid) = solid_with(1e-7, true);
+        let verdict = validate_geometric(&body, tol).unwrap_err();
+        assert!(
+            matches!(
+                verdict.as_slice(),
+                [ValidationError::ShellWinding { solid: s, winding: 0, bounded: -1, .. }]
+                    if *s == solid
+            ),
+            "an inside-out slab beside the cube is a void outside every outer: {verdict:?}"
+        );
+    } else {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the 100 nm slab is below a band this wide; the in-band arm below still runs",
+        );
+    }
+    let (body, solid) = solid_with(1.5 * band.escalate(), false);
+    let verdict = validate_geometric(&body, tol).unwrap_err();
     assert!(
         matches!(
-            crate::classify_shells(&body, tol),
-            Err(crate::ShellClassifyError::Escalated { .. }
-                | crate::ShellClassifyError::Straddles { .. }
-                | crate::ShellClassifyError::ZeroVolume { .. })
+            verdict.as_slice(),
+            [ValidationError::ShellRoleUndecided { solid: s, .. }] if *s == solid
         ),
-        "the shell classification refuses a role it cannot read: {:?}",
-        crate::classify_shells(&body, tol)
+        "a slab whose walls are inside the band has no role, and its solid is refused: \
+         {verdict:?}"
     );
 }

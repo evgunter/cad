@@ -1650,6 +1650,7 @@ pub(crate) fn volume_backstop<T: Decide>(
             band,
             tol,
             Some(lane),
+            Some(lane),
             |_| None,
             |refused| refused,
         )
@@ -1820,12 +1821,16 @@ impl Posture {
                 }
             }
             Posture::PlusV { band } => {
-                let enclosure = crate::props::VolumeEnclosure {
-                    volume_lo: lo,
-                    volume_hi: hi,
-                    surface_area: lever,
+                let reading = if padded {
+                    crate::props::VolumeReading::Bracket(crate::props::VolumeEnclosure {
+                        volume_lo: lo,
+                        volume_hi: hi,
+                        surface_area: lever,
+                    })
+                } else {
+                    crate::props::VolumeReading::Exact { volume: hi, lever }
                 };
-                match crate::validate::plus_v_read(enclosure, band) {
+                match crate::validate::plus_v_read(reading, band) {
                     Some(crate::props::ShellRole::Void) => Reading::Violated,
                     Some(crate::props::ShellRole::Outer) => Reading::Held,
                     None => Reading::Open,
@@ -3336,7 +3341,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// sphere-involved boundary pair disjoint (or re-cut / refused): a
 /// connected shell whose surface avoids the other boundary lies in one
 /// component, and the witness names it.
-fn classify_shells<T: Decide>(
+fn classify_shells<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     other: &Body<T>,
     operand: Operand,

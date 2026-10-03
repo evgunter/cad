@@ -1918,7 +1918,7 @@ fn cut_pair<T: Decide>(
 ///
 /// What this question adds to the ladder is [`loop_roles`]: the two
 /// loops' regions flank the seam, so their sides are opposite.
-fn resolve_roles_geometric<T: Decide>(
+fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     other_pristine: &Body<T>,
     face: FaceKey,

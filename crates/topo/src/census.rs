@@ -640,7 +640,7 @@ impl Candidates {
 /// docs); returns every failure in deterministic sweep order. Assumes
 /// tiers 1–3-local already passed (the caller gates). Production
 /// entry: the realized strategy, no trace.
-pub(crate) fn census_and_certify<T: Decide + Bounds>(
+pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -669,7 +669,7 @@ pub(crate) fn census_and_certify<T: Decide + Bounds>(
 /// [`Undecided::CorruptInstance`] — a kernel defect — about a body the
 /// caller never validated. The sentence is only as true as the caller.
 #[cfg(feature = "sweep-testing")]
-pub fn census_traces<T: Decide + Bounds>(
+pub fn census_traces<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -696,7 +696,7 @@ pub fn census_traces<T: Decide + Bounds>(
 /// superset comparator must catch (`boolean::reduce`'s pin (iii)).
 /// Runs without the tier-1 gate, as [`census_traces`] does.
 #[cfg(feature = "sweep-testing")]
-pub fn census_traces_planted<T: Decide + Bounds>(
+pub fn census_traces_planted<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -723,7 +723,7 @@ pub fn census_traces_planted<T: Decide + Bounds>(
 /// arm's material test, whose at-infinity fold reads a closed-form
 /// volume through the props lane (`Tol` is never witnessed here).
 #[allow(clippy::too_many_arguments)] // the census's whole state: the doors' four, the region door, and the trace's three
-fn census_with<T: Decide + Bounds>(
+fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -4652,7 +4652,7 @@ fn touch_verdict<T: Decide>(
 /// ratified text (`crates/editor-core/ASSEMBLY.md`); recorded
 /// gate-skips are not implemented.
 #[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus `tol` for one consumer
-fn sweep_cross_solid_backstop<T: Decide + Bounds>(
+fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
@@ -5048,7 +5048,9 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             let lone = body.get_solid(solid).is_some_and(|d| d.shells.len() < 2);
             lone || crate::boolean::SolidFaces::of_shell(body, shell)
                 .ok()
-                .and_then(|sel| crate::validate::shell_role(body, sel.faces(), band, tol, None))
+                .and_then(|sel| {
+                    crate::validate::shell_role(body, shell, sel.faces(), band, tol, None).ok()
+                })
                 != Some(crate::props::ShellRole::Void)
         })
         .map(|(_, &b)| b)
