@@ -1848,6 +1848,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::UnsupportedDeclarationClass
         | BooleanErrorKind::SeamContradicted
         | BooleanErrorKind::RimCuspArmUnbuilt
+        | BooleanErrorKind::TangentSlitArmUnbuilt
         | BooleanErrorKind::InvalidDeclaration
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings

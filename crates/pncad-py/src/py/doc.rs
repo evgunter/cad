@@ -927,7 +927,7 @@ impl Doc {
                 label: Some(label),
             })?;
         }
-        let done = action.finish();
+        let done = action.finish()?;
         self.take_up(done.doc, done.maintenance);
         Ok(NodeId(id))
     }
@@ -3513,7 +3513,8 @@ impl DocParamValue {
 /// The exposed edits are `insert_node`, `delete_node`,
 /// `set_members`, `set_param`, `set_tolerance`, the
 /// document-parameter pair (`set_doc_param` / `set_doc_param_value`),
-/// `set_roots`, `set_offset`, `set_gauge`, `update_reference`, `rebind`, and
+/// `set_roots`, `set_offset`, `set_gauge`, `promote`, `fold`,
+/// `update_reference`, `rebind`, and
 /// `bind_count_param` / `bind_instance_param` / `bind_v_degree_param`,
 /// the structural-slot edit narrowed to one named slot and a
 /// parameter reference.
@@ -4018,6 +4019,45 @@ impl DocEdit {
                 node: node.0,
                 gauge: gauge.map(|g| g.0),
             },
+        }
+    }
+
+    /// **Promote** an instance's offset to a gauge (A4): a new gauge
+    /// under the instance's gauge holds the offset, and the instance
+    /// sits on it at the empty chain, with the other members of its
+    /// group. `DocEdit.fold` is the inverse; promoting, then splitting
+    /// the group out with the new gauge left behind, makes a part at
+    /// that frame.
+    ///
+    /// Refuses typed on `EditError`: `promote_on_non_instance`,
+    /// `promote_without_offset`, `promote_non_root` (the offset is a
+    /// check; `input` is the group's root), and `promote_member_offset`
+    /// (`input` is a member carrying an offset).
+    #[staticmethod]
+    #[pyo3(signature = (instance))]
+    fn promote(instance: &NodeId) -> Self {
+        Self {
+            inner: d::DocEdit::Promote {
+                instance: instance.0,
+            },
+        }
+    }
+
+    /// **Fold** a gauge away (A4): every node on it hangs from its
+    /// parent, each one's own chain with the gauge's steps in front.
+    /// An instance with no offset keeps none; a lone unlabelled
+    /// dependent takes the gauge's label, and otherwise the label goes,
+    /// reported as `label_dropped` maintenance.
+    ///
+    /// Refuses typed on `EditError`: `fold_on_non_gauge`,
+    /// `fold_would_dangle` (`referenced_by` reads the gauge as an
+    /// input), and `fold_would_start_placing` (`input` is the mate that
+    /// would start placing).
+    #[staticmethod]
+    #[pyo3(signature = (gauge))]
+    fn fold(gauge: &NodeId) -> Self {
+        Self {
+            inner: d::DocEdit::Fold { gauge: gauge.0 },
         }
     }
 

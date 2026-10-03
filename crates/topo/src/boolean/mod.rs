@@ -845,6 +845,11 @@ pub(crate) struct VerifiedDeclarations {
     /// (A's first).
     pub(crate) seam:
         std::collections::BTreeMap<(FaceKey, FaceKey), (geom::SurfaceKind, geom::SurfaceKind)>,
+    /// The first verified `Tangent` pair whose locus runs through a
+    /// plane face, and that face's operand; or the first refusal of
+    /// that read. Only a union consumes it.
+    pub(crate) through_a_face:
+        Option<Result<(crate::contact::DeclaredContact, Operand), BooleanError>>,
 }
 
 impl<T: Decide> DeclaredPairs<T> {
@@ -1780,6 +1785,27 @@ pub enum BooleanError {
         /// the routing's own verdict, taken on the geometry.
         wedge: geom_brep::MaterialWedge,
     },
+    /// **A verified `Tangent` union whose locus runs through a face's
+    /// interior** (`docs/DESIGN.md` D1 tier 3, the #131 ruling).
+    ///
+    /// The witness lane derived the ruling and the C4 table verified it,
+    /// and the locus crosses the interior of a plane face of one operand.
+    /// The union then has material on both sides of the ruling: the
+    /// doubled cusp, two coincident distinct edges on the locus, each a
+    /// wedge-2π slit. That arm is unbuilt, and two vertex-on-face records
+    /// would certify two points of a line contact, so the union refuses.
+    /// Subtract and intersect leave material on at most one side of the
+    /// ruling and are not refused here.
+    ///
+    /// Kept distinct from [`BooleanError::RimCuspArmUnbuilt`]: that one
+    /// is raised where no locus derives and the faces share a rim; here
+    /// the locus derived and runs through a face.
+    TangentSlitArmUnbuilt {
+        /// The declaration whose verified locus runs through a face.
+        declaration: crate::contact::DeclaredContact,
+        /// The operand whose declared face the locus runs through.
+        interior: Operand,
+    },
     /// A [`BooleanDeclarations`] payload references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
     /// non-planar declared face) — a caller bug, refused before any
@@ -2333,6 +2359,8 @@ pub enum BooleanErrorKind {
     SeamContradicted,
     /// [`BooleanError::RimCuspArmUnbuilt`].
     RimCuspArmUnbuilt,
+    /// [`BooleanError::TangentSlitArmUnbuilt`].
+    TangentSlitArmUnbuilt,
     /// [`BooleanError::InvalidDeclaration`].
     InvalidDeclaration,
     /// [`BooleanError::PairingMismatch`].
@@ -2528,6 +2556,7 @@ impl BooleanError {
             }
             Self::SeamContradicted { .. } => BooleanErrorKind::SeamContradicted,
             Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
+            Self::TangentSlitArmUnbuilt { .. } => BooleanErrorKind::TangentSlitArmUnbuilt,
             Self::InvalidDeclaration { .. } => BooleanErrorKind::InvalidDeclaration,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
@@ -2937,6 +2966,19 @@ impl core::fmt::Display for BooleanError {
                         wedge.name()
                     }
                 },
+                declaration.class.name()
+            ),
+            Self::TangentSlitArmUnbuilt {
+                declaration,
+                interior,
+            } => write!(
+                f,
+                "the declared faces touch along a line that runs through the interior of \
+                 the {} operand's face, so their union has material on both sides of \
+                 that line, and the Boolean cannot yet build the pair of edges such a \
+                 {} contact needs. The declaration is the right one; there is no way \
+                 through this in the kernel yet",
+                operand_word(*interior),
                 declaration.class.name()
             ),
             Self::InvalidDeclaration { operand, what } => write!(
@@ -3367,7 +3409,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
-    let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    let mut verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    if let (BooleanOp::Union, Some(through)) = (op, verified.through_a_face.take()) {
+        let (declaration, interior) = through?;
+        return Err(BooleanError::TangentSlitArmUnbuilt {
+            declaration,
+            interior,
+        });
+    }
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
@@ -3678,7 +3727,18 @@ fn verify_declared_contacts<T: Decide>(
     {
         match class {
             BooleanCoincidence::Contact(ContactClass::Tangent) => {
-                verify_tangency_declaration(a, fa, b, fb, Tangency::Contact, band)?;
+                let (_, through) =
+                    verify_tangency_declaration(a, fa, b, fb, Tangency::Contact, band)?;
+                if verified.through_a_face.is_none() {
+                    let declaration = crate::contact::DeclaredContact {
+                        a: fa,
+                        b: fb,
+                        class: ContactClass::Tangent,
+                    };
+                    verified.through_a_face = through
+                        .transpose()
+                        .map(|through| through.map(|operand| (declaration, operand)));
+                }
                 verified.tangent.insert((fa, fb));
             }
             BooleanCoincidence::Contact(ContactClass::Rest) | BooleanCoincidence::Continuation => {
@@ -3687,7 +3747,7 @@ fn verify_declared_contacts<T: Decide>(
                 }
             }
             BooleanCoincidence::Seam => {
-                let kinds = verify_tangency_declaration(a, fa, b, fb, Tangency::Seam, band)?;
+                let (kinds, _) = verify_tangency_declaration(a, fa, b, fb, Tangency::Seam, band)?;
                 verified.seam.insert((fa, fb), kinds);
             }
         }
@@ -3960,7 +4020,11 @@ pub(crate) fn verify_tangent_declaration<T: Decide>(
 ///
 /// Returns the two carriers' kinds, A's first: what a verified seam
 /// certifies about sides is a fact about those kinds
-/// ([`tangency_certifies_side`]).
+/// ([`tangency_certifies_side`]). For a `Tangent` along a line it also
+/// returns the operand whose plane face the locus runs through
+/// ([`locus_through_plane_face`]), which a union refuses
+/// ([`BooleanError::TangentSlitArmUnbuilt`]); that read's own refusal is
+/// the inner one, consumed only by a union.
 fn verify_tangency_declaration<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -3968,7 +4032,7 @@ fn verify_tangency_declaration<T: Decide>(
     fb: FaceKey,
     claim: Tangency,
     band: Band,
-) -> Result<(geom::SurfaceKind, geom::SurfaceKind), BooleanError> {
+) -> Result<TangencyVerified, BooleanError> {
     let spent = DeclarationRead::Spent(claim.coincidence());
     // Display-only labels: the deciding `decide` calls ran under their
     // own names, so these name the FINDING for the reader and never
@@ -4039,9 +4103,11 @@ fn verify_tangency_declaration<T: Decide>(
     let reach = rest::pair_extent(a, fa, b, fb, band)
         .map_err(unreadable_extent)?
         .reach;
+    let mut overlap = None;
     let (carrier, t0, t1, rim) = match geom_brep::tangent_locus(&sa, &sb, reach, band) {
         Ok(geom_brep::TangentLocus::Line { origin, dir }) => {
-            let (t0, t1) = witness_span(a, fa, b, fb, origin, dir)?;
+            let ((t0, t1), both) = witness_span(a, fa, b, fb, origin, dir)?;
+            overlap = Some(both);
             (geom::Curve3::Line { origin, dir }, t0, t1, None)
         }
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
@@ -4144,8 +4210,30 @@ fn verify_tangency_declaration<T: Decide>(
             return Err(claim.contradicted_by(fa, fb, Some(fact), label(finding), None));
         }
     }
-    Ok(kinds)
+    // A verified `Tangent` whose line locus runs through a plane face is
+    // the doubled cusp a union refuses (CLEAVE); the read's own refusal
+    // is the inner one, consumed only by a union. A seam never reaches
+    // this: a locus through a face's interior is `seam_locus_no_edge`
+    // at step 4.
+    let through = match (claim, overlap) {
+        (Tangency::Contact, Some(both)) => locus_through_plane_face(
+            [(a, fa, Operand::A), (b, fb, Operand::B)],
+            &carrier,
+            both,
+            band,
+        ),
+        _ => Ok(None),
+    };
+    Ok((kinds, through))
 }
+
+/// What [`verify_tangency_declaration`] certified: the two carriers'
+/// kinds (A's first), and for a `Tangent` along a line the operand
+/// whose plane face the locus runs through, or that read's refusal.
+type TangencyVerified = (
+    (geom::SurfaceKind, geom::SurfaceKind),
+    Result<Option<Operand>, BooleanError>,
+);
 
 /// The refusal a `Tangent` claim along a shared rim earns: the ratified
 /// routing names what the geometry IS rather than only that a witness
@@ -4245,9 +4333,11 @@ fn tangent_rim_refusal<T: Decide>(
     }
 }
 
-/// The parameter span of the line `origin + t·dir` the two declared
-/// faces' boundary vertices project onto: the extent a witness along it
-/// is metered over.
+/// The parameter spans of the line `origin + t·dir` the two declared
+/// faces' boundary vertices project onto: their union, the extent a
+/// witness along it is metered over, and their overlap, where both
+/// faces' extents meet ([`locus_through_plane_face`]'s schedule).
+#[allow(clippy::type_complexity)]
 fn witness_span<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -4255,23 +4345,56 @@ fn witness_span<T: Decide>(
     fb: FaceKey,
     origin: Point3<T>,
     dir: geom_core::Vec3<T>,
-) -> Result<(T, T), BooleanError> {
-    let mut t_lo: Option<T> = None;
-    let mut t_hi: Option<T> = None;
-    for (body, f, operand) in [(a, fa, Operand::A), (b, fb, Operand::B)] {
-        for p in face_boundary_points(body, f, operand)? {
-            let t = (p - origin).dot(dir);
-            t_lo = Some(t_lo.map_or(t, |lo| t.min(lo)));
-            t_hi = Some(t_hi.map_or(t, |hi| t.max(hi)));
+) -> Result<((T, T), (T, T)), BooleanError> {
+    let span = |body: &Body<T>, f, operand| -> Result<(T, T), BooleanError> {
+        let mut ts = face_boundary_points(body, f, operand)?
+            .into_iter()
+            .map(|p| (p - origin).dot(dir));
+        let first = ts.next().ok_or(BooleanError::InvalidDeclaration {
+            operand,
+            what: "declared face pair has no boundary vertex to meter the tangent witness",
+        })?;
+        Ok(ts.fold((first, first), |(lo, hi), t| (t.min(lo), t.max(hi))))
+    };
+    let (sa, sb) = (span(a, fa, Operand::A)?, span(b, fb, Operand::B)?);
+    Ok((
+        (sa.0.min(sb.0), sa.1.max(sb.1)),
+        (sa.0.max(sb.0), sa.1.min(sb.1)),
+    ))
+}
+
+/// The operand whose declared PLANE face a verified tangent locus runs
+/// through: some point of the locus, sampled on the certificate
+/// schedule over `overlap` (where both faces' extents along it meet),
+/// lies strictly inside the face. `None` when every sample is outside
+/// a plane face or on its boundary, or the pair has no plane face.
+fn locus_through_plane_face<T: Decide>(
+    faces: [(&Body<T>, FaceKey, Operand); 2],
+    locus: &geom::Curve3<T>,
+    overlap: (T, T),
+    band: Band,
+) -> Result<Option<Operand>, BooleanError> {
+    for (body, face, operand) in faces {
+        let planar = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }));
+        if !planar {
+            continue;
+        }
+        let (_, normal) =
+            solid_contain::face_plane(body, face).map_err(BooleanError::Containment)?;
+        for i in 0..geom_brep::CERT_SAMPLES {
+            let p = locus.eval(geom_brep::sample_param(overlap.0, overlap.1, i));
+            if solid_contain::point_in_face(body, face, normal, p, band)
+                .map_err(BooleanError::Containment)?
+                == Some(true)
+            {
+                return Ok(Some(operand));
+            }
         }
     }
-    let (Some(t0), Some(t1)) = (t_lo, t_hi) else {
-        return Err(BooleanError::InvalidDeclaration {
-            operand: Operand::A,
-            what: "declared face pair has no boundary vertex to meter the tangent witness",
-        });
-    };
-    Ok((t0, t1))
+    Ok(None)
 }
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
@@ -5254,6 +5377,7 @@ mod tests {
                 BooleanErrorKind::UnsupportedDeclarationClass => "UnsupportedDeclarationClass",
                 BooleanErrorKind::SeamContradicted => "SeamContradicted",
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
+                BooleanErrorKind::TangentSlitArmUnbuilt => "TangentSlitArmUnbuilt",
                 BooleanErrorKind::InvalidDeclaration => "InvalidDeclaration",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
