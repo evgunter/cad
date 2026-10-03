@@ -87,8 +87,8 @@ impl core::error::Error for UpdateError {}
 /// mixed-pin state as authorable, so "update everywhere" must stay
 /// usable from the staged state where some sites already moved.
 /// Emitting an edit there would hand back a list the first
-/// [`crate::EditError::PinUnchanged`] refuses — an un-appliable
-/// group, which is the one thing an atomic list must never be.
+/// [`crate::EditError::PinUnchanged`] refuses — an edit that cannot
+/// apply, in a list every member of which must.
 ///
 /// # Errors
 ///
