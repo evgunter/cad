@@ -412,3 +412,39 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     );
     assert_eq!(shape(&up), shape(&down));
 }
+
+/// **An in-band schedule arm abandons its member, not the query.** A
+/// unit square turned `φ = 5e-9` about `z`: its `+x` wall's normal is
+/// `φ` off the schedule's first member `(1, 0, 0)`, so that member's
+/// in-plane arm at the wall's reach (`φ · |q − far corner|`, a few
+/// nanometres) is in the band. The walk takes the next member and
+/// answers; an escalation here is the walk refusing on a reading about
+/// a ray direction rather than about `q`.
+#[test]
+fn an_in_band_schedule_arm_takes_the_next_member() {
+    let phi: f64 = 5e-9;
+    let (c, s) = (phi.cos(), phi.sin());
+    let turn = |x: f64, y: f64| (c * x - s * y, s * x + c * y);
+    let profile: Vec<(f64, f64)> = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        .iter()
+        .map(|&(x, y)| turn(x, y))
+        .collect();
+    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
+    let wall = fx.body.get_face(fx.side_faces[1]).unwrap();
+    let n = Vec3::new(c, s, 0.0);
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    for (y, z, expect) in [
+        (0.5, 0.5, LoopContainment::In),
+        (0.25, 0.75, LoopContainment::In),
+        (1.5, 0.5, LoopContainment::Out),
+        (0.5, 1.25, LoopContainment::Out),
+    ] {
+        let (qx, qy) = turn(1.0, y);
+        let q = Point3::new(qx, qy, z);
+        let got = point_in_loop(&fx.body, wall.outer, n, q, band);
+        assert!(
+            matches!(got, Ok(v) if v == expect),
+            "the wall at (y, z) = ({y}, {z}) reads {expect:?}, got {got:?}"
+        );
+    }
+}
