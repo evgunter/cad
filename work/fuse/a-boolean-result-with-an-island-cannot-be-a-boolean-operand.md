@@ -2,11 +2,12 @@
 id: a-boolean-result-with-an-island-cannot-be-a-boolean-operand
 kind: issue
 title: A boolean result with an island is two solids, and a boolean refuses a multi-solid operand as JoinDesync rather than typed
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
-design: true
+closed: 2026-10-03
+pr: 3891
 ---
 
 Filed by the lane that files each island as a solid of its own
@@ -57,3 +58,8 @@ the next boolean's operand:
 cuts it far from the island (the containment fallback) and through A's
 wall (the seamed path), and both build. `SplitFinishError::NotSingleSolid`
 is gone; the boolean's internal single-solid checks are now desyncs.
+
+## Closed (FUSE, PR 3891, 2026-10-03)
+
+Answered above. A multi-solid body is a boolean operand, and
+`the_two_solid_result_is_the_next_booleans_operand` pins it.

@@ -2,10 +2,12 @@
 id: island-filing-is-silent-where-every-vertex-touches
 kind: issue
 title: Island filing leaves a solid as the graft filed it when some shell has no vertex clear of the solid's other shells
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: E
+closed: 2026-10-03
+pr: 3891
 ---
 
 `crates/topo/src/boolean/islands.rs`, `enclosers_of`: a shell's
@@ -34,3 +36,8 @@ own silence on such a shell (restfront's
 `check-10-is-silent-where-point-in-solid-refuses`) and a witness that
 is not a vertex, which `work/fuse/one-home-for-where-a-shell-stands.md`
 carries.
+
+## Closed (FUSE, PR 3891, 2026-10-03)
+
+Answered above. The remaining silence is check 10's (restfront) and the
+non-vertex witness (`one-home-for-where-a-shell-stands`).
