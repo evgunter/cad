@@ -252,7 +252,7 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
             op: BooleanOp::Union,
             a: p,
             b: other,
-            declare: None,
+            declare: Vec::new(),
         });
         let rounded = r.insert(Node::fillet(p, len(RADIUS), selection.clone()));
         let ev = eval_after(&r.doc, Some(&first));
@@ -319,7 +319,7 @@ fn a2_the_instance_is_the_instance() {
         op: BooleanOp::Union,
         a: p1,
         b: p2,
-        declare: None,
+        declare: Vec::new(),
     });
     let ev = eval(&r.doc);
     assert!(
@@ -762,7 +762,7 @@ fn u_cutter_tie(r: &mut Recorder) -> RecipeNodeId {
         op: BooleanOp::Subtract,
         a,
         b,
-        declare: None,
+        declare: Vec::new(),
     })
 }
 

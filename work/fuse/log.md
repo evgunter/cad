@@ -270,3 +270,11 @@ lane, because both edit `remap_contacts`.
   3′. Two pinches crossing on one line still refuse (filed P0), and the
   row's clockwise wedge was an inside-out operand (filed on cleave).
   A single FULL review is dispatched.
+- 2026-10-03 — PR 3927 (shared-vertex crossings) lands after a single
+  FULL review and one fix pass. Five MINORs were addressed: a new
+  3′-failing build filed with a pin, the `Reversed` doc premise
+  corrected, in-band and tie readings given typed refusals, the
+  refusal's fields pinned, and the P2 row's tie witness pinned. The row
+  closes. Its second witness moves to
+  `two-pinches-crossing-on-one-line-refuse-their-union` (P0), and the
+  inside-out operand is cleave's (P1).
