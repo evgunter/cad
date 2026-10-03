@@ -530,14 +530,17 @@ fn placed_profile_extrudes_along_its_own_normal() {
 }
 
 /// **A depth is a size.** A definitely negative one refuses
-/// `NegativeDepth`, carrying the side it was written with, and its
-/// sentence names the OTHER side as the recourse — the same extrude
-/// written the way the door takes it, which then builds. A depth
-/// within the tolerance of zero, of either sign, stays
-/// `DegenerateExtrusion`: only the definite arm gains the recourse.
+/// `NegativeDepth`, carrying the side it was written with and the value
+/// it saw, and its sentence quotes that value and names the OTHER side
+/// as the recourse. Followed — the depth made positive, the side
+/// flipped — it builds the very body the vector door builds along the
+/// direction the signed depth used to mean, bit for bit. A depth within
+/// the tolerance of zero, of either sign, stays `DegenerateExtrusion`:
+/// only the definite arm gains the recourse.
 #[test]
 fn a_negative_depth_refuses_naming_the_other_side() {
     let vp = validated(vec![l_loop()]);
+    let normal = vp.plane().placement.linear.c2;
     for side in ExtrudeSide::ALL {
         let err = extrude(
             &vp,
@@ -545,21 +548,41 @@ fn a_negative_depth_refuses_naming_the_other_side() {
             Tol::witness(),
         )
         .unwrap_err();
-        assert_eq!(err, ExtrudeError::NegativeDepth { side }, "{side:?}");
+        assert!(
+            matches!(err, ExtrudeError::NegativeDepth { side: s, .. } if s == side),
+            "{side:?}: {err:?}"
+        );
         let text = err.to_string();
         let problems = test_utils::refusal::problems("NegativeDepth", &text, &[], false);
         assert!(problems.is_empty(), "{problems:#?}");
         assert!(
+            text.contains("evaluated to -1 m"),
+            "the sentence quotes the value it refused: {text}"
+        );
+        assert!(
             text.contains(&format!("set the side to {}", side.flipped().noun())),
             "the recourse names the other side: {text}"
         );
-        let mended = Extrusion::Distance {
-            depth: 1.0,
-            side: side.flipped(),
+        let mended = extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: side.flipped(),
+            },
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("the recourse, followed, builds ({side:?}): {e}"));
+        // What `-1` along `side` meant before a depth was a size: one
+        // unit toward the OTHER side.
+        let toward = match side {
+            ExtrudeSide::Along => normal * -1.0,
+            ExtrudeSide::Against => normal,
         };
-        assert!(
-            extrude(&vp, mended, Tol::witness()).is_ok(),
-            "the recourse, followed, builds ({side:?})"
+        let vector = extrude(&vp, Extrusion::Vector(toward), Tol::witness()).unwrap();
+        assert_eq!(
+            point_bits(&mended.body),
+            point_bits(&vector.body),
+            "{side:?}: the recourse builds the vector door's body"
         );
     }
     for depth in [-0.0, -0.5 * eps()] {
@@ -817,4 +840,25 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     for (fv, dv) in f_res.iter().zip(&d_res) {
         assert_eq!(fv.to_bits(), dv.value.to_bits());
     }
+}
+
+/// Every stored vertex point's coordinate bits, sorted, beside the
+/// body's census: equal for two bodies only when they agree bit for bit
+/// on where every vertex is and how many entities they hold.
+fn point_bits(body: &Body<f64>) -> (usize, usize, usize, Vec<[u64; 3]>) {
+    let mut coords: Vec<[u64; 3]> = body
+        .vertices()
+        .filter_map(|(k, _)| {
+            body.get_vertex(k)
+                .and_then(|v| body.get_point(v.point))
+                .map(|p| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()])
+        })
+        .collect();
+    coords.sort_unstable();
+    (
+        body.vertices().count(),
+        body.edges().count(),
+        body.faces().count(),
+        coords,
+    )
 }

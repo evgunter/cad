@@ -1142,6 +1142,13 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
     [
         ("Band", E::Band(band_error())),
         ("DegenerateExtrusion", E::DegenerateExtrusion),
+        (
+            "NegativeDepth",
+            E::NegativeDepth {
+                side: sweep::ExtrudeSide::Along,
+                depth: geom_core::MarginDiag::value(-0.25),
+            },
+        ),
         ("ObliqueExtrusion", E::ObliqueExtrusion),
         (
             "ExtrusionEscalated",

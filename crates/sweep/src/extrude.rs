@@ -353,11 +353,16 @@ pub enum ExtrudeError {
     DegenerateExtrusion,
     /// The depth of an [`Extrusion::Distance`] is definitely negative.
     /// A depth is a size; which way it goes is `side`, so the recourse
-    /// is the same extrude written with the magnitude and the other
-    /// side.
+    /// is a depth that evaluates positive and the other side. The door
+    /// sees the VALUE, not what drove it — a literal, a parameter, an
+    /// expression — so the sentence names neither a sign to delete nor
+    /// a body the recourse promises.
     NegativeDepth {
         /// The side the refused extrude was written with.
         side: ExtrudeSide,
+        /// The depth as the classifier saw it, in metres (an enclosure
+        /// at the interval lane), for the sentence only.
+        depth: geom_core::MarginDiag,
     },
     /// The extrusion vector has a definite in-plane component: oblique
     /// extrusion is deferred past M2 (under shear, arc segments sweep
@@ -480,12 +485,12 @@ impl fmt::Display for ExtrudeError {
                  in-plane or sliver-thin). Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
-            Self::NegativeDepth { side } => write!(
+            Self::NegativeDepth { side, depth } => write!(
                 f,
-                "the extrusion depth is negative, and a depth is a size: which side of the \
-                 sketch plane the extrude goes toward is its side, not a sign. Recourse: write \
-                 the depth without its minus sign and set the side to {}, which builds the same \
-                 body",
+                "the extrusion depth evaluated to {depth} m, below zero, and a depth is a size: \
+                 which side of the sketch plane the extrude goes toward is its side, not a sign. \
+                 Recourse: make the depth evaluate positive (its sign comes from whatever drives \
+                 it, a literal, a parameter or an expression) and set the side to {}",
                 side.flipped().noun()
             ),
             Self::ObliqueExtrusion => f.write_str(
@@ -717,11 +722,17 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     // ---- Direction classification (crate docs; named predicates). ----
     let (w, reverse) = match extrusion {
         Extrusion::Distance { depth, side } => {
-            let sign = decide("extrusion_normal_component", Margin::of(depth), band)
-                .map_err(|source| ExtrudeError::ExtrusionEscalated { source })?;
-            match (sign, side) {
+            let decided =
+                swept::decide_reported("extrusion_normal_component", Margin::of(depth), band)
+                    .map_err(|source| ExtrudeError::ExtrusionEscalated { source })?;
+            match (decided.sign, side) {
                 (Sign::Zero, _) => return Err(ExtrudeError::DegenerateExtrusion),
-                (Sign::Negative, _) => return Err(ExtrudeError::NegativeDepth { side }),
+                (Sign::Negative, _) => {
+                    return Err(ExtrudeError::NegativeDepth {
+                        side,
+                        depth: decided.margin,
+                    });
+                }
                 (Sign::Positive, ExtrudeSide::Along) => (normal * depth, false),
                 (Sign::Positive, ExtrudeSide::Against) => (normal * (-depth), true),
             }

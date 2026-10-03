@@ -391,6 +391,13 @@ struct Racing {
     /// row says which of its arms is carrying that comparison rather
     /// than leaving it to be assumed.
     certifies: bool,
+    /// How many distinct NEEDS its leaves must show — the row's guard
+    /// against a column collapsed to one value, as strong as each drive
+    /// supports. The 8-leaf race shows two: since an extrude's depth is
+    /// a size, the chamber's two ends refuse and freeze nothing new
+    /// (`work/props/the-race-rows-leaves-need-two-amounts-where-they-\
+    /// needed-six.md`).
+    min_distinct: usize,
 }
 
 /// Three of them, because one document's leaf partition is one shape:
@@ -405,6 +412,7 @@ const RACING: [Racing; 3] = [
         terms: 8,
         degree: 4,
         certifies: false,
+        min_distinct: 2,
     },
     Racing {
         label: "race (the second reviewer's)",
@@ -412,6 +420,7 @@ const RACING: [Racing; 3] = [
         terms: 16,
         degree: 6,
         certifies: false,
+        min_distinct: 3,
     },
     Racing {
         label: "certifying",
@@ -419,6 +428,7 @@ const RACING: [Racing; 3] = [
         terms: 512,
         degree: 32,
         certifies: true,
+        min_distinct: 3,
     },
 ];
 
@@ -503,9 +513,10 @@ fn every_leaf_reports_one_column_under_every_schedule_and_both_dials() {
             seq_on.plain_memo()
         );
         assert!(
-            base.iter().collect::<BTreeSet<_>>().len() >= 2,
-            "{}: the leaves must need visibly different amounts: {base:?}",
-            r.label
+            base.iter().collect::<BTreeSet<_>>().len() >= r.min_distinct,
+            "{}: the leaves must need at least {} different amounts: {base:?}",
+            r.label,
+            r.min_distinct
         );
         assert_eq!(
             !seq_on.certified().is_empty(),

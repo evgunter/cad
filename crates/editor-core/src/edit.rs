@@ -2612,7 +2612,10 @@ pub struct EditRecord {
     pub minted: Option<RecipeNodeId>,
     /// Whether the edit was STRUCTURAL (spec D3/D6): it can change
     /// the result's combinatorial shape — insert/delete, a
-    /// Count-slot expression edit, or a Count doc-param set.
+    /// Count-slot expression edit, a Count doc-param set, or an edit
+    /// of recipe payload no slot carries (an extrude's side
+    /// (`SetExtrudeSide`), a member list, a profile program, among
+    /// others; the edit's own arm in `apply` says which).
     /// Continuous edits (`SetParam`, continuous-slot `SetExpression`,
     /// continuous `SetDocParam`) leave recipe structure fixed.
     pub structural: bool,

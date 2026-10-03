@@ -291,6 +291,42 @@ class TestEvaluation(unittest.TestCase):
             "set the side to against the sketch normal", str(caught.exception)
         )
 
+    def test_a_side_flip_is_not_served_from_the_memo(self):
+        # The side is not a slot, so it reaches the memo's content key
+        # as its own word: a warm evaluation after the flip recomputes
+        # the extrude (and nothing upstream), and its body is the
+        # flipped one, as a cold run's is. Flipping back — an undo —
+        # recomputes it again and restores the first body.
+        doc = Doc()
+        profile = doc.insert(
+            Node.polygon(
+                [
+                    (Expr.literal(0 * m), Expr.literal(0 * m)),
+                    (Expr.literal(1 * m), Expr.literal(0 * m)),
+                    (Expr.literal(1 * m), Expr.literal(1 * m)),
+                    (Expr.literal(0 * m), Expr.literal(1 * m)),
+                ],
+                plane=doc.sketch_frame(elevation=Expr.literal(0 * m)),
+            )
+        )
+        block = doc.insert(Node.extrude(profile, Expr.literal(2 * m), ExtrudeSide.Against))
+
+        def heights(ev):
+            body = ev.value(block).body()
+            return {p[2].meters for p in body.tessellate(1 * m).positions}
+
+        first = evaluate(doc)
+        self.assertEqual(heights(first), {-2.0, 0.0})
+        doc.apply(DocEdit.set_extrude_side(block, ExtrudeSide.Along))
+        warm = evaluate(doc, prior=first)
+        self.assertEqual(warm.recomputed, 1, "the extrude alone")
+        self.assertEqual(heights(warm), {0.0, 2.0})
+        self.assertEqual(heights(warm), heights(evaluate(doc)), "warm against cold")
+        doc.apply(DocEdit.set_extrude_side(block, ExtrudeSide.Against))
+        undone = evaluate(doc, prior=warm)
+        self.assertEqual(undone.recomputed, 1)
+        self.assertEqual(heights(undone), {-2.0, 0.0})
+
     def test_boolean_union_through_the_document(self):
         # The post is strictly interior in x and y and pokes out of the
         # base's top, so the solids genuinely INTERPENETRATE and no two

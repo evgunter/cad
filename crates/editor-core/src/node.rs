@@ -2948,7 +2948,10 @@ macro_rules! tube_rows {
 /// payload.
 ///
 /// Exhaustive on the node vocabulary, so a new node kind is classified
-/// here or the compile breaks.
+/// here or the compile breaks — and on FIELDS: every arm names its
+/// variant's fields, with `_` for the ones that are not slots (input
+/// edges, recipe payload the content key feeds by hand), so a field
+/// added to a node does not compile until it is stated a slot or not.
 macro_rules! node_rows {
     ($node:expr, $rows:ident, $out:expr) => {{
         use SlotId as S;
@@ -2965,7 +2968,9 @@ macro_rules! node_rows {
             // X and Y only: the frame supplies the third coordinate,
             // and a slot for it would be a number nobody may set.
             Node::Datum(Datum::AxisInPlane {
-                origin, direction, ..
+                plane: _,
+                origin,
+                direction,
             }) => {
                 axis_rows!(S::Origin, origin, $out);
                 axis_rows!(S::Direction, direction, $out);
@@ -2977,7 +2982,7 @@ macro_rules! node_rows {
             }
             // Origin and normal come off the face; the spin is the
             // one number an author chooses.
-            Node::Datum(Datum::FaceFrame { spin, .. }) => $out.push((S::Spin, spin)),
+            Node::Datum(Datum::FaceFrame { at: _, face: _, spin }) => $out.push((S::Spin, spin)),
             // A profile's slots are its program's. The payload keys its
             // rows by program address, so it answers `S::Profile` and
             // no other slot.
@@ -2986,43 +2991,81 @@ macro_rules! node_rows {
                     $out.push((S::Profile { loop_, step, arg }, e));
                 }
             }
-            Node::Extrude { distance, .. } => $out.push((S::Distance, distance)),
-            Node::Fillet { radius, .. } => $out.push((S::Radius, radius)),
-            Node::Chamfer { distance, .. } => $out.push((S::ChamferDistance, distance)),
-            Node::Shell { thickness, .. } => $out.push((S::ShellThickness, thickness)),
-            Node::Revolve { angle, .. } => $out.push((S::RevolveAngle, angle)),
+            // The side is a structural choice, not a number: it is
+            // recipe payload the content key feeds as a tag.
+            Node::Extrude {
+                profile: _,
+                distance,
+                side: _,
+            } => $out.push((S::Distance, distance)),
+            Node::Fillet {
+                target: _,
+                radius,
+                selection: _,
+            } => $out.push((S::Radius, radius)),
+            Node::Chamfer {
+                target: _,
+                distance,
+                selection: _,
+            } => $out.push((S::ChamferDistance, distance)),
+            Node::Shell {
+                target: _,
+                thickness,
+                open: _,
+            } => $out.push((S::ShellThickness, thickness)),
+            Node::Revolve {
+                profile: _,
+                axis: _,
+                angle,
+            } => $out.push((S::RevolveAngle, angle)),
             Node::Tube {
+                spine: _,
                 u_ref,
                 major_radius,
                 minor_radius,
                 window,
-                ..
             } => tube_rows!(u_ref, major_radius, minor_radius, window, $out),
             Node::HollowTube {
+                spine: _,
                 u_ref,
                 major_radius,
                 minor_radius,
                 window,
                 wall,
-                ..
             } => {
                 tube_rows!(u_ref, major_radius, minor_radius, window, $out);
                 $out.push((S::TubeWall, wall));
             }
-            Node::Loft { v_degree, .. } => $out.push((S::VDegree, v_degree)),
+            Node::Loft {
+                profiles: _,
+                v_degree,
+            } => $out.push((S::VDegree, v_degree)),
             Node::Sweep {
-                stations, v_degree, ..
+                profile: _,
+                path: _,
+                stations,
+                v_degree,
             } => {
                 $out.push((S::Stations, stations));
                 $out.push((S::VDegree, v_degree));
             }
-            Node::Transform { placement, .. } | Node::Gauge { placement, .. } => {
-                $out.extend(placement.$rows())
+            Node::Transform {
+                input: _,
+                placement,
             }
+            | Node::Gauge {
+                parent: _,
+                placement,
+            } => $out.extend(placement.$rows()),
             // The offset's rigid steps are the instance's slots; the
             // reference itself takes no arguments (AQ4 — the referenced
             // document evaluates at its OWN parameters).
-            Node::InstantiatePart { offset, .. } => {
+            Node::InstantiatePart {
+                doc_ref: _,
+                interface: _,
+                gauge: _,
+                offset,
+            } => {
                 if let Some(offset) = offset {
                     $out.extend(offset.$rows())
                 }
@@ -3033,21 +3076,42 @@ macro_rules! node_rows {
             // mismatch is `PlacementRuleFault::CountSpelling`, refused
             // at both doors, and not a slot address that answers
             // nothing.
-            Node::Pattern { count, kind, .. } => rule_rows!(Some(count), kind, $out),
-            Node::PlacedUnion { count, kind, .. } => rule_rows!(count, kind, $out),
+            Node::Pattern {
+                input: _,
+                count,
+                kind,
+            } => rule_rows!(Some(count), kind, $out),
+            Node::PlacedUnion {
+                input: _,
+                count,
+                kind,
+            } => rule_rows!(count, kind, $out),
             // A half is recipe payload, not a number anyone sets; an
             // index is the one structural slot the projection carries.
-            Node::Part { select, .. } => match select {
+            Node::Part { of: _, select } => match select {
                 PartSelect::SplitHalf(_) => {}
                 PartSelect::Instance(index) => $out.push((S::Instance, index)),
             },
-            Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Union { .. }
-            | Node::Declare { .. }
+            Node::Split { target: _, tool: _ }
+            | Node::Boolean {
+                op: _,
+                a: _,
+                b: _,
+                declare: _,
+            }
+            | Node::Union {
+                members: _,
+                declare: _,
+            }
+            | Node::Declare { pairs: _ }
             // A11: the alignment datum is authored geometry, not a
             // continuous slot — a mate has no expression to drive.
-            | Node::Mate { .. } => {}
+            | Node::Mate {
+                a: _,
+                b: _,
+                class: _,
+                alignment: _,
+            } => {}
             // Neither carries a SLOT. A slot's address fixes its
             // dimension ([`SlotId::dimension`]) — that is the
             // vocabulary's contract, read by the edit door, the load
@@ -3057,7 +3121,12 @@ macro_rules! node_rows {
             // address can state. Both are recipe payload instead, fed
             // to the content key where a fillet's selection is fed and
             // evaluated in their own stage.
-            Node::Measure { .. } | Node::Assertion { .. } => {}
+            Node::Measure { expr: _, refs: _ }
+            | Node::Assertion {
+                measure: _,
+                bound: _,
+                dir: _,
+            } => {}
         }
     }};
 }
@@ -3121,6 +3190,11 @@ impl<P> Node<P> {
     /// The payload bound is the profile's: its plane is a node, and
     /// the reference lives in the payload, so answering this question
     /// means asking the payload for it.
+    ///
+    /// Every arm names its variant's fields, with `_` for the ones that
+    /// are not edges, so a reference added to a node does not compile
+    /// until it is stated an edge or not — the content key leaves edges
+    /// to the upstream keys, which are exactly this list.
     pub fn inputs(&self) -> Vec<RecipeNodeId>
     where
         P: crate::ProfilePayload,
@@ -3131,19 +3205,51 @@ impl<P> Node<P> {
             // frame they are written in, so the frame is an input, not
             // a note. Ahead of the leaf arm below, which is every
             // OTHER datum.
-            Node::Datum(Datum::AxisInPlane { plane, .. }) => vec![*plane],
+            Node::Datum(Datum::AxisInPlane {
+                plane,
+                origin: _,
+                direction: _,
+            }) => vec![*plane],
             // The derived frame reads its face out of `at`'s value, so
             // that body is an input for the same reason.
-            Node::Datum(Datum::FaceFrame { at, .. }) => vec![*at],
+            Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => vec![*at],
             // A leaf whose material crosses the document seam has no
             // DAG edge to offer (A3).
-            Node::Datum(_)
-            | Node::Declare { .. }
+            Node::Datum(
+                Datum::Plane {
+                    origin: _,
+                    normal: _,
+                }
+                | Datum::Axis {
+                    origin: _,
+                    direction: _,
+                }
+                | Datum::Point { position: _ }
+                | Datum::Frame {
+                    origin: _,
+                    u: _,
+                    v: _,
+                },
+            )
+            | Node::Declare { pairs: _ }
             // A mate is a leaf: its references are NAMES, not edges
             // (A12's reading edges are recomputed, never stored here).
-            | Node::Mate { .. }
-            | Node::InstantiatePart { .. }
-            | Node::Gauge { .. } => Vec::new(),
+            | Node::Mate {
+                a: _,
+                b: _,
+                class: _,
+                alignment: _,
+            }
+            | Node::InstantiatePart {
+                doc_ref: _,
+                interface: _,
+                gauge: _,
+                offset: _,
+            }
+            | Node::Gauge {
+                parent: _,
+                placement: _,
+            } => Vec::new(),
             // A measure's references ARE its data dependencies (the
             // variant's docs state why this kind departs from the D3
             // carve-out). The edge is the node each reference is READ
@@ -3151,7 +3257,7 @@ impl<P> Node<P> {
             // the measure must wait for. Distinct and ascending, so
             // the edge list is a function of the reference SET and two
             // references at one node do not repeat an edge.
-            Node::Measure { refs, .. } => {
+            Node::Measure { expr: _, refs } => {
                 let mut v: Vec<RecipeNodeId> = refs.iter().map(|r| r.at).collect();
                 v.sort_unstable();
                 v.dedup();
@@ -3164,19 +3270,66 @@ impl<P> Node<P> {
             // payload with no plane, which is every `Doc<P>` test
             // payload, still answers with no edge.
             Node::Profile(p) => p.plane_input().into_iter().collect(),
-            Node::Assertion { measure, .. } => vec![*measure],
-            Node::Extrude { profile, .. } => vec![*profile],
-            Node::Revolve { profile, axis, .. } => vec![*profile, *axis],
+            Node::Assertion {
+                measure,
+                bound: _,
+                dir: _,
+            } => vec![*measure],
+            Node::Extrude {
+                profile,
+                distance: _,
+                side: _,
+            } => vec![*profile],
+            Node::Revolve {
+                profile,
+                axis,
+                angle: _,
+            } => vec![*profile, *axis],
             // A tube has no profile operand at all — its cross-section
             // is the door's own intent parameters — so the spine datum
             // is its only DAG edge.
-            Node::Tube { spine, .. } | Node::HollowTube { spine, .. } => vec![*spine],
-            Node::Loft { profiles, .. } => profiles.clone(),
-            Node::Sweep { profile, path, .. } => vec![*profile, *path],
-            Node::Fillet { target, .. } | Node::Chamfer { target, .. } => vec![*target],
-            Node::Shell { target, .. } => vec![*target],
+            Node::Tube {
+                spine,
+                u_ref: _,
+                major_radius: _,
+                window: _,
+                minor_radius: _,
+            }
+            | Node::HollowTube {
+                spine,
+                u_ref: _,
+                major_radius: _,
+                window: _,
+                minor_radius: _,
+                wall: _,
+            } => vec![*spine],
+            Node::Loft {
+                profiles,
+                v_degree: _,
+            } => profiles.clone(),
+            Node::Sweep {
+                profile,
+                path,
+                stations: _,
+                v_degree: _,
+            } => vec![*profile, *path],
+            Node::Fillet {
+                target,
+                radius: _,
+                selection: _,
+            }
+            | Node::Chamfer {
+                target,
+                distance: _,
+                selection: _,
+            } => vec![*target],
+            Node::Shell {
+                target,
+                thickness: _,
+                open: _,
+            } => vec![*target],
             Node::Split { target, tool } => vec![*target, *tool],
-            Node::Boolean { a, b, declare, .. } => {
+            Node::Boolean { op: _, a, b, declare } => {
                 let mut v = vec![*a, *b];
                 v.extend(declare.iter().copied());
                 v
@@ -3192,13 +3345,25 @@ impl<P> Node<P> {
                 v.extend(declare.iter().copied());
                 v
             }
-            Node::Transform { input, .. } => vec![*input],
-            Node::Part { of, .. } => vec![*of],
+            Node::Transform {
+                input,
+                placement: _,
+            } => vec![*input],
+            Node::Part { of, select: _ } => vec![*of],
             // The two placement-rule nodes take the same edges: the
             // body, plus the datum a circular rule turns about.
-            Node::Pattern { input, kind, .. } | Node::PlacedUnion { input, kind, .. } => {
+            Node::Pattern {
+                input,
+                count: _,
+                kind,
+            }
+            | Node::PlacedUnion {
+                input,
+                count: _,
+                kind,
+            } => {
                 let mut v = vec![*input];
-                if let PatternKind::Circular { axis, .. } = kind {
+                if let PatternKind::Circular { axis, step: _ } = kind {
                     v.push(*axis);
                 }
                 v

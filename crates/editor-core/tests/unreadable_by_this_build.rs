@@ -252,3 +252,26 @@ fn bytes_that_are_not_json_stay_parse() {
         }
     }
 }
+
+/// **A document saved before an extrude carried its side refuses
+/// typed, naming `side`.** The bytes are `crates/pncad/tests/
+/// plate_param.pncad` exactly as main held it before the side became
+/// structural (Ev, #3551), frozen here so the row reads real history
+/// rather than a mutation of today's save: the field is required, so
+/// the refusal names it and carries the regenerate recourse once.
+#[test]
+fn a_document_from_before_the_extrude_side_refuses_naming_side() {
+    let text = include_str!("before_extrude_side/plate_param.pncad");
+    assert!(
+        !text.contains("\"side\""),
+        "the frozen bytes predate the field"
+    );
+    let err = load(text, Tol::witness()).unwrap_err();
+    assert!(
+        matches!(err, PersistError::Unreadable { .. }),
+        "a missing required field is Unreadable: {err:?}"
+    );
+    let msg = err.to_string();
+    assert!(msg.contains("`side`"), "the refusal names the field: {msg}");
+    assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
+}

@@ -4342,6 +4342,7 @@ fn mate_log_is_the_solves(
 ///   `VerbKind::ALL`, [`verb_tag`] over `profile::Verb::ALL`,
 ///   [`arc_mode_tag`] over `ArcMode::ALL`, [`seg_content_tag`] over
 ///   `SegTag::ALL`, [`split_half_tag`] over `SplitHalf::ALL`,
+///   [`extrude_side_tag`] over `ExtrudeSide::ALL`,
 ///   `ContactClass::content_tag` over `ContactClass::ALL`, and
 ///   [`winding_tag`], [`side_tag`], [`target_tag`] over a local closed
 ///   list that an exhaustive match forces to name every variant (their
@@ -4414,11 +4415,11 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v8: a mate frame writes its arm word before its
-            /// payload, and a mate writes the parts its face frames
-            /// resolve against — two channels every existing mate
-            /// writes into.
-            VERSION = 8,
+            /// v9: an extrude writes its side — a channel every
+            /// existing extrude writes into. (v8: a mate frame writes
+            /// its arm word before its payload, and a mate writes the
+            /// parts its face frames resolve against.)
+            VERSION = 9,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -5045,6 +5046,12 @@ where
     // hit would then serve another node's geometry, which is not
     // hypothetical (see S4: two steps once shared a content-key tag,
     // and a reviewer caught it rather than a type).
+    // Every arm NAMES its variant's fields, with `_` for each one that
+    // is a slot (fed below) or an input edge (carried by the upstream
+    // keys), and no arm writes `{ .. }`: a rest pattern would let a
+    // field added to a variant compile unfed, which is how an extrude's
+    // side once stayed out of this key while the match still read as
+    // exhaustive.
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
@@ -5221,8 +5228,8 @@ where
         Node::InstantiatePart {
             doc_ref,
             interface,
+            gauge: _,
             offset,
-            ..
         } => {
             feed_doc_ref(&mut h, doc_ref);
             // The SOLVED pose and the group's frame in this lane (A11
@@ -5311,7 +5318,16 @@ where
         // would recompute nothing. Bits, in placement order (D9) —
         // `0.0` and `-0.0` are different placements to this key,
         // exactly as they are to `bit_eq`.
-        Node::Pattern { kind, .. } | Node::PlacedUnion { kind, .. } => {
+        Node::Pattern {
+            input: _,
+            count: _,
+            kind,
+        }
+        | Node::PlacedUnion {
+            input: _,
+            count: _,
+            kind,
+        } => {
             if let Some(frames) = kind.placements() {
                 h.write_u64(frames.len() as u64);
                 for x in frames
@@ -5336,10 +5352,18 @@ where
         // flow-bearing; the chamfer's setback reaches no field and
         // feeds nothing — the rule is read off the declaration rather
         // than written per verb.
-        Node::Fillet { selection, .. } => {
+        Node::Fillet {
+            target: _,
+            radius: _,
+            selection,
+        } => {
             feed_scalar_join(&mut h, node, selection, crate::verbs::blend::FILLET_SLOTS);
         }
-        Node::Chamfer { selection, .. } => {
+        Node::Chamfer {
+            target: _,
+            distance: _,
+            selection,
+        } => {
             feed_scalar_join(&mut h, node, selection, crate::verbs::blend::CHAMFER_SLOTS);
         }
         // The open list feeds IN ORDER, because the order is meaning:
@@ -5352,7 +5376,11 @@ where
         // which faces share a chart. The thickness slot's expression
         // feeds only if the verb's declared flow lands it in a stored
         // field — read off the declaration, exactly as the blends'.
-        Node::Shell { open, .. } => {
+        Node::Shell {
+            target: _,
+            thickness: _,
+            open,
+        } => {
             feed_scalar_join(&mut h, node, open, crate::verbs::shell::SHELL_SLOTS);
         }
         // A measure's REFERENCES and its measured EXPRESSION are both
@@ -5385,7 +5413,11 @@ where
         // payload expression, and its evaluated value is fed with the
         // others below; the measure is an input edge, so its own key
         // carries it.
-        Node::Assertion { dir, .. } => h.write_tag(match dir {
+        Node::Assertion {
+            measure: _,
+            bound: _,
+            dir,
+        } => h.write_tag(match dir {
             crate::measure::AssertionDir::AtLeast => 1,
             crate::measure::AssertionDir::AtMost => 2,
         }),
@@ -5395,10 +5427,24 @@ where
         // key by more than the arrival of two slot values. Fed as a
         // tag for both kinds — the two share this payload exactly as
         // they share the slots it governs.
-        Node::Tube { window, .. } | Node::HollowTube { window, .. } => {
+        Node::Tube {
+            spine: _,
+            u_ref: _,
+            major_radius: _,
+            window,
+            minor_radius: _,
+        }
+        | Node::HollowTube {
+            spine: _,
+            u_ref: _,
+            major_radius: _,
+            window,
+            minor_radius: _,
+            wall: _,
+        } => {
             h.write_tag(match window {
                 crate::node::TubeWindow::Full => 0,
-                crate::node::TubeWindow::Arc { .. } => 1,
+                crate::node::TubeWindow::Arc { t0: _, t1: _ } => 1,
             });
         }
         // The derived frame's FACE is recipe payload, hashed the way a
@@ -5406,7 +5452,11 @@ where
         // share a tag, an upstream key and (possibly) a spin, and
         // differ in exactly this name. `at` is an input edge and is
         // carried by the upstream keys.
-        Node::Datum(Datum::FaceFrame { face, .. }) => feed_stable_name(&mut h, face),
+        Node::Datum(Datum::FaceFrame {
+            at: _,
+            face,
+            spin: _,
+        }) => feed_stable_name(&mut h, face),
         // The HALF is recipe payload outside the slots: two Parts of
         // the two halves of one split share a tag, an upstream key and
         // no slot at all, and differ in exactly this — so it feeds as
@@ -5414,30 +5464,78 @@ where
         // other. The INDEX is a slot and rides the resolved-slot
         // stream below like every slot; `of` is an input edge and is
         // carried by the upstream keys.
-        Node::Part { select, .. } => match select {
+        Node::Part { of: _, select } => match select {
             PartSelect::SplitHalf(half) => h.write_tag(split_half_tag(*half)),
             PartSelect::Instance(_) => {}
         },
+        // An extrude's SIDE is recipe payload outside its slots: two
+        // extrudes of one profile by one depth share a tag, an upstream
+        // key and every slot value, and differ in exactly which side of
+        // the sketch plane they build toward — so it feeds as a tag, or
+        // a memo hit after `SetExtrudeSide` would serve the other
+        // side's body.
+        Node::Extrude {
+            profile: _,
+            distance: _,
+            side,
+        } => h.write_tag(extrude_side_tag(*side)),
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.
-        // The datum variants are listed, not wildcarded, so a datum
-        // that grows a payload outside its slots has to answer here.
         Node::Datum(
-            Datum::Plane { .. }
-            | Datum::Axis { .. }
-            | Datum::Point { .. }
-            | Datum::Frame { .. }
-            | Datum::AxisInPlane { .. },
+            Datum::Plane {
+                origin: _,
+                normal: _,
+            }
+            | Datum::Axis {
+                origin: _,
+                direction: _,
+            }
+            | Datum::Point { position: _ }
+            | Datum::Frame {
+                origin: _,
+                u: _,
+                v: _,
+            }
+            | Datum::AxisInPlane {
+                plane: _,
+                origin: _,
+                direction: _,
+            },
         )
-        | Node::Extrude { .. }
-        | Node::Revolve { .. }
-        | Node::Loft { .. }
-        | Node::Sweep { .. }
-        | Node::Split { .. }
-        | Node::Boolean { .. } => {}
+        | Node::Revolve {
+            profile: _,
+            axis: _,
+            angle: _,
+        }
+        | Node::Loft {
+            profiles: _,
+            v_degree: _,
+        }
+        | Node::Sweep {
+            profile: _,
+            path: _,
+            stations: _,
+            v_degree: _,
+        }
+        | Node::Split { target: _, tool: _ } => {}
+        // The op is in the tag (`VerbKind::Boolean(op)`); the operands
+        // and the declaration are input edges.
+        Node::Boolean {
+            op: _,
+            a: _,
+            b: _,
+            declare: _,
+        } => {}
         // The chain's shape (`feed_placement_shape` says why).
-        Node::Transform { placement, .. } | Node::Gauge { placement, .. } => {
+        Node::Transform {
+            input: _,
+            placement,
+        }
+        | Node::Gauge {
+            parent: _,
+            placement,
+        } => {
             feed_placement_shape(&mut h, placement);
         }
         // The member list is edges, so the upstream keys carry it — in
@@ -5465,7 +5563,10 @@ where
         // feed is unguardable BY CONSTRUCTION — there is no document a
         // row could build to go red without it — which is why it is
         // written here rather than pinned by one.
-        Node::Union { members, .. } => h.write_u64(members.len() as u64),
+        Node::Union {
+            members,
+            declare: _,
+        } => h.write_u64(members.len() as u64),
     }
     // Evaluated slot values, in the node's deterministic slot order,
     // each followed by its NOMINAL — the rule, its exceptions and why
@@ -6127,6 +6228,19 @@ impl<'a> SegFeed<'a> {
 /// feed (every split segment carries a half) and by the projection
 /// node's payload feed (a `Part` of a half carries the half itself);
 /// `split_half_tags_are_injective` checks it over `SplitHalf::ALL`.
+/// The content-key tag of an extrude's side — the ONE place its key
+/// identity is chosen, checked injective over [`ExtrudeSide::ALL`] by
+/// `extrude_side_tags_are_injective`.
+///
+/// [`ExtrudeSide::ALL`]: crate::node::ExtrudeSide::ALL
+fn extrude_side_tag(side: crate::node::ExtrudeSide) -> u8 {
+    use crate::node::ExtrudeSide;
+    match side {
+        ExtrudeSide::Along => 1,
+        ExtrudeSide::Against => 2,
+    }
+}
+
 fn split_half_tag(half: crate::names::SplitHalf) -> u8 {
     use crate::names::SplitHalf;
     match half {
@@ -6479,8 +6593,9 @@ mod tag_vocabulary_tests {
     //! a swapped arm would otherwise stay green.
 
     use super::{
-        KeyHasher, RETIRED_VERB_TAGS, arc_mode_tag, feed_lane_step, feed_step, seg_content_tag,
-        side_tag, split_half_tag, tag, target_tag, verb_content_tag, verb_tag, winding_tag,
+        KeyHasher, RETIRED_VERB_TAGS, arc_mode_tag, extrude_side_tag, feed_lane_step, feed_step,
+        seg_content_tag, side_tag, split_half_tag, tag, target_tag, verb_content_tag, verb_tag,
+        winding_tag,
     };
     use crate::names::SegTag;
 
@@ -6930,6 +7045,20 @@ mod tag_vocabulary_tests {
                     .all(|kind| target_tag(&witness(*kind)) != *retired)
             );
         }
+    }
+
+    /// An extrude side's tag, injective and pinned over
+    /// [`crate::node::ExtrudeSide::ALL`].
+    #[test]
+    fn extrude_side_tags_are_injective() {
+        use crate::node::ExtrudeSide;
+        injective_and_pinned(
+            "extrude side",
+            &ExtrudeSide::ALL,
+            extrude_side_tag,
+            &[(ExtrudeSide::Along, 1), (ExtrudeSide::Against, 2)],
+            |a, b| a == b,
+        );
     }
 
     /// A split half's tag, injective and pinned over

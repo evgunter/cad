@@ -144,6 +144,158 @@ fn doc_param_edit_recomputes_the_param_cone() {
     assert_eq!(vol, 8.0 - 21.0 * 0.25 * 0.25 * 0.0625); // 7.91796875
 }
 
+/// **A side flip recomputes the flipped extrude's cone, and the memo
+/// serves nothing stale.** An extrude's side is not a slot, so it
+/// reaches the content key as its own word; without it, a warm
+/// evaluation after `SetExtrudeSide` reused all 84 nodes and served the
+/// pre-flip body. Flipping the +z pip master recomputes exactly its
+/// cone — the master, the last transform and the last subtract — and
+/// the warm run equals a cold run of the same document node for node.
+/// Then the undo: the original document, evaluated warm against the
+/// flipped evaluation (what the viewer's undo does — it restores the
+/// prior `Doc` and re-evaluates against the standing memo), recomputes
+/// the same three nodes back and equals the original cold run.
+#[test]
+fn a_side_flip_recomputes_its_cone_and_undo_restores_the_body() {
+    use crate::fixture::value_channel::value_digest;
+    let d = die();
+    let full = run(&d.doc, None, false);
+    let flipped = d
+        .doc
+        .apply(
+            &editor_core::DocEdit::SetExtrudeSide {
+                node: d.pz_extrude,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("a side flip at an extrude")
+        .doc;
+    let warm = run(&flipped, Some(&full), false);
+    let cold = run(&flipped, None, false);
+    assert_eq!(
+        (warm.recomputed, warm.reused),
+        (3, d.n_nodes - 3),
+        "the flipped master, its transform and the last subtract"
+    );
+    assert_eq!(
+        value_digest(&warm),
+        value_digest(&cold),
+        "warm against cold"
+    );
+    assert_ne!(
+        value_digest(&warm),
+        value_digest(&full),
+        "the flip moved the body; a digest that held would mean the memo served the old one"
+    );
+    for id in &cold.order {
+        assert_eq!(
+            warm.value(*id).map(|v| v.content_key),
+            cold.value(*id).map(|v| v.content_key),
+            "{id:?}: warm and cold keys"
+        );
+    }
+    assert_ne!(
+        warm.value(d.pz_extrude).map(|v| v.content_key),
+        full.value(d.pz_extrude).map(|v| v.content_key),
+        "the side moves the extrude's key"
+    );
+
+    let undone = run(&d.doc, Some(&warm), false);
+    assert_eq!((undone.recomputed, undone.reused), (3, d.n_nodes - 3));
+    assert_eq!(
+        value_digest(&undone),
+        value_digest(&full),
+        "undo against the original"
+    );
+}
+
+/// **The negative-depth refusal is true whatever drives the depth.**
+/// Here a document parameter does, so there is no minus sign in the
+/// extrude to delete: the sentence quotes the value the depth
+/// evaluated to and says its sign comes from what drives it, and the
+/// recourse — the parameter made positive, the side flipped — builds
+/// the block on the other side of the sketch plane.
+#[test]
+fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
+    use editor_core::{
+        Dimension, DocEdit, DocParam, Expr, Node, NodeErrorKind, ParamName, RefusingReach,
+    };
+    let h = ParamName::from_static("h");
+    let mut r = fixture::Recorder::new();
+    r.push(DocEdit::SetDocParam {
+        name: h.clone(),
+        value: DocParam::continuous(Dimension::Length, -0.25),
+    });
+    let profile = r.profile(
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.0, 0.0, 0.5)],
+    );
+    let block = r.insert(Node::Extrude {
+        profile,
+        distance: Expr::param(h.clone(), Dimension::Length),
+        side: ExtrudeSide::Along,
+    });
+    let ev = run(&r.doc, None, false);
+    let text = match ev.nodes.get(&block) {
+        Some(NodeResult::Failed(e)) => {
+            assert!(
+                matches!(
+                    e.kind,
+                    NodeErrorKind::Extrude(sweep::ExtrudeError::NegativeDepth {
+                        side: ExtrudeSide::Along,
+                        ..
+                    })
+                ),
+                "{:?}",
+                e.kind
+            );
+            e.kind.to_string()
+        }
+        other => panic!("a negative depth refuses, got {other:?}"),
+    };
+    for want in [
+        "evaluated to -0.25 m",
+        "a parameter",
+        "set the side to against the sketch normal",
+    ] {
+        assert!(text.contains(want), "{want:?} in: {text}");
+    }
+
+    let mut mended = r.doc.clone();
+    for edit in [
+        DocEdit::SetDocParam {
+            name: h,
+            value: DocParam::continuous(Dimension::Length, 0.25),
+        },
+        DocEdit::SetExtrudeSide {
+            node: block,
+            side: ExtrudeSide::Against,
+        },
+    ] {
+        mended = mended
+            .apply(&edit, Tol::witness(), &RefusingReach)
+            .expect("the recourse's edits")
+            .doc;
+    }
+    let ev = run(&mended, None, false);
+    let body = match &ev.value(block).expect("the recourse builds").payload {
+        ValuePayload::Body(b) => b,
+        other => panic!("expected a body, got {}", other.kind_name()),
+    };
+    let mut z: Vec<f64> = body
+        .vertices()
+        .filter_map(|(k, _)| body.get_vertex(k).and_then(|v| body.get_point(v.point)))
+        .map(|p| p.z)
+        .collect();
+    z.sort_by(f64::total_cmp);
+    z.dedup();
+    assert_eq!(z, [-0.25, 0.0], "below the sketch plane, a quarter deep");
+}
+
 #[test]
 fn poisoning_hits_descendants_only_and_is_walkable() {
     let d = die();
