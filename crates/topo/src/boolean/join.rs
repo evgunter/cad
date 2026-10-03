@@ -2153,7 +2153,7 @@ fn resolve_roles_geometric<T: Decide>(
 /// to the wrong germs — each chord then lies on the wrong side of its
 /// rim and both loops' regions are pieces of one cap
 /// (`join1_delta_probes::overlapping_lens_prisms_declared_union_builds`
-/// pins the pose; `insert::strut_facing` is the rule it holds).
+/// pins the pose; `insert::strut_faces_first` is the rule it holds).
 ///
 /// **Neither deciding** is the curved-face frontier, refused
 /// [`SplitJoinError::SectionLoopUndecided`]: every witness of both
