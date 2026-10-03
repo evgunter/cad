@@ -340,10 +340,26 @@ pub(super) fn mint_plans<T: Decide>(
         edges: Vec::new(),
         pairs: Vec::new(),
     };
-    let runs: Vec<(usize, usize)> = plans
-        .iter()
-        .enumerate()
-        .flat_map(|(i, p)| (0..p.runs.len()).map(move |k| (i, k)))
+    // The pairs' order: plans that hang a shared strut first, and those
+    // runs first within a plan (`join::find_match` breaks ties by it).
+    let hangs = |i: usize, k: usize| {
+        let r = &plans[i].runs[k];
+        [orbits[i].0, orbits[i].1]
+            .into_iter()
+            .zip(r)
+            .any(|(secs, r)| {
+                r.shared && run_fan(secs, r.from.0, r.to.0).is_ok_and(|f| f.is_empty())
+            })
+    };
+    let mut order: Vec<usize> = (0..plans.len()).collect();
+    order.sort_by_key(|&i| !(0..plans[i].runs.len()).any(|k| hangs(i, k)));
+    let runs: Vec<(usize, usize)> = order
+        .into_iter()
+        .flat_map(|i| {
+            let mut ks: Vec<usize> = (0..plans[i].runs.len()).collect();
+            ks.sort_by_key(|&k| !hangs(i, k));
+            ks.into_iter().map(move |k| (i, k))
+        })
         .collect();
     let mut edges: [Vec<Option<EdgeKey>>; 2] = [vec![None; runs.len()], vec![None; runs.len()]];
     for (slot, operand) in [Operand::A, Operand::B].into_iter().enumerate() {
@@ -857,17 +873,21 @@ fn mint_directed<T: Decide>(
                 holder = Some(h);
             }
         }
-        let from_is_lo = precedes(sectors, (gf.0, gf.3), (gt.0, gt.3), band)? == Some(true);
-        Some((
+        Some(SharedStrut {
             lo,
-            from_is_lo,
-            holder.map(|h| (h.vertex, h.half, h.half_faces_lower)),
-        ))
+            hi,
+            from_is_lo: precedes(sectors, (gf.0, gf.3), (gt.0, gt.3), band)? == Some(true),
+            holder: holder.map(|h| (h.half, h.half_faces_lower)),
+        })
     } else {
         None
     };
-    let holder = walk.and_then(|(.., holder)| holder);
-    let structural = if let (Some((_, from_is_lo, _)), Some((.., faces_lower))) = (walk, holder) {
+    let structural = if let Some(SharedStrut {
+        from_is_lo,
+        holder: Some((_, faces_lower)),
+        ..
+    }) = walk
+    {
         // Hung at the tip of the strut whose segment holds it, its half
         // met first follows that strut's half from the vertex, so it
         // faces its own germ on the side of the one that half faces.
@@ -927,24 +947,20 @@ fn mint_directed<T: Decide>(
     // A nested strut hangs at its holder's tip, past the struts hung
     // there earlier at a lower germ; any other shared strut at the
     // vertex, past those hung in its corner.
-    let site = match (walk, holder) {
-        (Some((lo, ..)), Some((_, arrival, _))) => {
-            let tip = body.half_edge_end(arrival).ok_or_else(corrupt)?;
+    let site = match walk {
+        Some(w) => {
+            // The half arriving at the corner the strut splices into.
+            let (at, arrival) = match w.holder {
+                Some((half, _)) => (body.half_edge_end(half).ok_or_else(corrupt)?, half),
+                None => (vertex, body.mate(sectors[w.lo.0].he).ok_or_else(corrupt)?),
+            };
             let first = body.get_half_edge(arrival).ok_or_else(corrupt)?.next;
             Some((
-                tip,
-                strut_anchor(body, (operand, tip), sectors, first, lo, hung, band)?,
+                at,
+                strut_anchor(body, (operand, at), sectors, first, w.lo, hung, band)?,
             ))
         }
-        (Some((lo, ..)), None) => {
-            let mate = body.mate(sectors[lo.0].he).ok_or_else(corrupt)?;
-            let first = body.get_half_edge(mate).ok_or_else(corrupt)?.next;
-            Some((
-                vertex,
-                strut_anchor(body, (operand, vertex), sectors, first, lo, hung, band)?,
-            ))
-        }
-        (None, _) => None,
+        None => None,
     };
     let at = site.map_or(vertex, |(v, _)| v);
     let rec = mint_run(
@@ -959,13 +975,15 @@ fn mint_directed<T: Decide>(
         spike_from_first,
         site.map(|(_, he)| he),
     )?;
-    if let Some((lo, from_is_lo, _)) = walk {
+    if let Some(SharedStrut {
+        lo, hi, from_is_lo, ..
+    }) = walk
+    {
         let edge = body.get_edge(rec.edge).ok_or_else(corrupt)?;
         let half = [edge.he_plus, edge.he_minus]
             .into_iter()
             .find(|&h| body.get_half_edge(h).is_some_and(|d| d.start == at))
             .ok_or_else(corrupt)?;
-        let hi = run_ends(sectors, run, band)?.1;
         hung.struts.push(HungStrut {
             operand,
             root: vertex,
@@ -998,6 +1016,18 @@ fn mint_directed<T: Decide>(
         }
     }
     Ok(rec)
+}
+
+/// A strut at a shared vertex, as [`mint_directed`] places it: its germs
+/// in walk order, whether its run leaves from the lower, and the half
+/// from the vertex of the innermost strut hung earlier whose segment
+/// holds its own, with whether that half faces its lower germ.
+#[derive(Clone, Copy)]
+struct SharedStrut<T: geom_core::Real> {
+    lo: Cut<T>,
+    hi: Cut<T>,
+    from_is_lo: bool,
+    holder: Option<(HalfEdgeKey, bool)>,
 }
 
 /// The entry past `k` whose end bound is a real edge: the one holding

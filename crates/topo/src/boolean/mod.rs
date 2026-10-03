@@ -1261,6 +1261,45 @@ pub struct BoolNullEdgeRecord<T: Real> {
     pub germs: [HalfGerm<T>; 2],
 }
 
+/// **One operand's null-edge copies**: the vertices its null edges join,
+/// each on one point by construction. A vertex's copies are read
+/// transitively, since a dangling null edge can hang at another's tip.
+#[derive(Clone, Debug, Default)]
+pub(super) struct NullCopies(std::collections::BTreeMap<VertexKey, Vec<VertexKey>>);
+
+impl NullCopies {
+    /// `operand`'s null edges among `null_edges`.
+    pub(super) fn of_operand<T: Real>(
+        null_edges: &[BoolNullEdgeRecord<T>],
+        operand: Operand,
+    ) -> Self {
+        let mut map: std::collections::BTreeMap<VertexKey, Vec<VertexKey>> =
+            std::collections::BTreeMap::new();
+        for r in null_edges.iter().filter(|r| r.operand == operand) {
+            let (u, w) = (r.attr.below_end, r.attr.above_end);
+            map.entry(u).or_default().push(w);
+            map.entry(w).or_default().push(u);
+        }
+        Self(map)
+    }
+
+    /// `v`, then every vertex null edges join it to, transitively, in
+    /// the order the walk meets them.
+    pub(super) fn of(&self, v: VertexKey) -> Vec<VertexKey> {
+        let mut out = vec![v];
+        let mut i = 0;
+        while let Some(&at) = out.get(i) {
+            for &c in self.0.get(&at).into_iter().flatten() {
+                if !out.contains(&c) {
+                    out.push(c);
+                }
+            }
+            i += 1;
+        }
+        out
+    }
+}
+
 /// The site a corresponding null-edge pair was minted at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PairSite {

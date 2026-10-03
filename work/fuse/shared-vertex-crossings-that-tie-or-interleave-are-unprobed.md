@@ -1,7 +1,7 @@
 ---
 id: shared-vertex-crossings-that-tie-or-interleave-are-unprobed
 kind: issue
-title: "SharedVertexCrossings: the fan-interleave arm, the one arm left, is reached by no witness"
+title: "SharedVertexCrossings: the fan-interleave arm is reached by no witness; the one-arc strut arm is its own row"
 status: dispatched
 opened: 2026-10-03
 priority: P0
@@ -31,18 +31,18 @@ Built on `fuse/strut-holding-a-cut`:
 
 - **A dangling null edge whose segment holds another's whole**: the
   inner hangs at the outer's tip (`insert::holds_whole`), strictly
-  inside or along either end's direction. Witnesses:
+  inside at one end at least. Witnesses:
   `a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op`,
   `a_dangling_null_edge_holding_two_pairs_cuts_builds_in_every_op`,
   `a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op`.
-- **Two pairs whose runs are one arc**: reachable as two dangling
-  null edges with one segment, which nest the same way. Witness:
-  `two_dangling_null_edges_with_one_segment_build_in_every_op`. For
-  two fans, the other way round is the complement on the opposite
-  side, so one turns: no refusal.
 
 Still refusing:
 
+- **Two pairs whose runs are one arc**: reachable as two dangling
+  null edges with one segment, and refusing typed:
+  `work/fuse/two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings.md`.
+  For two fans, the other way round is the complement on the opposite
+  side, so one turns: no refusal.
 - **A fan both of whose ways round hold a cut (interleave)**: disjoint
   pieces do alternate round a convex corner, but a run that is its own
   piece's In-arc is clear, so this needs a pair paired across its

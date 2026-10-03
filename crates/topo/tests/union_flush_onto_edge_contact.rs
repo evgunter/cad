@@ -1081,7 +1081,9 @@ fn box_planes(lo: f64, hi: f64) -> Vec<([f64; 3], f64)> {
 /// the kernel: each face loop clipped to each half-space in turn
 /// (Sutherland–Hodgman), the points on the plane closing the cut's cap
 /// in angular order unless a face lies on it, then the pyramids from
-/// the mean vertex summed.
+/// the mean vertex summed. "On the plane" is exact equality, so a face
+/// counts as lying on a plane only where its coordinates meet it
+/// exactly, as the boxes' and the lenses' zero coordinates do.
 fn clipped_volume(mut faces: Vec<Vec<[f64; 3]>>, planes: &[([f64; 3], f64)]) -> f64 {
     let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -1401,7 +1403,6 @@ fn lens_against_the_cube(
         2,
         "each piece's corner at the origin"
     );
-    eprintln!("=== y = {order}");
     for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
         let dropped = drops.contains(&op);
         let want = match op {
@@ -1444,8 +1445,10 @@ const D2: [f64; 3] = [0.3, 1.0, 0.0];
 /// hanging either at the other's tip builds in one order of `y`'s union
 /// and fails the join in the other. So every op, in both operand orders
 /// and with `y` built both ways, refuses `SharedVertexCrossings` naming
-/// the cube's corner and both of `y`'s vertices there: pinned as it
-/// stands
+/// the cube's corner and two of `y`'s vertices there. So does the inner
+/// lens with a thinner lens cut out of it between the two rays, whose
+/// pair's four crossings pair the outer two, with or without a third
+/// lens in the notch: pinned as they stand
 /// (`work/fuse/two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings.md`).
 #[test]
 fn two_dangling_null_edges_with_one_segment_refuse_typed() {
@@ -1456,9 +1459,16 @@ fn two_dangling_null_edges_with_one_segment_refuse_typed() {
         &brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
         (0.0, 0.0, 0.0),
     );
-    for (order, y) in lens_ys(outer, inner, tol) {
-        let mut ends = keys_at(&y.body, (0.0, 0.0, 0.0));
-        ends.sort();
+    let [(_, cut_first), lens_first] = lens_ys(outer, inner, tol);
+    let notched = notched(&cut_first, None, tol);
+    let filled = notched_filled(&cut_first, tol);
+    for (order, y) in [
+        ("cut ∪ lens", cut_first),
+        lens_first,
+        ("cut ∪ notched lens", notched),
+        ("cut ∪ notched lens ∪ lens in the notch", filled),
+    ] {
+        let ends = keys_at(&y.body, (0.0, 0.0, 0.0));
         for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
             let side = if op.starts_with("cube") {
                 topo::Operand::A
@@ -1469,14 +1479,16 @@ fn two_dangling_null_edges_with_one_segment_refuse_typed() {
                 Err(BooleanError::SharedVertexCrossings {
                     operand,
                     vertex,
-                    partners,
+                    partners: [p0, p1],
                 }) => {
-                    let mut partners = partners.to_vec();
-                    partners.sort();
                     assert_eq!(
-                        (operand, vertex, partners),
-                        (side, cube_corner[0], ends.clone()),
-                        "{op} (y = {order}): the cube's corner and both of y's vertices there"
+                        (operand, vertex),
+                        (side, cube_corner[0]),
+                        "{op} (y = {order}): the cube's corner"
+                    );
+                    assert!(
+                        p0 != p1 && ends.contains(&p0) && ends.contains(&p1),
+                        "{op} (y = {order}): two of y's vertices there, {ends:?}"
                     );
                 }
                 other => panic!(
@@ -1486,6 +1498,62 @@ fn two_dangling_null_edges_with_one_segment_refuse_typed() {
             }
         }
     }
+}
+
+/// `cut ∪ lens` ([`lens_ys`]) with the inner lens notched: the lens over
+/// `([1, 0.6, 0], [0.6, 1, 0])`, thinner and scaled past it, taken out
+/// of the inner lens, then `fill` put back if given.
+fn notched(y: &BooleanBody<f64>, fill: Option<&Body<f64>>, tol: Tol) -> BooleanBody<f64> {
+    let lens = |rays: [[[f64; 3]; 3]; 2], scale: f64| {
+        let [up, down] = rays.map(|r| corner_prism(r, scale, tol));
+        let BooleanResult::Body(lens) =
+            union_with(&up, &down, &flush_declarations(&up, &down, tol), tol).expect("a lens")
+        else {
+            panic!("the lens came back empty");
+        };
+        lens
+    };
+    let notch = lens(
+        lens_prisms(
+            ([1.0, 0.6, 0.0], [0.6, 1.0, 0.0]),
+            ([0.8, 0.8, 0.1], [0.8, 0.8, -0.1]),
+        ),
+        3.0,
+    );
+    let mut decls = flush_declarations(&y.body, &notch.body, tol);
+    decls.carried_a.vv = rest_rows(&y.contacts);
+    let BooleanResult::Body(mut y) =
+        subtract_with(&y.body, &notch.body, &decls, tol).expect("the notch is cut")
+    else {
+        panic!("the notched y came back empty");
+    };
+    if let Some(fill) = fill {
+        let mut decls = flush_declarations(&y.body, fill, tol);
+        decls.carried_a.vv = rest_rows(&y.contacts);
+        let BooleanResult::Body(next) =
+            union_with(&y.body, fill, &decls, tol).expect("the fill touches the notch's apex")
+        else {
+            panic!("the filled y came back empty");
+        };
+        y = next;
+    }
+    y
+}
+
+/// [`notched`] with a lens over `([1, 0.75, 0], [0.75, 1, 0])` in the
+/// notch.
+fn notched_filled(y: &BooleanBody<f64>, tol: Tol) -> BooleanBody<f64> {
+    let [up, down] = lens_prisms(
+        ([1.0, 0.75, 0.0], [0.75, 1.0, 0.0]),
+        ([0.8, 0.8, 0.05], [0.8, 0.8, -0.05]),
+    )
+    .map(|r| corner_prism(r, 0.3, tol));
+    let BooleanResult::Body(fill) =
+        union_with(&up, &down, &flush_declarations(&up, &down, tol), tol).expect("a lens")
+    else {
+        panic!("the lens came back empty");
+    };
+    notched(y, Some(&fill.body), tol)
 }
 
 /// **A strut inside another's segment, sharing one end's direction**
