@@ -92,10 +92,11 @@ the editor instead. A value's part count (`NodeValue::parts`) is a
 product's number of gathered parts: an instantiation counts the
 referenced document's root outputs at their own counts (so a
 sub-assembly counts through), and the placers (`Transform`, `Pattern`)
-and `Part` carry it. Every op that takes one body — the pair boolean,
-the n-ary union, a placed union's prototype and the rest of
-`body_operand`'s callers — refuses a product
-(`NodeErrorKind::ProductOperand`). An instance carrying a declaration
+and `Part` carry it. Every op that fuses or reshapes one body — the
+pair boolean, the n-ary union, a placed union's prototype and the rest
+of `body_operand`'s callers — refuses a product
+(`NodeErrorKind::ProductOperand`); a datum's face frame only reads a
+face, mints no record, and takes a product as it is. An instance carrying a declaration
 is such a product. The acceptance rows in
 `crates/editor-core/tests/docm6_seam_declarations.rs`
 (`no_carried_declaration_can_reach_a_boolean_operand` and the nested,

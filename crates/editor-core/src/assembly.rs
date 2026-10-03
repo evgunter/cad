@@ -399,8 +399,8 @@ pub enum Attribution {
     /// boolean would be unattributed here. Today none can — an
     /// instance carrying a declaration is a product of several parts,
     /// whose count the placers and a sub-assembly carry through
-    /// (`NodeValue::parts`), and every op that takes one body refuses a
-    /// product (`NodeErrorKind::ProductOperand`; the acceptance suite's
+    /// (`NodeValue::parts`), and every op that fuses or reshapes one
+    /// body refuses a product (`NodeErrorKind::ProductOperand`; the acceptance suite's
     /// `no_carried_declaration_can_reach_a_boolean_operand`) — so the
     /// two readings coincide, and this is the one that will still be
     /// true if that ever changes.

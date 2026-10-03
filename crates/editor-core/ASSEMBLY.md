@@ -316,9 +316,9 @@ declaration this document holds a row for answers for — its own or a
 part's, which today is every declaration in the tree, since the only
 path a record can take without its row (a boolean over a source) is
 one no instance carrying a declaration can reach: such an instance is
-a product of several parts, and every op that takes one body refuses
-a product (`NodeErrorKind::ProductOperand`, naming the explicit union as
-the recourse) — the placers and a sub-assembly that instantiates it
+a product of several parts, and every op that fuses or reshapes one
+body refuses a product (`NodeErrorKind::ProductOperand`, naming the
+explicit union as the recourse) — the placers and a sub-assembly that instantiates it
 carry its part count through (`NodeValue::parts`). An inner mate
 that could not be minted refuses the outer gate
 (`AssemblyError::CarriedMintRefusal`), carrying every such row in

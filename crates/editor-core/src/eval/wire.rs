@@ -819,14 +819,14 @@ fn wrong_operand<T: Decide>(
 
 // OPERAND-DOOR END
 
-/// A single-body operand: a Body value, or a boolean's non-empty
-/// result — what every consumer that genuinely takes ONE body reads
-/// through (a datum's face frame, a blend, a shell, a split's target,
-/// a boolean's and a union's members, a placed union's prototype):
-/// [`placeable_operand`]'s `Body` arm, refusing the other in its own
-/// one-body word, and refusing a PRODUCT — a body of several parts
-/// ([`NodeErrorKind::ProductOperand`]; `NodeValue::parts`). The placers
-/// read [`placeable_operand`] instead and carry a product through.
+/// **A body that becomes material of the result**: what every consumer
+/// that combines or reshapes ONE body reads through (a blend, a shell,
+/// a split's target, a boolean's and a union's members, a placed
+/// union's prototype). It is [`read_body`] that also refuses a PRODUCT,
+/// a body of several parts ([`NodeErrorKind::ProductOperand`];
+/// `NodeValue::parts`): a solid is one piece of material, so material
+/// is fused or reshaped one part at a time. The placers read
+/// [`placeable_operand`] instead and carry a product through.
 fn body_operand<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
@@ -838,6 +838,19 @@ fn body_operand<T: Decide>(
             parts: v.parts,
         });
     }
+    read_body(results, input)
+}
+
+/// **A body read for its geometry**: a Body value, or a boolean's
+/// non-empty result — [`placeable_operand`]'s `Body` arm, refusing the
+/// other in its own one-body word. A reader consumes no material (a
+/// datum's face frame reads a face), so a product is read as it is;
+/// the product refusal is [`body_operand`]'s.
+fn read_body<T: Decide>(
+    results: &Results<T>,
+    input: RecipeNodeId,
+) -> Result<Arc<Body<T>>, NodeErrorKind> {
+    let v = value_of(results, input)?;
     match placeable_operand(v, input) {
         Ok(Placeable::Body(b)) => Ok(b),
         Ok(Placeable::Instances(_)) | Err(NodeErrorKind::WrongOperand { .. }) => {
@@ -1368,7 +1381,7 @@ fn wire_datum<T: Decide>(
         // stored fact copied out or an N5 resolution; nothing here
         // decides a number.
         Datum::FaceFrame { at, face, .. } => {
-            let body = body_operand(results, *at)?;
+            let body = read_body(results, *at)?;
             let table = &value_of(results, *at)?.name_table;
             // The fillet's ladder: rung 1 against the document, rungs
             // 2 and 3 against the body's own table.

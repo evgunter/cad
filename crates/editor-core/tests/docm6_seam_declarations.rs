@@ -1060,6 +1060,38 @@ fn a_placed_union_of_a_product_refuses() {
     refuses_as_product(&doc, store, group, instance, "the placed union's prototype");
 }
 
+/// **A datum reads a product.** A face frame consumes no material — it
+/// reads a face — so the product refusal is not its: a frame on the
+/// top cap of the stand's upper cube, read through an instance of the
+/// two-part stand, evaluates.
+#[test]
+fn a_face_frame_on_a_product_evaluates() {
+    let mut store = PartStore::default();
+    let (inner_ref, _, cubes, _, cube_body) = resting(&mut store, "docm6-datum-stand");
+    let doc = ProfileDoc::empty(DocumentId::derive("docm6-datum-outer"), Tol::witness());
+    let (doc, instance) = insert(doc, Node::instantiate_part(inner_ref));
+    let (doc, datum) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::FaceFrame {
+            at: instance,
+            face: wrap(instance, in_part(cubes[1], cube_body, CapEnd::End)),
+            spin: fixture::ang(0.0),
+        }),
+    );
+    let ev = run(&doc, &with_resolver(store));
+    assert_eq!(
+        ev.value(instance).map(|v| v.parts),
+        Some(2),
+        "the stand is a product"
+    );
+    assert!(
+        ev.node_error(datum).is_none(),
+        "the frame reads the product: {:?}",
+        ev.node_error(datum).map(|e| &e.kind)
+    );
+    assert!(ev.value(datum).is_some(), "the frame has a value");
+}
+
 /// R-I: a CERTIFIED assembly keeps the carried rows, so it can say
 /// which inner mates its verdict answered for.
 #[test]
