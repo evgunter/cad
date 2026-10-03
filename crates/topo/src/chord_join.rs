@@ -498,7 +498,9 @@ impl SplitJoinError {
                 f,
                 "a cone face's azimuth window would be read across its apex, where the chart \
                  has no azimuth: the walk reached the apex, or the face meets it in a way no \
-                 single chart lift closes (twice, from both nappes, or around a ring)"
+                 single chart lift closes (twice, from both nappes, or around a ring). \
+                 Recourse: divide the cone face so each piece meets its apex at most once, \
+                 from one nappe"
             ),
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")

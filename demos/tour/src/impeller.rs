@@ -65,9 +65,8 @@ use pncad::topo::Body;
 
 use crate::{SceneBody, Stop, View};
 
-/// The hub's facet count. Round enough to read as a hub, and a PRISM
-/// because the boolean has no arm for a curved operand its blade could
-/// reach.
+/// The hub's facet count. Round enough to read as a hub; why it is a
+/// prism is the module docs'.
 const HUB_FACETS: usize = 24;
 /// The hub's circumradius, metres.
 const HUB_R: f64 = 1.0;
@@ -418,9 +417,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                         and the blades still close the circle. A comb's count and \
                         spacing are genuinely independent; a wheel's are not, and the \
                         recipe layer can say which it is. The hub is a PRISM because \
-                        a box leaving a cylinder through its wall refuses to union \
-                        (at the join, `SectionArcWindow`), so a round hub cannot have a \
-                        blade unioned into it at all",
+                        it was authored when a box leaving a cylinder through its wall \
+                        refused to union; that pose builds now, and the faceted hub is \
+                        what the scene was authored as",
                 ops: "Datum::Frame x2 -> Profile(24-gon) -> Extrude; Profile(blade) -> \
                       Extrude; Datum::Axis -> Node::placed_union(blade, count = \
                       blades, Circular { axis, step = 360 deg / scalar(blades) }) -> \

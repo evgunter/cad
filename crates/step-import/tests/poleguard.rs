@@ -59,11 +59,12 @@
 //! the profile, the pcurve lane far beyond); the **plane split** and
 //! **boolean** doors (review rows `r2_split_door.rs` /
 //! `r2_bool_door.rs` / `r1_probe_bool_route.rs`: every sphere-face
-//! cut refuses typed at every probed height — as
+//! cut within a few ε of a pole refuses typed — as
 //! `CurvedBooleanUnsupported` / `CurvedPierceUnsupported` at the
 //! default band, and at earlier profile/adoption escalations on the
 //! coarser bands; R1's eleven near-tangent plane×sphere
-//! configurations all refuse typed). Reasoned or measured shut by
+//! configurations all refuse typed; a boolean cut a macroscopic
+//! distance below the pole builds and meshes with the guard quiet). Reasoned or measured shut by
 //! review: `transform_rigid` (an isometry moves junctions and poles
 //! together), `split_edge` (its interiority gate is metred against
 //! the same band). **Named unmeasured**: blend/fillet, `shell`,

@@ -134,7 +134,8 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 /// point's sector side certifies, and the op stops at the join, where
 /// the section passes through the ball's face as a ring whose island the
 /// join winds on a cylinder wall's chart alone
-/// (`SplitJoinError::RingOffCylinderChart`), typed. The
+/// (`SplitJoinError::RingOffCylinderChart`,
+/// `work/tang/a-ring-on-a-sphere-face-has-no-island-winding.md`), typed. The
 /// scan's near-boundary arm remains as certified-enclosure
 /// defense-in-depth behind that door (its residual live width is the
 /// box pad; the shadowing is structural — the reduction runs before

@@ -863,6 +863,9 @@ mod review_ring2_r1_e2e;
 
 #[path = "full_turn_bore_mate.rs"]
 mod full_turn_bore_mate;
+
+#[path = "wedge_through_a_full_turn_collar.rs"]
+mod wedge_through_a_full_turn_collar;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
 
