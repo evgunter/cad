@@ -982,6 +982,11 @@ pub enum SelfCheck {
     /// The carrier ladder's contradiction arm, which its detector
     /// posture (nothing declared) cannot reach.
     CarrierLadder,
+    /// Whether the data a carrier ladder compares two faces on are
+    /// finite (`bool_plane_offset`, the curved kinds' `carrier_*`
+    /// data): a datum read as NaN is poisoned input, and no
+    /// declaration or move of the parts reads it.
+    CarrierData,
 }
 
 impl SelfCheck {
@@ -995,6 +1000,7 @@ impl SelfCheck {
             Self::ArcFacing => "which way a germ turns about the section it lies on",
             Self::RingWinding => "which way a ring run of the section winds",
             Self::CarrierLadder => "whether a face of each solid lies on one surface",
+            Self::CarrierData => "whether the surface data two faces are compared on are finite",
         }
     }
 }
@@ -1114,7 +1120,7 @@ pub enum NeighbourOffset {
     /// nonzero one in the zero band is a size a smaller tolerance
     /// decides apart.
     Zero(Classified),
-    /// The offset landed in the ambiguity band, or was poisoned.
+    /// The offset landed in the ambiguity band.
     Undecided(Indeterminate),
 }
 
@@ -2308,6 +2314,10 @@ mod tests {
             }
             BooleanDecision::SelfCheck(SelfCheck::CarrierLadder) => (
                 "whether a face of each solid lies on one surface",
+                Ending::Defect,
+            ),
+            BooleanDecision::SelfCheck(SelfCheck::CarrierData) => (
+                "whether the surface data two faces are compared on are finite",
                 Ending::Defect,
             ),
             BooleanDecision::PierceCurvature => (

@@ -330,7 +330,7 @@ fn plane_ladder<T: Decide>(
             relation,
         }),
         Err(diag) => Err(PlaneEqError::Undeclared {
-            coincidence: CoincidenceMeasure::Undecided(diag),
+            coincidence: CoincidenceMeasure::not_zero(diag),
             relation,
         }),
     }
@@ -627,7 +627,7 @@ mod tests {
         );
         let err = refusal(plane([f64::NAN, 0.0, 5.0], [0.0, 0.0, 1.0]));
         let PlaneEqError::Undeclared {
-            coincidence: CoincidenceMeasure::Undecided(diag),
+            coincidence: CoincidenceMeasure::Unreadable(diag),
             ..
         } = err
         else {

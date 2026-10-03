@@ -10,13 +10,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Band, KERNEL_DEFECT_ENDING, Point3, Tol, Vec3};
 
 use super::{FlushRung, pair_finding};
 use crate::body::Body;
 use crate::boolean::{
     BooleanError, BooleanOp, CarrierDesc, CarrierRelation, ConsumedExtent, Operand, PlaneDesc,
     PlaneEqError, PlaneIdentity, boolean_reduce, face_carrier, oriented_plane_eq,
+    undeclared_coincidence,
 };
 use crate::entity::FaceKey;
 use crate::euler::FaceSurface;
@@ -143,13 +144,13 @@ fn the_boolean_refusal_on_a_decided_zero_quotes_its_margin() {
     assert!(!text.contains("exactly zero"), "{text}");
 }
 
-/// **The Boolean's undeclared coincidence quotes what its measure
-/// read, on a poisoned offset.** The plane ladder's public door refuses
-/// a NaN offset datum `Undeclared`, and the Boolean raises that refusal
-/// as it raises every undeclared coincidence: the text says the margin
-/// is invalid, and never that the measure is exactly zero. (No Boolean
-/// reaches it with a poisoned operand: the stack above refuses on its
-/// side walls first.)
+/// **A poisoned offset is no coincidence the Boolean offers to
+/// declare.** The plane ladder's public door refuses a NaN offset datum
+/// as unreadable, and the Boolean raises it as every raise site of an
+/// undeclared coincidence does: a datum that is not finite, ending as a
+/// kernel defect, with no declaration offered and never a measure that
+/// is exactly zero. (No Boolean reaches it with a poisoned operand: the
+/// stack above refuses on its side walls first.)
 #[test]
 fn an_undeclared_coincidence_on_a_poisoned_offset_says_it_is_poisoned() {
     let plane = |x| PlaneDesc {
@@ -172,15 +173,17 @@ fn an_undeclared_coincidence_on_a_poisoned_offset_says_it_is_poisoned() {
     else {
         panic!("a NaN offset reaches the offset rung: {err:?}");
     };
-    let text = BooleanError::UndeclaredCoincidence {
-        diag: coincidence.reported(),
-        pair: [
-            (Operand::A, FaceKey::default()),
-            (Operand::B, FaceKey::default()),
-        ],
+    let face = FaceKey::default();
+    let text = undeclared_coincidence(
+        coincidence,
+        [(Operand::A, face), (Operand::B, face)],
         relation,
-    }
+    )
     .to_string();
-    assert!(text.contains("margin is invalid"), "{text}");
+    let lead = "whether the surface data two faces are compared on are finite is undecided: \
+                margin is invalid";
+    assert!(text.starts_with(lead), "{text}");
+    assert!(text.ends_with(KERNEL_DEFECT_ENDING), "{text}");
+    assert!(!text.contains("declare"), "{text}");
     assert!(!text.contains("exactly zero"), "{text}");
 }

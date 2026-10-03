@@ -70,7 +70,7 @@ use crate::body::Body;
 use crate::contact::{ContactClass, ContactRefusal, ContactVerdict, FIT_DEFERRAL};
 use crate::entity::FaceKey;
 
-use super::carrier_eq::{CarrierEqError, CarrierRelation};
+use super::carrier_eq::{CarrierEqError, CarrierRelation, CoincidenceMeasure};
 use super::refusal_routes::Contradiction;
 
 /// **The class-dispatching contact door**: does this face pair hold
@@ -189,6 +189,10 @@ fn rest_pair_verdict<T: Decide>(
         Err(CarrierEqError::Escalated { diag, .. } | CarrierEqError::Unsettled { diag }) => {
             Err(ContactRefusal::Escalated { diag })
         }
+        Err(CarrierEqError::Undeclared {
+            coincidence: CoincidenceMeasure::Unreadable(diag),
+            ..
+        }) => Err(ContactRefusal::Escalated { diag }),
         Err(CarrierEqError::Undeclared { coincidence, .. }) => Err(ContactRefusal::Undeclared {
             diag: coincidence.reported(),
         }),

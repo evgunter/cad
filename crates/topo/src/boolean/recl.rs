@@ -167,11 +167,11 @@ pub(super) fn require_same<T: Decide>(
         Err(PlaneEqError::Undeclared {
             coincidence,
             relation,
-        }) => Err(BooleanError::UndeclaredCoincidence {
-            diag: coincidence.reported(),
-            pair: [(o1, s1.face), (o2, s2.face)],
+        }) => Err(super::undeclared_coincidence(
+            coincidence,
+            [(o1, s1.face), (o2, s2.face)],
             relation,
-        }),
+        )),
         Err(PlaneEqError::Contradicted { fact, .. }) => {
             Err(BooleanError::DeclarationContradicted { fact })
         }

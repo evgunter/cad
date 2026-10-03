@@ -148,9 +148,11 @@ pub enum CoincidenceMeasure {
         decided: Classified,
     },
     /// A datum, or the declared reading of the pair, did not decide
-    /// zero: in band, past it where the declared reading stands off,
-    /// or poisoned.
+    /// zero: in band, or past it where the declared reading stands off.
     Undecided(Indeterminate),
+    /// A datum is not finite: poisoned input, which no declaration
+    /// and no move of the faces reads.
+    Unreadable(Indeterminate),
 }
 
 impl CoincidenceMeasure {
@@ -168,7 +170,17 @@ impl CoincidenceMeasure {
                 predicate: Some(predicate),
                 terminal_sliver: false,
             },
-            Self::Undecided(diag) => diag,
+            Self::Undecided(diag) | Self::Unreadable(diag) => diag,
+        }
+    }
+
+    /// A measure that did not decide zero, as what it is: unreadable
+    /// where its margin is poisoned, undecided otherwise.
+    pub(crate) fn not_zero(diag: Indeterminate) -> Self {
+        if diag.margin.is_invalid() {
+            Self::Unreadable(diag)
+        } else {
+            Self::Undecided(diag)
         }
     }
 }
@@ -356,7 +368,7 @@ pub(super) fn pair_door_verdict<T: Decide>(
         }) => {
             coincident_as_declared(c1, c2, extent, relation, band).map_err(|diag| {
                 CarrierEqError::Undeclared {
-                    coincidence: CoincidenceMeasure::Undecided(diag),
+                    coincidence: CoincidenceMeasure::not_zero(diag),
                     relation,
                 }
             })?;
@@ -1101,7 +1113,8 @@ fn data_rungs<T: Decide>(
         CarrierRelation::SameOpposite
     };
     let mut first_zero: Option<CoincidenceMeasure> = None;
-    let mut any_in_band: Option<Indeterminate> = None;
+    let mut first_unread: Option<CoincidenceMeasure> = None;
+    let mut first_in_band: Option<CoincidenceMeasure> = None;
     for &(name, _, margin) in margins {
         match decide_reported(name, margin, band) {
             Ok(Decided {
@@ -1119,18 +1132,22 @@ fn data_rungs<T: Decide>(
                     decided: Classified { margin, band },
                 }));
             }
-            Err(diag) => any_in_band = any_in_band.or(Some(diag)),
+            Err(diag) => match CoincidenceMeasure::not_zero(diag) {
+                unread @ CoincidenceMeasure::Unreadable(_) => {
+                    first_unread = first_unread.or(Some(unread));
+                }
+                in_band => first_in_band = first_in_band.or(Some(in_band)),
+            },
         }
     }
     // Rung 4: coincident-or-near with no identity rung — near
     // coincidence NEVER silently becomes contact, and bit-equal data
-    // without a shared source stays unglued. The first datum that did
-    // not decide zero is the margin the reader wants; when every datum
-    // decided zero, the first one's decided margin rides.
-    let coincidence = match (any_in_band, first_zero) {
-        (Some(diag), _) => CoincidenceMeasure::Undecided(diag),
-        (None, Some(zero)) => zero,
-        (None, None) => unreachable!(
+    // without a shared source stays unglued. A datum that cannot be
+    // read is reported first, then the first one in band; when every
+    // datum decided zero, the first one's decided margin rides.
+    let coincidence = match first_unread.or(first_in_band).or(first_zero) {
+        Some(coincidence) => coincidence,
+        None => unreachable!(
             "every curved kind reads at least two data, and each datum decides zero, decides \
              nonzero (returned above) or does not decide"
         ),

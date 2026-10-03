@@ -664,6 +664,36 @@ pub(crate) fn unsettled_rest(class: BooleanCoincidence, diag: Indeterminate) -> 
     BooleanError::coincidence(Coincide::DeclaredReach, DeclarationRead::Spent(class), diag)
 }
 
+/// The Boolean's refusal of an undeclared coincidence between `pair`:
+/// the coincidence itself where the measure decided zero or landed in
+/// band, and a carrier datum that is not finite where it could not be
+/// read ([`unreadable_carrier_datum`]).
+pub(crate) fn undeclared_coincidence(
+    coincidence: CoincidenceMeasure,
+    pair: [(Operand, FaceKey); 2],
+    relation: PlaneRelation,
+) -> BooleanError {
+    match coincidence {
+        CoincidenceMeasure::Unreadable(diag) => unreadable_carrier_datum(diag),
+        CoincidenceMeasure::Zero { .. } | CoincidenceMeasure::Undecided(_) => {
+            BooleanError::UndeclaredCoincidence {
+                diag: coincidence.reported(),
+                pair,
+                relation,
+            }
+        }
+    }
+}
+
+/// A carrier datum two faces are compared on read as NaN: poisoned
+/// input, a defect at every door, as an unreadable norm is.
+pub(crate) fn unreadable_carrier_datum(diag: Indeterminate) -> BooleanError {
+    BooleanError::Escalated {
+        decision: BooleanDecision::SelfCheck(SelfCheck::CarrierData),
+        diag,
+    }
+}
+
 /// A face tagged with the operand it belongs to, ordered A before B;
 /// the one-sided cover's key half.
 type OperandFace = (bool, FaceKey);
@@ -3937,11 +3967,11 @@ fn verify_one_carrier_declaration<T: Decide>(
         Err(carrier_eq::CarrierEqError::Undeclared {
             coincidence,
             relation,
-        }) => Err(BooleanError::UndeclaredCoincidence {
-            diag: coincidence.reported(),
-            pair: [(Operand::A, fa), (Operand::B, fb)],
+        }) => Err(undeclared_coincidence(
+            coincidence,
+            [(Operand::A, fa), (Operand::B, fb)],
             relation,
-        }),
+        )),
     }
 }
 
@@ -4125,6 +4155,10 @@ fn verify_tangency_declaration<T: Decide>(
                 None,
             ));
         }
+        Ok(Err(carrier_eq::CarrierEqError::Undeclared {
+            coincidence: CoincidenceMeasure::Unreadable(diag),
+            ..
+        })) => return Err(unreadable_carrier_datum(diag)),
         // One carrier, geometrically: the diag keeps the predicate that
         // measured it and its value, and the fact names the finding.
         Ok(Err(carrier_eq::CarrierEqError::Undeclared { coincidence, .. })) => {

@@ -668,6 +668,12 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             }) => {
                 return Err(coplanar(NeighbourOffset::Undecided(diag)));
             }
+            Err(super::PlaneEqError::Undeclared {
+                coincidence: CoincidenceMeasure::Unreadable(diag),
+                ..
+            }) => {
+                return Err(super::unreadable_carrier_datum(diag));
+            }
             // Unreachable with `declared: false`; kept typed.
             Err(super::PlaneEqError::Contradicted { fact, .. }) => {
                 return Err(BooleanError::DeclarationContradicted { fact });
@@ -779,7 +785,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
                     });
                 }
             };
-            let (diag, relation) = match relation {
+            let (coincidence, relation) = match relation {
                 Ok(
                     relation @ (super::CarrierRelation::SameOriented
                     | super::CarrierRelation::SameOpposite),
@@ -794,7 +800,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
                 Err(super::CarrierEqError::Undeclared {
                     coincidence,
                     relation: relation @ super::CarrierRelation::SameOriented,
-                }) => (coincidence.reported(), relation),
+                }) => (coincidence, relation),
                 _ => continue,
             };
             if edge_boxes.is_none() {
@@ -815,11 +821,11 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
                 }
             }
             if meets {
-                return Err(BooleanError::UndeclaredCoincidence {
-                    diag,
-                    pair: [(Operand::A, fa), (Operand::B, fb)],
+                return Err(super::undeclared_coincidence(
+                    coincidence,
+                    [(Operand::A, fa), (Operand::B, fb)],
                     relation,
-                });
+                ));
             }
         }
     }
