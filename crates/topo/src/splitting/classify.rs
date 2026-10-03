@@ -880,6 +880,8 @@ mod tests {
     //! exactly-degenerate / in-band arms against a pure band (the
     //! geom-core test discipline: never `Band::linear` in a lib test).
 
+    use core::f64::consts::PI;
+
     use geom::Curve3;
     use geom_core::{Band, Point3, Vec3};
 
@@ -1122,5 +1124,110 @@ mod tests {
             anchored.lo(),
             anchored.hi()
         );
+    }
+
+    /// The greatest and least of `f` over an `n × n` grid of
+    /// `[a0, a1] × [b0, b1]`.
+    fn sampled(
+        n: usize,
+        (a0, a1): (f64, f64),
+        (b0, b1): (f64, f64),
+        f: impl Fn(f64, f64) -> f64,
+    ) -> (f64, f64) {
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        for i in 0..=n {
+            for j in 0..=n {
+                let x = f(
+                    a0 + (a1 - a0) * i as f64 / n as f64,
+                    b0 + (b1 - b0) * j as f64 / n as f64,
+                );
+                lo = lo.min(x);
+                hi = hi.max(x);
+            }
+        }
+        (lo, hi)
+    }
+
+    /// `(lo, hi)` encloses the sampled `(slo, shi)` and exceeds it by no
+    /// more than the grid's own chord error `slack`.
+    fn assert_support(what: &str, (lo, hi): (f64, f64), (slo, shi): (f64, f64), slack: f64) {
+        assert!(
+            lo <= slo + 1e-12 && hi >= shi - 1e-12,
+            "{what}: [{lo}, {hi}] must enclose the samples [{slo}, {shi}]"
+        );
+        assert!(
+            slo - lo <= slack && hi - shi <= slack,
+            "{what}: [{lo}, {hi}] is looser than the samples [{slo}, {shi}] by more than {slack}"
+        );
+    }
+
+    /// **A sphere zone's extent along a direction is the zone's support
+    /// there**: against a dense grid of the zone's own points, for
+    /// directions from along the polar axis to across it and windows
+    /// that hold the direction's crest and that miss it on either side.
+    #[test]
+    fn the_zone_extent_is_the_zones_support_along_every_direction() {
+        let (c, r) = (0.25, 1.25);
+        for (lo, hi) in [(0.75f64, 1.25f64), (-1.25, 0.75), (-0.3, 0.4), (1.0, 1.1)] {
+            for a in [1.0, 0.955, 0.6, 0.0, -0.4, -0.97, -1.0] {
+                let e_perp = (1.0f64 - a * a).sqrt();
+                // The zone: polar angle θ with r·cos θ in the window,
+                // azimuth φ; `e = (√(1 − a²), a, 0)`, the axis `ŷ`.
+                let (t0, t1) = (
+                    (hi / r).clamp(-1.0, 1.0).acos(),
+                    (lo / r).clamp(-1.0, 1.0).acos(),
+                );
+                let samples = sampled(600, (t0, t1), (0.0, 2.0 * PI), |t, p| {
+                    c * a + r * (e_perp * t.sin() * p.cos() + a * t.cos())
+                });
+                let got = super::zone_extent(c * a, a, super::Span { lo, hi }, r);
+                assert_support(&format!("window [{lo}, {hi}], a = {a}"), got, samples, 1e-4);
+            }
+        }
+    }
+
+    /// **A ring torus's chart rectangle has its own extent along a
+    /// direction**: against a dense grid of the rectangle's own points,
+    /// for a full turn, a window that holds no crest, one across the
+    /// seam's period and one wider than a turn, along tilted directions
+    /// on both sides of the axis.
+    #[test]
+    fn the_torus_rect_extent_is_the_rectangles_support_along_every_direction() {
+        let (major, minor) = (0.75, 0.25);
+        // Axis `ŷ`, `u_ref = x̂`, so `axis × u_ref = −ẑ`.
+        let point = |u: f64, v: f64| {
+            let rho = major + minor * v.cos();
+            Vec3::new(rho * u.cos(), minor * v.sin(), -rho * u.sin())
+        };
+        for (u, v) in [
+            ((0.0, 2.0 * PI), (0.0, PI / 2.0)),
+            ((1.0, 2.5), (-0.5, 2.0)),
+            ((5.5, 7.0), (3.0, 4.0)),
+            ((-1.0, 6.0), (2.5, 9.0)),
+        ] {
+            for e in [
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.3, 0.9, -0.2),
+                Vec3::new(-0.8, 0.1, 0.5),
+                Vec3::new(0.2, -0.7, 0.6),
+                Vec3::new(0.0, 0.0, -1.0),
+            ] {
+                let e = e * (1.0 / e.norm());
+                let samples = sampled(600, u, v, |a, b| e.dot(point(a, b)));
+                let span = |(lo, hi)| super::Span { lo, hi };
+                let got = super::torus_rect_extent(
+                    0.0,
+                    (e.x, -e.z, e.y),
+                    (major, minor),
+                    (span(u), span(v)),
+                );
+                assert_support(
+                    &format!("window {u:?} × {v:?}, e = {e:?}"),
+                    got,
+                    samples,
+                    1e-4,
+                );
+            }
+        }
     }
 }

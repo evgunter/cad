@@ -31,6 +31,20 @@ census backstop and the boolean's candidate sweep to see tighter sphere
 boxes. Re-measure what that unblocks rather than holding the old
 refusals.
 
-The same unit should weigh boxing in the carrier's own frame
-(`reach/split-gate-reads-a-world-axis-box`), which the slab cannot do as
-an axis-aligned box.
+## Since `reach/split-gate-reads-a-world-axis-box` (2026-10-03)
+
+The gate now reads every unarmed face's reach in the plane's own frame
+(`boxes::BoxFrame`, `census::face_reach_in`), and its special cases are
+two exact closed forms rather than one slab: `classify::zone_extent` (a
+sphere zone's support along a unit direction, the concave maximum of
+`h·a + √(1 − a²)·√(r² − h²)` clamped into the window) and
+`classify::torus_rect_extent` (a ring torus's chart rectangle, whose
+best azimuth does not depend on the latitude). Both are per-coordinate
+like every extent in `boxes.rs`, so they can be the sphere arm and the
+torus window arm of `FaceBoxRule` as they stand, in either frame. The
+fold should take both: the sampled torus window
+(`boxes::torus_window_extent`) pays a subdivision charge that refused
+cuts up to `3·10⁻³` of the size clear of a torus rounding at the gate,
+and the closed form pays none. The torus form needs `R > r` decided
+(`split_gate_torus_ring`); the bracket lane would read its `Span`
+radii's ends.
