@@ -410,8 +410,8 @@ which is what actually moves the number.
 | ssi/march.rs:295/310 | ssi_transversality_arm / ssi_transversality | arm (m); sin × arm | m | OK |
 | ssi/march.rs:420/447/478 | ssi_step_progress / branch_open_end / closure_return | state × (m/state); scaled domain margins | m | OK |
 | ssi/march.rs:484 | ssi_closure_tangent | cos(unit tangents) × whole-branch arc length | m | FLAG F9 |
-| locus.rs (M9-2 PR-2) | tangent_locus_axis_parallel | sin(axis, plane / axis, axis) × the declared pair's consumed extent read from the foot of its centre on the (second) cylinder's axis, where the gap row is read (`ExtentBall::lever_from`, the extent topo's carrier-pair doors lever their ladder at) | m | FIXED (TANG; was a 1 m `T::one()` arm, which bridged a tilt standing more than Kε off across a face longer than a metre) |
-| locus.rs (M9-2 PR-2) | tangent_locus_gap / tangent_locus_side | axis-to-plane (or axis-to-axis) distance minus radius sum/difference; signed height / radius difference — all metre data of the carriers | m | OK (new in M9-2 PR-2) |
+| locus.rs (M9-2 PR-2) | pc_axis_plane_parallel / cc_axes_parallel (the witness lane's reads of intersect.rs's rows) | sin(axis, plane / axis, axis) × the declared pair's consumed extent read from the foot of its centre on the (second) cylinder's axis, where the gap row is read (`ExtentBall::lever_from`, the extent topo's carrier-pair doors lever their ladder at) | m | FIXED (TANG; was a 1 m `T::one()` arm, which bridged a tilt standing more than Kε off across a face longer than a metre; the lane's own `tangent_locus_axis_parallel` row retired into the section's) |
+| locus.rs (M9-2 PR-2) | pc_parallel_gap / cc_parallel_gap / tangent_locus_internal_gap / tangent_locus_side | r − axis-to-plane distance at the foot; r1 + r2 − axis-to-axis distance; \|r1 − r2\| − axis-to-axis distance; axis offset / radius difference — all metre data of the carriers | m | OK (the plane×cylinder and external-cylinder gaps are the section classifiers' rows; the internal gap and side rows are the lane's own) |
 
 ## topo
 

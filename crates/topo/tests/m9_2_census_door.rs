@@ -205,11 +205,17 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
     );
     // Apart and crossing refuse with the honest side named.
     match tangent_locus(&plane_at(-0.5), &cyl, metre_patch(), band()) {
-        Err(TangentLocusError::NotTangent { apart: true }) => {}
+        Err(TangentLocusError::NotTangent {
+            apart: true,
+            predicate: "pc_parallel_gap",
+        }) => {}
         other => panic!("clearance must refuse apart: {other:?}"),
     }
     match tangent_locus(&plane_at(0.5), &cyl, metre_patch(), band()) {
-        Err(TangentLocusError::NotTangent { apart: false }) => {}
+        Err(TangentLocusError::NotTangent {
+            apart: false,
+            predicate: "pc_parallel_gap",
+        }) => {}
         other => panic!("a crossing must refuse crossing: {other:?}"),
     }
     // An oblique axis is outside the closed-form lane, typed.
@@ -244,11 +250,17 @@ fn parallel_cylinders_mint_the_external_and_internal_generators() {
     assert!((origin.y - (-1.0)).abs() < 1e-12, "{origin:?}");
     // Definitely apart / definitely overlapping refuse.
     match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(5.0, 1.0), metre_patch(), band()) {
-        Err(TangentLocusError::NotTangent { apart: true }) => {}
+        Err(TangentLocusError::NotTangent {
+            apart: true,
+            predicate: "cc_parallel_gap",
+        }) => {}
         other => panic!("{other:?}"),
     }
     match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(1.0, 1.0), metre_patch(), band()) {
-        Err(TangentLocusError::NotTangent { apart: false }) => {}
+        Err(TangentLocusError::NotTangent {
+            apart: false,
+            predicate: "tangent_locus_internal_gap",
+        }) => {}
         other => panic!("{other:?}"),
     }
     // Skew/crossing axes and unsupported kinds are typed.
@@ -362,7 +374,7 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
 fn r1_probe_nested_clear_cylinders_are_definitely_apart() {
     // r 1 strictly inside r 3, axes 0.5 apart: clearance 1.5 m.
     match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(0.5, 3.0), metre_patch(), band()) {
-        Err(TangentLocusError::NotTangent { apart }) => {
+        Err(TangentLocusError::NotTangent { apart, .. }) => {
             assert!(apart, "nested surfaces are definitely APART");
         }
         other => panic!("nested clear cylinders are not tangent: {other:?}"),

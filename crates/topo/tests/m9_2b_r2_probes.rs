@@ -147,7 +147,7 @@ fn cyl_at(cy: f64, r: f64) -> Surface<f64> {
 #[test]
 fn probe_tangent_locus_nested_cylinders_are_apart() {
     match tangent_locus(&cyl_at(0.0, 1.0), &cyl_at(0.5, 3.0), metre_patch(), band()) {
-        Err(TangentLocusError::NotTangent { apart }) => {
+        Err(TangentLocusError::NotTangent { apart, .. }) => {
             println!("nested cylinders: apart = {apart}");
             assert!(apart, "nested surfaces are definitely APART");
         }

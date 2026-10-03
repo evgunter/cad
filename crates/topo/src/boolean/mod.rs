@@ -4150,8 +4150,8 @@ fn verify_tangency_declaration<T: Decide>(
                 diag,
             ));
         }
-        Err(geom_brep::TangentLocusError::NotTangent { .. }) => {
-            return Err(claim.contradicted(fa, fb, label("tangent_locus_gap"), None));
+        Err(geom_brep::TangentLocusError::NotTangent { predicate, .. }) => {
+            return Err(claim.contradicted(fa, fb, label(predicate), None));
         }
         Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
             // An UNDECIDABLE rim identity escalates typed rather than

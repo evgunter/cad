@@ -828,88 +828,132 @@ pub fn plane_cylinder_section<T: Decide>(
     extent: T,
     band: Band,
 ) -> Result<PlaneCylinderSection<T>, SectionError> {
+    if let Some(ruled) = plane_cylinder_ruled_section(plane, cylinder, extent, band)? {
+        return Ok(ruled);
+    }
+    let PlaneCylinder {
+        q,
+        n,
+        o,
+        a,
+        r,
+        u: cyl_u,
+    } = plane_cylinder_data(plane, cylinder)?;
+    // Bounded cut: rim circle vs tilted ellipse.
+    let c = a.dot(n);
+    let sin_vec = a.cross(n);
+    let sin_norm = sin_vec.norm();
+    let t_star = (q - o).dot(n) / c;
+    let center = o + a * t_star;
+    match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
+        .map_err(SectionError::Escalated)?
+    {
+        Sign::Zero => Ok(PlaneCylinderSection::Rim(Curve3::Circle {
+            center,
+            axis: a,
+            radius: r,
+            u_ref: cyl_u,
+        })),
+        // The margin is a norm: Negative is unreachable; both
+        // definite verdicts take the tilted lane.
+        Sign::Positive | Sign::Negative => {
+            let v_minor = sin_vec / sin_norm;
+            let u_major = v_minor.cross(n);
+            let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
+            Ok(PlaneCylinderSection::TiltedEllipse(e))
+        }
+    }
+}
+
+/// Steps 1–2 of [`plane_cylinder_section`]: the axis-in-plane lane.
+/// `Some` of [`PlaneCylinderSection::ParallelLines`],
+/// [`PlaneCylinderSection::TangentLine`] or
+/// [`PlaneCylinderSection::Empty`] where `pc_axis_plane_parallel` reads
+/// zero; `None` where the axis definitely leaves the plane, step 3 not
+/// run. The tangent-locus lane reads its ruling tangency here, so the
+/// section and the witness never decide it apart.
+pub(crate) fn plane_cylinder_ruled_section<T: Decide>(
+    plane: &Surface<T>,
+    cylinder: &Surface<T>,
+    extent: T,
+    band: Band,
+) -> Result<Option<PlaneCylinderSection<T>>, SectionError> {
+    let PlaneCylinder { q, n, o, a, r, .. } = plane_cylinder_data(plane, cylinder)?;
+    match decide(
+        "pc_axis_plane_parallel",
+        Margin::levered(a.dot(n), extent),
+        band,
+    )
+    .map_err(SectionError::Escalated)?
+    {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => return Ok(None),
+    }
+    let gap_signed = (o - q).dot(n);
+    let margin = Margin::of(r - gap_signed.abs());
+    let section = match decide("pc_parallel_gap", margin, band).map_err(SectionError::Escalated)? {
+        Sign::Positive => {
+            // Cross-section chord: the plane cuts the circle at
+            // foot ± w·half, foot the axis' plane projection.
+            let foot = o - n * gap_signed;
+            let half = (r.powi(2) - gap_signed.powi(2)).sqrt();
+            let w = a.cross(n).normalize();
+            PlaneCylinderSection::ParallelLines {
+                l1: Curve3::Line {
+                    origin: foot + w * half,
+                    dir: a,
+                },
+                l2: Curve3::Line {
+                    origin: foot - w * half,
+                    dir: a,
+                },
+            }
+        }
+        Sign::Zero => PlaneCylinderSection::TangentLine(Curve3::Line {
+            origin: o - n * gap_signed,
+            dir: a,
+        }),
+        Sign::Negative => PlaneCylinderSection::Empty,
+    };
+    Ok(Some(section))
+}
+
+/// The plane×cylinder pair's data: the plane's origin `q` and normal
+/// `n`, the cylinder's origin `o`, axis `a`, radius `r` and seam `u`.
+struct PlaneCylinder<T: Real> {
+    q: Point3<T>,
+    n: Vec3<T>,
+    o: Point3<T>,
+    a: Vec3<T>,
+    r: T,
+    u: Vec3<T>,
+}
+
+fn plane_cylinder_data<T: Real>(
+    plane: &Surface<T>,
+    cylinder: &Surface<T>,
+) -> Result<PlaneCylinder<T>, SectionError> {
+    let wrong = || SectionError::WrongLane {
+        expected: "plane×cylinder",
+    };
     let &Surface::Plane {
         origin: q,
         normal: n,
         ..
     } = plane
     else {
-        return Err(SectionError::WrongLane {
-            expected: "plane×cylinder",
-        });
+        return Err(wrong());
     };
     let &Surface::Cylinder {
         origin: o,
         axis: a,
         radius: r,
-        u_ref: cyl_u,
+        u_ref: u,
     } = cylinder
     else {
-        return Err(SectionError::WrongLane {
-            expected: "plane×cylinder",
-        });
+        return Err(wrong());
     };
-
-    let c = a.dot(n);
-    match decide("pc_axis_plane_parallel", Margin::levered(c, extent), band)
-        .map_err(SectionError::Escalated)?
-    {
-        Sign::Zero => {
-            // The axis lies in the plane: line pair / tangent / empty
-            // by the axis-to-plane gap vs the radius.
-            let gap_signed = (o - q).dot(n);
-            let margin = Margin::of(r - gap_signed.abs());
-            match decide("pc_parallel_gap", margin, band).map_err(SectionError::Escalated)? {
-                Sign::Positive => {
-                    // Cross-section chord: the plane cuts the circle at
-                    // foot ± w·half, foot the axis' plane projection.
-                    let foot = o - n * gap_signed;
-                    let half = (r.powi(2) - gap_signed.powi(2)).sqrt();
-                    let w = a.cross(n).normalize();
-                    Ok(PlaneCylinderSection::ParallelLines {
-                        l1: Curve3::Line {
-                            origin: foot + w * half,
-                            dir: a,
-                        },
-                        l2: Curve3::Line {
-                            origin: foot - w * half,
-                            dir: a,
-                        },
-                    })
-                }
-                Sign::Zero => Ok(PlaneCylinderSection::TangentLine(Curve3::Line {
-                    origin: o - n * gap_signed,
-                    dir: a,
-                })),
-                Sign::Negative => Ok(PlaneCylinderSection::Empty),
-            }
-        }
-        Sign::Positive | Sign::Negative => {
-            // Bounded cut: rim circle vs tilted ellipse.
-            let sin_vec = a.cross(n);
-            let sin_norm = sin_vec.norm();
-            let t_star = (q - o).dot(n) / c;
-            let center = o + a * t_star;
-            match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
-                .map_err(SectionError::Escalated)?
-            {
-                Sign::Zero => Ok(PlaneCylinderSection::Rim(Curve3::Circle {
-                    center,
-                    axis: a,
-                    radius: r,
-                    u_ref: cyl_u,
-                })),
-                // The margin is a norm: Negative is unreachable; both
-                // definite verdicts take the tilted lane.
-                Sign::Positive | Sign::Negative => {
-                    let v_minor = sin_vec / sin_norm;
-                    let u_major = v_minor.cross(n);
-                    let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
-                    Ok(PlaneCylinderSection::TiltedEllipse(e))
-                }
-            }
-        }
-    }
+    Ok(PlaneCylinder { q, n, o, a, r, u })
 }
 
 // ---------------------------------------------------------------------
@@ -1292,8 +1336,8 @@ pub enum EqualCylinderSection<T: Real> {
 ///    parallel lane (step 4); definite ⇒ the crossing lane (step 5).
 /// 4. `cc_coaxial` / `cc_parallel_gap` — axis-to-axis distance `d`:
 ///    coincident-with-zero ⇒ [`SectionError::CoincidentSurfaces`];
-///    then margin `2r − d`: Positive ⇒ two rulings, Zero ⇒ tangent
-///    ruling, Negative ⇒ empty.
+///    then margin `r₁ + r₂ − d`: Positive ⇒ two rulings, Zero ⇒
+///    tangent ruling, Negative ⇒ empty.
 /// 5. `cc_axes_coplanar` — margin the signed axis-to-axis gap
 ///    `(o2−o1)·(a1×a2)/‖a1×a2‖` (meters): Zero ⇒ intersecting axes ⇒
 ///    the two bisector-plane ellipses; definite ⇒ skew ⇒ typed rung-3
@@ -1353,13 +1397,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
 
     let cross = a1.cross(a2);
     let cross_norm = cross.norm();
-    match decide(
-        "cc_axes_parallel",
-        Margin::levered(cross_norm, extent),
-        band,
-    )
-    .map_err(SectionError::Escalated)?
-    {
+    match cylinder_axes_parallel(a1, a2, extent, band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // Parallel axes: the cross-section is two equal circles at
             // center distance d.
@@ -1371,9 +1409,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
                 Sign::Positive | Sign::Negative => {}
             }
             let two = T::from_f64(2.0);
-            match decide("cc_parallel_gap", Margin::of(two * r1 - d), band)
-                .map_err(SectionError::Escalated)?
-            {
+            match parallel_cylinder_gap(r1, r2, d, band).map_err(SectionError::Escalated)? {
                 Sign::Positive => {
                     let mid = o1 + d_vec * T::from_f64(0.5);
                     let half = (r1.powi(2) - (d / two).powi(2)).sqrt();
@@ -1435,6 +1471,36 @@ pub fn cylinder_cylinder_section<T: Decide>(
             })
         }
     }
+}
+
+/// `cc_axes_parallel`: whether two cylinder axes are parallel, the
+/// sine `‖a1×a2‖` levered at `extent`. Zero ⇒ parallel. Shared with the
+/// tangent-locus lane, which reads the same fact at its own lever.
+pub(crate) fn cylinder_axes_parallel<T: Decide>(
+    a1: Vec3<T>,
+    a2: Vec3<T>,
+    extent: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    decide(
+        "cc_axes_parallel",
+        Margin::levered(a1.cross(a2).norm(), extent),
+        band,
+    )
+}
+
+/// `cc_parallel_gap`: the external-tangency margin `r1 + r2 − d` of two
+/// parallel cylinders whose axes stand `d` apart. Positive ⇒ the walls
+/// cross along two rulings, Zero ⇒ they touch along one, Negative ⇒
+/// they clear. Symmetric in the pair, so the verdict does not depend on
+/// which cylinder is first. Shared with the tangent-locus lane.
+pub(crate) fn parallel_cylinder_gap<T: Decide>(
+    r1: T,
+    r2: T,
+    d: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    decide("cc_parallel_gap", Margin::of(r1 + r2 - d), band)
 }
 
 // ---------------------------------------------------------------------
