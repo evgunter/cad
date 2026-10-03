@@ -2624,8 +2624,10 @@ mod tests {
                 );
             }
             assert!(
-                split.ends_with("Recourse: move the geometry, or lower the tolerance")
-                    && !split.contains("declare"),
+                split.ends_with(&format!(
+                    "Recourse: {}",
+                    geom_core::NO_DECLARATION_RECOURSE
+                )) && !split.contains("declare"),
                 "{predicate}: the split takes no declaration: {split}"
             );
             assert!(
@@ -2688,10 +2690,10 @@ mod tests {
                 Some(_) => assert_eq!(split, boolean, "{fault:?}"),
                 None => {
                     assert!(
-                        split.ends_with(
-                            "Recourse: move the split plane or the geometry, or lower the \
-                             tolerance"
-                        ) && !split.contains("declare"),
+                        split.ends_with(&format!(
+                            "Recourse: {}",
+                            geom_core::SPLIT_PLANE_RECOURSE
+                        )) && !split.contains("declare"),
                         "{fault:?}: {split}"
                     );
                     assert!(

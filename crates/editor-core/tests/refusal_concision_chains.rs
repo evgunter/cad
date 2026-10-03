@@ -383,7 +383,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Revolve/VoidInsertion",
     "Skin/BadDegree",
     "Skin/DomainNotUnit",
-    "Skin/KnotAlgebra",
     "Skin/SectionProfile",
     "Tube/DegenerateWindow",
     "Tube/FullRangeWindow",

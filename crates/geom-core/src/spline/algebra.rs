@@ -1487,10 +1487,13 @@ mod tests {
         );
         // The refusal names the parameter as a number a reader can
         // see: at the ceiling of the range that is `1e308`, not the
-        // 309-digit positional expansion.
+        // 309-digit positional expansion. The repair rides with it
+        // (`every_knot_algebra_error_arm_names_a_recourse`).
         assert_eq!(
             insert_knot_plan(&kv, &w, 1e308, 1).unwrap_err().to_string(),
-            "knot parameter 1e308 is not strictly inside the domain"
+            "knot parameter 1e308 is not strictly inside the domain. Recourse: ask for a \
+             finite parameter strictly between the clamped ends, whose multiplicity is \
+             already degree + 1"
         );
         assert_eq!(
             insert_knot_plan(&kv, &w, 1.0, 2).unwrap_err(),

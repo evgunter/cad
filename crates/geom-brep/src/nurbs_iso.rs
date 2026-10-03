@@ -660,8 +660,13 @@ mod tests {
                 text.contains(advice),
                 "{kind}: the margin kind keeps its own advice: {text}"
             );
+            // The door's one lever, labelled, and — on a band-decided
+            // arm whose margin gives one — the tolerance below which a
+            // smaller one decides it. Never a declaration: this door
+            // takes none.
             assert!(
-                text.ends_with(NO_DECLARATION_RECOURSE) && !text.contains("declare"),
+                text.contains(&format!("Recourse: {NO_DECLARATION_RECOURSE}"))
+                    && !text.contains("declare"),
                 "{kind}: no declaration is offered where none is taken: {text}"
             );
         }

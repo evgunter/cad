@@ -2414,6 +2414,11 @@ mod tests {
 
     /// Golden strings: the Display output is the D4 ¶3 actionable error a
     /// user sees, so its exact wording is under test.
+    ///
+    /// An escalation is a band-decided arm, so its ending carries the
+    /// tolerance arm with THE VALUE ITS MARGIN GIVES (D4 ¶1 (i)) —
+    /// `|m|/K`, which at `K = 10` is `5e-10` for both margins here. The
+    /// levers are the constant's; the number is not, and cannot be.
     #[test]
     fn indeterminate_display_golden_strings() {
         let band = band_1e9();
@@ -2425,7 +2430,8 @@ mod tests {
             bare.to_string(),
             format!(
                 "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a \
-                 near-coincidence; {COINCIDENCE_RECOURSE}"
+                 near-coincidence; Recourse: {COINCIDENCE_RECOURSE}, or, if this size is \
+                 intended, tighten the tolerance below 5e-10 m"
             )
         );
 
@@ -2437,7 +2443,8 @@ mod tests {
             named.to_string(),
             format!(
                 "margin -5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a \
-                 near-coincidence; {COINCIDENCE_RECOURSE}"
+                 near-coincidence; Recourse: {COINCIDENCE_RECOURSE}, or, if this size is \
+                 intended, tighten the tolerance below 5e-10 m"
             )
         );
         // The payload view is the same message minus the shared tail —
@@ -2451,11 +2458,15 @@ mod tests {
             .sign_within(band)
             .expect_err("NaN margin must be indeterminate")
             .with_predicate("transversality");
+        // An unreadable margin names no tolerance — no smaller one
+        // reads it — and the input check it wants first joins the levers
+        // under the one label.
         assert_eq!(
             invalid.to_string(),
             format!(
                 "margin is invalid (NaN or a refused enclosure) against the ambiguity \
-                 band (1e-9, 1e-8) — check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
+                 band (1e-9, 1e-8) — Recourse: check the operation's inputs upstream, then \
+                 {COINCIDENCE_RECOURSE}; {UNREADABLE_MARGIN_NOTE}"
             )
         );
 
@@ -2468,12 +2479,15 @@ mod tests {
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         };
+        // An enclosure straddling zero names no tolerance either (no
+        // smaller one decides BOTH ends onto the passing side), and
+        // subdividing is the lever that joins the door's.
         assert_eq!(
             enclosure.to_string(),
             format!(
                 "enclosure [-2e-9, 5e-9] cannot be classified against the ambiguity \
-                 band (1e-9, 1e-8) — subdivide the parameter box for a tighter enclosure, or \
-                 {COINCIDENCE_RECOURSE}"
+                 band (1e-9, 1e-8) — Recourse: subdivide the parameter box for a tighter \
+                 enclosure, or {COINCIDENCE_RECOURSE}"
             )
         );
     }
