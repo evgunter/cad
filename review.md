@@ -1,0 +1,38 @@
+# Review of PR #3973, frozen head 9f8ab75a24
+
+Lane `reach-dual3973-r1`. Wall clock 16:21:58 → 17:29 UTC, 2026-10-03. **Verdict: APPROVE-WITH-FIXES.** MAJOR 0 · MINOR 4 · NOTE 5.
+Glimpses: none of another review lane. Listing the CI runs showed later *author* commit titles on the PR branch (a5e7432: "the rim row's gaps stay definite at every eps"). I did not read those commits. The PR body at review time was a placeholder ("Full description follows").
+Gate: the frozen head has **no completed CI run**. Run 37135622449 on 9f8ab75 was *cancelled*; the green runs are on later SHAs. Nothing here relies on that gate.
+
+## Claims
+1. **Holds.** Independent oracle (`probes/r1_oracle.py`): mpmath at 60 digits on the exact f64 inputs. It takes `F`'s nine harmonics by DFT of direct evaluations, then all roots of `z⁴F(z)` by `polyroots`; a root counts as real when `||z|−1|<1e-25`. Poses come from my own generator (`probes/r1_ellipse_torus_probe.rs`), 2 seeds × 3,780 = 7,560: crossings, outer-equator (v=0), inner-equator/saddle (v=π) and random-v grazes at ±40 bands, coaxial (8-crossing and vertex grazes), near-circular (1−b/a = 1e-3, 1e-6, 30ε/a), and 1e3·scale out. Scales ×1e-3/×1/×1e3, ε 1e-6/1e-9/1e-12. Result: **0** count mismatches, **0** misplaced roots, **0** Miss on a crossing, **0** escalations.
+2. **Holds for safety; liveness falls off at ×1e3.** Refusals are typed (`Uncertain`). Mutant M1 (no meter) gives 83 misplaced roots in my oracle, up to 46 bands off. Uncertain rates at ×1e3: crossings at ε 1e-12 116/120, which is expected at the precision limit. Coaxial at ε 1e-12 57/60 (inspection only, *unsure*): the slack ceiling `f_per_metre_hi` is read along the whole carrier (`implicit.rs:1231`), not near the surface.
+3. **One verdict moved, and the body does not say so** (MINOR-4). Circle × sphere is bit-identical on 3,600 poses at main 010f8145 vs head (`probes/r1_circle_diff.rs`). Circle × torus: 133 escalation margins changed only in their low-order digits, with the same predicate and verdict. **1 verdict moved**: ε 1e-12, ×1e3, inner graze, Certified → Uncertain. My oracle puts main's certified roots **157,518 bands** off the truth, so the move is a fix.
+4. **Premise false: no body is built.** `probes/r1_e2e.rs` runs the drum rim against my tori (3 radius pairs, 3 azimuths, 5 gaps, 2 rolls, origin and far rigid placement), all 4 ops in both operand orders, at ε 1e-9/1e-6/1e-12: 1,440 × 3 runs. **0 bodies built.** Every run refuses typed: FallbackExtent, GermFrame or CurvedPierce, plus Escalated / CurvedSectorSide / PointSplitCarrier at 1e-6. The torus near the rim meets the tilted plane obliquely, as the item says. Volumes and `point_in_solid` therefore have nothing to check. The CurvedPierce refusals are 1 mm crossings at the far placement (liveness).
+5. **Partly holds.** M1, M4 (`M₄` reads degree 2), M6 (root cap 4), M7 (S's 2nd harmonic dropped) and M11 (h's 1st harmonic dropped) each turn a row red. M2 and M10 leave every row green while my oracle fails (MINOR-3). M3, M5, M8, M9 and M12 turn nothing red, row or oracle (NOTE-3). Script: `probes/r1_mutants.sh`.
+
+## Findings
+- **MINOR-1**: `crates/sweep/tests/ellipse_torus.rs:179`. **Red at ε 1e-6** (`CAD_TOLERANCE_EPS=1e-6`, the CI extra-eps row). The gap `1e-3·√ε` equals ε at 1e-6, so the pose sits in-band and the sweep refuses `CurvedPierceUnsupported`. *Demonstrated by execution.*
+- **MINOR-2**: `crates/topo/src/boolean/ellipse_roots.rs:469`. **Red at ε 1e-12**: "flat × ring, off the axis: certified roots, got Uncertain". The row's band follows the global ε, and the meter refuses there. *Demonstrated by execution.* The other suites the PR touches (geom-brep and topo `implicit::`/`boolean::`, 389 rows; sweep `ellipse_torus`) are green at all three ε apart from these two rows.
+- **MINOR-3**: `circle_roots.rs:730-731`. Two of the slack meter's terms have no row that pins them.
+  - M2 drops the running error (`.magnitude()` → `.value.abs()`): my oracle finds 4 roots up to 18 bands off.
+  - M10 drops `speed_hi`: 7 roots up to 14.6 bands off.
+  - Every PR row stays green under both. The fuzz row checks a root's distance to the surface (`ellipse_roots.rs:1305`), not its place along the arc, and at a graze those differ by orders of magnitude. Only the mpmath script, which is not a CI row, checks placement. *Demonstrated by execution.*
+- **MINOR-4**: `circle_torus.rs:289` (the harmonics now come from `conic_torus_harmonics`). The PR body does not state the circle × torus verdict move from Claim 3. The work item says nothing about circle × torus verdicts. *Demonstrated by execution.*
+- **NOTE-1 (pre-existing, on main too)**: the circle × torus door certifies **misplaced roots**: 217 of 3,600 poses at head (218 on main) are 1 to 42 bands off at ε 1e-9, ×1e3 grazes. The filed `work/hone/degree-2-subdivision-doors-carry-no-root-slack-meter.md` says this is "estimated, NOT measured"; it is now measured. These are wrong verdicts on main, so P2 looks low. *Execution.*
+- **NOTE-2**: the brief's Claim 4 premise is wrong: no body reaches a build (see Claim 4).
+- **NOTE-3**: these terms move no row and no oracle result at 20 poses per cell: M3 (slack ceiling replaced by the floor), M5 (Bernstein at degree 2), M8 (circle's dropped 3rd/4th harmonics uncharged), M9 (ellipse × torus noise zero), M12 (`terms` without h). They are safety margins this sample cannot exercise. *Execution.*
+- **NOTE-4**: liveness at ×1e3 (Claim 2 numbers). Typed and safe.
+- **NOTE-5**: no CI run completed on the frozen head (see Gate).
+
+## Style (questions exercised: Q1, Q2, Q3, Q5, Q7; Q8 only partly — I read `certified_subdivision` and `ellipse_roots.rs`'s new code end to end, not all 5,468 lines of `reduce.rs`)
+- `circle_roots.rs:244-250` and `:360-368`: `SubdivisionFrame` is `HalfAngleFrame` minus two fields, and `half_angle_roots` copies the fields over one by one. Two frames for one walk. *sure*
+- `implicit.rs:1243`: `conic_torus_residual` is a second torus-residual chain beside `implicit_residual`'s torus arm. The walk bisects on one chain and meters on the other, and the doc says they are "the plain chain's to within that bound", which nothing checks. *likely*
+- `ellipse_roots.rs:1201` (also the older `:834`): the fuzz `pose` swaps the semi-axes half the time (minor > major). `Curve3::ellipse` rejects that as `AxesSwapped` (`geom/src/curves.rs:731`), so half the draws are carriers the kernel cannot build. The copy came in with the template. *sure*
+- `ellipse_roots.rs:1308`: `count >= changes` can never go red on an invented root. Combined with the distance-only check above, the row passes on wrong roots at a graze (Q3; MINOR-3 shows it). *sure*
+- `circle_roots.rs:697`: a clearance margin in F units is divided by `f_per_metre_lo`, a FLOOR on `|F|/|res|`. That gives an upper bound on the residual, not the lower bound a "definitely clear" reading needs. The sign of `F` still decides correctly, so this is the wrong unit for the metres, not a wrong answer. Pre-existing, inherited from circle × torus. *unsure*
+- `implicit.rs:1231`: the `f_per_metre_hi` reach uses `|C₀−c| + max(a,b) + R` along the whole carrier. Near the surface, `Q ≤ 4R(R+r)`. A large ellipse against a small torus is charged slack by the square of its size. Not how I'd do it. *unsure*
+- `ellipse_torus.rs:166-170`, `:203`: "On the base every pose refused…" is a claim about main that no row checks. *sure*
+
+## Probes (under `probes/`, mounted locally via `#[path]` and not left in the crates)
+`r1_ellipse_torus_probe.rs` (pose dump) · `r1_oracle.py` (mpmath oracle) · `r1_mutants.sh` (12 mutants) · `r1_circle_diff.rs` (main vs head) · `r1_e2e.rs` (public-API booleans).
