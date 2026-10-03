@@ -578,7 +578,9 @@ fn row3_uncut_param_reference_refuses() {
             param,
             cut_node,
             kept_node,
+            promote,
         }) => {
+            assert!(!promote, "an extrude's distance is no offset to promote");
             assert_eq!(param, ParamName::from_static("h"));
             assert_eq!(cut_node, doc.spoken(e1));
             assert_eq!(kept_node, doc.spoken(e2));

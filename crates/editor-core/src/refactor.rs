@@ -33,7 +33,10 @@
 //! instance left behind names it. A cut instance votes its gauge and a
 //! cut gauge its parent, unless that reference stays inside the cut;
 //! a kept instance or gauge hanging from a cut gauge refuses
-//! ([`SplitError::SeveredGauge`]). The cut moves as selected: every
+//! ([`SplitError::SeveredGauge`]), and so does a cut root that sits on
+//! no gauge — no instance, mate or gauge — while the anchor is one,
+//! since inline could not put it back ([`SplitError::UnplaceableRoot`]).
+//! The cut moves as selected: every
 //! cut node, gauges included, is carried as it is, a cut gauge whose
 //! parent leaves the cut hangs from the part's world, every root keeps
 //! its offset, and the instance sits at the empty chain on the anchor.
@@ -43,8 +46,9 @@
 //!
 //! [`inline`] is the inverse. At the empty chain the part's content
 //! lands on the instance's gauge verbatim; at any other offset it lands
-//! on a gauge minted under the instance's gauge holding that offset,
-//! and the members the instance placed move onto it. A mate-placed
+//! on a gauge minted under the instance's gauge holding that offset —
+//! a [`DocEdit::Promote`] of the instance, so the members it placed
+//! move onto the gauge with it. A mate-placed
 //! instance is inlined only over a part that is one group rooted at the
 //! empty chain on its world, whose root takes its place. A mate side crosses the
 //! seam only where its coordinates do not change — the instance it
@@ -593,6 +597,11 @@ pub enum SplitError {
         mate: SpokenNode,
         /// Which of its sides crosses.
         side: crate::mate::MateSide,
+        /// The cut root a promote would land at the empty chain, where
+        /// that alone is what keeps the side from crossing: its offset
+        /// is not the empty chain, and promoting it
+        /// ([`DocEdit::Promote`]) moves that offset into a kept gauge.
+        promote: Option<Box<SpokenNode>>,
     },
     /// **A `FromFace` side would cross the seam**: a kept mate's side
     /// that reads a cut instance names its frame as a face of that
@@ -619,6 +628,11 @@ pub enum SplitError {
         cut_node: SpokenNode,
         /// A kept node referencing it.
         kept_node: SpokenNode,
+        /// Whether `cut_node` is a cut root whose offset reads the
+        /// parameter and that a promote ([`DocEdit::Promote`]) admits:
+        /// promoting it moves that offset into a kept gauge, so the
+        /// parameter stays in this document.
+        promote: bool,
     },
     /// A name inside a CUT node's payload derives from a node that is
     /// not itself cut — the part document could not express the
@@ -800,13 +814,24 @@ impl core::fmt::Display for SplitError {
                 Recourse(&format!("delete {m}, then split", m = mate)),
                 m = mate
             ),
-            Self::MateFrameCrosses { mate, side } => write!(
+            Self::MateFrameCrosses {
+                mate,
+                side,
+                promote,
+            } => write!(
                 f,
                 "split: {m}'s {} side reads a cut instance that is not, in the new part, \
                  its group's root at the empty chain on the part's world, so its frame would \
                  mean another place. {}",
                 side.name(),
-                Recourse(&format!("delete {m}, then split", m = mate)),
+                Recourse(&match promote {
+                    Some(root) => format!(
+                        "promote {root} (Promote), so it sits at the empty chain, or delete {m}, \
+                         then split",
+                        m = mate
+                    ),
+                    None => format!("delete {m}, then split", m = mate),
+                }),
                 m = mate
             ),
             Self::MateFaceFrameCrosses { mate, side } => write!(
@@ -871,14 +896,23 @@ impl core::fmt::Display for SplitError {
                 param,
                 cut_node,
                 kept_node,
+                promote,
             } => write!(
                 f,
                 "split: parameter {param} is referenced by {cut_node}, which is cut, and by \
                  {kept_node}, which is kept, and one parameter cannot become two documents'. {}",
-                Recourse(&format!(
-                    "put {cut_node} and {kept_node} on one side of the cut, or give one of them \
-                     a parameter of its own (SetDocParam, SetParam)"
-                ))
+                Recourse(&if *promote {
+                    format!(
+                        "promote {cut_node} (Promote), so its offset stays in this document; or \
+                         put {cut_node} and {kept_node} on one side of the cut, or give one of \
+                         them a parameter of its own (SetDocParam, SetParam)"
+                    )
+                } else {
+                    format!(
+                        "put {cut_node} and {kept_node} on one side of the cut, or give one of \
+                         them a parameter of its own (SetDocParam, SetParam)"
+                    )
+                })
             ),
             Self::PartNameReachesRemainder {
                 node,
@@ -2574,6 +2608,17 @@ pub fn split(
                 && offset_of(root).is_some_and(|o| o.steps.is_empty())
         })
     };
+    // A cut root a promote moves off its own offset onto a kept gauge:
+    // the offset-carrying root of its group (`edit::promote_plan`), at
+    // a chain that is not empty, on a gauge reference leaving the cut.
+    let promotable = |instance: RecipeNodeId| {
+        crate::edit::promote_plan(doc, instance).is_ok()
+            && doc
+                .node(instance)
+                .and_then(Node::gauge_ref)
+                .is_none_or(|g| !cut.contains(&g))
+            && offset_of(instance).is_some_and(|o| !o.steps.is_empty())
+    };
     for &mate in doc.order() {
         if cut.contains(&mate) {
             continue;
@@ -2602,9 +2647,14 @@ pub fn split(
             if let Some(read) = crate::mate::member_of(doc, inner)
                 && !frame_survives(&read, root_lands_empty)
             {
+                // A promote is the recourse where the root's own offset
+                // is all that keeps the side from crossing.
+                let promote = frame_survives(&read, |i| root_lands_empty(i) || promotable(i))
+                    .then(|| Box::new(doc.spoken(read.instance)));
                 return Err(SplitError::MateFrameCrosses {
                     mate: doc.spoken(mate),
                     side,
+                    promote,
                 });
             }
             if frame.face().is_some() {
@@ -2635,10 +2685,24 @@ pub fn split(
     }
     for (param, &cut_node) in &cut_refs {
         if let Some(&kept_node) = kept_refs.get(param) {
+            let offset_reads = match doc.node(cut_node) {
+                Some(Node::InstantiatePart {
+                    offset: Some(offset),
+                    ..
+                }) => {
+                    let mut refs = Vec::new();
+                    for (_, expr) in offset.rows() {
+                        expr.param_refs(&mut refs);
+                    }
+                    refs.iter().any(|(name, _)| name == param)
+                }
+                _ => false,
+            };
             return Err(SplitError::UncutParamReference {
                 param: param.clone(),
                 cut_node: doc.spoken(cut_node),
                 kept_node: doc.spoken(kept_node),
+                promote: offset_reads && promotable(cut_node),
             });
         }
     }

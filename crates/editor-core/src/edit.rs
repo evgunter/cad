@@ -4862,12 +4862,14 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     }),
                 }
             }
-            reported.extend(remove_unread(doc, &mut new, *gauge).map_err(|referenced_by| {
-                EditError::FoldWouldDangle {
-                    node: doc.spoken(*gauge),
-                    referenced_by: doc.spoken(referenced_by),
-                }
-            })?);
+            reported.extend(
+                remove_unread(doc, &mut new, *gauge).map_err(|referenced_by| {
+                    EditError::FoldWouldDangle {
+                        node: doc.spoken(*gauge),
+                        referenced_by: doc.spoken(referenced_by),
+                    }
+                })?,
+            );
             EditRecord {
                 minted: None,
                 structural: true,

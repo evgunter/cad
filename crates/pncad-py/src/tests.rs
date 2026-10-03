@@ -5173,7 +5173,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "maintenance_tag",
-        values: &["label_dropped", "offset_cleared", "strand", "stranded_appearance"],
+        values: &[
+            "label_dropped",
+            "offset_cleared",
+            "strand",
+            "stranded_appearance",
+        ],
         delegates: &[],
     },
     TagEntry {

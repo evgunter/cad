@@ -288,7 +288,23 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        // The mate is the subject; which side crosses is in the message.
+        // The mate is the subject; which side crosses is in the message,
+        // and the root a promote would land at the empty chain, where
+        // that is the recourse, rides `root`.
+        E::MateFrameCrosses {
+            mate,
+            promote: Some(r),
+            ..
+        } => (
+            id(mate),
+            none(),
+            none(),
+            id(r),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         E::WouldStartPlacing { mate }
         | E::PlacingMateLeft { mate }
         | E::MateFrameCrosses { mate, .. }

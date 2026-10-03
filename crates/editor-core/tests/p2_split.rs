@@ -394,7 +394,7 @@ fn s5_a_kept_mate_reading_a_root_on_a_cut_gauge_refuses_the_frame_rule() {
     let err =
         split(&refuses, &[k, on_k, on_world], "s5-frame", &o).expect_err("a root on a cut gauge");
     assert!(
-        matches!(&err, SplitError::MateFrameCrosses { mate: m, side }
+        matches!(&err, SplitError::MateFrameCrosses { mate: m, side, promote: None }
             if m.id() == mate && *side == editor_core::MateSide::B),
         "{err:?}"
     );
@@ -1394,7 +1394,12 @@ fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
     );
     for (what, doc, root, extra) in [
         ("a measure", measured, measure, vec![measure]),
-        ("an assertion", asserted, assertion, vec![measure, assertion]),
+        (
+            "an assertion",
+            asserted,
+            assertion,
+            vec![measure, assertion],
+        ),
     ] {
         let ids = [&[base, top, mate][..], &extra].concat();
         let err = split(&doc, &ids, what, &o).expect_err(what);
@@ -1450,6 +1455,11 @@ fn r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order() {
         said.lines().all(|l| l.starts_with("roots")) && said.lines().count() == 1,
         "only the root order moves: {said}"
     );
-    let (together, _) = step(doc, DocEdit::SetRoots { roots: vec![x, z, y] });
+    let (together, _) = step(
+        doc,
+        DocEdit::SetRoots {
+            roots: vec![x, z, y],
+        },
+    );
     round_trip(&together, &[x, z], &p, "the cut's roots together");
 }

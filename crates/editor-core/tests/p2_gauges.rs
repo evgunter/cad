@@ -1061,7 +1061,7 @@ fn a_cut_of_one_group_moves_as_selected_and_the_frame_rule_at_a_split() {
     assert!(
         matches!(
             &err,
-            editor_core::SplitError::MateFrameCrosses { mate: m, side }
+            editor_core::SplitError::MateFrameCrosses { mate: m, side, promote: None }
                 if m.id() == kept_mate && *side == editor_core::MateSide::B
         ),
         "{err:?}"

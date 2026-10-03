@@ -219,8 +219,18 @@ fn a_part_at_this_frame_is_a_promote_and_a_cut_leaving_the_gauge() {
     let err = split(&doc, &[base, top, mate], "pf-frame-crossing", &o)
         .expect_err("the root sits off the empty chain");
     assert!(
-        matches!(&err, editor_core::SplitError::MateFrameCrosses { mate: m, .. } if m.id() == crossing),
+        matches!(&err, editor_core::SplitError::MateFrameCrosses { mate: m, promote: Some(r), .. }
+            if m.id() == crossing && r.id() == base),
         "{err:?}"
+    );
+    assert!(
+        err.to_string().contains(&format!(
+            "Recourse: promote {} (Promote), so it sits at the empty chain, or delete {}, then \
+             split",
+            doc.spoken(base),
+            doc.spoken(crossing)
+        )),
+        "{err}"
     );
     let (promoted, _) = promote(doc, base);
     split(&promoted, &[base, top, mate], "pf-frame-crossing", &o)
@@ -345,7 +355,11 @@ fn promote_and_fold_refuse_typed_with_a_recourse_that_clears_them() {
     // of an offset.
     let (dead, g) = insert(doc.clone(), Node::gauge(None, literal([0.0, 1.0, 0.0])));
     let dead = set_gauge(set_gauge(dead, base, Some(g)), top, Some(g));
-    let dead = set_offset(set_offset(dead, base, None), top, Some(literal([0.0, 0.0, 2.0])));
+    let dead = set_offset(
+        set_offset(dead, base, None),
+        top,
+        Some(literal([0.0, 0.0, 2.0])),
+    );
     let dead = step(dead, DocEdit::DeleteNode { id: g }).0;
     assert!(matches!(
         refused(&dead, DocEdit::Promote { instance: base }),
@@ -464,7 +478,10 @@ fn p2_fold_and_promote_move_no_pose_bit_under_rotations() {
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("pf-turned-p2"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, turn(0.3, false, [0.0, 8.0, 0.0])));
-    let (doc, k) = insert(doc, Node::gauge(Some(g), two_turns(0.7, 0.2, [2.0, 0.0, 0.5])));
+    let (doc, k) = insert(
+        doc,
+        Node::gauge(Some(g), two_turns(0.7, 0.2, [2.0, 0.0, 0.5])),
+    );
     let (doc, lone) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, lone, Some(k));
     let (doc, k2) = insert(doc, Node::gauge(Some(k), turn(1.1, true, [0.0, 0.0, 1.0])));
@@ -473,10 +490,7 @@ fn p2_fold_and_promote_move_no_pose_bit_under_rotations() {
     let doc = set_offset(doc, deep, Some(turn(0.4, false, [1.0, 2.0, 0.0])));
     let folded = fold(doc.clone(), k);
     same_poses(&doc, &folded, &o, &[lone, deep], "fold");
-    let (back, _) = promote(
-        fold(folded.clone(), k2),
-        lone,
-    );
+    let (back, _) = promote(fold(folded.clone(), k2), lone);
     same_poses(&doc, &back, &o, &[lone, deep], "promote after two folds");
 }
 
@@ -490,7 +504,10 @@ fn p4_a_cut_then_a_fold_moves_no_pose_bit_under_rotations() {
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("pf-turned-p4"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, turn(0.3, false, [0.0, 8.0, 0.0])));
-    let (doc, k) = insert(doc, Node::gauge(Some(g), two_turns(0.7, 0.2, [2.0, 0.0, 0.5])));
+    let (doc, k) = insert(
+        doc,
+        Node::gauge(Some(g), two_turns(0.7, 0.2, [2.0, 0.0, 0.5])),
+    );
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, base, Some(k));
     let doc = set_offset(doc, base, Some(literal([0.0, 2.0, 0.0])));
@@ -513,7 +530,13 @@ fn p4_a_cut_then_a_fold_moves_no_pose_bit_under_rotations() {
         &[out.instance, stay],
         "fold after the cut",
     );
-    same_poses(&doc, &folded, &with_part, &[stay], "the instance that stayed");
+    same_poses(
+        &doc,
+        &folded,
+        &with_part,
+        &[stay],
+        "the instance that stayed",
+    );
 }
 
 // ---- what a fold takes out ----
@@ -577,7 +600,10 @@ fn a_label_a_fold_cannot_hand_on_is_reported() {
             .expect("folds")
             .maintenance
     };
-    assert!(maintenance(&doc).is_empty(), "a lone unlabelled dependent takes it");
+    assert!(
+        maintenance(&doc).is_empty(),
+        "a lone unlabelled dependent takes it"
+    );
     let (two, other) = insert(doc.clone(), Node::instantiate_part(p.top));
     let two = set_gauge(two, other, Some(k));
     let named = labelled(doc, one, "post");

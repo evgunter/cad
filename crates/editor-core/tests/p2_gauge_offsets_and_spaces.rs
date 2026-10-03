@@ -1122,9 +1122,16 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
     };
     let err = split(&doc).expect_err("the cut root's offset reads a kept node's parameter");
     assert!(
-        matches!(&err, editor_core::SplitError::UncutParamReference { param, cut_node, .. }
+        matches!(&err, editor_core::SplitError::UncutParamReference { param, cut_node, promote: true, .. }
             if *param == lift() && cut_node.id() == base),
         "{err:?}"
+    );
+    assert!(
+        err.to_string().contains(&format!(
+            "Recourse: promote {} (Promote), so its offset stays in this document",
+            doc.spoken(base)
+        )),
+        "{err}"
     );
     let (doc, k) = step(doc, DocEdit::Promote { instance: base });
     let k = k.expect("the promote mints its gauge");

@@ -116,6 +116,12 @@ fn split_refusals() -> Vec<SplitError> {
         SplitError::MateFrameCrosses {
             mate: s(7, "Mate"),
             side: MateSide::B,
+            promote: None,
+        },
+        SplitError::MateFrameCrosses {
+            mate: s(7, "Mate"),
+            side: MateSide::B,
+            promote: Some(Box::new(s(2, "InstantiatePart"))),
         },
         SplitError::MateFaceFrameCrosses {
             mate: s(7, "Mate"),
@@ -125,6 +131,13 @@ fn split_refusals() -> Vec<SplitError> {
             param: param(),
             cut_node: s(4, "Extrude"),
             kept_node: s(6, "Extrude"),
+            promote: false,
+        },
+        SplitError::UncutParamReference {
+            param: param(),
+            cut_node: s(4, "InstantiatePart"),
+            kept_node: s(6, "Gauge"),
+            promote: true,
         },
         SplitError::PartNameReachesRemainder {
             node: s(5, "Extrude"),

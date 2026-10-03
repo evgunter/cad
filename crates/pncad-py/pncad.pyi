@@ -732,7 +732,9 @@ class SplitError(PncadError):
     `dead_gauge_reference`: the deleted gauge, `node` the cut gauge or
     instance whose chain names it. `no_material`: `node` is the cut's
     first node. `unplaceable_root`: `node` is the cut root that sits on
-    no gauge, `gauge` the gauge the cut anchors on."""
+    no gauge, `gauge` the gauge the cut anchors on. `mate_frame_crosses`:
+    `node` is the mate, and `root` the cut root a promote would land at
+    the empty chain, where that is the recourse."""
 
 class InlineError(PncadError):
     """The `inline` refactoring refused.
@@ -6439,11 +6441,13 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
 
     Where the content lands (A4): with the instance at the empty chain, on
     its gauge as it is; at any other offset, on a gauge minted under
-    the instance's gauge holding that offset, onto which the members the
-    instance placed move (one carrying a further offset refuses
-    `moved_member_offset`).
-    A mate-placed instance inlines only over one such group, whose root
-    takes its place; otherwise it refuses `mate_placed`."""
+    the instance's gauge holding that offset (a `DocEdit.promote` of the
+    instance), onto which the members the instance placed move (one
+    carrying a further offset refuses `moved_member_offset`). A
+    mate-placed instance inlines only over a part that is one group
+    rooted at the empty chain on its world, holding no gauge and no
+    other member carrying an offset, whose root takes its place;
+    otherwise it refuses `mate_placed`."""
 
 # --- the pin-update door ----------------------------------------------
 

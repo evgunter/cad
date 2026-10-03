@@ -3264,6 +3264,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
                 param: name.clone(),
                 cut_node: held(1, "Extrude"),
                 kept_node: held(2, "Extrude"),
+                promote: false,
             }
             .to_string(),
         ),

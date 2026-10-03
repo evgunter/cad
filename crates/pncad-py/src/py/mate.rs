@@ -1290,9 +1290,7 @@ impl Maintenance {
             d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
                 super::doc::name_text(py, name.name()).map(Some)
             }
-            d::Maintenance::OffsetCleared { .. } | d::Maintenance::LabelDropped { .. } => {
-                Ok(None)
-            }
+            d::Maintenance::OffsetCleared { .. } | d::Maintenance::LabelDropped { .. } => Ok(None),
         }
     }
 
