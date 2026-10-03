@@ -38,3 +38,5 @@ maintenance is deleted whole — `ClusterMaintenance`, `Maintain`,
 maintenance solve, with the placement registry they kept. No edit
 records a frame (A11 (2)), so `mate/solve.rs` holds the solve alone and
 there is no second concern to move out.
+
+MSOLVE-12's §3, which moved this half to `mate/maintain.rs` on PR 3698, was overtaken by #3676: the code it moved is gone.

@@ -389,7 +389,7 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     let a = cyl(1.0, -2.0, 2.0);
     let mut b = cyl(1.0, -0.5, 0.5);
     let (face, _) = b.faces().next().unwrap();
-    // Lifts both refusals: the relabelled face is the join dispatch's input.
+    // Lifts RechartStrandsDescriptions: the relabelled face is the join dispatch's input.
     b.set_face_surface_stranding_for_tests(
         face,
         topo::FaceSurface::New {
