@@ -6087,3 +6087,30 @@ door refusal?
 
 **Off-question, to file:** `bit_identity.rs` says "`Dual`, which no
 `Body` instantiates", which is stale.
+
+## PR 3702 review: mergeable, fix pass out (2026-10-03)
+
+The review at `b6d81da606` found no MAJOR.
+- **The witness:** reds on base, in its own target directory, and is
+  green at head.
+- **One home:** `describe_edges` is base's describer verbatim.
+- **The band:** equals the boolean's.
+- **Atomicity:** every `Err` is deep-unchanged.
+
+Ruled for the fix pass (sent to the implementer):
+1. `KeptBoundaryStranded` becomes a `debug_assert` (D2 row 5). The MC3
+   mutant leaves all 54 rows green.
+2. Pin `of_merge` with a row. The MC4 mutant leaves 2154/2154 green.
+3. The merge door's refusal states its own decision and lever, not the
+   boolean's "seam" or "A/B" text (D4 ¶1 (i)).
+4. Remove the `BooleanError` ⇄ `MergeCoplanarError` cycle and its silent
+   `into_inner` re-shape.
+5. Run tier 2 before the re-describe.
+6. Complete the receipt: nine omitted hits, plus `torusvessel`. Both
+   demos merge 0 groups.
+7. De-duplicate `boundary_edges`; the editor-core pins are re-baselined
+   again.
+8. Style.
+
+Accepted as is: refusing or repairing tier-3-invalid input where base
+shipped it.
