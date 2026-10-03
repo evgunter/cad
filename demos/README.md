@@ -99,7 +99,13 @@ gallery is the scenes, saved, not a second spelling of them.
 
 Every one of them saves and opens, but two do not denote what their scene means.
 `plate.pncad` draws a blank slab, because the document never subtracts its
-holes (`work/show/the-plate-document-never-cuts-its-holes.md`). `chain.pncad`
+holes: it reads the web off the hole extrudes. Cutting them is two live walls:
+the certified drive certifies no box of the cut plate, whose subtract volume
+bound is a tie
+(`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`),
+and a measure over the cut part makes the assertion the document's one root,
+so it has no product to draw
+(`work/recipe/a-measured-part-is-not-a-product-root.md`). `chain.pncad`
 draws its nine placed links under a product-fault badge but has no product:
 the gather refuses one link placed four times by transforms, so checks, mass
 properties and export have nothing to read
@@ -881,10 +887,12 @@ the draws moved.
   restores that. In teal beside each joint's cloud, it grows `1 : 3 : 6 : 10`
   across the chain (the worst-case lever sum, every joint at its own
   extreme at once) while the advisory σ grows `1 : 2.24 : 3.74 : 5.48`
-  (the quadrature sum). E11's trade, in one picture. Along the chain
-  the enclosure is microns, so the box draws as a line and is widened
-  to a 5 px floor to be visible at all; the true number is in the
-  legend.
+  (the quadrature sum). E11's trade, in one picture. Each side of a box
+  under 5 px is drawn at a 5 px floor about its pin (at `6.751e-8`
+  that is both sides, a sub-picometre box); the legend says which
+  sides are floored, the table prints the true half-widths, and the
+  "times the certified box" ratio is `1 / CERTIFIABLE_FRACTION`.
+  `check_certified` reads all of it back out of the sheet.
 * **The teal is drawn only at the ε it was measured at.** `6.751e-8` is a
   default-ε measurement and the box MOVES with ε (`6.747e-5` at `1e-6`,
   measured: the wall is an enclosure escalating against the band; before
