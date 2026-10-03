@@ -70,6 +70,10 @@
 //!   they route beside [`cap_rims`] rather than into [`orient`];
 //! - [`poses`] — the rigid poses a re-posed row asks its question at:
 //!   what a suite drives a door WITH, as [`charts`];
+//! - [`certificates`] — a built body's stored edge certificates
+//!   against a fresh re-certification: a check of a body that
+//!   evaluates, so it routes beside [`orient`] rather than beside the
+//!   readers of stored data;
 //! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
 //!   declarations, swapped for the reversed order: what a suite drives
 //!   a door WITH, as [`poses`];
@@ -232,6 +236,10 @@ pub mod revert_ops;
 /// The drilled bead: a bore cylinder and a sphere zone, each a whole
 /// turn. Body authoring, so it routes here.
 pub mod bead;
+
+/// A built body's stored edge certificates against a fresh
+/// re-certification: the check the carrying grafts are pinned with.
+pub mod certificates;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;

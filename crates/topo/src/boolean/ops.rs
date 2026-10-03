@@ -105,7 +105,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::BooleanDecision;
 use super::SphereQuestion;
 use super::boxes;
-use super::combine::{GraftMap, graft_solid};
+use super::combine::{Bridge, GraftMap, graft_solids_with};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::finish::setopfinish;
 use super::join::bool_connect;
@@ -3234,7 +3234,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 Some(base) => {
                     let base_solid =
                         single_solid(base).map_err(|_| corrupt("re-cut base is not one solid"))?;
-                    graft_solid(base, base_solid, &turned, tol)?;
+                    graft_solids_with(base, &[base_solid], &turned, Bridge::RemapKeys)?;
                 }
             }
         }
@@ -3357,7 +3357,12 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                     })?
                     .graft
             } else {
-                graft_solid(&mut body, solid, &b_body, tol)?
+                // The kept B shells cross whole, as the reduction left
+                // them: any edge it split at a contact was certified
+                // there through the policy's lane, and nothing touches
+                // them since, so they keep their certificates, as at the
+                // void door above.
+                graft_solids_with(&mut body, &[solid], &b_body, Bridge::RemapKeys)?
             };
             let kind = match op {
                 BooleanOp::Subtract => BooleanResultKind::Voided,
