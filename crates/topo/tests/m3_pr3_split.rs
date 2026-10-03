@@ -285,9 +285,10 @@ fn notched_block_end_to_end() {
     assert_tier3_after_upgrade(above);
     assert_tier3_after_upgrade(below);
 
-    // Above: three disconnected prisms, one shell each, one solid.
+    // Above: three disconnected prisms, one shell each, one solid each
+    // (a solid is one piece of material; touching tips do not join).
     assert_eq!(above.shells().count(), 3);
-    assert_eq!(above.solids().count(), 1);
+    assert_eq!(above.solids().count(), 3);
     assert_eq!(below.shells().count(), 1);
 
     // Tangent-tip carry-forward: the Above side holds TWO distinct

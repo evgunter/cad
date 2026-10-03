@@ -1150,14 +1150,18 @@ pub enum PatternKind {
     Linear {
         /// Step direction components, Scalar ([`SlotId::Direction`]).
         direction: [Expr; 3],
-        /// Distance between instances, Length ([`SlotId::Spacing`]).
+        /// Distance between instances, Length ([`SlotId::Spacing`]): a
+        /// size, positive, since the direction says which way the
+        /// copies step.
         spacing: Expr,
     },
     /// Instances stepped around a datum axis.
     Circular {
         /// The datum-axis node revolved about (an upstream ref).
         axis: RecipeNodeId,
-        /// Angular step between instances ([`SlotId::Step`]).
+        /// Angular step between instances ([`SlotId::Step`]), signed
+        /// by the right-hand rule about the axis, nonzero and within a
+        /// turn.
         step: Expr,
     },
     /// Instances at ABSOLUTE frames, listed (GROUP-BOOLEAN-DESIGN,
@@ -3745,11 +3749,8 @@ impl<P> Node<P> {
             // A12: a mate's two heads are the instance-qualified
             // names its reading edges are recomputed from. The
             // operands they are read at are node ids, not names, and
-            // are listed by [`Node::payload_read_sites`].
-            // The two heads, and not a `FromFace` frame's face: that
-            // name is a row of the PART's table, in the part's own id
-            // space, held here the way an instance's reference is —
-            // not a name this document minted, strands or remaps.
+            // are listed by [`Node::payload_read_sites`]. A `FromFace`
+            // frame holds no name: its face is the head's.
             Node::Mate { a, b, .. } => vec![a.name.as_ref(), b.name.as_ref()],
             // A measure's references are argument-ORDERED, so they are
             // listed in that order rather than a canonical one.

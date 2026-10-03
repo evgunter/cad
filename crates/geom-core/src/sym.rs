@@ -932,7 +932,7 @@
 //!
 //! Two greps over `crates/` and `demos/` — one for the names handed to a
 //! funnel door, one for identity/gap-shaped string literals — and their
-//! union minus the bare filter words and the test-harness names. **107
+//! union minus the bare filter words and the test-harness names. **106
 //! names.** The rule is written out in
 //! `work/sym/symbolic-tier-census.md`, which also carries the full
 //! table: one row per name, with its bucket, its evidence and its site.
@@ -942,9 +942,9 @@
 //! | --- | --- |
 //! | IMPLICIT (S-CERT's frontier) | 4 |
 //! | NOT A PREDICATE | 8 |
-//! | EXPLICIT | 95 |
+//! | EXPLICIT | 94 |
 //!
-//! **107 and not the 66 the previous sweep reported**, because that
+//! **106 and not the 66 the previous sweep reported**, because that
 //! number is not re-derivable from a rule written down anywhere and this
 //! one states its own. The difference is filter width, not new
 //! predicates.
@@ -965,7 +965,7 @@
 //! (`topo/src/boolean/carrier_eq.rs`) — a structure contradiction, with
 //! no margin ever classified.
 //!
-//! **EXPLICIT — 95.** Closed forms in the parameters over analytic
+//! **EXPLICIT — 94.** Closed forms in the parameters over analytic
 //! carriers. Nine carry a MEASURED symbolic/numeric split from
 //! `editor-core/tests/m10_7_census_probe.rs` (at `Sym<Probe>`, through
 //! the same funnel, over the M10 fixtures and the tour's plate):

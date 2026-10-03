@@ -135,18 +135,43 @@ impl Placer {
     }
 }
 
-/// What the member walk yields: the member, and the pose-bearing
-/// nodes between the operand and the minting instance, OUTERMOST
-/// first (the order the geometry composes them in, so the fold below
-/// reads left to right).
+/// What the member walk yields: the member, the pose-bearing nodes
+/// between the operand and the minting instance, OUTERMOST first (the
+/// order the geometry composes them in, so the fold below reads left
+/// to right), and the reference's name as the member's instance names
+/// it.
 ///
 /// The member's copy chain is DERIVED from `chain` — it is the
 /// patterns in it, in the same order — so the two never disagree
-/// about which copy the reference names.
+/// about which copy the reference names; and `placed` is the name the
+/// same descent reached, one qualifier off per pattern in `chain`.
 #[derive(Debug, Clone)]
-pub(super) struct Walk {
+pub(super) struct Walk<'r> {
     pub(super) member: Member,
     chain: Vec<Placer>,
+    /// The reference's own name, as the mate holds it.
+    pub(super) head: &'r crate::FaceName,
+    /// The name inside every `Instance(i)` qualifier the walk took
+    /// off, headed at the member's instance: a copy's MASTER's name.
+    placed: &'r crate::names::StableName,
+}
+
+impl Walk<'_> {
+    /// **The face of the member's PART the reference names** — the
+    /// one `InPart` the member's instance puts round its part's names,
+    /// taken off the name the walk reached there
+    /// ([`crate::FaceName::part_local`]). What a
+    /// [`super::MateFrame::FromFace`] side reads its frame off, in the
+    /// part's own coordinates; a copy reads its master's face, since
+    /// the copy map between them is the walk's static offset, applied
+    /// by the solve.
+    ///
+    /// `None` when the name at the instance is not one `InPart` round
+    /// a face: a name an instance mints always is, so only a document
+    /// written some other way answers `None`.
+    pub(super) fn part_face(&self) -> Option<crate::FaceName> {
+        crate::FaceName::part_local(self.placed, self.member.instance)
+    }
 }
 
 /// **The walk from a reference's operand down to its name's head** —
@@ -163,9 +188,12 @@ pub(super) struct Walk {
 /// stand a member on. That is the node a refusal names, and it is not
 /// in general the reference's own head — a stranded operand stops the
 /// walk before the head is ever reached.
-pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, RecipeNodeId> {
+pub(super) fn walk<'r, P>(
+    doc: &Doc<P>,
+    r: &'r crate::node::SitedFace,
+) -> Result<Walk<'r>, RecipeNodeId> {
     let mut at = r.at;
-    let mut name: &crate::names::StableName = &r.name;
+    let mut name: &'r crate::names::StableName = &r.name;
     let mut chain: Vec<Placer> = Vec::new();
     // The `Part` the walk last passed with nothing pose-bearing since
     // — the one standing DIRECTLY above whatever node comes next, and
@@ -231,6 +259,8 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                         at: r.at,
                     },
                     chain,
+                    head: &r.name,
+                    placed: name,
                 });
             }
             // A pattern's copy: the name must SAY which copy, and the
@@ -287,7 +317,36 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
 /// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
 /// clause).
 pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Option<Member> {
-    walk(doc, r).ok().map(|w| w.member)
+    member_reading(doc, r).map(|(member, _)| member)
+}
+
+/// **The member a reference resolves to, and the reference's name as
+/// that member's instance names it** — [`member_of`]'s walk, with the
+/// name it reached at the instance: inside one `Instance(i)` qualifier
+/// per pattern level the walk consumed ([`Member::copy`]), so a copy
+/// answers its MASTER's name. That name is a row of the instance's own
+/// product table.
+///
+/// `None` exactly where [`member_of`] answers `None`.
+pub fn member_reading<'r, P>(
+    doc: &Doc<P>,
+    r: &'r crate::node::SitedFace,
+) -> Option<(Member, &'r crate::names::StableName)> {
+    walk(doc, r).ok().map(|w| (w.member, w.placed))
+}
+
+/// **The face of the member's PART a head names** — the head walked
+/// to its member, then the instance's `InPart` taken off the name the
+/// walk reached there ([`crate::FaceName::part_local`]). What a
+/// [`super::MateFrame::FromFace`] side reads its frame off, in the
+/// part's own coordinates; a copy reads its MASTER's face.
+///
+/// `None` when the head is outside A11's member vocabulary
+/// ([`member_of`] answers `None`), or when the name at the member's
+/// instance is not one `InPart` round a face, which a name an
+/// instance mints always is.
+pub fn head_face<P>(doc: &Doc<P>, head: &crate::node::SitedFace) -> Option<crate::FaceName> {
+    walk(doc, head).ok()?.part_face()
 }
 
 /// **[`member_of`] for a MATE's reference**: the walk, with the mate
@@ -306,12 +365,12 @@ pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Option<Member> 
 /// operand, or the first node the chain met that no member stands on.
 /// Naming the reference's own head instead would attribute the
 /// refusal to a node that is often perfectly live and perfectly fine.
-pub(super) fn walk_of<P>(
+pub(super) fn walk_of<'r, P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
     side: MateSide,
-    r: &crate::node::SitedFace,
-) -> Result<Walk, MateFault> {
+    r: &'r crate::node::SitedFace,
+) -> Result<Walk<'r>, MateFault> {
     walk(doc, r).map_err(|head| MateFault::DanglingHead { mate, side, head })
 }
 
@@ -376,7 +435,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
     env: &ParamEnv<f64>,
     mate: RecipeNodeId,
     side: MateSide,
-    w: &Walk,
+    w: &Walk<'_>,
 ) -> Result<(), MateFault> {
     // One pattern level of the chain, outermost first: the copy the
     // name says, its evaluated count, and the `Part` above it if any.
@@ -549,8 +608,8 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 /// outside the placement.
 ///
 /// `None` is the identity: an empty chain, or a chain whose every
-/// placer is itself the identity (copy 0's map is the identity by the
-/// stepped rule's own construction). Kept as absence, so a document
+/// placer is itself the identity (copy 0, the master, reads no operand
+/// and contributes none). Kept as absence, so a document
 /// with no transform and no pattern composes nothing and its solve
 /// stays bit-for-bit what it was.
 ///
@@ -603,7 +662,7 @@ pub(super) fn derived_offset<P: crate::ProfilePayload>(
     env: &ParamEnv<f64>,
     mate: RecipeNodeId,
     side: MateSide,
-    w: &Walk,
+    w: &Walk<'_>,
     band: Band,
 ) -> Result<Option<Affine3<f64>>, Box<MateFault>> {
     let mut composed: Option<Affine3<f64>> = None;
@@ -663,8 +722,10 @@ fn refuse(
 }
 
 /// **The map a pattern copy contributes**, or `None` for copy 0 —
-/// whose map is the identity by the stepped rule's own construction,
-/// so composing it would be a no-op that costs bits.
+/// the master, which reads no operand, as on the evaluation's road.
+/// Every other copy builds its operands through the constructor the
+/// evaluation steps by ([`SteppedOperands`]), so a spacing or step the
+/// pattern refuses, the solve refuses the same way.
 ///
 /// # Errors
 ///
@@ -688,32 +749,33 @@ fn pattern_map<P: crate::ProfilePayload>(
     }
     let vals = node_slots(pattern, env).map_err(here)?;
     let ops = match kind {
-        PatternKind::Linear { .. } => SteppedOperands::Linear {
-            direction: crate::eval::unit_direction(
-                need_vec3(&vals, SlotId::Direction).map_err(here)?,
-                crate::eval::PATTERN_DIRECTION_ROLE,
-                band,
-            )
-            .map_err(here)?,
-            spacing: need_scalar(&vals, SlotId::Spacing).map_err(here)?,
-        },
-        PatternKind::Circular { axis, .. } => {
+        PatternKind::Linear { direction, .. } => SteppedOperands::linear(
+            need_vec3(&vals, SlotId::Direction).map_err(here)?,
+            need_scalar(&vals, SlotId::Spacing).map_err(here)?,
+            direction,
+            band,
+        )
+        .map_err(here)?,
+        PatternKind::Circular { axis, step } => {
             // The operand-KIND question is the pattern's wiring, and
             // its refusal is seated where `axis_datum` says; everything
             // read out of the datum below is the datum's.
             let datum = axis_datum(doc, node, *axis)?;
             let at_datum = |kind| Box::new((*axis, kind));
             let dvals = node_slots(datum, env).map_err(at_datum)?;
-            SteppedOperands::Circular {
-                origin: Point3::origin() + need_vec3(&dvals, SlotId::Origin).map_err(at_datum)?,
-                dir: crate::eval::unit_direction(
+            SteppedOperands::circular(
+                Point3::origin() + need_vec3(&dvals, SlotId::Origin).map_err(at_datum)?,
+                crate::eval::unit_direction(
                     need_vec3(&dvals, SlotId::Direction).map_err(at_datum)?,
                     crate::eval::DATUM_AXIS_ROLE,
                     band,
                 )
                 .map_err(at_datum)?,
-                step: need_scalar(&vals, SlotId::Step).map_err(here)?,
-            }
+                need_scalar(&vals, SlotId::Step).map_err(here)?,
+                step,
+                band,
+            )
+            .map_err(here)?
         }
         // The list-rule pattern's count has two spellings, which the
         // pattern node itself refuses; no copy of it has a derived
@@ -946,8 +1008,10 @@ mod tests {
         (doc, body)
     }
 
-    /// The walk a reference to copy 1 of the pattern records.
-    fn copy_one(instance: RecipeNodeId) -> Walk {
+    /// The walk a reference to copy 1 of the pattern records, `head`
+    /// standing for both its name and the name it reached at the
+    /// instance (the offset reads neither).
+    fn copy_one(instance: RecipeNodeId, head: &crate::FaceName) -> Walk<'_> {
         Walk {
             member: Member {
                 instance,
@@ -959,6 +1023,8 @@ mod tests {
                 i: 1,
                 part: None,
             }],
+            head,
+            placed: head,
         }
     }
 
@@ -967,8 +1033,21 @@ mod tests {
     fn derivation(doc: &ProfileDoc, instance: RecipeNodeId) -> (RecipeNodeId, NodeRefusal) {
         let env = doc.param_env::<f64>();
         let band = Band::linear(Tol::witness()).unwrap();
-        let fault = derived_offset(doc, &env, MATE, MateSide::A, &copy_one(instance), band)
-            .expect_err("the axis operand refuses");
+        let head = crate::FaceName::new(crate::names::StableName {
+            kind: crate::names::EntityKind::Face,
+            node: instance,
+            path: Vec::new(),
+        })
+        .unwrap();
+        let fault = derived_offset(
+            doc,
+            &env,
+            MATE,
+            MateSide::A,
+            &copy_one(instance, &head),
+            band,
+        )
+        .expect_err("the axis operand refuses");
         match *fault {
             MateFault::PlacerRefused {
                 mate,

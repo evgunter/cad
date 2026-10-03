@@ -99,7 +99,7 @@ impl core::fmt::Display for ContainError {
                 "contfp: every direction of the parity schedule grazed the face's \
                  boundary, so no ray read a definite crossing count — the point sits \
                  within ε of the boundary at this tolerance; move the point off the \
-                 boundary or lower the tolerance"
+                 boundary"
             ),
             Self::Corrupt => write!(
                 f,

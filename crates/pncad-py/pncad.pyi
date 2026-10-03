@@ -2068,10 +2068,21 @@ class PatternKind:
     @staticmethod
     def linear(
         direction: tuple[Expr, Expr, Expr], spacing: Expr
-    ) -> PatternKind: ...
+    ) -> PatternKind:
+        """Stepped along `direction`, `spacing` apart. The spacing is
+        a size: the direction says which way the copies step, so a
+        spacing below zero raises EvaluationError
+        (`negative_spacing`, naming the direction negated) and a zero
+        one too (`degenerate_spacing`), wherever a second copy reads
+        it."""
+
     @staticmethod
     def circular(axis: NodeId, step: Expr) -> PatternKind:
-        """Stepped around `axis`, an upstream `datum_axis` node."""
+        """Stepped around `axis`, an upstream `datum_axis` node. The
+        step is signed by the right-hand rule about the axis and lies
+        within a turn: zero raises EvaluationError (`degenerate_step`),
+        and so does a full turn or more (`full_range_step`), wherever a
+        second copy reads it."""
 
     @staticmethod
     def explicit(frames: list[Frame]) -> PatternKind:
@@ -4802,14 +4813,17 @@ class ContactClass:
 
 class BooleanCoincidence:
     """What a boolean node may declare about a face pair: a contact
-    (`Rest`, `Tangent`), or a `Continuation` — one carrier with aligned
+    (`Rest`, `Tangent`), a `Continuation` — one carrier with aligned
     senses, as two stacked parts' outer walls are, which the union
-    merges. The flush detector reports `Rest` for an opposed pair and
-    `Continuation` for an aligned one."""
+    merges — or a `Seam` — two carriers joining G1 with aligned senses,
+    as a cap on a tube does. The flush detector reports `Rest` for an
+    opposed pair and `Continuation` for an aligned one; it never reports
+    a seam."""
 
     Rest: Final[BooleanCoincidence]
     Tangent: Final[BooleanCoincidence]
     Continuation: Final[BooleanCoincidence]
+    Seam: Final[BooleanCoincidence]
 
 class FlushRung:
     """Which rung of the verify ladder decided a finding:
@@ -5525,18 +5539,18 @@ class MateFrame:
     perpendicular part are read. Both are plain numbers (a direction
     carries no dimension); `origin` is three lengths.
 
-    FROM A FACE: `MateFrame.from_face(face)`, where `face` is the
-    PART-LOCAL name text of a face of the mated part — the row
-    `evaluate(part).select(...)` answers on the part's own document,
-    never the instance-qualified spelling a mate head carries. The
-    solve reads that face's canonical pose off the part's own
-    evaluation at every evaluation and takes it as the frame: the
+    FROM A FACE: `MateFrame.from_face()`, which takes nothing: the
+    side's frame is its own HEAD's face, the face the mate's reference
+    on that side names, read in the mated part. The solve reads that
+    face's canonical pose off the part's own evaluation at every
+    evaluation and takes it as the frame: the
     carrier's origin, its CHART axis (the face's orientation sense is
     not folded in — the mate's `AxisSense` says which way the sides
     point) and the carrier's own in-frame reference direction as the
     roll. So a face frame's roll is the carrier's: a side that needs a
     roll of its own takes authored vectors. Nothing is stored twice:
-    edit the part so the face moves, and the mate follows. A face with
+    edit the part so the face moves, or rebind the head, and the mate
+    follows; split and inline carry it with its head. A face with
     no canonical frame (a NURBS carrier) refuses at the solve and keeps
     taking authored vectors.
 
@@ -5555,12 +5569,10 @@ class MateFrame:
         reference: tuple[float, float, float],
     ) -> None: ...
     @staticmethod
-    def from_face(face: str) -> MateFrame:
-        """A frame resolved from `face`, a face of the part by its
-        PART-LOCAL name text (see the class docs); the name is the
-        whole frame, and it resolves on the nominal lane only. Raises
-        ValueError for text that is not a stable name, and EditError
-        (`mate_head_not_a_face`) for a name of another kind."""
+    def from_face() -> MateFrame:
+        """A frame resolved from the side's own head face (see the
+        class docs); it takes nothing, and it resolves on the nominal
+        lane only."""
 
     @property
     def variant(self) -> str:
@@ -5579,11 +5591,6 @@ class MateFrame:
     def reference(self) -> Optional[tuple[float, float, float]]:
         """The authored clocking reference; `None` on a `from_face`
         frame, whose roll is the carrier's own."""
-
-    @property
-    def face(self) -> Optional[str]:
-        """The face a `from_face` frame names, as its name text in the
-        part's own spelling; `None` on an authored frame."""
 
     def placement(self) -> Frame:
         """The rigid placement an AUTHORED frame denotes: local +Z is
@@ -5827,8 +5834,9 @@ class MateFault:
     def root(self) -> Optional[NodeId]: ...
     @property
     def face(self) -> Optional[str]:
-        """The face a `from_face` frame named, as its name text in the
-        PART's own spelling, where the refusal is about one
+        """The face a `from_face` side read — its head's face, as its
+        name text in the PART's own spelling, or the head itself where
+        it names no face of the part — where the refusal is about one
         (`mate_face_unresolved`)."""
 
     @property
@@ -5879,7 +5887,7 @@ class MateFault:
         with no `instance`), or the face refusal's on
         `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
         `ambiguous`, `not_a_face`, `readback`, `unpinned`,
-        `not_an_instance`, with the
+        `not_an_instance`, `no_part_face`, with the
         instance as `instance` and the face as `face`). `None` on an
         arm whose payload is a struct rather than an enum — an
         escalation has no inner word, and its shape is which margin
@@ -6427,11 +6435,11 @@ def split(
     refuses (`dead_gauge_reference`), as do a cut that holds no body
     (`no_material`), a cut of unplaced material alone
     (`unplaced_alone`), and a kept mate that would start
-    placing (`would_start_placing`), whose cut side would change
-    coordinates (`mate_frame_crosses`), or whose cut side's frame is
-    `MateFrame.from_face` (`mate_face_frame_crosses`): the face's name
-    is the cut instance's part's, which the new part does not carry
-    unwrapped."""
+    placing (`would_start_placing`), or whose cut side would change
+    coordinates (`mate_frame_crosses`): an authored side reading an
+    instance that is not, in the part, its group's root at the empty
+    chain, or a `MateFrame.from_face` side reading one in its group's
+    own space. A face side otherwise crosses with its head."""
 
 class InlineOutcome:
     """What an inline produced: the spliced document value and the

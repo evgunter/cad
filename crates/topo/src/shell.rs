@@ -43,7 +43,7 @@
 //!    the planar half of that class is repaired and the curved half is
 //!    not;
 //! 2. that body inserted through the shared void-insertion door
-//!    ([`crate::boolean::voids::insert_voids`]) with carried evidence —
+//!    ([`crate::boolean::voids::insert_hollow_voids`]) with carried evidence —
 //!    every shell of it, grafted under the operand solid its own solid
 //!    was cloned from, one destination per cavity solid;
 //! 3. **one thin solid per operand shell.** A hollow operand's clone
@@ -185,7 +185,7 @@
 //! correspondence anyway, so no consumer leans on the identity. Cavity
 //! entities are born in the cavity clone, whose keys are the operand's
 //! for the same reason, and cross into the result through
-//! [`crate::boolean::voids::insert_voids`]'s graft map — the only
+//! [`crate::boolean::voids::insert_hollow_voids`]'s graft map — the only
 //! bridge, read at insertion time. [`ShellNaming::thickened`] says
 //! which result SOLID each operand shell's wall became: the operand's
 //! own solid for its outer shell, a minted one per void. On a
@@ -314,7 +314,7 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol}
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::voids::{VoidContainment, VoidEvidence, VoidInsertError, insert_voids};
+use crate::boolean::voids::{VoidContainment, VoidEvidence, VoidInsertError, insert_hollow_voids};
 use crate::chart_groups::ChartGroups;
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, HalfEdgeKey as HeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
@@ -359,11 +359,24 @@ pub enum ShellError<T: Real> {
         /// The classifier's typed refusal, verbatim.
         error: crate::props::ShellClassifyError,
     },
-    /// One of the operand's solids classifies to something other than
-    /// exactly one outer shell — several material components filed
-    /// under one solid, or none. Not a shape this verb thickens. The
-    /// roles are read per solid, so the count is that solid's own and
-    /// the refusal names which solid it is about.
+    /// The operand could not be sorted into pieces ([`crate::pieces`])
+    /// before it is thickened: the verb takes a body, and a solid
+    /// holding several pieces is sorted first, so the piece a shell
+    /// belongs to has to be readable.
+    Pieces {
+        /// The sort's typed refusal, verbatim.
+        error: crate::pieces::PieceSortError,
+    },
+    /// One of the operand's solids, once sorted into pieces, does not
+    /// classify to exactly one outer shell. Not a shape this verb
+    /// thickens. Two ways reach it: no outer shell at all (only
+    /// cavities, which bound no material), or more than one where the
+    /// sort's role reader ([`crate::validate::shell_role`]) left a shell
+    /// undecided — silent beside one decided `Outer` — and this verb's
+    /// classifier ([`crate::props::classify_shells_of`]) decided it
+    /// `Outer`: two readers of one sign that can part in band
+    /// (`work/fuse/one-home-for-where-a-shell-stands.md`). The roles are
+    /// read per solid, so the refusal names which solid it is about.
     OperandOuterShells {
         /// The solid whose shells did not classify to one boundary.
         solid: SolidKey,
@@ -561,10 +574,14 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "the body's shells could not be sorted into one outer boundary and its \
                  voids: {error}"
             ),
+            Self::Pieces { error } => write!(
+                f,
+                "the body could not be sorted into solids before it is thickened: {error}"
+            ),
             Self::OperandOuterShells { outer, .. } => write!(
                 f,
-                "a solid of the body has {outer} outer shells, not one, which the shell op \
-                 cannot thicken"
+                "a solid of the body has {outer} outer shells once sorted into pieces, not \
+                 one, which the shell op cannot thicken"
             ),
             Self::Partition { shell, error } => write!(
                 f,
@@ -945,6 +962,24 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         _ => return Err(ShellError::Thickness { thickness }),
     }
 
+    // ---- Decide: one piece of material per solid. ----
+    //
+    // The verb takes a body: a solid holding several pieces is sorted
+    // into one solid per piece first ([`crate::pieces`]), on a clone, so
+    // every key the caller holds still names the same face, edge and
+    // vertex. A body whose every solid has one shell is one piece per
+    // solid by arity and is not read.
+    let sorted;
+    let body = if body.solids().any(|(_, s)| s.shells.len() > 1) {
+        let mut clone = body.clone();
+        crate::pieces::sort_into_pieces(&mut clone, band, tol, T::quad_lane(), None)
+            .map_err(|error| ShellError::Pieces { error })?;
+        sorted = clone;
+        &sorted
+    } else {
+        body
+    };
+
     // ---- Decide: there is a solid to thicken. ----
     let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
     if solids.is_empty() {
@@ -1216,7 +1251,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             && out.solids().map(|(k, _)| k).eq(solids.iter().copied()),
         "a clone reordered its solid arena",
     );
-    let inserted = insert_voids(&mut out, &solids, cavity, &evidence)
+    let inserted = insert_hollow_voids(&mut out, &solids, cavity, &evidence)
         .map_err(|error| ShellError::Insert { error })?;
 
     // ---- The record: the inner twins, read off the graft map at the
