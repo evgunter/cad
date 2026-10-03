@@ -6219,3 +6219,26 @@ pin.
 
 `EmptyAnchorsCollide` merged as `7c4b912d40`, after CI run 37140779910
 passed. Its implementer and reviewer cloud sessions are archived.
+
+## PR 3702 fix pass delivered; row closed (2026-10-03)
+
+All eight rulings were applied.
+- `KeptBoundaryStranded` became a `debug_assert`.
+- `of_merge` is pinned by a row.
+- The door's own refusals are `KeptBoundaryUndecided` and
+  `KeptBoundaryUndescribed`, which state the kept face and edge and the
+  lever.
+- The error cycle is gone: the describer returns a plain payload.
+- Tier 2 runs first.
+- The receipt is complete, with nothing strands at a return.
+- `boundary_edges` is de-duplicated.
+- Style fixed.
+- **Re-baselined, with slot order moved again:** `corner_table`,
+  `kitchen_sink` and `part_select`.
+- **Identity on topo and sweep `ci`:** 3519 of 3521 bodies match with
+  curve keys erased. The other 2 come from an operand with renamed keys.
+  Refusals and empty results are identical.
+- **CI:** run 37142062879 on `f0cc34a662` passed.
+
+I closed the row on the branch from the lane's own worktree (`1d469db18e`).
+The merge waits on CI on that head.
