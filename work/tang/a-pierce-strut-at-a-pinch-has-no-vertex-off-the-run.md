@@ -2,8 +2,11 @@
 id: a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run
 kind: issue
 title: Holes touching at a corner refuse RingHomingAmbiguous when the blocks fold first: the pinch's strut ring has no vertex off the run
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-03
+branch: tang/pierce-strut-at-a-pinch
+pr: 3954
 priority: P1
 cost: M
 ---
@@ -97,3 +100,47 @@ carrying its two v-v rows. The results are the same on main.
   `Join(RingHomingAmbiguous)`. pinch − B builds at 2.0 and passes 3′.
   This is a v-on-f contact, not a pierce: the two vertices land on the
   face at one point, and each mints its own ring.
+
+## Review tier
+
+SINGLE, FULL: a new pending-ring lifecycle in the shared joiner;
+contained (unreachable from the split) and fail-loud at quiescence, so
+one full review.
+
+## Closed
+
+The second mechanism, the deferral. `ChordJoiner::rehome_rings` leaves a ring
+pending when every vertex lands `OnBoundary` and every edge is a
+null edge. Only an unjoined pierce ring is like that, and only the
+boolean's vertex-on-face insertion mints one. The ring stays in its
+face, and later re-homing skips it. The next `join` that reaches it
+moves it into the face of the ring it meets (`place_pending`), whose
+own off-run vertices placed it. No geometry is read, so neither a
+reflex corner at the pinch nor a curved face needs an arm. Three
+cases still refuse `RingHomingAmbiguous`:
+
+- two pending rings in different faces joined;
+- a join inside one pending loop;
+- a ring still pending once `bool_connect` is quiescent.
+
+A ring with a real edge that is on the run at every vertex refuses
+as before.
+
+Measured on cf867b38, then built on the branch:
+
+- the corner holes and the notch-and-hole union, every member order
+  (`union_pinch_member_order`);
+- the staircase, the bare pinch through a face, and a wedge in an
+  L's reflex corner, every op both ways round
+  (`topo/tests/pierce_strut_at_a_pinch.rs`). The reflex pose refuses
+  in all six ops on main;
+- the pinch standing on a face, the v-on-f witness above. With
+  flush declarations, both unions refused on main, and it builds now.
+
+The split sweep threads null edges through a vertex on its plane,
+so a ring touching the run is chorded in and never a bystander.
+`a_plane_touching_a_pockets_tip_splits_exactly` pins that, and it is
+green before and after.
+
+Residue filed:
+`a-chorded-ring-on-the-run-at-every-vertex-has-no-homing-reading`.

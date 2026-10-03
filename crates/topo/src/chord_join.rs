@@ -334,8 +334,11 @@ pub enum SplitJoinError {
     RingHoming(PointInLoopError),
     /// Every vertex of a ring landed ON the run dividing its face off,
     /// so no vertex says which side the ring is on: a ring an
-    /// ill-conditioned operand put on the run, or a pierce's strut at a
-    /// pinch, every vertex of which is the pinch point.
+    /// ill-conditioned operand put on the run. A pierce ring there is
+    /// deferred instead ([`ChordJoiner`]'s pending rings), and refuses
+    /// this way only if its join cannot place it either: it meets a
+    /// pending ring in another face, a polygon completes inside it, or
+    /// it is still pending when the sweep is done.
     RingHomingAmbiguous {
         /// The undecidable ring.
         ring: LoopKey,
@@ -819,6 +822,12 @@ pub(crate) struct ChordJoiner {
     fragments: Vec<(FaceKey, FaceKey)>,
     /// The run band (ring re-homing containment).
     band: Band,
+    /// Pierce rings a division left unplaced: every vertex on the run,
+    /// every edge a null edge (a strut at a pinch). Each stays in the
+    /// face it was in, skipped by later re-homing, until a join
+    /// connects it to a ring that is placed, and it moves to that
+    /// ring's face.
+    pending: SecondaryMap<LoopKey, ()>,
 }
 
 impl ChordJoiner {
@@ -828,7 +837,55 @@ impl ChordJoiner {
             slivers: SecondaryMap::new(),
             fragments: Vec::new(),
             band,
+            pending: SecondaryMap::new(),
         }
+    }
+
+    /// A pierce ring still unplaced, if any: asked once the sweep is
+    /// quiescent, when every join that could have placed it has run.
+    pub(crate) fn unplaced_ring<T: Real>(&self, body: &Body<T>) -> Option<LoopKey> {
+        self.pending
+            .keys()
+            .find(|&ring| body.get_loop(ring).is_some())
+    }
+
+    /// Places a pending ring before `h1` and `h2` are joined: the join
+    /// connects it to its own polygon, so it belongs in the face of
+    /// the ring it meets. Refuses when that ring is pending in another
+    /// face, or when the two halves share a pending loop (a polygon
+    /// completing inside a ring nothing has placed).
+    fn place_pending<T: Decide>(
+        &mut self,
+        body: &mut Body<T>,
+        h1: HalfEdgeKey,
+        h2: HalfEdgeKey,
+    ) -> Result<(), SplitJoinError> {
+        let loop_of = |body: &Body<T>, he| -> Result<(LoopKey, FaceKey), SplitJoinError> {
+            let l = body
+                .get_half_edge(he)
+                .ok_or_else(|| corrupt_he(he))?
+                .parent_loop;
+            Ok((l, body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face))
+        };
+        let ((l1, f1), (l2, f2)) = (loop_of(body, h1)?, loop_of(body, h2)?);
+        let (p1, p2) = (self.pending.contains_key(l1), self.pending.contains_key(l2));
+        match (p1, p2) {
+            (false, false) => {}
+            (true, true) if l1 == l2 || f1 != f2 => {
+                return Err(SplitJoinError::RingHomingAmbiguous { ring: l1 });
+            }
+            // Two pending rings of one face merge into a ring still
+            // pending; the join's mekr keeps one of the two keys.
+            (true, true) => {}
+            (true, false) | (false, true) => {
+                let (ring, to) = if p1 { (l1, f2) } else { (l2, f1) };
+                if f1 != f2 {
+                    body.ring_move(ring, to)?;
+                }
+                self.pending.remove(ring);
+            }
+        }
+        Ok(())
     }
 
     /// Consumes the recorded `(new face, divided-from face)` rows
@@ -3333,6 +3390,7 @@ impl ChordJoiner {
         segment: SegmentEdge,
         tol: Tol,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
+        self.place_pending(body, h1, h2)?;
         let l1 = body
             .get_half_edge(h1)
             .ok_or_else(|| corrupt_he(h1))?
@@ -3550,6 +3608,12 @@ impl ChordJoiner {
     /// `remainder` — the split's own leftover cycle — is skipped, not
     /// tested: a ring-lane remainder is geometrically coincident with
     /// the run and would land `OnBoundary`.
+    ///
+    /// A pierce ring every vertex of which lands `OnBoundary` is a
+    /// strut at a pinch the run passes through: no point of it says
+    /// which side it is on, but its own polygon will, so it is left
+    /// pending ([`Self::place_pending`]) and skipped here from then on.
+    /// Any other ring that lands there refuses.
     fn rehome_rings<T: Decide>(
         &mut self,
         body: &mut Body<T>,
@@ -3581,7 +3645,7 @@ impl ChordJoiner {
             Some(face_plane_normal(body, oldf)?)
         };
         for ring in rings {
-            if ring == remainder {
+            if ring == remainder || self.pending.contains_key(ring) {
                 continue;
             }
             let side = match normal {
@@ -3591,6 +3655,9 @@ impl ChordJoiner {
             match side {
                 LoopContainment::In => body.ring_move(ring, newf)?,
                 LoopContainment::Out => {}
+                LoopContainment::OnBoundary if is_pierce_ring(body, ring)? => {
+                    self.pending.insert(ring, ());
+                }
                 LoopContainment::OnBoundary => {
                     return Err(SplitJoinError::RingHomingAmbiguous { ring });
                 }
@@ -3692,6 +3759,34 @@ fn face_plane_normal<T: Decide>(
                    a plane (arm not wired)",
         }),
     }
+}
+
+/// Whether every edge of `ring` is a null edge: a pierce ring no join
+/// has reached yet, whose vertices are all copies of its pierce point.
+/// Only the boolean's vertex-on-face insertion mints one; the split's
+/// null edges hang off vertices of existing loops.
+fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, SplitJoinError> {
+    let first = match body
+        .get_loop(ring)
+        .ok_or_else(|| corrupt_loop(ring))?
+        .boundary
+    {
+        LoopBoundary::Cycle { first } => first,
+        // A lone vertex: no edge yet, so nothing it is joined by.
+        LoopBoundary::Empty { .. } => return Ok(false),
+    };
+    for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
+        let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
+        let curve = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?.curve;
+        if body
+            .get_curve_geom(curve)
+            .and_then(CurveGeom::null_scaffold)
+            .is_none()
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// Which side of `run` a bystander ring lies on, read at its first
@@ -4770,5 +4865,257 @@ mod section_case_pair_tests {
             Err(e) => panic!("a planar pair must refuse SectionInvariant, got {e:?}"),
             Ok(_) => panic!("a planar pair must refuse typed here, never classify"),
         }
+    }
+}
+
+/// The pending-ring lifecycle on a hand-built face: a 2×2 top face
+/// divided along its diagonal, with rings placed on and off that run.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod pending_ring_tests {
+    use super::*;
+    use crate::euler::{MefSite, MevSite};
+    use crate::null::NewVertexSide;
+    use crate::test_support_fixtures::prism_z;
+    use geom_brep::EdgeCurveSpec;
+    use geom_core::{Point3, Tol};
+
+    fn tol() -> Tol {
+        Tol::witness()
+    }
+
+    fn joiner() -> ChordJoiner {
+        ChordJoiner::new(Band::linear(tol()).unwrap())
+    }
+
+    /// The slab `[0,2]² × [0,1]`, its top face and that face's four
+    /// corners, counterclockwise from (0, 0).
+    fn slab() -> (Body<f64>, FaceKey, Vec<VertexKey>) {
+        let p = prism_z::<f64>(
+            &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+            0.0,
+            1.0,
+            tol(),
+        );
+        (p.body, p.top_face, p.top)
+    }
+
+    /// The half of `face`'s outer starting at `v`.
+    fn outer_from(body: &Body<f64>, face: FaceKey, v: VertexKey) -> HalfEdgeKey {
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("outer is a cycle");
+        };
+        body.loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .find(|&he| body.get_half_edge(he).unwrap().start == v)
+            .unwrap()
+    }
+
+    /// An empty ring of `face` at `p`, the pierce ring's first step.
+    fn empty_ring(body: &mut Body<f64>, face: FaceKey, p: Point3<f64>) -> LoopKey {
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("outer is a cycle");
+        };
+        let u = body.half_edge_start_point(first).unwrap();
+        let chord = body
+            .mev(
+                MevSite::Fan {
+                    he1: first,
+                    he2: first,
+                },
+                p,
+                EdgeCurveSpec::line_between(u, p),
+                tol(),
+            )
+            .unwrap();
+        body.kemr(chord.he_plus, chord.he_minus).unwrap().ring
+    }
+
+    /// A pierce ring of `face` at `p` with `struts` null edges, and the
+    /// minus half of each strut.
+    fn pierce_ring(
+        body: &mut Body<f64>,
+        face: FaceKey,
+        p: Point3<f64>,
+        struts: usize,
+    ) -> (LoopKey, Vec<HalfEdgeKey>) {
+        let ring = empty_ring(body, face, p);
+        let mut anchor = None;
+        let mut halves = Vec::new();
+        for _ in 0..struts {
+            let site = match anchor {
+                None => MevSite::Lone { r#loop: ring },
+                Some(he) => MevSite::Fan { he1: he, he2: he },
+            };
+            let s = body.mev_null(site, NewVertexSide::Above).unwrap();
+            anchor.get_or_insert(s.he_plus);
+            halves.push(s.he_minus);
+        }
+        (ring, halves)
+    }
+
+    /// Divides `face` along the chord from its corner `a` to its corner
+    /// `b`, re-homing its rings, and returns the new face.
+    fn divide(
+        j: &mut ChordJoiner,
+        body: &mut Body<f64>,
+        face: FaceKey,
+        (a, b): (VertexKey, VertexKey),
+    ) -> Result<FaceKey, SplitJoinError> {
+        let (he1, he2) = (outer_from(body, face, a), outer_from(body, face, b));
+        let made = body.mef_chord(MefSite::Chords { he1, he2 }, tol()).unwrap();
+        let remainder = body.get_half_edge(he2).unwrap().parent_loop;
+        j.rehome_rings(body, face, made.face, remainder)?;
+        Ok(made.face)
+    }
+
+    /// Asserts `got` is the ambiguous-homing refusal naming `ring`.
+    fn refuses_at<R: core::fmt::Debug>(got: Result<R, SplitJoinError>, ring: LoopKey) {
+        match got {
+            Err(SplitJoinError::RingHomingAmbiguous { ring: r }) => assert_eq!(r, ring),
+            other => panic!("expected RingHomingAmbiguous at {ring:?}, got {other:?}"),
+        }
+    }
+
+    fn face_of(body: &Body<f64>, ring: LoopKey) -> FaceKey {
+        body.get_loop(ring).unwrap().face
+    }
+
+    /// **A strut on the run is left pending, not refused, and is still
+    /// unplaced when nothing joins it** (the quiescence refusal's
+    /// reading); a ring off the run is placed as before.
+    #[test]
+    fn a_strut_on_the_run_is_pending_until_a_join_places_it() {
+        let (mut body, top, c) = slab();
+        let mut j = joiner();
+        let (strut, _) = pierce_ring(&mut body, top, Point3::new(1.0, 1.0, 1.0), 1);
+        let (off, _) = pierce_ring(&mut body, top, Point3::new(1.5, 0.5, 1.0), 1);
+        let newf = divide(&mut j, &mut body, top, (c[0], c[2])).unwrap();
+        assert_eq!(
+            face_of(&body, strut),
+            top,
+            "the pending strut stays where it was"
+        );
+        assert_eq!(j.unplaced_ring(&body), Some(strut), "the strut is pending");
+        let other = if face_of(&body, off) == newf {
+            newf
+        } else {
+            top
+        };
+        assert!(
+            body.get_face(other).unwrap().rings.contains(&off),
+            "the ring off the run is homed by its own vertex"
+        );
+    }
+
+    /// **A ring with a real edge, every vertex on the run, still
+    /// refuses**: only a ring of null edges is deferred.
+    #[test]
+    fn a_real_ring_on_the_run_still_refuses() {
+        let (mut body, top, c) = slab();
+        let mut j = joiner();
+        let p = Point3::new(0.5, 0.5, 1.0);
+        let q = Point3::new(1.5, 1.5, 1.0);
+        let ring = empty_ring(&mut body, top, p);
+        body.mev(
+            MevSite::Lone { r#loop: ring },
+            q,
+            EdgeCurveSpec::line_between(p, q),
+            tol(),
+        )
+        .unwrap();
+        refuses_at(divide(&mut j, &mut body, top, (c[0], c[2])), ring);
+        // An empty ring (a lone vertex, no edge) refuses the same way.
+        let (mut body, top, c) = slab();
+        let ring = empty_ring(&mut body, top, Point3::new(1.0, 1.0, 1.0));
+        refuses_at(divide(&mut joiner(), &mut body, top, (c[0], c[2])), ring);
+    }
+
+    /// **A join moves a pending strut into the face of the ring it meets.**
+    #[test]
+    fn a_join_places_a_pending_strut_with_its_partner() {
+        let (mut body, top, c) = slab();
+        let mut j = joiner();
+        let (strut, s) = pierce_ring(&mut body, top, Point3::new(1.0, 1.0, 1.0), 1);
+        let (lower, l) = pierce_ring(&mut body, top, Point3::new(1.5, 0.5, 1.0), 1);
+        divide(&mut j, &mut body, top, (c[0], c[2])).unwrap();
+        let home = face_of(&body, lower);
+        assert_ne!(
+            face_of(&body, strut),
+            home,
+            "the fixture puts the two apart"
+        );
+        j.join(
+            &mut body,
+            s[0],
+            l[0],
+            JoinLane::Planar,
+            SegmentEdge::Is(None),
+            tol(),
+        )
+        .unwrap();
+        assert_eq!(j.unplaced_ring(&body), None, "the join placed the strut");
+        // The join's second chord walls a sliver off the face it
+        // joined in; the fragment log names that face.
+        let joined = face_of(&body, body.get_half_edge(s[0]).unwrap().parent_loop);
+        let fragments = j.take_fragments();
+        assert!(
+            joined == home || fragments.contains(&(joined, home)),
+            "joined in {joined:?}, not in its partner's face {home:?} ({fragments:?})"
+        );
+        assert!(
+            fragments.iter().all(|&(_, from)| from == home),
+            "every chord divided the partner's face: {fragments:?}"
+        );
+    }
+
+    /// **Two pending rings in different faces refuse when joined.**
+    #[test]
+    fn two_pending_rings_in_different_faces_refuse() {
+        let (mut body, top, c) = slab();
+        let mut j = joiner();
+        let (a, ha) = pierce_ring(&mut body, top, Point3::new(1.0, 1.0, 1.0), 1);
+        let (b, hb) = pierce_ring(&mut body, top, Point3::new(0.5, 0.5, 1.0), 1);
+        let newf = divide(&mut j, &mut body, top, (c[0], c[2])).unwrap();
+        // Both are pending in `top`; carry one across as a later division
+        // with it pending in the other piece would leave it.
+        body.ring_move(b, newf).unwrap();
+        assert!(j.unplaced_ring(&body).is_some());
+        refuses_at(
+            j.join(
+                &mut body,
+                ha[0],
+                hb[0],
+                JoinLane::Planar,
+                SegmentEdge::Is(None),
+                tol(),
+            ),
+            a,
+        );
+    }
+
+    /// **A polygon completing inside a pending loop refuses**: the mef
+    /// would divide a face nothing has placed the loop in.
+    #[test]
+    fn a_mef_inside_a_pending_loop_refuses() {
+        let (mut body, top, c) = slab();
+        let mut j = joiner();
+        let (ring, h) = pierce_ring(&mut body, top, Point3::new(1.0, 1.0, 1.0), 2);
+        divide(&mut j, &mut body, top, (c[0], c[2])).unwrap();
+        assert_eq!(j.unplaced_ring(&body), Some(ring));
+        refuses_at(
+            j.join(
+                &mut body,
+                h[0],
+                h[1],
+                JoinLane::Planar,
+                SegmentEdge::Is(None),
+                tol(),
+            ),
+            ring,
+        );
     }
 }

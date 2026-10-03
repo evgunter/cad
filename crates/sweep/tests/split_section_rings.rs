@@ -649,6 +649,60 @@ fn a_plane_through_a_notch_tip_splits_exactly() {
     }
 }
 
+/// **A plane through the top corner of a pocket's or a hole's tip
+/// splits exactly, and a hole's other ring is placed by its own
+/// vertices.** The plane leans away from the tip edge, so it meets the
+/// cut at that one vertex: the split threads its null edges through it
+/// and the top face's ring is chorded into the section, never a
+/// bystander. The hole's bottom ring, wholly on one side, is re-homed
+/// into the half that holds it. The thin half is the wedge between the
+/// plane and the block's side, `4·∫(0.4 + 0.3z)dz = 5.6`.
+#[test]
+fn a_plane_touching_a_pockets_tip_splits_exactly() {
+    let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 2.0));
+    let diamond = [(2.0, 1.0), (3.0, 2.0), (2.0, 3.0), (1.0, 2.0)].map(|(x, y)| Point2::new(x, y));
+    // The diamond's area is 2: a pocket one deep, a hole two.
+    for (z0, label, cut_volume, ring) in [(1.0, "pocket", 2.0, 0), (-1.0, "hole", 4.0, 1)] {
+        let body = cut(label, &block, &prism(&diamond, z0, 3.0));
+        let rest = 32.0 - cut_volume - 5.6;
+        for (tip, n, below_want) in [
+            (3.0, Vec3::new(1.0, 0.0, 0.3), rest),
+            (1.0, Vec3::new(1.0, 0.0, -0.3), 5.6),
+        ] {
+            let plane = topo::test_support::split_plane(
+                Point3::new(tip, 2.0, 2.0),
+                n.normalize(),
+                geom_core::Tol::witness(),
+            );
+            let what = format!("{label}, plane through its tip at x = {tip}");
+            let r = split(&body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            for (part, want, side) in [
+                (&r.below, below_want, "below"),
+                (&r.above, 32.0 - cut_volume - below_want, "above"),
+            ] {
+                let b = part.body().unwrap_or_else(|| panic!("{what}: no {side}"));
+                assert_eq!(validate_closed(b), Ok(()), "{what} {side}: tier 2");
+                assert_eq!(
+                    validate_geometric(b, tol()),
+                    Ok(()),
+                    "{what} {side}: tier 3"
+                );
+                let v = volume(b);
+                assert!(
+                    (v - want).abs() < 1e-12,
+                    "{what} {side}: volume {v}, want {want}"
+                );
+                let holds_the_cut = (want - rest).abs() < 1e-12;
+                assert_eq!(
+                    rings(b),
+                    if holds_the_cut { ring } else { 0 },
+                    "{what} {side}: rings"
+                );
+            }
+        }
+    }
+}
+
 /// Twice the signed area of a polygon's corners in `(u, v)`.
 fn twice_area(polygon: &topo::SectionPolygon<f64>) -> f64 {
     let uv = polygon.uv();
