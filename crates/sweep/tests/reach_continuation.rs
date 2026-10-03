@@ -511,18 +511,19 @@ fn a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order() {
     }
 }
 
-/// **A declared `Tangent` touching a fillet mid-edge builds in either
-/// operand order, in every op.** A unit box stands beside the rounded
-/// plate, turned 45° so its west wall is tangent to the south-east
-/// fillet along the ruling at azimuth −45°: the box's wall edges pass
-/// that ruling mid-span and the plate has no edge on it. The pair
-/// declared `Tangent` is the cover (C4); undeclared, the graze refuses
-/// typed in both orders. Volumes are closed form (the box 1, the plate
-/// [`area`] of four corners, interiors disjoint); faces: the box 6, the
-/// plate 10, and the union their 16, nothing merging across a line
-/// touch.
+/// **A declared `Tangent` touching a fillet mid-edge builds its
+/// subtracts and intersect in either operand order, and refuses its
+/// union.** A unit box stands beside the rounded plate, turned 45° so
+/// its west wall is tangent to the south-east fillet along the ruling at
+/// azimuth −45°: the box's wall edges pass that ruling mid-span and the
+/// plate has no edge on it. The pair declared `Tangent` is the cover
+/// (C4); undeclared, the graze refuses typed in both orders. The union
+/// would have material on both sides of a ruling through the box wall's
+/// interior, the unbuilt doubled-slit arm, so it refuses. Volumes are
+/// closed form (the box 1, the plate [`area`] of four corners, interiors
+/// disjoint); faces: the box 6, the plate 10.
 #[test]
-fn a_declared_tangent_beside_a_fillet_builds_in_either_operand_order() {
+fn a_declared_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_either_order() {
     let s2 = core::f64::consts::FRAC_1_SQRT_2;
     let touch = Point2::new(W - R + R * s2, R - R * s2);
     let at = |along: f64, out: f64| {
@@ -589,12 +590,20 @@ fn a_declared_tangent_beside_a_fillet_builds_in_either_operand_order() {
             "{order}, undeclared: {err:?}"
         );
         let (ab, ba) = (tangent(fa, fb), tangent(fb, fa));
-        builds(
-            &format!("{order}: A ∪ B"),
-            topo::union_with(a, b, &ab, tol()),
-            va + vb,
-            na + nb,
-        );
+        let box_operand = if order == "box is A" {
+            topo::Operand::A
+        } else {
+            topo::Operand::B
+        };
+        match topo::union_with(a, b, &ab, tol()) {
+            Err(BooleanError::TangentSlitArmUnbuilt { interior, .. }) => {
+                assert_eq!(interior, box_operand, "{order}: A ∪ B, the box wall");
+            }
+            out => panic!(
+                "{order}: A ∪ B, the slit arm is unbuilt: {:?}",
+                out.map(|_| ())
+            ),
+        }
         builds(
             &format!("{order}: A ∖ B"),
             topo::subtract_with(a, b, &ab, tol()),
@@ -616,7 +625,7 @@ fn a_declared_tangent_beside_a_fillet_builds_in_either_operand_order() {
 }
 
 /// The 45° unit box of
-/// [`a_declared_tangent_beside_a_fillet_builds_in_either_operand_order`],
+/// [`a_declared_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_either_order`],
 /// its west wall on the south-east fillet's ruling at azimuth −45°,
 /// standing from `z0` to `z1`; and that wall and the fillet.
 fn box_beside_the_fillet(
@@ -708,7 +717,9 @@ fn comb() -> Body<f64> {
 /// **A covered touch no vertex splits refuses, typed, in both operand
 /// orders and every op.** The deferral widens only what the other
 /// operand's vertex puts under a touch; where nothing does, the
-/// settled pair answers the frontier it was deferred with.
+/// settled pair answers the frontier it was deferred with. The union
+/// refuses first at the door: the declared ruling runs through the
+/// box wall's interior, the unbuilt doubled-slit arm.
 ///
 /// - The short box beside the fillet (z 0.25 to 0.75, and 0.25 to 1):
 ///   its wall edges graze the fillet mid-ruling, where the plate has
@@ -771,8 +782,13 @@ fn a_covered_touch_no_vertex_splits_refuses_in_both_orders() {
             let mut d = with(&rest, &cont);
             d.coincident_faces
                 .push(FacePairDeclaration::new(x, y, topo::ContactClass::Tangent));
+            let out = topo::union_with(a, b, &d, tol());
+            assert!(
+                matches!(out, Err(BooleanError::TangentSlitArmUnbuilt { .. })),
+                "{pose}, {order}, A ∪ B: the ruling runs through the wall: {:?}",
+                out.map(|_| ())
+            );
             for (op, out) in [
-                ("A ∪ B", topo::union_with(a, b, &d, tol())),
                 ("A ∖ B", topo::subtract_with(a, b, &d, tol())),
                 ("A ∩ B", topo::intersect_with(a, b, &d, tol())),
             ] {
