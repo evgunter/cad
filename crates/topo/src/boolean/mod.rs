@@ -1245,7 +1245,9 @@ pub struct HalfGerm<T: Real> {
 pub struct BoolNullEdgeRecord<T: Real> {
     /// Which operand's clone the keys index.
     pub operand: Operand,
-    /// The classified vertex whose neighborhood minted this edge.
+    /// The vertex this edge was minted at: the classified vertex whose
+    /// neighborhood minted it, or, for a dangling null edge whose
+    /// segment another's holds whole at a shared vertex, that one's tip.
     pub at_vertex: VertexKey,
     /// The null edge.
     pub edge: EdgeKey,
@@ -1837,11 +1839,9 @@ pub enum BooleanError {
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
     /// neighborhoods, and one pair has no run in the shared vertex's
-    /// orbit that holds none of another pair's cuts: a dangling null
-    /// edge whose segment holds one (the segment outside a piece with a
-    /// reflex corner there), a null edge both of whose ways round hold
-    /// one, or two pairs whose runs are one arc
-    /// (`insert::reconcile_shared`).
+    /// orbit that holds none of another pair's cuts (a fan both of
+    /// whose ways round hold one), where a dangling null edge holding
+    /// another's whole would nest it (`insert::reconcile_shared`).
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,

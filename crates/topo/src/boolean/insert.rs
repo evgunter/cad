@@ -33,7 +33,7 @@
 //!
 //! **Plan, then mint.** [`plan_null_pairs`] takes every reading a
 //! pair's null edges need (codes, pairing, germ cells and directions,
-//! each run's direction) and [`mint_plan`] mints from the plan without
+//! each run's direction) and [`mint_plans`] mints from the plan without
 //! reading the orbit's geometry again. The reduction plans every vertex
 //! pair before it mints any: one vertex can sit in several pairs (an
 //! operand whose own contact left several vertices at one point pairs
@@ -41,9 +41,11 @@
 //! vertex's orbit. Where several crossing pairs cut one vertex,
 //! [`reconcile_shared`] turns each run that would hold another pair's
 //! cut the other way round its orbit, so the runs there are disjoint
-//! and no mint moves a half-edge another pair's plan read. Struts there
-//! mint before any fan, each spliced past those hung earlier in its
-//! corner at a lower germ ([`strut_anchor`]).
+//! and no mint moves a half-edge another pair's plan read, unless one
+//! strut's segment holds another's whole: the inner then hangs at the
+//! outer's tip ([`holds_whole`]). Struts there mint before any fan, an
+//! outer before its inner, each spliced past those hung earlier at its
+//! vertex at a lower germ ([`strut_anchor`]).
 
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
@@ -153,7 +155,7 @@ impl<T: geom_core::Real> Default for Hung<T> {
 }
 
 /// The null edges of one vertex pair, every reading taken: what
-/// [`mint_plan`] mints without reading the orbit's geometry again.
+/// [`mint_plans`] mints without reading the orbit's geometry again.
 #[derive(Clone, Debug)]
 pub(super) struct NullPlan<T: geom_core::Real> {
     /// The vertex pair.
@@ -343,8 +345,7 @@ pub(super) fn mint_plans<T: Decide>(
         .enumerate()
         .flat_map(|(i, p)| (0..p.runs.len()).map(move |k| (i, k)))
         .collect();
-    let mut recs: [Vec<Option<BoolNullEdgeRecord<T>>>; 2] =
-        [vec![None; runs.len()], vec![None; runs.len()]];
+    let mut edges: [Vec<Option<EdgeKey>>; 2] = [vec![None; runs.len()], vec![None; runs.len()]];
     for (slot, operand) in [Operand::A, Operand::B].into_iter().enumerate() {
         let vertex = |i: usize| {
             let c = plans[i].contact;
@@ -388,7 +389,7 @@ pub(super) fn mint_plans<T: Decide>(
                 a_vertex: plans[i].contact.a,
                 b_vertex: plans[i].contact.b,
             };
-            let rec = mint_directed(
+            let mut rec = mint_directed(
                 body,
                 (operand, vertex(i)),
                 orbit(i),
@@ -397,35 +398,30 @@ pub(super) fn mint_plans<T: Decide>(
                 mismatch,
                 band,
             )?;
-            out.edges.push(rec.clone());
-            recs[slot][n] = Some(rec);
+            // Slot canonicalization (the joining's slot lock): germ slot
+            // i of the A and B records must be the SAME spatial germ; a
+            // degeneracy swap in one solid only would misalign them, so
+            // align B's array to A's (entries carry their halves — the
+            // germ↔half binding is untouched).
+            let [a_run, b_run] = plans[i].runs[k];
+            if operand == Operand::B && a_run.swapped != b_run.swapped {
+                rec.germs.swap(0, 1);
+            }
+            edges[slot][n] = Some(rec.edge);
+            out.edges.push(rec);
         }
     }
-    for (n, &(i, k)) in runs.iter().enumerate() {
-        let [a_run, b_run] = plans[i].runs[k];
-        let (Some(a_rec), Some(b_rec)) = (&recs[0][n], &recs[1][n]) else {
+    for (n, &(i, _)) in runs.iter().enumerate() {
+        let (Some(a_edge), Some(b_edge)) = (edges[0][n], edges[1][n]) else {
             return Err(BooleanError::ClassificationInvariant {
                 what: "a planned null edge was not minted",
             });
         };
         out.pairs.push(NullEdgePairRecord {
-            a_edge: a_rec.edge,
-            b_edge: b_rec.edge,
+            a_edge,
+            b_edge,
             site: PairSite::VertexVertex(plans[i].contact),
         });
-        // Slot canonicalization (the joining's slot lock): germ slot i
-        // of the A and B records must be the SAME spatial germ; a
-        // degeneracy swap in one solid only would misalign them, so
-        // align B's array to A's (entries carry their halves — the
-        // germ↔half binding is untouched).
-        if a_run.swapped != b_run.swapped
-            && let Some(b) = out
-                .edges
-                .iter_mut()
-                .find(|r| r.operand == Operand::B && r.edge == b_rec.edge)
-        {
-            b.germs.swap(0, 1);
-        }
     }
     Ok(out)
 }
@@ -484,13 +480,21 @@ fn holds_whole<T: Decide>(
 /// the corner reads. A run that holds one is turned the other way
 /// round its orbit, every run re-read until none turns (one turn can
 /// make another's nested run the one to turn); cuts along one
-/// direction are placed by the runs ([`tied_held`]). A null edge both of whose runs hold another pair's
-/// cut refuses [`BooleanError::SharedVertexCrossings`]: a strut (whose
-/// other way round is the whole orbit) whose segment holds one, which
-/// a piece with a reflex corner at the point reaches; a fan whose two
+/// direction are placed by the runs ([`tied_held`]). A strut (whose
+/// other way round is the whole orbit) whose segment holds another
+/// pair's strut whole keeps it, the inner hanging at its tip
+/// ([`holds_whole`]): a piece with a reflex corner at the point leaves
+/// such a segment outside it, and two pieces touching along both its
+/// ends' directions make the two runs one arc. Another pair's cut
+/// strictly inside a strut's segment lies outside the strut's piece,
+/// and so does that pair's piece's In arc from it, up to the segment's
+/// ends: both its cuts lie in the segment, and its run is a strut that
+/// nests (the other way round would be the whole orbit). A null edge
+/// both of whose runs hold another pair's cut otherwise
+/// refuses [`BooleanError::SharedVertexCrossings`]: a fan whose two
 /// ways round both do, which needs a pair paired across the arcs
-/// outside its piece; or a run that is another pair's arc whole. Two
-/// crossing pairs that share both their vertices refuse
+/// outside its piece. Two crossing pairs that share both their
+/// vertices refuse
 /// [`BooleanError::NonManifoldResult`]: the result would hold a
 /// shared-entity wedge fan there.
 pub(super) fn reconcile_shared<T: Decide>(
@@ -667,7 +671,8 @@ fn run_ends<T: Decide>(
 /// whole, or in an end entry on the run's side of that end's germ, or a
 /// cut along an end germ's own direction that [`tied_held`] counts. A
 /// strut holds a cut of its own physical sector between its two germs,
-/// or along either that [`tied_held`] counts.
+/// or along either that [`tied_held`] counts, unless that cut's strut
+/// and it nest ([`nested`]).
 fn held_cut<T: Decide>(
     secs: &[BoolSector<T>],
     run: SideRun<T>,
@@ -741,9 +746,11 @@ fn nested<T: Decide>(
 /// before the cut. Runs on opposite sides are disjoint: not held. Runs
 /// on one side are nested: not held either, as the longer holds the
 /// shorter's far cut strictly and turns ([`reconcile_shared`]'s fixed
-/// point); unless both ends tie, one arc, which holds. No witness
-/// reaches that arm, nor the invariant that the two directions are
-/// opposite rays (a convex sector holds none).
+/// point); unless both ends tie, one arc, which holds, and the other
+/// way round is the complement, on the opposite side, so a fan turns.
+/// Struts on one side nest before this reading ([`nested`]). No witness
+/// reaches a fan's one arc, nor the invariant that the two directions
+/// are opposite rays (a convex sector holds none).
 fn tied_held<T: Decide>(
     secs: &[BoolSector<T>],
     ((k, own), own_leaves): (Cut<T>, bool),
