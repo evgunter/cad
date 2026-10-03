@@ -229,6 +229,8 @@ mod review_m3_pr3_bob;
 mod review_m3_pr3_consumer;
 #[path = "review_m3_pr3_order.rs"]
 mod review_m3_pr3_order;
+#[path = "review3967_probe.rs"]
+mod review3967_probe;
 #[path = "review_m3_pr3_pil.rs"]
 mod review_m3_pr3_pil;
 #[path = "review_m3_pr3_rings.rs"]
