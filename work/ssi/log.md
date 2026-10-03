@@ -73,3 +73,18 @@ alternative was four PRs on one file.
   - `SsiError::ending` is exhaustive. `StepBudget` names each lever whose rung held at least a quarter of the steps.
   - The tube ladder's tighten clause was dropped, per D4 ¶1 (i) read to the letter.
   - Class finding: an ending's lever has to be constructed and pulled. Four of the twelve new endings named a lever that did not move the refusal, and only constructing the scenario showed it.
+- 2026-10-03: `ssi/rational-chart-speed` / `ssi/dome-tube` / `ssi/seed-in-domain` / `ssi/rotation-chart-speed` merged (PRs 3863, 3903, 3864, 3916).
+  - PR 3903 closes the dome tube straddle. It was an enclosure artefact: `deriv_box` read whole span cells. It is now cut to the window and met with the whole cell.
+  - PR 3864 closes the seed refined off the chart.
+  - PR 3916 makes the chart speed rotation-invariant: per-term norms at the control points, an f64 screen guarded against NaN, and an exact-arithmetic row.
+  - Each had a single FULL review plus a fix pass, and 3916 also a delta review that found and fixed a NaN-dropping fold.
+- 2026-10-03: `[ev]` PR 3862 merged: the SSI boundary pass, ratified by Ev (fork log row 57). Design took three designer rounds. The build went through a dual review (A: BLOCK on mis-scaled weights; B: PASS), three fix passes and three delta reviews. Ev then made four further rulings on the PR thread:
+  1. **Regions only where coincident.** A region is reported only where the locus is certified within ε of the corner or side. Otherwise the curve is traced, and its own refusals stand. No reach cap and no fallback. Ev asked "why Kε not ε" and called the fallback "sketchy".
+  2. **March first, then Hermite.** No short-clip threshold.
+  3. **Option (i).** On rational walls, a plane between ε and Kε off a side refuses at the certificate limit, as mid-wall does. The "use what we already know" carrier is filed.
+  4. **Two questions filed as rows.** Ev asked whether `SSI_STEP_MAX` is necessary, and whether "march then Hermite" is principled. Filed as `ssi-step-max-is-a-sampling-heuristic` and `ssi-prefer-the-simplest-certified-candidate`.
+
+  Other outcomes:
+  - `RegionUnbounded` retired: its only reaching case was truly empty.
+  - Class finding: every number Ev questioned (5, Kε, the reach cap, the clip threshold) was a representation choice, not a soundness one. State that distinction up front when asking.
+  - Class finding: a ruling (mine, "no rung brings the reach under ⇒ near-tangency") was refuted by the lane's first measurement. Ask the lane to measure a rule before building on it.
