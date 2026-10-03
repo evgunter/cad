@@ -2144,7 +2144,7 @@ fn finish_r3(
         &SsiOperand::Analytic(a),
         &SsiOperand::Analytic(b),
         TubeScale::split(arm, domain.extent),
-        Some(domain.slab()),
+        certify::Banked::Within(domain.slab()),
         band,
     )?;
     let params = carrier.domain();
@@ -2571,7 +2571,7 @@ pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::Certi
     scale: TubeScale<T>,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
-    certify::certify_branch(carrier, pcurve_b, a, b, scale, None, band)
+    certify::certify_branch(carrier, pcurve_b, a, b, scale, certify::Banked::No, band)
 }
 
 /// The idealized stepper's trace of an analytic pair from an explicit

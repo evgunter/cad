@@ -85,17 +85,20 @@
 //! > in `B` is a graph over the `e` axis: one arc, no branch point, no
 //! > loop, no second sheet **at the same `e`-level**.
 //!
-//! Note what that does *not* say. It is a convexity/mean-value
-//! argument over the enclosure, not a bare appeal to the implicit
-//! function theorem (which is local and would not, by itself, cover the
-//! whole box). And it says nothing about a **disjoint component
-//! threading the padded chain at `e`-levels the carrier never
-//! occupies**: the slice argument is silent there. What excludes that
-//! is the other obligation entirely — [`super::exhaust`]'s accounting
-//! pass, which requires every cell of the bounded domain to be
-//! excluded by enclosure or *contained* in a tube, and refuses typed at
-//! the floor otherwise. Uniqueness in this module and completeness
-//! there are two theorems, and neither is doing the other's work.
+//! It is a convexity/mean-value argument over the enclosure, not a bare
+//! appeal to the implicit function theorem (which is local and would
+//! not, by itself, cover the whole box). And it says nothing about a
+//! **disjoint component threading the padded chain at `e`-levels the
+//! carrier never occupies**: a second arc beside the first along `e`,
+//! leaving through the box's sides, passes the slice argument. A search
+//! banks every cell inside a tube as accounted ([`super::exhaust`]), so
+//! where one does, the probe proves that component absent too: a piece
+//! of the solution set in a box ends on its boundary at two points, so a
+//! boundary holding exactly two simple solutions holds one piece, and
+//! consecutive boxes sharing a solution share it ([`one_arc`],
+//! [`one_arc_r3`]). Components outside the chain are the accounting
+//! pass's to exclude or refuse; uniqueness here and completeness there
+//! are two theorems, and neither is doing the other's work.
 //!
 //! An enclosure that **straddles** zero at every rung escalates, typed,
 //! never retried: `ssi_tube_transversality` lands in `Sign::Zero` and
@@ -119,8 +122,8 @@ use geom_core::spline::algebra::{
 };
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
-    Band, Bounds, CertifiedBounds, CertifiedEnclosure, Decide, Interval, Margin, Point3, Real, Sign,
-    Vec3,
+    Band, Bounds, CertifiedBounds, CertifiedEnclosure, Decide, Interval, Margin, Point3, Real,
+    Sign, Vec3,
 };
 
 use crate::certify::CertCheck;
@@ -700,16 +703,16 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
 /// decision runs once, upstairs, on the chosen radius.
 ///
 /// Returns the chain's smallest zero-free margin (dimensionless, the
-/// `sin θ` scale), the box count, and, where the margin is zero-free,
-/// whether the chain's solution set within `bound` is one arc
-/// ([`one_arc_r3`]); `None` when the chain is broken or an enclosure
+/// `sin θ` scale), the box count, and, where the margin is zero-free
+/// and a search banks the tube, whether the chain's solution set in the
+/// banked region is one arc ([`one_arc_r3`]); `None` when the chain is broken or an enclosure
 /// refused, which is a definite structural refusal.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     chain: &[(Box3, Vec3<T>)],
     s1: &Surface<T>,
     s2: &Surface<T>,
     radius: f64,
-    bound: Option<Box3>,
+    banked: Banked,
 ) -> Option<(f64, u32, bool)> {
     if chain.is_empty() {
         return None;
@@ -735,7 +738,12 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
             worst = m;
         }
     }
-    let single = worst > 0.0 && one_arc_r3(s1, s2, &padded, bound);
+    let single = worst > 0.0
+        && match banked {
+            Banked::No => true,
+            Banked::Wall => one_arc_r3(s1, s2, &padded, None),
+            Banked::Within(b) => one_arc_r3(s1, s2, &padded, Some(b)),
+        };
     Some((worst, chain.len() as u32, single))
 }
 
@@ -765,7 +773,7 @@ fn clip(a: Box3, b: Box3) -> Option<Box3> {
             return None;
         }
         let (lo, hi) = (p.lo().max(q.lo()), p.hi().min(q.hi()));
-        if !(lo < hi) {
+        if lo.partial_cmp(&hi) != Some(core::cmp::Ordering::Less) {
             return None;
         }
         out = with_side(out, i, Interval::from_bounds(lo, hi));
@@ -852,7 +860,12 @@ fn krawczyk<T: CertifiedBounds>(
     );
     let jac = [[g1[i], g1[j]], [g2[i], g2[j]]];
     let mid = |v: Interval| 0.5 * (v.lo() + v.hi());
-    let (a, b, c, d) = (mid(jac[0][0]), mid(jac[0][1]), mid(jac[1][0]), mid(jac[1][1]));
+    let (a, b, c, d) = (
+        mid(jac[0][0]),
+        mid(jac[0][1]),
+        mid(jac[1][0]),
+        mid(jac[1][1]),
+    );
     let det = a * d - b * c;
     if !det.is_finite() || det == 0.0 {
         return None;
@@ -1042,58 +1055,145 @@ fn meet(a: UvRect, b: UvRect) -> Option<UvRect> {
     (u.0 < u.1 && v.0 < v.1).then_some(UvRect { u, v })
 }
 
+/// One resolved piece of a window's boundary, in walk order: `φ` of one
+/// certified sign over it, or monotone along it with the certified
+/// signs of its two ends where they have one.
+#[derive(Clone, Copy, Debug)]
+enum Run {
+    /// Zero-free, of this sign.
+    Constant(bool),
+    /// Monotone along the piece: at most one zero.
+    Monotone(Option<bool>, Option<bool>),
+}
+
+impl Run {
+    /// The signs at the run's two ends, in walk order.
+    fn ends(self) -> (Option<bool>, Option<bool>) {
+        match self {
+            Self::Constant(s) => (Some(s), Some(s)),
+            Self::Monotone(a, b) => (a, b),
+        }
+    }
+
+    /// The run walked the other way.
+    fn reversed(self) -> Self {
+        match self {
+            Self::Constant(s) => Self::Constant(s),
+            Self::Monotone(a, b) => Self::Monotone(b, a),
+        }
+    }
+}
+
+/// One edge of a window's boundary resolved into [`Run`]s, in the
+/// order of its running coordinate: each piece is cut until `φ` is
+/// zero-free over it (by the mean-value form, which keeps the
+/// cancellation of `n·S` along the piece that a box of `S` per
+/// coordinate loses, or by that box), or its derivative along the edge
+/// is. `None` when a piece resolves neither way within [`EXIT_DEPTH`]
+/// cuts, or `pieces` passes [`EXIT_PIECES`].
+fn edge_runs<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    (along_u, c, (a, b)): (bool, f64, (f64, f64)),
+    pieces: &mut u32,
+) -> Option<Vec<Run>> {
+    let n = plane.0;
+    let piece = |s: f64, t: f64| if along_u { (s, t, c, c) } else { (c, c, s, t) };
+    let sign_at = |s: f64| sign_of(phi_over(boxes, plane, piece(s, s)));
+    let mut out = Vec::new();
+    let mut stack = vec![(a, b, 0u32)];
+    while let Some((s, t, depth)) = stack.pop() {
+        *pieces += 1;
+        if *pieces > EXIT_PIECES {
+            return None;
+        }
+        // The derivative over a strip as wide across the edge as the
+        // piece is long: a net is cut only to a rectangle of positive
+        // width, so a strip of none would read the whole span cell's.
+        let w = t - s;
+        let (r0, r1, r2, r3) = if along_u {
+            (s, t, c - w, c + w)
+        } else {
+            (c - w, c + w, s, t)
+        };
+        let d = boxes.deriv_box(r0, r1, r2, r3, along_u);
+        let slope = n[0] * d.x + n[1] * d.y + n[2] * d.z;
+        let (m, h) = (0.5 * (s + t), 0.5 * (t - s));
+        let mean = phi_over(boxes, plane, piece(m, m)) + slope * Interval::from_bounds(-h, h);
+        if let Some(sign) = sign_of(mean).or_else(|| sign_of(phi_over(boxes, plane, piece(s, t)))) {
+            out.push(Run::Constant(sign));
+            continue;
+        }
+        if sign_of(slope).is_some() {
+            out.push(Run::Monotone(sign_at(s), sign_at(t)));
+            continue;
+        }
+        if depth >= EXIT_DEPTH {
+            return None;
+        }
+        let cut = s + EXIT_CUT * (t - s);
+        // Popped low half first, so `out` runs in the edge's order.
+        stack.push((cut, t, depth + 1));
+        stack.push((s, cut, depth + 1));
+    }
+    Some(out)
+}
+
 /// How many zeros `φ` has on the boundary of `rect`, each certified a
-/// simple crossing. The boundary is cut into pieces until each is
-/// zero-free, or has a zero-free derivative along itself and certified
-/// end signs, which then hold one zero when they differ and none when
-/// they agree. `None` when a piece resolves neither way within
-/// [`EXIT_DEPTH`] bisections, or the walk exceeds [`EXIT_PIECES`].
+/// simple crossing. The boundary is walked once around as [`Run`]s.
+/// Between two points of certified sign, one monotone run holds one
+/// zero where the signs differ and none where they agree; two monotone
+/// runs meeting at a point of no certified sign (a zero on a cut or a
+/// corner) hold exactly one where the outer signs differ. Anything else
+/// — two such points in a row, or outer signs that agree around one,
+/// where the count could be zero or two — is `None`, as is an edge
+/// [`edge_runs`] does not resolve.
 fn boundary_zeros<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     plane: ([Interval; 3], [Interval; 3]),
     rect: UvRect,
 ) -> Option<u32> {
     let ((u0, u1), (v0, v1)) = (rect.u, rect.v);
-    // (runs along u, the fixed coordinate, the running range)
-    let edges = [
-        (true, v0, (u0, u1)),
-        (false, u1, (v0, v1)),
-        (true, v1, (u0, u1)),
-        (false, u0, (v0, v1)),
-    ];
-    let n = plane.0;
-    let (mut pieces, mut zeros) = (0u32, 0u32);
-    for (along_u, c, (a, b)) in edges {
-        let piece = |s: f64, t: f64| if along_u { (s, t, c, c) } else { (c, c, s, t) };
-        let mut stack = vec![(a, b, 0u32)];
-        while let Some((s, t, depth)) = stack.pop() {
-            pieces += 1;
-            if pieces > EXIT_PIECES {
-                return None;
-            }
-            if sign_of(phi_over(boxes, plane, piece(s, t))).is_some() {
-                continue;
-            }
-            let (r0, r1, r2, r3) = piece(s, t);
-            let d = boxes.deriv_box(r0, r1, r2, r3, along_u);
-            if sign_of(n[0] * d.x + n[1] * d.y + n[2] * d.z).is_some() {
-                let ends = (
-                    sign_of(phi_over(boxes, plane, piece(s, s))),
-                    sign_of(phi_over(boxes, plane, piece(t, t))),
-                );
-                let (Some(x), Some(y)) = ends else {
-                    return None;
-                };
-                zeros += u32::from(x != y);
-                continue;
-            }
-            if depth >= EXIT_DEPTH {
-                return None;
-            }
-            let m = s + EXIT_CUT * (t - s);
-            stack.push((m, t, depth + 1));
-            stack.push((s, m, depth + 1));
+    let mut pieces = 0u32;
+    // Counter-clockwise: the top and left edges are walked backwards.
+    let mut runs = Vec::new();
+    for (edge, back) in [
+        ((true, v0, (u0, u1)), false),
+        ((false, u1, (v0, v1)), false),
+        ((true, v1, (u0, u1)), true),
+        ((false, u0, (v0, v1)), true),
+    ] {
+        let mut r = edge_runs(boxes, plane, edge, &mut pieces)?;
+        if back {
+            r = r.into_iter().rev().map(Run::reversed).collect();
         }
+        runs.extend(r);
+    }
+    // The sign at each joint (after run `j`): either neighbour's word.
+    let k = runs.len();
+    let joints: Vec<Option<bool>> = (0..k)
+        .map(|j| runs[j].ends().1.or(runs[(j + 1) % k].ends().0))
+        .collect();
+    let start = joints.iter().position(Option::is_some)?;
+    let mut zeros = 0u32;
+    let mut from = joints[start]?;
+    let mut unknown = 0u32;
+    for step in 1..=k {
+        let j = (start + step) % k;
+        let Some(to) = joints[j] else {
+            unknown += 1;
+            if unknown > 1 {
+                return None;
+            }
+            continue;
+        };
+        match (unknown, from == to) {
+            (_, false) => zeros += 1,
+            (0, true) => {}
+            (_, true) => return None,
+        }
+        from = to;
+        unknown = 0;
     }
     Some(zeros)
 }
@@ -1120,7 +1220,7 @@ fn holds_zero<T: CertifiedBounds>(
         lo = lo.max(a.min(b));
         hi = hi.min(a.max(b));
     }
-    if !(lo < hi) {
+    if lo.partial_cmp(&hi) != Some(core::cmp::Ordering::Less) {
         return false;
     }
     // Clamped into the rectangle, so the segment between them is in it.
@@ -1187,8 +1287,8 @@ fn one_arc<T: CertifiedBounds>(
 /// `φ(u,v) = n·(S(u,v) − p₀) = 0` and `∇φ = (n·S_u, n·S_v)`. A
 /// zero-free enclosure of the component of `∇φ` transverse to the
 /// pcurve's own tangent makes the zero set a graph over each window;
-/// where it does, [`one_arc`] decides whether the chain holds the
-/// traced arc and nothing else. The region is [`chart_tube_windows`] at
+/// where it does and a search banks the tube, [`one_arc`] decides
+/// whether the chain holds the traced arc and nothing else. The region is [`chart_tube_windows`] at
 /// `pad`.
 ///
 /// `Ok(None)` when no window can be probed at this pad; a smaller rung
@@ -1204,6 +1304,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     surface: &NurbsSurface<T>,
     (origin, normal): (Point3<T>, Vec3<T>),
     pad: (f64, f64),
+    banked: bool,
 ) -> Result<Option<ChartProbe>, SsiError> {
     let boxes = NurbsBoxes::new(surface);
     let Some(windows) = chart_tube_windows(pcurve, pad) else {
@@ -1248,14 +1349,15 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     if probed.is_empty() {
         return Ok(None);
     }
-    let single = worst > 0.0 && {
-        let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
-        let domain = UvRect {
-            u: surface.knots_u().domain(),
-            v: surface.knots_v().domain(),
-        };
-        one_arc(&boxes, (n, p0), domain, pcurve, &probed)
-    };
+    let single = worst > 0.0
+        && (!banked || {
+            let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
+            let domain = UvRect {
+                u: surface.knots_u().domain(),
+                v: surface.knots_v().domain(),
+            };
+            one_arc(&boxes, (n, p0), domain, pcurve, &probed)
+        });
     #[allow(clippy::cast_possible_truncation)]
     Ok(Some(ChartProbe {
         margin: worst,
@@ -1289,6 +1391,20 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
         .collect()
 }
 
+/// Where a search banks a certified branch's tube as accounted
+/// (`super::exhaust`), and so where limb 3 must prove the tube holds the
+/// traced arc and nothing else.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Banked {
+    /// Nothing banks the tube: a carrier certified at rest. Limb 3
+    /// proves the locus a graph over each box.
+    No,
+    /// The plane × NURBS search, over the wall's own knot rectangle.
+    Wall,
+    /// An ℝ³ search confined to this box.
+    Within(Box3),
+}
+
 /// Certify a fitted rung-3 carrier against its operand pair — all three
 /// limbs, in order, refusing typed at the first failure.
 ///
@@ -1307,10 +1423,9 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 /// levered by, and the caller's named feature extent, which sets the
 /// tube ladder's widest rung.
 ///
-/// `bound` is the box an ℝ³ search is confined to, where one is: the
-/// one-arc proof then speaks of the tube within it, which is all the
-/// search's accounting banks. The chart arm is bounded by the wall's own
-/// knot rectangle and reads none.
+/// `banked` says whether a search banks the tube, and over what region
+/// ([`Banked`]); where one does, limb 3 also proves the tube's chain
+/// holds one arc there ([`one_arc`], [`one_arc_r3`]).
 ///
 /// The tolerance is `band`'s and only `band`'s. A linear band's
 /// `zero()` **is** the run's ε, and every threshold this function
@@ -1323,7 +1438,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     a: &SsiOperand<'_, T>,
     b: &SsiOperand<'_, T>,
     scale: TubeScale<T>,
-    bound: Option<Box3>,
+    banked: Banked,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
     let TubeScale { arm, extent } = scale;
@@ -1364,7 +1479,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     for radius in ladder.iter().copied() {
         let probe = match (a, b) {
             (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
-                probe_tube_analytic(&chain, s1, s2, radius, bound)
+                probe_tube_analytic(&chain, s1, s2, radius, banked)
                     .map(|(m, n, one)| (SsiTube::Spatial { radius }, m, n, one))
             }
             (SsiOperand::Analytic(plane), SsiOperand::Nurbs(n))
@@ -1386,14 +1501,17 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 // region (a window's corner can sit farther than the
                 // rung from the carrier).
                 let (pad_u, pad_v) = n.speeds().pad(radius);
-                probe_tube_chart(p, n.surface(), (origin, normal), (pad_u, pad_v))?.map(|c| {
-                    let tube = SsiTube::Chart {
-                        rung: radius,
-                        pad_u,
-                        pad_v,
-                    };
-                    (tube, c.margin, c.windows, c.one_arc)
-                })
+                let banked = !matches!(banked, Banked::No);
+                probe_tube_chart(p, n.surface(), (origin, normal), (pad_u, pad_v), banked)?.map(
+                    |c| {
+                        let tube = SsiTube::Chart {
+                            rung: radius,
+                            pad_u,
+                            pad_v,
+                        };
+                        (tube, c.margin, c.windows, c.one_arc)
+                    },
+                )
             }
             (SsiOperand::Nurbs(_), SsiOperand::Nurbs(_)) => {
                 return Err(SsiError::UnsupportedCertificate {
@@ -1667,10 +1785,20 @@ mod tests {
         #[test]
         fn a_certified_normal_produces_its_margin() {
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
-            let probe = probe_tube_chart(&u_line(), &unit_patch(), (on_line(), normal), (0.01, 0.01))
-                .expect("the unit patch's chart is not degenerate")
-                .expect("the probe must reach a verdict");
-            assert!(probe.margin > 0.0, "certified normal gave margin {}", probe.margin);
+            let probe = probe_tube_chart(
+                &u_line(),
+                &unit_patch(),
+                (on_line(), normal),
+                (0.01, 0.01),
+                true,
+            )
+            .expect("the unit patch's chart is not degenerate")
+            .expect("the probe must reach a verdict");
+            assert!(
+                probe.margin > 0.0,
+                "certified normal gave margin {}",
+                probe.margin
+            );
             assert!(probe.windows > 0, "no span was probed: the row is vacuous");
             assert!(probe.one_arc, "the window holds the line and nothing else");
         }
@@ -1690,8 +1818,14 @@ mod tests {
                 "fixture drifted: it certifies"
             );
             let normal = Vec3::new(iv(0.0), n, iv(0.0));
-            let verdict = probe_tube_chart(&u_line(), &unit_patch(), (on_line(), normal), (0.01, 0.01))
-                .expect("the unit patch's chart is not degenerate");
+            let verdict = probe_tube_chart(
+                &u_line(),
+                &unit_patch(),
+                (on_line(), normal),
+                (0.01, 0.01),
+                true,
+            )
+            .expect("the unit patch's chart is not degenerate");
             let margin = verdict.map_or(0.0, |c| c.margin);
             assert_eq!(
                 margin, 0.0,
@@ -1724,7 +1858,13 @@ mod tests {
             )
             .expect("valid pcurve");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
-            let verdict = probe_tube_chart(&pcurve, &unit_patch(), (on_line(), normal), (0.01, 0.01));
+            let verdict = probe_tube_chart(
+                &pcurve,
+                &unit_patch(),
+                (on_line(), normal),
+                (0.01, 0.01),
+                true,
+            );
             assert!(
                 matches!(verdict, Ok(None)),
                 "a pcurve whose control coordinate left its domain produced the \
@@ -1745,7 +1885,13 @@ mod tests {
             let point_patch = NurbsSurface::new(linear_kv(), linear_kv(), vec![p; 4], vec![1.0; 4])
                 .expect("a patch a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
-            let verdict = probe_tube_chart(&u_line(), &point_patch, (on_line(), normal), (0.01, 0.01));
+            let verdict = probe_tube_chart(
+                &u_line(),
+                &point_patch,
+                (on_line(), normal),
+                (0.01, 0.01),
+                true,
+            );
             assert!(
                 matches!(
                     verdict,
@@ -1773,7 +1919,8 @@ mod tests {
             let ridge = NurbsSurface::new(linear_kv(), linear_kv(), vec![a, a, b, b], vec![1.0; 4])
                 .expect("a patch a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
-            let verdict = probe_tube_chart(&u_line(), &ridge, (on_line(), normal), (0.01, 0.01));
+            let verdict =
+                probe_tube_chart(&u_line(), &ridge, (on_line(), normal), (0.01, 0.01), true);
             assert!(
                 matches!(
                     verdict,
@@ -1798,7 +1945,13 @@ mod tests {
             )
             .expect("a pcurve a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
-            let verdict = probe_tube_chart(&still, &unit_patch(), (on_line(), normal), (0.01, 0.01));
+            let verdict = probe_tube_chart(
+                &still,
+                &unit_patch(),
+                (on_line(), normal),
+                (0.01, 0.01),
+                true,
+            );
             assert!(
                 matches!(
                     verdict,
@@ -1992,10 +2145,13 @@ mod tests {
                 want.1
             );
             // ... and it is the pad the probe proved over.
-            let probe = probe_tube_chart(pc, &wall, (origin, n), (pad_u, pad_v))
+            let probe = probe_tube_chart(pc, &wall, (origin, n), (pad_u, pad_v), true)
                 .unwrap()
                 .expect("the recorded pad probes");
-            assert!(probe.one_arc, "branch {i}: the recorded pad's chain is not one arc");
+            assert!(
+                probe.one_arc,
+                "branch {i}: the recorded pad's chain is not one arc"
+            );
             let (margin, boxes) = (probe.margin, probe.windows);
             let levered = Margin::levered(margin, domain.extent).value();
             assert_eq!(
@@ -2007,7 +2163,7 @@ mod tests {
                 "branch {i}: the probe at the recorded pad is not the certificate's"
             );
             let folded = rung / su.max(sv);
-            let at_fold = probe_tube_chart(pc, &wall, (origin, n), (folded, folded)).unwrap();
+            let at_fold = probe_tube_chart(pc, &wall, (origin, n), (folded, folded), true).unwrap();
             assert!(
                 at_fold.is_none_or(|c| c.margin.to_bits() != margin.to_bits()),
                 "FIXTURE: branch {i}'s margin does not depend on the pad, so the \
@@ -2043,5 +2199,74 @@ mod tests {
                 "branch {i}: accounting banked other windows than limb 3 proved over"
             );
         }
+    }
+
+    /// **A window that is a graph over its lines can hold two arcs.**
+    /// The fold `z = c·x + a·x² + 4β·y(L − y)/L²` against `z = 0` (β = ε,
+    /// c = 80ε, a = 0.28·c²/β, w = β/c, L = 1.2w, `x ∈ [−1.5w, 1.8w]`) has
+    /// `∂φ/∂x > 0` everywhere, and its locus is two arcs, each from a `v`
+    /// side to the low `u` side. A pcurve straight across the gap between
+    /// them, padded to a window over the whole wall, is a graph there —
+    /// the margin is zero-free — but the window's boundary holds four
+    /// zeros, so the chain is not one arc; read at rest, where nothing
+    /// banks the tube, the graph is all limb 3 proves and the probe says
+    /// so.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::expect_used)]
+    fn a_graph_window_holding_two_arcs_is_not_one_arc() {
+        use geom::{NurbsCurve2, NurbsSurface};
+        use geom_core::spline::KnotVector;
+        use geom_core::{Point2, Point3, Vec3};
+
+        use super::probe_tube_chart;
+
+        let beta = 1e-9;
+        let c = 80.0 * beta;
+        let a = 0.28 * c * c / beta;
+        let w = beta / c;
+        let l = 1.2 * w;
+        let (x0, x1) = (-1.5 * w, 1.8 * w);
+        let g = |x: f64| c * x + a * x * x;
+        let h = |y: f64| 4.0 * beta * y * (l - y) / (l * l);
+        let gb = [g(x0), g(x0) + 0.5 * (x1 - x0) * (c + 2.0 * a * x0), g(x1)];
+        let hb = [0.0, 2.0 * beta, 0.0];
+        let (xs, ys) = ([x0, 0.5 * (x0 + x1), x1], [0.0, 0.5 * l, l]);
+        let k = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = (0..9)
+            .map(|i| Point3::new(xs[i / 3], ys[i % 3], gb[i / 3] + hb[i % 3]))
+            .collect();
+        let wall = NurbsSurface::new(k(), k(), control, vec![1.0; 9]).unwrap();
+        assert!(
+            (0..=8).all(|i| {
+                let y = l * f64::from(i) / 8.0;
+                (wall.eval(0.5, f64::from(i) / 8.0).z - g(0.5 * (x0 + x1)) - h(y)).abs() < 1e-18
+            }),
+            "FIXTURE: the net is the graph"
+        );
+        let u0 = -x0 / (x1 - x0);
+        let across = NurbsCurve2::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![Point2::new(u0, 0.0), Point2::new(u0, 1.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let plane = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let pad = (3.0, 8.0);
+        let banked = probe_tube_chart(&across, &wall, plane, pad, true)
+            .expect("a usable chart")
+            .expect("the window probes");
+        assert!(
+            banked.margin > 0.0,
+            "FIXTURE: the window is a graph over its lines (margin {})",
+            banked.margin
+        );
+        assert!(!banked.one_arc, "a window holding two arcs proved one arc");
+        let at_rest = probe_tube_chart(&across, &wall, plane, pad, false)
+            .expect("a usable chart")
+            .expect("the window probes");
+        assert!(
+            at_rest.one_arc && at_rest.margin.to_bits() == banked.margin.to_bits(),
+            "at rest the probe proves the graph and asks no more"
+        );
     }
 }

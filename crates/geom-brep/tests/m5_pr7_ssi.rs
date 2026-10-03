@@ -2523,10 +2523,12 @@ fn an_infinite_chart_speed_refuses_rather_than_receipting() {
 fn a_clipped_domain_ends_the_branch_on_the_boundary() {
     // The third closure trilean: `ssi_branch_open_end`. The slab is
     // shrunk so the loop cannot stay inside it, and the branch ends
-    // open on the named domain instead of closing.
+    // open on the named domain instead of closing. Its `x` faces cut the
+    // cylinder (`x` from −0.05 to 0.11) rather than touch it: a face the
+    // locus grazes holds a solution no box can isolate, and refuses.
     let (s, c) = (sphere(), threaded_cylinder());
     let mut d = slab();
-    d.center = Point3::new(0.06, 0.0, 0.996);
+    d.center = Point3::new(0.055, 0.0, 0.996);
     d.half_extent = 0.05;
     d.extent = 0.2;
     let out = ssi::cylinder_sphere_ssi(&c, &s, d, band());
