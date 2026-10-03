@@ -1,0 +1,62 @@
+diff --git a/crates/geom-brep/src/props/quad.rs b/crates/geom-brep/src/props/quad.rs
+index bc5d830d5..032180ea3 100644
+--- a/crates/geom-brep/src/props/quad.rs
++++ b/crates/geom-brep/src/props/quad.rs
+@@ -3435,6 +3435,9 @@ fn rational_patch_face<T: Decide>(
+             });
+         }
+         let width_len = mean_boundary_displacement(flux, area)?;
++        if std::env::var_os("PROBE3976").is_some() {
++            eprintln!("PROBE3976 rational round={round} pieces={pieces} width_len={width_len:e} target_len={target_len:e} last_round_lo_len={:e} flux={flux:?}", displacement_len(last_round_width_lo, area)?);
++        }
+         if classify_len::<T>(
+             "props_quad_converged",
+             Margin::of(target_len - width_len),
+@@ -3464,7 +3467,7 @@ fn rational_patch_face<T: Decide>(
+         // without running it; its payload is the bound — the last
+         // round's width to within the midpoint sum's width, never
+         // above it — and it paid for one round.
+-        if round == 0 {
++        if round == 0 && std::env::var_os("PROBE3976_FULL").is_none() {
+             let last_round_len = displacement_len(last_round_width_lo, area)?;
+             if last_round_refuses::<T>(last_round_len, target_len, band) {
+                 return Ok(RoundOutcome::Open {
+diff --git a/demos/tour/src/lily.rs b/demos/tour/src/lily.rs
+index 9219badd9..0fd7c710d 100644
+--- a/demos/tour/src/lily.rs
++++ b/demos/tour/src/lily.rs
+@@ -2682,6 +2682,34 @@ mod review_probes {
+         plant::<f64>(Tol::witness())
+     }
+ 
++    /// Reviewer probe for PR 3976: the certified reading of each swept
++    /// leaf at the run's ε, against a mesh-Richardson oracle and Pappus.
++    #[test]
++    fn probe3976_leaf_volumes() {
++        use pncad::mesh::validate::signed_volume;
++        let ps = pieces();
++        for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_C)] {
++            let pappus = leaf.section.area()
++                * leaf.curl.abs().mul_add(leaf.section.centroid_rise(), leaf.len);
++            let b = body(&ps, name);
++            let r = pncad::topo::validate_geometric_certificate(b, Tol::witness())
++                .expect("tier 3")
++                .measure();
++            match &r {
++                Ok(p) => eprintln!("PROBE3976 {name}: NUMBER {:e} pad {:e} -> [{:e}, {:e}]", p.volume, p.volume_pad, p.volume - p.volume_pad, p.volume + p.volume_pad),
++                Err(e) => eprintln!("PROBE3976 {name}: REFUSED {e} / {e:?}"),
++            }
++            let mut prev: Option<(f64, f64)> = None;
++            for delta in [2e-3, 1e-3, 5e-4, 2.5e-4, 1.25e-4] {
++                let m = pncad::mesh::tessellate(b, delta, Tol::witness()).expect("tessellate");
++                let v = signed_volume(&m);
++                let rich = prev.map(|(_, pv)| 2.0 * v - pv);
++                eprintln!("PROBE3976 {name}: mesh delta={delta:e} V={v:.9e} richardson(lin)={rich:?} pappus={pappus:.9e}");
++                prev = Some((delta, v));
++            }
++        }
++    }
++
+     fn body<'a>(ps: &'a [Piece<f64>], name: &str) -> &'a Body<f64> {
+         &ps.iter().find(|p| p.name == name).expect("piece").body
+     }

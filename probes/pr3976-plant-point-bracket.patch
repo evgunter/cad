@@ -1,0 +1,13 @@
+diff --git a/demos/tour/src/main.rs b/demos/tour/src/main.rs
+index 09091ddec..949720c8a 100644
+--- a/demos/tour/src/main.rs
++++ b/demos/tour/src/main.rs
+@@ -494,7 +494,7 @@ fn continued<T: Gated>(
+         Err(pncad::topo::TargetUnreached {
+             bracket: Some(bracket),
+             ..
+-        }) => Measured::Bracket(bracket),
++        }) => Measured::Bracket(pncad::topo::VolumeEnclosure { volume_hi: bracket.volume_lo, ..bracket }), // PLANT: a point
+         Err(unreached) => panic!("{label}: mass properties failed: {unreached}"),
+     }
+ }
