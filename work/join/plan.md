@@ -44,3 +44,27 @@ Three lanes, independent of each other, so they can run at once:
 Per unit, at dispatch, by the review tiers of
 `memories/orchestration-model.md`; the log names each tier and its
 reason. The A/B experiment is suspended, so the track carries no band.
+
+## The intent-refactor hold (Ev, `[ev]` PR #3990, 2026-10-03)
+
+Started units finish: JOIN-2 (PR 3880, with the REST-zip segments row
+it closes) and the reflex-wedge membership (PR 3962). Rows that
+meaningfully use declared contact, declared flush pairs, continuations
+or the REST zip are parked with `blocked_on: [3990]` (the ruling's
+item is not on main yet, so the PR number stands for it, as MSOLVE
+parks):
+
+- `four-germ-vertex-pairs-run-b-in-a-order` (P0): its fix waits on the
+  REST zip refusing a union that is not a pure REST contact;
+- `peg-in-socket-union-refuses-join-desync-at-a-coarse-eps`;
+- `a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync`;
+- `declared-flush-intersect-refuses-in-one-operand-order`;
+- `reflex-corner-edge-in-face-poses-zip-a-ring-parallel-to-its-section-loop`
+  (its poses are declared-flush).
+
+Still startable, because they are undeclared booleans or join topology
+alone: the ring re-homing pocket, the reflex vertex's B senses, the
+tube on a ball, the closed in-face loop (its join half), the
+cylinder-sphere frame, conic ranking, parallel cylinders, and the
+fan-end consolidation (its "mate" is the half-edge mate). So JOIN is
+not blocked.

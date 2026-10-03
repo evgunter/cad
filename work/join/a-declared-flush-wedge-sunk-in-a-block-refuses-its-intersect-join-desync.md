@@ -2,10 +2,11 @@
 id: a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync
 kind: issue
 title: A flush wedge sunk into a block, its continuation declared, refuses its intersect and subtract JoinDesync though every face is planar
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

@@ -2,11 +2,11 @@
 id: one-way-to-say-dependency-and-intent
 kind: ruling
 title: One way to say dependency and intent: variables, spaces, placements, constructions and assertions
-status: open
+status: closed
 opened: 2026-10-03
 priority: P0
-needs_ev: true
 pr: 3990
+closed: 2026-10-03
 ---
 
 

@@ -316,3 +316,115 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   - My process error: the designers' checkout was stale (the clone tracked the local `main` ref). Both caught it and read `82b9ceb2` directly.
   - Filed `classification-invariant-family-types-bug-only-states-against-d9-row-4` (P3).
   - Step 1 (the geom-core doors) dispatched as cloud lane `cleave/mints-doors`; single full review at report.
+- Inside-out gate (PR 3963, P1) merged on the orchestrator's read plus CI. Weekly usage is in warning, and the change only refuses: it adds no new answer.
+  - Ratified text already decides the question: D1 tier 3's orientation invariant, and "every door that returns or consumes [a finished body] pays that gate once" (Ev, PR 3870).
+  - The Boolean's operand gate now refuses `InsideOutOperand` on tier 3's own check-7 reading, per solid and before a multi-solid merge. The lane found that multi-solid hole itself.
+  - Accepted: an undecided sign passes, as check 7 passes it. The `A∩revert(B)` oracles become partition oracles.
+  - Accepted cost: about 17% of planar op time and 7% curved. REACH's `boolean-door-adopts-the-finished-body-type` retires it; the evidence is on that row.
+  - Filed by the lane: `split-answers-an-inside-out-operand-with-two-inside-out-halves` (CLEAVE) and a shell row on SHELL.
+  - Row closed.
+- [ev] PR 3960 (split pinch), discussed with Ev in the PR. Ev asked for a picture, and whether the main cases are structural. Answered there:
+  - A shared-parameter `Expr` is strong evidence but not an explicit statement. Ev: the case for a silent assumption is much stronger when the user "literally declared that v tip should lie on the same plane".
+  - The declaration seat stands as diffed, awaiting Ev's sign-off.
+  - Follow-ups to file at merge: a detector finding that names the shared-parameter identity, and a DM1-style plane datum naming an edge.
+- [ev] PR 3960 merged with Ev's approval ("i think this works"). The fork-log row was renumbered 58 → 61 at merge. Filed with it:
+  - `split-refusal-detector-names-a-shared-parameter-coincidence` (P3);
+  - `a-plane-datum-through-a-named-edge` (P3);
+  - `coincidence-intent-has-too-many-spellings` (P2, design). This is Ev's concern: "this whole system is able to say the same thing in too many ways". Weigh it before CONTACT's vertex-declaration fork.
+
+  The split pinch build is not dispatched while weekly usage is in warning.
+- Steep tube (PR 3981, P1) reported. The −3.06e-6 margin is a conservative box lying *inside* the window, at every ε, so `trim_containment` decided a one-sided escape two-sidedly. The fix clamps each escape at zero, as the iso gates already do. Re-baselines: the tour chain's certifiable fractions about ×2, and the plate ledger's blocked residuals 32 → 40. This overlaps PCERT's open retirement of check 5 (Ev, PR 3919). Review tier: DR "steep-tube", M, byte 74 (mod 3 = 2), so SEQUENTIAL; first review dispatched (cloud).
+- Mints step 1 (PR 3979, P0) reported:
+  - gate rejections carry the decided margin; the `_reported` twins are folded in; `Invalid` now means poison only;
+  - `decide_magnitude` panics on a decided Negative, and 11 sites are migrated;
+  - sweep's `short_arm` also goes through the door;
+  - two sites are deferred to step 4 (I16's radius is input-reachable; N5).
+
+  The lane's open doubt: a decided zero on the wrong side now offers a tolerance that cannot pass, at every gate. A single full review is dispatched (cloud).
+- Steep tube (PR 3981, DR "steep-tube", sequential): the first review is APPROVE-WITH-FIXES with no MAJOR, so it is the only review.
+  - The reviewer found the clamp sound for all six callers and the re-baselines honest, and recommends landing it before PCERT retires check 5.
+  - Fix pass sent:
+    - the pin prose;
+    - the tip ratio, which drifts with link count (0.3% headroom): restate the claim and do not widen the gate;
+    - one helper for "decide only the positive escape";
+    - a chaintol test that could not go red;
+    - pin the infinite-arm NaN;
+    - raise the contact sag row to P1;
+    - file `pcurve_azimuth_period`, which has the same shape.
+- Mints step 1 (PR 3979): the single full review is APPROVE-WITH-FIXES with one MAJOR, demonstrated at public `require_ring_torus`.
+  - The MAJOR: a gate's rejection of a wrong-side decided zero offers a tolerance that cannot pass, which D4 ¶1 (i) forbids. It is the lane's own open doubt, now spread to every plain gate.
+  - Ruled: the PR does not merge until it is fixed. The gate carries its pass set on the rejection; a small move toward the design's step-5 seal is accepted.
+  - Fix pass sent with the MINORs:
+    - `at_wedge`'s Negative arm;
+    - the past-band "declare" offer;
+    - the reviewer's two mutation-killing rows;
+    - a stale doc;
+    - the style items.
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+- Mints step 1 (PR 3979) merged after its fix pass. The MAJOR was fixed and checked against the diff: a gate's rejection carries a tag (the decided sign and the signs the gate passes) inside `MarginDiag`'s private reading, so no struct literal changed. A tolerance is offered only where a smaller one decides the margin onto a passing side.
+  - The MINORs and style items are done. The past-band "declare" offer is fixed at the bare Display; site lever lists go to step 4.
+  - Closes VERDICT's `decide-positive-synthesizes-invalid-for-a-decided-zero`.
+  - Step 2 (typed `Coincidence`, the six `is_invalid()` readers) dispatched as cloud lane `cleave/mints-coincidence`.
+- Steep tube (PR 3981) fix pass is done:
+  - the tip ratio is pinned per link count, with its trend asserted and the one-number claim retired;
+  - one `escape` helper;
+  - the azimuth-period row filed.
+
+  DR-64 rides the PR as its last commit, and it merges when CI is green.
+
+### CLEAVE under the hold (2026-10-03, 20:0xZ)
+
+The hold landed at 18:58Z. This sitting acted on it only at about 20:05Z, when Ev pointed to it.
+- **Orchestrator error, owned:** `cleave/mints-coincidence` (mints step 2: the undeclared-coincidence payloads and the `is_invalid()`-as-zero readers) was dispatched at 19:48Z, after the notice, onto exactly the held ground. It is withdrawn: interrupted and told to open no PR. Anything it pushed stays on its branch for when the ruling closes.
+- **Started before the hold, so finished as planned:**
+  - PR 3981 (steep-tube trim clamp): a pcurve certifier, not held ground.
+  - PR 3979 (mints step 1, the geom-core doors) merged at 19:48Z. It was dispatched before the notice and touches gate doors, not declared contact.
+- **Parked on `blocked_on: [3990]`** (the program-wide convention, since the ruling's item id is not on main yet):
+  - `topo-mints-indeterminates-outside-the-funnel` (P0; steps 2–5 are undeclared-coincidence payloads, contradiction typing of declared contacts, and the seal);
+  - `split-band-on-...` (the Split node's declaration);
+  - `coincidence-intent-has-too-many-spellings` (likely subsumed by #3990 itself);
+  - `a-plane-datum-through-a-named-edge` (Datum);
+  - `split-refusal-detector-names-a-shared-parameter-coincidence` (Expr parameters);
+  - `the-rest-lane-reads-a-nested-struts-site-at-its-holders-tip` and `seam-zip-grafts-re-certify-...` (the declared-Rest lane).
+- **Not held, still startable:** the split/boolean topology and certifier rows, including `split-answers-an-inside-out-operand-with-two-inside-out-halves`, the corner-crossing P1s, the chord recompute, and the validators/tessellator P2s. CLEAVE is not blocked.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.

@@ -35,11 +35,8 @@ pub(super) fn arcs_along<T: Decide>(
     band: Band,
 ) -> Result<Result<Vec<ArcStep<T>>, Indeterminate>, BooleanError> {
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
-    let Some(anchor) = body.get_vertex(u).and_then(|vd| vd.emanating) else {
-        return Ok(Ok(Vec::new()));
-    };
     let orbit = body
-        .vertex_orbit(anchor)
+        .vertex_orbit_of(u)
         .ok_or_else(|| corrupt("arc lookup: vertex orbit not walkable"))?;
     let d = dir.normalize();
     let mut found: Vec<ArcStep<T>> = Vec::new();

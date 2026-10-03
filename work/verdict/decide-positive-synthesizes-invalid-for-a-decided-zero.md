@@ -2,8 +2,11 @@
 id: decide-positive-synthesizes-invalid-for-a-decided-zero
 kind: issue
 title: geom-core: k_stats::decide_positive reports a decided Zero as MarginDiag::INVALID, the poisoned-margin encoding, at every gate whose Zero is a size the user may intend
-status: open
+status: closed
 opened: 2026-09-30
+pr: 3979
+branch: cleave/mints-doors
+closed: 2026-10-03
 ---
 
 

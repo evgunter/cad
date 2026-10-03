@@ -2,11 +2,12 @@
 id: four-germ-vertex-pairs-run-b-in-a-order
 kind: issue
 title: A vertex pair with four crossing germs runs its B null edges in A's germ order: 41 reflex-probe poses refuse and one union ships a wrong body
-status: open
+status: parked
 opened: 2026-10-02
 priority: P0
 cost: H
 refs: [a-flush-declared-reflex-union-ships-the-wrong-volume, reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

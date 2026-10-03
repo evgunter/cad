@@ -326,6 +326,29 @@ EDIT's PR #3676 deleted the cluster maintenance, so item 23's third
 row (the `mate/maintain.rs` move) was overtaken. Main closed that row,
 and MSOLVE-12 merges main without it.
 
+**The intent-refactor hold (Ev, `[ev]` PR #3990, 2026-10-03).**
+Ev opened a redesign of dependency, placement and intent, and asked
+every active orchestrator to start no new unit on that ground while
+finishing units already started (Ev's words: `git show
+5f7a1c71e3:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent.md`,
+messages 4 and 5). Every live MSOLVE row is mate or solve work, so:
+
+- **MSOLVE-14** (item 19, the solve at the run's scalar) is in flight.
+  It finishes, dual review included. So do the two rows it closes and
+  the box-driver row its §6 reaches.
+- **MSOLVE-15** (item 22's build: the deletions that ride row 53's
+  offset, which PLACE built in PR 3961) is specced on
+  `msolve/15-frame-offset-carries-the-roll` and **not started**. It
+  stays unstarted. Its spec is now stale in its §1, because PLACE built
+  the frame shape. Re-cut it after the ruling lands.
+- **Every other live row is parked** with `blocked_on: [3990]`, the
+  ruling's PR. The ruling's item is not on main yet, so its id does not
+  resolve. Item 25, the new PLACE-filed rows and every other row are
+  parked this way.
+
+Once MSOLVE-14 merges, the program has nothing it may start, so its
+status goes to `blocked` and the orchestrator stops, as the hold says.
+
 The exit walk waits on 10–12, 14–16 and 17–26: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm
 (with the witness and the `MateFault` note), the face-resolved frame
