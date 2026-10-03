@@ -532,9 +532,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "PromoteOnNonInstance",
-            EditError::PromoteOnNonInstance {
-                node: s(9, "Mate"),
-            },
+            EditError::PromoteOnNonInstance { node: s(9, "Mate") },
         ),
         (
             "PromoteWithoutOffset",

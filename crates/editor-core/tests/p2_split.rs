@@ -110,7 +110,12 @@ fn base_bottom(p: &Parts, base: RecipeNodeId) -> StableName {
 
 /// **R1**: `doc` split at `ids` and the instance inlined back at the
 /// empty offset it sits at is `doc` up to node ids.
-pub(crate) fn round_trip(doc: &ProfileDoc, ids: &[RecipeNodeId], p: &Parts, label: &str) -> SplitOutcome {
+pub(crate) fn round_trip(
+    doc: &ProfileDoc,
+    ids: &[RecipeNodeId],
+    p: &Parts,
+    label: &str,
+) -> SplitOutcome {
     let out = split(doc, ids, label, &p.opts()).unwrap_or_else(|e| panic!("{label}: {e}"));
     assert_eq!(
         offset_of(&out.remainder, out.instance),
@@ -1232,7 +1237,10 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         (doc, ids.to_vec())
     };
     let empty_gauge = || -> Scene {
-        let (doc, k) = insert(empty("r1-empty-gauge"), Node::gauge(None, Placement::IDENTITY));
+        let (doc, k) = insert(
+            empty("r1-empty-gauge"),
+            Node::gauge(None, Placement::IDENTITY),
+        );
         let (doc, ids) = pair_on(doc, Some(k), literal([4.0, 0.0, 0.0]));
         (doc, [&[k][..], &ids].concat())
     };
@@ -1245,7 +1253,10 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         (doc, [&[k][..], &ids].concat())
     };
     let gauge_on_kept = || -> Scene {
-        let (doc, g) = insert(empty("r1-gauge-on-kept"), Node::gauge(None, literal([0.0, 8.0, 0.0])));
+        let (doc, g) = insert(
+            empty("r1-gauge-on-kept"),
+            Node::gauge(None, literal([0.0, 8.0, 0.0])),
+        );
         let (doc, k) = insert(doc, Node::gauge(Some(g), literal([2.0, 0.0, 0.5])));
         let (doc, pair) = pair_on(doc, Some(k), literal([0.0, 2.0, 0.0]));
         let (doc, lone) = insert(doc, Node::instantiate_part(p.base));
@@ -1257,7 +1268,10 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         (doc, [&[k, lone, k2, deep][..], &pair].concat())
     };
     let group_on_kept = || -> Scene {
-        let (doc, g) = insert(empty("r1-group-on-kept"), Node::gauge(None, literal([0.0, 8.0, 0.0])));
+        let (doc, g) = insert(
+            empty("r1-group-on-kept"),
+            Node::gauge(None, literal([0.0, 8.0, 0.0])),
+        );
         let (doc, ids) = pair_on(doc, Some(g), literal([4.0, 0.0, 0.0]));
         (doc, ids.to_vec())
     };
@@ -1272,8 +1286,14 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         ("a lone instance", &lone),
         ("a group at a parametric offset", &parametric_root),
         ("a gauge at the empty chain holding a group", &empty_gauge),
-        ("a gauge holding one group at the empty chain", &group_at_empty),
-        ("a gauge on a kept gauge with two groups and a gauge", &gauge_on_kept),
+        (
+            "a gauge holding one group at the empty chain",
+            &group_at_empty,
+        ),
+        (
+            "a gauge on a kept gauge with two groups and a gauge",
+            &gauge_on_kept,
+        ),
         ("a group on a kept gauge", &group_on_kept),
         ("plain geometry on the world", &plain),
     ];

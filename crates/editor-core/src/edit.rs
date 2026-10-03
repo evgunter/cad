@@ -2558,7 +2558,10 @@ impl EditError {
                     "{} carries no offset, so there is no chain to become a gauge",
                     node
                 )?;
-                tail.recourse(f, format_args!("set {}'s offset (SetOffset), then promote", node))
+                tail.recourse(
+                    f,
+                    format_args!("set {}'s offset (SetOffset), then promote", node),
+                )
             }
             Self::PromoteNonRoot { node, root } => {
                 write!(

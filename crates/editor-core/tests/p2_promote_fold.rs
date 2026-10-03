@@ -155,7 +155,10 @@ fn fold_joins_the_gauges_steps_in_front_and_promote_after_it_is_the_identity() {
     // The label: a lone dependent with none takes K's, one with its
     // own keeps it.
     let named = labelled(doc.clone(), k, "bench");
-    assert_eq!(label(&fold(named.clone(), k), lone).as_deref(), Some("bench"));
+    assert_eq!(
+        label(&fold(named.clone(), k), lone).as_deref(),
+        Some("bench")
+    );
     let both = labelled(named, lone, "post");
     assert_eq!(label(&fold(both, k), lone).as_deref(), Some("post"));
 
@@ -193,10 +196,16 @@ fn a_part_at_this_frame_is_a_promote_and_a_cut_leaving_the_gauge() {
     assert_eq!(offset_of(&out.part, root), Some(Placement::IDENTITY));
     assert_eq!(gauge_of(&out.part, root), None, "on the part's world");
     assert_eq!(gauge_of(&out.remainder, out.instance), Some(k));
-    assert_eq!(offset_of(&out.remainder, out.instance), Some(Placement::IDENTITY));
+    assert_eq!(
+        offset_of(&out.remainder, out.instance),
+        Some(Placement::IDENTITY)
+    );
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
-    let (before, after) = (extent(&doc, &o), extent(&out.remainder, &with_resolver(store)));
+    let (before, after) = (
+        extent(&doc, &o),
+        extent(&out.remainder, &with_resolver(store)),
+    );
     assert_eq!(before.2.to_bits(), after.2.to_bits());
     same_extent(before, after, "split-then-evaluate keeps the material");
     round_trip(&promoted, &[base, top, mate], &p, "pf-frame-r1");
@@ -230,7 +239,10 @@ fn a_cut_of_a_gauges_content_then_a_fold_gives_the_instance_the_gauges_placement
 
     let out = split(&doc, &[base, top, mate, lone, k2, deep], "pf-content", &o).expect("cuts");
     assert_eq!(gauge_of(&out.remainder, out.instance), Some(k));
-    assert_eq!(offset_of(&out.remainder, out.instance), Some(Placement::IDENTITY));
+    assert_eq!(
+        offset_of(&out.remainder, out.instance),
+        Some(Placement::IDENTITY)
+    );
     let folded = fold(out.remainder.clone(), k);
     assert!(folded.node(k).is_none());
     assert_eq!(gauge_of(&folded, out.instance), Some(g));
@@ -247,7 +259,11 @@ fn a_cut_of_a_gauges_content_then_a_fold_gives_the_instance_the_gauges_placement
         assert_eq!(gauge_of(&out.part, out.node_map[&id]), None, "{id:?}");
         assert_eq!(offset_of(&out.part, out.node_map[&id]), offset, "{id:?}");
     }
-    assert_eq!(gauge_of(&out.part, out.node_map[&k2]), None, "K2 on the part's world");
+    assert_eq!(
+        gauge_of(&out.part, out.node_map[&k2]),
+        None,
+        "K2 on the part's world"
+    );
     assert_eq!(
         gauge_of(&out.part, out.node_map[&deep]),
         Some(out.node_map[&k2])
@@ -282,7 +298,10 @@ fn promote_and_fold_refuse_typed_with_a_recourse_that_clears_them() {
         refused(&unplaced, DocEdit::Promote { instance: base }),
         EditError::PromoteWithoutOffset { node } if node.id() == base
     ));
-    promote(set_offset(unplaced, base, Some(literal([1.0, 0.0, 0.0]))), base);
+    promote(
+        set_offset(unplaced, base, Some(literal([1.0, 0.0, 0.0]))),
+        base,
+    );
 
     let solved = Placement::literal(
         &solve(&doc, &o, Tol::witness())
