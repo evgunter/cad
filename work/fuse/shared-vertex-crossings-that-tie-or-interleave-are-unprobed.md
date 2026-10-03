@@ -1,7 +1,7 @@
 ---
 id: shared-vertex-crossings-that-tie-or-interleave-are-unprobed
 kind: issue
-title: "SharedVertexCrossings' tie arm refuses a pinch line lying in a face of the shared corner, and its interleave and dangling-edge arms are reached by no witness"
+title: "SharedVertexCrossings: a dangling null edge holding another pair's cut is reachable and refuses; the fan-interleave and one-arc arms are reached by no witness"
 status: open
 opened: 2026-10-03
 priority: P0
@@ -11,73 +11,46 @@ cost: M
 
 ## What
 
-After `fuse/shared-vertex-crossings`, `insert::reconcile_shared` and
-`insert::strut_anchor` (`crates/topo/src/boolean/insert.rs`) raise
-`BooleanError::SharedVertexCrossings` in five arms. Two have
-witnesses:
+`insert::reconcile_shared` (`crates/topo/src/boolean/insert.rs`)
+refuses `BooleanError::SharedVertexCrossings` when a pair at a vertex
+several crossing pairs cut has no run clear of the other pairs' cuts.
 
-- **Both vertices shared**: `two-pinches-crossing-on-one-line-refuse-their-union`.
-- **Two pairs' cuts that tie in one corner.** Witness: the pinch
-  (`union_with(q1, q3)`, along the z-axis) against the 80°–190° wedge
-  over z ∈ (0.5, 1), sheared backwards along its 80° face by half a
-  unit per unit of height: (x, y, z) → (x − 0.5·cos 80°·(z − 0.5),
-  y − 0.5·sin 80°·(z − 0.5), z), through `prism_ops`' map. The pinch
-  line runs flat inside that face from the shared corner, so both
-  pairs' cuts lie along it in one corner (`bool_shared_cut_order`
-  reads Zero), and all six ops refuse. Pinned by
-  `a_pinch_line_flat_in_the_shared_corners_face_refuses_typed`
-  (`crates/topo/tests/union_flush_onto_edge_contact.rs`). **P0** on the
-  parent row's ruling (FUSE orchestrator, 2026-10-02): the pinch is a
-  Boolean output, and the next Boolean refuses it.
+Built on `fuse/shared-vertex-tie`:
 
-Three are reached by none:
+- **Cuts that tie in one corner** (a pinch line lying flat in a face of
+  the shared corner): placed by the runs (`insert::tied_held`), the
+  side each run takes being read off its piece's faces. Witnesses:
+  `a_pinch_line_flat_in_the_shared_corners_face_builds_in_every_op`
+  and `three_pieces_two_of_whose_cuts_tie_build_in_every_op`.
+- **Two dangling null edges tied in one corner**: they splice by their
+  lower germs, so `strut_anchor`'s tie is a `ClassificationInvariant`.
+  Witness: `two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op`.
 
-- a null edge both of whose runs hold another pair's cut (interleaved
-  cuts);
-- another pair's cut between a dangling null edge's two germs;
-- two dangling null edges at one germ direction in one corner
-  (`strut_anchor`; `reconcile_shared` reads such a pair as held first).
+Still refusing:
 
-The witnesses so far either keep the cuts apart (the pinch line along
-an edge, which `recl::Reversed` handles) or tie them. An interleave
-needs pieces whose regions about the shared vertex alternate, which
-disjoint pieces of one operand cannot do in a convex corner.
-
-## Owed
-
-For the tie: decide the order the pinch's pieces give about the line,
-read off the pieces' own faces, and build the arm, as
-`recl::Reversed` does along an edge. Flip the pinned test to a build in
-all six ops at volumes checked outside the kernel, with 3′ passing.
-For the three unreached arms: show they cannot be reached and make
-them invariants, or build a witness.
-
-## Progress on `fuse/shared-vertex-tie`
-
-- **The tie builds.** Cuts along one direction in one sector entry
-  are placed by the runs (`insert::tied_held`): runs leaving the line
-  in opposite senses are disjoint, nested ones resolve as strict cuts
-  do. The two-piece witness and a three-piece one build in every op at
-  volumes from a polygon clip, 3′ passing.
-- **Two struts tied in one corner** (the `strut_anchor` arm): built,
-  `two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op`.
-  Struts now splice by their lower germ, so the arm is a
-  `ClassificationInvariant`.
-- **Another pair's cut between a strut's germs: reachable.** A piece
-  with a reflex corner (a block's pyramidal pit with a spike in it)
-  leaves its strut on the Out side holding the spike's cuts. Pinned
-  typed: `a_dangling_null_edge_holding_another_pairs_cut_refuses_typed`.
+- **A dangling null edge whose segment holds another pair's cut:
+  reachable.** A piece with a reflex corner at the point (a block's
+  pyramidal pit with a spike in it, against a cube's corner) leaves its
+  dangling null edge on the Out side, holding the spike's cuts; its
+  other way round is the whole orbit. Pinned:
+  `a_dangling_null_edge_holding_another_pairs_cut_refuses_typed`.
   Building it needs nested null edges at one vertex whose ends differ
   (In of one, Out of the other), which `mint_directed`'s end guard
   forbids: a design question.
-- **Interleave (a fan both ways round holding cuts)**: disjoint pieces
-  do alternate in a convex corner (three corners round the cube's,
-  measured), but a pair whose run is one of its own In-arcs is clear,
-  so the arm needs a pair paired across its Out-arcs (four crossings,
-  the In-arc wrapping the A orbit's first sector). That shape refuses
-  `PairingMismatch` first:
+- **A fan both of whose ways round hold a cut (interleave)**: disjoint
+  pieces do alternate round a convex corner, but a run that is its own
+  piece's In-arc is clear, so this needs a pair paired across its
+  Out-arcs (four crossings, the In-arc wrapping the A orbit's first
+  sector). That shape refuses `PairingMismatch` first:
   `work/cleave/a-corner-crossing-another-four-times-refuses-pairing-mismatch.md`.
-  Unreached; kept typed.
-- **Two pairs' runs one arc**: needs the shared corner's whole
-  boundary inside two pieces that touch along two of its rays, which
-  leaves the vertex no sector of its own. No witness; kept typed.
+  Unreached.
+- **Two pairs whose runs are one arc**: needs the shared corner's whole
+  boundary inside two pieces touching along two of its rays, which
+  leaves the vertex no sector of its own. No witness.
+
+## Owed
+
+Decide the nested-null-edge structure for the reachable arm and build
+it, flipping its pin. Re-probe the interleave arm once the
+`PairingMismatch` row is fixed. Find a witness for the one-arc arm or
+show it unreachable.

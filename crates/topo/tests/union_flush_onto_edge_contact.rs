@@ -931,19 +931,29 @@ type BooleanOutcome = Result<BooleanResult<f64>, BooleanError>;
 /// with the pinch's records carried, except `pinch ∖ prism`: the
 /// pinch's top end lies inside the prism's face, and that result keeps
 /// both pieces there with no v-v row
-/// (`work/fuse/a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records.md`),
+/// (`work/fuse/a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped.md`),
 /// pinned as it stands. Red as the first row: each dangling null edge
 /// read the other's cut along the line as held, and all six refused
-/// `SharedVertexCrossings`.
+/// `SharedVertexCrossings`. Red with the notch from −20° to 220° if a
+/// dangling null edge splices by the germ its run leaves from rather
+/// than its lower germ: both leave from the line, and all six refuse
+/// the anchor's invariant.
 #[test]
 fn two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op() {
-    let tol = Tol::witness();
+    for notch in [(-40.0, 200.0), (-20.0, 220.0)] {
+        dangling_null_edges_meeting_on_the_pinch_line(notch, Tol::witness());
+    }
+}
+
+/// The pinch against the diagonal prism whose face's notch runs from
+/// `notch.0` to `notch.1` degrees (doc above).
+fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
     let (pinch, carried) = pinch(tol);
     let at = |deg: f64| {
-        let (c, s) = (deg.to_radians().cos(), deg.to_radians().sin());
+        let (c, s) = (f64::to_radians(deg).cos(), f64::to_radians(deg).sin());
         (0.5 * c, 0.5 + 0.5 * s)
     };
-    let (right, left) = (at(-40.0), at(200.0));
+    let (right, left) = (at(notch.0), at(notch.1));
     let profile = [
         (0.0, 0.5),
         right,
@@ -1017,6 +1027,7 @@ fn two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op() {
             false,
         ),
     ] {
+        let op = format!("{op} (notch {notch:?})");
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
@@ -1084,13 +1095,16 @@ fn a_dangling_null_edge_holding_another_pairs_cut_refuses_typed() {
     let origin = (0.0, 0.0, 0.0);
     let ends = keys_at(&y.body, origin);
     assert_eq!(ends.len(), 2, "the pit's apex and the spike's corner");
+    // `against_the_cube` builds this same brick, so its keys are these.
+    let cube_corner = keys_at(&brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), origin);
+    assert_eq!(cube_corner.len(), 1, "one cube corner at the origin");
     for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
         let cube_first = op.starts_with("cube");
         match got {
             Err(BooleanError::SharedVertexCrossings {
                 operand,
+                vertex,
                 partners: [p0, p1],
-                ..
             }) => {
                 let mut partners = vec![p0, p1];
                 partners.sort();
@@ -1100,8 +1114,8 @@ fn a_dangling_null_edge_holding_another_pairs_cut_refuses_typed() {
                     topo::Operand::B
                 };
                 assert_eq!(
-                    (operand, partners),
-                    (side, ends.clone()),
+                    (operand, vertex, partners),
+                    (side, cube_corner[0], ends.clone()),
                     "{op}: the cube's corner and both of y's vertices there"
                 );
             }
