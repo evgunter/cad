@@ -171,6 +171,7 @@ pub(super) fn circle_cylinder_roots<T: Decide>(
                 // `h` is the residual itself, already divided by `2r`.
                 f_per_metre: T::one(),
                 f_per_metre_hi: T::one(),
+                residual_reach: None,
             },
             speed_lo: radius,
             // Not clamped by the wall's size, as the torus door clamps

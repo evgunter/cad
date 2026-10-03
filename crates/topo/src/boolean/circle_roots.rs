@@ -233,10 +233,12 @@ impl<T: geom_core::Real> TrigPoly<T> {
 /// radian), `noise`, a bound on the `f64` evaluation error of `F` from
 /// its harmonics (in `F`'s units), and `F`'s units per metre of the
 /// residual `residual` reads: `f_per_metre`, a FLOOR on
-/// `|F| / |residual|` near the surface (which turns `noise` into metres),
-/// and `f_per_metre_hi`, a CEILING on it along the carrier (which turns a
-/// lower bound on `|F|` into one on the residual). A door whose `F` IS
-/// that residual passes exactly `1` for both.
+/// `|F| / |residual|` (which turns `noise` into metres), and
+/// `f_per_metre_hi`, a CEILING on it wherever `|residual|` is below
+/// `residual_reach`, so that `|residual| ≥ min(residual_reach,
+/// |F| / f_per_metre_hi)` everywhere — the lower bound a clear piece is
+/// read in. A door whose `F` IS that residual passes exactly `1` for
+/// both ratios and no reach (`None`: the ceiling holds everywhere).
 pub(super) struct SubdivisionFrame<T> {
     pub(super) t0: T,
     pub(super) t1: T,
@@ -244,6 +246,7 @@ pub(super) struct SubdivisionFrame<T> {
     pub(super) noise: T,
     pub(super) f_per_metre: T,
     pub(super) f_per_metre_hi: T,
+    pub(super) residual_reach: Option<T>,
 }
 
 /// **The root-slack meter** a caller of [`certified_subdivision`] may
@@ -565,9 +568,10 @@ const BISECTIONS: u32 = 64;
 ///   never a certified `Miss`.
 ///
 /// `F` shares the residual's sign. The clear margin is read in metres
-/// through the CEILING `f_per_metre_hi`, so it is a lower bound on the
-/// residual's least magnitude over the piece — read through a floor it
-/// would overstate it, and a carrier within the band could read clear.
+/// through the CEILING `f_per_metre_hi` (capped at `residual_reach`), so
+/// it is a lower bound on the residual's least magnitude over the piece —
+/// read through a floor it would overstate it, and a carrier within the
+/// band could read clear.
 /// The harmonics are rounded: `F` read from them is the
 /// true one to within `noise`, so its `k`-th derivative to within
 /// `Nᵏ·noise` (Bernstein's inequality for a trigonometric polynomial of
@@ -587,6 +591,7 @@ pub(super) fn certified_subdivision<T: Decide>(
         speed_hi,
         noise,
         f_per_metre_hi,
+        residual_reach,
         ..
     } = *frame;
     let two = T::from_f64(2.0);
@@ -686,7 +691,9 @@ pub(super) fn certified_subdivision<T: Decide>(
             + d2_hi * half.powi(2) / two
             + d3_hi * half.powi(3) / six
             + fourth_hi * half.powi(4) / twenty_four;
-        if definitely(rows.clear, (value(m).abs() - fall - noise) / f_per_metre_hi) {
+        let clear = (value(m).abs() - fall - noise) / f_per_metre_hi;
+        let clear = residual_reach.map_or(clear, |reach| clear.min(reach));
+        if definitely(rows.clear, clear) {
             continue;
         }
         let most_bend = d2_hi + d3_hi * half + fourth_hi * half.powi(2) / two;
@@ -967,6 +974,7 @@ mod subdivision_guard_rows {
             noise,
             f_per_metre: 1.0,
             f_per_metre_hi: 1.0,
+            residual_reach: None,
         };
         certified_subdivision(
             f,
@@ -1083,6 +1091,7 @@ mod subdivision_guard_rows {
             noise: 0.0,
             f_per_metre: 1.0,
             f_per_metre_hi: 1.0,
+            residual_reach: None,
         };
         let band = Band::new(1e-9, 1e-8).unwrap();
         match certified_subdivision(&f, &value, &frame, &ROWS, None, band).unwrap() {
