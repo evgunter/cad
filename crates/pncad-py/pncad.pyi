@@ -6461,8 +6461,9 @@ def update_references(doc: Doc, id: str, new_pin: ContentPin) -> list[DocEdit]:
     door that computes one from disk, and it says exactly when it
     reads.
 
-    The caller applies the whole list or none of it, and that
-    all-or-nothing is what atomic means here. A site already pinning
+    Each edit moves one site and reads no other edit's result, so the
+    edits apply in any order, and any subset leaves an authorable
+    mixed-pin state (`mixed_pins` reads it). A site already pinning
     `new_pin` contributes NO edit, so "update everywhere" stays usable
     from the staged state where some sites already moved.
 
