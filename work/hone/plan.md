@@ -19,7 +19,6 @@ ground goes unproven.
   `kernel-bug-refusals-end-without-the-shared-ending`,
   `reach-refusals-short-of-the-shape-guard`.
 - **Reach of the containment walks**:
-  `point-in-loop-escalates-on-ray-level-margins-the-arc-walk-retries`,
   `sphere-seam-in-a-plane-face-loses-the-fallback-recut-to-the-tilted-section-refusal`,
   `split-shoulder-refuses-one-orientation-at-the-reduction`.
 - **Split soundness**: `carve-removes-dropped-shells-by-unproven-cycle-walks`,

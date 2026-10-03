@@ -407,6 +407,25 @@ use crate::entity::{
     VertexKey,
 };
 
+/// The key to [`Body::orbit_walk_reading_no_start`]. Its field is
+/// private to this module, so only the validator (and this module's
+/// tests) can take the walk that does not prove its members' start.
+#[derive(Clone, Copy)]
+pub(crate) struct ValidatorSeal(());
+
+/// [`Body::vertex_orbit`] over [`Body::orbit_walk_reading_no_start`]:
+/// for a torn fixture that shows the walk its tear closes.
+#[cfg(test)]
+pub(crate) fn vertex_orbit_reading_no_start<T: Real>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+) -> Option<Vec<HalfEdgeKey>> {
+    match body.orbit_walk_reading_no_start(he, ValidatorSeal(())) {
+        Walk::Closed(members) => Some(members),
+        Walk::Broken | Walk::Overrun => None,
+    }
+}
+
 /// The one classification funnel of this crate (the `geom-brep`
 /// pattern): delegates to the unified recorder funnel
 /// [`geom_core::k_stats::decide`] (M2 PR 7), which names the predicate
@@ -458,16 +477,16 @@ pub(crate) fn decide_reported<T: Decide>(
     geom_core::k_stats::decide_reported(name, margin, band)
 }
 
-/// The gate for a side read off a sign that has no side at zero, whose
-/// decided zero escalates with its decided margin
-/// ([`geom_core::k_stats::decide_nonzero_reported`]): the refusal is on
-/// the frame's escalation log beside the verdict.
-pub(crate) fn decide_nonzero_reported<T: Decide>(
+/// [`decide`] gated on a nonzero margin, for a side read off a sign
+/// that has no side at zero
+/// ([`geom_core::k_stats::decide_nonzero`]): the refusal is on the
+/// frame's escalation log beside the verdict.
+pub(crate) fn decide_nonzero<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
 ) -> Result<geom_core::k_stats::NonzeroSign, Indeterminate> {
-    geom_core::k_stats::decide_nonzero_reported(name, margin, band)
+    geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
 /// **What a census refusal is ABOUT** — the whole of the subject the
@@ -8503,7 +8522,9 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         if he.start != vertex_key {
             continue; // pass 5 reported the mismatch
         }
-        match body.orbit_walk(emanating) {
+        // The walk that reads no start, so a foreign member is named
+        // rather than collapsed into `Broken`.
+        match body.orbit_walk_reading_no_start(emanating, ValidatorSeal(())) {
             // Broken: a stale link or broken mate — passes 1/3 reported
             // the cause.
             Walk::Broken => {}

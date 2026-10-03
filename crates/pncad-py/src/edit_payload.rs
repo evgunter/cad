@@ -107,6 +107,10 @@ pub struct EditPayload<'a> {
     /// gauge's or an instance offset's chain, or an explicit rule's
     /// listed placement.
     pub index: Option<usize>,
+    /// Which side of a mate a placement frame sits on — `"a"` or
+    /// `"b"`, beside [`Self::index`], for a step of a mate side's frame
+    /// offset.
+    pub side: Option<&'static str>,
     /// The AST child indices of an expression address, from the
     /// slot's root.
     pub path: Option<&'a [u8]>,
@@ -131,7 +135,7 @@ impl EditPayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over `EditError` is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 23] {
+    pub fn presence(&self) -> [(&'static str, bool); 24] {
         let Self {
             node,
             input,
@@ -152,6 +156,7 @@ impl EditPayload<'_> {
             offered,
             determinant,
             index,
+            side,
             path,
             value_path,
             pin,
@@ -177,6 +182,7 @@ impl EditPayload<'_> {
             ("offered", offered.is_some()),
             ("determinant", determinant.is_some()),
             ("index", index.is_some()),
+            ("side", side.is_some()),
             ("path", path.is_some()),
             ("value_path", value_path.is_some()),
             ("pin", pin.is_some()),
@@ -214,6 +220,7 @@ impl EditPayload<'_> {
         offered: None,
         determinant: None,
         index: None,
+        side: None,
         path: None,
         value_path: None,
         pin: None,
@@ -222,11 +229,22 @@ impl EditPayload<'_> {
 }
 
 /// The position a placement frame's site names — a step of a
-/// transform's, a gauge's or an instance offset's chain, or an explicit
-/// rule's listed placement.
+/// transform's, a gauge's, an instance offset's or a mate side's frame
+/// offset's chain, or an explicit rule's listed placement.
 fn frame_index(at: FrameSite) -> Option<usize> {
     match at {
-        FrameSite::Listed { index } | FrameSite::Step { index } => Some(index),
+        FrameSite::Listed { index }
+        | FrameSite::Step { index }
+        | FrameSite::MateStep { index, .. } => Some(index),
+    }
+}
+
+/// The mate side a placement frame's site names, for a step of a mate
+/// side's frame offset.
+fn frame_side(at: FrameSite) -> Option<&'static str> {
+    match at {
+        FrameSite::MateStep { side, .. } => Some(side.name()),
+        FrameSite::Listed { .. } | FrameSite::Step { .. } => None,
     }
 }
 
@@ -569,12 +587,14 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(node.id()),
             determinant: Some(*determinant),
             index: frame_index(*at),
+            side: frame_side(*at),
             ..none
         },
         EditError::NonFinitePlacement { node, at }
         | EditError::NonRigidPlacement { node, at, .. } => EditPayload {
             node: Some(node.id()),
             index: frame_index(*at),
+            side: frame_side(*at),
             ..none
         },
         EditError::PlacementAxis { error: _ } => none,

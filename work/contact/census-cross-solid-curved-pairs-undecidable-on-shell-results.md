@@ -53,3 +53,17 @@ solid. Measured on PR 3891's branch with a box declared `Tangent` to a
 plate's fillet (two solids, tier 3 green, 3′ `CensusUndecidable` alone);
 main has since refused that union (`TangentSlitArmUnbuilt`), so no row
 pins it today.
+
+## 2026-10-03 — a row reaches it on main (JOIN-2, PR 3880)
+
+`sweep` `join2_r1_probes::join2_r1_grid` (ignored, release) prints 804
+`BAD` union lines on main `82b9ceb2b` and on PR 3880's head alike, with the
+same set on both trees: every one is `t2=true t3p=false cert=true
+operand=true` with the volume right. They are unions of an axis-aligned box
+beside or diagonally off a rounded plate (e.g. `grid r=0.5 x=[-1,0]
+y=[-1,0]`, the box clear of the fillet). The result has two solids, and 3′
+gives `CensusUndecidable` "a curved face of one is within reach of the
+other" between the plate's fillet and the box's faces. At main `66bbdaa6b`
+the same battery printed 0 `BAD`, which fits the one-solid-per-piece sort
+landing in between. So the grid's assertion (`bad == 0`) stays red until
+this lane decides curved × planar pairs across solids.

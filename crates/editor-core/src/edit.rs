@@ -590,12 +590,16 @@ pub enum DocEdit<P> {
 
 impl<P> DocEdit<P> {
     /// **Whether this edit writes a mate's alignment datum** — the
-    /// numbers, the primitive, the sense and the rider the solve's
-    /// per-mate admission decides on. Exactly one edit does: the
-    /// insert of a `Node::Mate`, which is where the admission is asked.
-    /// A `Rebind` moves a reference's NAME (and, read at its own mint,
-    /// its operand), never the datum, and what it strands is N5's —
-    /// the solve's at evaluation.
+    /// frames, the primitive, the sense and the rider the solve's
+    /// per-mate admission decides on. Two edits do, and both ask the
+    /// admission of the mate they wrote: the insert of a `Node::Mate`,
+    /// and a slot edit (`SetParam`, `SetExpression`) addressed at one
+    /// of a mate side's frame-offset steps ([`SlotId::MateFrameStep`],
+    /// an address only a mate carries). A `Rebind` moves a reference's
+    /// NAME (and, read at its own mint, its operand), never the datum,
+    /// and what it strands is N5's — the solve's at evaluation; a
+    /// document parameter an offset reads moves a STATE, which is the
+    /// solve's at evaluation too.
     ///
     /// **Exhaustive, with no wildcard arm**: an arm added without an
     /// answer here stops the crate compiling rather than writing a
@@ -603,6 +607,8 @@ impl<P> DocEdit<P> {
     pub(crate) fn writes_a_mates_datum(&self) -> bool {
         match self {
             Self::InsertNode { node } => matches!(&**node, Node::Mate { .. }),
+            Self::SetParam { slot, .. } => slot.is_mate_frame_step(),
+            Self::SetExpression { path, .. } => path.slot.is_mate_frame_step(),
             // A reshaping rewrites no name and never touches a datum;
             // a head whose piece it stops drawing is N5's, the solve's
             // at evaluation.
@@ -615,10 +621,8 @@ impl<P> DocEdit<P> {
             | Self::SetGauge { .. }
             | Self::Promote { .. }
             | Self::Fold { .. }
-            | Self::SetParam { .. }
             | Self::SetStructuralParam { .. }
             | Self::SetExtrudeSide { .. }
-            | Self::SetExpression { .. }
             | Self::SetDocParam { .. }
             | Self::SetDocParamValue { .. }
             | Self::SetDocParamUnit { .. }
@@ -1509,9 +1513,11 @@ pub enum EditError {
         /// The direction door's refusal, unaltered.
         error: crate::eval::NodeRefusal,
     },
-    /// A mate's alignment datum carries a non-finite coordinate: an
-    /// authored frame nothing can decide about never enters the
-    /// document.
+    /// A mate's alignment datum carries a non-finite number outside
+    /// its frames — the clocking rider, or a length the primitive
+    /// authors: a datum nothing can decide about never enters the
+    /// document. A frame offset's literal steps are the placement
+    /// frame rule's (`NonFinitePlacement` at a `FrameSite::MateStep`).
     NonFiniteAlignment {
         /// The mate being inserted.
         node: SpokenNode,
@@ -4326,13 +4332,10 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             }
         }
         // A placement's literal steps — a transform's, a gauge's, an
-        // instance's offset — meet the same bar, by the same predicate.
-        if let Some((index, fault)) = n.placement_frame_fault(tol) {
-            return Err(EditError::placement_frame(
-                written(doc, node, n),
-                FrameSite::Step { index },
-                fault,
-            ));
+        // instance's offset, a mate's frame offsets — meet the same
+        // bar, by the same predicate.
+        if let Some((at, fault)) = n.placement_frame_fault(tol) {
+            return Err(EditError::placement_frame(written(doc, node, n), at, fault));
         }
     }
     Ok((new, wrote, reported))
@@ -4401,6 +4404,16 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
             node: SpokenNode::entering(id, node),
         });
     }
+    // A mate's admission below composes its frame offsets, so their
+    // literal steps meet the frame rule first, by the predicate the
+    // whole-document pass asks of every placement.
+    if let (Node::Mate { .. }, Some((at, fault))) = (node, node.placement_frame_fault(tol)) {
+        return Err(EditError::placement_frame(
+            SpokenNode::entering(id, node),
+            at,
+            fault,
+        ));
+    }
     check_node_slots(new, doc, id, node)?;
     // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
     // program entering the document resolves + replays +
@@ -4434,24 +4447,39 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     // a mate the coset table refuses on its own datum is
     // refused at this door. The verdicts about a PAIR stay the
     // solve's (`admit_mate`), and so does every STATE a mate
-    // comes to hold after insert — this is the one door that
-    // writes a mate's datum (`DocEdit::writes_a_mates_datum`),
-    // and a reference a later edit strands is N5's. The
-    // environment is the document's own nominal, built here
-    // once for this door's reading, the way the evaluation
-    // builds its own and hands it to the solve.
+    // comes to hold after insert: a reference a later edit
+    // strands is N5's. The other edit that writes a datum — a
+    // slot edit at a frame-offset step — asks the same
+    // admission (`DocEdit::writes_a_mates_datum`).
     if matches!(node, Node::Mate { .. }) {
-        let env = new.param_env::<f64>();
-        crate::mate::solve::admit_mate(new, id, &node, &env, reach, tol).map_err(|fault| {
-            EditError::MateRefused {
-                node: SpokenNode::entering(id, &node),
-                held: crate::spoken::held_by(&*fault, new),
-                fault,
-            }
-        })?;
+        admit_written_mate(new, id, tol, reach)?;
         reported.extend(clear_joined_offsets(doc, new, &node));
     }
     Ok(id)
+}
+
+/// **The solve's per-mate admission of a mate an edit just wrote**
+/// (A11 rule 1), asked of the document the mate now stands in, at
+/// that document's own nominal environment, through the reach the
+/// door holds — the one call every edit that writes a mate's datum
+/// ([`DocEdit::writes_a_mates_datum`]) makes.
+fn admit_written_mate<P: Clone + crate::ProfilePayload>(
+    new: &Doc<P>,
+    id: RecipeNodeId,
+    tol: Tol,
+    reach: Option<&dyn MateReach>,
+) -> Result<(), EditError> {
+    let Some(node) = new.nodes.get(&id) else {
+        unreachable!("the edit wrote {} into the document", new.spoken(id))
+    };
+    let env = new.param_env::<f64>();
+    crate::mate::solve::admit_mate(new, id, node, &env, reach, tol).map_err(|fault| {
+        EditError::MateRefused {
+            node: new.spoken(id),
+            held: crate::spoken::held_by(&*fault, new),
+            fault,
+        }
+    })
 }
 
 /// One edit written into `new` (a copy of `doc`), its maintenance
@@ -4638,6 +4666,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             set_slot(new, doc, *node, *slot, expr)?;
             check_profile_after_slot_edit(new, doc, *node, *slot, tol)?;
+            if edit.writes_a_mates_datum() {
+                admit_written_mate(new, *node, tol, reach)?;
+            }
             EditRecord {
                 minted: None,
                 structural: false,
@@ -4695,6 +4726,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let structural = path.slot.is_structural();
             set_slot(new, doc, path.node, path.slot, &rebuilt)?;
             check_profile_after_slot_edit(new, doc, path.node, path.slot, tol)?;
+            if edit.writes_a_mates_datum() {
+                admit_written_mate(new, path.node, tol, reach)?;
+            }
             EditRecord {
                 minted: None,
                 structural,
@@ -5612,11 +5646,12 @@ mod tests {
     use crate::test_support::len;
 
     /// **The datum question is answered by the edit too**: the insert
-    /// of a mate writes a mate's alignment datum and nothing else does
-    /// — not the insert of another node, not the rebind that moves a
-    /// head (a reference, not the datum), not the structural edit that
-    /// shrinks a pattern under one. The per-mate admission is asked
-    /// at exactly the edit this answers `true` for.
+    /// of a mate and a slot edit at a mate's frame-offset step write a
+    /// mate's alignment datum, and nothing else does — not the insert
+    /// of another node, not a slot edit at any other address, not the
+    /// rebind that moves a head (a reference, not the datum), not the
+    /// structural edit that shrinks a pattern under one. The per-mate
+    /// admission is asked at exactly the edits this answers `true` for.
     #[test]
     fn exactly_the_mate_insert_writes_a_mates_datum() {
         let id = crate::node::RecipeNodeId(1);
@@ -5625,7 +5660,7 @@ mod tests {
             node,
             path: vec![],
         };
-        let frame = crate::mate::MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+        let frame = crate::mate::MateFrame::from_face();
         let mate: DocEdit<ProfileProgram> = DocEdit::InsertNode {
             node: Box::new(crate::node::Node::Mate {
                 a: crate::node::SitedFace::at_mint(
@@ -5646,7 +5681,30 @@ mod tests {
             }),
         };
         assert!(mate.writes_a_mates_datum());
-        let others: [DocEdit<ProfileProgram>; 3] = [
+        let step = crate::node::SlotId::MateFrameStep {
+            side: crate::mate::MateSide::B,
+            step: 0,
+            arg: crate::node::RigidArg::RotationAngle,
+        };
+        let at_a_step: [DocEdit<ProfileProgram>; 2] = [
+            DocEdit::SetParam {
+                node: id,
+                slot: step,
+                expr: crate::test_support::ang(0.5),
+            },
+            DocEdit::SetExpression {
+                path: crate::expr::ExprPath {
+                    node: id,
+                    slot: step,
+                    path: vec![],
+                },
+                expr: crate::test_support::ang(0.5),
+            },
+        ];
+        for edit in &at_a_step {
+            assert!(edit.writes_a_mates_datum(), "{edit:?} writes a frame step");
+        }
+        let others: [DocEdit<ProfileProgram>; 4] = [
             DocEdit::InsertNode {
                 node: Box::new(crate::node::Node::Datum(crate::node::Datum::Point {
                     position: [len(0.0), len(0.0), len(0.0)],
@@ -5660,6 +5718,11 @@ mod tests {
                 node: id,
                 slot: crate::node::SlotId::Count,
                 expr: crate::expr::Expr::count(1),
+            },
+            DocEdit::SetParam {
+                node: id,
+                slot: crate::node::SlotId::RotationAngle,
+                expr: crate::test_support::ang(0.5),
             },
         ];
         for edit in &others {
