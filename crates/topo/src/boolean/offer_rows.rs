@@ -2347,6 +2347,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
+    ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
         "reduce.rs",
         "arc_chain_reaches",

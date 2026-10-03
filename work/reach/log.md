@@ -672,3 +672,39 @@ TINT has no orchestrator, and the row was red on main, so REACH took it.
   row to rotations about the origin and filed the translation drift. The
   orchestrator re-ran two mutants, both red.
 — (REACH orchestrator)
+
+## 2026-10-03 — the intent-refactor hold (Ev, #3990): eight rows parked
+
+REACH parked the eight open rows the hold covers. Each one rides declared
+contact, a declared continuation or tangent ruling, or the
+undeclared-coincidence refusals. They are parked with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`, the build row that
+the hold moved onto when Ev ratified D10. Each fires when that row closes:
+- `rounded-stack-subtract-and-intersect-refuse-fallback-extent`
+- `a-settled-declared-coincidence-crosses-a-tight-volume-bound`
+- `maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip`
+- `a-union-over-a-declared-continuation-keeps-its-walls-split`
+- `a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported`
+- `a-sharp-plate-offset-over-a-rounded-one-refuses-unpaired-loose-ends`
+- `an-uncovered-edge-tangent-to-a-fillet-at-the-curved-operands-vertex-refuses`
+- `covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only`
+
+Every PR in flight was started before the notice, so each one finishes as
+planned: #3976, #3973, #3978, #3980, #3982, #3977, #3984, #3985 and #3987.
+REACH still has startable rows outside the hold: the carved sphere body,
+the conic and quadric doors, the trimmed sphere group, and the hole-inside
+volume tie. So the program stays `active`, and each unit is checked against
+the hold before it is dispatched.
+— (REACH orchestrator)
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
