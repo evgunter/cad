@@ -4622,9 +4622,9 @@ mod tests {
     }
 
     /// **An undecided sample leaves the cover's side unread.** The top
-    /// face of the unit brick against the plane `x = −5e-9`: the samples
-    /// on `x = 0` sit in the band, those on `x = 1` and `x = ½` are
-    /// definitely Positive. A side read off the definite ones alone
+    /// face of the unit brick against the plane `x = −m`, `m` mid-band
+    /// at the run's ε: the samples on `x = 0` sit in the band, those on
+    /// `x = 1` and `x = ½` are definitely Positive. A side read off the definite ones alone
     /// would be `Off(Positive)`; the in-band ones keep it `Unread`. The
     /// plane `x = −1` reads every sample definitely, and the side is read.
     #[test]
@@ -4650,7 +4650,12 @@ mod tests {
             u_ref: Vec3::new(0.0, 1.0, 0.0),
         };
         assert_eq!(
-            read_cover_side(&body, top, &wall(-5e-9), band),
+            read_cover_side(
+                &body,
+                top,
+                &wall(-(band.zero() + band.escalate()) * 0.5),
+                band
+            ),
             CoverSide::Unread
         );
         assert_eq!(
