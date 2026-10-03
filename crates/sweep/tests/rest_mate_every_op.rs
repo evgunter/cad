@@ -318,21 +318,25 @@ fn full_turn_bore_intersect_and_differences_are_the_closed_form() {
     }
 }
 
-/// The spans a union builds at: a blind shaft is
-/// `work/zip/blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex.md`.
-const UNION_SPANS: [&str; 4] = ["through", "flush", "proud above", "proud below"];
-
 #[test]
 fn arc_split_bore_unions_are_the_closed_form() {
     for (r, len) in [(0.5, 1.0), (0.2, 2.5), (1.3, 0.75)] {
-        each_mate(Layout::ArcSplit, r, len, &UNION_SPANS, unions);
+        each_mate(Layout::ArcSplit, r, len, &EVERY_SPAN, unions);
     }
 }
 
+/// A blind shaft in a full-turn bore does not union:
+/// `work/zip/blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex.md`.
 #[test]
 fn full_turn_bore_unions_are_the_closed_form() {
     for (r, len) in [(0.5, 1.0), (0.2, 2.5), (1.3, 0.75)] {
-        each_mate(Layout::FullTurn, r, len, &UNION_SPANS, unions);
+        each_mate(
+            Layout::FullTurn,
+            r,
+            len,
+            &["through", "flush", "proud above", "proud below"],
+            unions,
+        );
     }
 }
 

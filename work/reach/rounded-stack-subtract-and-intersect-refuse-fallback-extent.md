@@ -86,3 +86,25 @@ touch across the mating circle and no crossing event exists, the same
 shape as the rounded stack's fillet pair. The oracle once they build:
 ∩ empty, each difference π. Pinned by
 `reach_aligned_half_rods::a_declared_half_rod_stack_keeps_its_intersect_and_subtract_refusals`.
+
+## The `Rest` half answered, the continuation half left (`reach/rest-mate-intersect-diff`)
+
+The no-crossings path now answers a pair settled one carrier with
+OPPOSED senses without its section (`ops.rs` `touches_only`): its
+materials stand on opposite sides of the carrier, so the pair only
+touches. That closed the declared cylinder, torus and sphere `Rest`
+mates' `∩` and `∖`
+(`work/reach/declared-rest-mate-intersect-and-differences-refuse-at-the-fallback-extent.md`).
+The half-rod stack and the rounded stack still refuse, unchanged
+(`reach_aligned_half_rods::a_declared_half_rod_stack_keeps_its_intersect_and_subtract_refusals`
+passes as pinned): their refusing pairs are wall CONTINUATIONS, one
+carrier with ALIGNED senses, which put both materials on one side.
+Such a pair touches only where it ABUTS (the half rods' walls meet
+along the mating circle and share no patch), and overlaps material
+where it shares a patch (the thin plate sunk in the thick one's
+wall). What the path lacks is a certificate of abutment, and the
+chart-region overlap the kernel has does not give one: a zero-area
+overlap reads `Zero` (in band), which is the escalation answer, not a
+definite "no patch". Whether an abutting continuation can be certified
+from its trims (a shared boundary curve on both faces, the interiors
+on either side of it) is the open question here.
