@@ -6172,12 +6172,13 @@ mod tests {
             },
         )
         .unwrap();
-        let part = quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol);
-        // Lift the part off the floor: z ∈ [1.2, 1.8].
-        let mut part = part;
-        for (_, p) in part.points.iter_mut() {
-            p.z += 1.2;
-        }
+        // The part lifted off the floor: z ∈ [1.2, 1.8].
+        let part = crate::transform_rigid(
+            &quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol),
+            &geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.2)),
+            tol,
+        )
+        .unwrap();
         crate::instance::graft_disjoint(&mut body, &part).unwrap();
         let errors = census_and_certify(
             &body,

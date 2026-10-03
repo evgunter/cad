@@ -83,7 +83,8 @@ use slotmap::SecondaryMap;
 
 pub use crate::chord_join::{ArcSideCase, ArcWindowCase, ConicCrossingsCase, SplitJoinError};
 pub use containment::{
-    LoopContainment, PointInLoopError, Uncrossable, UncrossableCarrier, point_in_loop,
+    LoopContainment, OffPlane, OffPlaneCause, PointInLoopError, Uncrossable, UncrossableCarrier,
+    point_in_loop,
 };
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;

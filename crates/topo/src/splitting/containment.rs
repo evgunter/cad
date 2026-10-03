@@ -149,6 +149,54 @@ pub enum PointInLoopError {
     /// The walk could not decide: an edge it has no crossing row for
     /// stood in the way of every ray.
     Uncrossable(Uncrossable),
+    /// A precondition of [`point_in_loop`] does not hold: the walk was
+    /// handed a plane the loop or the point does not lie in.
+    OffPlane(OffPlane),
+}
+
+/// **Which of [`point_in_loop`]'s preconditions failed**, for `loop`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OffPlane {
+    /// The loop being tested.
+    pub r#loop: LoopKey,
+    /// What lies off the plane.
+    pub cause: OffPlaneCause,
+}
+
+/// What lies off the plane [`point_in_loop`] was handed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OffPlaneCause {
+    /// The normal is not a unit vector.
+    NormalNotUnit,
+    /// The loop does not lie in the plane through its first vertex with
+    /// that normal — it is not planar, or the normal is not its plane's.
+    /// `edge` is the first, in cycle order, with a vertex or carrier off
+    /// the plane.
+    Loop {
+        /// That edge.
+        edge: EdgeKey,
+    },
+    /// The query point does not lie in the loop's plane.
+    Query,
+}
+
+impl core::fmt::Display for OffPlane {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.cause {
+            OffPlaneCause::NormalNotUnit => {
+                write!(
+                    f,
+                    "the plane normal given for the loop is not a unit vector"
+                )
+            }
+            OffPlaneCause::Loop { .. } => write!(
+                f,
+                "the loop does not lie in the plane given for it: it is not planar, or the \
+                 normal is not its plane's"
+            ),
+            OffPlaneCause::Query => write!(f, "the point does not lie in the loop's plane"),
+        }
+    }
 }
 
 /// **Where the arc-aware walk could not decide, and why**: every
@@ -215,6 +263,7 @@ impl core::fmt::Display for PointInLoopError {
                 write!(f, "loop {loop:?} is not walkable")
             }
             Self::Uncrossable(u) => write!(f, "whether a point lies in a loop is undecided: {u}"),
+            Self::OffPlane(o) => write!(f, "whether a point lies in a loop is not asked: {o}"),
         }
     }
 }
@@ -1360,13 +1409,39 @@ enum Boundary {
 ///   [`PointInLoopError::Uncrossable`] only where none does, which
 ///   includes every point inside a ball.
 ///
-/// `q` must lie in the loop's plane, whose unit normal is `normal`.
+/// `normal` must be a unit normal of the loop's plane, and `q` must lie
+/// in that plane; each is certified before the walk, and a loop, normal
+/// or point that does not hold refuses rather than being read in some
+/// other plane.
 ///
 /// # Errors
 ///
 /// [`PointInLoopError`] — an escalation, exhaustion, an unwalkable
-/// loop, or an edge no ray got past.
+/// loop, an edge no ray got past, or a broken precondition
+/// ([`PointInLoopError::OffPlane`]).
 pub fn point_in_loop<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+    normal: Vec3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<LoopContainment, PointInLoopError> {
+    certify_plane(body, r#loop, normal, q, band)?;
+    point_in_loop_projected(body, r#loop, normal, q, band)
+}
+
+/// [`point_in_loop`] with no precondition certified: the loop is read
+/// as its projection along `normal`. For `boolean::solid_contain`'s
+/// in-face test alone, which reads a face's trim at the face's OWN
+/// surface plane, `q` a ray's hit on that plane: an operand the
+/// boolean's gates admit may hold a vertex off that plane by more than
+/// a tightened run's band (a re-described face), and the face's region
+/// there is its trim's projection, not a refusal.
+///
+/// # Errors
+///
+/// As [`point_in_loop`], but never [`PointInLoopError::OffPlane`].
+pub(crate) fn point_in_loop_projected<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
     normal: Vec3<T>,
@@ -1384,6 +1459,85 @@ pub fn point_in_loop<T: Decide>(
             WalkSide::OnBoundary => LoopContainment::OnBoundary,
         },
     )
+}
+
+/// **[`point_in_loop`]'s preconditions, certified**: `normal` is a unit
+/// vector, the whole loop lies in the plane through its first vertex
+/// with that normal, and so does `q`. Each is a length decided through
+/// the band, and anything but a definite `Zero` refuses — a wrong plane
+/// is a different region, so a reading off it is never an answer.
+///
+/// - **`point_in_loop_normal`**: `(|n| − 1)` levered by the loop's reach
+///   from its first vertex — the displacement a unit error in the
+///   normal commands across the loop.
+/// - **`point_in_loop_plane`**: a loop feature's distance off the plane:
+///   each vertex; a conic's centre, and its plane's tilt `|axis × n|`
+///   levered by its larger semi-axis; a spiric's cutting plane, the
+///   same way, levered by `R + r + |offset|`; a spline's every control
+///   point (positive weights keep the curve in their hull).
+/// - **`point_in_loop_query`**: `q`'s distance off the plane.
+fn certify_plane<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+    normal: Vec3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<(), PointInLoopError> {
+    let corrupt = || PointInLoopError::CorruptLoop { r#loop };
+    let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
+    let off_plane = |cause| PointInLoopError::OffPlane(OffPlane { r#loop, cause });
+    let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
+        return Err(corrupt());
+    };
+    let steps = cycle_steps(body, r#loop, first)?;
+    let origin = steps.first().ok_or_else(corrupt)?.point;
+    let (_, reach) = loop_reach(body, r#loop)?;
+    let unit = Margin::levered(normal.norm() - T::one(), reach);
+    if decide("point_in_loop_normal", unit, band).map_err(escalate)? != Sign::Zero {
+        return Err(off_plane(OffPlaneCause::NormalNotUnit));
+    }
+    let off = |p: Point3<T>| Margin::of((p - origin).dot(normal));
+    let tilt = |axis: Vec3<T>, arm: T| Margin::levered(axis.cross(normal).norm(), arm);
+    for step in &steps {
+        let mut margins = vec![off(step.point)];
+        match step.curve.map(|c| c.carrier()) {
+            None | Some(geom::Curve3::Line { .. }) => {}
+            Some(&geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                ..
+            }) => margins.extend([off(center), tilt(axis, radius)]),
+            Some(&geom::Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                ..
+            }) => margins.extend([off(center), tilt(axis, major.max(minor))]),
+            Some(&geom::Curve3::Spiric {
+                center,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+                ..
+            }) => margins.extend([
+                off(center + u_ref * offset),
+                tilt(u_ref, major_radius + minor_radius + offset.abs()),
+            ]),
+            Some(geom::Curve3::Nurbs(n)) => margins.extend(n.control().iter().map(|&p| off(p))),
+        }
+        for m in margins {
+            if decide("point_in_loop_plane", m, band).map_err(escalate)? != Sign::Zero {
+                return Err(off_plane(OffPlaneCause::Loop { edge: step.edge }));
+            }
+        }
+    }
+    if decide("point_in_loop_query", off(q), band).map_err(escalate)? != Sign::Zero {
+        return Err(off_plane(OffPlaneCause::Query));
+    }
+    Ok(())
 }
 
 /// [`point_in_loop`] for a caller whose own boundary pass —

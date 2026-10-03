@@ -604,6 +604,9 @@ impl SplitJoinError {
                     f,
                     "which piece holds a hole loop cannot be read: {u}. Recourse: {recourse}"
                 ),
+                crate::splitting::PointInLoopError::OffPlane(_) => {
+                    write!(f, "re-homing a hole loop refused: {e}")
+                }
             },
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
