@@ -571,7 +571,6 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
             .all(|v| matches!(v, AssertionVerdict::Holds { .. })),
         "a straddle inside the band reads Holds: {seen:?}"
     );
-    let _ = UnevaluatedReason::Indeterminate;
     let report = stackup(
         &doc,
         measure,

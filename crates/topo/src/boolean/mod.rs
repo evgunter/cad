@@ -2731,7 +2731,7 @@ impl core::fmt::Display for BooleanError {
                  settle where or whether it passes through. Recourse: \
                  {}",
                 operand_word(*operand),
-                geom_core::DEFINITE_COINCIDENCE_RECOURSE,
+                geom_core::COINCIDENCE_RECOURSE,
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
