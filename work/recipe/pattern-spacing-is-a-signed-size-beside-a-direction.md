@@ -2,12 +2,13 @@
 id: pattern-spacing-is-a-signed-size-beside-a-direction
 kind: issue
 title: A linear pattern's signed spacing and a circular pattern's signed step state the direction a second time (a named follow-on of Ev's #3551 rule)
-status: review
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
 branch: recipe/pattern-spacing
 pr: 3947
+closed: 2026-10-03
 ---
 
 
