@@ -2225,8 +2225,8 @@ fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamNam
 // ---- Split ----
 
 /// **Whether a node, as a root, denotes a body** — what a product
-/// gathers. A datum, a profile, a gauge, a mate, a declaration, a
-/// measure and an assertion denote none. Exhaustive, so a new node
+/// gathers. A datum, a profile, a gauge, a mate, a measure and an
+/// assertion denote none. Exhaustive, so a new node
 /// kind is classified here.
 fn denotes_a_body(node: &Node<ProfileProgram>) -> bool {
     match node {
@@ -2234,7 +2234,6 @@ fn denotes_a_body(node: &Node<ProfileProgram>) -> bool {
         | Node::Profile(_)
         | Node::Gauge { .. }
         | Node::Mate { .. }
-        | Node::Declare { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => false,
         Node::Extrude { .. }

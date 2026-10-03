@@ -128,8 +128,8 @@ def projectbox(doc):
             )
     for cx, cy in PROJECTBOX_BOSS_AXES:
         boss = rod(doc, cx, cy, PROJECTBOX_BOSS_R, PROJECTBOX_BOSS_Z)
-        decl = doc.declare_all(evaluate(doc).find_flush_candidates(body, boss))
-        body = doc.insert(Node.boolean(BooleanOp.Union, body, boss, declare=decl))
+        findings = evaluate(doc).find_flush_candidates(body, boss)
+        body = doc.insert(Node.boolean(BooleanOp.Union, body, boss, declare=findings))
     for cx, cy in PROJECTBOX_BOSS_AXES:
         bore = rod(doc, cx, cy, PROJECTBOX_BORE_R, (-0.125, PROJECTBOX_BOSS_Z[1] + 0.25))
         body = doc.insert(Node.boolean(BooleanOp.Subtract, body, bore))
