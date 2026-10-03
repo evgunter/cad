@@ -270,11 +270,13 @@ fn in_band_gap_refuses_pair_in_band() {
         }
         other => panic!("expected PairInBand, got {other:?}"),
     }
-    // The sentence tells the two faces apart by what they are, not by
-    // the node alone.
+    // The sentence tells the two faces apart by what they are and the
+    // feature that made each.
     let text = text.unwrap_or_default();
     assert!(
-        text.contains("(the end cap)") && text.contains("(the start cap)"),
+        text.contains(&format!(
+            "the end cap of node {base} and the start cap of node {top}"
+        )),
         "the pair is said as the base's end cap and the top's start cap: {text}"
     );
 }

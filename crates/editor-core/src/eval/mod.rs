@@ -2150,7 +2150,7 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "a member's face rests on the {}, which no member carries ({})",
+            "a member's face rests on {}, which no member carries ({})",
             self.by.name(self.row),
             self.diag.payload()
         )
@@ -2262,8 +2262,8 @@ impl crate::spoken::Say for NodeErrorKind {
                 name,
             } => write!(
                 f,
-                "{}'s seam declaration crosses at the remainder's {} and claims the part's \
-                 {name}, which the pinned part's product does not name — the crossing does \
+                "{}'s seam declaration crosses at {} on the remainder and claims {name} in \
+                 the part, which the pinned part's product does not name — the crossing does \
                  not re-verify against this version of the part",
                 by.node_as(*instance, "instance"),
                 by.name(outer),
@@ -2478,7 +2478,7 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
-                "the {verb} selection's {} denotes {} {}, not an edge",
+                "the {verb} selection names {}, which is {} {}, not an edge",
                 by.name(name),
                 found.article(),
                 found.noun()
@@ -2497,7 +2497,7 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::ShellOpenKind { name, found } => write!(
                 f,
-                "the shell open-face's {} denotes {} {}, not a face",
+                "the shell's open face names {}, which is {} {}, not a face",
                 by.name(name),
                 found.article(),
                 found.noun()
@@ -2517,7 +2517,7 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::FaceFrameKind { name, found } => write!(
                 f,
-                "the derived frame's {} denotes {} {}, not a face",
+                "the derived frame's face names {}, which is {} {}, not a face",
                 by.name(name),
                 found.article(),
                 found.noun()
@@ -2566,7 +2566,7 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::MeasureRefUnreadable { name, error } => write!(
                 f,
-                "the measure reference's {} could not be read back: {error}",
+                "the measure reference to {} could not be read back: {error}",
                 by.name(name)
             ),
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),

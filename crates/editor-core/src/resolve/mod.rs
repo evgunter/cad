@@ -140,8 +140,8 @@ pub enum ResolveError {
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM in prose — the name with its minting node said by the
 // speaker (the half a user can act on), the WHY forwarded from the
-// payload's own rendering. `NodeGone` says the minting node once, in
-// the name, and words its edit itself. Composing layers
+// payload's own rendering. `NodeGone` names the node the name is on,
+// and words its edit itself. Composing layers
 // (`NodeErrorKind`'s resolve arms) FORWARD this rather than
 // re-stating it.
 impl crate::spoken::Say for ResolveError {
@@ -155,20 +155,20 @@ impl crate::spoken::Say for ResolveError {
                 name, diagnosis, ..
             } => write!(
                 f,
-                "the {} no longer resolves in this evaluation: {}",
+                "{} no longer resolves in this evaluation: {}",
                 by.name(name),
                 Said(diagnosis, by)
             ),
             Self::Ambiguous { name, tie, .. } => write!(
                 f,
-                "the {} is tie-marked: {} equally-admissible \
+                "{} is tie-marked: {} equally-admissible \
                  candidates at its recorded site — a tie is never broken by picking; \
                  refine the reference until one candidate remains",
                 by.name(name),
                 tie.width
             ),
             Self::NodeGone { name, edit } => {
-                write!(f, "the {} is stranded: its minting node ", by.name(name))?;
+                write!(f, "{} is stranded: {} ", by.name(name), by.node(name.node))?;
                 match edit {
                     RecipeEditRef::NodeDeleted { .. } => f.write_str("was deleted")?,
                     RecipeEditRef::ForeignNode { .. } => {
@@ -504,14 +504,14 @@ impl crate::spoken::Say for GroupCutters {
             by: Speaker<'_>,
         ) -> core::fmt::Result {
             match names {
-                [one] => write!(f, "the {}", by.name(one)),
+                [one] => write!(f, "{}", by.name(one)),
                 many => {
                     write!(f, "{} cutters (", many.len())?;
                     for (i, n) in many.iter().enumerate() {
                         if i > 0 {
                             write!(f, "; ")?;
                         }
-                        write!(f, "the {}", by.name(n))?;
+                        write!(f, "{}", by.name(n))?;
                     }
                     write!(f, ")")
                 }
@@ -734,7 +734,7 @@ impl crate::spoken::Say for Diagnosis {
             ),
             Self::Cascade { through } => write!(
                 f,
-                "the upstream {} vanished first; its own resolution failure carries the root \
+                "{} vanished upstream first; its own resolution failure carries the root \
                  cause",
                 by.name(through)
             ),

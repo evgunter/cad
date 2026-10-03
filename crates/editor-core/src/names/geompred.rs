@@ -328,9 +328,8 @@ impl crate::spoken::Say for SelectRefusal {
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
-        let named = |f: &mut core::fmt::Formatter<'_>, name: &StableName| {
-            write!(f, "the {}", by.name(name))
-        };
+        let named =
+            |f: &mut core::fmt::Formatter<'_>, name: &StableName| write!(f, "{}", by.name(name));
         match self {
             Self::InBand {
                 name,
@@ -399,14 +398,13 @@ impl crate::spoken::Say for SelectRefusal {
                 predicate,
                 source,
             } => {
-                f.write_str("select: the pair (")?;
-                named(f, &pair.0)?;
-                f.write_str(", ")?;
-                named(f, &pair.1)?;
                 write!(
                     f,
-                    ") is neither certified in nor out — '{predicate}' left its margin inside \
-                     the ambiguity band, and detection reports only definite findings: {source}"
+                    "select: {} and {} are too nearly flush to call, so flush detection \
+                     reports them neither way — '{predicate}' could not decide whether their \
+                     gap is zero: {source}",
+                    by.name(&pair.0),
+                    by.name(&pair.1)
                 )
             }
             Self::BadValue(error) => {

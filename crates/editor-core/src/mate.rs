@@ -783,7 +783,7 @@ impl crate::spoken::Say for FaceRefusal {
                 ..
             } => write!(
                 f,
-                "{}'s part answers none for the {face}: {refusal}",
+                "{}'s part answers none for {face}: {refusal}",
                 by.node_as(*instance, "instance")
             ),
             Self::NotAnInstance { node } => write!(

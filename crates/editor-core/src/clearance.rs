@@ -731,13 +731,13 @@ pub enum SelectionRefusal {
     /// A name in the scope does not resolve uniquely in the node's own
     /// table.
     Unresolved {
-        /// The name, rendered.
-        name: String,
+        /// The name.
+        name: Box<StableName>,
     },
     /// A name resolves, but not to a face of the selected body.
     NotAFace {
-        /// The name, rendered.
-        name: String,
+        /// The name.
+        name: Box<StableName>,
     },
     /// The two selections live in different spaces (A9, A11 (2)): one
     /// is in an unplaced group's own space, and nothing outside an
@@ -774,11 +774,14 @@ impl crate::spoken::Say for SelectionRefusal {
             }
             Self::Unresolved { name } => write!(
                 f,
-                "{name} does not resolve to a unique entity in the selected node's name table"
+                "{} does not resolve to a unique entity in the selected node's name table",
+                by.name(name)
             ),
-            Self::NotAFace { name } => {
-                write!(f, "{name} resolves, but not to a face of the selected body")
-            }
+            Self::NotAFace { name } => write!(
+                f,
+                "{} resolves, but not to a face of the selected body",
+                by.name(name)
+            ),
             Self::AcrossSpaces { group, cause } => write!(
                 f,
                 "the two selections live in different spaces — one is in the own space of the \
@@ -820,8 +823,8 @@ impl SelectionRefusal {
             Self::NoSuchBody { node, index } => {
                 format!("no_such_body node={} index={index}", node.full())
             }
-            Self::Unresolved { name } => format!("unresolved {name}"),
-            Self::NotAFace { name } => format!("not_a_face {name}"),
+            Self::Unresolved { name } => format!("unresolved {name:?}"),
+            Self::NotAFace { name } => format!("not_a_face {name:?}"),
             Self::AcrossSpaces { group, cause } => {
                 let cause = match cause {
                     crate::mate::Unplaced::NoOffset => cause.word().to_owned(),
@@ -2322,13 +2325,13 @@ fn windows_of(
         FaceScope::Named(names) => {
             let mut out = Vec::new();
             for name in names {
-                let rendered = || format!("{name:?}");
+                let named = || Box::new(name.clone());
                 let Some(Entry::Unique(ent)) = value.name_table.lookup(name) else {
-                    return Err(refuse(SelectionRefusal::Unresolved { name: rendered() }));
+                    return Err(refuse(SelectionRefusal::Unresolved { name: named() }));
                 };
                 match ent.key {
                     EntityKey::Face(k) if ent.body == sel.body => out.push(k),
-                    _ => return Err(refuse(SelectionRefusal::NotAFace { name: rendered() })),
+                    _ => return Err(refuse(SelectionRefusal::NotAFace { name: named() })),
                 }
             }
             out.sort_unstable();

@@ -885,7 +885,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     // apart.
     assert!(
         err.contains(&format!(
-            "minted by node {}",
+            "in the part of node {} on the remainder",
             test_utils::refusal::tag(outer_probe.node.0)
         )),
         "the refusal names the crossing by its `outer`: {err}"
@@ -1690,7 +1690,7 @@ fn the_crossing_refusal_is_a_named_node_error() {
     let msg = e.to_string();
     assert!(msg.contains("re-verify"), "{msg}");
     assert!(
-        msg.contains("minted by node 000000000002"),
+        msg.contains("crosses at the start cap of node 000000000002"),
         "the refusal names the crossing by its `outer`: {msg}"
     );
 }
@@ -1959,7 +1959,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             "product: 1 root not valid at rest:",
             "\n  root 000000000003 output 1: a solid encloses negative volume, so it is inside-out",
         ],
-        &["root 000000000002's face name minted by node 000000000001 (the end cap) collides"],
+        &["in root 000000000002, the end cap of node 000000000001 collides"],
         &["the kernel could not graft root 000000000005's body: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {

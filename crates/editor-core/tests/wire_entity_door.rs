@@ -107,12 +107,12 @@ fn a_shell_designation_of_another_kind_refuses_naming_what_it_found() {
         (
             "an edge",
             EntityKind::Edge,
-            "the shell open-face's {name} denotes an edge, not a face",
+            "the shell's open face names {name}, which is an edge, not a face",
         ),
         (
             "a vertex",
             EntityKind::Vertex,
-            "the shell open-face's {name} denotes a vertex, not a face",
+            "the shell's open face names {name}, which is a vertex, not a face",
         ),
     ] {
         let (doc, body, _, edge, vertex) = solid();
@@ -141,12 +141,12 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
         (
             "fillet",
             Node::fillet as fn(RecipeNodeId, editor_core::Expr, Vec<StableName>) -> _,
-            "the fillet selection's {name} denotes a face, not an edge",
+            "the fillet selection names {name}, which is a face, not an edge",
         ),
         (
             "chamfer",
             Node::chamfer as fn(RecipeNodeId, editor_core::Expr, Vec<StableName>) -> _,
-            "the chamfer selection's {name} denotes a face, not an edge",
+            "the chamfer selection names {name}, which is a face, not an edge",
         ),
     ] {
         let (doc, body, face, _, _) = solid();
@@ -183,7 +183,7 @@ fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
     );
     assert_eq!(
         got.to_string(),
-        format!("the derived frame's {said} denotes an edge, not a face")
+        format!("the derived frame's face names {said}, which is an edge, not a face")
     );
 }
 

@@ -45,7 +45,7 @@ mod role;
 mod seam_pair;
 mod select;
 mod table;
-mod words;
+pub(crate) mod words;
 
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;

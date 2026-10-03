@@ -93,8 +93,12 @@ pub(super) enum SegOrigin<'a> {
 /// three ways, with what tells two carried copies of one entity apart.
 #[derive(Clone, Copy)]
 pub(super) enum CarriedAs {
-    /// Passed through whole: the entity is the operand's, unchanged.
-    Whole,
+    /// Passed through whole from a primary operand (a boolean's `A`, a
+    /// fillet's target): the body's own continuation.
+    Primary,
+    /// Passed through whole from a secondary operand (a boolean's `B`,
+    /// a union's member): joined into the body there.
+    Secondary,
     /// Shortened to the part on one side of a split.
     Split(SplitHalf),
     /// Copied onto one side of a split, where the tool plane passed
@@ -117,10 +121,10 @@ pub(super) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
 
         // Carried through: the argument is the entity's own name one
         // level down.
-        RoleSeg::FromA(of)
-        | RoleSeg::FromB(of)
-        | RoleSeg::FromMember { of, .. }
-        | RoleSeg::FromTarget(of) => SegOrigin::Carried(of, CarriedAs::Whole),
+        RoleSeg::FromA(of) | RoleSeg::FromTarget(of) => SegOrigin::Carried(of, CarriedAs::Primary),
+        RoleSeg::FromB(of) | RoleSeg::FromMember { of, .. } => {
+            SegOrigin::Carried(of, CarriedAs::Secondary)
+        }
         RoleSeg::SplitFragment { parent, side } => SegOrigin::Carried(parent, CarriedAs::Split(*side)),
         RoleSeg::OnToolVertex { of, side } => SegOrigin::Carried(of, CarriedAs::ToolCopy(*side)),
         RoleSeg::Instance { of, i } => SegOrigin::Carried(of, CarriedAs::Instance(*i)),

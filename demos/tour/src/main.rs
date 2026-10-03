@@ -307,10 +307,9 @@ impl SceneBody {
 ///
 /// **The rendering is the ratified structural serialization (F3) with
 /// one substitution, and both halves of that matter.** A
-/// `StableName`'s `Display` is prose — *"face name minted by node 3
-/// (the end cap)"* — which says the leaf role in words and not the
-/// path's structure, so two names differing above their leaf render
-/// alike and the token would not be a key at all. Its serde form
+/// `StableName`'s `Display` is prose — *"the end cap of node 3"* —
+/// words for a person, which nothing parses back into a name, so the
+/// token would not be a key at all. Its serde form
 /// carries the whole derivation path. A `StableName` holds no strings
 /// anywhere (every payload is a closed enum or an integer), so the
 /// only `,` its JSON can contain is a structural separator and the

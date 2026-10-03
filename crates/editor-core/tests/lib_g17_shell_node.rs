@@ -395,9 +395,10 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     assert_eq!(
         e.to_string(),
         format!(
-            "a shell open-face name failed to resolve: the face name minted by node {blank} (the \
-             side wall over the piece 7 of the profile step {step}) no longer resolves in this evaluation: the recorded reference disagrees with the recipe \
-             as it stands on the derivation path (node {blank}'s payload differs)"
+            "a shell open-face name failed to resolve: the side wall over piece 7 of the profile \
+             step {step} of node {blank} no longer resolves in this evaluation: the recorded \
+             reference disagrees with the recipe as it stands on the derivation path (node \
+             {blank}'s payload differs)"
         )
     );
 
@@ -420,7 +421,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     );
     assert_eq!(
         e.to_string(),
-        format!("the shell open-face's {edge} denotes an edge, not a face")
+        format!("the shell's open face names {edge}, which is an edge, not a face")
     );
 
     // (c) a non-positive thickness: the kernel's gate, carried WITH its

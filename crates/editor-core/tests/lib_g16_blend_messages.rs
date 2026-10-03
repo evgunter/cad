@@ -134,14 +134,15 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
         ),
         (
             "kind",
-            "the fillet selection's face name minted by node {cube} (the side wall over the leg \
-             of the profile step {wall}) denotes a face, not an edge",
+            "the fillet selection names the side wall over the leg of the profile step {wall} of \
+             node {cube}, which is a face, not an edge",
         ),
         (
             "resolve",
-            "a fillet selection name failed to resolve: the edge name minted by node {cube} (the \
-             side wall over the piece 7 of the profile step {ghost}) no longer resolves in this evaluation: the recorded reference disagrees with the \
-             recipe as it stands on the derivation path (node {cube}'s payload differs)",
+            "a fillet selection name failed to resolve: the side wall over piece 7 of the profile \
+             step {ghost} of node {cube} no longer resolves in this evaluation: the recorded \
+             reference disagrees with the recipe as it stands on the derivation path (node \
+             {cube}'s payload differs)",
         ),
     ];
     let (doc, cube) = cube_doc();

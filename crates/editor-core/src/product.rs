@@ -463,15 +463,13 @@ impl ProductError {
             // its own root's mint, and would be described correctly.
             Self::Naming { node, name } if *node != name.node => write!(
                 f,
-                "{}'s {} collides in the product's name table",
+                "in {}, {} collides in the product's name table",
                 root(*node),
                 by.name(name)
             ),
-            Self::Naming { name, .. } => write!(
-                f,
-                "the {} collides in the product's name table",
-                by.name(name)
-            ),
+            Self::Naming { name, .. } => {
+                write!(f, "{} collides in the product's name table", by.name(name))
+            }
             Self::Graft { node, source } => write!(
                 f,
                 "the kernel could not graft {}'s body: {source}",

@@ -1,52 +1,79 @@
-//! **A name's leaf role, in words** — what a person reads to tell one
-//! face from another.
+//! **A name in words** — what a person reads to tell one entity from
+//! another (`work/recipe/names-render-a-faces-leaf-role-in-words.md`,
+//! ruled on #3571 and #3906).
 //!
-//! The path as a structure is the machine channel; a person reads its
-//! leaf in words. The leaf is the entity the author made, reached by
-//! looking through every segment that carries an operand's entity on
-//! ([`origin`]'s `Carried`): a boolean's `FromA`, a union's
-//! `FromMember`, a fillet's `FromTarget` say nothing a reader needs, so
-//! the words are the role underneath ("the end cap", "the side wall
-//! over the leg of loop 0 step 2").
+//! The path as a structure is the machine channel; a person reads it
+//! as one sentence, `<role> of <feature>[, <join>…][, on <node>]`:
 //!
-//! Where the carry or a fragment qualifier is what tells two faces of
-//! one leaf apart, it is said around the leaf: "the piece of the end
-//! cap bordering the side wall over …", "piece 2 of 3 of …", "the
-//! piece above the split of …", "instance 1's copy of …".
+//! - **The role** is the leaf's: the entity the author made, reached by
+//!   looking through every segment that carries an operand's entity on
+//!   ([`origin`]'s `Carried`). A carry that changed the entity — a
+//!   fragment qualifier, a split's half, a pattern's copy, a band's cut
+//!   — is said around it: "the part of the end cap of Extrude e548
+//!   bordering …", "instance 2's copy of …".
+//! - **The feature** is the node that made the leaf, said right after
+//!   the leaf's own words, so a name a role cites keeps its feature:
+//!   "the blend face over the end rim edge over the leg of loop 0
+//!   step 2 of Extrude e548 of Fillet 92b0".
+//! - **A join** is a carry through a secondary operand — a Boolean's B,
+//!   a union's member — said with its node, outermost first: "…, joined
+//!   at Boolean 1669", "…, joined at Union d1aa from Transform 3218". A
+//!   carry through a primary operand (a Boolean's A, a fillet's target)
+//!   is the body's own continuation and is silent. Two names of one
+//!   table first differ at a node where one went through a secondary
+//!   operand, which a join says.
+//! - **"on <node>"** names the node whose output holds the name, said
+//!   only where the sentence does not already say it: not when it made
+//!   the leaf, not when it is the outermost join, not when the
+//!   enclosing sentence is about it ([`Speaker::about`]), and never for
+//!   a cited name, whose holder its citing role fixes.
 //!
-//! A role that cites other names — a blend face over its source edge,
-//! a seam between two faces, a cavity twin — says each cited name one
-//! level down, and a name cited from there is said by its kind alone
-//! ("a face"), so the sentence is bounded however deep the derivation
-//! runs. The one level is what tells two blend faces, two seams, two
-//! shell walls apart: they differ in what they were made over.
+//! **How much of a cited name is said is the speaker's [`Detail`].**
+//! The full form says every cited name and every list member in full,
+//! however deep. A speaker holding the name table the name was read
+//! from ([`Speaker::within`]) says the least detail that no other name
+//! of that table reads alike at; one holding none says the full form.
+//! Past the detail's depth a cited name is said by its kind ("a face"),
+//! and past its width a list says how many more.
 //!
-//! A profile step is said as the profile pane numbers it, `loop L step
-//! S` from zero, wherever the speaker's document holds the step; by
-//! its tag (`the profile step <tag>`) where no document is at hand.
+//! **Every number is counted from zero**, as the profile pane numbers
+//! a loop and its steps: `loop 0 step 2`, `instance 0's copy`, `part 1
+//! of 3`. A profile piece is a "piece" (`piece 1 of loop 0 step 0`); a
+//! cut of a face, edge or body is a "part".
+//!
+//! A profile step is said as the pane numbers it wherever the speaker's
+//! document holds it, and with its profile unless the feature reads
+//! that profile alone; by its tag (`the profile step <tag>`) where no
+//! document is at hand.
+//!
+//! The sentence is built from an explicit stack, never the call stack,
+//! so a name nested past every thread's stack renders.
 
 use core::fmt;
+use std::collections::BTreeSet;
 
+use crate::names::NameTable;
 use crate::names::attribute::{CarriedAs, SegOrigin, origin};
 use crate::names::role::{
     CapEnd, EntityKind, MeridianEnd, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier,
     RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName, fragment_tail_start,
 };
+use crate::node::RecipeNodeId;
 use crate::spoken::{Said, Say, Speaker};
+use profile::PieceRole;
 
-/// **A name's leaf role, in words** ([module docs](self)): `the end
-/// cap`, `the piece above the split of the side wall over the leg of
-/// loop 0 step 2`. Article-led, so a sentence takes it as a noun
-/// phrase.
+/// **A name in words** ([module docs](self)): `the end cap of Extrude
+/// e548`, `the part above the split of the side wall over the leg of
+/// loop 0 step 2 of Extrude e548, on Split 2fec`. Article-led, so a
+/// sentence takes it as a noun phrase.
 ///
-/// Its `Display` says each profile step by its tag; said by a
-/// [`Speaker`] holding the document ([`Said`]), as the profile pane
-/// numbers it. The name's own `Display` carries it beside the kind and
-/// the minting node.
+/// Its `Display` says each node and profile step by its tag, in full;
+/// said by a [`Speaker`] ([`Said`]), as that speaker's document holds
+/// them, at that speaker's detail. The name's own `Display` is this.
 #[derive(Clone, Copy)]
 pub struct LeafRole<'a>(pub &'a StableName);
 
-/// **`name`'s leaf role, in words** ([`LeafRole`]).
+/// **`name` in words** ([`LeafRole`]).
 #[must_use]
 pub fn leaf_role(name: &StableName) -> LeafRole<'_> {
     LeafRole(name)
@@ -54,7 +81,7 @@ pub fn leaf_role(name: &StableName) -> LeafRole<'_> {
 
 impl Say for LeafRole<'_> {
     fn say(&self, f: &mut fmt::Formatter<'_>, by: Speaker<'_>) -> fmt::Result {
-        f.write_str(&phrase(self.0, by, 0))
+        f.write_str(&words(self.0, by, &by.detail_of(self.0)))
     }
 }
 
@@ -66,130 +93,384 @@ impl fmt::Display for LeafRole<'_> {
 
 /// **The name whose role a [`LeafRole`] says**: `name` with every
 /// carrying segment looked through ([`origin`]) and every fragment
-/// qualifier dropped. Its node is the one that minted the entity
-/// ([`super::attribute`]'s answer, where that walk finds one).
+/// qualifier dropped. Its node is the feature the sentence says, the
+/// one that minted the entity ([`super::attribute`]'s answer, where
+/// that walk finds one).
 #[must_use]
 pub fn role_leaf(name: &StableName) -> &StableName {
     walk(name).leaf
 }
 
-/// How deep a cited name is said: the leaf at 0, a name its role cites
-/// at 1, and from there by kind alone.
-const CITED_IN_FULL: u8 = 1;
+/// Where a cited name sits in a sentence: the index of each citation on
+/// the way down from the name said, the name itself at `[]`. Numbered by
+/// the name's structure, so one position means the same citation at
+/// every detail.
+pub(crate) type Pos = Vec<u16>;
 
-/// One level of a name the walk looked through and must say: a fragment
-/// qualifier, or a carry that is not whole.
+/// **How much of the names a name cites is said.** The name's own role,
+/// feature and joins are said at every detail; a cited name is said in
+/// full where the detail opens its position, and by its kind ("a face")
+/// where it does not. A list of cited names says those it opens and how
+/// many more, or how many of what kind where it opens none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Detail {
+    /// Every citation opened: the form two distinct names never share.
+    Full,
+    /// These citations opened, and no others.
+    Open(BTreeSet<Pos>),
+}
+
+impl Detail {
+    fn opens(&self, pos: &[u16]) -> bool {
+        pos.is_empty()
+            || match self {
+                Self::Full => true,
+                Self::Open(open) => open.contains(pos),
+            }
+    }
+}
+
+/// `name` in words at `detail`, each node and step said by `by`.
+pub(crate) fn words(name: &StableName, by: Speaker<'_>, detail: &Detail) -> String {
+    let mut out = String::new();
+    say(name, by, detail, |text| out.push_str(text), |_| ());
+    out
+}
+
+/// **The least detail at which `name` reads apart from every other
+/// name of `table`**, said by `by`. Starting from no citation opened,
+/// it opens one citation at a time — the one that leaves the fewest
+/// names reading alike, the nearest among equals — until none does,
+/// then shuts again each opening the others made needless; where
+/// opening every citation still leaves one, the full form.
+pub(crate) fn least_detail(name: &StableName, by: Speaker<'_>, table: &NameTable) -> Detail {
+    let others: Vec<&StableName> = table
+        .iter()
+        .map(|(n, _)| n)
+        .filter(|n| *n != name)
+        .collect();
+    let alike = |open: &BTreeSet<Pos>, among: &[&StableName]| -> usize {
+        let detail = Detail::Open(open.clone());
+        let mine = words(name, by, &detail);
+        among
+            .iter()
+            .filter(|other| words(other, by, &detail) == mine)
+            .count()
+    };
+    let mut open = BTreeSet::new();
+    let mut rivals = others.clone();
+    let mut shut = cited_positions(name, by);
+    loop {
+        let detail = Detail::Open(open.clone());
+        let mine = words(name, by, &detail);
+        rivals.retain(|other| words(other, by, &detail) == mine);
+        if rivals.is_empty() {
+            break;
+        }
+        // The citations said now: those whose citing name is open.
+        let sayable: Vec<usize> = (0..shut.len())
+            .filter(|&i| detail.opens(&shut[i][..shut[i].len() - 1]))
+            .collect();
+        // The opening that leaves the fewest names reading alike, the
+        // nearest among equals.
+        let Some(pick) = sayable.iter().copied().min_by_key(|&i| {
+            let mut tried = open.clone();
+            tried.insert(shut[i].clone());
+            alike(&tried, &rivals)
+        }) else {
+            return Detail::Full;
+        };
+        open.insert(shut.remove(pick));
+    }
+    // An opening a later one made needless is shut again, deepest
+    // first, while the name still reads apart from every other.
+    for pos in open.clone().iter().rev() {
+        let mut fewer = open.clone();
+        fewer.retain(|kept| !kept.starts_with(pos));
+        if alike(&fewer, &others) == 0 {
+            open = fewer;
+        }
+    }
+    Detail::Open(open)
+}
+
+/// Every citation of `name`'s full form, nearest first.
+fn cited_positions(name: &StableName, by: Speaker<'_>) -> Vec<Pos> {
+    let mut all = Vec::new();
+    say(
+        name,
+        by,
+        &Detail::Full,
+        |_| (),
+        |pos| {
+            if !pos.is_empty() {
+                all.push(pos.to_vec());
+            }
+        },
+    );
+    all.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
+    all
+}
+
+/// The sentence, from an explicit stack: each piece of text to `text`,
+/// each name it says to `at` by position.
+fn say(
+    name: &StableName,
+    by: Speaker<'_>,
+    detail: &Detail,
+    mut text: impl FnMut(&str),
+    mut at: impl FnMut(&[u16]),
+) {
+    let mut stack = vec![Item::Name(name, Pos::new(), by)];
+    while let Some(item) = stack.pop() {
+        match item {
+            Item::Text(words) => text(&words),
+            Item::Name(name, pos, by) => {
+                at(&pos);
+                stack.extend(expand(name, &pos, by, detail).into_iter().rev());
+            }
+        }
+    }
+}
+
+/// One piece of a sentence under construction: words, or a name to say
+/// at its position.
+enum Item<'n, 's> {
+    Text(String),
+    Name(&'n StableName, Pos, Speaker<'s>),
+}
+
+fn text<'n, 's>(s: impl Into<String>) -> Item<'n, 's> {
+    Item::Text(s.into())
+}
+
+/// A name said by its kind alone: `a face`.
+fn kind_np(kind: EntityKind) -> String {
+    format!("{} {}", kind.article(), kind.noun())
+}
+
+/// The names one level of a sentence cites, numbered in the order it
+/// cites them.
+struct Cites<'p, 'd, 's> {
+    pos: &'p [u16],
+    next: u16,
+    detail: &'d Detail,
+    by: Speaker<'s>,
+}
+
+impl<'s> Cites<'_, '_, 's> {
+    fn at(&mut self) -> Pos {
+        let mut pos = self.pos.to_vec();
+        pos.push(self.next);
+        self.next = self.next.saturating_add(1);
+        pos
+    }
+
+    /// One cited name.
+    fn one<'n>(&mut self, name: &'n StableName) -> Item<'n, 's> {
+        Item::Name(name, self.at(), self.by)
+    }
+
+    /// One cited name, said by tag.
+    fn by_tag<'n>(&mut self, name: &'n StableName) -> Item<'n, 's> {
+        Item::Name(name, self.at(), Speaker::TAG)
+    }
+
+    /// A list of cited names: those opened in full, then how many more;
+    /// where none is opened, how many of what kind.
+    fn list<'n>(&mut self, names: &'n [StableName]) -> Vec<Item<'n, 's>> {
+        let Some(first) = names.first() else {
+            return vec![text("nothing")];
+        };
+        let at: Vec<Pos> = names.iter().map(|_| self.at()).collect();
+        let opened: Vec<(&'n StableName, Pos)> = names
+            .iter()
+            .zip(at)
+            .filter(|(_, pos)| self.detail.opens(pos))
+            .collect();
+        if opened.is_empty() {
+            if let [one] = names {
+                return vec![text(kind_np(one.kind))];
+            }
+            let plural = if names.iter().all(|n| n.kind == first.kind) {
+                plural(first.kind)
+            } else {
+                "entities"
+            };
+            return vec![text(format!("{} {plural}", names.len()))];
+        }
+        let rest = names.len() - opened.len();
+        let said = opened.len();
+        let mut items = Vec::new();
+        for (i, (name, pos)) in opened.into_iter().enumerate() {
+            if i > 0 {
+                items.push(text(if i + 1 == said && rest == 0 {
+                    " and "
+                } else {
+                    ", "
+                }));
+            }
+            items.push(Item::Name(name, pos, self.by));
+        }
+        if rest > 0 {
+            items.push(text(format!(" and {rest} more")));
+        }
+        items
+    }
+}
+
+/// A carry the walk looked through that changed the entity, said around
+/// the leaf.
 enum Wrap<'n> {
-    Piece(&'n Qualifier),
-    Carried(CarriedAs),
+    Part(&'n Qualifier),
+    Split(SplitHalf),
+    ToolCopy(SplitHalf),
+    Instance(u32),
+    Cut,
+}
+
+/// A carry through a secondary operand, at the node that carried it.
+enum Join {
+    B(RecipeNodeId),
+    Member {
+        union: RecipeNodeId,
+        member: RecipeNodeId,
+    },
 }
 
 /// A name, its carrying segments and qualifiers looked through.
 struct Walk<'n> {
-    /// What was looked through, outermost first.
+    /// The carries said around the leaf, outermost first.
     wraps: Vec<Wrap<'n>>,
+    /// The joins, outermost first.
+    joins: Vec<Join>,
     /// The name the walk stopped at.
     leaf: &'n StableName,
 }
 
 fn walk(name: &StableName) -> Walk<'_> {
     let mut wraps = Vec::new();
+    let mut joins = Vec::new();
     let mut at = name;
     loop {
         let tail = fragment_tail_start(&at.path);
-        // `[parent, Fragment(q1), Fragment(q2)]` is the q2 piece of the
-        // q1 piece: the last qualifier is the outermost.
+        // `[parent, Fragment(q1), Fragment(q2)]` is the q2 part of the
+        // q1 part: the last qualifier is the outermost.
         wraps.extend(at.path[tail..].iter().rev().filter_map(|seg| match seg {
-            RoleSeg::Fragment(q) => Some(Wrap::Piece(q)),
+            RoleSeg::Fragment(q) => Some(Wrap::Part(q)),
             _ => None,
         }));
         let [seg] = &at.path[..tail] else {
-            return Walk { wraps, leaf: at };
+            return Walk {
+                wraps,
+                joins,
+                leaf: at,
+            };
         };
-        match origin(seg) {
-            SegOrigin::Carried(of, CarriedAs::Whole) => at = of,
-            SegOrigin::Carried(of, carry) => {
-                wraps.push(Wrap::Carried(carry));
-                at = of;
-            }
-            SegOrigin::Minted | SegOrigin::Unclassified => return Walk { wraps, leaf: at },
+        let SegOrigin::Carried(of, carry) = origin(seg) else {
+            return Walk {
+                wraps,
+                joins,
+                leaf: at,
+            };
+        };
+        match carry {
+            CarriedAs::Primary => {}
+            CarriedAs::Secondary => joins.push(match seg {
+                RoleSeg::FromMember { member, .. } => Join::Member {
+                    union: at.node,
+                    member: *member,
+                },
+                _ => Join::B(at.node),
+            }),
+            CarriedAs::Split(side) => wraps.push(Wrap::Split(side)),
+            CarriedAs::ToolCopy(side) => wraps.push(Wrap::ToolCopy(side)),
+            CarriedAs::Instance(i) => wraps.push(Wrap::Instance(i)),
+            CarriedAs::Cut => wraps.push(Wrap::Cut),
+        }
+        at = of;
+    }
+}
+
+/// The sentence of `name` at `pos`, one level: its words, and the names
+/// it cites still to be said.
+fn expand<'n, 's>(
+    name: &'n StableName,
+    pos: &[u16],
+    by: Speaker<'s>,
+    detail: &Detail,
+) -> Vec<Item<'n, 's>> {
+    if !detail.opens(pos) {
+        return vec![text(kind_np(name.kind))];
+    }
+    let mut cites = Cites {
+        pos,
+        next: 0,
+        detail,
+        by,
+    };
+    let Walk { wraps, joins, leaf } = walk(name);
+    let mut items: Vec<Item<'n, 's>> = wraps.iter().map(|w| text(prefix(w, name.kind))).collect();
+    items.extend(head(leaf, by, &mut cites));
+    items.push(text(format!(" of {}", by.node(leaf.node))));
+    for wrap in wraps.iter().rev() {
+        if let Wrap::Part(q) = wrap {
+            let (word, names) = match q {
+                Qualifier::OrderAlong { .. } => continue,
+                Qualifier::Borders(walls) => (" bordering ", walls),
+                Qualifier::Keeps(edges) => (" along ", edges),
+                Qualifier::Ends(ends) => (" between ", ends),
+            };
+            items.push(text(word));
+            items.extend(cites.list(names));
         }
     }
-}
-
-/// `name` said at `depth` ([`CITED_IN_FULL`]).
-fn phrase(name: &StableName, by: Speaker<'_>, depth: u8) -> String {
-    if depth > CITED_IN_FULL {
-        return format!("{} {}", article(name.kind), name.kind.noun());
+    for join in &joins {
+        items.push(text(match *join {
+            Join::B(at) => format!(", joined at {}", by.node(at)),
+            Join::Member { union, member } => {
+                format!(", joined at {} from {}", by.node(union), by.node(member))
+            }
+        }));
     }
-    let Walk { wraps, leaf } = walk(name);
-    let mut np = head(leaf, by, depth);
-    let (said, deeper) = wraps.split_at(wraps.len().min(WRAPS_SAID));
-    if !deeper.is_empty() {
-        np = format!(
-            "{} {} derived from {np}",
-            article(name.kind),
-            name.kind.noun()
+    let holder_said = name.node == leaf.node
+        || by.is_about(name.node)
+        || matches!(
+            joins.first(),
+            Some(Join::B(at) | Join::Member { union: at, .. }) if *at == name.node
         );
+    if pos.is_empty() && !holder_said {
+        items.push(text(format!(", on {}", by.node(name.node))));
     }
-    for wrap in said.iter().rev() {
-        np = wrapped(wrap, &np, name.kind, by, depth);
-    }
-    np
+    items
 }
 
-/// How many looked-through levels are said, outermost first: the
-/// levels nearest the name are the ones that tell it from its
-/// neighbours, and the rest are said together as "derived from", so a
-/// derivation of any depth reads in bounded words.
-const WRAPS_SAID: usize = 3;
-
-fn article(kind: EntityKind) -> &'static str {
-    match kind {
-        EntityKind::Edge => "an",
-        EntityKind::Face | EntityKind::Vertex | EntityKind::Body => "a",
-    }
-}
-
-/// `np` with one looked-through level said around it.
-fn wrapped(wrap: &Wrap<'_>, np: &str, kind: EntityKind, by: Speaker<'_>, depth: u8) -> String {
-    let cited = |names: &[StableName]| list(names, by, depth + 1);
+/// The words a carry says before the leaf.
+fn prefix(wrap: &Wrap<'_>, kind: EntityKind) -> String {
     match wrap {
-        Wrap::Carried(CarriedAs::Whole) => np.to_owned(),
-        Wrap::Carried(CarriedAs::Split(side)) => format!("the piece {} of {np}", half(*side)),
-        Wrap::Carried(CarriedAs::ToolCopy(side)) => format!("the copy {} of {np}", half(*side)),
-        Wrap::Carried(CarriedAs::Instance(i)) => format!("instance {i}'s copy of {np}"),
-        Wrap::Carried(CarriedAs::Cut) => format!("the surviving piece of {np}"),
-        Wrap::Piece(Qualifier::OrderAlong { rank, of }) => {
+        Wrap::Split(side) => format!("the part {} of ", half(*side)),
+        Wrap::ToolCopy(side) => format!("the copy {} of ", half(*side)),
+        Wrap::Instance(i) => format!("instance {i}'s copy of "),
+        Wrap::Cut => "the surviving part of ".to_owned(),
+        Wrap::Part(Qualifier::OrderAlong { rank, of }) => {
             let what = match kind {
                 EntityKind::Vertex => "crossing",
-                EntityKind::Face | EntityKind::Edge | EntityKind::Body => "piece",
+                EntityKind::Face | EntityKind::Edge | EntityKind::Body => "part",
             };
-            format!("{what} {} of {of} of {np}", rank.saturating_add(1))
+            format!("{what} {rank} of {of} of ")
         }
-        // A qualifier that cites names says them only where the leaf is
-        // said in full: one level down, they would be kind nouns.
-        Wrap::Piece(_) if depth >= CITED_IN_FULL => format!("a piece of {np}"),
-        Wrap::Piece(Qualifier::Borders(walls)) => {
-            format!("the piece of {np} bordering {}", cited(walls))
-        }
-        Wrap::Piece(Qualifier::Keeps(edges)) => {
-            format!("the piece of {np} along {}", cited(edges))
-        }
-        Wrap::Piece(Qualifier::Ends(ends)) => {
-            format!("the piece of {np} between {}", cited(ends))
+        Wrap::Part(Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_)) => {
+            "the part of ".to_owned()
         }
     }
 }
 
-/// Up to two names in full, then a count: a merged face or a band over
-/// many edges reads as its first constituent and how many more.
-fn list(names: &[StableName], by: Speaker<'_>, depth: u8) -> String {
-    match names {
-        [] => "nothing".to_owned(),
-        [one] => phrase(one, by, depth),
-        [a, b] => format!("{} and {}", phrase(a, by, depth), phrase(b, by, depth)),
-        [a, rest @ ..] => format!("{} and {} more", phrase(a, by, depth), rest.len()),
+fn plural(kind: EntityKind) -> &'static str {
+    match kind {
+        EntityKind::Body => "bodies",
+        EntityKind::Face => "faces",
+        EntityKind::Edge => "edges",
+        EntityKind::Vertex => "vertices",
     }
 }
 
@@ -216,16 +497,33 @@ fn meridian(e: MeridianEnd) -> &'static str {
     }
 }
 
-/// A profile piece: its role, and the step that drew it as the profile
-/// pane numbers it — or, on a kernel-built section, which circle.
-fn piece(e: &ProfileEdgeRef, by: Speaker<'_>) -> String {
+/// A profile piece's role as a noun phrase: an indexed piece by its
+/// index (`piece 1`), any other by its article (`the leg`).
+fn role_np(role: PieceRole) -> String {
+    match role {
+        PieceRole::Piece(_) => role.to_string(),
+        PieceRole::Leg | PieceRole::RunIn | PieceRole::Arc | PieceRole::RunOut => {
+            format!("the {role}")
+        }
+    }
+}
+
+/// A profile piece of `feature`'s profile: its role, and the step that
+/// drew it as the profile pane numbers it — with the profile, unless
+/// `feature` reads that profile alone — or, on a kernel-built section,
+/// which circle.
+fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
     match e {
         ProfileEdgeRef::Piece { step, role } => match by.step(*step) {
-            Some(at) => format!("the {role} of {at}"),
-            None => format!("the {role} of the profile step {step}"),
+            Some(at) if by.sole_profile(feature) == Some(at.profile()) => {
+                format!("{} of {at}", role_np(*role))
+            }
+            Some(at) => format!("{} of {at} in {}", role_np(*role), by.node(at.profile())),
+            None => format!("{} of the profile step {step}", role_np(*role)),
         },
         ProfileEdgeRef::Section { circle, role } => format!(
-            "the {role} of the {} circle",
+            "{} of the {} circle",
+            role_np(*role),
             match circle {
                 SectionCircle::Outer => "outer",
                 SectionCircle::Bore => "bore",
@@ -234,124 +532,156 @@ fn piece(e: &ProfileEdgeRef, by: Speaker<'_>) -> String {
     }
 }
 
-fn run(r: &PieceRun, by: Speaker<'_>) -> String {
-    r.pieces()
-        .iter()
-        .map(|e| piece(e, by))
-        .collect::<Vec<_>>()
-        .join(", then ")
+fn run(r: &PieceRun, feature: RecipeNodeId, by: Speaker<'_>) -> String {
+    pieces(r.pieces().iter().map(|e| piece(e, feature, by)))
 }
 
-fn vertex(v: &ProfileVertexRef, by: Speaker<'_>) -> String {
+fn pieces(said: impl Iterator<Item = String>) -> String {
+    said.collect::<Vec<_>>().join(", then ")
+}
+
+fn vertex(v: &ProfileVertexRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
     let edge = match *v {
         ProfileVertexRef::Piece { step, role } => ProfileEdgeRef::Piece { step, role },
         ProfileVertexRef::Section { circle, role } => ProfileEdgeRef::Section { circle, role },
     };
-    format!("the start of {}", piece(&edge, by))
+    format!("the start of {}", piece(&edge, feature, by))
 }
 
-/// The role the walk stopped at, in words. Exhaustive over
-/// [`RoleSeg`], so a new segment is given words here or the compile
-/// breaks.
-fn head(leaf: &StableName, by: Speaker<'_>, depth: u8) -> String {
+/// The role the walk stopped at, in words, before its feature.
+/// Exhaustive over [`RoleSeg`], so a new segment is given words here or
+/// the compile breaks.
+fn head<'n, 's>(
+    leaf: &'n StableName,
+    by: Speaker<'s>,
+    cites: &mut Cites<'_, '_, 's>,
+) -> Vec<Item<'n, 's>> {
     let path = &leaf.path[..fragment_tail_start(&leaf.path)];
     let seg = match path {
-        [] => return "the entity with no role".to_owned(),
+        [] => return vec![text(format!("the {}", leaf.kind.noun()))],
         [seg] => seg,
         // A seam junction: the run of the seams that meet there.
         many if many.iter().all(|s| matches!(s, RoleSeg::Seam { .. })) => {
-            return format!("the junction of {} seams", many.len());
+            return vec![text(format!("the junction of {} seams", many.len()))];
         }
-        _ => return "the entity of an unread role".to_owned(),
+        _ => return vec![text("the entity of an unread role")],
     };
-    let c = |n: &StableName| phrase(n, by, depth + 1);
+    let f = leaf.node;
     let kind = leaf.kind.noun();
+    let one = |s: String| vec![text(s)];
     match seg {
-        RoleSeg::OutputBody => "the output body".to_owned(),
-        RoleSeg::Cap(e) => format!("the {} cap", cap(*e)),
-        RoleSeg::Lateral(r) => format!("the side wall over {}", run(r, by)),
-        RoleSeg::RimEdge(c, e) => format!("the {} rim edge over {}", cap(*c), piece(e, by)),
-        RoleSeg::LateralEdge(v) => format!("the lateral edge over {}", vertex(v, by)),
-        RoleSeg::CapVertex(c, v) => format!("the {} cap vertex over {}", cap(*c), vertex(v, by)),
-        RoleSeg::LoftWall(pieces) => format!(
+        RoleSeg::OutputBody => one("the output body".to_owned()),
+        RoleSeg::Cap(e) => one(format!("the {} cap", cap(*e))),
+        RoleSeg::Lateral(r) => one(format!("the side wall over {}", run(r, f, by))),
+        RoleSeg::RimEdge(c, e) => one(format!("the {} rim edge over {}", cap(*c), piece(e, f, by))),
+        RoleSeg::LateralEdge(v) => one(format!("the lateral edge over {}", vertex(v, f, by))),
+        RoleSeg::CapVertex(c, v) => one(format!(
+            "the {} cap vertex over {}",
+            cap(*c),
+            vertex(v, f, by)
+        )),
+        RoleSeg::LoftWall(edges) => one(format!(
             "the loft wall over {}",
-            pieces
-                .iter()
-                .map(|e| piece(e, by))
-                .collect::<Vec<_>>()
-                .join(", then ")
-        ),
-        RoleSeg::LoftSeam(vertices) => format!(
+            pieces(edges.iter().map(|e| piece(e, f, by)))
+        )),
+        RoleSeg::LoftSeam(vertices) => one(format!(
             "the loft seam over {}",
-            vertices
-                .iter()
-                .map(|v| vertex(v, by))
-                .collect::<Vec<_>>()
-                .join(", then ")
-        ),
-        RoleSeg::Band(r) => format!("the band face over {}", run(r, by)),
-        RoleSeg::BandRim(v) => format!("the band rim over {}", vertex(v, by)),
-        RoleSeg::BandRimPi(v) => format!("the second band rim over {}", vertex(v, by)),
-        RoleSeg::BandPi(r) => format!("the second band face over {}", run(r, by)),
-        RoleSeg::Meridian(m, r) => {
-            format!("the {} meridian edge over {}", meridian(*m), run(r, by))
+            pieces(vertices.iter().map(|v| vertex(v, f, by)))
+        )),
+        RoleSeg::Band(r) => one(format!("the band face over {}", run(r, f, by))),
+        RoleSeg::BandRim(v) => one(format!("the band rim over {}", vertex(v, f, by))),
+        RoleSeg::BandRimPi(v) => one(format!("the second band rim over {}", vertex(v, f, by))),
+        RoleSeg::BandPi(r) => one(format!("the second band face over {}", run(r, f, by))),
+        RoleSeg::Meridian(m, r) => one(format!(
+            "the {} meridian edge over {}",
+            meridian(*m),
+            run(r, f, by)
+        )),
+        RoleSeg::MeridianVertex(m, v) => one(format!(
+            "the {} meridian vertex over {}",
+            meridian(*m),
+            vertex(v, f, by)
+        )),
+        RoleSeg::RevolveCap(m) => one(format!("the {} wedge cap", meridian(*m))),
+        RoleSeg::Pole(v) => one(format!("the pole over {}", vertex(v, f, by))),
+        RoleSeg::AxisEdge(e) => one(format!("the axis edge over {}", piece(e, f, by))),
+        RoleSeg::Seam { a, b } => vec![
+            text(format!("the seam {kind} of ")),
+            cites.one(a),
+            text(" and "),
+            cites.one(b),
+        ],
+        RoleSeg::Merged(set) => {
+            let mut items = vec![text("the merged face of ")];
+            items.extend(cites.list(set));
+            items
         }
-        RoleSeg::MeridianVertex(m, v) => {
-            format!(
-                "the {} meridian vertex over {}",
-                meridian(*m),
-                vertex(v, by)
-            )
-        }
-        RoleSeg::RevolveCap(m) => format!("the {} wedge cap", meridian(*m)),
-        RoleSeg::Pole(v) => format!("the pole over {}", vertex(v, by)),
-        RoleSeg::AxisEdge(e) => format!("the axis edge over {}", piece(e, by)),
-        RoleSeg::Seam { a, b } => format!("the seam {kind} of {} and {}", c(a), c(b)),
-        RoleSeg::Merged(set) => format!("the merged face of {}", list(set, by, depth + 1)),
-        RoleSeg::SplitBody(side) => format!("the body {}", half(*side)),
+        RoleSeg::SplitBody(side) => one(format!("the body {}", half(*side))),
         RoleSeg::SectionFace { side, section } => {
-            format!("section face {} {}", section.saturating_add(1), half(*side))
+            one(format!("section face {section} {}", half(*side)))
         }
-        RoleSeg::SectionEdge { side, face } => {
-            format!("the section edge across {} {}", c(face), half(*side))
+        RoleSeg::SectionEdge { side, face } => vec![
+            text("the section edge across "),
+            cites.one(face),
+            text(format!(" {}", half(*side))),
+        ],
+        RoleSeg::CrossingVertex { side, edge } => vec![
+            text("the split's crossing of "),
+            cites.one(edge),
+            text(format!(" {}", half(*side))),
+        ],
+        RoleSeg::BlendFace(edge) => vec![text("the blend face over "), cites.one(edge)],
+        RoleSeg::CornerFace(v) => vec![text("the corner face at "), cites.one(v)],
+        RoleSeg::TrimEdge { edge, support } => vec![
+            text("the trim edge on "),
+            cites.one(support),
+            text(" of the blend over "),
+            cites.one(edge),
+        ],
+        RoleSeg::FootVertex { vertex, support } => vec![
+            text("the blend foot on "),
+            cites.one(support),
+            text(" at "),
+            cites.one(vertex),
+        ],
+        RoleSeg::EndArc { vertex, edge } => vec![
+            text("the end arc at "),
+            cites.one(vertex),
+            text(" of the blend over "),
+            cites.one(edge),
+        ],
+        RoleSeg::BandFace(edges) => {
+            let mut items = vec![text("the blend band over ")];
+            items.extend(cites.list(edges));
+            items
         }
-        RoleSeg::CrossingVertex { side, edge } => {
-            format!("the split's crossing of {} {}", c(edge), half(*side))
+        RoleSeg::BandTrim { edge, support } => vec![
+            text(format!(
+                "the {}-side trim edge of the blend band over ",
+                match support {
+                    RimSupport::Host => "host",
+                    RimSupport::Mate => "mate",
+                }
+            )),
+            cites.one(edge),
+        ],
+        RoleSeg::BandFoot(v) => vec![text("the blend band's foot at "), cites.one(v)],
+        RoleSeg::BandCross { edge, .. } => {
+            vec![text("the blend band's crossing of "), cites.one(edge)]
         }
-        RoleSeg::BlendFace(edge) => format!("the blend face over {}", c(edge)),
-        RoleSeg::CornerFace(v) => format!("the corner face at {}", c(v)),
-        RoleSeg::TrimEdge { edge, support } => format!(
-            "the trim edge on {} of the blend over {}",
-            c(support),
-            c(edge)
-        ),
-        RoleSeg::FootVertex { vertex, support } => {
-            format!("the blend foot on {} at {}", c(support), c(vertex))
+        RoleSeg::BandSlit { edge, .. } => {
+            vec![text("the blend band's slit along "), cites.one(edge)]
         }
-        RoleSeg::EndArc { vertex, edge } => {
-            format!("the end arc at {} of the blend over {}", c(vertex), c(edge))
+        RoleSeg::Inner(of) => vec![text("the cavity twin of "), cites.one(of)],
+        RoleSeg::Rim(of) => vec![text("the shell rim of "), cites.one(of)],
+        RoleSeg::HoleRim { of, hole } => {
+            vec![text(format!("the rim of hole {hole} in ")), cites.one(of)]
         }
-        RoleSeg::BandFace(edges) => format!("the blend band over {}", list(edges, by, depth + 1)),
-        RoleSeg::BandTrim { edge, support } => format!(
-            "the {}-side trim edge of the blend band over {}",
-            match support {
-                RimSupport::Host => "host",
-                RimSupport::Mate => "mate",
-            },
-            c(edge)
-        ),
-        RoleSeg::BandFoot(v) => format!("the blend band's foot at {}", c(v)),
-        RoleSeg::BandCross { edge, .. } => format!("the blend band's crossing of {}", c(edge)),
-        RoleSeg::BandSlit { edge, .. } => format!("the blend band's slit along {}", c(edge)),
-        RoleSeg::Inner(of) => format!("the cavity twin of {}", c(of)),
-        RoleSeg::Rim(of) => format!("the shell rim of {}", c(of)),
-        RoleSeg::HoleRim { of, hole } => format!("the rim of hole {hole} in {}", c(of)),
         // The part's own steps and nodes are another document's ids,
         // so the part-local name is said by tag.
-        RoleSeg::InPart { of } => {
-            format!("{} of the part", phrase(of, Speaker::TAG, depth + 1))
-        }
-        // The walk looks through these and never stops at one.
+        RoleSeg::InPart { of } => vec![cites.by_tag(of), text(" in the part")],
+        // `origin` carries these on, so the walk never stops at one;
+        // said as the name they carry, the match stays total.
         RoleSeg::FromA(of)
         | RoleSeg::FromB(of)
         | RoleSeg::FromMember { of, .. }
@@ -359,8 +689,8 @@ fn head(leaf: &StableName, by: Speaker<'_>, depth: u8) -> String {
         | RoleSeg::SplitFragment { parent: of, .. }
         | RoleSeg::OnToolVertex { of, .. }
         | RoleSeg::Instance { of, .. }
-        | RoleSeg::BandCut(of) => c(of),
-        RoleSeg::Fragment(_) => format!("a piece of {} {kind}", article(leaf.kind)),
+        | RoleSeg::BandCut(of) => vec![cites.one(of)],
+        RoleSeg::Fragment(_) => one(format!("a part of {}", kind_np(leaf.kind))),
     }
 }
 
@@ -370,12 +700,12 @@ mod tests {
 
     use super::*;
     use crate::names::role::NameRef;
-    use crate::node::{RecipeNodeId, StepId};
-    use profile::PieceRole;
+    use crate::node::StepId;
 
     const EXTRUDE: RecipeNodeId = RecipeNodeId(1 << 16);
     const OTHER: RecipeNodeId = RecipeNodeId(2 << 16);
     const OP: RecipeNodeId = RecipeNodeId(3 << 16);
+    const MOVED: RecipeNodeId = RecipeNodeId(4 << 16);
 
     fn name(kind: EntityKind, node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
         StableName { kind, node, path }
@@ -412,10 +742,15 @@ mod tests {
         leaf_role(n).to_string()
     }
 
-    /// The carrying wrappers are looked through to the role the author
-    /// made, and the name's own sentence adds the node that made it.
+    fn open(at: &[&[u16]]) -> Detail {
+        Detail::Open(at.iter().map(|pos| pos.to_vec()).collect())
+    }
+
+    /// A carry through a primary operand is silent, and the sentence
+    /// says the feature that made the leaf and the node that holds the
+    /// name.
     #[test]
-    fn a_carried_face_is_said_by_its_leaf() {
+    fn a_primary_carry_is_silent_and_the_feature_and_holder_are_said() {
         let carried = name(
             EntityKind::Face,
             OP,
@@ -425,19 +760,60 @@ mod tests {
                 vec![RoleSeg::FromTarget(NameRef::new(cap(CapEnd::End)))],
             )))],
         );
-        assert_eq!(said(&carried), "the end cap");
+        assert_eq!(
+            said(&carried),
+            "the end cap of node 000000000001, on node 000000000003"
+        );
         assert_eq!(role_leaf(&carried).node, EXTRUDE);
+        assert_eq!(said(&cap(CapEnd::End)), "the end cap of node 000000000001");
         assert_eq!(
             carried.to_string(),
-            "face name minted by node 000000000003 (the end cap, minted by node 000000000001)"
+            said(&carried),
+            "the name's own Display"
         );
     }
 
-    /// The pieces of one cut face differ in what they border, or in
-    /// their rank, and a split's two pieces in their side: each is said.
+    /// Two copies of one master, brought into one body through two
+    /// secondary operands, differ in their joins: each is said, outermost
+    /// first, and the holder is not said twice.
     #[test]
-    fn the_pieces_of_one_face_are_told_apart() {
-        let piece = |q| {
+    fn a_secondary_carry_is_a_join_said_with_its_node() {
+        let through_b = |at: RecipeNodeId, inner: StableName| {
+            name(
+                EntityKind::Face,
+                at,
+                vec![RoleSeg::FromB(NameRef::new(inner))],
+            )
+        };
+        let member = name(
+            EntityKind::Face,
+            OTHER,
+            vec![RoleSeg::FromMember {
+                member: MOVED,
+                of: NameRef::new(cap(CapEnd::End)),
+            }],
+        );
+        assert_eq!(
+            said(&through_b(OP, member.clone())),
+            "the end cap of node 000000000001, joined at node 000000000003, joined at node \
+             000000000002 from node 000000000004"
+        );
+        assert_ne!(
+            said(&through_b(OP, cap(CapEnd::End))),
+            said(&name(
+                EntityKind::Face,
+                OP,
+                vec![RoleSeg::FromA(NameRef::new(cap(CapEnd::End)))]
+            )),
+            "B and A of one boolean read apart"
+        );
+    }
+
+    /// The parts of one cut face differ in what they border, or in
+    /// their rank, and a split's two parts in their side: each is said.
+    #[test]
+    fn the_parts_of_one_face_are_told_apart() {
+        let part = |q| {
             name(
                 EntityKind::Face,
                 OP,
@@ -448,13 +824,13 @@ mod tests {
             )
         };
         assert_eq!(
-            said(&piece(Qualifier::Borders(vec![wall(1)]))),
-            "the piece of the end cap bordering the side wall over the leg of the profile step \
-             000000000001"
+            said(&part(Qualifier::Borders(vec![wall(1)]))),
+            "the part of the end cap of node 000000000001 bordering the side wall over the leg \
+             of the profile step 000000000001 of node 000000000001, on node 000000000003"
         );
         assert_eq!(
-            said(&piece(Qualifier::OrderAlong { rank: 1, of: 3 })),
-            "piece 2 of 3 of the end cap"
+            said(&part(Qualifier::OrderAlong { rank: 1, of: 3 })),
+            "part 1 of 3 of the end cap of node 000000000001, on node 000000000003"
         );
         let half = |side| {
             name(
@@ -468,15 +844,15 @@ mod tests {
         };
         assert_eq!(
             said(&half(SplitHalf::Above)),
-            "the piece above the split of the side wall over the leg of the profile step \
-             000000000001"
+            "the part above the split of the side wall over the leg of the profile step \
+             000000000001 of node 000000000001, on node 000000000003"
         );
         assert_ne!(said(&half(SplitHalf::Above)), said(&half(SplitHalf::Below)));
     }
 
     /// A blend face, a shell's cavity twin and a split's section edge
-    /// are said over what they were made against, one level down, which
-    /// is what tells two of them apart.
+    /// are said over what they were made against, which keeps its own
+    /// feature.
     #[test]
     fn blend_shell_and_split_faces_are_said_over_their_source() {
         let blend = |step| {
@@ -488,7 +864,8 @@ mod tests {
         };
         assert_eq!(
             said(&blend(1)),
-            "the blend face over the end rim edge over the leg of the profile step 000000000001"
+            "the blend face over the end rim edge over the leg of the profile step 000000000001 \
+             of node 000000000001 of node 000000000003"
         );
         assert_ne!(said(&blend(1)), said(&blend(2)));
         let twin = name(
@@ -496,26 +873,17 @@ mod tests {
             OP,
             vec![RoleSeg::Inner(NameRef::new(cap(CapEnd::Start)))],
         );
-        assert_eq!(said(&twin), "the cavity twin of the start cap");
-        let section = name(
-            EntityKind::Edge,
-            OP,
-            vec![RoleSeg::SectionEdge {
-                side: SplitHalf::Below,
-                face: NameRef::new(wall(2)),
-            }],
-        );
         assert_eq!(
-            said(&section),
-            "the section edge across the side wall over the leg of the profile step \
-             000000000002 below the split"
+            said(&twin),
+            "the cavity twin of the start cap of node 000000000001 of node 000000000003"
         );
     }
 
-    /// A name cited two levels down is said by its kind alone, so a
-    /// blend over a seam reads in bounded words.
+    /// The full form says every cited name in full; a lesser detail
+    /// says a citation it does not open by its kind, and a list by the
+    /// members it opens and how many more.
     #[test]
-    fn a_name_cited_past_one_level_is_said_by_its_kind() {
+    fn the_detail_bounds_how_much_of_a_cited_name_is_said() {
         let seam = name(
             EntityKind::Edge,
             OTHER,
@@ -527,24 +895,42 @@ mod tests {
         let blend = name(
             EntityKind::Face,
             OP,
-            vec![RoleSeg::BlendFace(NameRef::new(seam.clone()))],
-        );
-        assert_eq!(
-            said(&seam),
-            "the seam edge of the end cap and the side wall over the leg of the profile step \
-             000000000001"
+            vec![RoleSeg::BlendFace(NameRef::new(seam))],
         );
         assert_eq!(
             said(&blend),
-            "the blend face over the seam edge of a face and a face"
+            "the blend face over the seam edge of the end cap of node 000000000001 and the side \
+             wall over the leg of the profile step 000000000001 of node 000000000001 of node \
+             000000000002 of node 000000000003"
+        );
+        assert_eq!(
+            words(&blend, Speaker::TAG, &open(&[&[0]])),
+            "the blend face over the seam edge of a face and a face of node 000000000002 of node \
+             000000000003"
+        );
+        assert_eq!(
+            words(&blend, Speaker::TAG, &open(&[])),
+            "the blend face over an edge of node 000000000003"
+        );
+        let merged = name(
+            EntityKind::Face,
+            OP,
+            vec![RoleSeg::Merged(vec![wall(1), wall(2), wall(3)])],
+        );
+        assert_eq!(
+            words(&merged, Speaker::TAG, &open(&[])),
+            "the merged face of 3 faces of node 000000000003"
+        );
+        assert!(
+            words(&merged, Speaker::TAG, &open(&[&[0], &[1]])).contains(" and 1 more of node"),
+            "two in full, then how many more"
         );
     }
 
-    /// A derivation of any depth reads in bounded words: past three
-    /// levels, the rest are said together.
+    /// A derivation of any depth is said whole from an explicit stack.
     #[test]
-    fn a_deep_derivation_is_said_in_bounded_words() {
-        let deep = (0..50).fold(cap(CapEnd::End), |n, i| {
+    fn a_deep_derivation_is_said_whole() {
+        let deep = (0..3).fold(cap(CapEnd::End), |n, i| {
             name(
                 EntityKind::Face,
                 OP,
@@ -556,8 +942,8 @@ mod tests {
         });
         assert_eq!(
             said(&deep),
-            "instance 49's copy of instance 48's copy of instance 47's copy of a face derived \
-             from the end cap"
+            "instance 2's copy of instance 1's copy of instance 0's copy of the end cap of node \
+             000000000001, on node 000000000003"
         );
     }
 }

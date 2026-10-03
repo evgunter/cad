@@ -462,7 +462,7 @@ mod tests {
         assert_eq!(shown.matches("FromA").count(), 2 * DEEP, "both paths whole");
         assert_eq!(
             shown
-                .matches("face name minted by node 000000000002")
+                .matches("the end cap of node 000000000001, on node 000000000002")
                 .count(),
             2
         );

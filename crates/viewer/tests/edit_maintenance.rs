@@ -209,12 +209,12 @@ fn every_maintenance_row_rides_beside_a_refusal() {
     };
     assert_eq!(
         line.text(),
-        "nothing to undo \u{2022} node 000000000003 carries a face name minted by node 000000000007; this edit removed \
-         what it denoted (its minting node, or the profile segment it named), so the name \
-         resolves to nothing until it is rebound \u{2022} the appearance store holds an \
-         attachment under a face name minted by node 000000000008; this edit removed what it denoted (its \
-         minting node, or the profile segment it named), so the name resolves to nothing until \
-         it is rebound or cleared"
+        "nothing to undo \u{2022} node 000000000003 carries a name for the face of node \
+         000000000007; this edit removed what it denoted (a node or profile step it names), so \
+         the name resolves to nothing until it is rebound \u{2022} the appearance store holds \
+         an attachment under a name for the face of node 000000000008; this edit removed \
+         what it denoted (a node or profile step it names), so the name resolves to nothing \
+         until it is rebound or cleared"
     );
 }
 

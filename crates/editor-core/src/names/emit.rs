@@ -390,7 +390,7 @@ impl crate::spoken::Say for NamingError {
             // from every other name the node minted.
             Self::Duplicate { name } => write!(
                 f,
-                "{EMISSION_FRAMING}: the {} (role path {:?}) was minted twice — names \
+                "{EMISSION_FRAMING}: {} (role path {:?}) was minted twice — names \
                  alias silently only over the kernel's dead body",
                 by.name(name),
                 name.path
@@ -479,7 +479,7 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
-                "{UNRULED_FRAMING}: the crossings of member {}'s edge (the {}) cannot \
+                "{UNRULED_FRAMING}: the crossings of member {}'s edge ({}) cannot \
                  be ranked along it, because a tie stands where one edge is needed (the member \
                  ties that name to several edges, or two of its crossings were tied)",
                 by.node(*member),
@@ -1590,7 +1590,7 @@ mod display_tests {
                 NamingError::Duplicate {
                     name: Box::new(name),
                 },
-                vec!["face", "7", "Cap"],
+                vec!["the end cap", "7", "Cap"],
             ),
             (
                 NamingError::Unnamed {
@@ -1662,8 +1662,8 @@ mod display_tests {
                 vec![
                     vtx_shown.as_str(),
                     "2 differently named vertices",
-                    "vertex name minted by node 000000000003",
-                    "vertex name minted by node 000000000004",
+                    "of node 000000000003",
+                    "of node 000000000004",
                 ],
             ),
             (
@@ -1704,7 +1704,7 @@ mod display_tests {
                 },
                 vec![
                     "member node 000000000025",
-                    "edge name minted by node 000000000025",
+                    "of node 000000000025)",
                     "a tie stands",
                 ],
             ),

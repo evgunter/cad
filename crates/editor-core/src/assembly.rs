@@ -633,10 +633,9 @@ impl crate::spoken::Say for MintRefusal {
                 why,
             } => write!(
                 f,
-                "{}'s {} reference ({} {}) does not name a face of the product: {}",
+                "{}'s {} reference ({}) does not name a face of the product: {}",
                 by.node_as(*mate, "mate"),
                 side.name(),
-                name.kind.article(),
                 by.name(name),
                 crate::spoken::Said(why, by)
             ),

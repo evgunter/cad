@@ -562,13 +562,12 @@ pub struct StableName {
     pub path: RolePath,
 }
 
-// The human-readable rendering: the kind (through [`EntityKind::noun`],
-// never `Debug`), the minting node by its tag, and the leaf role in
-// words (`face name minted by node 3 (the end cap)`): the path as a
-// structure is the machine channel; a person reads its leaf in words
-// ([`super::LeafRole`]). Article-free, so a sentence supplies its own
-// article. This is [`crate::Speaker::name`] said by tag, the one
-// spelling every sentence that names a name forwards.
+// The human-readable rendering: the path as a structure is the machine
+// channel; a person reads it in words ([`super::LeafRole`]), each node
+// and step by its tag, in full (`the end cap of node 000000000003`).
+// Article-led, so a sentence takes it as a noun phrase. This is
+// [`crate::Speaker::name`] said by tag, the one spelling every sentence
+// that names a name forwards.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Speaker::TAG.name(self).fmt(f)
