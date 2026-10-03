@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-20
 priority: P1
 cost: H
-needs_ev: true
 design: true
 ---
 
@@ -95,3 +94,13 @@ orchestrator against the tree:
   arguments would make real. The two doors are still lost.
 - The `undecided`/maintenance sentence under "What is missing" is
   stale: A11 (2) records no frame.
+
+## Ruled (Ev, `[ev]` PR 3679, 2026-10-01)
+
+Approved: the mate solve runs at the evaluation's own scalar, over the
+evaluation's own parameters. A pattern's count and a `Part`'s index
+are read at the nominal, because no box or seed binds them.
+`ASSEMBLY.md` A11 (5) states this in place. The build is an MSOLVE
+unit: the solve goes generic over the scalar, and `Unpinned` loses its
+producer.
+
