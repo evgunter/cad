@@ -258,10 +258,12 @@ fn bytes_that_are_not_json_stay_parse() {
 /// plate_param.pncad` exactly as main held it before the side became
 /// structural (Ev, #3551), frozen here so the row reads real history
 /// rather than a mutation of today's save: the field is required, so
-/// the refusal names it and carries the regenerate recourse once.
+/// the refusal names it and carries the regenerate recourse once. It
+/// is kept as `.cad`, as `bool13_goldens/`' older bytes are: refusal
+/// evidence, not a member of the `*.pncad` corpus the load rows walk.
 #[test]
 fn a_document_from_before_the_extrude_side_refuses_naming_side() {
-    let text = include_str!("before_extrude_side/plate_param.pncad");
+    let text = include_str!("before_extrude_side/plate_param.cad");
     assert!(
         !text.contains("\"side\""),
         "the frozen bytes predate the field"
