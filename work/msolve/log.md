@@ -1349,3 +1349,18 @@ New rows this check-in, placed by parking them: PLACE's
 PLACE also widened `a-mate-through-a-parametric-placer…` with the
 frame offset's parameters, which MSOLVE-14's merge of main now has to
 cover.
+
+## 2026-10-03 — MSOLVE-14 handed back; dual review dispatched
+
+PR 3986 came back green at `3053f4254`, and the head is frozen. The
+`f64` fence measured the corpus bit-identical to main's at ε = 1e-9,
+1e-6 and 1e-12, and the STOP clause did not fire. PLACE's parametric
+frame offset is folded at `T` too, with two rows. `Unpinned` is
+deleted.
+
+The dual tier's arm is CONCURRENT (difficulty H, rule 1). The disk
+holds one build: about 18 GB of target against 15 GB free. Sharing
+one target directory across two worktrees already served the lane a
+stale build once. So rule 2's late-trigger fallback applies: R1
+reviews now, and R2 reviews the same frozen head after R1, with an
+identical brief that differs only in its label. Protocol: `7cb05367ef`.
