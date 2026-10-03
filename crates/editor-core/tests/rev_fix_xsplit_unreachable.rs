@@ -56,7 +56,13 @@ fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {

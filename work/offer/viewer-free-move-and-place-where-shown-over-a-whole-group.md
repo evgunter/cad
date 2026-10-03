@@ -9,7 +9,7 @@ cost: M
 ---
 
 
-Filed by the PLACE orchestrator as P3 of `docs/EDIT-PLACEMENT-SPEC.md` ("P3: viewer"), now that P2 has merged. It realises Ev's ruling on `[ev]` #3441: an unplaced group lives in its own space, and the viewer draws it where it was last shown, as display state that no logic reads.
+Filed by the PLACE orchestrator as P3 of `docs/doc-ledger/edit-placement-spec.md` ("P3: viewer"), now that P2 has merged. It realises Ev's ruling on `[ev]` #3441: an unplaced group lives in its own space, and the viewer draws it where it was last shown, as display state that no logic reads.
 
 ## The work
 

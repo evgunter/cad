@@ -2308,9 +2308,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
-    ("ops.rs", "seam_class", "LeverArm::Seam", 1),
-    ("ops.rs", "seam_must_carry", "BooleanDecision::SeamJet", 1),
-    ("ops.rs", "seam_must_carry", "LeverArm::Seam", 1),
+    ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
+    ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     (
         "ops.rs",
         "sphere_extent_scan",
@@ -2444,13 +2443,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::DirectionSense",
         1,
     ),
-    (
-        "sectors.rs",
-        "invalid_escalation",
-        "BooleanDecision::SelfCheck",
-        1,
-    ),
-    ("sectors.rs", "invalid_escalation", "SelfCheck::Normals", 1),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
     (

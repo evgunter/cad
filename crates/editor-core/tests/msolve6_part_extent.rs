@@ -171,7 +171,13 @@ fn instances(
 }
 
 fn frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A frame coincidence between `a`'s top cap and `b`'s bottom cap,

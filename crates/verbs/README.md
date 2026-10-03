@@ -6,19 +6,25 @@ entity references as arena keys, operands never in the payload — beside
 the run dispatch over the op crates' own doors and the parameter→field
 flow that only the operation itself knows. The crate sits above `sweep`
 and `topo`, whose ops it names, and below `editor-core`, its only
-consumer; the layering line it draws is `GeomSource`'s
+consumer. The layering line it draws is `GeomSource`'s
 (`topo/src/source.rs`): lowered pure data may sit beside the arenas and
-be compared for identity, the recipe vocabulary — `Expr`, `StableName`,
-`RecipeNodeId`, serde — may not, and `tests/layer_guard.rs` enforces
-that rather than a comment asserting it. Two further seats of the same
-design live in `topo`: the query seat (`topo::query`), the geometric
-half of the selection vocabulary as pure functions of a `Body`, and the
-flush detector (`topo::flush`), which gives `BooleanDeclarations` its
-geometric producer. The third strand is lowered parameter identity: an
-opaque per-field token minted in `editor-core`, carried verbatim by
-kernel ops and compared for equality alone, so "these two radii are the
-same" is a fact about the recipe and never a measurement. Names at the
-document door, keys at the body door, one implementation under both.
+be compared for identity; the recipe vocabulary — `Expr`, `StableName`,
+`RecipeNodeId`, serde — may not. `tests/layer_guard.rs` enforces that.
+
+The design (VERB-SEAT-DESIGN) has three strands:
+
+- **the kernel query seat** (§1), in `topo`: the geometric half of the
+  selection vocabulary as pure functions of a `Body` (`topo::query`),
+  and the flush detector (`topo::flush`), which gives
+  `BooleanDeclarations` its geometric producer;
+- **one verb vocabulary** (§2), this crate;
+- **lowered parameter identity** (§3): an opaque per-field token minted
+  in `editor-core`, carried verbatim by kernel ops and compared for
+  equality alone, so "these two radii are the same" is a fact about the
+  recipe and never a measurement.
+
+Throughout: names at the document door, keys at the body door, one
+implementation under both.
 
 ## Where in the code
 
@@ -30,7 +36,7 @@ document door, keys at the body door, one implementation under both.
 | S4 band derived at op entry | `crates/sweep/src/blend/build.rs`, `crates/topo/src/shell.rs` |
 | V1 the closed kernel-side declaration | `crates/verbs/src/verb.rs` (`Verb`, `VerbKind`, `Arity`), `run.rs` (the doors, `VerbOut`/`PairOut`/`SplitOut`/`VerbRecord`/`VerbError`), `flow.rs` (`ParamFlow`) |
 | V2 owner-held stable-tag commitments | `crates/editor-core/src/eval/mod.rs` (`verb_content_tag`) |
-| V3 per-verb correspondence | `crates/editor-core/src/verbs/{mod,blend,boolean,sweep,split}.rs`; the generic lowerings in `crates/editor-core/src/eval/wire.rs` |
+| V3 per-verb correspondence | `crates/editor-core/src/verbs/{mod,blend,boolean,sweep,split,shell}.rs`; the generic lowerings in `crates/editor-core/src/eval/wire.rs` |
 | V4 additive migration | `crates/verbs/src/lib.rs` (what is on the seat and what is not) |
 | P1 the lowered token | `crates/topo/src/param_source.rs` (the opaque token, the side tables); `crates/editor-core/src/param_source.rs` (the single spelling: `lower`, `invert`, the scope) |
 | P2 attach / propagate / consume | `crates/editor-core/src/param_source.rs` (`attach_blend`, `attach_swept`); `crates/topo/src/param_source.rs` (`field_source_evidence`); the consumer at `crates/topo/src/boolean/join.rs` (`germ_section_frame`) with `RadiusEvidence` in `crates/geom-brep/src/intersect.rs` |
@@ -57,19 +63,18 @@ document door, keys at the body door, one implementation under both.
   attached by `editor-core`, absent for a kernel-direct caller. The
   line: the kernel may hold and compare lowered identity data beside its
   arenas; it never holds the typed recipe vocabulary, nor persistence.
-- **The per-verb cost baseline** is the `Node::Chamfer` merge (#1224):
-  ~19 sites across 8 files in 4 crates, of which diff, appearance and
-  edit validation cost zero because they consume `Node`'s structural
-  traversal doors instead of matching variants. Every door migrated
-  after §2 is costed against it (§6).
+- **The per-verb cost baseline** is the `Node::Chamfer` merge (#1224),
+  in which diff, appearance and edit validation cost zero because they
+  consume `Node`'s structural traversal doors instead of matching
+  variants. Every door migrated after §2 is costed against it (§6).
 - **The K census.** The one decided selector site here is
   `sel_datum_distance` in `topo::query`, with `datum_unit_norm` under it
   as the datum vocabulary's own decision; both carry K-REPORT rows.
-- **The demand this answers.** Whole-body edge sets once spelled as
-  arena walks and one intended contact as many `FacePairDeclaration`s;
+- **The demand this answers.** Whole-body edge sets spelled as arena
+  walks, and one intended contact as many `FacePairDeclaration`s;
   `BooleanDeclarations` with a public consumer and no geometric producer
   (#757); `RadiusEvidence` with no caller that could supply it (#1372),
-  nothing carrying parameter identity down to boolean dispatch.
+  since nothing carried parameter identity down to boolean dispatch.
 
 ## 1. The kernel query seat
 
@@ -79,45 +84,42 @@ layer whose types it serves (`topo/src/query.rs`):
 
 - Materializers `all_edges(&Body<T>) -> Vec<EdgeKey>` and
   `all_faces(&Body<T>) -> Vec<FaceKey>` answer in deterministic arena
-  order (D9), retiring the hand-rolled folds the demos and sweep tests
-  repeated.
+  order (D9).
 - The EXACT atoms are pure predicates over `(&Body<T>, key)`:
   `edge_carrier_matches`, `face_surface_matches`, `edge_adjacent_matches`
   and the kind reads under them. They read a carrier's enum TAG, go
   through no funnel and carry no margin, and answer an honest NO on a
-  missing carrier or a dangling key. `CurveKind` and `SurfaceKind`
-  are the workspace's one fieldless mirror of `Curve3` and of `Surface`,
-  each defined in `geom` beside the enum it mirrors (`Curve3::kind`,
-  `Surface::kind`) and reused by every crate above it. This seat owns
-  the comparand sets `CurveKindSet` and `SurfaceKindSet`, their bit
+  missing carrier or a dangling key. The kinds they read, `CurveKind`
+  and `SurfaceKind`, are the workspace's one fieldless mirror of
+  `Curve3` and of `Surface`, defined in `geom` beside the enum each
+  mirrors (`Curve3::kind`, `Surface::kind`). This seat owns the
+  comparand sets `CurveKindSet` and `SurfaceKindSet`, their bit
   numbering, and the predicates that read them.
-- The DECIDED atom is resolved: `datum_distance_sign` measures an
-  entity's point against a passed-in `DatumValue` through the
-  `SEL_DATUM_DISTANCE` funnel site in `geom-core`'s `k_stats`, with an
-  honest `Margin` door and a typed indeterminate in band. Datum-node
-  resolution — `RecipeNodeId` → `DatumValue` — stays in `editor-core`'s
-  `prepare`. One further decision this seat NAMES but does not house
-  is deliberately not a selection question and says so:
-  `geom_core::decide_unit_direction`, the workspace's one
-  `Margin::norm3` decide-then-normalize body under
-  `geom_core::UnitVec3::new`, reached under two ratified funnel names —
-  `topo`'s `DATUM_UNIT_NORM`, passed by the evaluation layer's datum
-  door, and the evaluation layer's own `EVAL_DIRECTION_NORM`. The
-  finiteness question it asks first is `geom-core`'s
-  `is_finite_length`, a statement about a scalar that lives beside
-  `Real`/`is_poison` and `Vec3::normalize`'s own overflow note rather
-  than at this seat — every crate with directions has to be able to
-  ask it, including the ones below this one.
+- The DECIDED atom: `datum_distance_sign` measures an entity's point
+  against a passed-in `DatumValue` through the `SEL_DATUM_DISTANCE`
+  funnel site in `geom-core`'s `k_stats`, with an honest `Margin` door
+  and a typed indeterminate in band. Datum-node resolution —
+  `RecipeNodeId` → `DatumValue` — stays in `editor-core`'s `prepare`.
+- One further decision this seat names but does not house, because it is
+  not a selection question: `geom_core::decide_unit_direction`, the
+  workspace's one `Margin::norm3` decide-then-normalize body under
+  `geom_core::UnitVec3::new`. It is reached under two ratified funnel
+  names — `topo`'s `DATUM_UNIT_NORM`, passed by the evaluation layer's
+  datum door, and the evaluation layer's own `EVAL_DIRECTION_NORM`. The
+  finiteness question it asks first, `geom-core`'s `is_finite_length`,
+  lives beside `Real`/`is_poison` and `Vec3::normalize`'s overflow note
+  rather than here: every crate with directions must be able to ask it,
+  including those below this one.
 - **`rim_of(&Body<T>, EdgeKey) -> Result<Vec<EdgeKey>, RimError>`** is a
-  fourth EXACT door: the rim an arc belongs to, whole
-  (built by FILLET-RIM, PR 1821). It reads the seed carrier's tag and
-  then only keys — the edges between the seed's two surface keys,
-  chained through shared vertex keys — with no carrier value compared,
-  no funnel and no margin; but it returns a SET, so it refuses typed at
-  every point a predicate would answer NO: an empty set and a partial
-  set are both answers a caller would act on, and a rim handed back
-  short is a fillet request that stalls at a seam vertex. It adds no
-  vocabulary beyond `RimError` and its `RimBreak` payload.
+  further EXACT door: the whole closed rim an arc belongs to. It reads
+  the seed carrier's tag and then only keys — the edges between the
+  seed's two surface keys, chained through shared vertex keys — with no
+  carrier value compared, no funnel and no margin, so it does not detect
+  an overlap. Because it returns a SET, it refuses typed wherever a
+  predicate would answer NO: an empty set and a partial set are both
+  answers a caller would act on, and a rim handed back short is a fillet
+  request that stalls at a seam vertex. It adds no vocabulary beyond
+  `RimError` and its `RimBreak` payload.
 
 **S2 — `select_where` is a wrapper.** `editor-core`'s `geompred` keeps
 everything name-flavored — the `GeomPred` atom vocabulary whose datum is
@@ -136,15 +138,16 @@ its own but calls `carrier_pair_relation` (`topo/src/boolean/rest.rs`)
 in `declared: false` mode — the same function verify-at-use calls in
 `declared: true` mode — so a pair the detector calls flush cannot be a
 pair the declared rung then contradicts, and detection's decisions land
-at the verifier's own funnel sites. Findings are DEFINITE; a pair whose
-margin lands in band is neither reported nor dropped but refuses
-`FlushRefusal::PairInBand` naming it. Scope covers the curved rungs as
-well as the planar one, which widens the failure surface as much as the
-answer: a bore whose radius misses its peg's by less than the band makes
-the whole query refuse. `FlushFinding<P>` is one generic in the pair
-vocabulary — names at the document door, keys at the body door, one
-verifier under both — with `editor-core/src/names/flush.rs` the derived
-wrapper. Both ~55-line hand declarers are gone.
+at the verifier's own funnel sites.
+
+Findings are DEFINITE; a pair whose margin lands in band is neither
+reported nor dropped but refuses `FlushRefusal::PairInBand` naming it.
+Scope covers the curved rungs as well as the planar one, which widens
+the failure surface as much as the answer: a bore whose radius misses
+its peg's by less than the band makes the whole query refuse.
+`FlushFinding<P>` is one generic in the pair vocabulary — names at the
+document door, keys at the body door, one verifier under both — with
+`editor-core/src/names/flush.rs` the derived wrapper.
 
 **S4 — the blend and shell doors take no `band`.** `Tol` is a
 zero-sized witness of the committed global tolerance, so `Band::linear`
@@ -153,27 +156,32 @@ operation entry: `fillet_edges` and `chamfer_edges`
 (`sweep/src/blend/build.rs`) beside `extrude`, `revolve` and
 `loft_body` (`tube_along_arc` forwards its `Tol` to the revolve), and
 `shell`/`shell_open` (`topo/src/shell.rs`), where `shell` reaches
-`shell_open` so both derive once. The shell doors
-carry no second epsilon either: the `Tol` witness travels into
-`geom-brep`'s production fit doors, which read `eps()` beside the
-classification. A derived-scale band stays constructible where an op
-needs one (`Band::new`, `Band::angular_at`, at the geometry layer).
+`shell_open` so both derive once. The shell doors carry no second
+epsilon either: the `Tol` witness travels into `geom-brep`'s production
+fit doors, which read `eps()` beside the classification. A
+derived-scale band stays constructible where an op needs one
+(`Band::new`, `Band::angular_at`, at the geometry layer).
 
 §1 is independent of §§2–3 and prejudges neither.
 
 ## 2. One verb vocabulary
 
-(The kernel's. `profile::Verb`, the sketch program's, is a different
-vocabulary; the naming convention between the two is stated at both
-crates' module docs.)
+This is the kernel's vocabulary. `profile::Verb`, the sketch program's,
+is a different one; the naming convention between the two is stated in
+both crates' module docs.
 
 **V1 — the per-verb declaration is closed and kernel-side.** `Verb<T>`
-(`verbs/src/verb.rs`) holds an operation's parameters as data: `Fillet`
-and `Chamfer` (edge keys and a scalar), `Extrude` (a depth and a side),
-`Revolve` (a sketch-plane axis and a classified `Revolution`), `Boolean`
-(the regularized op and the declared coincidence intents in arena keys),
-`Split` (the parting plane) and `Shell` (a thickness and the faces to
-open — one variant, since an empty designation IS the sealed hollow).
+(`verbs/src/verb.rs`) holds an operation's parameters as data:
+
+- `Fillet` and `Chamfer` — edge keys and a scalar;
+- `Extrude` — a depth and a side;
+- `Revolve` — a sketch-plane axis and a classified `Revolution`;
+- `Boolean` — the regularized op and the declared coincidence intents in
+  arena keys;
+- `Split` — the parting plane;
+- `Shell` — a thickness and the faces to open (one variant, since an
+  empty designation IS the sealed hollow).
+
 Operand bodies are not in the payload: they are borrowed at the run
 doors, and what an operand IS, and how many, is declared data. The enum
 is `T: Real` (the revolve's axis is geometry) and carries no equality of
@@ -204,38 +212,38 @@ Each verb owns:
   channel, and the reason the declaration sits beside the op: only the
   op knows where its parameters end up.
 
-**`Arity` is the door vocabulary, under a historical name.** Its five
-rows — `One`, `Two`, `Profile`, `Split`, `Shell` — were operand counts
-once; the type's own docs record that they now have three axes (the
-operand, the out-type, and the bound the door can run at) and that no
-row is a claim about any one alone. `One` and `Split` take the same
-operand and are two doors because their out-types differ; `One` and
-`Shell` agree at both ends and are two doors because the shell's op door
-demands certification rights (`Decide + CertifiedBounds + AtRestPolicy`)
-no `Dual` scalar has — which `run_shell` asks for as a VALUE: a
-`topo::ShellDoor<T>` parameter whose one constructor is bounded on
-those rights. So the seat needs no second `impl` block for it, and the
-mixed pass instantiated at `Dual` still compiles against every door
-here — a scalar the per-scalar policy gives no door
-(`topo::AtRestPolicy::shell_door` answers `None`) has nothing to pass
-and refuses typed where it stands. The name is kept for continuity — it crosses the document layer's
+**`Arity` is the door vocabulary.** Its five rows — `One`, `Two`,
+`Profile`, `Split`, `Shell` — are doors, not operand counts: rows differ
+along three axes (the operand, the out-type, and the bound the door can
+run at), and no row is a claim about any one alone. `One` and `Split`
+take the same operand and are two doors because their out-types differ.
+`One` and `Shell` agree at both ends and are two doors because the
+shell's op door demands certification rights
+(`Decide + CertifiedBounds + AtRestPolicy`) that no `Dual` scalar has.
+
+`run_shell` asks for those rights as a VALUE: a `topo::ShellDoor<T>`
+parameter whose one constructor is bounded on them. So the seat needs no
+second `impl` block, and the mixed pass instantiated at `Dual` still
+compiles against every door here — a scalar the per-scalar policy gives
+no door (`topo::AtRestPolicy::shell_door` answers `None`) has nothing to
+pass and refuses typed where it stands.
+
+The name `Arity` is kept for continuity: it crosses the document layer's
 refusal payload (`NodeErrorKind::VerbArity`, re-exported through
-`pncad`) — at a rename price measured at approximately nothing, so
-keeping it is a decision someone may revisit, not a defect.
-`VerbError::Arity` speaks the rows in the doors' own names;
-`tests/run_door.rs` asserts `Arity::ALL` and the door matrix name one
-set.
+`pncad`). Renaming it would cost approximately nothing, so keeping it is
+a decision that may be revisited, not a defect. `VerbError::Arity`
+speaks the rows in the doors' own names; `tests/run_door.rs` asserts
+that `Arity::ALL` and the door matrix name one set.
 
 **A name is the vocabulary's to say, not a rendering each consumer
 picks.** `VerbKind` and `Arity` each carry a `Display` beside their
 `ALL`, written as an exhaustive match so a row the enum gains has no
 word until someone writes one, and the refusal renders through it. A
-fieldless row's word is its variant identifier — that is what the
-doors are called — and the boolean's three rows say their production
-door (`Union`, `Intersect`, `Subtract`) rather than the enum's
-coordinate for the verb. The censuses beside `ALL` hold the words
-apart: two rows saying the same word makes a refusal ambiguous about
-what it refused.
+fieldless row's word is its variant identifier — that is what the doors
+are called — and the boolean's three rows say their production door
+(`Union`, `Intersect`, `Subtract`) rather than the enum's coordinate for
+the verb. The censuses beside `ALL` hold the words apart: two rows
+saying the same word makes a refusal ambiguous about what it refused.
 
 **V2 — commitments are exhaustive matches to stable tags, held by their
 owners.** Every commitment a verb has is an exhaustive match over the
@@ -243,19 +251,22 @@ one canonical vocabulary, living in the crate that owns it and looking
 at the canonical name: the content-key tag beside the memo machinery
 (`editor-core`'s `verb_content_tag`), the wire spelling on `Node`'s
 serde derives, the Python constructor, the viewer's tree label. The
-kernel says nothing about any of them. The tags are the numbers that
-were already there — 17 fillet, 24 chamfer, 5 extrude, 6 revolve, 8/9/10
-the boolean's three ops, 7 split — pinned digit for digit by
+kernel says nothing about any of them.
+
+The tags are the numbers the document's node tags already used — 17
+fillet, 24 chamfer, 5 extrude, 6 revolve, 8/9/10 the boolean's three
+ops, 7 split — plus 35 for the shell, appended at the next free number;
+a tag is never reused. They are pinned digit for digit by
 `verb_content_tags_are_the_committed_numbers`, so a kernel-side rename
-is a compile-guided visit and not a re-spelling of saved files. **A verb
-in the vocabulary need not be one the document can author, and the
-commitment states that rather than skipping it:** `verb_content_tag` is
-an `Option<u8>`, `None` for a kernel-only verb, so the censuses stay
-total over `VerbKind::ALL` while measuring only the rows really in the
-tag space (the shell answered `None` until `Node::Shell` landed; every
-verb has a node today). `document_verb_tag` is the narrow door for
-the verbs a `Node` builds and is loud on the kernel-only answer: a
-silently wrong content tag is how a memo serves another node's
+is a compile-guided visit and not a re-spelling of saved files.
+
+**A verb in the vocabulary need not be one the document can author, and
+the commitment states that rather than skipping it:** `verb_content_tag`
+is an `Option<u8>`, `None` for a kernel-only verb, so the censuses stay
+total over `VerbKind::ALL` while measuring only the rows in the tag
+space. Every verb has a node today. `document_verb_tag` is the narrow
+door for the verbs a `Node` builds and is loud on the kernel-only
+answer: a silently wrong content tag is how a memo serves another node's
 geometry.
 
 **V3 — `editor-core` keeps the authoring vocabulary and states the
@@ -265,35 +276,37 @@ data — `Expr` per slot, a frozen canonical `Vec<StableName>` selection,
 is declared once per verb, in `editor-core/src/verbs/`, is the
 CORRESPONDENCE: which `SlotId` feeds which verb parameter, which payload
 selection feeds the key list, which emitter mints the names, which arm
-of the record channel the result arrives in. Four exist —
-`BlendVerb`, `PairVerb`, `ProfileVerb`, `SplitVerb` — each per-instance
+of the record channel the result arrives in. Five exist — `BlendVerb`,
+`PairVerb`, `ProfileVerb`, `SplitVerb`, `ShellVerb` — each per-instance
 data (function pointers and literals, no match over a verb vocabulary
 anywhere in those files), and the generic lowerings in `eval/wire.rs`
-run off them: `wire_blend`, `wire_boolean`, `wire_swept`, `wire_split`.
-Document semantics stay upstairs where they are authored — the boolean's
-`resolve_declarations` over the operands' name tables, the revolve's
-axis frame check and angle classification, the split's not-a-plane
-refusal. `read_record` is the one rule for taking a family's record out
-of the closed channel: the correspondence's own exhaustive projection,
-a foreign family refused typed.
+run off them: `wire_blend`, `wire_boolean`, `wire_swept`, `wire_split`,
+`wire_shell`.
+
+Document semantics stay upstairs where they are authored — the
+boolean's `resolve_declarations` over the operands' name tables, the
+revolve's axis frame check and angle classification, the split's
+not-a-plane refusal. `read_record` is the one rule for taking a family's
+record out of the closed channel: the correspondence's own exhaustive
+projection, a foreign family refused typed.
 
 **V4 — migration is per-verb and additive, and complete for every verb
 the document authors.** The seat carries the blend pair, the two sweeps,
-the boolean's three ops, the split and the shell; every other door —
-transform, pattern, loft, sweep along a path, measure — still runs as it
-did, reached by `editor-core`'s lowering calling its op crate directly.
-`crates/verbs/src/lib.rs` says so in its own header, since reading the
-enum as "every operation a recipe door can invoke" would misjudge the
-next unit's cost. No wire format moves in a migration: each unit pins
-its spelling and digests first.
+the boolean's three ops, the split and the shell. Every other door —
+transform, pattern, loft, sweep along a path, measure — runs outside it,
+reached by `editor-core`'s lowering calling its op crate directly.
+`crates/verbs/src/lib.rs` says so in its header, since reading the enum
+as "every operation a recipe door can invoke" would misjudge the next
+unit's cost. No wire format moves in a migration: each unit pins its
+spelling and digests first.
 
-**The counterarguments, still recorded.** The dispatch-arm cost this
-replaces is compiler-guided and was priced and accepted; what changed is
-that #1372 makes parameter flow per-op knowledge with no other home, so
-the declaration is needed for correctness, not only for cost. And a
-shared declaration couples kernel refactors to schema-visible events:
-V2's tags reduce that to a compile-guided visit, but post-publish it is
-a discipline, accepted deliberately with drift as the alternative.
+**The counterarguments.** The dispatch-arm cost this replaces is
+compiler-guided and acceptable on its own; the declaration is needed for
+correctness, not cost, because #1372 makes parameter flow per-op
+knowledge with no other home. And a shared declaration couples kernel
+refactors to schema-visible events: V2's tags reduce that to a
+compile-guided visit, but post-publish it is a discipline, accepted
+deliberately with drift as the alternative.
 
 ## 3. Lowered parameter identity
 
@@ -301,19 +314,22 @@ a discipline, accepted deliberately with drift as the alternative.
 in opt-in side records.** A `ParamSource` (`topo/src/param_source.rs`)
 sits beside the geometry arenas for the stored scalar fields of minted
 descriptions, keyed per kind like the `surface_origins` table (which
-carries `GeomSource` on its `Recipe` arm). To the
-kernel it is a fully opaque token: `Eq`/`Ord`/`Hash` and nothing else —
-no readable payload, no constructor that builds one out of another, no
-arithmetic, and a `Debug` printing the length alone, so a body dump is
-not a door out of the payload. It carries deliberately LESS structure
-than `GeomSource`: `SourceExpr::Placed` exists in the kernel only
-because rigid placement re-parameterizes a *description*, while a stored
-scalar field is motion-invariant, so no kernel op composes or interprets
-one and no second spelling of expression structure enters the kernel.
-Identity is token equality, zero numerics, equality by provenance: both
+carries `GeomSource` on its `Recipe` arm).
+
+To the kernel it is a fully opaque token: `Eq`/`Ord`/`Hash` and nothing
+else — no readable payload, no constructor that builds one out of
+another, no arithmetic, and a `Debug` printing the length alone, so a
+body dump is not a door out of the payload. It carries deliberately LESS
+structure than `GeomSource`: `SourceExpr::Placed` exists in the kernel
+only because rigid placement re-parameterizes a *description*, while a
+stored scalar field is motion-invariant, so no kernel op composes or
+interprets one and no second spelling of expression structure enters the
+kernel.
+
+Identity is token equality — zero numerics, equality by provenance: both
 walls offset by the same declared `t` lower to the same `r ± t` token
 and stay equal by syntax, while `r` and `r ± t` differ. The scope caveat
-of `topo/src/source.rs` applies verbatim — identity holds per evaluation
+of `topo/src/source.rs` applies verbatim: identity holds per evaluation
 against the current document, never across unaudited mutations.
 
 The single spelling of expression identity lives in
@@ -327,33 +343,40 @@ expression — `ParamScope::Root(DocumentId)`, or `ParamScope::Part`'s
 radius `r` meet inside one evaluation whenever a part is instantiated,
 and a host may instantiate one document at two pins.
 
-**P2 — who attaches, who propagates, who consumes.** `editor-core`'s
-lowering attaches sources at mint time, driven by the verb's declared
-`param_flow` and the slot's expression address, one door per source
-kind: `attach_blend` for a verb's own scalar, `attach_swept` for a
-scalar the operand profile carries per edge. Kernel ops never mint,
-compose or interpret a source: survivors keep their records by key
-identity (the maps ride the clone every op starts from), rigid placement
-carries them verbatim (`transform_rigid` clears the `GeomSource` records
-because it rewrites description bits, and not these, because it cannot
-change a radius), and kills drop them. The flow's rows name where a
-value comes from: `FlowSource::Param` for a verb's own scalar,
-`FlowSource::ProfileEdge(EdgeScalar::Radius)` for the profile circle's
-radius that becomes the swept wall's stored radius — the row the
-equal-radius germ reads. An empty `fields` list is a statement and not
-an omission (the chamfer's setback positions planes and is stored in
-none of them; the sweeps' extent and angle reach no stored field; the
-shell's thickness becomes `r − t`, the identity of neither `r` nor `t`),
-and a verb with no scalar parameter at all — the boolean, the split —
-has an empty flow one level up, which keeps the census true. The memo is part of the contract:
-`feed_content_key` writes a flow-bearing slot's lowered expression into
-the content key beside its value, so a value-preserving expression edit
-cannot memo-hit and hand back a body whose field rows name an expression
-the document no longer holds. The first production consumer is
-`germ_section_frame` (`topo/src/boolean/join.rs`), reading
-`field_source_evidence` over the two germ faces' radius fields:
-`RadiusEvidence::Declared` exactly when the recipe layer evaluated one
-expression into both.
+**P2 — who attaches, who propagates, who consumes.**
+
+- *Attach.* `editor-core`'s lowering attaches sources at mint time,
+  driven by the verb's declared `param_flow` and the slot's expression
+  address, one door per source kind: `attach_blend` for a verb's own
+  scalar, `attach_swept` for a scalar the operand profile carries per
+  edge.
+- *Propagate.* Kernel ops never mint, compose or interpret a source:
+  survivors keep their records by key identity (the maps ride the clone
+  every op starts from), rigid placement carries them verbatim
+  (`transform_rigid` clears the `GeomSource` records because it rewrites
+  description bits, and not these, because it cannot change a radius),
+  and kills drop them.
+- *Consume.* The production consumer is `germ_section_frame`
+  (`topo/src/boolean/join.rs`), reading `field_source_evidence` over the
+  two germ faces' radius fields: `RadiusEvidence::Declared` exactly when
+  the recipe layer evaluated one expression into both.
+
+The flow's rows name where a value comes from: `FlowSource::Param` for a
+verb's own scalar, `FlowSource::ProfileEdge(EdgeScalar::Radius)` for the
+profile circle's radius that becomes the swept wall's stored radius —
+the row the equal-radius germ reads. An empty `fields` list is a
+statement and not an omission (the chamfer's setback positions planes
+and is stored in none of them; the sweeps' extent and angle reach no
+stored field; the shell's thickness becomes `r − t`, the identity of
+neither `r` nor `t`), and a verb with no scalar parameter at all — the
+boolean, the split — has an empty flow one level up, which keeps the
+census true.
+
+The memo is part of the contract: `feed_content_key` writes a
+flow-bearing slot's lowered expression into the content key beside its
+value, so a value-preserving expression edit cannot memo-hit and hand
+back a body whose field rows name an expression the document no longer
+holds.
 
 **P3 — absence refuses, permanently.** Where no source exists — imported
 geometry, hand-built bodies, kernel-derived fields — the consuming
@@ -369,23 +392,23 @@ measurement masquerading as structure. The row is pinned by
   own crate above `sweep` and `topo` and below `editor-core`: the
   vocabulary spans crates — the blend pair and the sweeps are `sweep`'s,
   the boolean and the split `topo`'s — so hosting the enum in either op
-  crate would make one name the other's ops. The build-cost ledger
-  (GENERICS-BUILD-COST) was the counterargument and a `sweep`-hosted
-  module the cheap fallback; the crate earns its manifest.
+  crate would make one name the other's ops. The rejected alternative is
+  a `sweep`-hosted module, cheaper on the build-cost ledger
+  (GENERICS-BUILD-COST); the crate earns its manifest.
 - **VS-Q2 — `Node` payload shape.** Typed per-verb `Node` variants are
   kept, with the correspondence declared once per verb (V3): persistence
   spelling, typed edits and `deny_unknown_fields` all stand. A uniform
   `Node::Op` slot-map variant is rejected — it trades compile-time
   exhaustiveness at the document layer for runtime arity checking, the
-  silent-dispatch shape D3 forbids. The macro deferral never triggered:
-  after six migrations the residual arm noise is the routed
-  `verb_refused` arm and four record projections, per verb.
+  silent-dispatch shape D3 forbids. No macro is needed: the residual
+  per-verb arm noise is the routed `verb_refused` arm and the record
+  projections.
 - **VS-Q3 — kernel-derived fields carry no source.** Identity ends where
   `editor-core` did not evaluate the expression; the shell's `r − t`
-  cavity twins are the latest instance, their flow row present and
-  empty. Composite lowered sources minted by the kernel for its own
-  arithmetic stay recorded and rejected: expression algebra below the
-  line §0 draws, with no consumer for it.
+  cavity twins are an instance, their flow row present and empty.
+  Composite lowered sources minted by the kernel for its own arithmetic
+  are rejected: expression algebra below the line §0 draws, with no
+  consumer for it.
 - **VS-Q4 — `ParamSource` representation.** The token is a canonical
   injective ENCODING of the lowered expression — `Arc<[u8]>`, a scope
   prefix, then a tag byte per AST node, operands in child order,
@@ -407,9 +430,9 @@ measurement masquerading as structure. The row is pinned by
   recorded where the twin lives (`sweep/src/blend/naming.rs`), naming
   `verbs::Verb` as the canonical owner a collapse would target, the
   persisted spelling becoming a stable-tag match over it.
-- **VS-Q6 — sequencing.** Followed: §1 first in its own units, §2 next
-  with the blend pair, then the remaining verbs one unit each, §3 riding
-  the verb whose consumer needed it.
+- **VS-Q6 — sequencing.** §1 in its own units, then §2 with the blend
+  pair, then the remaining verbs one unit each, §3 riding the verb whose
+  consumer needed it.
 
 ## 5. Out of scope, recorded
 
@@ -424,13 +447,13 @@ measurement masquerading as structure. The row is pinned by
 - **Post-publish schema discipline for V2's stable tags** — carried in
   DESIGN.md's "Before publishing" list.
 
-## 6. What was accepted
+## 6. Acceptance
 
 - **Costing.** Every recipe door migrated after §2 is costed against the
   chamfer baseline — kernel arm, one `editor-core` module, tag rows,
   bump, mirrors — with `node.rs`'s projection matches untouched. The
-  baseline is amended once, at the shell: a door's impl bound is part of
-  its signature.
+  baseline has one amendment, from the shell: a door's impl bound is
+  part of its signature.
 - **The germ, end to end.** One declared radius parameter reaches
   `cylinder_cylinder_section`'s closed form from a document; the same
   geometry without the channel refuses typed (P3), the literal twin
