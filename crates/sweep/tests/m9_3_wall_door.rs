@@ -378,7 +378,7 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
         matches!(
             err,
             BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent
+                class: topo::BooleanCoincidence::TANGENT
             }
         ),
         "{err:?}"

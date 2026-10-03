@@ -3426,9 +3426,9 @@ MEMBERS_BOUND_AS = {
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
     # --- a wrapping arm flattened into its payload's words ---------
     # `BooleanCoincidence::Contact(ContactClass)` crosses as the
-    # contact class's own words beside `Continuation`: the Python enum
-    # is flat, `Rest`, `Tangent`, `Continuation`, so the arm is every
-    # contact word.
+    # contact class's own words beside `Continuation` and `Seam`: the
+    # Python enum is flat, `Rest`, `Tangent`, `Continuation`, `Seam`, so
+    # the arm is every contact word.
     "BooleanCoincidence::Contact": ("BooleanCoincidence.Rest", "BooleanCoincidence.Tangent"),
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Space": "AssemblyError.variant",
