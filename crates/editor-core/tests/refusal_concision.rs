@@ -495,6 +495,51 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "SeamContradicted (one carrier)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::OneCarrier),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (cusp)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamCusp),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (sides mixed)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamSidesMixed),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (face runs on)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamFaceRunsOn),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (untouched)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamUntouched),
+                margin: diag,
+            },
+        ),
+        (
             "CoincidentShell (unpaired)",
             BooleanError::CoincidentShell {
                 operand: Operand::A,

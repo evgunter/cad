@@ -73,6 +73,9 @@
 //! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
 //!   declarations, swapped for the reversed order: what a suite drives
 //!   a door WITH, as [`poses`];
+//! - [`seam_pairs`] — the face pairs of two face sets that meet along
+//!   a curve, so a seam or `Tangent` declaration names only those: what
+//!   a suite drives a door WITH, as [`revert_ops`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -232,6 +235,11 @@ pub mod revert_ops;
 /// The drilled bead: a bore cylinder and a sphere zone, each a whole
 /// turn. Body authoring, so it routes here.
 pub mod bead;
+
+/// The pairs of two face sets that meet along a curve, kept from a
+/// cross product of seam or `Tangent` declarations. What a suite drives
+/// a door WITH, so it routes here.
+pub mod seam_pairs;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;

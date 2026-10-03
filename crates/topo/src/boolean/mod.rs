@@ -777,7 +777,8 @@ impl CoverSide {
 
 /// The side of `target`'s carrier the parent face lies on: the sign of
 /// the target's implicit residual at the parent's boundary arc ends and
-/// midpoints, required to agree. Only consulted where a certificate
+/// midpoints, required to agree, and every sample decided (on the
+/// carrier, or definitely off it). Only consulted where a certificate
 /// already says one closed side holds the whole parent carrier, so any
 /// definite reading names it; readings that disagree contradict the
 /// certificate and leave the side unread.
@@ -808,7 +809,11 @@ fn read_cover_side<T: Decide>(
             match crate::validate::decide("cover_side", Margin::of(r), band) {
                 Ok(Sign::Positive) => pos = true,
                 Ok(Sign::Negative) => neg = true,
-                Ok(Sign::Zero) | Err(_) => {}
+                Ok(Sign::Zero) => {}
+                // An in-band sample is a reading that did not decide;
+                // the side stays unread rather than resting on the
+                // samples that did.
+                Err(_) => return CoverSide::Unread,
             }
         }
     }
@@ -3821,11 +3826,17 @@ pub(crate) fn verify_tangent_declaration<T: Decide>(
 /// 4. **Which way the faces leave the locus.** A seam's two faces must
 ///    leave it on opposite sides: along a rim, their boundaries run it
 ///    in opposite directions, and along a line likewise
-///    ([`rim_wedge::departures`]), read at the boundary half-edges that
-///    run along the locus. The same side is a cusp (`seam_rim_cusp`,
-///    `seam_line_side`); a face with no boundary edge along the locus,
-///    which the locus then crosses or merely touches, is no seam
-///    either (`seam_locus_no_edge`).
+///    ([`rim_wedge::departures`]), read WHERE THE TWO FACES TOUCH: on
+///    every stretch of the locus both faces contain, each must have a
+///    boundary edge running along it, and their traversals there decide.
+///    The same side is a cusp (`seam_cusp`); opposite along one stretch
+///    and the same along another is `seam_traversal_mixed`; a face that
+///    runs on through the locus where the other touches it is
+///    `seam_locus_no_edge`; a pair touching along no stretch is
+///    `seam_locus_untouched`. Each carries its fact. A face bounded by a
+///    curve the read does not place against the locus (an ellipse, a
+///    spline) is refused as outside the envelope
+///    ([`BooleanError::UnsupportedDeclarationClass`]).
 ///
 /// A `Tangent` claim along a rim takes the ratified routing instead of
 /// steps 3 and 4: the material wedge decides which arm the rim earns,
@@ -4001,14 +4012,22 @@ fn verify_tangency_declaration<T: Decide>(
         };
         let departure = rim_wedge::departures(a, fa, b, fb, locus, band)
             .map_err(|diag| BooleanError::coincidence(site, spent, diag))?;
-        let finding = match (departure, locus) {
-            (rim_wedge::Departure::Opposite, _) => None,
-            (rim_wedge::Departure::Same, rim_wedge::Locus::Rim(_)) => Some("seam_rim_cusp"),
-            (rim_wedge::Departure::Same, rim_wedge::Locus::Line { .. }) => Some("seam_line_side"),
-            (rim_wedge::Departure::NoEdge, _) => Some("seam_locus_no_edge"),
+        let finding = match departure {
+            rim_wedge::Departure::Opposite => None,
+            rim_wedge::Departure::Same => Some((Contradiction::SeamCusp, "seam_cusp")),
+            rim_wedge::Departure::Mixed => {
+                Some((Contradiction::SeamSidesMixed, "seam_traversal_mixed"))
+            }
+            rim_wedge::Departure::NoEdge => {
+                Some((Contradiction::SeamFaceRunsOn, "seam_locus_no_edge"))
+            }
+            rim_wedge::Departure::Untouched => {
+                Some((Contradiction::SeamUntouched, "seam_locus_untouched"))
+            }
+            rim_wedge::Departure::EdgeKindUnread => return Err(claim.unsupported()),
         };
-        if let Some(finding) = finding {
-            return Err(claim.contradicted(fa, fb, label(finding), None));
+        if let Some((fact, finding)) = finding {
+            return Err(claim.contradicted_by(fa, fb, Some(fact), label(finding), None));
         }
     }
     Ok(kinds)
@@ -4062,11 +4081,30 @@ fn tangent_rim_refusal<T: Decide>(
                 Ok(rim_wedge::Departure::Same) => {
                     claim.contradicted(fa, fb, label("contact_tangent_rim_nested"), None)
                 }
-                // Unreachable: the rim was found on both faces'
-                // boundaries. Refuse loudly anyway.
-                Ok(rim_wedge::Departure::NoEdge) => BooleanError::ClassificationInvariant {
-                    what: "tangent rim refusal: a shared rim rides both faces' boundaries",
-                },
+                // The same findings a seam's door names, for a
+                // `Tangent` claim: no declaration along the rim fits.
+                Ok(rim_wedge::Departure::Mixed) => claim.contradicted_by(
+                    fa,
+                    fb,
+                    Some(Contradiction::SeamSidesMixed),
+                    label("contact_tangent_rim_mixed"),
+                    None,
+                ),
+                Ok(rim_wedge::Departure::NoEdge) => claim.contradicted_by(
+                    fa,
+                    fb,
+                    Some(Contradiction::SeamFaceRunsOn),
+                    label("contact_tangent_rim_no_edge"),
+                    None,
+                ),
+                Ok(rim_wedge::Departure::Untouched) => claim.contradicted_by(
+                    fa,
+                    fb,
+                    Some(Contradiction::SeamUntouched),
+                    label("contact_tangent_rim_untouched"),
+                    None,
+                ),
+                Ok(rim_wedge::Departure::EdgeKindUnread) => claim.unsupported(),
                 Err(diag) => BooleanError::coincidence(
                     Coincide::Rim,
                     DeclarationRead::Spent(claim.coincidence()),

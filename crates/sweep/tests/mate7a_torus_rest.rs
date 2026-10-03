@@ -201,7 +201,14 @@ fn wall_declarations(
                 .push(FacePairDeclaration::new(fa, fb, class));
         }
     }
-    decls
+    // A seam pair names faces that meet along the rim. (A `Tangent`
+    // pair is kept whole: the rows here refuse it on the class or the
+    // routing, which a pair that never meets must reach too.)
+    if class == topo::BooleanCoincidence::Seam {
+        crate::common::seam_pairs::meeting(a, b, decls)
+    } else {
+        decls
+    }
 }
 
 // -------------------------------------------------------------------

@@ -55,6 +55,7 @@
 
 use core::f64::consts::PI;
 
+use crate::common::seam_pairs::meeting;
 use geom::SurfaceKind;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_z, brick, revolved_about_y};
@@ -114,7 +115,7 @@ fn union_both_orders(
     let run = |x: &Body<f64>, y: &Body<f64>, fx: &[FaceKey], fy: &[FaceKey]| {
         let r = match class {
             None => topo::union(x, y, Tol::witness()),
-            Some(c) => topo::union_with(x, y, &declared(fx, fy, c), Tol::witness()),
+            Some(c) => topo::union_with(x, y, &meeting(x, y, declared(fx, fy, c)), Tol::witness()),
         };
         match r {
             Err(e) => e,
@@ -233,7 +234,7 @@ fn walls_and_discs(x: &Body<f64>, y: &Body<f64>, class: BooleanCoincidence) -> B
         f.extend(faces_of(b, SurfaceKind::Sphere));
         f
     };
-    let mut d = declared(&curved(x), &curved(y), class);
+    let mut d = meeting(x, y, declared(&curved(x), &curved(y), class));
     d.coincident_faces.extend(
         declared(&planes_at_z(x, H), &planes_at_z(y, H), ContactClass::Rest).coincident_faces,
     );
@@ -279,7 +280,7 @@ fn the_sphere_capped_tube_builds_with_its_walls_declared_a_seam() {
         assert_eq!(
             d.coincident_faces.len(),
             5,
-            "{label}: two by two walls, one disc pair"
+            "{label}: two by two walls, each pair meeting the rim, one disc pair"
         );
         let r = topo::union_with(x, y, &d, tol);
         let body = match &r {
@@ -940,7 +941,7 @@ fn a_d_bar_on_the_slab_builds_with_its_line_seams_declared() {
 /// along the rim with outward normals aligned. But the bowl and the
 /// ball's lower half leave the rim DOWNWARD, as the tube's wall does,
 /// so both materials lie on one side: a nested touch, wedge 0, not the
-/// π seam. Declared a `Seam` each is contradicted (`seam_rim_cusp`), in
+/// π seam. Declared a `Seam` each is contradicted (`seam_cusp`), in
 /// both orders. Declared `Tangent`, the bowl is contradicted by its
 /// aligned senses without a steer, since no declaration fits it
 /// (`contact_tangent_rim_nested`).
@@ -976,7 +977,7 @@ fn a_bowl_or_a_split_ball_in_the_tubes_mouth_is_a_cusp_not_a_seam() {
     for (label, cap) in [("bowl", &bowl), ("split", &split)] {
         for (x, y) in [(&tube, cap), (cap, &tube)] {
             let run = |class| {
-                let mut d = declared(&walls(x), &walls(y), class);
+                let mut d = meeting(x, y, declared(&walls(x), &walls(y), class));
                 d.coincident_faces.extend(coplanar_pairs(x, y));
                 topo::union_with(x, y, &d, tol)
             };
@@ -984,7 +985,7 @@ fn a_bowl_or_a_split_ball_in_the_tubes_mouth_is_a_cusp_not_a_seam() {
             let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
                 panic!("{label}: declared Seam, contradicted: {r:?}");
             };
-            assert_eq!(margin.predicate, Some("seam_rim_cusp"), "{label}");
+            assert_eq!(margin.predicate, Some("seam_cusp"), "{label}");
             if label == "bowl" {
                 let r = run(BooleanCoincidence::TANGENT);
                 let Err(BooleanError::ContactContradicted { margin, steer, .. }) = &r else {
@@ -1027,16 +1028,24 @@ fn a_puck_and_its_rounding_ring_build_with_the_top_declared_a_seam() {
     let want =
         PI * a * a * r + (PI * r * r / 4.0) * core::f64::consts::TAU * (a + 4.0 * r / (3.0 * PI));
     for (label, x, y) in [("puck ∪ ring", &puck, &ring), ("ring ∪ puck", &ring, &puck)] {
-        let mut d = declared(
-            &planes_at_z(x, r),
-            &faces_of(y, SurfaceKind::Torus),
-            BooleanCoincidence::Seam,
+        let mut d = meeting(
+            x,
+            y,
+            declared(
+                &planes_at_z(x, r),
+                &faces_of(y, SurfaceKind::Torus),
+                BooleanCoincidence::Seam,
+            ),
         );
         d.coincident_faces.extend(
-            declared(
-                &faces_of(x, SurfaceKind::Torus),
-                &planes_at_z(y, r),
-                BooleanCoincidence::Seam,
+            meeting(
+                x,
+                y,
+                declared(
+                    &faces_of(x, SurfaceKind::Torus),
+                    &planes_at_z(y, r),
+                    BooleanCoincidence::Seam,
+                ),
             )
             .coincident_faces,
         );
@@ -1442,6 +1451,11 @@ fn a_g1_joint_authored_inside_one_profile_needs_no_declaration() {
 /// flat on `y = 0` faces away from the side it lies on (`side` −1 or +1
 /// in `y`).
 fn quarter_rod(side: f64, tol: Tol) -> Body<f64> {
+    quarter_rod_of(side, 1.0, tol)
+}
+
+/// [`quarter_rod`] of length `len` along `x`.
+fn quarter_rod_of(side: f64, len: f64, tol: Tol) -> Body<f64> {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     let lp = if side < 0.0 {
         profile::test_support::bulge_loop(vec![
@@ -1466,7 +1480,7 @@ fn quarter_rod(side: f64, tol: Tol) -> Body<f64> {
     let p = profile::Profile::new(plane, vec![lp])
         .validate(tol)
         .unwrap();
-    extrude(&p, Extrusion::Distance(1.0), tol).unwrap().body
+    extrude(&p, Extrusion::Distance(len), tol).unwrap().body
 }
 
 /// **A line seam is read at the line, not off the boundary.** The
@@ -1477,7 +1491,7 @@ fn quarter_rod(side: f64, tol: Tol) -> Body<f64> {
 /// line the plate's bottom leaves on `y < 0`, though every boundary
 /// vertex and arc midpoint reads `y ≥ 0`. A quarter rod on `y < 0`
 /// tangent to the bottom along the line leaves it on the same side, a
-/// cusp: declared a `Seam`, contradicted (`seam_line_side`). On `y > 0`
+/// cusp: declared a `Seam`, contradicted (`seam_cusp`). On `y > 0`
 /// it leaves on the other side, a seam: the door verifies it, and the
 /// union goes on past the declarations. The square plate, which lies on
 /// `y < 0` everywhere, is the control. Both member orders.
@@ -1530,7 +1544,7 @@ fn a_line_seam_is_read_where_the_faces_leave_the_line() {
                         let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
                             panic!("{label} {pose}: contradicted: {r:?}");
                         };
-                        assert_eq!(margin.predicate, Some("seam_line_side"), "{label} {pose}");
+                        assert_eq!(margin.predicate, Some("seam_cusp"), "{label} {pose}");
                     }
                     // Verified; the square plate and the rod are
                     // disjoint but for the line, and the union is both.
@@ -1550,6 +1564,158 @@ fn a_line_seam_is_read_where_the_faces_leave_the_line() {
             }
         }
     }
+}
+
+/// A plate on `z ∈ [0, 0.25]` extruded from the polygon `outline` in
+/// the `xy` plane.
+fn plate(outline: &[(f64, f64)], tol: Tol) -> Body<f64> {
+    let lp = profile::test_support::bulge_loop(
+        outline
+            .iter()
+            .map(|&(x, y)| (Point2::new(x, y), 0.0))
+            .collect(),
+    );
+    let p = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .unwrap();
+    extrude(&p, Extrusion::Distance(0.25), tol).unwrap().body
+}
+
+/// The plate's bottom against the rod's wall, declared a `Seam` in
+/// `x`'s operand order, and nothing else.
+fn bottom_and_wall(x: &Body<f64>, y: &Body<f64>) -> BooleanDeclarations {
+    let mut d = declared(
+        &planes_at_z(x, 0.0),
+        &faces_of(y, SurfaceKind::Cylinder),
+        BooleanCoincidence::Seam,
+    );
+    d.coincident_faces.extend(
+        declared(
+            &faces_of(x, SurfaceKind::Cylinder),
+            &planes_at_z(y, 0.0),
+            BooleanCoincidence::Seam,
+        )
+        .coincident_faces,
+    );
+    d
+}
+
+/// The seam's verdict on `plate` against `rod`, both member orders, as
+/// the refusal's fact and label (`None` where the door verified).
+fn seam_verdicts(
+    plate: &Body<f64>,
+    rod: &Body<f64>,
+) -> Vec<Option<(Option<topo::Contradiction>, Option<&'static str>)>> {
+    [(plate, rod), (rod, plate)]
+        .into_iter()
+        .map(
+            |(x, y)| match topo::union_with(x, y, &bottom_and_wall(x, y), Tol::witness()) {
+                Err(BooleanError::SeamContradicted { fact, margin, .. }) => {
+                    Some((fact, margin.predicate))
+                }
+                _ => None,
+            },
+        )
+        .collect()
+}
+
+/// **The side is read where the two faces touch.** A face's edge on
+/// the line names its side only where the face ENDS at the line, so an
+/// edge elsewhere on the same line must not stand in for it. The rod is
+/// a quarter rod on `y > 0` along `x ∈ [0, 1]`; only the plate's bottom
+/// and the rod's wall are declared a `Seam`, in both orders:
+///
+/// - the TAB plate covers `x ∈ [−0.5, 2]` across the line and has its
+///   only edge on it at `x ∈ [2, 3]`: where the rod touches it, the line
+///   runs through the plate's interior (`seam_locus_no_edge`);
+/// - the PARTIAL plate has an edge on the line at `x ∈ [0.5, 1]` and
+///   runs on across it at `x ∈ [0, 0.5]`: the edge overlaps the touch
+///   and still does not cover it (`seam_locus_no_edge`);
+/// - the FAR plate (`x ∈ [2, 3]`, `y < 0`) never meets the rod, on
+///   either side of it (`seam_locus_untouched`).
+#[test]
+fn a_line_seam_is_read_only_where_the_faces_touch() {
+    let tol = Tol::witness();
+    let tab = plate(
+        &[
+            (-0.5, -1.0),
+            (3.0, -1.0),
+            (3.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (-0.5, 1.0),
+        ],
+        tol,
+    );
+    let partial = plate(
+        &[
+            (1.0, 0.0),
+            (0.5, 0.0),
+            (0.5, 1.0),
+            (-0.5, 1.0),
+            (-0.5, -1.0),
+            (1.0, -1.0),
+        ],
+        tol,
+    );
+    let far = plate(&[(2.0, -1.0), (3.0, -1.0), (3.0, 0.0), (2.0, 0.0)], tol);
+    let no_edge = Some((
+        Some(topo::Contradiction::SeamFaceRunsOn),
+        Some("seam_locus_no_edge"),
+    ));
+    let untouched = Some((
+        Some(topo::Contradiction::SeamUntouched),
+        Some("seam_locus_untouched"),
+    ));
+    let above = quarter_rod(1.0, tol);
+    for (label, body, want) in [("tab", &tab, &no_edge), ("partial", &partial, &no_edge)] {
+        assert_eq!(
+            seam_verdicts(body, &above),
+            vec![want.clone(); 2],
+            "{label}"
+        );
+    }
+    for side in [1.0, -1.0] {
+        let rod = quarter_rod(side, tol);
+        assert_eq!(
+            seam_verdicts(&far, &rod),
+            vec![untouched.clone(); 2],
+            "far, rod on {side}"
+        );
+    }
+}
+
+/// **Opposite sides along one stretch, the same along another.** The
+/// plate's outline rides the line `y = z = 0` at `x ∈ [0, 1]` with the
+/// plate below it, and at `x ∈ [2, 3]` with the plate above, the two
+/// lobes joined below the line and round past `x = 3`. A quarter rod on
+/// `y > 0` along `x ∈ [0, 3]` meets the first stretch as a seam and the
+/// second as a cusp: declared a `Seam`, contradicted as mixed, with its
+/// fact, in both orders.
+#[test]
+fn a_seam_whose_faces_leave_on_both_sides_is_contradicted_as_mixed() {
+    let tol = Tol::witness();
+    let lobes = plate(
+        &[
+            (0.0, 0.0),
+            (0.0, -1.0),
+            (4.0, -1.0),
+            (4.0, 1.0),
+            (2.0, 1.0),
+            (2.0, 0.0),
+            (3.0, 0.0),
+            (3.0, -0.5),
+            (1.0, -0.5),
+            (1.0, 0.0),
+        ],
+        tol,
+    );
+    let rod = quarter_rod_of(1.0, 3.0, tol);
+    let mixed = Some((
+        Some(topo::Contradiction::SeamSidesMixed),
+        Some("seam_traversal_mixed"),
+    ));
+    assert_eq!(seam_verdicts(&lobes, &rod), vec![mixed; 2]);
 }
 
 /// Narrow review (JOIN-1 fix pass 3): domes and bowls of several corner

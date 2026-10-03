@@ -87,6 +87,16 @@ pub enum Contradiction {
     /// A tangency claimed between faces on ONE carrier: conformal
     /// contact, which is a `Rest` contact or a continuation.
     OneCarrier,
+    /// A seam's two faces leave the tangency on one side: a cusp.
+    SeamCusp,
+    /// A seam's two faces leave the tangency on opposite sides along
+    /// part of it and on one side along another.
+    SeamSidesMixed,
+    /// A face of a declared seam runs on through the tangency where the
+    /// other face touches it, instead of ending there.
+    SeamFaceRunsOn,
+    /// A declared seam's faces touch along no stretch of the tangency.
+    SeamUntouched,
 }
 
 impl Contradiction {
@@ -107,8 +117,24 @@ impl Contradiction {
             Self::TorusMajorRadiiDiffer => "the declared tori's major radii differ",
             Self::TorusTubeRadiiDiffer => "the declared tori's tube radii differ",
             Self::OneCarrier => {
-                "the declared faces lie on one carrier, which is a `Rest` contact or a \
+                "the declared faces lie on one carrier, which is a Rest contact or a \
                  continuation, not a tangency"
+            }
+            Self::SeamCusp => {
+                "the declared faces leave the curve they are tangent along on the same \
+                 side, which is a cusp, not a seam"
+            }
+            Self::SeamSidesMixed => {
+                "the declared faces leave the curve they are tangent along on opposite \
+                 sides in one stretch and on the same side in another"
+            }
+            Self::SeamFaceRunsOn => {
+                "a declared face runs on through the curve the faces are tangent along, \
+                 where the other face touches it, instead of ending there"
+            }
+            Self::SeamUntouched => {
+                "the declared faces touch along no stretch of the curve they are tangent \
+                 along"
             }
         }
     }
@@ -133,7 +159,11 @@ impl Contradiction {
             | Self::TorusCentresDiffer
             | Self::TorusMajorRadiiDiffer
             | Self::TorusTubeRadiiDiffer
-            | Self::OneCarrier => false,
+            | Self::OneCarrier
+            | Self::SeamCusp
+            | Self::SeamSidesMixed
+            | Self::SeamFaceRunsOn
+            | Self::SeamUntouched => false,
         }
     }
 }
