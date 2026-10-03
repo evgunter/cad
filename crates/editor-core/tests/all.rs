@@ -282,6 +282,8 @@ mod msolve10_door_admission;
 mod msolve11_mate_log;
 #[path = "msolve12_honest_translation.rs"]
 mod msolve12_honest_translation;
+#[path = "msolve13_read_at_operand.rs"]
+mod msolve13_read_at_operand;
 #[path = "msolve1_transform_aware.rs"]
 mod msolve1_transform_aware;
 #[path = "msolve2_member_chain.rs"]
