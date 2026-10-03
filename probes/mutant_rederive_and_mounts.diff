@@ -1,0 +1,51 @@
+diff --git a/crates/topo/src/lib.rs b/crates/topo/src/lib.rs
+index be9011ea1..efd44d2a6 100644
+--- a/crates/topo/src/lib.rs
++++ b/crates/topo/src/lib.rs
+@@ -599,6 +599,10 @@ pub mod test_support {
+ mod r2_probes;
+ #[cfg(test)]
+ mod tier3_tests;
++#[cfg(test)]
++mod probe_r1_slab;
++#[cfg(test)]
++mod probe_r1_head_only;
+ pub mod transform;
+ pub mod validate;
+ 
+diff --git a/crates/topo/src/props.rs b/crates/topo/src/props.rs
+index 423b67065..767850fb9 100644
+--- a/crates/topo/src/props.rs
++++ b/crates/topo/src/props.rs
+@@ -776,7 +776,20 @@ fn rederive<T: Decide>(
+         flux = flux + f;
+         area = area + a;
+     }
+-    Ok((flux / Interval::from_f64(3.0), area))
++    let v = flux / Interval::from_f64(3.0);
++    // REVIEWER MUTANT (reach-dual3977-r1): R1_MUT=zero|double.
++    let v = {
++        use geom_core::Bounds as _;
++        let (lo, hi) = (v.lo(), v.hi());
++        let mid = 0.5 * (lo + hi);
++        match std::env::var("R1_MUT").as_deref() {
++            Ok("zero") => Interval::from_bounds(mid, mid),
++            Ok("double") => Interval::from_bounds(mid - (hi - lo), mid + (hi - lo)),
++            Ok("huge") => Interval::from_bounds(-1e30, 1e30),
++            _ => v,
++        }
++    };
++    Ok((v, area))
+ }
+ 
+ impl<T: Decide> fmt::Debug for SignCertificate<'_, T> {
+diff --git a/crates/topo/tests/all.rs b/crates/topo/tests/all.rs
+index 8e0ad0f61..8bf3c2860 100644
+--- a/crates/topo/tests/all.rs
++++ b/crates/topo/tests/all.rs
+@@ -342,3 +342,5 @@ mod door_backstop_settled_residue;
+ mod review_cleave_mint_doors;
+ #[path = "split_tangent_edge.rs"]
+ mod split_tangent_edge;
++#[path = "probe_r1_booleans.rs"]
++mod probe_r1_booleans;
