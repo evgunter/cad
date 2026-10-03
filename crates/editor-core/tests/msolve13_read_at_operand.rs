@@ -66,6 +66,12 @@ struct Scene {
 }
 
 fn scene(label: &str) -> Scene {
+    scene_with(label, true)
+}
+
+/// The scene with one slab only when `two` is false: `base2` is then
+/// `base1` itself, and nothing is left unplaced.
+fn scene_with(label: &str, two: bool) -> Scene {
     let mut store = PartStore::new();
     let (base_ref, base_body) = store.insert_part(
         box_part(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
@@ -78,7 +84,11 @@ fn scene(label: &str) -> Scene {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base1) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, base2) = insert(doc, fixture::mated_instance(base_ref));
+    let (doc, base2) = if two {
+        insert(doc, fixture::mated_instance(base_ref))
+    } else {
+        (doc, base1)
+    };
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     Scene {
         doc,
@@ -424,4 +434,61 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
         "A2: one placement, one member"
     );
     let _ = s.base2;
+}
+
+// ---- the lift, per consumer kind ----
+
+/// A `w x w x h` block extruded in the document itself, its corner at
+/// `at`.
+fn local_block(doc: ProfileDoc, at: [f64; 3], w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = on_frame(
+        doc,
+        at,
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (w, 0.0), (w, w), (0.0, w)]],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(h),
+            side: ExtrudeSide::Along,
+        },
+    )
+}
+
+/// `top` lifted by `t1` and mated to the first slab at `t1`: the
+/// opposed seat turns the block a half turn about its corner, so it
+/// stands at `[0, 1] x [0, 1] x [1, 4]` in the world.
+fn seated_at_t1(s: &Scene) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, t1) = insert(
+        s.doc.clone(),
+        xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
+    );
+    let (doc, mate) = mated(doc, seat(s.base_cap(s.base1), head_at(t1, s.top_cap())));
+    (doc, t1, mate)
+}
+
+/// **A pair boolean carries an operand's intact face as `FromA`.** A
+/// union boolean of the seated block with a block far from it: the
+/// mate read at `t1` lifts through the boolean, and the gate holds.
+#[test]
+fn a_pair_boolean_above_the_operand_carries_the_face() {
+    let s = scene_with("msolve13-lift-boolean", false);
+    let (doc, t1, _) = seated_at_t1(&s);
+    let (doc, far) = local_block(doc, [10.0, 10.0, 10.0], 1.0, 1.0);
+    let (doc, fused) = insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Union,
+            a: t1,
+            b: far,
+            declare: Vec::new(),
+        },
+    );
+    assert!(doc.roots().contains(&fused), "{:?}", doc.roots());
+    let ev = run(&doc, &s.opts);
+    let gated = gate(&doc, &ev);
+    assert!(gated.is_ok(), "the boolean carries the face: {gated:?}");
 }
