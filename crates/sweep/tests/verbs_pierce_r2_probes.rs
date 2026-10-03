@@ -13,6 +13,7 @@
 
 use crate::common::operands::three_arc_cylinder;
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -32,9 +33,16 @@ fn washer(r: f64, rh: f64, z0: f64, z1: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![outer.into(), hole])
         .validate(tol)
         .unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// A thin box dropped straight through the washer's HOLE, touching
@@ -100,9 +108,16 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    let a = extrude(&profile, Extrusion::Distance(2.0), tol)
-        .unwrap()
-        .body;
+    let a = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
     let va = topo::mass_properties(&a, tol).unwrap().volume;
     // A small box through the cap around the origin, inside the lens,
     // standing a unit above its top.
@@ -148,9 +163,16 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
         ]);
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
         let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-        let a = extrude(&profile, Extrusion::Distance(2.0), tol)
-            .unwrap()
-            .body;
+        let a = extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: 2.0,
+                side: ExtrudeSide::Along,
+            },
+            tol,
+        )
+        .unwrap()
+        .body;
         let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol)
             .unwrap_or_else(|e| panic!("bulge={bulge}: the half-disc cap is walked; got {e:?}"))
         else {
@@ -203,9 +225,16 @@ fn r2_a_box_buried_in_a_pancake_cylinder_attacks_the_ray_cap_trim() {
         let lp = profile::circle(Point2::new(0.0, 0.0), 5.0, tol).unwrap();
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
         let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-        extrude(&profile, Extrusion::Distance(0.4), tol)
-            .unwrap()
-            .body
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: 0.4,
+                side: ExtrudeSide::Along,
+            },
+            tol,
+        )
+        .unwrap()
+        .body
     };
     let b = brick((-0.1, 0.1), (-0.1, 0.1), (0.1, 0.3), tol);
     match topo::union(&cyl, &b, tol) {
@@ -244,9 +273,16 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     let plate_profile = Profile::new(SP::xy(), vec![outer, hole])
         .validate(tol)
         .unwrap();
-    let plate = extrude(&plate_profile, Extrusion::Distance(1.0), tol)
-        .unwrap()
-        .body;
+    let plate = extrude(
+        &plate_profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
     let boss = three_arc_cylinder(Point2::new(2.0, 2.0), 0.5, -0.2, 1.6, 90.0);
 
     let mut body = plate.clone();

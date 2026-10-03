@@ -23,6 +23,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -127,6 +128,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Box::new(Node::Extrude {
                 profile: arc_profile,
                 distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -233,6 +235,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Box::new(Node::Extrude {
                 profile: square,
                 distance: len(0.5),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -407,6 +410,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Box::new(Node::Extrude {
                 profile: box_profile,
                 distance: len(0.5),
+                side: ExtrudeSide::Along,
             }),
         },
     );

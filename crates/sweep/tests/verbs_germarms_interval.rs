@@ -19,6 +19,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::interval::{iv, p2, v3};
 use geom_core::{Affine3, Bounds, Interval, Tol};
@@ -37,9 +38,16 @@ fn pipe() -> Body<Interval> {
     let lp = profile::circle(p2(0.0, 0.0), iv(1.0), tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, -2.0)));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&vp, Extrusion::Distance(iv(4.0)), tol)
-        .unwrap()
-        .body
+    extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(4.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// **The build arm.** The bar's crossings are found at the certified

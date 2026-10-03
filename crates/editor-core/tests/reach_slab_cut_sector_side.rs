@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use editor_core::ExtrudeSide;
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};
@@ -46,6 +47,7 @@ fn disc(doc: ProfileDoc, lp: LoopProgram, z0: f64, dz: f64) -> (ProfileDoc, Reci
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }

@@ -150,6 +150,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use pncad::document::ExtrudeSide;
 
 use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Vec2, Vec3};
 use pncad::prelude::SurfaceKind;
@@ -504,9 +505,16 @@ fn foot<S: Scalar>(z0: f64, z1: f64, r: f64, tol: Tol) -> Body<S> {
         .expect("the foot's three-arc rim authors");
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
     let profile = validated(plane, vec![rim.into()], tol).expect("foot profile validates");
-    extrude(&profile, Extrusion::Distance(S::from_f64(z1 - z0)), tol)
-        .expect("the foot extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(z1 - z0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("the foot extrudes")
+    .body
 }
 
 /// The corm's dimensions and the socket the stem stands in. The

@@ -41,6 +41,7 @@ use geom_brep::PropsError;
 use geom_core::Tol;
 use geom_core::{Affine3, Vec3};
 use profile::{Profile, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::{Section, loft_body};
 use topo::{MassProperties, MassPropsError};
 
@@ -208,7 +209,10 @@ fn oracle_volume() -> f64 {
         .expect("the profile validates");
     let oracle = sweep::extrude::<f64>(
         &prof,
-        sweep::Extrusion::Distance(BLADE_HEIGHT),
+        sweep::Extrusion::Distance {
+            depth: BLADE_HEIGHT,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude");

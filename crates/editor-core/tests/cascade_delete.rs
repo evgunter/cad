@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::len;
+use editor_core::ExtrudeSide;
 use editor_core::{
     Doc, DocEdit, EditError, Node, RecipeNodeId, SpokenNode, apply, cascade_delete_order,
 };
@@ -55,6 +56,7 @@ fn extrude(doc: &TDoc, profile: RecipeNodeId) -> (TDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(0.01),
+            side: ExtrudeSide::Along,
         },
     )
 }

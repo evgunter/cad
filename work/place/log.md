@@ -87,3 +87,22 @@ The alternative, a gauge parented on a face, was dropped: every touching item wo
 #3920 is stacked on #3888, whose `FromFace` sentence it extends. Filed off the question: `work/msolve/a-declaring-mates-alignment-is-never-read.md`.
 
 - 2026-10-02 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`. `Indeterminate`'s own `Display` now renders a LABELLED recourse, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". In `editor-core`: `UnevaluatedReason::Indeterminate` now carries its escalation and loses the derived `Eq`; `drive::RefusalReason::MeasureRefused` carries a typed `MeasureRefusalClass`; `refusal_concision_chains`' `FILED_NO_RECOURSE` lost `Skin/KnotAlgebra`, which now names a repair. (PROPS implementer)
+## 2026-10-03 — split moves the cut as selected; Promote and Fold (PR 3930, DR-58)
+
+This builds Ev's ruling (i) on `[ev]` #3888: split has no group hoist, inline has no sugar, and `DocEdit::Promote` and `DocEdit::Fold` carry the convenience.
+
+Review: dual, a concurrent Opus pair (class L), on frozen head `62e6e2167c`. Each review found a MAJOR the other missed, so both count toward the tally (17):
+- `Fold` deleted a gauge another node read as an input, leaving an unsaveable document;
+- the round trip failed for a no-space root on a gauge anchor.
+
+A fresh lane ran the fix pass from the union of both reviews (the original lane's worktree had been reclaimed for disk). It added:
+- `FoldWouldDangle`, with one `remove_unread` home;
+- `UnplaceableRoot`;
+- step-by-step chain composition, so Promote and Fold move no bit;
+- Promote's refusals checked root-first;
+- one start-placing predicate;
+- inline reusing Promote;
+- `LabelDropped`;
+- an ordered root comparison.
+
+The ordered comparison exposed the interleaved-cut root order. It is filed as `a4-round-trip-moves-the-root-order-of-an-interleaved-cut` and goes to Ev as a wording question on A4's acceptance.

@@ -29,6 +29,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
@@ -144,6 +145,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let body = r.insert(Node::Extrude {
         profile,
         distance: thickness.clone(),
+        side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -156,6 +158,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let bore = r.insert(Node::Extrude {
         profile: bore_profile,
         distance: thickness,
+        side: ExtrudeSide::Along,
     });
 
     let refs = {

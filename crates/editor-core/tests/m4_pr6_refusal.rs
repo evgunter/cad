@@ -7,6 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::expr::DimensionError;
 use editor_core::persist::SnapshotError;
@@ -33,6 +34,7 @@ fn small() -> (ProfileDoc, String) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
@@ -326,6 +328,7 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
         Node::Extrude {
             profile: p,
             distance: Expr::add(len(1.0), len(1.0)).expect("Length + Length"),
+            side: ExtrudeSide::Along,
         },
     );
     // A log the save door accepts: same dimension, so the replay is

@@ -40,6 +40,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::operands::m5_boss;
 use geom::Surface;
@@ -80,9 +81,16 @@ fn plate() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![rect(3.0, 3.0)])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(0.8), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.8,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 const R: f64 = 0.35;
@@ -102,9 +110,16 @@ fn notched() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// The notch's own volume debit: a half-disc of radius 0.5 through the
@@ -357,9 +372,16 @@ fn a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit() {
     let sp = Profile::new(plane, vec![sq])
         .validate(Tol::witness())
         .unwrap();
-    let b = extrude(&sp, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body;
+    let b = extrude(
+        &sp,
+        Extrusion::Distance {
+            depth: 0.4,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
 
     let v_a = 9.0 - NOTCH; // the notched plate, height 1
     let v_b = 2.0 * 2.0 * 0.4;
@@ -419,9 +441,16 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     let slab = Profile::new(SketchPlane::xy(), vec![rect(4.0, 4.0)])
         .validate(Tol::witness())
         .unwrap();
-    let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let a = extrude(
+        &slab,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
 
     let zone = 11.0 * PI / 12.0;
@@ -496,9 +525,16 @@ fn finding_row_flipped_containment_fallback_now_sees_the_curved_extent() {
     let slab = Profile::new(SketchPlane::xy(), vec![rect(4.0, 4.0)])
         .validate(Tol::witness())
         .unwrap();
-    let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let a = extrude(
+        &slab,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
 
     // The ball genuinely leaves the slab: its equator reaches z = 1.5.

@@ -88,6 +88,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
@@ -124,6 +125,7 @@ fn fixture(tol: Tol) -> (DocSession, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(0.005),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -1610,6 +1612,7 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, ParamName) {
         Node::Extrude {
             profile,
             distance: len(0.005),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -1618,6 +1621,7 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, ParamName) {
         Node::Extrude {
             profile,
             distance: len(0.003),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

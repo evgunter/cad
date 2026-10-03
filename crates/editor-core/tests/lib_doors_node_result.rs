@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use crate::fixture::len;
@@ -60,6 +61,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Box::new(Node::Extrude {
             profile: outer_profile,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         }),
     );
     let inner_profile = insert(&mut doc, Box::new(square(plane, 1.0)));
@@ -68,6 +70,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Box::new(Node::Extrude {
             profile: inner_profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         }),
     );
     let cut = insert(

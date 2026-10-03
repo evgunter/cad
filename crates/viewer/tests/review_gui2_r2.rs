@@ -38,6 +38,7 @@ test_utils::gated_to![
     "crates/editor-core/src/test_support.rs",
 ];
 
+use pncad::document::ExtrudeSide;
 use std::sync::{Arc, Mutex};
 
 use crate::common;
@@ -104,6 +105,7 @@ fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNode
         Node::Extrude {
             profile,
             distance: len(t),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, extrude)

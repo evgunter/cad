@@ -26,6 +26,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use pncad::profile::SketchPlane;
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanBody, BooleanError};
@@ -47,7 +48,10 @@ fn letter<S: Scalar>(
     let outline = polygon(outline, tol).expect("letterform outline");
     extrude(
         &validated(SketchPlane::from_frame(frame), vec![outline], tol).expect("letterform profile"),
-        Extrusion::Distance(S::from_f64(depth)),
+        Extrusion::Distance {
+            depth: S::from_f64(depth),
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("extrude letterform")
