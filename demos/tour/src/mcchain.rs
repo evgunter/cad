@@ -110,8 +110,8 @@ use pncad::analysis::{
     AnalysisPolicy, DEFAULT_SAMPLES, McConfig, analyzed_box, monte_carlo, sample_offsets, summarize,
 };
 use pncad::document::{
-    CancelToken, DocEdit, DocParamValue, EvalOptions, Evaluation, ParamName, ProfileDoc,
-    RecipeNodeId, RefusingReach, ValuePayload, apply, evaluate,
+    CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, ProfileDoc, RecipeNodeId,
+    RefusingReach, ValuePayload, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -283,7 +283,7 @@ fn bar_outline(body: &Body<f64>) -> Vec<(f64, f64)> {
 /// tip's position read back out of it.
 fn replay(base: &Chain, samples: usize, config: &McConfig, tol: Tol) -> Vec<Sample> {
     let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
-    let nominal: Vec<(ParamName, f64)> = analyzed
+    let nominal: Vec<(VarName, f64)> = analyzed
         .varying()
         .map(|(name, p)| (name.clone(), p.nominal))
         .collect();
@@ -299,7 +299,7 @@ fn replay(base: &Chain, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
                     &doc,
                     &DocEdit::SetDocParamValue {
                         name: name.clone(),
-                        value: DocParamValue::Continuous(value + offset),
+                        value: FreeValue::Continuous(value + offset),
                     },
                     tol,
                     &RefusingReach,

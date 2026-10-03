@@ -425,7 +425,35 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     surface: &Surface<T>,
     band: Band,
+    at: &mut Vec<RefusedSpan>,
 ) -> Result<(T, T), SsiError> {
+    // Limb 2's hull: the implicit form composed with the refined
+    // carrier, in metres.
+    let hull = || -> Result<Hull, SsiError> {
+        let (form, to_meters) =
+            composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
+        let fine = refined(carrier);
+        let coords = fine.certified_coords();
+        let data = CurveCertData::new(fine.knots(), fine.weights(), &coords).map_err(|_| {
+            SsiError::UnsupportedCertificate {
+                what: "the fitted carrier's enclosure data is malformed",
+            }
+        })?;
+        let composite = compose::implicit_composite(&data, &form).map_err(|_| {
+            SsiError::UnsupportedCertificate {
+                what: "the implicit composite refused the fitted carrier",
+            }
+        })?;
+        Ok(Hull {
+            sup: composite.sup_bound() * to_meters,
+            breaks: composite.num.breaks().to_vec(),
+            spans: composite
+                .span_sup_bounds()
+                .into_iter()
+                .map(|b| b * to_meters)
+                .collect(),
+        })
+    };
     // ---- limb 1: the fixed schedule ----
     let (t0, t1) = carrier.domain();
     let mut worst = T::zero();
@@ -435,7 +463,14 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         // `max`, not a `>` branch: the running worst is a scalar-typed
         // quantity now, and generic evaluation code does not compare.
         worst = worst.max(r);
-        match decide("ssi_on_locus", Margin::of(r), band) {
+        let decided = decide("ssi_on_locus", Margin::of(r), band);
+        if locatable(&decided) {
+            at.push(RefusedSpan { lo: t, hi: t });
+            if let Ok(hull) = hull() {
+                hull.uncleared(band, at);
+            }
+        }
+        match decided {
             // Zero is the affirmative: the residual is zero to
             // tolerance (the `dihedral_wedge` convention).
             Ok(Sign::Zero) => {}
@@ -455,25 +490,16 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     }
 
     // ---- limb 2: the certified hull bound ----
-    let (form, to_meters) =
-        composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
-    let fine = refined(carrier);
-    let coords = fine.certified_coords();
-    let data = CurveCertData::new(fine.knots(), fine.weights(), &coords).map_err(|_| {
-        SsiError::UnsupportedCertificate {
-            what: "the fitted carrier's enclosure data is malformed",
-        }
-    })?;
-    let composite = compose::implicit_composite(&data, &form).map_err(|_| {
-        SsiError::UnsupportedCertificate {
-            what: "the implicit composite refused the fitted carrier",
-        }
-    })?;
+    let hull = hull()?;
     // Interval arithmetic answers with an `f64` upper bound — that is what a hull
     // bound is — and it is lifted here so the limb is banded at the
     // caller's scalar like every other residual (field docs).
-    let sup = T::from_f64(composite.sup_bound() * to_meters);
-    match decide("ssi_hull_sup", Margin::of(sup), band) {
+    let sup = T::from_f64(hull.sup);
+    let decided = decide("ssi_hull_sup", Margin::of(sup), band);
+    if locatable(&decided) {
+        hull.uncleared(band, at);
+    }
+    match decided {
         Ok(Sign::Zero) => Ok((worst, sup)),
         Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
@@ -493,7 +519,65 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     surface: &NurbsSurface<T>,
     band: Band,
+    at: &mut Vec<RefusedSpan>,
 ) -> Result<(T, T), SsiError> {
+    // Limb 2's hull: `S(P(t)) − C(t)` enclosed as one composite, in
+    // metres.
+    let hull = || -> Result<Hull, SsiError> {
+        // The tensor-product Bernstein composition encloses the difference
+        // at the coefficient level, so the cancellation that IS the content
+        // of S(P(t)) = C(t) survives into the bound (PR 7's first-order
+        // enclosure added the two variation radii instead and scaled with
+        // the span width — ~1e-2 m where the truth is ~1e-10 m). Data in,
+        // bounds out: nothing here samples anything (C2.2).
+        //
+        // The OQ4-aligned fit (carrier and pcurve on one knot vector) stays
+        // the cache contract, and the composite serves the unaligned case
+        // over the same bound: both curves are decomposed onto the MERGED
+        // break list by exact knot insertion, so alignment is recovered
+        // structurally rather than approximated by a whole-domain radius.
+        // The `SSI_CERT_SPANS` uniform breaks are injected for hull
+        // tightness — the same structure choice `refined` makes for the box
+        // chain (C6's f64 lane), expressed as breaks instead of a refit.
+        let coords = carrier.certified_coords();
+        let cdata =
+            CurveCertData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
+                SsiError::UnsupportedCertificate {
+                    what: "the fitted carrier's enclosure data is malformed",
+                }
+            })?;
+        let pcoords = pcurve.certified_coords();
+        let pdata =
+            CurveCertData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
+                SsiError::UnsupportedCertificate {
+                    what: "the traced pcurve's enclosure data is malformed",
+                }
+            })?;
+        let scoords = surface.certified_coords();
+        let sdata = tensor::SurfaceCertData::new(
+            surface.knots_u(),
+            surface.knots_v(),
+            surface.weights(),
+            &scoords,
+        )
+        .map_err(|_| SsiError::UnsupportedCertificate {
+            what: "the NURBS operand's enclosure data is malformed",
+        })?;
+        let extra = chart_breaks(carrier.knots(), pcurve.knots());
+        let residual =
+            tensor::surface_curve_residual(&sdata, &pdata, &cdata, &extra).map_err(|_| {
+                SsiError::UnsupportedCertificate {
+                    what: "the tensor composite refused the carrier/pcurve pair (mismatched \
+                       channel counts or knot domains — the shared-parameter identity is the entry \
+                       requirement)",
+                }
+            })?;
+        Ok(Hull {
+            sup: residual.sup_bound(),
+            breaks: residual.breaks().to_vec(),
+            spans: residual.span_bounds().to_vec(),
+        })
+    };
     // ---- limb 1: the fixed schedule, through certified foot points --
     let (t0, t1) = carrier.domain();
     let mut worst = T::zero();
@@ -513,7 +597,14 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 last_distance: e.last_distance,
             })?;
         worst = worst.max(proj.distance);
-        match decide("ssi_on_locus_foot", Margin::of(proj.distance), band) {
+        let decided = decide("ssi_on_locus_foot", Margin::of(proj.distance), band);
+        if locatable(&decided) {
+            at.push(RefusedSpan { lo: t, hi: t });
+            if let Ok(hull) = hull() {
+                hull.uncleared(band, at);
+            }
+        }
+        match decided {
             Ok(Sign::Zero) => {}
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(SsiError::CertificateLimb {
@@ -556,57 +647,18 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     }
 
     // ---- limb 2: |S(P(t)) − C(t)| as ONE composite (M5 PR 7b) ----
-    // The tensor-product Bernstein composition encloses the difference
-    // at the coefficient level, so the cancellation that IS the content
-    // of S(P(t)) = C(t) survives into the bound (PR 7's first-order
-    // enclosure added the two variation radii instead and scaled with
-    // the span width — ~1e-2 m where the truth is ~1e-10 m). Data in,
-    // bounds out: nothing here samples anything (C2.2).
-    //
-    // The OQ4-aligned fit (carrier and pcurve on one knot vector) stays
-    // the cache contract, and the composite serves the unaligned case
-    // over the same bound: both curves are decomposed onto the MERGED
-    // break list by exact knot insertion, so alignment is recovered
-    // structurally rather than approximated by a whole-domain radius.
-    // The `SSI_CERT_SPANS` uniform breaks are injected for hull
-    // tightness — the same structure choice `refined` makes for the box
-    // chain (C6's f64 lane), expressed as breaks instead of a refit.
-    let coords = carrier.certified_coords();
-    let cdata = CurveCertData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
-        SsiError::UnsupportedCertificate {
-            what: "the fitted carrier's enclosure data is malformed",
-        }
-    })?;
-    let pcoords = pcurve.certified_coords();
-    let pdata = CurveCertData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
-        SsiError::UnsupportedCertificate {
-            what: "the traced pcurve's enclosure data is malformed",
-        }
-    })?;
-    let scoords = surface.certified_coords();
-    let sdata = tensor::SurfaceCertData::new(
-        surface.knots_u(),
-        surface.knots_v(),
-        surface.weights(),
-        &scoords,
-    )
-    .map_err(|_| SsiError::UnsupportedCertificate {
-        what: "the NURBS operand's enclosure data is malformed",
-    })?;
-    let extra = chart_breaks(carrier.knots(), pcurve.knots());
-    let sup = tensor::surface_curve_residual(&sdata, &pdata, &cdata, &extra)
-        .map_err(|_| SsiError::UnsupportedCertificate {
-            what: "the tensor composite refused the carrier/pcurve pair (mismatched \
-                   channel counts or knot domains — the shared-parameter identity is the entry \
-                   requirement)",
-        })?
-        .sup_bound();
+    let hull = hull()?;
+    let sup = hull.sup;
     // Unlike the analytic arm, the NURBS arm needs NO exactness gate:
     // every coefficient of every operand entered interval arithmetic through its
     // own bracket (`certified_coords`), so a widened control net widens the
     // composite and the bound stays honest.
     let sup = T::from_f64(sup);
-    match decide("ssi_hull_sup_chart", Margin::of(sup), band) {
+    let decided = decide("ssi_hull_sup_chart", Margin::of(sup), band);
+    if locatable(&decided) {
+        hull.uncleared(band, at);
+    }
+    match decided {
         Ok(Sign::Zero) => Ok((worst, sup)),
         Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
@@ -616,6 +668,45 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             limb: SsiLimb::HullSup,
             cause,
         }),
+    }
+}
+
+/// Whether a limb's verdict is a refusal refinement can locate: a
+/// definite one, or one undecided on a margin that is a number. A
+/// margin that is no number is no residual a denser carrier answers, so
+/// that refusal stands at once.
+fn locatable(decided: &Result<Sign, geom_core::Indeterminate>) -> bool {
+    match decided {
+        Ok(Sign::Zero) => false,
+        Ok(Sign::Positive | Sign::Negative) => true,
+        Err(cause) => !cause.margin.is_invalid(),
+    }
+}
+
+/// Limb 2's composite, span by span: a certified upper bound in metres
+/// on the carrier's residual over each span, span `j` covering
+/// `[breaks[j], breaks[j+1]]`.
+struct Hull {
+    /// The bound over the whole carrier, the composite's own.
+    sup: f64,
+    breaks: Vec<f64>,
+    spans: Vec<f64>,
+}
+
+impl Hull {
+    /// Pushes onto `at` every span whose bound does not clear the band's
+    /// zero. A selection of where to look (C6's f64 lane), never a
+    /// decision: the refusal it locates is decided by the limb, and a
+    /// refused (`NaN`) span is selected.
+    fn uncleared(&self, band: Band, at: &mut Vec<RefusedSpan>) {
+        for (w, bound) in self.breaks.windows(2).zip(&self.spans) {
+            if !matches!(
+                bound.partial_cmp(&band.zero()),
+                Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
+            ) {
+                at.push(RefusedSpan { lo: w[0], hi: w[1] });
+            }
+        }
     }
 }
 
@@ -1122,6 +1213,55 @@ pub(crate) enum Lane<'a, T: Real> {
     },
 }
 
+/// Where limb 1 or 2 refused a carrier: the parameter interval `[lo,
+/// hi]`, a point for a limb-1 sample.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RefusedSpan {
+    /// The interval's start.
+    pub(crate) lo: f64,
+    /// The interval's end.
+    pub(crate) hi: f64,
+}
+
+/// A certificate's refusal, with where on the carrier limbs 1 and 2
+/// refused it: the parameter intervals whose residual did not clear the
+/// band's zero, a limb-1 sample as a point interval. Empty for every
+/// other refusal, which no density of samples answers.
+#[derive(Debug)]
+pub(crate) struct Located {
+    /// The refusal, as [`certify_branch`] reports it.
+    pub(crate) error: SsiError,
+    /// The carrier's parameter intervals the refusal lies in.
+    pub(crate) at: Vec<RefusedSpan>,
+}
+
+/// A refusal the certificate does not locate.
+impl From<SsiError> for Located {
+    fn from(error: SsiError) -> Self {
+        Self {
+            error,
+            at: Vec::new(),
+        }
+    }
+}
+
+/// [`certify_branch`] at `f64`, locating a limb-1 or limb-2 refusal on
+/// the carrier. A limb-3 refusal is not located: no density of samples
+/// answers it.
+///
+/// # Errors
+///
+/// As [`certify_branch`], with the refused intervals.
+pub(crate) fn certify_located(
+    carrier: &NurbsCurve3<f64>,
+    lane: Lane<'_, f64>,
+    scale: TubeScale<f64>,
+    band: Band,
+) -> Result<SsiCertificate<f64>, Located> {
+    let mut at = Vec::new();
+    certify_branch(carrier, lane, scale, band, &mut at).map_err(|error| Located { error, at })
+}
+
 /// Certify a fitted rung-3 carrier on its [`Lane`] — all three limbs, in
 /// order, refusing typed at the first failure.
 ///
@@ -1146,11 +1286,15 @@ pub(crate) enum Lane<'a, T: Real> {
 /// applies — the three limbs' trileans and the tube ladder's floor —
 /// reads it from there, so there is no second number a caller could
 /// certify at.
+///
+/// A limb-1 or limb-2 refusal is located on the carrier in `at`
+/// ([`RefusedSpan`]), for [`super::march::refine_by_certificate`].
 pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     lane: Lane<'_, T>,
     scale: TubeScale<T>,
     band: Band,
+    at: &mut Vec<RefusedSpan>,
 ) -> Result<SsiCertificate<T>, SsiError> {
     // The pair the first two limbs read, the pcurve beside the second.
     let (first, second);
@@ -1173,14 +1317,14 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     let mut hull_sup = T::zero();
     for (op, pc) in [(a, None), (b, pcurve_b)] {
         let (l1, l2) = match op {
-            SsiOperand::Analytic(s) => analytic_limbs(carrier, s, band)?,
+            SsiOperand::Analytic(s) => analytic_limbs(carrier, s, band, at)?,
             SsiOperand::Nurbs(s) => {
                 let Some(p) = pc else {
                     return Err(SsiError::UnsupportedCertificate {
                         what: NURBS_LIMBS_NEED_PCURVE,
                     });
                 };
-                nurbs_limbs(carrier, p, s.surface(), band)?
+                nurbs_limbs(carrier, p, s.surface(), band, at)?
             }
         };
         on_locus = on_locus.max(l1);
@@ -1979,5 +2123,82 @@ mod tests {
         assert!(cause.margin.is_invalid(), "{cause:?}");
         let (rung, _) = ladder_of((0.5, None), (0.0, None)).unwrap();
         assert_eq!(rung.one_arc, None, "at rest one arc is not asked");
+    }
+
+    /// **A limb-3 refusal is not located, so refinement leaves it
+    /// unwrapped.** The fold at slope `c = 800ε`, gap height β = ½ε:
+    /// the straight carrier across its gap passes limbs 1 and 2, and on
+    /// the chart search's lane its tube is a graph but not one arc. The
+    /// refusal is `TubeNotOneArc` with no located interval, which
+    /// [`super::super::refine::refine_by_certificate`] returns as it is
+    /// rather than as `RefinementExhausted`.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn a_limb_three_refusal_on_the_chart_lane_is_not_located() {
+        use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
+        use geom_core::spline::KnotVector;
+        use geom_core::{Band, Point2, Point3, Vec3};
+
+        use super::{Lane, certify_located};
+        use crate::ssi::{ChartedNurbs, SsiError, TubeScale};
+
+        let beta = 0.5e-9;
+        let c = 1600.0 * beta;
+        let a = 0.28 * c * c / beta;
+        let w = beta / c;
+        let l = 1.2 * w;
+        let (x0, x1) = (-1.5 * w, 1.8 * w);
+        let g = |x: f64| c * x + a * x * x;
+        let gb = [g(x0), g(x0) + 0.5 * (x1 - x0) * (c + 2.0 * a * x0), g(x1)];
+        let k2 = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let (xs, ys) = ([x0, 0.5 * (x0 + x1), x1], [0.0, 0.5 * l, l]);
+        let control = (0..9)
+            .map(|i| {
+                Point3::new(
+                    xs[i / 3],
+                    ys[i % 3],
+                    gb[i / 3] + [0.0, 2.0 * beta, 0.0][i % 3],
+                )
+            })
+            .collect();
+        let wall = NurbsSurface::new(k2(), k2(), control, vec![1.0; 9]).unwrap();
+        let k1 = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let carrier = NurbsCurve3::new(
+            k1(),
+            vec![Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, l, 0.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let u0 = -x0 / (x1 - x0);
+        let pcurve = NurbsCurve2::new(
+            k1(),
+            vec![Point2::new(u0, 0.0), Point2::new(u0, 1.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let lane = Lane::Chart {
+            plane: &plane,
+            wall: ChartedNurbs::mint(&wall).unwrap(),
+            pcurve: &pcurve,
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let Err(refused) = certify_located(&carrier, lane, TubeScale::uniform(1.0), band) else {
+            panic!("the carrier across the gap certified on the search's lane");
+        };
+        assert!(
+            matches!(refused.error, SsiError::TubeNotOneArc { .. }),
+            "{:?}",
+            refused.error
+        );
+        assert!(
+            refused.at.is_empty(),
+            "limb 3 was located: {:?}",
+            refused.at
+        );
     }
 }

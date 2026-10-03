@@ -58,10 +58,10 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr,
-    Label, LoopProgram, Maintenance, Node, ParamName, PartReach, PartResolver, ProductError,
-    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, apply,
-    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
+    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, FreeValue, FreeVar,
+    Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError, ProfileProgram,
+    RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarName, apply, assemble_gathered,
+    cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -131,10 +131,7 @@ enum GestureTarget {
     /// to protect. The panel still SHOWS the drag in the parameter's
     /// written unit — it converts before the value crosses into this
     /// layer, which is canonical throughout.
-    Param {
-        name: ParamName,
-        dimension: Dimension,
-    },
+    Param { name: VarName, dimension: Dimension },
 }
 
 impl GestureTarget {
@@ -1846,7 +1843,7 @@ impl DocSession {
     /// The parser needs them so a parameter reference records the
     /// dimension `apply` will re-check it against; a door that built
     /// the map itself would be free to build a different one.
-    fn param_dims(&self) -> std::collections::BTreeMap<ParamName, Dimension> {
+    fn param_dims(&self) -> std::collections::BTreeMap<VarName, Dimension> {
         self.committed_doc()
             .params()
             .iter()
@@ -1887,7 +1884,7 @@ impl DocSession {
     /// `DocEdit::SetDocParamValue` carries an existing declaration
     /// forward and refuses `EditError::DocParamNotDeclared` when there
     /// is none.
-    fn set_param(&mut self, name: &ParamName, value: SlotValue) -> OpOutcome {
+    fn set_param(&mut self, name: &VarName, value: SlotValue) -> OpOutcome {
         self.commit_written(props::param_edit(name.clone(), value))
     }
 
@@ -1899,7 +1896,7 @@ impl DocSession {
     /// not measure the declared dimension — is refused by
     /// `DocEdit::SetDocParamUnit` in the door's own words, and a
     /// second opinion here could only agree or disagree.
-    fn set_param_unit(&mut self, name: ParamName, unit: UnitDef) -> OpOutcome {
+    fn set_param_unit(&mut self, name: VarName, unit: UnitDef) -> OpOutcome {
         self.commit_written(props::param_unit_edit(name, unit))
     }
 
@@ -1933,7 +1930,7 @@ impl DocSession {
     /// one fact, and a number that reads back as the one standing
     /// cannot have got past the field's guard as anything but a
     /// deliberate re-type.
-    fn set_param_text(&mut self, name: ParamName, text: &str) -> OpOutcome {
+    fn set_param_text(&mut self, name: VarName, text: &str) -> OpOutcome {
         let expr = match parse_expr(text, &self.param_dims()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
@@ -1946,7 +1943,7 @@ impl DocSession {
         let (Some(value), Some(unit)) = (expr.literal_value(), expr.display_unit()) else {
             return OpOutcome::refused(Refusal::ParamNotANumber { name });
         };
-        let declared = self.committed_doc().params().get(&name).map(DocParam::dim);
+        let declared = self.committed_doc().params().get(&name).map(FreeVar::dim);
         let notation = props::param_unit_edit(name.clone(), unit);
         let written = props::param_edit(name.clone(), SlotValue::Continuous(value));
         match declared {
@@ -1978,7 +1975,7 @@ impl DocSession {
     /// The create door: refuse an already-declared name typed, commit
     /// the edit for a new one. See [`SessionOp::CreateParam`] for why
     /// this door narrows the edit's create-or-replace semantics.
-    fn create_param(&mut self, name: ParamName, value: DocParam) -> OpOutcome {
+    fn create_param(&mut self, name: VarName, value: FreeVar) -> OpOutcome {
         if let Some(existing) = self.committed_doc().params().get(&name) {
             return OpOutcome::refused(Refusal::ParamExists {
                 dimension: existing.dim(),
@@ -2006,7 +2003,7 @@ impl DocSession {
     }
 
     /// The parameter door: a drag over a declared parameter's value.
-    fn begin_param_gesture(&mut self, name: &ParamName) -> OpOutcome {
+    fn begin_param_gesture(&mut self, name: &VarName) -> OpOutcome {
         let name = name.clone();
         self.start(move |doc| {
             let dimension = doc
@@ -2806,17 +2803,17 @@ impl DocSession {
             // the edit is a redeclaration and the door refuses it.
             DocEdit::SetDocParamValue { name, value } => match (doc.params().get(name), value) {
                 (
-                    Some(DocParam::Continuous { value: stood, .. }),
-                    DocParamValue::Continuous(offered),
+                    Some(FreeVar::Continuous { value: stood, .. }),
+                    FreeValue::Continuous(offered),
                 ) => stood == offered,
-                (Some(DocParam::Count { value: stood }), DocParamValue::Count(offered)) => {
+                (Some(FreeVar::Count { value: stood }), FreeValue::Count(offered)) => {
                     stood == offered
                 }
                 _ => false,
             },
             DocEdit::SetDocParamUnit { name, unit } => matches!(
                 doc.params().get(name),
-                Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
+                Some(FreeVar::Continuous { display_unit, .. }) if display_unit == unit
             ),
             // The rename field's text, against the label the node has.
             DocEdit::SetLabel { node, label } => doc.label(*node) == label.as_ref(),

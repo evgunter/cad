@@ -16,9 +16,9 @@ use crate::fixture::{self, Recorder, ang, len, scl};
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions,
-    Evaluation, Expr, Node, NodeError, NodeErrorKind, NodeResult, ParamName, ProfileDoc,
-    ProfileLift, RecipeNodeId, RoleSeg, UnitSym, ValuePayload, evaluate,
+    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    FreeVar, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc, ProfileLift, RecipeNodeId,
+    RoleSeg, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol, UnitVec3};
 use topo::{DatumValue, validate_closed};
@@ -141,8 +141,8 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
 fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("lift"),
-        value: DocParam::Continuous {
+        name: VarName::from_static("lift"),
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -170,7 +170,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
             translation: [
                 len(0.0),
                 len(0.0),
-                Expr::param(ParamName::from_static("lift"), Dimension::Length),
+                Expr::param(VarName::from_static("lift"), Dimension::Length),
             ],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
             angle: ang(0.0),
@@ -254,8 +254,8 @@ fn an_interval_extrude_of_a_widened_height() {
     let at = |width: f64| -> bool {
         let mut r = Recorder::new();
         r.push(DocEdit::SetDocParam {
-            name: ParamName::from_static("hh"),
-            value: DocParam::Continuous {
+            name: VarName::from_static("hh"),
+            value: FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -277,7 +277,7 @@ fn an_interval_extrude_of_a_widened_height() {
         );
         r.insert(Node::Extrude {
             profile,
-            distance: Expr::param(ParamName::from_static("hh"), Dimension::Length),
+            distance: Expr::param(VarName::from_static("hh"), Dimension::Length),
             side: ExtrudeSide::Along,
         });
         let doc = r.doc;
@@ -322,8 +322,8 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     let width = Tol::witness().eps() / 10.0;
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("h"),
-        value: DocParam::Continuous {
+        name: VarName::from_static("h"),
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: 1.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -341,7 +341,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     );
     let cube = r.insert(Node::Extrude {
         profile,
-        distance: Expr::param(ParamName::from_static("h"), Dimension::Length),
+        distance: Expr::param(VarName::from_static("h"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {

@@ -1801,7 +1801,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/flush.rs",
         "FlushRefusal",
         POSITIONAL,
-        2,
+        4,
         "a positional `{:?}` over an expression this census does not type",
     ),
     (

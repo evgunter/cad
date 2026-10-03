@@ -271,3 +271,25 @@ which the fit rung takes to be about 1, is far from it:
 (`crates/geom-brep/tests/m5_pr7_ssi.rs`) pins the zcut at ε 1e-9:
 certified at d = 1, limb 2 in band at d = 2. The tilt at d = 2 and
 1e-6 is pinned by `a_seed_settled_off_the_walls_chart_is_no_branch`.
+
+## Cause 4 answered by refinement (ssi/step-max-certify, 2026-10-03)
+
+`SSI_STEP_MAX` is retired. Where limb 1 or 2 refuses a fitted carrier,
+the gaps between samples that the refused spans meet are halved and
+the carrier refitted (`march::refine_by_certificate`). Measured on the
+four cuts above at d = 0–3 (d = 3 oblique and zcut refuse
+`WindowShortOfWall` at this domain), against main at 3cb7bc8:
+
+- **ε 1e-6:** every cut certifies. The tilt at d = 2 (`HS~` before)
+  certifies on 94 samples.
+- **ε 1e-9:** every cut certifies. The oblique at d = 0.5–2 (`OL~` and
+  `HS` before) takes 258 / 402 / 579 samples; the tilt at d = 1–3
+  (`HS`, `HS`, `OL~` before) 346 / 491 / 636; the zcut at d = 2 (`HS~`)
+  348, two more than the march's 346. The two limb-1 escalations listed
+  above as unexplained certify too: they were the same under-sampling.
+- **ε 1e-12:** unchanged, `FitSampleBudget` (cause 2) wherever it was.
+- A flat wall's cuts take 6 samples (33 to 46 before).
+
+`a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused` and
+`a_seed_settled_off_the_walls_chart_is_no_branch` pin the zcut and the
+tilt. Cause 2 remains, so the row stays open.

@@ -123,8 +123,8 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .doc
         .apply(
             &editor_core::DocEdit::SetDocParam {
-                name: editor_core::ParamName::from_static("pip_depth"),
-                value: editor_core::DocParam::continuous(editor_core::Dimension::Length, 0.0625),
+                name: editor_core::VarName::from_static("pip_depth"),
+                value: editor_core::FreeVar::continuous(editor_core::Dimension::Length, 0.0625),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -217,13 +217,13 @@ fn a_side_flip_recomputes_its_cone_and_undo_restores_the_body() {
 #[test]
 fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     use editor_core::{
-        Dimension, DocEdit, DocParam, Expr, Node, NodeErrorKind, ParamName, RefusingReach,
+        Dimension, DocEdit, Expr, FreeVar, Node, NodeErrorKind, RefusingReach, VarName,
     };
-    let h = ParamName::from_static("h");
+    let h = VarName::from_static("h");
     let mut r = fixture::Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: h.clone(),
-        value: DocParam::continuous(Dimension::Length, -0.25),
+        value: FreeVar::continuous(Dimension::Length, -0.25),
     });
     let profile = r.profile(
         [0.0; 3],
@@ -266,7 +266,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     for edit in [
         DocEdit::SetDocParam {
             name: h,
-            value: DocParam::continuous(Dimension::Length, 0.25),
+            value: FreeVar::continuous(Dimension::Length, 0.25),
         },
         DocEdit::SetExtrudeSide {
             node: block,
@@ -307,7 +307,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                 slot: SlotId::Distance,
                 expr: editor_core::Expr::div(
                     editor_core::Expr::param(
-                        editor_core::ParamName::from_static("pip_depth"),
+                        editor_core::VarName::from_static("pip_depth"),
                         editor_core::Dimension::Length,
                     ),
                     fixture::scl(0.0),

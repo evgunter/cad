@@ -727,7 +727,7 @@ mod tests {
     /// run time rather than passing as a census row.
     #[allow(clippy::too_many_lines)]
     fn witness(class: C) -> K {
-        use crate::{EvalError, ParamName, SlotId};
+        use crate::{EvalError, SlotId, VarName};
         let n = RecipeNodeId;
         match class {
             C::Expr => K::Expr {
@@ -784,17 +784,17 @@ mod tests {
             },
             C::ParamBox => K::ParamBox {
                 source: crate::ParamBoxError::UnknownParam {
-                    param: ParamName::from_static("width"),
+                    param: VarName::from_static("width"),
                 },
             },
             C::Seed => K::Seed {
                 source: crate::SeedError::UnknownParam {
-                    param: ParamName::from_static("width"),
+                    param: VarName::from_static("width"),
                 },
             },
             C::SeedPinnedSection => K::SeedPinnedSection {
                 section: n(3),
-                param: ParamName::from_static("width"),
+                param: VarName::from_static("width"),
             },
             C::WrongOperand => K::WrongOperand {
                 input: n(3),

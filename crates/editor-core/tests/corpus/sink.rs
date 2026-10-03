@@ -38,8 +38,8 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, Distribution, DocEdit,
-    DocParam, DocParamValue, EntityKind, Expr, ExprPath, MetaValue, Node, ParamName, PatternKind,
-    Rgba8, RoleSeg, SlotId, StableName, UnitSym, WitnessDatum,
+    EntityKind, Expr, ExprPath, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8, RoleSeg,
+    SlotId, StableName, UnitSym, VarName, WitnessDatum,
 };
 
 use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
@@ -53,8 +53,8 @@ pub fn document() -> CorpusDoc {
     let ambient = r.doc.epsilon();
     r.push(DocEdit::SetTolerance { eps: ambient });
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("h"),
-        value: DocParam::continuous(Dimension::Length, 1.0),
+        name: VarName::from_static("h"),
+        value: FreeVar::continuous(Dimension::Length, 1.0),
     });
     // The VALUE door, on the parameter the declaration above just
     // made: it carries the declaration forward, so `h` keeps its
@@ -62,8 +62,8 @@ pub fn document() -> CorpusDoc {
     // moves. The document's state after this pair is the same
     // document a single declaration at 1.25 would have produced.
     r.push(DocEdit::SetDocParamValue {
-        name: ParamName::from_static("h"),
-        value: DocParamValue::Continuous(1.25),
+        name: VarName::from_static("h"),
+        value: FreeValue::Continuous(1.25),
     });
     // The NOTATION door, the value door's mirror over the other field
     // of the same declaration: `h` is now written in millimetres and
@@ -72,7 +72,7 @@ pub fn document() -> CorpusDoc {
     // presentation metadata), so the round-trip rows read it as the
     // same document and the FILE is where it has to survive.
     r.push(DocEdit::SetDocParamUnit {
-        name: ParamName::from_static("h"),
+        name: VarName::from_static("h"),
         unit: UnitSym::from_def(&quantity::MM.def()),
     });
     // The ANNOTATION door, the third field of the same declaration:
@@ -81,15 +81,15 @@ pub fn document() -> CorpusDoc {
     // the notation, which is the trap the door removes; here the FILE
     // carries both, so the round-trip rows read them back together.
     r.push(DocEdit::SetDocParamDistribution {
-        name: ParamName::from_static("h"),
+        name: VarName::from_static("h"),
         distribution: Some(Distribution::Band {
             lo: -0.0001,
             hi: 0.0001,
         }),
     });
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("n"),
-        value: DocParam::Count { value: 3 },
+        name: VarName::from_static("n"),
+        value: FreeVar::Count { value: 3 },
     });
 
     // Datums: an inert point (deleted below — the DeleteNode arm),
@@ -114,7 +114,7 @@ pub fn document() -> CorpusDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let h = Expr::param(ParamName::from_static("h"), Dimension::Length);
+    let h = Expr::param(VarName::from_static("h"), Dimension::Length);
     let dist =
         Expr::mul(h, Expr::sin(ang(std::f64::consts::FRAC_PI_2)).expect("sin")).expect("mul");
     let block_a = r.insert(Node::Extrude {
@@ -212,7 +212,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: linear,
         slot: SlotId::Count,
-        expr: Expr::param(ParamName::from_static("n"), Dimension::Count),
+        expr: Expr::param(VarName::from_static("n"), Dimension::Count),
     });
     // Subtree surgery: replace `sin(π/2)` with the Scalar literal 1
     // (same dimension, same value — a pure representation edit).
