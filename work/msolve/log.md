@@ -1119,3 +1119,15 @@ Ev's three answers, all from 2026-10-01:
   in hand.
 
 Rows were renumbered at merge: main's fork log runs to 57.
+
+#3679 merged at `a8ba0b451`, after Ev's approval and the in-place
+edit to A11 (5) that Ev asked for. Item 19 becomes an MSOLVE unit
+once MSOLVE-12 is in.
+
+The roll fork's round 3 converged. With PLACE's row 53 ruled, both
+designers recommend dropping the turn: the sides' offsets carry the
+roll, `Coaxial { roll: Free | Pinned }`, and `PlanarRest`'s standoff
+retires. The rider deletions stand. #3681 is updated in place to ask
+the revised question (fork-log row 60, all three rounds). The two
+designers differ only on which side the GUI composes a turn onto,
+which is a convention.
