@@ -1212,3 +1212,19 @@ offset }` shape from PLACE's row 53 is unbuilt and lives in `mate.rs`,
 so MSOLVE builds it with the roll unit. A note on PLACE's row says so
 and leaves PLACE the crate, the tour gauge and, if it wants it, the
 offset edit.
+
+## 2026-10-03 — MSOLVE-13 handed back; review dispatched
+
+PR 3969 came back green at `3610f0432`, and the head is frozen. None
+of the STOP clause's conditions fired. The `t3` false refutation
+reproduced on main. Every consumer kind classifies without reading a
+slot. The member-identity change, instrumented across the editor-core
+suite, moved one existing tree: `msolve2::a3b`, the two-spellings case
+it was meant to fold. One pinned verdict moved and gets scrutiny:
+`msolve1::a5`'s consistent half used to pass the gate and now refuses
+`MovedAbove`, because its `x2` is a transform of the operand.
+
+Two calls the lane made beyond the spec are with the review: Fillet,
+Chamfer and Shell are classified as carried, and a mixed route mints.
+Filed: `split-and-inline-over-a-mate-read-at-a-union-are-unmeasured`.
+One full review (C1–C5) is dispatched on Opus.
