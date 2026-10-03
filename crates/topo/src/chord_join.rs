@@ -884,7 +884,7 @@ pub(crate) enum JoinLane<'a, T: Real> {
         /// The partner wall surface (value; from the other operand).
         wall: geom::Surface<T>,
         /// The wall FACE's azimuth window on the wall chart.
-        window: (T, T),
+        window: Option<(T, T)>,
         /// The aux wall key in THIS body (minted once, caller-cached).
         partner_key: &'a mut Option<SurfaceKey>,
     },
@@ -1239,10 +1239,7 @@ fn select_arc<T: Decide>(
     window: (T, T),
     p1: Point3<T>,
     p2: Point3<T>,
-) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
-    // Exact conic parameters of the (on-locus) endpoints.
-    let th1 = conic.param(p1);
-    let th2 = conic.param(p2);
+) -> Result<bool, SplitJoinError> {
     let (w_min, w_max) = window;
     let width = w_max - w_min;
     // The chord's endpoints in the SAME chart frame the window lives
@@ -1406,7 +1403,7 @@ fn select_arc<T: Decide>(
             });
         }
     };
-    Ok(oriented_arc(conic, th1, th2, ccw))
+    Ok(ccw)
 }
 
 /// The candidate arc of `conic` from `th1` to `th2` (exact conic
@@ -1668,7 +1665,7 @@ fn select_arc_by_run_side<T: Decide>(
     run: &[HalfEdgeKey],
     p1: Point3<T>,
     p2: Point3<T>,
-) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
+) -> Result<bool, SplitJoinError> {
     let refuse = |case| SplitJoinError::SectionArcSide { face, case, band };
     let escalated = |diag| SplitJoinError::Escalated { face, diag };
     let real = certified_run(body, run)?;
@@ -1772,8 +1769,90 @@ fn select_arc_by_run_side<T: Decide>(
             _ => ccw = Some(here),
         }
     }
-    let ccw = ccw.ok_or(refuse(ArcSideCase::NoCertifiedRun))?;
-    Ok(oriented_arc(conic, th1, th2, ccw))
+    ccw.ok_or(refuse(ArcSideCase::NoCertifiedRun))
+}
+
+/// The direction the section leaves each of a join's two sites in,
+/// toward the other: the datum the lane that paired the sites decided
+/// the pairing on, handed to the chord so that it takes the arc the
+/// pairing saw rather than deriving it again.
+///
+/// The boolean hands each half's germ direction ([`crate::boolean::HalfGerm::dir`]);
+/// the split hands `±(n_plane × n_out)`, the way its conic walk enters
+/// the face at a down crossing and leaves it at an up one
+/// (`splitting::join`'s `split_leave`). Either is tangent to the section
+/// at the site, of any positive length.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Leave<T: Real> {
+    /// At the site of the join's first half (`h1`).
+    pub(crate) h1: Vec3<T>,
+    /// At the site of its second half (`h2`).
+    pub(crate) h2: Vec3<T>,
+}
+
+/// Whether the chord `p1 → p2` takes the conic's ccw candidate: the one
+/// whose tangent at `p1` agrees with `leave`, the section's direction of
+/// departure there ([`Leave`]). Decided as `leave · Ĉ′(θ₁)` levered by
+/// the semi-major axis (`chord_arc_leave`); a datum with no component
+/// along the section is malformed and refuses.
+///
+/// # Errors
+///
+/// [`SplitJoinError::SectionInvariant`] for a datum normal to the
+/// section; [`SplitJoinError::Escalated`] in the band.
+fn arc_leaving<T: Decide>(
+    face: FaceKey,
+    band: Band,
+    conic: &SectionConic<T>,
+    p1: Point3<T>,
+    leave: Vec3<T>,
+) -> Result<bool, SplitJoinError> {
+    let tangent = conic.tangent(conic.param(p1));
+    match decide(
+        "chord_arc_leave",
+        Margin::levered(leave.dot(tangent) / tangent.norm(), conic.sa),
+        band,
+    )
+    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+    {
+        Sign::Positive => Ok(true),
+        Sign::Negative => Ok(false),
+        Sign::Zero => Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "the section's direction of departure handed to a chord end has no \
+                   component along the section there",
+        }),
+    }
+}
+
+/// ARCPAIR cross-check: the datum's arc against the old selector's.
+fn arcpair_check<T: Decide>(
+    lane: &str,
+    face: FaceKey,
+    old: Result<bool, SplitJoinError>,
+    new: Result<bool, SplitJoinError>,
+) -> Result<bool, SplitJoinError> {
+    let tag = match (&old, &new) {
+        (Ok(a), Ok(b)) if a == b => "agree",
+        (Ok(_), Ok(_)) => "DISAGREE",
+        (Err(_), Ok(_)) => "old-refused",
+        (Ok(_), Err(_)) => "NEW-REFUSED",
+        (Err(_), Err(_)) => "both-refused",
+    };
+    if let Ok(path) = std::env::var("ARCPAIR_LOG") {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let test = std::thread::current().name().unwrap_or("?").to_string();
+            let _ = writeln!(f, "{tag}\t{lane}\t{face:?}\t{test}\told={:?}\tnew={:?}", old.as_ref().map_err(|e| format!("{e:?}")), new.as_ref().map_err(|e| format!("{e:?}")));
+        }
+    }
+    match (old, new) {
+        (Ok(a), Ok(b)) if a != b && std::env::var("ARCPAIR_PREFER_NEW").is_err() => Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "ARCPAIR: the pairing's datum and the old selector name different arcs",
+        }),
+        (_, new) => new,
+    }
 }
 
 /// The chord spec for dividing `face` between vertices `u1 → u2`
@@ -1853,6 +1932,7 @@ fn chord_spec<T: Decide>(
     run: ChordRun<'_>,
     u1: VertexKey,
     u2: VertexKey,
+    leave: Vec3<T>,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
     // Self-loop chords keep the scaffolding-circle convention.
     if u1 == u2 {
@@ -1879,6 +1959,7 @@ fn chord_spec<T: Decide>(
                 partner_key,
                 u1,
                 u2,
+                leave,
             ),
             JoinLane::Planar | JoinLane::Split(_) => Ok(None),
             JoinLane::AlongEdge => Err(SplitJoinError::SectionInvariant {
@@ -2010,36 +2091,41 @@ fn chord_spec<T: Decide>(
     // monotone: the divided face's own window, from the run this chord
     // co-bounds it with. A run with no charted edge leaves the face
     // without a window: refused typed, never guessed.
-    let (carrier, t_start, t_end) = if conic.azimuth_monotone {
-        let Some(window) = run_azimuth_window(body, &cyl_s, face, run.halves(), band)? else {
-            return Err(SplitJoinError::SectionArcWindow {
-                face,
-                case: ArcWindowCase::NoChartedRun,
-                band,
-            });
-        };
-        let (radius, nappe) = match r_c {
-            Some(r) => (r, T::one()),
-            None => cone_chart_lever(face, band, o_c, a_c, &conic, p1)?,
-        };
-        let chart = ChartFrame {
-            origin: o_c,
-            axis: a_c,
-            radius,
-            u_ref: u_ref_c,
-            nappe,
-        };
-        select_arc(face, band, &chart, &conic, window, p1, p2)?
-    } else {
-        // The run-side rule reads the run the chord CLOSES; a face
-        // window co-bounds nothing, so it hands the rule no run and the
-        // rule refuses `NoCertifiedRun`.
-        let co_bounded = match run {
-            ChordRun::CoBounded(halves) => halves,
-            ChordRun::FaceWindow(_) => &[],
-        };
-        select_arc_by_run_side(body, band, face, &conic, co_bounded, p1, p2)?
-    };
+    let old = (|| {
+        if conic.azimuth_monotone {
+            let Some(window) = run_azimuth_window(body, &cyl_s, face, run.halves(), band)? else {
+                return Err(SplitJoinError::SectionArcWindow {
+                    face,
+                    case: ArcWindowCase::NoChartedRun,
+                    band,
+                });
+            };
+            let (radius, nappe) = match r_c {
+                Some(r) => (r, T::one()),
+                None => cone_chart_lever(face, band, o_c, a_c, &conic, p1)?,
+            };
+            let chart = ChartFrame {
+                origin: o_c,
+                axis: a_c,
+                radius,
+                u_ref: u_ref_c,
+                nappe,
+            };
+            select_arc(face, band, &chart, &conic, window, p1, p2)
+        } else {
+            let co_bounded = match run {
+                ChordRun::CoBounded(halves) => halves,
+                ChordRun::FaceWindow(_) => &[],
+            };
+            select_arc_by_run_side(body, band, face, &conic, co_bounded, p1, p2)
+        }
+    })();
+    if std::env::var("ARCPAIR_DEBUG").is_ok() {
+        let mid = |ccw: bool| { let (c, a, b) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw); c.eval((a + b) * T::from_f64(0.5)) };
+        eprintln!("ARCDBG wall face={face:?} mono={} p1={p1:?} p2={p2:?} leave={leave:?} old={old:?} mid_ccw={:?} mid_cw={:?} run={}", conic.azimuth_monotone, mid(true), mid(false), match run { ChordRun::CoBounded(h) => format!("co{}", h.len()), ChordRun::FaceWindow(h) => format!("fw{}", h.len()) });
+    }
+    let ccw = arcpair_check::<T>("wall", face, old, arc_leaving(face, band, &conic, p1, leave))?;
+    let (carrier, t_start, t_end) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw);
     // The aux plane surface (honest u_ref: the section's major
     // direction, ⊥ normal by construction), minted once per split.
     let plane_key = match ctx.plane_key {
@@ -2188,10 +2274,11 @@ fn bool_planar_chord_spec<T: Decide>(
     face: FaceKey,
     plane_key: SurfaceKey,
     wall: &geom::Surface<T>,
-    window: (T, T),
+    window: Option<(T, T)>,
     partner_key: &mut Option<SurfaceKey>,
     u1: VertexKey,
     u2: VertexKey,
+    leave: Vec3<T>,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
     // The wall's chart frame — cylinder (PR 9, untouched) or sphere
     // (M5 S13: center, polar axis, radius, seam u_ref).
@@ -2258,17 +2345,23 @@ fn bool_planar_chord_spec<T: Decide>(
     // ---- The arc side against the SUPPLIED (mate-face) window: the
     // shared rule, called with a window this lane did not derive. A
     // section with no monotone azimuth has no window to be handed. ----
-    if !conic.azimuth_monotone {
-        return Err(SplitJoinError::SectionNotPolar { face, band });
-    }
-    let chart = ChartFrame {
-        origin: o_c,
-        axis: a_c,
-        radius: r_c,
-        u_ref: u_ref_c,
-        nappe: T::one(),
+    let old = if !conic.azimuth_monotone {
+        Err(SplitJoinError::SectionNotPolar { face, band })
+    } else {
+        let chart = ChartFrame {
+            origin: o_c,
+            axis: a_c,
+            radius: r_c,
+            u_ref: u_ref_c,
+            nappe: T::one(),
+        };
+        match window {
+            Some(window) => select_arc(face, band, &chart, &conic, window, p1, p2),
+            None => Err(SplitJoinError::SectionNotPolar { face, band }),
+        }
     };
-    let (carrier, t_start, t_end) = select_arc(face, band, &chart, &conic, window, p1, p2)?;
+    let ccw = arcpair_check::<T>("planar", face, old, arc_leaving(face, band, &conic, p1, leave))?;
+    let (carrier, t_start, t_end) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw);
     // The aux WALL surface in this body (honest full copy of the
     // mate's wall; minted once per germ wall face, caller-cached).
     let wall_aux = match *partner_key {
@@ -3331,6 +3424,7 @@ impl ChordJoiner {
         h2: HalfEdgeKey,
         mut lane: JoinLane<'_, T>,
         segment: SegmentEdge,
+        leave: Leave<T>,
         tol: Tol,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
         let l1 = body
@@ -3352,6 +3446,18 @@ impl ChordJoiner {
             Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start)
         };
 
+        if std::env::var("ARCPAIR_DEBUG").is_ok() {
+            let desc = |body: &Body<T>, h: HalfEdgeKey| -> String {
+                let Some(hd) = body.get_half_edge(h) else { return "?".into() };
+                let e = body.get_edge(hd.edge).unwrap();
+                let mid = match body.get_curve_geom(e.curve) { Some(CurveGeom::Certified(c)) => format!("{:?}", c.mid_point()), _ => "null".into() };
+                format!("{h:?}[{:?}->{mid}]", body.half_edge_start_point(h))
+            };
+            for (nm, h) in [("h1", h1), ("h2", h2)] {
+                let cyc = body.loop_cycle(h).unwrap_or_default();
+                eprintln!("LOOP {nm} face={:?} :: {}", body.get_loop(body.get_half_edge(h).unwrap().parent_loop).map(|l| l.face), cyc.iter().map(|&x| desc(body, x)).collect::<Vec<_>>().join(" | "));
+            }
+        }
         let mut chords = Vec::new();
         let mut newf = None;
         // The RUN the section chords co-bound (real halves between h1
@@ -3407,6 +3513,7 @@ impl ChordJoiner {
                         ChordRun::CoBounded(&run_halves),
                         u1,
                         u2,
+                        leave.h1,
                     )?,
                 };
                 // Both arms hand `mef` the parent's surface, so the
@@ -3427,10 +3534,10 @@ impl ChordJoiner {
             // is not the face's outer; if both are rings, keep the
             // book's order (kill h2's loop).
             let outer = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?.outer;
-            let (target, ring) = if l2 == outer {
-                (next(body, h2)?, h1)
+            let (target, ring, leave_target) = if l2 == outer {
+                (next(body, h2)?, h1, leave.h2)
             } else {
-                (h1, next(body, h2)?)
+                (h1, next(body, h2)?, leave.h1)
             };
             let site = MekrSite::Cycles { target, ring };
             let face_cycle = cross_loop_window_cycle(body, oldf)?;
@@ -3445,6 +3552,7 @@ impl ChordJoiner {
                     ChordRun::FaceWindow(&face_cycle),
                     u1,
                     u2,
+                    leave_target,
                 )?,
             };
             let made = match spec {
@@ -3503,7 +3611,7 @@ impl ChordJoiner {
             };
             let spec = match along_edge_spec(body, &lane, segment, owner, u1, u2)? {
                 Some(spec) => Some(spec),
-                None => chord_spec(body, self.band, lane, owner, run2, u1, u2)?,
+                None => chord_spec(body, self.band, lane, owner, run2, u1, u2, leave.h2)?,
             };
             let created = match spec {
                 None => body.mef_chord(site, tol)?,
@@ -4059,6 +4167,7 @@ mod tests {
             ChordRun::CoBounded(&run),
             u1,
             u2,
+            Vec3::new(0.0, 1.0, 0.0),
         )
     }
 
@@ -4173,6 +4282,7 @@ mod tests {
             ChordRun::CoBounded(&run),
             u1,
             u2,
+            Vec3::new(0.0, 1.0, 0.0),
         )
         .unwrap_err();
         assert!(
@@ -4542,8 +4652,9 @@ mod tests {
         // on: the start is on `w_min`, which is the whole point.
         let window = (ex(0.0), ex(core::f64::consts::PI));
 
-        let (_, t0, t1) = select_arc(FaceKey::default(), band, &chart, &conic, window, p1, p2)
+        let ccw = select_arc(FaceKey::default(), band, &chart, &conic, window, p1, p2)
             .expect("the arc is selected: the window-relative start is not period-wide");
+        let (_, t0, t1) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw);
         for (what, p) in [("t0", t0), ("t1", t1)] {
             let width = p.hi() - p.lo();
             assert!(
@@ -4629,8 +4740,9 @@ mod tests {
             ex(core::f64::consts::FRAC_PI_2 + 2.5),
         );
 
-        let (_, t0, t1) = select_arc(FaceKey::default(), band, &chart, &conic, window, p1, p2)
+        let ccw = select_arc(FaceKey::default(), band, &chart, &conic, window, p1, p2)
             .expect("the off-axis window-edge straddle still selects the arc");
+        let (_, t0, t1) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw);
         for (what, p) in [("t0", t0), ("t1", t1)] {
             let width = p.hi() - p.lo();
             assert!(

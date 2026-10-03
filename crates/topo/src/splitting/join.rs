@@ -64,7 +64,8 @@ use super::order;
 use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, ConicCrossingsCase, CutOutcome, FragmentRows, JoinLane, SectionCase, SectionCtx,
+    ChordJoiner, ConicCrossingsCase, CutOutcome, FragmentRows, JoinLane, Leave, SectionCase,
+    SectionCtx,
     SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
     vertex_point, wall_section,
 };
@@ -156,6 +157,10 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
         let mut joined = [false, false];
         for (slot, half) in [(0, up), (1, down)] {
             if let Some(end) = st.take_neighbor(&red.body, half)? {
+                let leave = Leave {
+                    h1: split_leave(&red.body, red.plane.normal, &st.above_set, end)?,
+                    h2: split_leave(&red.body, red.plane.normal, &st.above_set, half)?,
+                };
                 let Sweep {
                     joiner, section, ..
                 } = &mut st;
@@ -165,6 +170,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                     half,
                     JoinLane::Split(section),
                     crate::chord_join::SegmentEdge::InPlane,
+                    leave,
                     tol,
                 )?;
                 joined[slot] = true;
@@ -263,6 +269,7 @@ fn fixed_partners<T: Decide>(
                 // The half's up/down sense, read as the sweep reads it
                 // (`Sweep::is_down`).
                 down: above_set.contains_key(start),
+                leave: split_leave(body, red.plane.normal, above_set, h)?,
             });
         }
         let surface = body
@@ -283,12 +290,48 @@ fn fixed_partners<T: Decide>(
     Ok(partner)
 }
 
+/// The direction the section leaves a null-edge half's site in, into
+/// the half's face: `n_plane × n_out` at a down half, where the face's
+/// boundary runs down through the plane and the section enters the
+/// face, and its reverse at an up half, where the section leaves it
+/// ([`conic_pairs`]' walk). `n_out` is the face's outward normal at the
+/// site, read off its carrier ([`geom_brep::implicit_outward_normal`]):
+/// a crossing lies on the face's boundary, so on its carrier. Its length
+/// is the sine between the plane and the carrier there.
+///
+/// One reading for both of its consumers, the pairing of a curved
+/// face's crossings and the chord a join mints between two of them
+/// ([`crate::chord_join::Leave`]), so the chord takes the arc the
+/// pairing walked.
+fn split_leave<T: Decide>(
+    body: &Body<T>,
+    plane_normal: geom_core::UnitVec3<T>,
+    above_set: &SecondaryMap<VertexKey, ()>,
+    half: HalfEdgeKey,
+) -> Result<geom_core::Vec3<T>, SplitJoinError> {
+    let face = he_face(body, half)?;
+    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+    let wall = body
+        .get_surface(face_data.surface)
+        .ok_or_else(|| corrupt_face(face))?;
+    let start = body.get_half_edge(half).ok_or_else(|| corrupt_he(half))?.start;
+    let out = geom_brep::implicit_outward_normal(wall, face_data.sense, vertex_point(body, start)?);
+    let heading = plane_normal.get().cross(out.vec());
+    Ok(if above_set.contains_key(start) {
+        heading
+    } else {
+        -heading
+    })
+}
+
 /// One null-edge half on a face, as the pairing reads it.
 struct Crossing<T: Decide> {
     half: HalfEdgeKey,
     point: Point3<T>,
     /// Starts at an above copy (`Sweep::is_down`).
     down: bool,
+    /// The section's direction into the face there ([`split_leave`]).
+    leave: geom_core::Vec3<T>,
 }
 
 /// A planar face's crossings paired along its section line: keyed by
@@ -425,16 +468,15 @@ fn conic_pairs<T: Decide>(
     else {
         return Ok(Vec::new());
     };
-    let sense = body.get_face(face).ok_or_else(|| corrupt_face(face))?.sense;
     let refuse = |case| SplitJoinError::SectionCrossings { face, case, band };
     let escalate = |diag| SplitJoinError::Escalated { face, diag };
     let mut heading = None;
     let mut walk = Vec::with_capacity(crossings.len());
     for c in crossings {
         let theta = conic.param(c.point);
-        let out = geom_brep::implicit_outward_normal(&wall, sense, c.point).vec();
         let tangent = conic.tangent(theta);
-        let sine = red.plane.normal.get().cross(out).dot(tangent) / tangent.norm();
+        let h = if c.down { c.leave } else { -c.leave };
+        let sine = h.dot(tangent) / tangent.norm();
         let arm = geom_brep::curvature_lever_arm(&wall, c.point);
         let sign = match decide("split_join_conic_heading", Margin::levered(sine, arm), band) {
             Ok(Sign::Zero) => return Err(refuse(ConicCrossingsCase::Grazing)),

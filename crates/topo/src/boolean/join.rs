@@ -126,7 +126,7 @@ use super::{
     SelfCheck, SideCode,
 };
 use crate::body::Body;
-use crate::chord_join::{ChordJoiner, CutOutcome, SegmentEdge, SplitJoinError};
+use crate::chord_join::{ChordJoiner, CutOutcome, Leave, SegmentEdge, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::face_outward_normal;
@@ -255,6 +255,7 @@ impl SolidJoin {
         (origin, normal): (Point3<T>, UnitVec3<T>),
         datum: AuxDatum,
         segment: SegmentEdge,
+        leave: Leave<T>,
         tol: Tol,
     ) -> Result<(), BooleanError> {
         let mut ctx = crate::chord_join::SectionCtx {
@@ -269,6 +270,7 @@ impl SolidJoin {
                 h2,
                 crate::chord_join::JoinLane::Split(&mut ctx),
                 segment,
+                leave,
                 tol,
             )
             .map_err(BooleanError::Join)?;
@@ -287,9 +289,10 @@ impl SolidJoin {
         body: &mut Body<T>,
         (h1, h2): (HalfEdgeKey, HalfEdgeKey),
         wall: geom::Surface<T>,
-        window: (T, T),
+        window: Option<(T, T)>,
         partner_face: FaceKey,
         segment: SegmentEdge,
+        leave: Leave<T>,
         tol: Tol,
     ) -> Result<(), BooleanError> {
         let datum = AuxDatum::Partner(partner_face);
@@ -305,6 +308,7 @@ impl SolidJoin {
                     partner_key: &mut partner,
                 },
                 segment,
+                leave,
                 tol,
             )
             .map_err(BooleanError::Join)?;
@@ -622,29 +626,61 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         );
         let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, a_closure, band)?;
         let (b1, b2) = choose_roles(&red.b, eb, rb, &b_loose, b_closure, band)?;
+        // The section's direction at each site, toward the other: the
+        // germ the matched half faces, per operand.
+        let leave = |germs: [&HalfGerm<T>; 2], h1: HalfEdgeKey, h2: HalfEdgeKey| {
+            let at = |h: HalfEdgeKey| {
+                germs
+                    .iter()
+                    .find(|g| g.he == h)
+                    .map(|g| g.dir)
+                    .ok_or(desync("a joined half faces neither matched germ"))
+            };
+            Ok::<_, BooleanError>(Leave {
+                h1: at(h1)?,
+                h2: at(h2)?,
+            })
+        };
+        if std::env::var("ARCPAIR_DEBUG").is_ok() {
+            for (nm, g) in [("eA", &open[m.entry].a[m.entry_slot].0), ("cA", &open[m.cand].a[m.cand_slot].0), ("eB", &open[m.entry].b[m.entry_slot].0), ("cB", &open[m.cand].b[m.cand_slot].0)] {
+                let body = if nm.ends_with('A') { &red.a } else { &red.b };
+                eprintln!("GERM {nm} he={:?} p={:?} dir={:?} aloc={:?} bloc={:?} af={:?} bf={:?}", g.he, body.half_edge_start_point(g.he), g.dir, g.a_locus, g.b_locus, g.a_face, g.b_face);
+            }
+            eprintln!("ROLES a=({a1:?},{a2:?}) b=({b1:?},{b2:?})");
+        }
+        let leave_a = leave(
+            [&open[m.entry].a[m.entry_slot].0, &open[m.cand].a[m.cand_slot].0],
+            a1,
+            a2,
+        )?;
+        let leave_b = leave(
+            [&open[m.entry].b[m.entry_slot].0, &open[m.cand].b[m.cand_slot].0],
+            b1,
+            b2,
+        )?;
         match lane {
             None => {
                 sa.joiner
-                    .join(&mut red.a, a1, a2, JoinLane::AlongEdge, seg_a, tol)
+                    .join(&mut red.a, a1, a2, JoinLane::AlongEdge, seg_a, leave_a, tol)
                     .map_err(BooleanError::Join)?;
                 sb.joiner
-                    .join(&mut red.b, b1, b2, JoinLane::AlongEdge, seg_b, tol)
+                    .join(&mut red.b, b1, b2, JoinLane::AlongEdge, seg_b, leave_b, tol)
                     .map_err(BooleanError::Join)?;
             }
             Some(GermLane::Planar) => {
                 // The chord runs along the two planes' common line:
                 // straight on both sides.
                 sa.joiner
-                    .join(&mut red.a, a1, a2, JoinLane::Planar, seg_a, tol)
+                    .join(&mut red.a, a1, a2, JoinLane::Planar, seg_a, leave_a, tol)
                     .map_err(BooleanError::Join)?;
                 sb.joiner
-                    .join(&mut red.b, b1, b2, JoinLane::Planar, seg_b, tol)
+                    .join(&mut red.b, b1, b2, JoinLane::Planar, seg_b, leave_b, tol)
                     .map_err(BooleanError::Join)?;
             }
             Some(GermLane::PlaneWall(plane)) => {
                 let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
-                    .map_err(BooleanError::Join)?
-                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
+                    .ok()
+                    .flatten();
                 sa.join_bool_planar(
                     &mut red.a,
                     (a1, a2),
@@ -652,6 +688,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     window,
                     germ.b_face,
                     seg_a,
+                    leave_a,
                     tol,
                 )?;
                 sb.join_split(
@@ -660,6 +697,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     plane,
                     AuxDatum::Partner(germ.a_face),
                     seg_b,
+                    leave_b,
                     tol,
                 )?;
             }
@@ -670,11 +708,12 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     plane,
                     AuxDatum::Partner(germ.b_face),
                     seg_a,
+                    leave_a,
                     tol,
                 )?;
                 let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
-                    .map_err(BooleanError::Join)?
-                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
+                    .ok()
+                    .flatten();
                 sb.join_bool_planar(
                     &mut red.b,
                     (b1, b2),
@@ -682,13 +721,14 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     window,
                     germ.a_face,
                     seg_b,
+                    leave_b,
                     tol,
                 )?;
             }
             Some(GermLane::Radical(radical)) => {
                 let datum = |own, partner| AuxDatum::Radical { own, partner };
-                sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), seg_a, tol)?;
-                sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), seg_b, tol)?;
+                sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), seg_a, leave_a, tol)?;
+                sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), seg_b, leave_b, tol)?;
             }
         }
         open[m.entry].a[m.entry_slot].1 = true;
@@ -1936,7 +1976,11 @@ fn resolve_roles_geometric<T: Decide>(
             tol,
         )
     };
-    loop_roles(face, (outer, side(outer)?), (ring, side(ring)?))
+    let (so, sr) = (side(outer)?, side(ring)?);
+    if std::env::var("ARCPAIR_DEBUG").is_ok() {
+        eprintln!("ROLEPROBE face={face:?} nfaces={} outer={so:?} ring={sr:?} regions_o={:?} regions_r={:?}", body.faces().count(), region_faces(body, face, outer)?, region_faces(body, face, ring)?);
+    }
+    loop_roles(face, (outer, so), (ring, sr))
 }
 
 /// The (IN, OUT) loop order from each loop's ladder reading. Either
