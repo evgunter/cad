@@ -30,3 +30,9 @@ verdict, or a measurement showing the pass is negligible and a sentence
 saying why it stays. FUSE's door measurement put tiers 1–2 at 0.44 s
 against tier 3's 1.90 s over 963 topo results; the operand pass is two
 such runs per op.
+
+At a dual the operand carries no verdict, and the door runs main's whole
+operand gate for it before `one_solid` (`reduce::gate_unverdicted_operand`:
+tiers 1–2, edges, check 7 per solid); `gate_operand_pairs` then runs
+tiers 1–2 a second time on the merged body, as main did. Only the
+`Validated` operand's pass is redundant.

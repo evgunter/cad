@@ -169,7 +169,7 @@ fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestB
 /// side sets), plus the slot lock (same face pair + same direction at
 /// matched slots) and the (d, -d) strut opposite-sense claim.
 /// Returns the germ counts by how the two sides' senses relate.
-fn sense_census(op: topo::BooleanOp, a: &Body<f64>, b: &Body<f64>) -> SenseCensus {
+fn sense_census(op: topo::BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> SenseCensus {
     let red = topo::boolean_reduce_declared(
         op,
         a,

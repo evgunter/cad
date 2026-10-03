@@ -169,7 +169,8 @@ pub enum BooleanResultKind {
 /// verdict the door took on these bits ([`AtRestPolicy::gate_at_rest_kept`]:
 /// [`AtRestOutcome::Validated`](crate::AtRestOutcome::Validated) at a
 /// certifying scalar, [`AtRestOutcome::NotRunAtThisScalar`](crate::AtRestOutcome::NotRunAtThisScalar)
-/// at a dual). `contacts` are the machine-checkable record of every
+/// at a dual, where the door runs tiers 1 and 2 and the scaffold
+/// fence in its place). `contacts` are the machine-checkable record of every
 /// intentional touching the pipeline propagated (F2's explicit-intent
 /// condition), and `body.validate_pseudomanifold(&contacts, tol)` is
 /// the tier-3′ pass over them, empty or not. The door does not run
@@ -178,13 +179,16 @@ pub enum BooleanResultKind {
 /// unions (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
 #[derive(Debug)]
 pub struct BooleanBody<T: Real> {
-    /// The result body, finished: one solid per piece of material
-    /// ([`crate::pieces`]), gated at tier 3 by the door that built it.
+    /// The result body: one solid per piece of material
+    /// ([`crate::pieces`]), gated at tier 3 by the door that built it —
+    /// tier 3, not tier 3′: the census over [`Self::contacts`] is not run
+    /// here (type-level docs).
     pub body: AtRestBody<T>,
     /// How it was produced.
     pub kind: BooleanResultKind,
     /// Declared contacts surviving into the result, in result keys
-    /// (module docs) — the tier-3′ declarations (type-level docs).
+    /// (module docs) — what a tier-3′ pass over the result reads
+    /// (type-level docs); the door has not checked them.
     pub contacts: ContactRecords,
     /// Naming emission (M4 PR 3, NAMING-DESIGN N4): the mint-time
     /// wiring facts the naming layer consumes — recorded as the
@@ -3762,6 +3766,89 @@ mod tests {
                 .map_err(|e| e.to_string()),
             Ok(()),
             "the described box passes"
+        );
+    }
+
+    /// The findings `gate` refuses `body` with, each matching `want`.
+    fn refused_by_gate(
+        what: &str,
+        body: crate::Body<f64>,
+        want: fn(&crate::ValidationError) -> bool,
+    ) -> usize {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let Err(BooleanError::ResultInvalid { errors }) = gate(body, band, tol) else {
+            panic!("{what}: the result gate refuses it");
+        };
+        assert!(errors.iter().all(want), "{what}: {errors:?}");
+        errors.len()
+    }
+
+    /// **The result gate is tier 3, not tiers 1 and 2 with the scaffold
+    /// fence.** Three bodies that pass tiers 1 and 2 and carry no
+    /// scaffold, each refused for a tier-3 reason of its own: a lamina
+    /// (the coplanar digon pillow with one face's material side flipped,
+    /// one `LaminaWedge` per edge), an inside-out brick (its revert, one
+    /// `NegativeVolume`), and a stranded split top (one half lifted
+    /// `1000 ε` off its neighbour's plane, planar residuals only).
+    #[test]
+    fn the_result_gate_refuses_what_only_tier_3_sees() {
+        use crate::ValidationError as V;
+        let tol = Tol::witness();
+        let (pillow, split) = crate::tier3_tests::coplanar_pillow(tol);
+        let lamina = pillow.flipped_face_sense_for_tests(split.face).unwrap();
+        let inside_out =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol)
+                .revert()
+                .unwrap();
+        let up = Vec3::new(0.0, 0.0, 1.0);
+        let offset = 1e3 * tol.get().eps;
+        let stranded =
+            crate::boolean::refusal_routes::tests::top_split_redescribed(|p0, along, _| {
+                crate::test_support_fixtures::plane(
+                    &[
+                        p0 + up * offset,
+                        p0 + up * offset + along,
+                        p0 + up * offset + up.cross(along),
+                    ],
+                    tol,
+                )
+            });
+        for (what, body) in [
+            ("lamina", &lamina),
+            ("inside-out", &inside_out),
+            ("stranded", &stranded),
+        ] {
+            assert_eq!(
+                crate::validate_closed(body),
+                Ok(()),
+                "{what}: tiers 1 and 2 pass"
+            );
+            assert!(
+                crate::validate::scaffolds_at_rest(body).is_empty(),
+                "{what}: no scaffold"
+            );
+        }
+        assert_eq!(
+            refused_by_gate("lamina", lamina, |e| matches!(e, V::LaminaWedge { .. })),
+            2,
+            "one per edge of the digon"
+        );
+        assert_eq!(
+            refused_by_gate("inside-out", inside_out, |e| matches!(
+                e,
+                V::NegativeVolume { .. }
+            )),
+            1,
+            "its one solid"
+        );
+        assert!(
+            refused_by_gate("stranded", stranded, |e| matches!(
+                e,
+                V::PlanarFaceResidual { .. }
+                    | V::PlanarBoundaryResidual { .. }
+                    | V::DescriptionNotAdjacent { .. }
+            )) > 0
         );
     }
 

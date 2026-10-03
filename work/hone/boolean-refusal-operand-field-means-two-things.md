@@ -46,3 +46,13 @@ make every raise site pass it, then let the `Display` name the operand
 again ("the second solid's nurbs face"), which is information the
 person holding the mouse can use. A test that puts the curved face on
 B and asserts `operand: B` at each raise site is what could go red.
+
+## 2026-10-03 — the measuring row moved (REACH)
+
+`boolean_reduce` takes finished operands
+(`boolean-door-adopts-the-finished-body-type`), and the NURBS-walled
+brick does not finish: the row is
+`a_placeholder_nurbs_wall_is_refused_at_rest`, pinning
+`UncertifiableSurface` and the four `DescriptionNotAdjacent` at the
+at-rest gate. No row reaches `curved_face_arm`'s raise with a finished
+body; `work/reach/the-operand-gates-curved-and-maximal-face-arms-have-no-finished-fixture.md`.

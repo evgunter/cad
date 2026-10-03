@@ -111,3 +111,8 @@ A census at the door refuses 175 results on main, 38 of them curved
 unions the cross-solid lane cannot decide, which the ratified sequencing
 puts before any door whose results carry several curved solids:
 `work/reach/boolean-door-runs-the-census-over-its-result.md`.
+
+Merge order: after PR #3977 (check 7's interval re-derivation), merged
+into this branch, so
+`contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex`
+is green at ε 1e-12 (§Sequencing 1).

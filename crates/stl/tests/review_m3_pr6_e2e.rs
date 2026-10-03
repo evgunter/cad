@@ -32,7 +32,10 @@ use geom_core::Tol;
 /// body-returning fixture cannot hand back.
 fn die(x0: f64, y0: f64, z0: f64) -> AtRestBody<f64> {
     let (cube, cutter) = sweep::test_support::pocket_die_parts(x0, y0, z0, Tol::witness());
-    let (cube, cutter) = (finished("the cube", cube), finished("the cutter", cutter));
+    let (cube, cutter) = (
+        finished("the cube", cube, Tol::witness()),
+        finished("the cutter", cutter, Tol::witness()),
+    );
     let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
         panic!("die subtract is a body");
     };

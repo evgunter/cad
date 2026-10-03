@@ -1584,7 +1584,10 @@ fn neighbour_bends_at_the_design_eps() {
 /// any door**: the half re-described on the parallel plane `1000 ε` above
 /// leaves its own edges and vertices `1000 ε` off it, which no finished
 /// body does, so finishing it refuses with the planar residuals of that
-/// half and nothing else; it never reaches a classification. The offset
+/// half and nothing else, each finding naming the stranded half's own
+/// face, edges or vertices. It never reaches a classification: every
+/// door that classifies — the boolean doors and `boolean_reduce`
+/// alike — takes a finished body. The offset
 /// is far past the band at every tolerance, so the refusal is the
 /// stranded body's, not any offer's (the coincv5 review's NF-2). The
 /// `CoplanarNeighbours` offers run on finished bodies, in the cases.
@@ -1592,21 +1595,11 @@ fn neighbour_bends_at_the_design_eps() {
 fn a_stranded_split_top_is_refused_at_the_at_rest_gate() {
     let up = Vec3::new(0.0, 0.0, 1.0);
     let offset = 1e3 * Tol::witness().get().eps;
-    let body = super::tests::top_split_redescribed(|p0, along, _| {
+    // The stranded half: the face whose plane is lifted off the top,
+    // and the vertices and edges of its boundary.
+    let (body, stranded) = super::tests::top_split_redescribed_face(|p0, along, _| {
         plane_through(p0 + up * offset, along, up)
     });
-    // The stranded half: the one face whose plane was lifted off the
-    // top, and the vertices and edges of its boundary.
-    let stranded = body
-        .faces()
-        .find(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(crate::Surface::Plane { origin, .. }) if (origin.z - (1.0 + offset)).abs() < 0.5 * offset
-            )
-        })
-        .map(|(k, _)| k)
-        .expect("the re-described half");
     let outer = body.get_face(stranded).expect("a live face").outer;
     let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).expect("its loop").boundary
     else {

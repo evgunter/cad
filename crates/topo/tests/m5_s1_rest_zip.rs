@@ -60,12 +60,18 @@ fn glue<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     }
 }
 
-/// The glued result's shared gate ladder: seamed, tier 3, 3′ with the
+/// The glued result's shared gate ladder: seamed, carrying the door's
+/// tier-3 verdict (both scalars here certify), tier 3, 3′ with the
 /// surviving records, rest records consumed (3′ ≡ tier 3). Exact
 /// volume equality is asserted by the f64 rows (the Interval lane has
 /// no scalar equality by design — NaI ≠ NaI).
 fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(g: &BooleanBody<T>) {
     assert_eq!(g.kind, BooleanResultKind::Seamed);
+    assert_eq!(
+        g.body.outcome(),
+        topo::AtRestOutcome::Validated,
+        "the door gates its result at tier 3"
+    );
     assert_eq!(validate_geometric(&g.body, Tol::witness()), Ok(()));
     assert_eq!(
         validate_pseudomanifold(&g.body, &g.contacts, Tol::witness()),

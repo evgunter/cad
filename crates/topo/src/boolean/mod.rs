@@ -2295,9 +2295,13 @@ pub enum BooleanError {
     /// The F7 output stage (`merge_coplanar_faces`) refused.
     Merge(MergeCoplanarError),
     /// The result did not pass the door's at-rest gate (tier 3,
-    /// [`crate::AtRestPolicy::gate_at_rest_kept`]), loudly — no body
+    /// [`crate::AtRestPolicy::gate_at_rest_kept`]; tiers 1 and 2 and
+    /// the scaffold fence where the scalar runs none), loudly — no body
     /// below it is ever returned. The operands are finished bodies, so
-    /// the findings are the door's own.
+    /// no finding is carried in from an operand: each is either a defect
+    /// in what the door built or a wrong verdict of the validator's own
+    /// (a valid sliver refused on a sign check 7 misreads), and a kernel
+    /// defect either way.
     ResultInvalid {
         /// The validator's findings.
         errors: Vec<ValidationError>,
@@ -3287,7 +3291,9 @@ impl std::error::Error for BooleanError {}
 /// null-edge insertion across two bodies (module docs for the
 /// pipeline). Functional: both operands are cloned and never touched;
 /// the annotated clones come back in [`BooleanReduction`]. Joining and
-/// result generation are PR 5.
+/// result generation are PR 5. The operands are finished bodies, as at
+/// the boolean doors ([`crate::AtRestBody`]); one with no verdict (a
+/// dual) passes the door's own operand gate and orientation read first.
 ///
 /// Determinism (D9): gates, sweeps, contact processing, and
 /// per-neighborhood classification all run in arena/discovery order —
@@ -3299,8 +3305,8 @@ impl std::error::Error for BooleanError {}
 /// operands are never mutated (the clones are dropped).
 pub fn boolean_reduce<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
-    a_operand: &Body<T>,
-    b_operand: &Body<T>,
+    a_operand: &crate::AtRestBody<T>,
+    b_operand: &crate::AtRestBody<T>,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
     boolean_reduce_declared(op, a_operand, b_operand, &BooleanDeclarations::none(), tol)
@@ -3317,11 +3323,15 @@ pub fn boolean_reduce<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// for payloads that do not resolve against the operands.
 pub fn boolean_reduce_declared<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
-    a_operand: &Body<T>,
-    b_operand: &Body<T>,
+    a_operand: &crate::AtRestBody<T>,
+    b_operand: &crate::AtRestBody<T>,
     decls: &BooleanDeclarations,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
+    let band = Band::linear(tol)?;
+    for (operand, body) in [(Operand::A, a_operand), (Operand::B, b_operand)] {
+        reduce::gate_unverdicted_operand(body, operand, band, tol)?;
+    }
     boolean_reduce_declared_strategy(
         op,
         a_operand,

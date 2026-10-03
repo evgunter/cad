@@ -46,7 +46,10 @@ fn stl_dir() -> String {
 fn corner_kiss_assembly_exports() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
-    let (a, b) = (finished("brick a", a), finished("brick b", b));
+    let (a, b) = (
+        finished("brick a", a, Tol::witness()),
+        finished("brick b", b, Tol::witness()),
+    );
     let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
@@ -77,7 +80,10 @@ fn corner_kiss_assembly_exports() {
 fn tangent_edge_assembly_exports() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick((1.0, 2.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
-    let (a, b) = (finished("brick a", a), finished("brick b", b));
+    let (a, b) = (
+        finished("brick a", a, Tol::witness()),
+        finished("brick b", b, Tol::witness()),
+    );
     let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("tangent-edge union is a body");
     };

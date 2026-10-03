@@ -137,16 +137,13 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
     assert_eq!(door.to_string(), carried.to_string());
 }
 
-/// `body` as a finished body, panicking with `what` when the at-rest
-/// gate refuses it.
-fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol())
-        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
-}
-
 /// The unit cube, finished — the boolean rows' first operand.
 fn unit_cube() -> AtRestBody<f64> {
-    finished("the unit cube", sweep::test_support::cube(1.0, tol()))
+    sweep::test_support::finished(
+        "the unit cube",
+        sweep::test_support::cube(1.0, tol()),
+        tol(),
+    )
 }
 
 /// A unit cube translated by `d`, finished — the boolean rows' second
@@ -155,7 +152,7 @@ fn shifted_cube(d: Vec3<f64>) -> AtRestBody<f64> {
     let cube = sweep::test_support::cube(1.0, tol());
     let map = Affine3::translation(d);
     let moved = topo::transform_rigid(&cube, &map, tol()).expect("a translation is rigid");
-    finished("the shifted cube", moved)
+    sweep::test_support::finished("the shifted cube", moved, tol())
 }
 
 #[test]

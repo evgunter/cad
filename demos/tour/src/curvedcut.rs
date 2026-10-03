@@ -206,23 +206,20 @@ pub struct Cut<S: Scalar> {
     pub stages: Vec<AtRestBody<S>>,
     /// The half on the section normal's side: it carries the
     /// engraved cap.
-    pub above: AtRestBody<S>,
+    pub above: Body<S>,
     /// The half against the section normal, unengraved.
-    pub below: AtRestBody<S>,
+    pub below: Body<S>,
 }
 
 /// `body` split by the plane tilted [`PHI`] through mid-height, as
-/// (above, below), each finished.
-fn tilted_cut<S: Scalar>(body: &Body<S>, tol: Tol) -> (AtRestBody<S>, AtRestBody<S>) {
+/// (above, below).
+fn tilted_cut<S: Scalar>(body: &Body<S>, tol: Tol) -> (Body<S>, Body<S>) {
     let plane = split_plane(p3(0.0, 0.0, H / 2.0), v3(PHI.sin(), 0.0, PHI.cos()), tol);
     let result = split(body, &plane, tol).expect("the tilted cut splits the cylinder");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (result.above, result.below) else {
         panic!("the section plane crosses the wall: both sides must be bodies");
     };
-    (
-        finished("the upper half", above, tol),
-        finished("the lower half", below, tol),
-    )
+    (above, below)
 }
 
 /// Engraves the cap, then cuts the cylinder by the tilted plane
@@ -364,7 +361,7 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
     // since REACH's conic rung (PR 3805); the C on the lower half's face
     // then stops at the containment probe
     // (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
-    let below = &cut.below;
+    let below = &finished("the lower half", cut.below.clone(), tol);
     let c = tool(section(), glyph_c::<f64>(tol).outline, tol);
     crate::walls::wall(
         "tilted cut",
@@ -392,7 +389,7 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
     // rung (PR 3805), and is held to the scene's own oracle: its pocket
     // removes the glyph's area × DEPTH from the half, inside the
     // certified bracket, at tier 3. The scene still engraves the cap.
-    let above = &cut.above;
+    let above = &finished("the upper half", cut.above.clone(), tol);
     let glyph = glyph_u::<f64>(tol);
     let removed = glyph.area * DEPTH;
     let u = tool(section(), glyph.outline, tol);
@@ -413,6 +410,7 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
     // either half's round cap after the cut — C, U, T, a square and a
     // disc, at depths 0.02, 0.05 and 0.2.
     let (bare_above, _) = tilted_cut(&cut.stages[0], tol);
+    let bare_above = finished("the bare upper half", bare_above, tol);
     let c_cap = tool(level(H - DEPTH), glyph_c::<f64>(tol).outline, tol);
     crate::walls::wall(
         "tilted cut",
@@ -469,8 +467,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             up: 'z',
         },
         bodies: vec![
-            SceneBody::plain("tiltedcut_above", [0.62, 0.44, 0.80], above.into_body()),
-            SceneBody::plain("tiltedcut_below", [0.40, 0.62, 0.80], below.into_body()),
+            SceneBody::plain("tiltedcut_above", [0.62, 0.44, 0.80], above),
+            SceneBody::plain("tiltedcut_below", [0.40, 0.62, 0.80], below),
         ],
     }]
 }

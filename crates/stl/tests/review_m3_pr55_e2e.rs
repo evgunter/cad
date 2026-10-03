@@ -51,7 +51,7 @@ fn slab(
     )
     .unwrap()
     .body;
-    finished("the slab", body)
+    finished("the slab", body, Tol::witness())
 }
 
 /// THE DIE from raw extrude operands: cube [0,2]^3, 21 pips (0.25

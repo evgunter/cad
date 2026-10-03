@@ -132,6 +132,11 @@ fn unions_both_ways(c: &AtRestBody<f64>, p: &AtRestBody<f64>, h: f64, tag: &str)
         assert!(agrees(got, want), "{tag}: union volume {got} vs {want}");
         assert_eq!(bb.body.shells().count(), 1, "{tag}: one shell");
         assert_eq!(
+            bb.body.outcome(),
+            topo::AtRestOutcome::Validated,
+            "{tag}: the site that built it gated it at tier 3"
+        );
+        assert_eq!(
             topo::validate_geometric(&bb.body, tol),
             Ok(()),
             "{tag}: tier 3"

@@ -5497,14 +5497,17 @@ mod clearance_rows {
     }
 }
 
-/// **The operand gate answers a broken body as broken.** A tier-1
-/// finding is not scaffolding an edit left behind, so it refuses as
-/// [`BooleanError::CorruptOperand`] carrying tier 1's findings, never
-/// as [`BooleanError::ScaffoldingOperand`]. No public door tears a
-/// body, so the row tears one in-crate.
+/// **A broken body is answered as broken.** A tier-1 finding is not
+/// scaffolding an edit left behind: the at-rest gate refuses the torn
+/// body with tier 1's own findings, so it never finishes into an
+/// operand; and the operand gate, which runs on a body carried with no
+/// verdict, refuses it as [`BooleanError::CorruptOperand`] carrying
+/// those findings, never as [`BooleanError::ScaffoldingOperand`]. No
+/// public door tears a body, so the row tears one in-crate.
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod operand_gate_rows {
+    use crate::AtRestBody;
     use crate::boolean::{BooleanError, BooleanOp, Corruption, Operand, boolean_reduce};
     use crate::test_support_fixtures::brick;
     use geom_core::Tol;
@@ -5512,11 +5515,16 @@ mod operand_gate_rows {
     #[test]
     fn a_tier_one_broken_operand_refuses_as_corrupt() {
         let tol = Tol::witness();
-        let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let a = AtRestBody::validate(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol)
+            .expect("the untorn brick finishes");
         let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
         let vertex = b.vertices().next().expect("a vertex").0;
         b.vertex_provenance.remove(vertex);
         let want = crate::validate::validate(&b).expect_err("the tear breaks tier 1");
+        let at_rest =
+            AtRestBody::validate(b.clone(), tol).expect_err("the torn body does not finish");
+        assert_eq!(at_rest, want, "the at-rest refusal is tier 1's own verdict");
+        let b = AtRestBody::not_run(b);
         let got = boolean_reduce(BooleanOp::Union, &a, &b, tol);
         let Err(BooleanError::CorruptOperand {
             operand,

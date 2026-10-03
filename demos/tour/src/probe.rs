@@ -201,8 +201,8 @@ pub fn run(out: Option<String>, tol: Tol) {
         || {
             let cut = curvedcut::build::<Probe>(tol);
             vec![
-                plain("tiltedcut_above", cut.above.into_body()),
-                plain("tiltedcut_below", cut.below.into_body()),
+                plain("tiltedcut_above", cut.above),
+                plain("tiltedcut_below", cut.below),
             ]
         },
         tol,

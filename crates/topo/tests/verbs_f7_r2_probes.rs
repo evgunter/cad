@@ -1,7 +1,9 @@
 //! R2 review probes, ADOPTED (PR #1131, #1031's pole half). They were
 //! written to falsify a GATE EXEMPTION, and they succeeded — the
-//! exemption was withdrawn, so each split operand here still refuses
-//! `NonMaximalFaces` at the boolean's gate. The repair is the caller's
+//! exemption was withdrawn, so each split body here is refused by the
+//! at-rest gate, one `ScaffoldAtRest` per seam edge between its
+//! same-plane-key pair, and never finishes into a boolean operand.
+//! The repair is the caller's
 //! explicit `merge_coplanar_faces`, and it takes every one of these
 //! seams: once the faces are joined, a seam edge left dangling goes
 //! with its free end, at any angle and along a chain.
@@ -10,11 +12,11 @@
 
 use crate::common;
 
-use common::{brick, line, prism_z};
+use common::{line, prism_z};
 use geom_core::{Point3, Tol};
 use topo::{
-    Body, BooleanError, BooleanOp, FaceSurface, LoopBoundary, MefSite, MevSite, boolean_reduce,
-    validate, validate_closed,
+    AtRestBody, Body, FaceSurface, LoopBoundary, MefSite, MevSite, ValidationError, validate,
+    validate_closed,
 };
 
 fn point_of(b: &Body<f64>, he: topo::HalfEdgeKey) -> Point3<f64> {
@@ -26,12 +28,39 @@ fn point_of(b: &Body<f64>, he: topo::HalfEdgeKey) -> Point3<f64> {
     .unwrap()
 }
 
+/// `b`'s at-rest refusal is exactly one `ScaffoldAtRest` for each edge
+/// separating two faces on one surface key (the seams a split with an
+/// inherited surface leaves), `seams` of them in edge-arena order, and
+/// nothing else.
+fn assert_refused_on_its_seams(b: &Body<f64>, seams: usize, what: &str) {
+    let face_of = |he| {
+        b.get_loop(b.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    let want: Vec<ValidationError> = b
+        .edges()
+        .filter(|(_, e)| {
+            let (fp, fm) = (face_of(e.he_plus), face_of(e.he_minus));
+            fp != fm && b.get_face(fp).unwrap().surface == b.get_face(fm).unwrap().surface
+        })
+        .map(|(edge, _)| ValidationError::ScaffoldAtRest { edge })
+        .collect();
+    assert_eq!(want.len(), seams, "{what}: seam-edge census");
+    let errors = AtRestBody::validate(b.clone(), Tol::witness())
+        .expect_err(&format!("{what}: a split body does not finish"));
+    println!("{what} => {errors:?}");
+    assert_eq!(
+        errors, want,
+        "{what}: refused on every seam edge, and on nothing else"
+    );
+}
+
 /// CONTROL (the pinned pre-PR behaviour): the top face split by ONE
-/// chord between two rim vertices — both endpoints valence 3 — still
-/// refuses `NonMaximalFaces`.
+/// chord between two rim vertices — both endpoints valence 3 — is
+/// refused at rest on its one seam edge.
 #[test]
 fn r2_control_single_chord_split_still_refuses() {
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let p = prism_z::<f64>(
         &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
         0.0,
@@ -54,12 +83,7 @@ fn r2_control_single_chord_split_still_refuses() {
     )
     .unwrap();
     validate(&b).unwrap();
-    let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
-    println!("R2-CONTROL single-chord split => {err:?}");
-    assert!(
-        matches!(err, BooleanError::NonMaximalFaces { .. }),
-        "{err:?}"
-    );
+    assert_refused_on_its_seams(&b, 1, "R2-CONTROL single-chord split");
 }
 
 /// ATTACK on the structural predicate: the SAME defect, but the
@@ -68,12 +92,11 @@ fn r2_control_single_chord_split_still_refuses() {
 /// revolve, no pole, no axis — yet the gate exemption this probe was
 /// written against fired on BOTH shared edges, admitting the whole
 /// pair. **That exemption was WITHDRAWN because of this row**, so the
-/// pair must still refuse `NonMaximalFaces` at the gate, and the
+/// pair is refused at rest on both seam edges, and the
 /// caller's explicit merge repairs it: `kef` takes one seam edge and
 /// `kev` the other with the mid vertex, bent seam or not.
 #[test]
 fn r2_attack_midvertex_chord_split() {
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let p = prism_z::<f64>(
         &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
         0.0,
@@ -113,15 +136,7 @@ fn r2_attack_midvertex_chord_split() {
     // (planar, same-key) face pair — the predicate's exact shape.
     let orbit = b.vertex_orbit(strut.he_minus).unwrap();
     println!("R2-ATTACK mid-vertex valence = {}", orbit.len());
-    let res = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness());
-    match &res {
-        Ok(_) => println!("R2-ATTACK mid-vertex chord split => Ok(reduction) — GATE ADMITTED"),
-        Err(e) => println!("R2-ATTACK mid-vertex chord split => {e:?}"),
-    }
-    assert!(
-        matches!(res, Err(BooleanError::NonMaximalFaces { .. })),
-        "{res:?}"
-    );
+    assert_refused_on_its_seams(&b, 2, "R2-ATTACK mid-vertex chord split");
     assert_repairs(&mut b, 1);
 }
 
@@ -147,12 +162,12 @@ fn assert_repairs(b: &mut Body<f64>, interior: usize) {
 
 /// ATTACK, longer chain: TWO interior valence-2 vertices. The middle
 /// edge has valence-2 same-pair endpoints at BOTH ends. A seam chain
-/// of three edges: the gate refuses it, and the merge loses both
+/// of three edges: the at-rest gate refuses it on all three, and the
+/// merge loses both
 /// interior junctions — whichever edge `kef` takes, the pruning then
 /// peels the chain one free end at a time.
 #[test]
 fn r2_attack_two_midvertex_chain_split() {
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let p = prism_z::<f64>(
         &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
         0.0,
@@ -199,14 +214,6 @@ fn r2_attack_two_midvertex_chain_split() {
     )
     .unwrap();
     validate(&b).unwrap();
-    let res = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness());
-    match &res {
-        Ok(_) => println!("R2-ATTACK two-mid chain => Ok(reduction) — GATE ADMITTED"),
-        Err(e) => println!("R2-ATTACK two-mid chain => {e:?}"),
-    }
-    assert!(
-        matches!(res, Err(BooleanError::NonMaximalFaces { .. })),
-        "{res:?}"
-    );
+    assert_refused_on_its_seams(&b, 3, "R2-ATTACK two-mid chain");
     assert_repairs(&mut b, 2);
 }

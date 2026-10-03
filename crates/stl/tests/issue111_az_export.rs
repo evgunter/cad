@@ -84,8 +84,8 @@ fn az_counter() -> Body<f64> {
     )
     .unwrap()
     .body;
-    let a = finished("prism A", a);
-    let z = finished("prism Z", z);
+    let a = finished("prism A", a, Tol::witness());
+    let z = finished("prism Z", z, Tol::witness());
     match topo::intersect(&a, &z, Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => bb.body.into_body(),
         other => panic!("A×Z intersect did not produce a body ({other:?})"),

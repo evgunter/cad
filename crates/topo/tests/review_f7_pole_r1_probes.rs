@@ -6,11 +6,13 @@
 //! falsify a gate exemption that has since been WITHDRAWN — the
 //! attacks succeeded, which is why it was. R1's fixture geometry and
 //! reasoning are preserved; what changed is the assertions,
-//! which now pin the behaviour the fixtures actually produce: every
-//! one of these bent/ordinary shapes REFUSES `NonMaximalFaces` at the
-//! boolean's maximal-faces gate. Repairing such an operand is the
-//! caller's explicit `merge_coplanar_faces` (for a real revolve cap,
-//! `sweep`'s `f7_pole_split_cap_repairs_to_one_face`).
+//! which pin the behaviour the fixtures actually produce: every one
+//! of these bent/ordinary shapes is REFUSED by the at-rest gate, with
+//! one `ScaffoldAtRest` for each seam edge between the same-plane-key
+//! pair and nothing else, so none of them finishes into a boolean
+//! operand. Repairing such a body is the caller's explicit
+//! `merge_coplanar_faces` (for a real revolve cap, `sweep`'s
+//! `f7_pole_split_cap_repairs_to_one_face`).
 //! Every fixture here is HAND-BUILT via public euler ops — no revolve
 //! anywhere — so what these rows measure is the structural predicate
 //! itself, divorced from the producer whose shape motivated it.
@@ -27,19 +29,47 @@
 
 use crate::common;
 
-use common::{brick, plant_ring_face, prism_z};
+use common::{plant_ring_face, prism_z};
 use geom_core::Tol;
 use topo::{
-    Body, BooleanError, BooleanOp, FaceSurface, MefSite, MekrSite, MevSite, boolean_reduce,
-    validate_closed,
+    AtRestBody, Body, FaceSurface, MefSite, MekrSite, MevSite, ValidationError, validate_closed,
 };
 
-/// A brick far away from every fixture, so `gate_operand_pairs`' boxes
-/// never meet and the reduction of a PASSING pair is the trivial
-/// disjoint one — the refusal (or its absence) is the gates' own
-/// signal, uncontaminated by contact machinery.
-fn distant_brick() -> Body<f64> {
-    brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness())
+/// The edges separating two faces on one surface key — the seams a
+/// split with an inherited surface leaves — in edge-arena order.
+fn common_plane_seams(b: &Body<f64>) -> Vec<topo::EdgeKey> {
+    let face_of = |he| {
+        b.get_loop(b.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    b.edges()
+        .filter(|(_, e)| {
+            let (fp, fm) = (face_of(e.he_plus), face_of(e.he_minus));
+            fp != fm && b.get_face(fp).unwrap().surface == b.get_face(fm).unwrap().surface
+        })
+        .map(|(edge, _)| edge)
+        .collect()
+}
+
+/// `b`'s at-rest refusal is exactly one `ScaffoldAtRest` per seam edge
+/// of its same-plane-key pairs, `seams` of them, and nothing else.
+fn assert_refused_on_its_seams(b: Body<f64>, seams: usize, what: &str) -> Vec<topo::EdgeKey> {
+    let edges = common_plane_seams(&b);
+    assert_eq!(edges.len(), seams, "{what}: seam-edge census");
+    let errors = AtRestBody::validate(b, Tol::witness()).expect_err(&format!(
+        "{what} is an ordinary non-maximal pair and does not finish"
+    ));
+    println!("{what} => {errors:?}");
+    assert_eq!(
+        errors,
+        edges
+            .iter()
+            .map(|&edge| ValidationError::ScaffoldAtRest { edge })
+            .collect::<Vec<_>>(),
+        "{what}: the at-rest gate refuses on every seam edge, and on nothing else"
+    );
+    edges
 }
 
 /// The half-edge of `face`'s outer loop starting at the vertex whose
@@ -65,10 +95,10 @@ fn he_at(body: &Body<f64>, face: topo::FaceKey, x: f64, y: f64, z: f64) -> topo:
 /// This is `m3_pr4_boolean::non_maximal_operand_refuses` restated in
 /// this file so the differential against P2 is one screen tall: the
 /// chord's endpoints have valence 3, no valence-2 same-pair endpoint
-/// exists, and the gate refuses. (The "exemption" these rows were
-/// written against was WITHDRAWN; what ships is a repair in
-/// `merge_coplanar_faces`, and the gate is unchanged — so this control
-/// and its siblings pin the gate.)
+/// exists, and the at-rest gate refuses the body on its one seam edge.
+/// (The "exemption" these rows were written against was WITHDRAWN;
+/// what ships is a repair in `merge_coplanar_faces`, so this control
+/// and its siblings pin the refusal.)
 #[test]
 fn p1_single_chord_pair_still_refuses() {
     let p = prism_z::<f64>(
@@ -83,11 +113,7 @@ fn p1_single_chord_pair_still_refuses() {
     let he2 = he_at(&b, p.top_face, 2.0, 2.0, 1.0);
     b.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
     assert_eq!(validate_closed(&b), Ok(()), "fixture is tier-2 legal");
-    let err = boolean_reduce(BooleanOp::Union, &distant_brick(), &b, tol).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::NonMaximalFaces { .. }),
-        "control must refuse — got {err:?}"
-    );
+    assert_refused_on_its_seams(b, 1, "[p1] single-chord operand");
 }
 
 /// **P2 (attack): the same mergeable pair with its chord SUBDIVIDED
@@ -135,13 +161,9 @@ fn p2_subdivided_chord_pair_still_refuses() {
     )
     .unwrap();
     assert_eq!(validate_closed(&b), Ok(()), "fixture is tier-2 legal");
-    let err = boolean_reduce(BooleanOp::Union, &distant_brick(), &b, tol)
-        .expect_err("a BENT subdivided chord is an ordinary non-maximal pair");
-    println!("[p2] subdivided (bent) chord operand => {err:?}");
-    assert!(
-        matches!(err, BooleanError::NonMaximalFaces { .. }),
-        "the gate must catch the pair the F7 rule exists for — got {err:?}"
-    );
+    // The gate must catch the pair the F7 rule exists for, on both
+    // halves of the bent chord.
+    assert_refused_on_its_seams(b, 2, "[p2] subdivided (bent) chord operand");
 }
 
 /// Builds the prism whose top face carries an inset coplanar PATCH:
@@ -201,15 +223,9 @@ fn inset_patch_prism() -> (
 #[test]
 fn p3_inset_coplanar_patch_still_refuses() {
     let (b, _top, _psrq, _ring) = inset_patch_prism();
-    let tol = Tol::witness();
     assert_eq!(validate_closed(&b), Ok(()), "fixture is tier-2 legal");
-    let err = boolean_reduce(BooleanOp::Union, &distant_brick(), &b, tol)
-        .expect_err("an inset coplanar patch is an ordinary non-maximal pair");
-    println!("[p3] inset-patch operand => {err:?}");
-    assert!(
-        matches!(err, BooleanError::NonMaximalFaces { .. }),
-        "the gate must catch the inset patch — got {err:?}"
-    );
+    // The gate must catch the inset patch, on all four ring edges.
+    assert_refused_on_its_seams(b, 4, "[p3] inset-patch operand");
 }
 
 /// **P4 (the brief's differential): a pair sharing BOTH a pole-like
@@ -219,7 +235,7 @@ fn p3_inset_coplanar_patch_still_refuses() {
 /// cut a second time by a chain with an interior valence-2 vertex
 /// (strut + mef). The two resulting faces share the bridge AND the
 /// chain; per-edge admission means the exempt chain does not save the
-/// pair, and the refusal names the bridge edge specifically.
+/// pair, and the refusal names the bridge edge among the seam edges.
 #[test]
 fn p4_mixed_pair_refuses() {
     let (mut b, top, [pv, _qv, rv, _sv], ring) = inset_patch_prism();
@@ -282,24 +298,13 @@ fn p4_mixed_pair_refuses() {
     )
     .unwrap();
     assert_eq!(validate_closed(&b), Ok(()), "fixture is tier-2 legal");
-    let err = boolean_reduce(BooleanOp::Union, &distant_brick(), &b, tol).unwrap_err();
-    // R1's original row demanded the BRIDGE edge by name. That was a
-    // consequence of the exemption: with the chain edges exempt, only
-    // the bridge could fire. With the exemption withdrawn no edge is
-    // exempt, so the gate names the FIRST offender in arena order —
-    // measured as a chain edge here. What the row pins is unchanged in
-    // substance: a pair sharing an ordinary edge refuses, whatever
-    // else it shares.
-    match err {
-        BooleanError::NonMaximalFaces { edge, .. } => {
-            println!(
-                "[p4] mixed pair refused at {edge:?} (bridge is {:?})",
-                bridge.edge
-            );
-        }
-        other => panic!(
-            "a pair sharing an ordinary edge must refuse NonMaximalFaces \
-             whatever else it shares — got {other:?}"
-        ),
-    }
+    // Every edge the pair shares refuses — the four ring edges, the
+    // bridge and the two chain edges — so a pair sharing an ordinary
+    // edge refuses on it, whatever else it shares.
+    let seams = assert_refused_on_its_seams(b, 7, "[p4] mixed pair");
+    assert!(
+        seams.contains(&bridge.edge),
+        "the ordinary bridge edge {:?} is among the refusals {seams:?}",
+        bridge.edge
+    );
 }

@@ -92,6 +92,8 @@ fn d6_built_cone_operand_door_measured() {
         .unwrap()
         .body
     };
+    let c = sweep::test_support::finished("the cone", c, tol);
+    let b = sweep::test_support::finished("the brick", b, tol);
     let res = boolean_reduce(BooleanOp::Union, &c, &b, tol);
     match &res {
         Ok(_) => println!("[d6] union(cone, brick) => Ok — operand fully usable"),
