@@ -115,7 +115,6 @@ was **not** done end to end: I read `vtxfac.rs` 440-780 and `insert.rs` 840-1560
   weight is in its doc rather than in what the callers do with it.
 - `insert.rs:1206` (Q2/Q6, **likely**): `StrutFacing::ClosedEdge` is now a variant no caller treats differently from
   `Unnamed`. The type keeps a distinction the rule no longer draws.
-- PR body (Q6, **sure**): "That path is unreached" is a measured claim with no guard and no claim-site reason
-  (MINOR 1).
+- PR body (Q6, **sure**): "That path is unreached" is a measured claim with no guard or claim-site reason (MINOR 1).
 
 REVIEW COMPLETE
