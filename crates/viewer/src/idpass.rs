@@ -213,11 +213,9 @@ impl core::fmt::Display for IdAnswer {
     }
 }
 
-/// **A name as a sentence that must tell two names apart says it**:
-/// the name's own sentence ([`Speaker::name`]: kind, minting node and
-/// leaf role in words), then the whole role path as `Debug` — the one
-/// operator diagnostic that prints the path's structure, kept because
-/// the words say the leaf and two names can differ above it
+/// **A name as a bug report says it**: the name's own words
+/// ([`Speaker::name`]), then the whole role path as `Debug` — the one
+/// operator diagnostic that prints the path's structure
 /// ([`Disagreement`]'s sentence says why). The tie
 /// `crate::frame::pick_refusal` reports says its faces this way too.
 pub struct NameAndPath<'a>(pub &'a StableName, pub Speaker<'a>);
@@ -264,23 +262,15 @@ impl Say for Disagreement {
     /// either side is said as a sentence says it, followed by the role
     /// path ([`NameAndPath`]).
     ///
-    /// BOTH halves of a name are load-bearing here, which is what makes this
-    /// message different from every other one in this crate. The name's
-    /// `Display` says its leaf in words and not the carrying segments
-    /// above it, so two names differing only in their derivation would
-    /// render identically; the path alone drops kind and node, so two
-    /// names on different nodes sharing a role path would. A message
-    /// whose entire subject is that two answers DIFFER cannot afford
-    /// either collapse.
+    /// The words tell two names of one table apart; the path rides
+    /// beside them because a disagreement is a bug report, and the path
+    /// is what its reader replays. It rides as `Debug`: it is the
+    /// machine channel, printed here as the operator's diagnostic
+    /// rather than as prose.
     ///
-    /// The path rides as `Debug`: it is the machine channel, printed
-    /// here as the operator's diagnostic rather than as prose.
-    ///
-    /// Destructured rather than field-read, which is what holds the
-    /// paragraph above to the value: the argument is that BOTH halves
-    /// are load-bearing, and a third field added to
-    /// [`Disagreement`] and left out of this sentence would falsify it
-    /// silently. In the pattern it is E0027 instead.
+    /// Destructured rather than field-read, so a third field added to
+    /// [`Disagreement`] and left out of this sentence is E0027 rather
+    /// than silently unsaid.
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let Self { from_gpu, from_ray } = self;
         write!(

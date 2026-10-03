@@ -2271,6 +2271,9 @@ NOT_BOUND = {
     "FullId": SHAPE,
     "HeldNodes": SHAPE,
     "held_by": SHAPE,
+    # The name tables a speaker says names within: the binding speaks
+    # each door's message itself, so the table it scopes by is its own.
+    "NameTables": SHAPE,
     "Said": SHAPE,
     "Say": SHAPE,
     "Speaker": SHAPE,

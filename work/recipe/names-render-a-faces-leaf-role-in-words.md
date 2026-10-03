@@ -65,3 +65,13 @@ The words of a name:
 ## Ruled (Ev, PR 3906, 2026-10-03)
 
 The shared core as recommended (joins said, one sentence shape, table-scoped detail, corpus gates), and on the one split the full form for a speaker holding no table. PR 3886 builds it in its fix pass.
+
+## Built (2026-10-03, PR 3886)
+
+The fix pass builds the #3906 ruling.
+
+- **Shape.** A name in words is `<role> of <feature>[, <join>…][, on <node>]` (`names::words`), and `StableName`'s `Display`, `Speaker::name` and `SpokenName` all say it; the "name minted by" frame is gone. A carry through a boolean's B or a union's member is a join ("joined at Boolean X", "joined at Union U from Transform M"), outermost first; A and a fillet's target are silent (`CarriedAs::Primary`/`Secondary`). A cited name keeps its feature. Every number counts from zero; a cut is a "part", a profile piece a "piece". A step is said with its profile wherever the feature does not read that profile alone. The sentence is built from an explicit stack.
+- **Detail.** A speaker holding the evaluation (`Speaker::within`, `NameTables`) says each name at the least detail that tells it apart in the table of the node that holds it: citations opened one at a time, fewest-rivals first, then needless openings shut. A speaker holding no table says the full form.
+- **Gates** (`editor-core/tests/name_words_corpus.rs`, slow set): the full form is injective over every corpus table, from the document and by tag; the scoped words are unique per body (no admissions); `respoken_after_a_dropped_step`. The budget gate is a ratchet: seven of the eight forwarding rows overrun 75 words with the corpus's longest scoped names, filed as `refusals-with-the-longest-scoped-names-overrun-the-budget`.
+- **Review fixes.** A dropped step lets go of its row in `HeldNodes::respoken`; `PairInBand`'s prose meets the refusal standard on its own; `SelectionRefusal::Unresolved`/`NotAFace` carry the name and say it through the speaker; the stranded sentence names the node that went.
+- **Remains.** The viewer's pick readout speaking within the landed evaluation is DOORS' `face-pick-cannot-name-which-face`. A strand row's kept step at its old row is `a-strand-row-says-a-kept-steps-old-row`.

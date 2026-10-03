@@ -1872,10 +1872,12 @@ fn answer(serial: u32, id: u32) -> u64 {
 ///
 /// A refusal whose whole subject is that two answers cannot be
 /// separated cannot render them as the same words. Two faces of ONE
-/// node are told apart by their leaf role in words, which the name's
-/// own `Display` carries, and `frame::pick_refusal` renders each tied
-/// face the way `idpass::Disagreement` does — that sentence, then the
-/// role path as the operator's diagnostic.
+/// node are told apart by their words alone — the full form never says
+/// two names of one table alike, which `name_words_corpus` gates over
+/// the corpus, so no pair whose words collide is left to build this
+/// premise from — and `frame::pick_refusal` renders each tied face the
+/// way `idpass::Disagreement` does: those words, then the role path as
+/// the operator's diagnostic.
 #[test]
 fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
     let tol = Tol::witness();
@@ -1907,8 +1909,8 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
         hits: vec![hit_at(first.clone(), 1.0), hit_at(second.clone(), 1.0)],
     });
 
-    // By name alone the two faces are two phrases: the leaf role in
-    // words tells them apart.
+    // By name alone the two faces are two phrases: their words tell
+    // them apart.
     assert_ne!(
         first.to_string(),
         second.to_string(),
@@ -1920,8 +1922,8 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
         idpass::NameAndPath(name, pncad::document::Speaker::of(landed)).to_string()
     };
     assert!(
-        text.contains("minted by Extrude"),
-        "each tied face's minter is said as the landed document holds it: {text}"
+        text.contains("of Extrude"),
+        "each tied face's feature is said as the landed document holds it: {text}"
     );
     assert!(
         text.contains(&rendered(&first)) && text.contains(&rendered(&second)),

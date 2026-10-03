@@ -519,7 +519,7 @@ pub enum DocEdit<P> {
     },
 }
 
-impl<P: crate::ProfilePayload> DocEdit<P> {
+impl<P> DocEdit<P> {
     /// **Whether this edit writes a mate's alignment datum** — the
     /// numbers, the primitive, the sense and the rider the solve's
     /// per-mate admission decides on. Exactly one edit does: the

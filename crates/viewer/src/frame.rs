@@ -2109,22 +2109,17 @@ pub fn containing_dir(path: &Path) -> Option<&Path> {
 ///
 /// # The certified tie is re-rendered here, and only here
 ///
-/// The kernel's own [`HitTestError::Ambiguous`] numbers its faces by
-/// name — `StableName`'s `Display`, which omits the role path on
-/// purpose, so two faces minted by one node render as the SAME phrase
-/// and the ordinal is all that tells them apart. That is right for
-/// the kernel, whose prose contract forbids a `Debug` derivation in a
-/// message and whose typed payload carries the path anyway.
+/// The kernel's own [`HitTestError::Ambiguous`] numbers its faces and
+/// says each in its words, which tell them apart; its prose contract
+/// forbids a `Debug` derivation in a message, and its typed payload
+/// carries the path anyway.
 ///
-/// It is not enough on a status line. The reader has no payload to
-/// open, and a sentence whose whole subject is that two answers
-/// cannot be told apart cannot render them identically. So this door
-/// writes the tie itself, rendering each face the way
-/// [`crate::idpass::Disagreement`] renders a name — kind and minting
-/// node, then the role path — for the same reason and with the same
-/// shape. Every other arm is the typed refusal's own words,
-/// unaltered. Each node is said from `doc`, the landed document the
-/// index was built against.
+/// A status line has no payload to open. So this door writes the tie
+/// itself, rendering each face the way [`crate::idpass::Disagreement`]
+/// renders a name — its words, then the role path — so the operator
+/// reading a tie has the derivation a disagreement gives. Every other
+/// arm is the typed refusal's own words, unaltered. Each node is said
+/// from `doc`, the landed document the index was built against.
 ///
 /// [`Retold::Again`]: the same click says it again.
 pub fn pick_refusal(error: &PickError, doc: &Doc<ProfileProgram>) -> Message {

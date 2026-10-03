@@ -946,4 +946,18 @@ mod tests {
              000000000001, on node 000000000003"
         );
     }
+
+    /// A name whose citations nest past every thread's stack is said in
+    /// full on the smallest stack.
+    #[test]
+    fn a_citation_nested_past_every_stack_is_said_on_the_smallest_stack() {
+        const DEEP: usize = 20_000;
+        let said = test_utils::own_thread::on_the_smallest_stack(|| {
+            let deep = (0..DEEP).fold(cap(CapEnd::End), |n, _| {
+                name(EntityKind::Face, OP, vec![RoleSeg::Inner(NameRef::new(n))])
+            });
+            said(&deep)
+        });
+        assert_eq!(said.matches("the cavity twin of ").count(), DEEP);
+    }
 }

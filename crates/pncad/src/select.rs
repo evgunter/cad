@@ -52,12 +52,13 @@
 //! [`StableName`](editor_core::StableName) with the
 //! [`EntityKind`] its role denotes already fixed.
 //!
-//! **A name is read in words by its leaf role.** [`leaf_role`] says
-//! which face a name denotes as a person tells it from its neighbours
-//! (`the end cap`, `the piece above the split of the side wall over
-//! the leg of loop 0 step 2`), looking through the segments that only
-//! carry an operand's entity on to the one [`role_leaf`] names; a
-//! name's own `Display` carries it beside the kind and minting node.
+//! **A name is read in words.** [`leaf_role`] says which entity a
+//! name denotes as a person tells it from its neighbours: its role, the
+//! feature that made it, and each secondary operand it was joined
+//! through (`the end cap of Extrude e548, joined at Boolean 1669`,
+//! `the part above the split of the side wall over the leg of loop 0
+//! step 2 of Extrude e548, on Split 2fec`). [`role_leaf`] is the name
+//! the role is read off; a name's own `Display` is these words.
 //!
 //! **A name also says which node MADE the entity.** [`attribute`]
 //! walks a name's carry-through segments — `FromTarget`, `FromA`,

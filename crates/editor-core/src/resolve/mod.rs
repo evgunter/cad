@@ -780,13 +780,13 @@ impl core::fmt::Display for Walls<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.0 {
             [] => write!(f, "no wall"),
-            [one] => write!(f, "the {}", self.1.name(one)),
+            [one] => write!(f, "{}", self.1.name(one)),
             many => {
                 for (i, w) in many.iter().enumerate() {
                     match i {
-                        0 => write!(f, "the {}", self.1.name(w))?,
-                        _ if i + 1 == many.len() => write!(f, " and the {}", self.1.name(w))?,
-                        _ => write!(f, ", the {}", self.1.name(w))?,
+                        0 => write!(f, "{}", self.1.name(w))?,
+                        _ if i + 1 == many.len() => write!(f, " and {}", self.1.name(w))?,
+                        _ => write!(f, ", {}", self.1.name(w))?,
                     }
                 }
                 Ok(())

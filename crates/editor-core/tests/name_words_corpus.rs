@@ -121,7 +121,7 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
         longest_full.0, longest_full.1
     );
 
-    longest.sort_by(|a, b| b.words.cmp(&a.words));
+    longest.sort_by_key(|said| core::cmp::Reverse(said.words));
     // A face refusal is said over the two longest face names one
     // document holds; a resolve refusal, of any kind, over the two
     // longest names.
