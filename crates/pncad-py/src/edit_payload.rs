@@ -368,8 +368,15 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             count: Some(*found),
             ..none
         },
-        EditError::DeleteWouldDangle { id, referenced_by } => EditPayload {
-            node: Some(id.id()),
+        EditError::DeleteWouldDangle {
+            id: node,
+            referenced_by,
+        }
+        | EditError::FoldWouldDangle {
+            node,
+            referenced_by,
+        } => EditPayload {
+            node: Some(node.id()),
             referenced_by: Some(referenced_by.id()),
             ..none
         },

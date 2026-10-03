@@ -4074,12 +4074,14 @@ impl DocEdit {
 
     /// **Fold** a gauge away (A4): every node on it hangs from its
     /// parent, each one's own chain with the gauge's steps in front.
-    /// An instance with no offset keeps none; a lone dependent with no
-    /// label takes the gauge's.
+    /// An instance with no offset keeps none; a lone unlabelled
+    /// dependent takes the gauge's label, and otherwise the label goes,
+    /// reported as `label_dropped` maintenance.
     ///
-    /// Refuses typed on `EditError`: `fold_on_non_gauge`, and
-    /// `fold_would_start_placing` (`input` is the mate that would start
-    /// placing).
+    /// Refuses typed on `EditError`: `fold_on_non_gauge`,
+    /// `fold_would_dangle` (`referenced_by` reads the gauge as an
+    /// input), and `fold_would_start_placing` (`input` is the mate that
+    /// would start placing).
     #[staticmethod]
     #[pyo3(signature = (gauge))]
     fn fold(gauge: &NodeId) -> Self {

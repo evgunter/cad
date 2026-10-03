@@ -251,7 +251,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::NoMaterial { node: n } => (
+        E::NoMaterial { node: n } | E::UnplaceableRoot { root: n, .. } => (
             id(n),
             none(),
             none(),
@@ -350,7 +350,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         ),
     };
     let gauge = match err {
-        E::SeveredGauge { gauge: g, .. } | E::DeadGaugeReference { gauge: g, .. } => id(g),
+        E::SeveredGauge { gauge: g, .. }
+        | E::DeadGaugeReference { gauge: g, .. }
+        | E::UnplaceableRoot { anchor: g, .. } => id(g),
         _ => none(),
     };
     typed_err(

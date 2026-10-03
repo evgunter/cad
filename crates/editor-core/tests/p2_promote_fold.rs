@@ -292,10 +292,13 @@ fn a_cut_of_a_gauges_content_then_a_fold_gives_the_instance_the_gauges_placement
 }
 
 /// **Each refusal names its subject and a recourse, and the recourse
-/// clears it**: a promote of a node that is no instance, of an instance
-/// with no offset, of a member whose offset is a check, and of a root
-/// whose member carries an offset; a fold of a node that is no gauge,
-/// and of a gauge whose fold would make a declaring mate start placing.
+/// moves forward**: a promote of a node that is no instance, of a member
+/// that is not its group's root (with or without a checked offset, and
+/// in a group on a dead chain), of an instance whose group carries no
+/// offset, and of a root whose member carries an offset; a fold of a
+/// node that is no gauge, and of a gauge whose fold would make a
+/// declaring mate start placing. Root-ness is asked first, so no
+/// recourse leads to a refusal that sends the caller back.
 #[test]
 fn promote_and_fold_refuse_typed_with_a_recourse_that_clears_them() {
     let (p, doc, [base, top, mate]) = placed_pair("pf-refusals");
@@ -309,21 +312,57 @@ fn promote_and_fold_refuse_typed_with_a_recourse_that_clears_them() {
         EditError::FoldOnNonGauge { node } if node.id() == base
     ));
 
-    let unplaced = set_offset(doc.clone(), base, None);
-    assert!(matches!(
-        refused(&unplaced, DocEdit::Promote { instance: base }),
-        EditError::PromoteWithoutOffset { node } if node.id() == base
-    ));
-    promote(
-        set_offset(unplaced, base, Some(literal([1.0, 0.0, 0.0]))),
-        base,
+    // A mate-placed member with no offset: the root is named, and
+    // promoting it clears the refusal.
+    let err = refused(&doc, DocEdit::Promote { instance: top });
+    assert!(
+        matches!(&err, EditError::PromoteNonRoot { node, root } if node.id() == top && root.id() == base),
+        "{err:?}"
     );
+    assert!(
+        err.to_string()
+            .contains(&format!("Recourse: promote {}", doc.spoken(base))),
+        "{err}"
+    );
+    promote(doc.clone(), base);
+
+    // A group with no offset at all: either member refuses for want of
+    // one, and setting that member's makes it the root.
+    let unplaced = set_offset(doc.clone(), base, None);
+    for instance in [base, top] {
+        assert!(matches!(
+            refused(&unplaced, DocEdit::Promote { instance }),
+            EditError::PromoteWithoutOffset { node } if node.id() == instance
+        ));
+        promote(
+            set_offset(unplaced.clone(), instance, Some(literal([1.0, 0.0, 0.0]))),
+            instance,
+        );
+    }
+
+    // A group on a dead chain: the member named is the one carrying the
+    // offset, and promoting it refuses on the dead gauge, not for want
+    // of an offset.
+    let (dead, g) = insert(doc.clone(), Node::gauge(None, literal([0.0, 1.0, 0.0])));
+    let dead = set_gauge(set_gauge(dead, base, Some(g)), top, Some(g));
+    let dead = set_offset(set_offset(dead, base, None), top, Some(literal([0.0, 0.0, 2.0])));
+    let dead = step(dead, DocEdit::DeleteNode { id: g }).0;
+    assert!(matches!(
+        refused(&dead, DocEdit::Promote { instance: base }),
+        EditError::PromoteNonRoot { node, root } if node.id() == base && root.id() == top
+    ));
+    assert!(matches!(
+        refused(&dead, DocEdit::Promote { instance: top }),
+        EditError::GaugeNotLive { gauge, .. } if gauge.id() == g
+    ));
 
     let solved = Placement::literal(
         &solve(&doc, &o, Tol::witness())
             .placement(&doc, top)
             .expect("placed"),
     );
+    // A member with a checked offset: the root is named; promoting it
+    // names the member's offset, and clearing that clears it.
     let checked = set_offset(doc.clone(), top, Some(solved));
     assert!(matches!(
         refused(&checked, DocEdit::Promote { instance: top }),
@@ -350,4 +389,207 @@ fn promote_and_fold_refuse_typed_with_a_recourse_that_clears_them() {
         EditError::FoldWouldStartPlacing { node, mate } if node.id() == k && mate.id() == declaring
     ));
     fold(step(doc, DocEdit::DeleteNode { id: declaring }).0, k);
+}
+
+// ---- poses under rotations ----
+
+/// A literal step turning by `angle` about x or z, then moving by `t`:
+/// non-dyadic coordinates, so a regrouped composition would round
+/// differently.
+fn turn(angle: f64, about_x: bool, t: [f64; 3]) -> Placement {
+    let (s, c) = angle.sin_cos();
+    let columns = if about_x {
+        [[1.0, 0.0, 0.0], [0.0, c, s], [0.0, -s, c]]
+    } else {
+        [[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]]
+    };
+    Placement::literal(&editor_core::Frame {
+        columns,
+        translation: t,
+    })
+}
+
+/// Two turns in one chain.
+fn two_turns(a: f64, b: f64, t: [f64; 3]) -> Placement {
+    turn(a, true, t).compose(&turn(b, false, [0.25, -0.5, 0.0]))
+}
+
+/// Every instance's world pose in `before` and in `after` agree bit
+/// for bit.
+fn same_poses(
+    before: &ProfileDoc,
+    after: &ProfileDoc,
+    o: &editor_core::EvalOptions,
+    ids: &[RecipeNodeId],
+    what: &str,
+) {
+    let (a, b) = (
+        solve(before, o, Tol::witness()),
+        solve(after, o, Tol::witness()),
+    );
+    for &id in ids {
+        let x = a.placement(before, id).expect("placed before");
+        let y = b.placement(after, id).expect("placed after");
+        assert!(x.bit_eq(&y), "{what}: {id:?} moved: {x:?} vs {y:?}");
+    }
+}
+
+/// **P1 under rotations**: a placed pair on a turned gauge, its base
+/// at an offset of two turns. Promote and its fold move no pose bit,
+/// and the fold returns the document.
+#[test]
+fn p1_promote_and_fold_move_no_pose_bit_under_rotations() {
+    let (p, doc, [base, top, _]) = placed_pair("pf-turned-p1");
+    let o = p.opts();
+    let (doc, g) = insert(doc, Node::gauge(None, turn(0.3, false, [0.0, 8.0, 0.0])));
+    let doc = set_gauge(set_gauge(doc, base, Some(g)), top, Some(g));
+    let doc = set_offset(doc, base, Some(two_turns(0.7, 0.2, [4.0, 0.1, 0.0])));
+    let (promoted, k) = promote(doc.clone(), base);
+    same_poses(&doc, &promoted, &o, &[base, top], "promote");
+    let folded = fold(promoted.clone(), k);
+    same_poses(&promoted, &folded, &o, &[base, top], "fold ∘ promote");
+    let (map, steps) = identity(&doc);
+    same_up_to_ids(&doc, &folded, &map, &steps)
+        .unwrap_or_else(|e| panic!("fold ∘ promote is the identity:\n{e}"));
+}
+
+/// **P2 under rotations**: K, two turns, on a turned g; a lone instance
+/// on K at the empty chain, and K2, a turn, on K holding an instance at
+/// a turned offset. Folding K moves no pose bit, though each of K's
+/// dependents now holds K's steps in its own chain, and promoting the
+/// lone instance back moves none either.
+#[test]
+fn p2_fold_and_promote_move_no_pose_bit_under_rotations() {
+    let p = parts("pf-turned-p2");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("pf-turned-p2"), Tol::witness());
+    let (doc, g) = insert(doc, Node::gauge(None, turn(0.3, false, [0.0, 8.0, 0.0])));
+    let (doc, k) = insert(doc, Node::gauge(Some(g), two_turns(0.7, 0.2, [2.0, 0.0, 0.5])));
+    let (doc, lone) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_gauge(doc, lone, Some(k));
+    let (doc, k2) = insert(doc, Node::gauge(Some(k), turn(1.1, true, [0.0, 0.0, 1.0])));
+    let (doc, deep) = insert(doc, Node::instantiate_part(p.top));
+    let doc = set_gauge(doc, deep, Some(k2));
+    let doc = set_offset(doc, deep, Some(turn(0.4, false, [1.0, 2.0, 0.0])));
+    let folded = fold(doc.clone(), k);
+    same_poses(&doc, &folded, &o, &[lone, deep], "fold");
+    let (back, _) = promote(
+        fold(folded.clone(), k2),
+        lone,
+    );
+    same_poses(&doc, &back, &o, &[lone, deep], "promote after two folds");
+}
+
+/// **P4 under rotations**: K, two turns, on a turned g, holding a group
+/// that is cut and an instance at a turned offset that stays. Folding K
+/// after the cut moves the instance left behind and the one that stayed
+/// by no bit.
+#[test]
+fn p4_a_cut_then_a_fold_moves_no_pose_bit_under_rotations() {
+    let p = parts("pf-turned-p4");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("pf-turned-p4"), Tol::witness());
+    let (doc, g) = insert(doc, Node::gauge(None, turn(0.3, false, [0.0, 8.0, 0.0])));
+    let (doc, k) = insert(doc, Node::gauge(Some(g), two_turns(0.7, 0.2, [2.0, 0.0, 0.5])));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_gauge(doc, base, Some(k));
+    let doc = set_offset(doc, base, Some(literal([0.0, 2.0, 0.0])));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let doc = set_gauge(doc, top, Some(k));
+    let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+    let (doc, stay) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_gauge(doc, stay, Some(k));
+    let doc = set_offset(doc, stay, Some(turn(0.9, true, [16.0, 0.0, 0.0])));
+
+    let out = split(&doc, &[base, top, mate], "pf-turned-p4", &o).expect("cuts");
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    let with_part = with_resolver(store);
+    let folded = fold(out.remainder.clone(), k);
+    same_poses(
+        &out.remainder,
+        &folded,
+        &with_part,
+        &[out.instance, stay],
+        "fold after the cut",
+    );
+    same_poses(&doc, &folded, &with_part, &[stay], "the instance that stayed");
+}
+
+// ---- what a fold takes out ----
+
+/// **A fold goes as a delete does** (item: one cleanup): a gauge an
+/// in-plane axis reads as its plane refuses the delete and the fold
+/// alike, naming the reader with a recourse; taking the recourse, the
+/// fold leaves a document the save door accepts.
+#[test]
+fn a_fold_refuses_a_gauge_another_node_reads_as_an_input() {
+    let p = parts("pf-dangle");
+    let doc = ProfileDoc::empty(DocumentId::derive("pf-dangle"), Tol::witness());
+    let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
+    let (doc, on_g) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_gauge(doc, on_g, Some(g));
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::AxisInPlane {
+            plane: g,
+            origin: [fixture::len(0.0), fixture::len(0.0)],
+            direction: [fixture::scl(1.0), fixture::scl(0.0)],
+        }),
+    );
+    assert!(matches!(
+        refused(&doc, DocEdit::DeleteNode { id: g }),
+        EditError::DeleteWouldDangle { id, referenced_by } if id.id() == g && referenced_by.id() == axis
+    ));
+    let err = refused(&doc, DocEdit::Fold { gauge: g });
+    assert!(
+        matches!(&err, EditError::FoldWouldDangle { node, referenced_by } if node.id() == g && referenced_by.id() == axis),
+        "{err:?}"
+    );
+    assert!(
+        err.to_string().contains(&format!(
+            "Recourse: delete {} (and what reads it), then fold {}",
+            doc.spoken(axis),
+            doc.spoken(g)
+        )),
+        "{err}"
+    );
+    let cleared = step(doc, DocEdit::DeleteNode { id: axis }).0;
+    let folded = fold(cleared, g);
+    assert_eq!(gauge_of(&folded, on_g), None);
+    editor_core::persist::save(&folded, &[], Tol::witness()).expect("the folded document saves");
+}
+
+/// **A label a fold cannot hand on is reported**: K labelled, with two
+/// dependents, or with one already labelled, drops its label and says
+/// so; with one unlabelled dependent it hands the label on and reports
+/// nothing.
+#[test]
+fn a_label_a_fold_cannot_hand_on_is_reported() {
+    let p = parts("pf-label");
+    let doc = ProfileDoc::empty(DocumentId::derive("pf-label"), Tol::witness());
+    let (doc, k) = insert(doc, Node::gauge(None, literal([2.0, 0.0, 0.0])));
+    let (doc, one) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_gauge(doc, one, Some(k));
+    let doc = labelled(doc, k, "bench");
+    let maintenance = |d: &ProfileDoc| {
+        d.apply(&DocEdit::Fold { gauge: k }, Tol::witness(), &RefusingReach)
+            .expect("folds")
+            .maintenance
+    };
+    assert!(maintenance(&doc).is_empty(), "a lone unlabelled dependent takes it");
+    let (two, other) = insert(doc.clone(), Node::instantiate_part(p.top));
+    let two = set_gauge(two, other, Some(k));
+    let named = labelled(doc, one, "post");
+    for (what, d) in [("two dependents", two), ("a labelled dependent", named)] {
+        let rows = maintenance(&d);
+        assert!(
+            matches!(
+                rows.as_slice(),
+                [editor_core::Maintenance::LabelDropped { gauge, label }]
+                    if gauge.id() == k && label.as_str() == "bench"
+            ),
+            "{what}: {rows:?}"
+        );
+    }
 }

@@ -731,7 +731,8 @@ class SplitError(PncadError):
     """`severed_gauge`: the cut gauge, `node` the kept node on it.
     `dead_gauge_reference`: the deleted gauge, `node` the cut gauge or
     instance whose chain names it. `no_material`: `node` is the cut's
-    first node."""
+    first node. `unplaceable_root`: `node` is the cut root that sits on
+    no gauge, `gauge` the gauge the cut anchors on."""
 
 class InlineError(PncadError):
     """The `inline` refactoring refused.
@@ -3449,10 +3450,12 @@ class DocEdit:
     def fold(gauge: NodeId) -> DocEdit:
         """FOLD a gauge away: every node on it hangs from its parent,
         each one's own chain with the gauge's steps in front. An
-        instance with no offset keeps none; a lone dependent with no
-        label takes the gauge's. Refuses typed on `EditError`:
-        `fold_on_non_gauge`, and `fold_would_start_placing` (`input` is
-        the mate that would start placing)."""
+        instance with no offset keeps none; a lone unlabelled dependent
+        takes the gauge's label, and otherwise the label goes, reported
+        as `label_dropped` maintenance. Refuses typed on `EditError`:
+        `fold_on_non_gauge`, `fold_would_dangle` (`referenced_by` reads
+        the gauge as an input), and `fold_would_start_placing` (`input`
+        is the mate that would start placing)."""
 
     @staticmethod
     def update_reference(node: NodeId, new_pin: ContentPin) -> DocEdit:
@@ -6048,11 +6051,16 @@ class Maintenance:
     document's appearance store still holds an attachment under a name
     whose minting node the delete removed. It carries no `node`,
     because the store carries it and no node does; the attachment is
-    left exactly where it was, since the report never repairs."""
+    left exactly where it was, since the report never repairs.
+
+    A `label_dropped` names, on `node`, a gauge `DocEdit.fold` took out
+    of the document whose label went with it: no single unlabelled
+    node stood in for it. The label is in the row's message."""
 
     @property
     def variant(self) -> str:
-        """`offset_cleared`, `strand`, or `stranded_appearance`."""
+        """`offset_cleared`, `strand`, `stranded_appearance`, or
+        `label_dropped`."""
 
     @property
     def node(self) -> Optional[NodeId]: ...

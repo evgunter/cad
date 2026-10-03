@@ -566,6 +566,13 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 mate: s(9, "Mate"),
             },
         ),
+        (
+            "FoldWouldDangle",
+            EditError::FoldWouldDangle {
+                node: s(3, "Gauge"),
+                referenced_by: s(5, "Datum"),
+            },
+        ),
         // `PlacementRuleMismatch`: every shape, each spoken with the
         // node kind that raises it, in `forwarded_edit_refusals`.
         (

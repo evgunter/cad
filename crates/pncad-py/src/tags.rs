@@ -632,6 +632,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PromoteMemberOffset { .. } => "promote_member_offset",
         EditError::FoldOnNonGauge { .. } => "fold_on_non_gauge",
         EditError::FoldWouldStartPlacing { .. } => "fold_would_start_placing",
+        EditError::FoldWouldDangle { .. } => "fold_would_dangle",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
@@ -1300,6 +1301,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::PromoteMemberOffset { .. } => None,
         EditError::FoldOnNonGauge { .. } => None,
         EditError::FoldWouldStartPlacing { .. } => None,
+        EditError::FoldWouldDangle { .. } => None,
         // Which answer the rule gives twice is the arm.
         EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
@@ -2455,6 +2457,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::TwoAnchors { .. } => "two_anchors",
         SplitError::DeadGaugeReference { .. } => "dead_gauge_reference",
         SplitError::NoMaterial { .. } => "no_material",
+        SplitError::UnplaceableRoot { .. } => "unplaceable_root",
         SplitError::UnplacedAlone { .. } => "unplaced_alone",
         SplitError::WouldStartPlacing { .. } => "would_start_placing",
         SplitError::PlacingMateLeft { .. } => "placing_mate_left",
@@ -3213,6 +3216,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::OffsetCleared { .. } => "offset_cleared",
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
+        Maintenance::LabelDropped { .. } => "label_dropped",
     }
 }
 

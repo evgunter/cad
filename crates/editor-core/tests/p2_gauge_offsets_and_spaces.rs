@@ -1401,9 +1401,11 @@ fn the_compound_door_refuses_a_regauge_that_would_start_a_declaring_mate_placing
 /// **The gauge inline mints is the one a user would insert** (A4, the
 /// spec's I1): a host instance at an offset over a part of two lone
 /// instances inlines onto a gauge minted under its gauge holding its
-/// offset. Inserting that gauge by hand, putting the instance on it at
-/// the empty offset (which moves nothing) and inlining there gives the
-/// same document up to node ids, and no world pose moves.
+/// offset. Inserting that gauge by hand, listing it just ahead of the
+/// instance in the roots, putting the instance on it at the empty
+/// offset (which moves nothing) and inlining there gives the same
+/// document up to node ids, root order included, and no world pose
+/// moves.
 #[test]
 fn the_minted_gauge_is_the_one_a_user_would_insert_and_moves_nothing() {
     let p = parts("minted-vs-hand");
@@ -1441,6 +1443,10 @@ fn the_minted_gauge_is_the_one_a_user_would_insert_and_moves_nothing() {
     }
 
     let (hand, g) = insert(doc, Node::gauge(None, offset));
+    let mut roots: Vec<RecipeNodeId> = hand.roots().iter().copied().filter(|&r| r != g).collect();
+    let at = roots.iter().position(|&r| r == h).expect("h is a root");
+    roots.insert(at, g);
+    let (hand, _) = step(hand, DocEdit::SetRoots { roots });
     let hand = set_gauge(hand, h, Some(g));
     let hand = set_offset(hand, h, Some(Placement::IDENTITY));
     assert_eq!(

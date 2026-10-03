@@ -2836,6 +2836,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "referenced_by"],
     );
+    carries(
+        &E::FoldWouldDangle {
+            node: sp(1),
+            referenced_by: sp(2),
+        },
+        &["node", "referenced_by"],
+    );
 
     // The two-node arms answer with the ids they were given, not with
     // the first id twice: the roles are what a caller acts on.
@@ -4878,6 +4885,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_witness_bulk",
             "evaluation_of_another_document",
             "fold_on_non_gauge",
+            "fold_would_dangle",
             "fold_would_start_placing",
             "gauge_cycle",
             "gauge_not_live",
@@ -5165,7 +5173,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "maintenance_tag",
-        values: &["offset_cleared", "strand", "stranded_appearance"],
+        values: &["label_dropped", "offset_cleared", "strand", "stranded_appearance"],
         delegates: &[],
     },
     TagEntry {
@@ -5906,6 +5914,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "two_anchors",
             "uncut_param_reference",
             "unknown_cut_node",
+            "unplaceable_root",
             "unplaced_alone",
             "would_start_placing",
         ],

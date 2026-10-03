@@ -1189,6 +1189,16 @@ fn r1_the_comparator_reads_every_field() {
         said.lines().any(|l| l.starts_with("roots")),
         "roots: {said}"
     );
+    // The same roots in another order: the product's solid order moved.
+    let mut reversed = a.roots().to_vec();
+    reversed.reverse();
+    assert_ne!(reversed, a.roots(), "the scene has two roots or more");
+    let (reordered, _) = step(a.clone(), DocEdit::SetRoots { roots: reversed });
+    let said = fails(&reordered, &nodes, &steps);
+    assert!(
+        said.lines().any(|l| l.starts_with("roots")),
+        "root order: {said}"
+    );
 }
 
 /// **The comparator over a round trip that keeps a profile** (a block
@@ -1411,4 +1421,35 @@ fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
     );
     let (folded, _) = step(framed, DocEdit::Fold { gauge: g });
     round_trip(&folded, &ids, &p, "a face frame");
+}
+
+/// **The one shape whose round trip moves the root order** (the
+/// split-amendment rider (i), `refactor`'s module docs): three lone
+/// instances x, y, z, listed in that order, and a cut of x and z. The
+/// instance left behind takes x's one position, so inline lists z
+/// before y. The comparator reads root order, and this is the only
+/// disagreement it finds; with the cut's roots listed together the
+/// cut round-trips exactly.
+#[test]
+fn r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order() {
+    let p = parts("r1-interleaved");
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-interleaved"), Tol::witness());
+    let (doc, x) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, x, Some(literal([4.0, 0.0, 0.0])));
+    let (doc, y) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, y, Some(literal([0.0, 9.0, 0.0])));
+    let (doc, z) = insert(doc, Node::instantiate_part(p.top));
+    let doc = set_offset(doc, z, Some(literal([0.0, 0.0, 7.0])));
+    let out = split(&doc, &[x, z], "r1-interleaved", &p.opts()).expect("two lone instances");
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    let back = inline(&out.remainder, out.instance, &store);
+    let (map, steps) = composed(&doc, &out, &back);
+    let said = same_up_to_ids(&doc, &back.doc, &map, &steps).expect_err("z comes before y");
+    assert!(
+        said.lines().all(|l| l.starts_with("roots")) && said.lines().count() == 1,
+        "only the root order moves: {said}"
+    );
+    let (together, _) = step(doc, DocEdit::SetRoots { roots: vec![x, z, y] });
+    round_trip(&together, &[x, z], &p, "the cut's roots together");
 }
