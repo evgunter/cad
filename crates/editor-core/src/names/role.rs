@@ -1752,8 +1752,7 @@ pub(crate) fn lift<P>(
             profiles,
             v_degree: _,
         } => profiles
-            .iter()
-            .any(|&p| p == input)
+            .contains(&input)
             .then_some(Lift::Dropped)
             .into_iter()
             .collect(),

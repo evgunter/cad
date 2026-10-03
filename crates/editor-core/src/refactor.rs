@@ -977,10 +977,7 @@ fn frame_survives<M: AsRef<[RecipeNodeId]>>(
     match frame {
         crate::mate::MateFrame::FromFace => placed,
         crate::mate::MateFrame::Authored(_) => {
-            read.copy.is_empty()
-                && read.at == read.instance
-                && placed
-                && root_at_empty(read.instance)
+            read.chain.is_empty() && placed && root_at_empty(read.instance)
         }
     }
 }

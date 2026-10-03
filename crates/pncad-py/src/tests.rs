@@ -5674,7 +5674,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "refused_ref_tag",
-        values: &["ref_ambiguous", "ref_read_below_a_root", "ref_vanished"],
+        values: &["ref_ambiguous", "ref_moved_above", "ref_vanished"],
         delegates: &[],
     },
     TagEntry {

@@ -312,13 +312,14 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
         .expect("a nested copy is a member");
     assert_eq!(member.instance, top, "the member stands on the instance");
     assert_eq!(
-        member.copy,
+        member.copy(),
         vec![(outer, 1), (inner, 1)],
         "the copy chain is outermost first"
     );
     assert_eq!(
-        member.at, outer,
-        "the operand is the node the mate is read at"
+        member.chain.first().map(|p| p.node()),
+        Some(outer),
+        "the placing chain starts at the outermost placer"
     );
 
     let poses = solve(&doc, &s.opts, Tol::witness());
@@ -633,13 +634,14 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
     let member = member_of(&doc, &crate::fixture::head_at(part, b.clone())).expect("a member");
     assert_eq!(member.instance, top);
     assert_eq!(
-        member.copy,
+        member.copy(),
         vec![(pattern, 1)],
         "one level, through the Part"
     );
     assert_eq!(
-        member.at, part,
-        "the operand is the Part the mate is read at"
+        member.chain.len(),
+        1,
+        "the Part places nothing: the pattern's copy is the whole chain"
     );
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
@@ -658,13 +660,12 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
 
 /// **A3(b).** One copy, two OPERANDS: a mate read at the pattern
 /// under `Instance(1)` and a mate read at a `Part` selecting that
-/// same instance are two members over one body. They agree on
-/// `instance` and on the whole copy chain and differ at
-/// `Member::at`, which is enough to key them as two pairs — so the
-/// second closes a loop and declares rather than folding into the
-/// first.
+/// same instance are one placement spelled two ways, so one member:
+/// the `Part` places nothing, and both walks pass the same copy. The
+/// two mates key as ONE pair and fold, both determining, and the gate
+/// holds both.
 #[test]
-fn a3b_two_operands_over_one_copy_are_two_members() {
+fn a3b_two_operands_over_one_copy_are_one_member() {
     let s = scene("msolve2-a3b");
     let (base, top) = (s.base, s.top);
     let (base_body, top_body) = (s.base_body, s.top_body);
@@ -699,16 +700,22 @@ fn a3b_two_operands_over_one_copy_are_two_members() {
         member_of(&doc, &at_pattern).expect("a member at the pattern"),
         member_of(&doc, &at_part).expect("a member at the Part"),
     );
-    assert_eq!(
-        (mp.instance, &mp.copy),
-        (mq.instance, &mq.copy),
-        "one instance, one copy chain — the same body"
+    assert_eq!(mp, mq, "one instance, one placing chain — one member");
+    let poses = solve(&doc, &s.opts, Tol::witness());
+    for m in [m1, m2] {
+        assert!(poses.fault(m).is_none(), "A3(b): {:?}", poses.fault(m));
+        assert_eq!(
+            poses.role(m),
+            Some(MateRole::Determining),
+            "A3(b): both mates fold onto the one pair"
+        );
+    }
+    let ev = run(&doc, &s.opts);
+    assert!(
+        gate(&doc, &ev).is_ok(),
+        "A3(b): the gate holds both: {:?}",
+        gate(&doc, &ev).err()
     );
-    assert_ne!(mp.at, mq.at, "two operands: the members differ at `at`");
-    assert_ne!(mp, mq, "and are therefore two members");
-    // Both declare the same seat, so the pair is consistent: the loop
-    // closes and the gate holds it.
-    assert_loop_closes(&doc, &s.opts, m1, m2, true, "A3(b)");
 }
 
 /// **A3(c).** `Transform` over `Part { Instance(1) }` over a pattern,
@@ -749,11 +756,11 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
     let mate = mate.unwrap();
     let member = member_of(&doc, &crate::fixture::head_at(moved, b.clone())).expect("a member");
     assert_eq!(
-        member.copy,
+        member.copy(),
         vec![(pattern, 1)],
         "the transform contributes no copy — only the pattern does"
     );
-    assert_eq!(member.at, moved);
+    assert_eq!(member.chain.first().map(|p| p.node()), Some(moved));
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(mate).is_none(),
@@ -963,9 +970,12 @@ fn a1b_two_levels_with_transforms_between_and_above_seat() {
     );
     let mate = mate.unwrap();
     let m = member_of(&doc, &r).expect("a member through both transforms");
-    assert_eq!((m.instance, m.at), (top, t_top));
     assert_eq!(
-        m.copy,
+        (m.instance, m.chain.first().map(|p| p.node())),
+        (top, Some(t_top))
+    );
+    assert_eq!(
+        m.copy(),
         vec![(p2, 2), (p1, 1)],
         "the transforms contribute no copy — only the patterns do"
     );
@@ -1022,7 +1032,7 @@ fn a1c_three_levels_deep_seat() {
     );
     let mate = mate.unwrap();
     let m = member_of(&doc, &r).expect("a member three levels down");
-    assert_eq!(m.copy, vec![(p3, 2), (p2, 1), (p1, 1)]);
+    assert_eq!(m.copy(), vec![(p3, 2), (p2, 1), (p1, 1)]);
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
     let ev = run(&doc, &s.opts);

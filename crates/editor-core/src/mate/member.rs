@@ -4,7 +4,8 @@
 //!
 //! One walk answers both questions. It runs from a reference's OPERAND
 //! down the consuming edges to its name's head, through the nodes that
-//! place a body without renaming it, and it yields the MEMBER (the
+//! place a body without renaming it and the unions whose member the
+//! name says, and it yields the MEMBER (the
 //! identity the solve keys pairs by) together with the CHAIN of
 //! pose-bearing nodes whose maps compose onto the minting instance's
 //! pose.
@@ -29,17 +30,19 @@ use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 /// vocabulary): a live `InstantiatePart`, reached from the
 /// reference's operand through the nodes that place a body without
 /// renaming it — any number of `Transform`s and `Part` instance
-/// selections, and any number of `Pattern` levels, each of which the
-/// name qualifies `Instance(i)`.
+/// selections, any number of `Pattern` levels, each of which the name
+/// qualifies `Instance(i)`, and any number of `Union`s, each of which
+/// the name qualifies `FromMember`.
 ///
-/// A member is more than its group-graph vertex. Two references
-/// that reach one instance through DIFFERENT placings relate the same
-/// pair of instances through different static offsets, so what stands
-/// between the reference and the instance is part of the member's
-/// identity — it is what makes a second such mate close a LOOP
-/// (non-tree, declaring) instead of folding into the first mate's
-/// pair. Two kinds of placing say so: the pattern COPY CHAIN, and the
-/// OPERAND the reference was read at.
+/// A member is its instance and the PLACEMENT the walk passed on the
+/// way down: two references that reach one instance through different
+/// placings relate the same pair of instances through different static
+/// offsets, so they are different members, and a second such mate
+/// closes a LOOP (non-tree, declaring) instead of folding into the
+/// first mate's pair. Two references through ONE placement spelled two
+/// ways — read at a transform, and at a union above it naming that
+/// member; read at a `Part` selecting a copy, and at the pattern naming
+/// that copy — are one member, and their mates fold.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Member {
     /// The group-graph vertex this member stands on: the head
@@ -49,48 +52,69 @@ pub struct Member {
     /// partitions see, and why a mate to `Instance(i)` joins the other
     /// member into the pattern's group.
     pub instance: RecipeNodeId,
+    /// **The placing nodes the walk passed**, OUTERMOST first: each
+    /// pattern with the copy the name says, and each transform. Empty
+    /// for a reference read at its instance, or through nothing but
+    /// `Part` selections and unions, which move nothing.
+    pub chain: Vec<Placing>,
+}
+
+/// One placing node on a member's chain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Placing {
+    /// A pattern, at the structural index the reference's name says.
+    Copy {
+        /// The pattern node.
+        pattern: RecipeNodeId,
+        /// The copy index.
+        index: u32,
+    },
+    /// A transform.
+    Transform(RecipeNodeId),
+}
+
+impl Placing {
+    /// The recipe node this placing is.
+    #[must_use]
+    pub fn node(self) -> RecipeNodeId {
+        match self {
+            Self::Copy { pattern, .. } => pattern,
+            Self::Transform(node) => node,
+        }
+    }
+}
+
+impl Member {
     /// **Which copy this member is, at every level**: one
-    /// `(pattern node, structural index)` per pattern the walk
-    /// consumed, OUTERMOST first, empty for a plain instance head.
-    ///
-    /// A chain rather than one level because the argument that puts a
-    /// copy in the member's identity holds at each of them: two mates
-    /// onto sibling copies of an INNER pattern under one outer copy
-    /// relate different bodies through different static offsets, so
-    /// they are different pairs and the second closes a loop.
-    pub copy: Vec<(RecipeNodeId, u32)>,
-    /// The OPERAND the reference was read at: the node whose geometry
-    /// the mate speaks about. Two references to one instance through
-    /// two different transforms are two members over one instance, so
-    /// they key `by_pair` as different pairs and the second mate
-    /// closes a loop rather than folding into the first.
-    pub at: RecipeNodeId,
+    /// `(pattern node, structural index)` per pattern on the chain,
+    /// OUTERMOST first, empty for a member no pattern places.
+    #[must_use]
+    pub fn copy(&self) -> Vec<(RecipeNodeId, u32)> {
+        self.chain
+            .iter()
+            .filter_map(|p| match *p {
+                Placing::Copy { pattern, index } => Some((pattern, index)),
+                Placing::Transform(_) => None,
+            })
+            .collect()
+    }
 }
 
 /// **The member key, written out.** `Member` is the `BTreeMap` key
 /// `by_pair` and `edge_of` are built on, and its order, with every node
 /// read as its position in the document, is the order the spanning
 /// tree picks its edges by; so the ordering is stated rather than
-/// derived: `(instance, copy, at)`, with the OPERAND last and the copy
-/// chain compared lexicographically.
+/// derived: `(instance, copy, chain)` — the instance, then the copy
+/// chain (patterns only, outermost first), then the whole placing
+/// chain, each compared lexicographically.
 ///
-/// Last is load-bearing. In a document whose every reference is read
-/// at its own mint the operand is a function of the other two fields,
-/// so this order is the pre-operand `(instance, copy)` order refined
-/// and no such document's pair set, spanning tree or solve moves. A
-/// derive would tie that guarantee to the order the fields happen to
-/// be written in, where an edit that reads as cosmetic could change
-/// which mate a group takes as its tree edge.
-///
-/// The chain keeps that guarantee one level further out. A document
-/// whose members are at most one copy deep has chains of length zero
-/// or one, and a lexicographic order over those is exactly the order
-/// `Option<(node, index)>` gave: empty before non-empty, and two
-/// non-empty chains by their single pair. So no such document's
-/// spanning tree moves either.
+/// The copies come before the transforms because that is the order a
+/// document keyed by before the placing chain replaced the operand: a
+/// reference read at its mint or at a transform keys as it did, and
+/// the whole chain refines the order where the operand used to.
 impl Ord for Member {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        (self.instance, &self.copy, self.at).cmp(&(other.instance, &other.copy, other.at))
+        (self.instance, self.copy(), &self.chain).cmp(&(other.instance, other.copy(), &other.chain))
     }
 }
 
@@ -208,9 +232,11 @@ pub(super) fn walk<'r, P>(
             // it speaks about. A whole edge moves the body and
             // contributes no `RolePath` segment; a `Part` selecting an
             // instance moves nothing at all and carries every name
-            // VERBATIM. Anything else — a boolean, a union, a split's
-            // intact pass-through, a `Part` naming a split HALF — is a
-            // different body, not this one placed.
+            // VERBATIM. Anything else — a boolean, a split's intact
+            // pass-through, a `Part` naming a split HALF — is a
+            // different body, not this one placed. (A union is the
+            // head of every name it carries, so the walk meets it
+            // below, at the head.)
             match doc.node(at).and_then(crate::names::verbatim_edge) {
                 // A whole edge is shape-preserving over the value —
                 // body `k` in, body `k` out — so a `Part` above it
@@ -249,14 +275,16 @@ pub(super) fn walk<'r, P>(
                 return Ok(Walk {
                     member: Member {
                         instance: at,
-                        copy: chain
+                        chain: chain
                             .iter()
-                            .filter_map(|p| match *p {
-                                Placer::Pattern { node, i, .. } => Some((node, i)),
-                                Placer::Transform(_) => None,
+                            .map(|p| match *p {
+                                Placer::Pattern { node, i, .. } => Placing::Copy {
+                                    pattern: node,
+                                    index: i,
+                                },
+                                Placer::Transform(node) => Placing::Transform(node),
                             })
                             .collect(),
-                        at: r.at,
                     },
                     chain,
                     head: &r.name,
@@ -279,6 +307,22 @@ pub(super) fn walk<'r, P>(
                 name = of;
                 at = *input;
             }
+            // A union's member: the name must SAY which member, and the
+            // walk continues at that member under the name inside the
+            // qualifier. A union moves nothing, so it is no placer: a
+            // reference read here and one read at the member it names
+            // stand on one member.
+            Some(Node::Union { members, .. }) => {
+                let [RoleSeg::FromMember { member, of }] = name.path.as_slice() else {
+                    return Err(at);
+                };
+                if !members.contains(member) {
+                    return Err(at);
+                }
+                part = None;
+                name = of;
+                at = *member;
+            }
             _ => return Err(at),
         }
     }
@@ -295,10 +339,12 @@ pub(super) fn walk<'r, P>(
 /// edges to `r.name`'s head, which must be a live `InstantiatePart`.
 /// Between them it admits exactly the nodes that place a body without
 /// renaming it: any number of `Transform`s, any number of `Part`
-/// nodes selecting an `Instance`, and any number of `Pattern` levels,
-/// each of which must carry its `Instance(i)` qualifier in the name.
-/// A nested copy is a member like any other; its identity carries the
-/// whole chain of copies ([`Member::copy`]).
+/// nodes selecting an `Instance`, any number of `Pattern` levels,
+/// each of which must carry its `Instance(i)` qualifier in the name,
+/// and any number of `Union`s, each of which must carry the
+/// `FromMember` qualifier naming one of its members. A nested copy is
+/// a member like any other; its identity carries the whole chain of
+/// placings ([`Member::chain`]).
 ///
 /// Structural only — no expression is evaluated here, so the group
 /// partition never depends on a slot value. That includes a `Part`'s
@@ -306,8 +352,9 @@ pub(super) fn walk<'r, P>(
 /// reads the NAME, and the offset checks the node against it.
 ///
 /// Outside the vocabulary: a non-instance head; a pattern whose name
-/// carries no `Instance(i)` qualifier; anything the walk meets that
-/// places no body of its own — a boolean, a union, a split, a `Part`
+/// carries no `Instance(i)` qualifier; a union whose name carries no
+/// `FromMember` qualifier naming one of its members; anything the walk
+/// meets that places no body of its own — a boolean, a split, a `Part`
 /// naming a split HALF (which is a different body, not this one
 /// placed), a head the walk never reaches at all.
 ///
@@ -323,8 +370,8 @@ pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Option<Member> 
 /// **The member a reference resolves to, and the reference's name as
 /// that member's instance names it** — [`member_of`]'s walk, with the
 /// name it reached at the instance: inside one `Instance(i)` qualifier
-/// per pattern level the walk consumed ([`Member::copy`]), so a copy
-/// answers its MASTER's name. That name is a row of the instance's own
+/// per pattern level the walk consumed ([`Member::copy`]) and one
+/// `FromMember` per union, so a copy answers its MASTER's name. That name is a row of the instance's own
 /// product table.
 ///
 /// `None` exactly where [`member_of`] answers `None`.
@@ -1015,8 +1062,10 @@ mod tests {
         Walk {
             member: Member {
                 instance,
-                copy: vec![(PATTERN, 1)],
-                at: PATTERN,
+                chain: vec![Placing::Copy {
+                    pattern: PATTERN,
+                    index: 1,
+                }],
             },
             chain: vec![Placer::Pattern {
                 node: PATTERN,

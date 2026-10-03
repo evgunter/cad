@@ -3704,7 +3704,7 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::NoCarrier": "ReadbackError.variant",
     # A value the at-rest gate hands back, not a raised refusal.
     "RefusedRef::Vanished": "RefusedRef.variant",
-    "RefusedRef::ReadBelowARoot": "RefusedRef.variant",
+    "RefusedRef::MovedAbove": "RefusedRef.variant",
     "RefusedRef::Ambiguous": "RefusedRef.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words
