@@ -2,13 +2,14 @@
 id: placement-split-and-inline-at-a-gauge-are-refused-until-p2-split
 kind: issue
 title: edit: split and inline refuse the shapes A4 builds with a minted gauge — the gauge hoist, a cut holding a gauge, an inline at an offset over any other part, and a mate-placed instance
-status: dispatched
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: H
 parent: placement-is-spelled-three-ways-node-registry-and-rule
 branch: place/p2-retire-hoist
 pr: 3930
+closed: 2026-10-03
 ---
 
 
@@ -49,3 +50,15 @@ the instance's gauge). Rows: `crates/editor-core/tests/p2_gauges.rs`.
 
 Build A4's gauge hoist and gauge inline, and admit the mate-placed
 inline A4 rules. Each lifts a refusal and changes no admitted result.
+
+## Closed (2026-10-03)
+
+Built by four PRs:
+- #3885 (P2-carry): a carried member keeps its checked offset.
+- #3908 (P2-split): the vote, `SeveredGauge`, the verbatim move of a cut holding gauges, inline's minted gauge, the mate-placed inline, and the R1 comparator.
+- #3930 (P2-retire, Ev's ruling (i) on #3888): no group hoist and no sugar; `Promote`/`Fold`; `NoMaterial` and `UnplaceableRoot`.
+- #3934 (P2-face): a `FromFace` side names no face and crosses with its head.
+
+Every interim refusal named in this row's title is gone. What is left on this ground is on other rows:
+- `a4-round-trip-moves-the-root-order-of-an-interleaved-cut`: docs and tests.
+- `a-part-resting-on-a-gauge-cannot-follow-a-part-edit`: the general mate frame.
