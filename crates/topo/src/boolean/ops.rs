@@ -5001,7 +5001,7 @@ mod tests {
     fn a_kept_boundary_refusal_comes_back_as_the_booleans_own() {
         use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
         let (mut body, kept, absorbed, strut) =
-            crate::merge_faces::kept_rows::wall_beside_a_leaning_neighbour(5e-9, Tol::witness());
+            crate::merge_faces::kept_rows::wall_beside_a_leaning_neighbour(Tol::witness());
         let surface = |face| body.get_face(face).unwrap().surface;
         let pair = (surface(kept), surface(absorbed));
         let refusal = body

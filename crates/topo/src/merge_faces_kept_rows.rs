@@ -193,15 +193,17 @@ fn the_strand_the_door_repairs_is_the_absorbed_faces_boundary() {
 }
 
 /// The split-wall prism with the wall's far neighbour turned off it by
-/// `lean` (its far corner at `(3, lean)`): `(body, kept, absorbed, strut)`,
-/// `strut` the edge between the absorbed face and that neighbour. Every
-/// edge whose two faces' dihedral decides is described as their
-/// `Intersection`; an undecided one keeps its construction chord.
-pub(crate) fn wall_beside_a_leaning_neighbour(
-    lean: f64,
-    tol: Tol,
-) -> (Body<f64>, FaceKey, FaceKey, EdgeKey) {
+/// a lean inside the process tolerance's band (its far corner at
+/// `(3, lean)`, `lean` the geometric mean of the band's two ends, so the
+/// dihedral there is undecided at every ε): `(body, kept, absorbed,
+/// strut)`, `strut` the edge between the absorbed face and that
+/// neighbour. Every edge whose two faces' dihedral decides is described
+/// as their `Intersection`; the undecided one keeps its construction
+/// chord.
+pub(crate) fn wall_beside_a_leaning_neighbour(tol: Tol) -> (Body<f64>, FaceKey, FaceKey, EdgeKey) {
     use crate::test_support_fixtures::{FaceGeometry, identity_map, prism_ops};
+    let band = geom_core::Band::linear(tol).unwrap();
+    let lean = (band.zero() * band.escalate()).sqrt();
     let mut body = Body::<f64>::new();
     let ops = prism_ops(
         &mut body,
@@ -218,7 +220,6 @@ pub(crate) fn wall_beside_a_leaning_neighbour(
         FaceGeometry::Certified,
         tol,
     );
-    let band = geom_core::Band::linear(tol).unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (key, edge) in edges {
         let (s1, s2) = crate::readback::edge_sides(&body, key).unwrap().surfaces();
@@ -251,7 +252,7 @@ pub(crate) fn wall_beside_a_leaning_neighbour(
 #[test]
 fn an_undecided_kept_boundary_edge_refuses_in_the_doors_words() {
     let tol = Tol::witness();
-    let (mut body, kept, absorbed, strut) = wall_beside_a_leaning_neighbour(5e-9, tol);
+    let (mut body, kept, absorbed, strut) = wall_beside_a_leaning_neighbour(tol);
     let before = crate::fixtures::deep_snapshot(&body);
     let pair = (surface_of(&body, kept), surface_of(&body, absorbed));
     let refusal = body
