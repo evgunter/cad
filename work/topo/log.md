@@ -6170,3 +6170,23 @@ Both reports are posted verbatim (`5971199683`), and the archive holds
 - the three-home adjacency predicate;
 - two readings of a listed spec's keys (`repoint` against literal);
 - `loop_rekeyed` and `carried_spec` disagreeing on chart images.
+
+## PR 3974 delivered (plane offset rung); cloud review out (2026-10-03)
+
+`CoincidenceMeasure` has three arms: `Zero` (with its decided margin),
+`Undecided` and `Unreadable`. Its `not_zero` is the one place the poison
+bit is read.
+- `Unreadable` is routed to `Escalated { SelfCheck::CarrierData }` with
+  the kernel-defect ending, and it no longer offers a declaration.
+- Three readers are fixed: `pair_finding`, the `Display`, and
+  `pair_door_verdict` (new on main).
+- The curved `data_rungs` shared the same encoding and are fixed too.
+- Witness (a) is a NaN plane via the test-support door, red on base.
+  Four mutants red.
+- Filed: `work/wire/refusal-menu-stamps-decided-coincident-on-an-in-band-coincidence.md`.
+- CI run 37136726064 passed.
+
+The cloud reviewer is session `session_01LgCrvCR6F6EXRiRFyL5SXV`. It is
+asked whether a NaN carrier datum is a kernel defect or malformed input
+with its own lever, and whether the `same_door` test change weakened a
+pin.
