@@ -1,0 +1,11 @@
+--- /tmp/claude-0/-home-user-cad/97e1f4be-7435-58f8-b80d-b767cd8658d2/scratchpad/ops_head.rs	2026-10-03 17:25:52.013711136 +0000
++++ M4_all_to_any.rs	2026-10-03 17:46:21.171769971 +0000
+@@ -3020,7 +3020,7 @@
+                             .filter(|r| r.key == fd.surface && r.bbox.overlaps(&y_row.bbox))
+                             .peekable();
+                         if reaching.peek().is_some()
+-                            && reaching.all(|r| match x_is {
++                            && reaching.any(|r| match x_is {
+                                 Operand::A => touches_only(settled, r.face, yf),
+                                 Operand::B => touches_only(settled, yf, r.face),
+                             })

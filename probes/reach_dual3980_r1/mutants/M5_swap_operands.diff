@@ -1,0 +1,13 @@
+--- /tmp/claude-0/-home-user-cad/97e1f4be-7435-58f8-b80d-b767cd8658d2/scratchpad/ops_head.rs	2026-10-03 17:25:52.013711136 +0000
++++ M5_swap_operands.rs	2026-10-03 17:46:21.172139718 +0000
+@@ -3021,8 +3021,8 @@
+                             .peekable();
+                         if reaching.peek().is_some()
+                             && reaching.all(|r| match x_is {
+-                                Operand::A => touches_only(settled, r.face, yf),
+-                                Operand::B => touches_only(settled, yf, r.face),
++                                Operand::B => touches_only(settled, r.face, yf),
++                                Operand::A => touches_only(settled, yf, r.face),
+                             })
+                         {
+                             continue;

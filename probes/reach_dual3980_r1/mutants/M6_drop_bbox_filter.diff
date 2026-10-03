@@ -1,0 +1,11 @@
+--- /tmp/claude-0/-home-user-cad/97e1f4be-7435-58f8-b80d-b767cd8658d2/scratchpad/ops_head.rs	2026-10-03 17:25:52.013711136 +0000
++++ M6_drop_bbox_filter.rs	2026-10-03 17:46:21.172637010 +0000
+@@ -3017,7 +3017,7 @@
+                         // and nothing of the pair is the scan's.
+                         let mut reaching = x_rows
+                             .iter()
+-                            .filter(|r| r.key == fd.surface && r.bbox.overlaps(&y_row.bbox))
++                            .filter(|r| r.key == fd.surface)
+                             .peekable();
+                         if reaching.peek().is_some()
+                             && reaching.all(|r| match x_is {

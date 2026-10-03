@@ -1,0 +1,11 @@
+--- /tmp/claude-0/-home-user-cad/97e1f4be-7435-58f8-b80d-b767cd8658d2/scratchpad/ops_head.rs	2026-10-03 17:25:52.013711136 +0000
++++ M7_ignore_partner.rs	2026-10-03 17:46:21.170883480 +0000
+@@ -1280,7 +1280,7 @@
+ fn touches_only(settled: &[super::SettledPair], fa: FaceKey, fb: FaceKey) -> bool {
+     settled
+         .iter()
+-        .any(|p| p.a == fa && p.b == fb && p.relation == CarrierRelation::SameOpposite)
++        .any(|p| p.a == fa && p.relation == CarrierRelation::SameOpposite)
+ }
+ 
+ /// **The no-crossings path's section pass.** With no event anywhere,
