@@ -2188,6 +2188,18 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "ellipse_roots.rs",
+        "ellipse_roots",
+        "BooleanDecision::ArcCylinderRoots",
+        1,
+    ),
+    (
+        "ellipse_roots.rs",
+        "ellipse_roots",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    (
         "finish.rs",
         "weld_pinches",
         "BooleanDecision::VertexOnVertex",
@@ -2357,19 +2369,19 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     (
         "reduce.rs",
-        "line_wall_root_count",
+        "line_wall_roots_of",
         "BooleanDecision::SphereRoots",
         1,
     ),
     (
         "reduce.rs",
-        "line_wall_root_count",
+        "line_wall_roots_of",
         "BooleanDecision::TorusRoots",
         1,
     ),
     (
         "reduce.rs",
-        "line_wall_root_count",
+        "line_wall_roots_of",
         "BooleanDecision::WallRoots",
         1,
     ),
