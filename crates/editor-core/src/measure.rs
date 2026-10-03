@@ -490,7 +490,7 @@ impl MeasureExpr {
     /// The document parameters this expression references, with their
     /// recorded dimensions — the `Expr::param_refs` contract lifted to
     /// this language, so `apply`'s re-check reaches measure nodes too.
-    pub fn param_refs(&self, out: &mut Vec<(crate::doc::ParamName, Dimension)>) {
+    pub fn param_refs(&self, out: &mut Vec<(crate::doc::VarName, Dimension)>) {
         match &self.kind {
             MeasureKind::Primitive(_) => {}
             MeasureKind::Value(e) => e.param_refs(out),

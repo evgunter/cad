@@ -575,10 +575,12 @@ impl std::error::Error for PointInSolidError {}
 /// [`plane_outward_normal`] — the callers of this door are handed a
 /// material direction, not a chart datum).
 ///
-/// Its one external consumer feeds the normal to [`point_in_face`],
-/// whose answer is ray-crossing parity and therefore blind to the
-/// normal's sign either way; threading here is what keeps the door's
-/// CONTRACT honest for the next consumer.
+/// Every consumer reads the normal's sign-blind content: each feeds it,
+/// directly or through a probe, to [`point_in_face`], whose answer is
+/// ray-crossing parity, and the join's tie (`sectors::runs_in`) also
+/// asks only whether a point's height over the plane is zero. Threading
+/// the sense here keeps the door's CONTRACT honest for a consumer that
+/// reads the sign.
 pub(crate) fn face_plane<T: Decide>(
     body: &Body<T>,
     face: FaceKey,

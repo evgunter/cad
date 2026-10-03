@@ -97,7 +97,7 @@ use geom_core::{Sym, SymCounts, Tol};
 #[cfg(feature = "probe")]
 use crate::analysis::BoxAxis;
 use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, ParamName};
+use crate::doc::{Doc, VarName};
 use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
     ProfileLift, evaluate,
@@ -1597,7 +1597,7 @@ pub(crate) fn lane_opts() -> EvalOptions {
 /// to reach it (the per-axis depth budget's currency).
 struct Box_ {
     box_: ParamBox,
-    depths: BTreeMap<ParamName, u32>,
+    depths: BTreeMap<VarName, u32>,
 }
 
 /// What one leaf's replay decided.
@@ -2038,7 +2038,7 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     // population from the leaves it is supposed to describe: these are
     // the points the driver certified AROUND, and "around" is defined
     // by where it split.
-    let mid: BTreeMap<ParamName, BoxAxis> = box_
+    let mid: BTreeMap<VarName, BoxAxis> = box_
         .axes()
         .iter()
         .map(|(n, a)| {

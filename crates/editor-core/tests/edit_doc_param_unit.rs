@@ -1,4 +1,4 @@
-//! **The notation door for a document parameter** — `DocParam::
+//! **The notation door for a document parameter** — `FreeVar::
 //! with_display_unit` and the `DocEdit::SetDocParamUnit` that routes
 //! through it.
 //!
@@ -11,7 +11,7 @@
 //! it.
 //!
 //! **The reading these rows pin** is stated once, in
-//! `DocParam::with_display_unit`'s rustdoc, and executed here by
+//! `FreeVar::with_display_unit`'s rustdoc, and executed here by
 //! `bit_eq_is_blind_to_the_notation_edit` and
 //! `diff_is_blind_to_the_notation_edit` rather than restated in prose.
 //!
@@ -55,13 +55,13 @@ test_utils::gated_to![
 
 use editor_core::{
     AnalysisPolicy, CarryForwardDoor, Dimension, DisplayUnitRefusal, Distribution, Doc, DocEdit,
-    DocParam, DocParamValue, DocumentId, EditError, ParamName, PersistError, ProfileDoc, UnitSym,
+    DocumentId, EditError, FreeValue, FreeVar, PersistError, ProfileDoc, UnitSym, VarName,
     analyzed_box, apply, load, save,
 };
 use geom_core::Tol;
 
-fn p(name: &'static str) -> ParamName {
-    ParamName::from_static(name)
+fn p(name: &'static str) -> VarName {
+    VarName::from_static(name)
 }
 
 fn mm() -> UnitSym {
@@ -83,10 +83,10 @@ fn fixture() -> ProfileDoc {
     for (name, value) in [
         (
             "wall",
-            DocParam::continuous_with(Dimension::Length, 0.003, sigma()),
+            FreeVar::continuous_with(Dimension::Length, 0.003, sigma()),
         ),
-        ("sweep", DocParam::continuous(Dimension::Angle, 1.5)),
-        ("ribs", DocParam::Count { value: 4 }),
+        ("sweep", FreeVar::continuous(Dimension::Angle, 1.5)),
+        ("ribs", FreeVar::Count { value: 4 }),
     ] {
         doc = apply(
             &doc,
@@ -105,7 +105,7 @@ fn fixture() -> ProfileDoc {
 
 /// **The trap, written down.** Re-spelling a parameter's notation
 /// through the create-or-replace door means assembling a whole
-/// `DocParam`, and the natural spelling — `DocParam::continuous(dim,
+/// `FreeVar`, and the natural spelling — `FreeVar::continuous(dim,
 /// value)`, then the notation — names no distribution, so the
 /// annotation is deleted. No refusal, no diagnostic: the edit applies.
 ///
@@ -119,25 +119,25 @@ fn rebuilding_a_parameter_to_re_spell_its_unit_drops_the_distribution() {
         before.params()[&p("wall")].distribution().is_some(),
         "the fixture parameter is annotated to begin with"
     );
-    let DocParam::Continuous { dim, value, .. } = before.params()[&p("wall")] else {
+    let FreeVar::Continuous { dim, value, .. } = before.params()[&p("wall")] else {
         panic!("wall is continuous")
     };
     // The caller wants millimetres and has to restate the declaration
     // to say so. This is the whole trap: `distribution` is a field
     // nobody mentioned.
-    let rebuilt = match DocParam::continuous(dim, value) {
-        DocParam::Continuous {
+    let rebuilt = match FreeVar::continuous(dim, value) {
+        FreeVar::Continuous {
             dim,
             value,
             distribution,
             ..
-        } => DocParam::Continuous {
+        } => FreeVar::Continuous {
             dim,
             value,
             display_unit: mm(),
             distribution,
         },
-        DocParam::Count { value } => DocParam::Count { value },
+        FreeVar::Count { value } => FreeVar::Count { value },
     };
     let after = apply(
         &before,
@@ -186,7 +186,7 @@ fn the_unit_door_carries_the_declaration_forward() {
     .expect("a unit edit on a declared Length parameter applies")
     .doc;
     match after.params()[&p("wall")] {
-        DocParam::Continuous {
+        FreeVar::Continuous {
             dim,
             value,
             display_unit,
@@ -202,7 +202,7 @@ fn the_unit_door_carries_the_declaration_forward() {
             let got = distribution.expect("the annotation SURVIVED");
             assert!(got.bit_eq(&sigma()), "and survived bit for bit: {got:?}");
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
     // The trap row's mirror at the same strength: the analysis still
     // reads the parameter as varying.
@@ -216,12 +216,12 @@ fn the_unit_door_carries_the_declaration_forward() {
     );
 }
 
-/// `DocParam::with_display_unit` on its own, the carry-forward in one
+/// `FreeVar::with_display_unit` on its own, the carry-forward in one
 /// place: the same two `None`s the edit door reports as typed
 /// refusals.
 #[test]
 fn with_display_unit_is_the_carry_forward_and_its_refusals_are_none() {
-    let annotated = DocParam::continuous_with(Dimension::Length, 0.003, sigma());
+    let annotated = FreeVar::continuous_with(Dimension::Length, 0.003, sigma());
     let moved = annotated
         .with_display_unit(mm())
         .expect("mm measures a Length");
@@ -242,7 +242,7 @@ fn with_display_unit_is_the_carry_forward_and_its_refusals_are_none() {
         "a unit that does not measure the declared dimension, and it says so"
     );
     assert_eq!(
-        DocParam::Count { value: 4 }.with_display_unit(mm()),
+        FreeVar::Count { value: 4 }.with_display_unit(mm()),
         Err(DisplayUnitRefusal::CountHasNoNotation),
         "a count names no notation"
     );
@@ -312,7 +312,7 @@ fn the_unit_door_refuses_typed() {
         &doc,
         &DocEdit::SetDocParamValue {
             name: p("nonesuch"),
-            value: DocParamValue::Continuous(1.0),
+            value: FreeValue::Continuous(1.0),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -443,7 +443,7 @@ fn the_unit_edit_saves_replays_and_loads() {
         "the edit itself round-tripped, notation and all"
     );
     match loaded.doc.params()[&p("wall")] {
-        DocParam::Continuous {
+        FreeVar::Continuous {
             display_unit,
             distribution,
             ..
@@ -451,11 +451,11 @@ fn the_unit_edit_saves_replays_and_loads() {
             assert_eq!(display_unit, mm(), "replay wrote the notation");
             assert!(distribution.is_some(), "and kept the annotation");
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
     match loaded.doc.params()[&p("sweep")] {
-        DocParam::Continuous { display_unit, .. } => assert_eq!(display_unit, deg()),
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Continuous { display_unit, .. } => assert_eq!(display_unit, deg()),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
     // A log the replay would refuse never reaches a file: the save
     // door runs the same `apply`, so the refusal is symmetric.
@@ -480,15 +480,15 @@ fn declaring_log() -> Vec<DocEdit<editor_core::ProfileProgram>> {
     vec![
         DocEdit::SetDocParam {
             name: p("wall"),
-            value: DocParam::continuous_with(Dimension::Length, 0.003, sigma()),
+            value: FreeVar::continuous_with(Dimension::Length, 0.003, sigma()),
         },
         DocEdit::SetDocParam {
             name: p("sweep"),
-            value: DocParam::continuous(Dimension::Angle, 1.5),
+            value: FreeVar::continuous(Dimension::Angle, 1.5),
         },
         DocEdit::SetDocParam {
             name: p("ribs"),
-            value: DocParam::Count { value: 4 },
+            value: FreeVar::Count { value: 4 },
         },
     ]
 }
@@ -662,14 +662,14 @@ fn annotating_through_create_or_replace_reverts_the_notation() {
     )
     .expect("the notation edit applies")
     .doc;
-    let DocParam::Continuous { dim, value, .. } = in_mm.params()[&p("wall")] else {
+    let FreeVar::Continuous { dim, value, .. } = in_mm.params()[&p("wall")] else {
         panic!("continuous")
     };
     let reannotated = apply(
         &in_mm,
         &DocEdit::SetDocParam {
             name: p("wall"),
-            value: DocParam::continuous_with(dim, value, Distribution::Normal { sigma: 2e-5 }),
+            value: FreeVar::continuous_with(dim, value, Distribution::Normal { sigma: 2e-5 }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -677,12 +677,12 @@ fn annotating_through_create_or_replace_reverts_the_notation() {
     .expect("create-or-replace applies")
     .doc;
     match reannotated.params()[&p("wall")] {
-        DocParam::Continuous { display_unit, .. } => assert_eq!(
+        FreeVar::Continuous { display_unit, .. } => assert_eq!(
             display_unit,
             UnitSym::canonical_for(Dimension::Length),
             "the notation reverted to canonical — the filed row's claim"
         ),
-        DocParam::Count { .. } => panic!("continuous"),
+        FreeVar::Count { .. } => panic!("continuous"),
     }
 }
 
@@ -721,7 +721,7 @@ fn the_table_has_exactly_one_scalar_row() {
 #[test]
 fn the_create_or_replace_door_refuses_a_mismatched_pairing() {
     let doc = fixture();
-    let crooked = DocParam::Continuous {
+    let crooked = FreeVar::Continuous {
         dim: Dimension::Length,
         value: 0.003,
         display_unit: deg(),

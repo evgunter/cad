@@ -180,7 +180,7 @@ macro_rules! proximity_lever {
 /// ([`CORNER_EDGES`]).
 macro_rules! corner_edges {
     () => {
-        "make the edges at the corner where the two faces meet clearly longer than the tolerance"
+        "make the edges at the corner where the two faces meet span clearly more than the tolerance"
     };
 }
 
@@ -482,16 +482,17 @@ pub enum Coincide {
     TangentSide,
     /// How two corners of the two solids overlap where they meet: a
     /// direction within a sector, two sectors' faces parallel, their
-    /// bounds in line, the order of a strut's germs. Every verdict
-    /// passes.
+    /// bounds in line, the order of a strut's germs, whether a dihedral
+    /// wedge about a shared edge is reflex. Every verdict passes.
     ///
     /// One question over sites a declaration settles and sites it does
     /// not: only `vtxfac`'s coplanar lump reads the pair ahead of it, with
     /// the classes its door admits for the pierced face; every other site
     /// (`within`, the strut order, `pair_search`, the directions' overlap,
-    /// the pierce germ line) passes `Moot` or a read minted with no class
-    /// admitted, which the lookup never mints `Settles` from. The read,
-    /// not the variant, carries the difference.
+    /// the pierce germ line, the edge-edge wedge's extent) passes `Moot`
+    /// or a read minted with no class admitted, which the lookup never
+    /// mints `Settles` from. The read, not the variant, carries the
+    /// difference.
     Sectors,
     /// Whether an edge of one solid runs along an edge of the other
     /// (`bool_ee_collinear`, a norm): along it passes, and so does a
@@ -856,21 +857,27 @@ pub(crate) const CORNER_EDGES: &str = corner_edges!();
 pub enum SphereQuestion {
     /// Whether the sphere crosses a plane face's carrier or clears it
     /// (`bool_sphere_extent_gap`, `r − |s|`): either definite side
-    /// passes, and a decided zero, a tangency, refuses with its decided
-    /// margin.
+    /// passes. A decided zero, a tangency, passes where the section
+    /// certificate places the touch off one of the faces, and refuses
+    /// with its margin otherwise. An in-band margin refuses with its
+    /// margin: the certificate reads the same margin as undecided
+    /// (R-tan).
     AgainstPlane,
     /// Whether two spheres stand apart (`bool_sphere_sphere_gap`): a
-    /// positive gap passes. A gap at or below zero goes on to
-    /// [`SphereQuestion::Nested`], whose margin is then about minus the
-    /// smaller sphere's diameter, so a gap within the band of zero
-    /// refuses there.
+    /// positive gap passes, and a negative one goes on to
+    /// [`SphereQuestion::Nested`]. A decided zero, spheres touching
+    /// from outside, passes where the section certificate places the
+    /// touch off one of the faces, and refuses with its margin
+    /// otherwise; an in-band gap refuses with its margin, as at
+    /// [`SphereQuestion::AgainstPlane`].
     Apart,
     /// Whether the smaller of two overlapping spheres lies strictly
     /// inside the larger (`bool_sphere_sphere_nested`): a positive
-    /// clearance passes, and so does a negative one whose two spheres'
-    /// faces the section certificate certifies apart. A decided zero, and
-    /// a crossing whose circle lies inside both faces, refuse
-    /// (`BooleanError::SpheresMeet` is its decided refusal).
+    /// clearance passes, and so do a negative one and a decided zero
+    /// whose two spheres' faces the section certificate certifies apart.
+    /// A crossing whose circle lies inside both faces, and a decided
+    /// zero touching on both faces, refuse (`BooleanError::SpheresMeet`
+    /// is its decided refusal).
     Nested,
     /// Whether the plane faces one sphere pokes through are parallel
     /// (`bool_sphere_escape_parallel`): only a zero passes (a single
@@ -1114,7 +1121,7 @@ pub enum NeighbourOffset {
     /// nonzero one in the zero band is a size a smaller tolerance
     /// decides apart.
     Zero(Classified),
-    /// The offset landed in the ambiguity band, or was poisoned.
+    /// The offset landed in the ambiguity band.
     Undecided(Indeterminate),
 }
 
@@ -1156,8 +1163,6 @@ impl NeighbourOffset {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum RestZipFrontier {
-    /// Two edges of one operand span one segment of the seam.
-    ParallelSeamEdges,
     /// The Euler operator minting a seam chord across its host face
     /// refused.
     ChordMefRefused,
@@ -1171,6 +1176,9 @@ pub enum RestZipFrontier {
     ChordEndpointAbsent,
     /// A seam chord joins two isolated pierce points.
     ChordBetweenIsolatedPierces,
+    /// Seam segments are left whose ends are all isolated pierce points,
+    /// with no boundary for the seam to grow from.
+    SegmentsBetweenIsolatedPierces,
     /// A seam chord's endpoint recurs on its host face's boundary.
     ChordEndpointRevisited,
     /// The other part's edge a chord stands for has no certified line
@@ -1203,12 +1211,14 @@ impl RestZipFrontier {
     #[must_use]
     pub const fn what(self) -> &'static str {
         match self {
-            Self::ParallelSeamEdges => "two parallel operand edges span one seam segment",
             Self::ChordMefRefused => "seam chord mef refused on its host face",
             Self::ChordMekrRefused => "seam chord mekr refused on its host face",
             Self::PierceRingMekrRefused => "seam chord mekr (pierce ring) refused",
             Self::ChordEndpointAbsent => "seam chord endpoint has no boundary presence",
             Self::ChordBetweenIsolatedPierces => "seam chord between two isolated pierce points",
+            Self::SegmentsBetweenIsolatedPierces => {
+                "seam segments left between isolated pierce points only"
+            }
             Self::ChordEndpointRevisited => {
                 "seam chord endpoint revisited by its host face boundary"
             }
@@ -1242,12 +1252,12 @@ impl RestZipFrontier {
             // the seam no move of the parts is known to avoid while
             // keeping the contact: a contact already planar can meet
             // them (two isolated pierce points).
-            Self::ParallelSeamEdges
-            | Self::ChordMefRefused
+            Self::ChordMefRefused
             | Self::ChordMekrRefused
             | Self::PierceRingMekrRefused
             | Self::ChordEndpointAbsent
             | Self::ChordBetweenIsolatedPierces
+            | Self::SegmentsBetweenIsolatedPierces
             | Self::ChordEndpointRevisited
             | Self::TwinCarrierUnsupported
             | Self::PatchVertexUnmatched
@@ -1361,14 +1371,14 @@ pub(crate) enum PlaneDoor {
 
 /// The maximal-faces gate's lever: the one move that takes two
 /// neighbouring faces off the question, whichever rung asked it.
-pub(crate) const NEIGHBOUR_LEVER: &str = "merge the two faces into one first \
+pub(crate) const NEIGHBOUR_LEVER: &str = "merge the two faces into one \
                                (merge_coplanar_faces), or \
-                               tilt one to meet at a clear angle along an edge clearly longer \
-                               than the tolerance";
+                               tilt one to meet at a clear angle along an edge spanning \
+                               clearly more than the tolerance";
 
 /// A corner's own shape: its arm and its straightness, the two rungs
 /// of [`SectorRung`], which one move answers.
-const CORNER_LEVER: &str = "reshape that corner so its edges are clearly longer than the tolerance and clearly not in line";
+const CORNER_LEVER: &str = "reshape that corner so its edges span clearly more than the tolerance and are clearly not in line";
 
 /// A sized decision's table row at a build, where the stored arm is
 /// never read.
@@ -1527,14 +1537,14 @@ impl BooleanDecision {
             // coincidence or a carrier contradiction at every tolerance.
             Self::PlaneOrientation => Ending::Lever(CORNER_EDGES, LeverPass::ByArm),
             // The margin is the normals' sine over the shared edge's
-            // chord, and a definitely positive one (a clear angle)
+            // extent, and a definitely positive one (a clear angle)
             // passes.
             Self::Neighbours(PlaneRung::Parallel) => sized(
                 NEIGHBOUR_LEVER,
                 "bend across their shared edge",
                 SizedPass::Positive,
             ),
-            // Asked only once the angle read flat over the chord; either
+            // Asked only once the angle read flat over the extent; either
             // definite orientation then leaves the faces coplanar, which
             // the gate refuses, so no sign of this margin passes and no
             // tolerance decides it passing.
@@ -1765,9 +1775,9 @@ mod tests {
     }
 
     const NEIGHBOURS: &str = "whether two neighbouring faces of one operand lie on one plane";
-    const NEIGHBOUR_ENDING: &str = "Recourse: merge the two faces into one first \
+    const NEIGHBOUR_ENDING: &str = "Recourse: merge the two faces into one \
                                     (merge_coplanar_faces), or tilt one to meet at a clear angle \
-                                    along an edge clearly longer than the tolerance";
+                                    along an edge spanning clearly more than the tolerance";
 
     const TUBE_LEVER: &str =
         "Recourse: reshape the torus so its tube is clearly thicker than the tolerance";
@@ -2115,14 +2125,14 @@ mod tests {
     }
 
     const LONGER: &str = "Recourse: make the edges at the corner where the two faces meet \
-                          clearly longer than the tolerance";
+                          span clearly more than the tolerance";
 
     /// Each decision's subject and ending, as literals: an independent
     /// statement of the words `subject` and `ending` must produce, on a
     /// margin it can read (`readable`) or a poisoned one.
     fn want(decision: BooleanDecision, readable: bool) -> (&'static str, Ending) {
-        const CORNER: &str = "Recourse: reshape that corner so its edges are clearly longer than \
-                              the tolerance and clearly not in line";
+        const CORNER: &str = "Recourse: reshape that corner so its edges span clearly more than \
+                              the tolerance and are clearly not in line";
         const STRAIGHT: &str = "whether a corner is straight or folds back on itself";
         const SPHERES: &str = "Recourse: move the spheres so they clearly stand apart, or so one \
                                lies clearly inside the other";
@@ -3272,7 +3282,7 @@ mod tests {
                              undecided: "
                         ) && text.contains(
                             "Recourse: make the edges at the corner where the two faces meet \
-                             clearly longer than the tolerance"
+                             span clearly more than the tolerance"
                         ) && text.contains(if zero {
                             "lies within the zero band"
                         } else {
@@ -3313,16 +3323,16 @@ mod tests {
         let b = band();
         let (z, e) = (b.zero(), b.escalate());
         let (f1, f2) = (FaceKey::default(), FaceKey::default());
-        for (chord, definite) in [(0.5 * z, false), ((z + e) / 2.0, false), (1.0, true)] {
+        for (reach, definite) in [(0.5 * z, false), ((z + e) / 2.0, false), (1.0, true)] {
             for sign in [1.0, -1.0] {
-                let label = format!("chord {chord:e}, facing {sign}");
+                let label = format!("reach {reach:e}, facing {sign}");
                 let (p1, p2) = planes(sign);
                 let verdict = declared_pair_verdict(
                     oriented_plane_eq(
                         &p1,
                         &p2,
                         DECLARED,
-                        &crate::boolean::ConsumedExtent::arm(chord),
+                        &crate::boolean::ConsumedExtent::arm(reach),
                         b,
                     ),
                     f1,
@@ -3365,7 +3375,7 @@ mod tests {
                         && !text.contains("FaceKey"),
                     "{label}: {text}"
                 );
-                let offer = (!definite && sign > 0.0).then(|| chord / k());
+                let offer = (!definite && sign > 0.0).then(|| reach / k());
                 assert_eq!(offered_below(&text), offer.map(Some), "{label}: {text}");
                 assert_eq!(
                     BooleanError::Merge(err).to_string(),
@@ -3384,6 +3394,30 @@ mod tests {
     /// the refusal names the gate's decision and lever with the
     /// tolerance its margin gives, not the declare menu, which no
     /// declaration between two faces of one operand could settle.
+    /// **A neighbour whose offset datum is not finite is the operand's
+    /// defect at the maximal-faces gate** (F7): the brick's split top,
+    /// one half re-charted parallel through `z = +∞`. The offset decides
+    /// no sign, so the gate neither passes the pair as apart nor refuses
+    /// it as coplanar neighbours: the datum is poisoned, read at rest.
+    #[test]
+    fn the_maximal_faces_gate_refuses_an_infinite_neighbour_offset_as_poison() {
+        let body = top_split_redescribed(|p0, along, _| crate::Surface::Plane {
+            origin: Point3::new(p0.x, p0.y, f64::INFINITY),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: along,
+        });
+        let err = super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
+            .expect_err("an infinite offset is no plane apart from its neighbour");
+        let BooleanError::PoisonedCarrierDatum { pair, diag } = err else {
+            panic!("the gate refuses the poisoned datum: {err:?}");
+        };
+        assert_eq!(diag.predicate, Some("bool_plane_offset"), "{diag:?}");
+        assert!(
+            pair.iter().all(|&(operand, _)| operand == Operand::A),
+            "both neighbours are the operand's: {pair:?}"
+        );
+    }
+
     #[test]
     fn the_maximal_faces_gate_ends_near_flat_neighbours_in_its_own_lever() {
         let b = band();
@@ -3666,8 +3700,8 @@ mod tests {
     /// the Boolean both end it as a defect, with no declaration. The
     /// maximal-faces gate compares two faces of one operand, which no
     /// declaration names: a real in-band parallelism raise there (two
-    /// neighbours bent by an in-band angle over a unit chord) and a
-    /// real orientation raise (coincident neighbours over a chord in
+    /// neighbours bent by an in-band angle over a unit extent) and a
+    /// real orientation raise (coincident neighbours over an extent in
     /// the band) end in the gate's lever, the former with the tolerance
     /// its margin gives and the latter with none, since either
     /// orientation leaves the faces coplanar.
@@ -3715,16 +3749,16 @@ mod tests {
                 "an unreadable norm is a defect at every door: {text}"
             );
         }
-        const GATE: &str = "Recourse: merge the two faces into one first (merge_coplanar_faces), \
-                            or tilt one to meet at a clear angle along an edge clearly longer \
-                            than the tolerance";
+        const GATE: &str = "Recourse: merge the two faces into one (merge_coplanar_faces), \
+                            or tilt one to meet at a clear angle along an edge spanning \
+                            clearly more than the tolerance";
         let theta = (z + e) / 2.0;
         let (flat, _) = planes(1.0);
         let bent = PlaneDesc {
             origin: Point3::new(0.0, 0.0, 1.0),
             normal: Vec3::new(theta.sin(), 0.0, theta.cos()),
         };
-        for (p2, chord, rung) in [
+        for (p2, extent, rung) in [
             (bent, 1.0, PlaneRung::Parallel),
             (flat, (z + e) / 2.0, PlaneRung::Orientation),
         ] {
@@ -3732,7 +3766,7 @@ mod tests {
                 &flat,
                 &p2,
                 PlaneIdentity::NONE,
-                &crate::boolean::ConsumedExtent::arm(chord),
+                &crate::boolean::ConsumedExtent::arm(extent),
                 b,
             )
             .expect_err("the gate's rung refuses");

@@ -32,25 +32,25 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Evaluation, Expr, LoopProgram,
-    MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamName, ParamValue,
-    ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SeedError,
-    SitedRef, ValuePayload, evaluate, seed_env,
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, FreeVar, LoopProgram,
+    MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc,
+    ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SeedError, SitedRef,
+    ValuePayload, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
 use fixture::{Recorder, fname, len, wall};
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn param(n: &'static str) -> Expr {
     Expr::param(name(n), Dimension::Length)
 }
 
-fn continuous(value: f64) -> DocParam {
-    DocParam::Continuous {
+fn continuous(value: f64) -> FreeVar {
+    FreeVar::Continuous {
         dim: Dimension::Length,
         value,
         display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -206,7 +206,7 @@ fn with_count() -> ProfileDoc {
         &doc,
         &DocEdit::SetDocParam {
             name: name("n"),
-            value: DocParam::Count { value: 3 },
+            value: FreeVar::Count { value: 3 },
         },
         Tol::witness(),
         &editor_core::RefusingReach,

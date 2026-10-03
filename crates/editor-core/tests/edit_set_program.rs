@@ -45,11 +45,11 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Attr, CapEnd, Datum, Dimension, DocEdit, DocParam, EditError, EntityKind, EvalOptions, Expr,
-    LoopProgram, Maintenance, NameRef, Node, NodeErrorKind, NodeResult, ParamName, PersistError,
-    PieceRole, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramStep, ProgramTarget,
-    RecipeNodeId, ResolveError, Rgba8, RoleSeg, SlotId, StableName, StepArg, StepId, StepIdFault,
-    apply, load, save,
+    Attr, CapEnd, Datum, Dimension, DocEdit, EditError, EntityKind, EvalOptions, Expr, FreeVar,
+    LoopProgram, Maintenance, NameRef, Node, NodeErrorKind, NodeResult, PersistError, PieceRole,
+    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
+    ResolveError, Rgba8, RoleSeg, SlotId, StableName, StepArg, StepId, StepIdFault, VarName, apply,
+    load, save,
 };
 use fixture::{ang, edge_of, ends, fname, insert, len, len2, minted, point, scl, table, tol};
 use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, rod_chord_at};
@@ -833,7 +833,7 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
         "set-program-param-refs",
         vec![LoopProgram::Chain(square_steps())],
     );
-    let nope = Expr::param(ParamName::from_static("nope"), Dimension::Length);
+    let nope = Expr::param(VarName::from_static("nope"), Dimension::Length);
     let mut steps = square_steps();
     steps[1] = ProgramStep::LineTo(ProgramTarget::Point([nope.clone(), len(0.0)]));
     let slot = SlotId::Profile {
@@ -1345,8 +1345,8 @@ fn set_value(
     apply(
         doc,
         &DocEdit::SetDocParamValue {
-            name: ParamName::from_static(name),
-            value: editor_core::DocParamValue::Continuous(v),
+            name: VarName::from_static(name),
+            value: editor_core::FreeValue::Continuous(v),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -1358,15 +1358,15 @@ fn declared(label: &str, name: &'static str, v: f64) -> ProfileDoc {
     let (doc, _) = fixture::step(
         ProfileDoc::empty_derived(label, tol()),
         DocEdit::SetDocParam {
-            name: ParamName::from_static(name),
-            value: DocParam::continuous(Dimension::Length, v),
+            name: VarName::from_static(name),
+            value: FreeVar::continuous(Dimension::Length, v),
         },
     );
     doc
 }
 
 fn param_len(name: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(name), Dimension::Length)
+    Expr::param(VarName::from_static(name), Dimension::Length)
 }
 
 /// A profile of `loops` extruded, in `doc`; `(doc, profile, extrude)`.

@@ -47,9 +47,9 @@ use editor_core::stackup::{
 };
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    DocParam, DocParamValue, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, Node, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId,
-    RoleSeg, SitedRef, ValuePayload, evaluate,
+    EvalOptions, Evaluation, Expr, FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive,
+    Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, ValuePayload,
+    VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -96,8 +96,8 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
@@ -118,8 +118,8 @@ fn band(half: f64) -> Distribution {
     }
 }
 
-fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> DocParam {
-    DocParam::Continuous {
+fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> FreeVar {
+    FreeVar::Continuous {
         dim,
         value,
         display_unit: UnitSym::canonical_for(dim),
@@ -676,7 +676,7 @@ fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
     .unwrap_or_else(|e| panic!("the stackup refused: {e}"));
     match &report.rss {
         Rss::UnavailableBecause { blockers } => {
-            let named: Vec<&ParamName> = blockers.iter().map(Unavailable::param).collect();
+            let named: Vec<&VarName> = blockers.iter().map(Unavailable::param).collect();
             assert_eq!(named, vec![&name("depth"), &name("hole_r")], "{blockers:?}");
             assert!(
                 blockers
@@ -841,7 +841,7 @@ fn the_pairing_hook_is_red_capable_on_a_stale_build() {
             &doc,
             &DocEdit::SetDocParamValue {
                 name: name("hole_r"),
-                value: DocParamValue::Continuous(0.21),
+                value: FreeValue::Continuous(0.21),
             },
         ),
         "edited",
@@ -1138,7 +1138,7 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
             &doc,
             &DocEdit::SetDocParamValue {
                 name: name("hole_r"),
-                value: DocParamValue::Continuous(0.21),
+                value: FreeValue::Continuous(0.21),
             },
         ),
         "edited",

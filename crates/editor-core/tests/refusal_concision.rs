@@ -261,6 +261,13 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "GermEdgeCarrierUnsupported",
+            BooleanError::GermEdgeCarrierUnsupported {
+                operand: Operand::B,
+                edge,
+            },
+        ),
+        (
             "ArcLoopContainmentUnsupported",
             BooleanError::ArcLoopContainmentUnsupported {
                 operand: Operand::A,

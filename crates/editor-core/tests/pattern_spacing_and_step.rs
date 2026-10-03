@@ -22,8 +22,8 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Dimension, DocEdit, DocParam, Expr, Node, NodeErrorClass, NodeErrorKind, NodeResult, ParamName,
-    PatternKind, ProfileDoc, RecipeNodeId, StepTurns, ValuePayload, parse_expr,
+    Dimension, DocEdit, Expr, FreeVar, Node, NodeErrorClass, NodeErrorKind, NodeResult,
+    PatternKind, ProfileDoc, RecipeNodeId, StepTurns, ValuePayload, VarName, parse_expr,
 };
 use fixture::{ang, len, scl};
 
@@ -32,12 +32,12 @@ use corpus::{eval, failures};
 /// A block off the z axis (so a turn about it moves the copies), and
 /// the z-axis datum a circular rule turns it about; `th`, when given,
 /// is declared an angle parameter first.
-fn block(th: Option<(&ParamName, f64)>) -> (corpus::Recorder, RecipeNodeId, RecipeNodeId) {
+fn block(th: Option<(&VarName, f64)>) -> (corpus::Recorder, RecipeNodeId, RecipeNodeId) {
     let mut r = corpus::Recorder::new();
     if let Some((name, radians)) = th {
         r.push(DocEdit::SetDocParam {
             name: name.clone(),
-            value: DocParam::continuous(Dimension::Angle, radians),
+            value: FreeVar::continuous(Dimension::Angle, radians),
         });
     }
     let axis = r.insert(Node::Datum(editor_core::Datum::Axis {
@@ -74,7 +74,7 @@ fn patterned(count: i64, kind: impl FnOnce(RecipeNodeId) -> PatternKind, union: 
 fn driven(
     count: i64,
     kind: impl FnOnce(RecipeNodeId) -> PatternKind,
-    th: (&ParamName, f64),
+    th: (&VarName, f64),
 ) -> Built {
     built(count, kind, false, Some(th))
 }
@@ -83,7 +83,7 @@ fn built(
     count: i64,
     kind: impl FnOnce(RecipeNodeId) -> PatternKind,
     union: bool,
-    th: Option<(&ParamName, f64)>,
+    th: Option<(&VarName, f64)>,
 ) -> Built {
     let (mut r, solid, axis) = block(th);
     let kind = kind(axis);
@@ -299,7 +299,7 @@ fn past_a_turn_the_recourse_is_one_angle_that_lands_every_copy() {
 /// the turns it holds, which builds and lands where the step would.
 #[test]
 fn a_driven_step_past_a_turn_says_what_it_evaluated_to() {
-    let th = ParamName::from_static("th");
+    let th = VarName::from_static("th");
     let params = BTreeMap::from([(th.clone(), Dimension::Angle)]);
     for (step, value, times, within) in [
         ("th", 760.0, 1.0, "th - 720 deg"),
@@ -356,8 +356,8 @@ fn written(text: &str) -> Expr {
 fn lands_where(
     radians: f64,
     within: &str,
-    params: &BTreeMap<ParamName, Dimension>,
-    th: Option<(&ParamName, f64)>,
+    params: &BTreeMap<VarName, Dimension>,
+    th: Option<(&VarName, f64)>,
 ) {
     let step = parse_expr(within, params).unwrap_or_else(|e| panic!("{within:?} parses: {e:?}"));
     let built = match th {

@@ -102,11 +102,11 @@ use std::sync::Arc;
 
 use pncad::document::{
     Alignment, Assembly, AssemblyError, AxisSense, CONTRADICTORY_RECOURSE, CancelToken, Datum,
-    Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr,
-    Frame, InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach, MateRole,
-    MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PartReach, PartResolver, PatternKind,
-    Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace, Step,
-    UNDER_RECOURSE, ValuePayload, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
+    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, FreeValue,
+    FreeVar, InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach, MateRole,
+    MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, PartReach, PartResolver, PatternKind, Placement,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace, Step, UNDER_RECOURSE,
+    ValuePayload, VarName, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
     parse_expr, product_named, regauge_then_mate, save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
@@ -199,7 +199,7 @@ const CRATE_VOLUME: f64 = CRATE_WIDTH * CRATE_DEPTH * CRATE_HEIGHT;
 
 /// The text expression door, with the document's parameters in scope
 /// — the way a user types a dimension (`"section"`, `"120 mm"`).
-fn pe(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Expr {
+fn pe(src: &str, params: &BTreeMap<VarName, Dimension>) -> Expr {
     parse_expr(src, params).unwrap_or_else(|e| panic!("expression `{src}`: {e:?}"))
 }
 
@@ -372,14 +372,14 @@ fn prism_part(
     tol: Tol,
 ) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let mut scope: BTreeMap<ParamName, Dimension> = BTreeMap::new();
+    let mut scope: BTreeMap<VarName, Dimension> = BTreeMap::new();
     for &(name, value) in params {
-        let name = ParamName::from_static(name);
+        let name = VarName::from_static(name);
         edit(
             &mut doc,
             &DocEdit::SetDocParam {
                 name: name.clone(),
-                value: DocParam::continuous(Dimension::Length, value),
+                value: FreeVar::continuous(Dimension::Length, value),
             },
             tol,
             &RefusingReach,
@@ -576,8 +576,8 @@ struct Stand {
 }
 
 /// The document parameter the turntable's swing reads.
-fn swing() -> ParamName {
-    ParamName::from_static("swing")
+fn swing() -> VarName {
+    VarName::from_static("swing")
 }
 
 /// The turntable: a gauge on the world that turns its contents by
@@ -589,7 +589,7 @@ fn swing() -> ParamName {
 /// three-step chain — `[to the pivot, the swing, from the pivot]`, the
 /// last step acting first — where the author means one turn about one
 /// axis.
-fn turntable(scope: &BTreeMap<ParamName, Dimension>) -> Node<ProfileProgram> {
+fn turntable(scope: &BTreeMap<VarName, Dimension>) -> Node<ProfileProgram> {
     let [px, py, pz] = PIVOT;
     Node::gauge(
         None,
@@ -606,7 +606,7 @@ fn turntable(scope: &BTreeMap<ParamName, Dimension>) -> Node<ProfileProgram> {
 /// A rigid step that only turns, about +z through the origin. `Step`
 /// has no rotation-only spelling, so the zero translation and the
 /// axis are written out here once (the same gap row).
-fn turn_about_z(angle: Expr, scope: &BTreeMap<ParamName, Dimension>) -> Step {
+fn turn_about_z(angle: Expr, scope: &BTreeMap<VarName, Dimension>) -> Step {
     Step::Rigid {
         translation: [pe("0 mm", scope), pe("0 mm", scope), pe("0 mm", scope)],
         axis: [pe("0.0", scope), pe("0.0", scope), pe("1.0", scope)],
@@ -643,7 +643,7 @@ fn stand_doc(
         &mut doc,
         &DocEdit::SetDocParam {
             name: swing(),
-            value: DocParam::continuous(Dimension::Angle, 0.0),
+            value: FreeVar::continuous(Dimension::Angle, 0.0),
         },
         tol,
         &RefusingReach,
@@ -1072,7 +1072,7 @@ fn poses(
             &mut doc,
             &DocEdit::SetDocParamValue {
                 name: swing(),
-                value: DocParamValue::Continuous(degrees.to_radians()),
+                value: FreeValue::Continuous(degrees.to_radians()),
             },
             tol,
             &reach,
@@ -1825,8 +1825,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     edit(
         &mut thicker,
         &DocEdit::SetDocParamValue {
-            name: ParamName::from_static("thickness"),
-            value: DocParamValue::Continuous(SHELF_THICKNESS * 1.5),
+            name: VarName::from_static("thickness"),
+            value: FreeValue::Continuous(SHELF_THICKNESS * 1.5),
         },
         tol,
         &reach,
@@ -1950,8 +1950,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     edit(
         &mut shorter,
         &DocEdit::SetDocParamValue {
-            name: ParamName::from_static("height"),
-            value: DocParamValue::Continuous(POST_HEIGHT - 0.04),
+            name: VarName::from_static("height"),
+            value: FreeValue::Continuous(POST_HEIGHT - 0.04),
         },
         tol,
         &reach,
@@ -2067,8 +2067,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     edit(
         &mut shorter,
         &DocEdit::SetDocParamValue {
-            name: ParamName::from_static("height"),
-            value: DocParamValue::Continuous(POST_HEIGHT),
+            name: VarName::from_static("height"),
+            value: FreeValue::Continuous(POST_HEIGHT),
         },
         tol,
         &reach,
@@ -2077,8 +2077,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     edit(
         &mut thicker,
         &DocEdit::SetDocParamValue {
-            name: ParamName::from_static("thickness"),
-            value: DocParamValue::Continuous(SHELF_THICKNESS),
+            name: VarName::from_static("thickness"),
+            value: FreeValue::Continuous(SHELF_THICKNESS),
         },
         tol,
         &reach,
