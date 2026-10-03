@@ -15,6 +15,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{Dimension, Doc, Expr, Node, ProfileProgram, SlotId};
 use pncad::geom_core::Tol;
@@ -262,11 +263,11 @@ fn a_value_that_fixes_a_failure_is_not_a_boundary() {
     );
 }
 
-/// **The session's probe against a real document**: an extrude whose
-/// distance may not be zero.
+/// **The session's probe against a real document**: an extrude, whose
+/// depth must be positive.
 ///
-/// The kernel refuses a zero-height extrude, so the range has a floor
-/// just above zero and no ceiling anywhere near — and the probe finds
+/// The kernel refuses a depth it cannot tell from zero and every depth
+/// below, so the range has a floor just above zero and no ceiling anywhere near — and the probe finds
 /// exactly that without the test naming a number the kernel decides.
 #[test]
 fn the_session_probes_a_real_slots_range() {
@@ -278,6 +279,7 @@ fn the_session_probes_a_real_slots_range() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -472,37 +474,16 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
 /// steps over the floor reports [`Bound::Open`] and the row dies
 /// there saying so.
 ///
-/// **How thin the floor is depends on ε, so nothing here may assume
-/// it is a point.** A negative thickness builds at every ε, so the
-/// failing region is bounded above by a thickness the tolerance
-/// decides: at the default ε and at `1e-12` only the exact value `0`
-/// fails, while at `1e-6` everything below about `1e-5` does. Both
-/// are the same rule — an extrusion the tolerance cannot tell from
-/// zero — and the row is written to hold under either, which is why
-/// it asserts a halving COUNT and not a width. The finding that a
-/// negative distance builds at all is
-/// `work/chrome/a-negative-extrude-distance-probes-as-valid.md`.
+/// **Where the floor sits depends on ε.** A depth is a size, so every
+/// thickness below the floor fails: the failing region is a half-line,
+/// bounded above by a thickness the tolerance decides — `0` itself at
+/// the default ε and at `1e-12`, about `1e-5` at `1e-6`. The row holds
+/// under either, which is why it asserts a halving COUNT and not a
+/// width.
 #[test]
 fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     let tol = Tol::witness();
-    let doc: Doc<ProfileProgram> = Doc::empty_derived("valid-range-mm", tol);
-    let (doc, _) = common::edited(
-        &doc,
-        pncad::document::DocEdit::SetDocParam {
-            name: common::thickness_param(),
-            value: pncad::document::DocParam::written_length(WrittenLength::in_unit(8.0, MM)),
-        },
-        tol,
-    );
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
-    let (doc, _extrude) = common::inserted(
-        &doc,
-        Node::Extrude {
-            profile,
-            distance: Expr::param(common::thickness_param(), Dimension::Length),
-        },
-        tol,
-    );
+    let doc = thickness_document(tol);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let outcome = session.perform(SessionOp::ProbeBounds {
@@ -533,20 +514,11 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
         "a millimetre-seeded reach stops metres out, not kilometres: {:?}",
         result.high
     );
-    // Downward: the plate fails at a vanishing thickness — at the
-    // exact value 0, and at whatever thin band above it the tolerance
-    // cannot tell from 0 — so the failing region is narrow and a
-    // direction brackets it only by landing a doubling inside it. A
-    // millimetre ladder does, because the floor is 8 seeds out and 8
-    // is a power of two. A ladder that steps over the band finds
-    // nothing below and reports `Open`, which is what this `let else`
-    // is for.
+    // Downward: the plate fails at every thickness the tolerance
+    // cannot tell from 0 and below, so the first doubling past the
+    // floor lands in the failing half-line.
     let Bound::Edge { valid, invalid } = result.low else {
-        panic!(
-            "the failing region here is a vanishing thickness, so the low side brackets only \
-             when a doubling lands inside it; a seed whose ladder steps over it reaches past \
-             the floor and reports Open: {result:?}"
-        );
+        panic!("a depth below the floor refuses, so the low side brackets: {result:?}");
     };
     assert!(invalid < valid, "a bracket straddles: {invalid}..{valid}");
     // The refinement ENTERED the bracket the reach left it: the last
@@ -572,4 +544,76 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
          {refines} it has: {invalid}..{valid}",
         refines = BoundsProbe::MAX_REFINES
     );
+}
+
+/// One millimetre-authored `thickness` parameter, 8 mm, driving the
+/// depth of a 40 mm square's extrude.
+fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("valid-range-mm", tol);
+    let (doc, _) = common::edited(
+        &doc,
+        pncad::document::DocEdit::SetDocParam {
+            name: common::thickness_param(),
+            value: pncad::document::DocParam::written_length(WrittenLength::in_unit(8.0, MM)),
+        },
+        tol,
+    );
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: Expr::param(common::thickness_param(), Dimension::Length),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .0
+}
+
+/// **Every seed brackets the floor.** The failing region below a depth
+/// is a half-line, so a ladder lands in it whatever it steps by. The
+/// 0.8 mm and 1 m seeds are the ones a point floor at zero let through
+/// (`low: Open`), the 1 mm seed the one that bracketed it only because
+/// 8 mm is a power of two of it.
+#[test]
+fn every_seed_brackets_the_half_line_floor() {
+    let tol = Tol::witness();
+    let doc = thickness_document(tol);
+    let failing = |doc: &Doc<ProfileProgram>| -> Vec<pncad::document::RecipeNodeId> {
+        let ev: pncad::document::Evaluation<f64> = pncad::document::evaluate(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            tol,
+        );
+        ev.nodes
+            .iter()
+            .filter(|(_, r)| matches!(r, pncad::document::NodeResult::Failed(_)))
+            .map(|(id, _)| *id)
+            .collect()
+    };
+    let baseline = failing(&doc);
+    assert!(baseline.is_empty(), "the 8 mm plate builds: {baseline:?}");
+    for seed in [0.0008, 0.001, 1.0] {
+        let bounds = probe(BoundsProbe::new(0.008, seed, false), |v| {
+            let (moved, _) = common::edited(
+                &doc,
+                pncad::document::DocEdit::SetDocParamValue {
+                    name: common::thickness_param(),
+                    value: pncad::document::DocParamValue::Continuous(v),
+                },
+                tol,
+            );
+            failing(&moved).is_empty()
+        });
+        let Bound::Edge { valid, invalid } = bounds.low else {
+            panic!("seed {seed}: the half-line floor is bracketed: {bounds:?}");
+        };
+        assert!(
+            invalid < valid && valid > 0.0 && invalid <= 1e-4,
+            "seed {seed}: the bracket straddles a floor at or just above zero: {invalid}..{valid}"
+        );
+    }
 }

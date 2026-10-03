@@ -37,6 +37,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -132,6 +133,7 @@ fn dumbbell() -> Dumbbell {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(2.0),
+        side: ExtrudeSide::Along,
     });
     // A rigid translation by the document parameter: identity rotation,
     // so every stored direction passes through the interval lane
@@ -514,6 +516,7 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let measure = r.insert(
         Node::measure(

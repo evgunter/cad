@@ -31,6 +31,7 @@ use crate::emit_boolean_vertex_keys::{
     edge_touch_outside, ell_and_tip, face_touch, named_geometry, nested, seamed_touch,
 };
 use crate::fixture::{ends, fname, insert, len, member_face, on_frame, point, table};
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CapEnd, EntityKey, Entry, NameRef, Node, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
@@ -66,6 +67,7 @@ fn slab_rib(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, slab, rib)

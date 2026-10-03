@@ -19,6 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -60,6 +61,7 @@ pub(crate) fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -991,21 +993,21 @@ fn a_cut_of_unplaced_material_alone_names_its_first_group_in_document_order() {
     panic!("no gauge in 0..64 gave the later bare instance the lower id");
 }
 
-/// **The group hoist, and the frame rule at a split** (A4). A cut that
-/// is exactly one placed group hoists its root's offset onto the
-/// instance left behind; a member carrying a further offset refuses,
-/// since the hoist moves the root it was stated against; and a kept
-/// mate whose cut side reads an instance that will not be its part
-/// group's root at the empty chain refuses naming the mate and side.
+/// **A cut of one placed group moves as selected, and the frame rule
+/// at a split** (A4). The instance left behind sits at the empty chain
+/// and the root keeps its offset in the part; a member's checked offset
+/// crosses as it is; and a kept mate whose cut side reads an instance
+/// that will not be its part group's root at the empty chain refuses
+/// naming the mate and side.
 #[test]
-fn the_group_hoist_and_the_frame_rule_at_a_split() {
-    let (p, doc, [base, top, mate]) = placed_pair("p2-hoist");
+fn a_cut_of_one_group_moves_as_selected_and_the_frame_rule_at_a_split() {
+    let (p, doc, [base, top, mate]) = placed_pair("p2-one-group");
     let o = p.opts();
     let split = |doc: &ProfileDoc, ids: &[RecipeNodeId]| {
         editor_core::split(
             doc,
             &cut(ids),
-            DocumentId::derive("p2-hoist-part"),
+            DocumentId::derive("p2-one-group-part"),
             Tol::witness(),
             o.resolver.as_ref(),
         )
@@ -1013,24 +1015,27 @@ fn the_group_hoist_and_the_frame_rule_at_a_split() {
     let out = split(&doc, &[base, top, mate]).expect("one whole group");
     assert_eq!(
         offset_of(&out.remainder, out.instance),
-        Some(literal([4.0, 0.0, 0.0])),
-        "the root's offset hoisted onto the instance"
+        Some(Placement::IDENTITY),
+        "the instance sits at the empty chain"
     );
     assert_eq!(
         offset_of(&out.part, out.node_map[&base]),
-        Some(Placement::IDENTITY),
-        "and the root lands at the empty chain"
+        Some(literal([4.0, 0.0, 0.0])),
+        "and the root keeps its offset in the part"
     );
 
-    // A further offset on a member.
-    let solved = solve(&doc, &o, Tol::witness())
-        .placement(&doc, top)
-        .expect("placed");
-    let checked = set_offset(doc.clone(), top, Some(Placement::literal(&solved)));
-    let err = split(&checked, &[base, top, mate]).expect_err("a further offset");
-    assert!(
-        matches!(&err, editor_core::SplitError::HoistedMemberOffset { instance } if instance.id() == top),
-        "{err:?}"
+    // A member's checked offset crosses as it is.
+    let solved = Placement::literal(
+        &solve(&doc, &o, Tol::witness())
+            .placement(&doc, top)
+            .expect("placed"),
+    );
+    let checked = set_offset(doc.clone(), top, Some(solved.clone()));
+    let out = split(&checked, &[base, top, mate]).expect("a checked member crosses");
+    assert_eq!(
+        offset_of(&out.part, out.node_map[&top]),
+        Some(solved),
+        "the member's checked offset, verbatim"
     );
 
     // The frame rule: a kept block mated onto the cut top, whose cut
@@ -1058,7 +1063,7 @@ fn the_group_hoist_and_the_frame_rule_at_a_split() {
     assert!(
         matches!(
             &err,
-            editor_core::SplitError::MateFrameCrosses { mate: m, side }
+            editor_core::SplitError::MateFrameCrosses { mate: m, side, promote: None }
                 if m.id() == kept_mate && *side == editor_core::MateSide::B
         ),
         "{err:?}"
@@ -1066,14 +1071,15 @@ fn the_group_hoist_and_the_frame_rule_at_a_split() {
     assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
-/// **Inline's sugar and its empty offset** (A4): a root-placed instance
-/// over a part that is one group rooted at the empty chain on its
-/// world has that root take the instance's offset, and at the empty
-/// offset the content lands verbatim. The round trip of the group
-/// hoist through the sugar is equal in evaluation (the spec's D1); the
-/// minted gauge and the mate-placed inline are `p2_split`'s.
+/// **Inline at the empty offset, and at any other** (A4): at the empty
+/// offset the content lands verbatim on the instance's gauge, so the
+/// round trip of a one-group cut returns the group with its root's
+/// offset; at any other offset a gauge is minted under the instance's
+/// gauge holding it, even over a part that is one group rooted at the
+/// empty chain, whose root keeps its own offset. The mate-placed
+/// inline is `p2_split`'s.
 #[test]
-fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_unplaced_typed() {
+fn inline_lands_verbatim_at_the_empty_offset_and_on_a_minted_gauge_at_any_other() {
     let (p, doc, [base, top, mate]) = placed_pair("p2-inline");
     let o = p.opts();
     let out = editor_core::split(
@@ -1088,12 +1094,13 @@ fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_unplaced_typed()
     store.insert(out.part.clone(), Tol::witness());
     let r = resolver(store.clone());
 
-    // The sugar: the round trip.
+    // The empty offset: the round trip.
     let back = editor_core::inline(&out.remainder, out.instance, &r, Tol::witness())
-        .expect("the sugar inlines");
+        .expect("the empty offset inlines");
     assert_eq!(groups(&back.doc).len(), 1, "one group again");
     let root = root_of(&back.doc, groups(&back.doc)[0][0]);
     assert_eq!(offset_of(&back.doc, root), Some(literal([4.0, 0.0, 0.0])));
+    assert_eq!(back.doc.node(root).and_then(Node::gauge_ref), None);
     let volume = |d: &ProfileDoc| {
         topo::mass_properties(
             &product(d, &run(d, &o), Tol::witness()).expect("gathers"),
@@ -1104,14 +1111,55 @@ fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_unplaced_typed()
     };
     assert_eq!(volume(&back.doc).to_bits(), volume(&doc).to_bits());
 
-    // The empty offset: verbatim.
-    let at_origin = set_offset(
+    // Any other offset: a minted gauge, over a part whose one group is
+    // rooted off the empty chain and over one rooted on it alike.
+    let shifted = set_offset(
         out.remainder.clone(),
         out.instance,
-        Some(Placement::IDENTITY),
+        Some(literal([0.0, 5.0, 0.0])),
     );
-    editor_core::inline(&at_origin, out.instance, &r, Tol::witness())
-        .expect("the empty offset lands the content verbatim");
+    let minted = editor_core::inline(&shifted, out.instance, &r, Tol::witness())
+        .expect("a non-empty offset mints a gauge");
+    let root = root_of(&minted.doc, groups(&minted.doc)[0][0]);
+    let gauge = minted
+        .doc
+        .node(root)
+        .and_then(Node::gauge_ref)
+        .expect("the root sits on the minted gauge");
+    assert_eq!(
+        minted.doc.node(gauge),
+        Some(&Node::gauge(None, literal([0.0, 5.0, 0.0]))),
+        "the minted gauge holds the instance's offset on its gauge"
+    );
+    assert_eq!(offset_of(&minted.doc, root), Some(literal([4.0, 0.0, 0.0])));
+    let at_empty = editor_core::split(
+        &set_offset(doc.clone(), base, Some(Placement::IDENTITY)),
+        &cut(&[base, top, mate]),
+        DocumentId::derive("p2-inline-empty-part"),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    )
+    .expect("one whole group at the empty chain");
+    let mut empty_store = store.clone();
+    empty_store.insert(at_empty.part.clone(), Tol::witness());
+    let shifted = set_offset(
+        at_empty.remainder.clone(),
+        at_empty.instance,
+        Some(literal([0.0, 5.0, 0.0])),
+    );
+    let minted = editor_core::inline(
+        &shifted,
+        at_empty.instance,
+        &resolver(empty_store),
+        Tol::witness(),
+    )
+    .expect("one group at the empty chain mints a gauge too");
+    let root = root_of(&minted.doc, groups(&minted.doc)[0][0]);
+    assert!(
+        minted.doc.node(root).and_then(Node::gauge_ref).is_some(),
+        "no root takes the instance's offset"
+    );
+    assert_eq!(offset_of(&minted.doc, root), Some(Placement::IDENTITY));
 
     // The refusal: an unplaced instance has no frame to splice at.
     let unplaced = set_offset(out.remainder.clone(), out.instance, None);
@@ -1172,17 +1220,15 @@ fn a_declaring_mate_crossing_a_cut_fills_the_interface_record() {
     );
 }
 
-/// **A `FromFace` side does not cross the seam yet**: a kept mate's
-/// side that reads the cut names its frame as a face of the cut
-/// instance's part, in that part's spelling, and once the side reads
-/// the instance left behind the name is not a row of the new part —
-/// the frame would name nothing (the solve refuses it `NoSuchName` the
-/// moment the mate places). The re-spelling is not built in P2-core,
-/// so split refuses typed where its authored twin crosses; and inline
-/// refuses the mirror case, a host side naming its face in the
-/// referenced document's spelling.
+/// **A `FromFace` side crosses the seam with its head**: a kept
+/// declaring mate whose side reading the cut is framed on its head
+/// face crosses split exactly as its authored twin does — the head
+/// re-anchors through the instance qualifier, and the face it names
+/// in the new part is the same face — and inline carries it back, the
+/// head unwrapped onto the inner instance. The mate solves on each
+/// document, declaring, with no fault.
 #[test]
-fn a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline() {
+fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     let p = parts("p2-face-crossing");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("p2-face-crossing"), Tol::witness());
@@ -1190,49 +1236,26 @@ fn a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline() {
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, base, Some(k));
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
-    let from_face = |name: StableName| {
-        MateFrame::from_face(editor_core::FaceName::new(name).expect("a face name"))
+    let Node::Mate {
+        a,
+        b,
+        class,
+        mut alignment,
+    } = seat(head(p.top_cap(top)), head(p.base_cap(base)))
+    else {
+        panic!("a mate");
     };
-    let with_face_side = |node: Node<editor_core::ProfileProgram>, frame: MateFrame| {
-        let Node::Mate {
-            a,
-            b,
-            class,
-            mut alignment,
-        } = node
-        else {
-            panic!("a mate");
-        };
-        alignment.a = frame;
-        Node::Mate {
-            a,
-            b,
-            class,
-            alignment,
-        }
-    };
-    let split_top = |doc: &ProfileDoc| {
-        editor_core::split(
-            doc,
-            &cut(&[top]),
-            DocumentId::derive("p2-face-crossing-part"),
-            Tol::witness(),
-            o.resolver.as_ref(),
-        )
-    };
+    alignment.a = MateFrame::FromFace;
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let top_bottom = StableName {
-        kind: editor_core::EntityKind::Face,
-        node: p.top_body,
-        path: vec![editor_core::RoleSeg::Cap(CapEnd::Start)],
-    };
     let (faced, mate) = fixture::step_with(
-        doc.clone(),
+        doc,
         DocEdit::InsertNode {
-            node: Box::new(with_face_side(
-                seat(head(p.top_cap(top)), head(p.base_cap(base))),
-                from_face(top_bottom.clone()),
-            )),
+            node: Box::new(Node::Mate {
+                a,
+                b,
+                class,
+                alignment,
+            }),
         },
         &reach,
     );
@@ -1241,71 +1264,57 @@ fn a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline() {
         solve(&faced, &o, Tol::witness()).role(mate),
         Some(MateRole::Declaring)
     );
-    let err = split_top(&faced).expect_err("the face side crosses");
-    assert!(
-        matches!(
-            &err,
-            editor_core::SplitError::MateFaceFrameCrosses { mate: m, side }
-                if m.id() == mate && *side == editor_core::MateSide::A
-        ),
-        "{err:?}"
-    );
-    assert!(err.to_string().contains("Recourse:"), "{err}");
-
-    // The authored twin crosses; inline its remainder with a second,
-    // face-sided mate naming the top's face in the part's spelling.
-    let (authored, _) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let out = split_top(&authored).expect("the authored twin crosses");
+    let out = editor_core::split(
+        &faced,
+        &cut(&[top]),
+        DocumentId::derive("p2-face-crossing-part"),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    )
+    .expect("the face side crosses with its head");
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
-    let in_new_part = |name: StableName| StableName {
-        kind: editor_core::EntityKind::Face,
-        node: out.node_map[&top],
-        path: vec![editor_core::RoleSeg::InPart { of: name.into() }],
-    };
-    let through = |name: StableName| StableName {
-        kind: editor_core::EntityKind::Face,
-        node: out.instance,
-        path: vec![editor_core::RoleSeg::InPart {
-            of: in_new_part(name).into(),
-        }],
-    };
     let store_opts = with_resolver(store.clone());
-    let store_reach = editor_core::mate_reach::<f64>(&store_opts, Tol::witness());
-    let (host, face_mate) = fixture::step_with(
-        out.remainder.clone(),
-        DocEdit::InsertNode {
-            node: Box::new(with_face_side(
-                seat(head(through(top_bottom.clone())), head(p.base_cap(base))),
-                from_face(in_new_part(top_bottom)),
-            )),
-        },
-        &store_reach,
+    let Some(Node::Mate {
+        a: crossed,
+        alignment: crossed_alignment,
+        ..
+    }) = out.remainder.node(mate)
+    else {
+        panic!("the kept mate");
+    };
+    assert_eq!(crossed_alignment.a, MateFrame::FromFace);
+    assert_eq!(
+        crossed.name.node, out.instance,
+        "the head re-anchors through the instance"
     );
-    let face_mate = face_mate.expect("the mate");
-    let err = editor_core::inline(
-        &host,
-        out.instance,
-        &resolver(store.clone()),
-        Tol::witness(),
-    )
-    .expect_err("the face side crosses back");
-    assert!(
-        matches!(
-            &err,
-            editor_core::InlineError::MateFaceFrameCrosses { mate: m, side }
-                if m.id() == face_mate && *side == editor_core::MateSide::A
-        ),
-        "{err:?}"
+    let ev = run(&out.remainder, &store_opts);
+    assert!(ev.node_error(mate).is_none(), "{:?}", ev.node_error(mate));
+    assert_eq!(
+        solve(&out.remainder, &store_opts, Tol::witness()).role(mate),
+        Some(MateRole::Declaring)
     );
-    assert!(err.to_string().contains("Recourse:"), "{err}");
-    editor_core::inline(
+    let back = editor_core::inline(
         &out.remainder,
         out.instance,
         &resolver(store),
         Tol::witness(),
     )
-    .expect("its authored twin inlines");
+    .expect("and inlines back with its head");
+    let Some(Node::Mate {
+        alignment: back_alignment,
+        ..
+    }) = back.doc.node(mate)
+    else {
+        panic!("the host mate");
+    };
+    assert_eq!(back_alignment.a, MateFrame::FromFace);
+    let ev = run(&back.doc, &o);
+    assert!(
+        ev.node_error(mate).is_none(),
+        "the host mate evaluates clean: {:?}",
+        ev.node_error(mate)
+    );
 }
 
 /// **The fold rule at inline** (A4): two placing mates of one pair —
@@ -1378,12 +1387,11 @@ fn a_declaring_mate_across_gauges_is_minted_and_certified_at_rest() {
     );
 }
 
-/// **Only a cut of exactly one placed group hoists** (A4). Two placed
-/// groups cut together move verbatim: the instance left behind sits at
-/// the empty offset and each root keeps its own offset in the part —
-/// hoisting either would move the other group.
+/// **A cut of two placed groups moves verbatim** (A4): the instance
+/// left behind sits at the empty offset and each root keeps its own
+/// offset in the part.
 #[test]
-fn a_cut_of_two_placed_groups_moves_verbatim_rather_than_hoisting() {
+fn a_cut_of_two_placed_groups_moves_verbatim() {
     let p = parts("p2-two-groups");
     let doc = ProfileDoc::empty(DocumentId::derive("p2-two-groups"), Tol::witness());
     let (doc, first) = insert(doc, Node::instantiate_part(p.base));
@@ -1402,7 +1410,7 @@ fn a_cut_of_two_placed_groups_moves_verbatim_rather_than_hoisting() {
     assert_eq!(
         offset_of(&out.remainder, out.instance),
         Some(Placement::IDENTITY),
-        "nothing hoisted"
+        "the instance at the empty chain"
     );
     assert_eq!(
         offset_of(&out.part, out.node_map[&first]),
@@ -1417,8 +1425,8 @@ fn a_cut_of_two_placed_groups_moves_verbatim_rather_than_hoisting() {
 // ---- P2-carry: the carry keeps offsets ----
 
 /// The survey's probe: a placed pair whose top carries a checked
-/// offset (its solved world pose), beside a second placed base, so a
-/// cut of all four is two groups and moves verbatim. Returns the store,
+/// offset (its solved world pose), beside a second placed base; a cut
+/// of all four moves verbatim. Returns the store,
 /// the document, `[base, top, mate, second]` and the top's offset.
 fn checked_pair_beside_a_base(
     label: &str,
@@ -1492,7 +1500,7 @@ fn a_verbatim_split_keeps_a_carried_members_checked_offset() {
     assert_eq!(
         offset_of(&out.remainder, out.instance),
         Some(Placement::IDENTITY),
-        "the move is verbatim, not a hoist"
+        "the move is verbatim"
     );
     assert_eq!(
         offset_of(&out.part, out.node_map[&ids[1]]),
@@ -1562,7 +1570,7 @@ fn round_trip_keeps_every_offset(
     assert_eq!(
         offset_of(&out.remainder, out.instance),
         Some(Placement::IDENTITY),
-        "the move is verbatim, not a hoist"
+        "the move is verbatim"
     );
     for (source, part) in offsets_through(doc, |id| out.node_map[&id], &out.part) {
         assert_eq!(part, source, "the part holds exactly the source's offsets");

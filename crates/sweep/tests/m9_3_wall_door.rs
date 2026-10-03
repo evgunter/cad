@@ -3,7 +3,9 @@
 //! and the DEV-1 Tangent witness lane; a VERIFIED declared `Rest`
 //! pair opens the declared-cosurface reduction rung and the carrier
 //! lump at both wall sites; declared `Tangent` pairs descend to the
-//! second-order sector trilean. Undeclared touching refuses forever,
+//! second-order sector trilean, save a union whose ruling runs through
+//! a plane face's interior, which refuses until the doubled-slit arm
+//! is built. Undeclared touching refuses forever,
 //! typed — the door only widens what a verified declaration unlocks.
 //!
 //! The canonical reachability fixture is the two-peg kernel shape's
@@ -18,6 +20,7 @@ use crate::common::three_arc;
 use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::test_support::extruded;
 use sweep::{Extrusion, extrude};
 use topo::{
@@ -239,11 +242,11 @@ fn top_wall_declarations(
 
 /// The Tangent door, three-outcome honest on the witness lane's own
 /// rows: definite counter-evidence CONTRADICTS (apart and crossing
-/// both), an in-band gap ESCALATES, and the touching pair is ADMITTED
-/// past the door (whatever the classification then answers, it is
-/// never the door's refusal).
+/// both), an in-band gap ESCALATES, and the touching pair VERIFIES,
+/// and its union then refuses because the ruling runs through the
+/// plate top's interior.
 #[test]
-fn tangent_door_contradicts_escalates_and_admits() {
+fn tangent_door_contradicts_escalates_and_verifies() {
     let a = plate();
     // Definitely apart (gap 0.5): contradicted.
     let apart = lying_cyl(2.0);
@@ -285,8 +288,7 @@ fn tangent_door_contradicts_escalates_and_admits() {
     )
     .expect_err("an in-band tangency gap escalates");
     assert!(matches!(err, BooleanError::Escalated { .. }), "{err:?}");
-    // The genuinely-touching pair is ADMITTED: whatever the outcome,
-    // it is not a door refusal, and the second-order sector rows run.
+    // The genuinely-touching pair verifies.
     let resting = lying_cyl(1.5);
     let bracket = Bracket::open();
     let out = topo::union_with(
@@ -300,32 +302,18 @@ fn tangent_door_contradicts_escalates_and_admits() {
         v.iter().any(|x| x.predicate == "tangent_locus_gap"),
         "the witness lane must have derived the ruling"
     );
-    // Admitted past the door AND carried through: a `Tangent` pair's
-    // carriers are distinct by its own verification, so the pair never
-    // reaches the planar coplanar-merge door, and the join lane unions
-    // the line-contact pair into ONE solid. The contact is a tangent
-    // ruling — measure zero — so the volume is the operands' sum, to
-    // the rounding of the mass integral: it accumulates over the
-    // union's faces in minting order, which the operands' authored
-    // loop starts decide, so the sum agrees to an ulp of the oracle
-    // rather than bit for bit (measured: one ulp above it).
-    let Ok(BooleanResult::Body(b)) = out else {
-        panic!("the admitted tangent pair must union: {out:?}");
-    };
-    assert_eq!(
-        topo::validate_geometric(&b.body, Tol::witness()),
-        Ok(()),
-        "the tangent union is tier-3 valid"
-    );
-    assert_eq!(b.body.solids().count(), 1, "one solid, not a graft");
-    let vol = topo::mass_properties(&b.body, Tol::witness())
-        .unwrap()
-        .volume;
-    let want = 16.0 + 0.75 * core::f64::consts::PI;
-    assert!(
-        (vol - want).abs() <= 2.0 * f64::EPSILON * want,
-        "plate + lying cylinder, additive across the tangent ruling: {vol} against {want}"
-    );
+    // Verified, and the ruling runs through the plate top's interior:
+    // the union would have material on both sides of it, the doubled
+    // slit #131 rules for, whose arm is unbuilt, so it refuses typed.
+    match out {
+        Err(BooleanError::TangentSlitArmUnbuilt { interior, .. }) => {
+            assert_eq!(interior, topo::Operand::A, "the plate top's interior");
+        }
+        other => panic!(
+            "the verified tangent union refuses as the unbuilt slit arm: {:?}",
+            other.map(|_| ())
+        ),
+    }
 }
 
 /// Outside the DEV-1 witness lane the class refusal stands, naming
@@ -347,9 +335,16 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
         let profile = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-            .unwrap()
-            .body
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     };
     let top: Vec<_> = a
         .faces()

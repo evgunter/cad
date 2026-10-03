@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
@@ -56,6 +57,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -248,7 +250,7 @@ fn row1_split_one_group_preserves_structure_and_names() {
     let _ = part_ref;
 }
 
-/// Row 1, the non-hoisted shape — cutting a PLAIN subtree (no group)
+/// Row 1, a PLAIN subtree — cutting one (no group)
 /// moves the recipe verbatim; the remainder instance sits at identity
 /// and the identity still holds.
 #[test]
@@ -265,6 +267,7 @@ fn row1_split_plain_subtree_preserves_structure() {
         Node::Extrude {
             profile: p2,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let opts = EvalOptions::default();
@@ -556,6 +559,7 @@ fn row3_uncut_param_reference_refuses() {
         Node::Extrude {
             profile: p1,
             distance: h(),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, f2) = insert(doc, xy_frame());
@@ -565,6 +569,7 @@ fn row3_uncut_param_reference_refuses() {
         Node::Extrude {
             profile: p2,
             distance: h(),
+            side: ExtrudeSide::Along,
         },
     );
     match split(
@@ -578,7 +583,9 @@ fn row3_uncut_param_reference_refuses() {
             param,
             cut_node,
             kept_node,
+            promote,
         }) => {
+            assert!(!promote, "an extrude's distance is no offset to promote");
             assert_eq!(param, ParamName::from_static("h"));
             assert_eq!(cut_node, doc.spoken(e1));
             assert_eq!(kept_node, doc.spoken(e2));
@@ -723,7 +730,7 @@ fn row3_further_typed_refusals() {
 /// sides, each its own assertion.
 #[test]
 fn row4_roots_and_offsets_land_as_the_rules_say() {
-    // The hoisted single-group cut.
+    // A single-group cut moves as selected.
     let (_, doc, ids) = two_group_assembly("asm4-r4");
     let out = split(
         &doc,
@@ -744,14 +751,14 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
         &[mapped],
         "the part's root is the cut root"
     );
-    assert!(
-        fixture::same_offset(&out.remainder, out.instance, &doc, ids[1]),
-        "the hoisted offset is the root's old offset"
-    );
     assert_eq!(
-        fixture::offset_of(&out.part, mapped),
+        fixture::offset_of(&out.remainder, out.instance),
         Some(editor_core::Placement::IDENTITY),
-        "the hoisted root lands at the empty chain in the part"
+        "the instance sits at the empty chain"
+    );
+    assert!(
+        fixture::same_offset(&out.part, mapped, &doc, ids[1]),
+        "the root keeps its offset in the part"
     );
 
     // The multi-group cut: both offsets MOVE, the remainder instance
@@ -903,15 +910,16 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
     assert_eq!(volume_bits(&body1), volume_bits(&body2));
 }
 
-// ---- MIN-1 (review round 1): the root-interleaving collapse, pinned ----
+// ---- A cut a kept root separates regroups at its first root ----
 
-/// D-2 amendment rider (i), pinned: a non-adjacent multi-group cut's
-/// roots collapse onto the instance's root-list position, so the round
-/// trip restores the root SET and the spliced block's relative order
-/// but NOT the original interleaving — while the full D-4 identity
-/// (census, bit-equal volumes, whole-table name re-resolution) holds.
+/// A non-adjacent multi-group cut's roots come together where the first
+/// of them was (A10's replacement rule), so the round trip returns the
+/// document up to node ids and that one regrouping (A4): the root set
+/// and the cut's own order are kept, the interleaving with the kept
+/// root is not, and the census, bit-equal volumes and whole-table name
+/// re-resolution all hold.
 #[test]
-fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
+fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_product() {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-min1-part", 0.0, 1.0), Tol::witness());
     // A plain component (dyadic-exact volume, disjoint from the
@@ -929,6 +937,7 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let mut doc = doc;
@@ -948,8 +957,7 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
         inst.push(i);
     }
     let (i0, i1, i2) = (inst[0], inst[1], inst[2]);
-    // The reviewer's probe shape: reordered list, cut roots
-    // NON-ADJACENT in it.
+    // A reordered list, the cut roots NON-ADJACENT in it.
     let (doc, _) = step(
         doc,
         DocEdit::SetRoots {
@@ -991,10 +999,9 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
     )
     .expect("inlines");
     let back = |i: RecipeNodeId| inlined.node_map[&out.node_map[&i]];
-    // The pinned collapse: [e, i2, i0, i1] round-trips to
-    // [e, i2, i1, i0] (in correspondence) — the spliced block lands
-    // whole at the instance's position; the interleaving with i0 is
-    // NOT restored, and D-4 does not name it.
+    // [e, i2, i0, i1] round-trips to [e, i2, i1, i0] (in
+    // correspondence): the spliced block lands whole at the instance's
+    // position.
     assert_eq!(
         inlined.doc.roots(),
         &[e, back(i2), back(i1), i0],
@@ -1006,7 +1013,7 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
         "the original interleaving is genuinely not restored"
     );
 
-    // The full D-4 identity holds regardless, round trip vs original.
+    // The product and its names are the original's.
     let mut store3 = PartStore::default();
     store3.insert(part("asm4-min1-part", 0.0, 1.0), Tol::witness());
     let ev3 = run(&inlined.doc, &with_resolver(store3));
@@ -1099,6 +1106,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         Node::Extrude {
             profile: cut_p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let straddler = StableName {
@@ -1124,6 +1132,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         Node::Extrude {
             profile: kept_p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = insert(
@@ -1594,6 +1603,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let (part_doc, _) = insert(
@@ -1678,6 +1688,7 @@ fn reshaped_component(
         Node::Extrude {
             profile: p2,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let program = match doc.node(p2) {

@@ -30,6 +30,7 @@
 //! `work/sym/interval-test-preamble-is-copied-across-the-m10-files`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::fixture::{self, Recorder, ang, len, scl};
@@ -141,6 +142,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
     let cube = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         at: cube,
@@ -154,6 +156,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -234,6 +237,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
         let cube = r.insert(Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         });
         r.insert(Node::Datum(Datum::FaceFrame {
             at: cube,
@@ -250,6 +254,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -643,6 +648,7 @@ fn stacked(r: &mut Recorder, base: RecipeNodeId, n: usize) -> RecipeNodeId {
         let cube = r.insert(Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         });
         on = r.insert(Node::Datum(Datum::FaceFrame {
             at: cube,
@@ -664,6 +670,7 @@ fn start_cap_frame(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
     let cube = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     r.insert(Node::Datum(Datum::FaceFrame {
         at: cube,
@@ -700,6 +707,7 @@ fn boss_on(r: &mut Recorder, on: RecipeNodeId) {
     r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
 }
 

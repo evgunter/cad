@@ -23,6 +23,7 @@ use crate::common::cavity::{cavity_edges, vented_cavity};
 use geom::{Curve3, Surface};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, Convexity, CornerConfig};
@@ -303,9 +304,16 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the L is a valid profile");
-    let bracket = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .expect("the bracket extrudes")
-        .body;
+    let bracket = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the bracket extrudes")
+    .body;
     let on_reflex = |q: Point3<f64>| (q.x - 1.0).abs() < 1e-12 && (q.y - 1.0).abs() < 1e-12;
     let reflex: Vec<EdgeKey> = bracket
         .edges()
@@ -391,9 +399,16 @@ fn r2_no_sliver_wedge_pose_is_silently_wrong_on_the_corner_path() {
             let profile = Profile::new(SketchPlane::xy(), vec![lp])
                 .validate(Tol::witness())
                 .expect("a triangle is a valid profile");
-            let prism = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-                .expect("the wedge prism extrudes")
-                .body;
+            let prism = extrude(
+                &profile,
+                Extrusion::Distance {
+                    depth: 1.0,
+                    side: ExtrudeSide::Along,
+                },
+                Tol::witness(),
+            )
+            .expect("the wedge prism extrudes")
+            .body;
             let edges: Vec<EdgeKey> = prism.edges().map(|(k, _)| k).collect();
             let pose = format!("thickness {thickness}, radius {radius}");
             match fillet_edges(&prism, &edges, radius, Tol::witness()) {

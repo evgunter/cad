@@ -7,6 +7,7 @@
 
 use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use editor_core::NodeStanding;
@@ -146,6 +147,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
             Node::Extrude {
                 profile: p,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         )
     };
@@ -162,6 +164,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
             Node::Extrude {
                 profile: p,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         )
     };
@@ -248,7 +251,8 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         doc,
         Node::Extrude {
             profile: p,
-            distance: len(0.0), // degenerate: the extrude fails
+            distance: len(0.0), // degenerate: the extrude fails,
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, ext2) = insert(
@@ -256,6 +260,7 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, u) = insert(

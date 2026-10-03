@@ -157,13 +157,13 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     // instance's placement is — and no number read at the world spot
     // is pulled back into it.
     assert_eq!(
-        proposal.alignment.a,
-        asm::from_face(&bench.post_top),
+        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
+        Some(bench.post_top.clone()),
         "side a is the post's own top cap"
     );
     assert_eq!(
-        proposal.alignment.b,
-        asm::from_face(&bench.shelf_bottom),
+        asm::face_side(doc, &proposal.alignment.b, &proposal.b),
+        Some(bench.shelf_bottom.clone()),
         "side b is the shelf's own underside"
     );
 

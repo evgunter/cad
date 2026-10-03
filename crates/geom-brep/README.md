@@ -261,12 +261,21 @@ distance from the sphere, plus per span the image's control distance
 from the Hermite data and the Hermite remainder, through the chart
 map's derivative bound (`geom_brep::sphere_circle`); its schedule stays
 in the certified statement. No UV-space tolerance appears in
-any certified statement; the chart's stretch is the lever arm. Domain
-validity is part of the certificate: one branch pinned at the start (a
-τ jump is unrepresentable in `Harmonic`'s `α + β·t`; the branch per face
-is chosen once by the loop walk in `topo::pcurves` and certified by loop
-continuity) and trim containment against the caller's `ChartWindow`
-(`TrimEscape`). Planar faces store nothing; `chart_pcurve` derives on
+any certified statement; the chart's stretch is the lever arm. A row
+certifies against its carrier and chart alone, on one branch (a τ jump
+is unrepresentable in `Harmonic`'s `α + β·t`); no caller's window enters
+it. The face's rows lift its loops, and `topo::pcurves` certifies the
+loop: at each joint the walk decides the deck element (the whole number
+of periods, and on a sphere the involution twin) as an integer with
+half a period of room; the joint's 3-D coincidence is not decided again
+in the chart, since it follows from the two rows' envelopes and the
+edge certificate's pinning of each carrier's ends to the vertex. Each
+loop winds 0 or ±1 period, and a closed chart polygon is built only
+where it winds 0. A vertex on the chart's singular set (a sphere's pole,
+a cone's apex) is decided as 3-D incidence of the vertex on that set;
+a chart with no singular set decides nothing there. On a spline chart,
+where a net can fold and a 3-D coincidence does not name the sheet, each
+joint also states its chart-space gap. Planar faces store nothing; `chart_pcurve` derives on
 demand. On every other chart the row is mandatory at rest: every
 half-edge of the face stores its certified row, and tier 3 reports a
 missing row as a finding, saying why it is missing by re-deriving the

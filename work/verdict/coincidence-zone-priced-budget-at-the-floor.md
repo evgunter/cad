@@ -105,3 +105,25 @@ node did not refuse for. For `NotSecondOrderSeparated` the refusal is
 stable on every sub-box. For the renamed refusal no sub-box certifies
 whenever K > 2 and neither surface is a fat torus (the argument is at
 the arm). The terminal name this row asks for would cover both.
+
+## A negative depth joins the class, as a half-line (RECIPE, 2026-10-02)
+
+An extrude's distance is a depth now (Ev, #3551;
+`work/recipe/extrude-distance-is-a-depth-and-a-side.md`): the door
+refuses a definitely negative one, `ExtrudeError::NegativeDepth`, through
+the same `extrusion_normal_component` decision. That refusal is stable on
+every sub-box, so it reaches `classify_replay`'s `_ => Bisect` like the
+zero zone, but its zone is the whole half-line below zero rather than a
+band of width `2ε`. A range seed that reaches far below zero now spends
+its whole leaf budget there.
+
+Measured on `docm9_range`'s slab (a unit square extruded by the
+parameter `depth`, nominal 1.0, seed `[-1.05, 0.5]`, `budget(24, 2048)`):
+the low side, a `DecisionFlip` while a negative depth built, is now
+`Indeterminate { certified_to: -0.99995…, reason: Budget(Leaves {
+max_leaves: 2048 }) }`. A seed crossing zero by `2⁻²⁰` instead reaches
+the driver's floor at the crossing
+(`viewer/tests/docm9_range_vs_probe.rs`'s `SEED_LO`). The suite's
+`DecisionFlip` fixture moved to a profile vertex passing through
+collinear, whose far side builds. The terminal name this row asks for
+would cover the half-line too.

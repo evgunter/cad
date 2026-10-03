@@ -24,6 +24,7 @@
 
 use crate::common;
 use common::{inserted, len, session_insert};
+use pncad::document::ExtrudeSide;
 
 use pncad::document::NodeStanding;
 use pncad::document::{Datum, Doc, Expr, Node, ProfileProgram, RecipeNodeId};
@@ -47,6 +48,7 @@ fn boxed(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     )

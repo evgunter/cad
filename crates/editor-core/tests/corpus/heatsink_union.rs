@@ -47,6 +47,7 @@
 //! extrude and the group, which is the memoized-recompute claim
 //! `lib_placedunion.rs` pins.
 
+use editor_core::ExtrudeSide;
 use editor_core::{Dimension, DocEdit, DocParam, Expr, Node, ParamName, PatternKind, SlotId};
 
 use crate::fixture::{len, scl};
@@ -79,6 +80,7 @@ pub fn document() -> CorpusDoc {
     let fin = r.insert(Node::Extrude {
         profile: fin_p,
         distance: len(0.8125),
+        side: ExtrudeSide::Along,
     });
     // The whole fin group, in ONE node.
     let fins = r.insert(

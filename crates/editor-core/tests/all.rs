@@ -471,12 +471,16 @@ mod names_verbatim_edge_evaluator;
 mod node_labels;
 #[path = "node_standing.rs"]
 mod node_standing;
+#[path = "p2_face.rs"]
+mod p2_face;
 #[path = "p2_gauge_offsets_and_spaces.rs"]
 mod p2_gauge_offsets_and_spaces;
 #[path = "p2_gauge_poses_and_doors.rs"]
 mod p2_gauge_poses_and_doors;
 #[path = "p2_gauges.rs"]
 mod p2_gauges;
+#[path = "p2_promote_fold.rs"]
+mod p2_promote_fold;
 #[path = "p2_split.rs"]
 mod p2_split;
 #[path = "parallel_node_map_interval.rs"]

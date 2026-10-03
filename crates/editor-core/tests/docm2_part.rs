@@ -13,6 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::corpus;
@@ -52,6 +53,7 @@ fn unit_box(r: &mut Recorder, x0: f64) -> RecipeNodeId {
     r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -729,6 +731,7 @@ fn prism(r: &mut Recorder, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> RecipeNode
     r.insert(Node::Extrude {
         profile: p,
         distance: len(dz),
+        side: ExtrudeSide::Along,
     })
 }
 

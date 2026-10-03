@@ -31,6 +31,7 @@
 
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::Body;
@@ -48,9 +49,16 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(h), tol())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 fn rod(h: f64) -> Body<f64> {
@@ -58,9 +66,16 @@ fn rod(h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![disc.into()])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(h), tol())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 fn overlap(a: (f64, f64), b: (f64, f64)) -> f64 {
@@ -281,9 +296,16 @@ fn y_prism(xz: &[(f64, f64)], y: (f64, f64)) -> Body<f64> {
     let profile = Profile::new(SketchPlane::zx(), vec![lp])
         .validate(tol())
         .unwrap();
-    let body = extrude(&profile, Extrusion::Distance(y.1 - y.0), tol())
-        .unwrap()
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: y.1 - y.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body;
     topo::transform_rigid(
         &body,
         &geom_core::Affine3::translation(geom_core::Vec3::new(0.0, y.0, 0.0)),

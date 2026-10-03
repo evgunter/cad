@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
@@ -55,7 +56,10 @@ fn bracket_xz(pts: &[(f64, f64)], half_y: f64) -> Body<f64> {
         .expect("the bracket profile validates");
     sweep::extrude(
         &vp,
-        sweep::Extrusion::Distance(2.0 * half_y),
+        sweep::Extrusion::Distance {
+            depth: 2.0 * half_y,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("the bracket extrudes")
@@ -122,9 +126,16 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the box profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .expect("the box extrudes")
-        .body
+    sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: z.1 - z.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the box extrudes")
+    .body
 }
 
 /// The cap direction: azimuth 90° off the dome's seam, latitude 30°.
@@ -589,9 +600,16 @@ fn wedge_above_the_donut() -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the wedge profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(6.0), Tol::witness())
-        .expect("the wedge extrudes")
-        .body
+    sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: 6.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the wedge extrudes")
+    .body
 }
 
 /// **A wedge clear of the donut's carrier answers although its box
@@ -848,9 +866,16 @@ fn a_plane_clear_of_the_bumps_net_is_certified_apart() {
         )
         .validate(Tol::witness())
         .expect("the wedge profile validates");
-        sweep::extrude(&vp, sweep::Extrusion::Distance(6.0), Tol::witness())
-            .expect("the wedge extrudes")
-            .body
+        sweep::extrude(
+            &vp,
+            sweep::Extrusion::Distance {
+                depth: 6.0,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .expect("the wedge extrudes")
+        .body
     };
     assert_eq!(
         nurbs_verdicts(&nurbs_bump(), &wedge),

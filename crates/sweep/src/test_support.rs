@@ -643,9 +643,16 @@ pub fn extruded<T: Decide + topo::AtRestPolicy>(
     let pf = Profile::new(plane, loops)
         .validate(tol)
         .expect("the fixture's profile is a valid loop set");
-    extrude(&pf, Extrusion::Distance(h), tol)
-        .expect("the fixture's profile extrudes")
-        .body
+    extrude(
+        &pf,
+        Extrusion::Distance {
+            depth: h,
+            side: crate::ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("the fixture's profile extrudes")
+    .body
 }
 
 /// The K funnel name a FIXTURE's authored frame axes are decided

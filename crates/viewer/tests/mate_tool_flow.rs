@@ -60,13 +60,13 @@ fn two_picks_one_choice_one_committed_edit() {
     // row, not the instance-qualified name the head carries and not
     // numbers read at the instance's world spot.
     assert_eq!(
-        proposal.alignment.a,
-        asm::from_face(&bench.post_top),
+        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
+        Some(bench.post_top.clone()),
         "the frame is the post's own cap face"
     );
     assert_eq!(
-        proposal.alignment.b,
-        asm::from_face(&bench.shelf_bottom),
+        asm::face_side(doc, &proposal.alignment.b, &proposal.b),
+        Some(bench.shelf_bottom.clone()),
         "the frame is the shelf's own underside"
     );
 
@@ -337,8 +337,8 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     // 0 names, because the pattern's derived offset is the solve's to
     // apply and not the tool's to bake into a frame.
     assert_eq!(
-        proposal.alignment.a,
-        asm::from_face(&bench.post_top),
+        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
+        Some(bench.post_top.clone()),
         "the frame is the post's own cap face"
     );
     let mut zero = MateTool::new();
@@ -348,7 +348,8 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
         .proposal(doc, eval, asm::seat_choice())
         .expect("copy 0 is a member too");
     assert_eq!(
-        from_zero.alignment.a, proposal.alignment.a,
+        asm::face_side(doc, &from_zero.alignment.a, &from_zero.a),
+        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
         "every copy of one pattern is the same part"
     );
 
@@ -522,8 +523,8 @@ fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
     // part, where the transform's map is the SOLVE's to apply, not
     // the tool's to bake in.
     assert_eq!(
-        proposal.alignment.a,
-        asm::from_face(&bench.post_top),
+        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
+        Some(bench.post_top.clone()),
         "the frame is the master's own face"
     );
 
@@ -660,12 +661,13 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
     // linear rule cannot move and what a naive read of the placed
     // body corrupts — never enters the frame at all.
     assert_eq!(
-        spun.alignment.a, unspun.alignment.a,
+        asm::face_side(doc, &spun.alignment.a, &spun.a),
+        asm::face_side(doc, &unspun.alignment.a, &unspun.a),
         "every copy of one pattern is the same part"
     );
     assert_eq!(
-        spun.alignment.a,
-        asm::from_face(&bench.post_top),
+        asm::face_side(doc, &spun.alignment.a, &spun.a),
+        Some(bench.post_top.clone()),
         "the frame is the post's own cap face, whichever copy was picked"
     );
 
@@ -829,8 +831,8 @@ fn a_nested_copy_pick_reads_the_master_and_seats() {
     // The alignment names the MASTER's own face, read through both
     // levels — the same row a mate on the unpatterned post names.
     assert_eq!(
-        proposal.alignment.a,
-        asm::from_face(&bench.post_top),
+        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
+        Some(bench.post_top.clone()),
         "the frame is the post's own cap face"
     );
 
@@ -883,8 +885,8 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
         proposal.a.name
     );
     assert_eq!(
-        proposal.alignment.a,
-        asm::from_face(&bench.post_top),
+        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
+        Some(bench.post_top.clone()),
         "the frame is the post's own cap face"
     );
 

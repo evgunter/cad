@@ -12,6 +12,7 @@
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::{
     Extrusion, Revolution, RevolveAxis, Section, WedgeCapsError, extrude, loft_body, revolve,
     revolved_caps,
@@ -32,8 +33,15 @@ fn face_pose_reads_an_extruded_cap_plane() {
     let profile = unit_square()
         .validate(Tol::witness())
         .expect("the unit square validates");
-    let block =
-        extrude::<f64>(&profile, Extrusion::Distance(1.0), Tol::witness()).expect("it extrudes");
+    let block = extrude::<f64>(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("it extrudes");
 
     // The top cap sits on the sketch plane translated by the
     // extrusion — z = 1, normal along +z. No literal was transcribed
@@ -52,8 +60,15 @@ fn vertex_point_reads_every_corner_of_a_block() {
     let profile = unit_square()
         .validate(Tol::witness())
         .expect("the unit square validates");
-    let block =
-        extrude::<f64>(&profile, Extrusion::Distance(1.0), Tol::witness()).expect("it extrudes");
+    let block = extrude::<f64>(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("it extrudes");
 
     let mut zs: Vec<f64> = block
         .body
@@ -69,8 +84,15 @@ fn edge_pose_reads_a_line_without_inventing_a_perpendicular() {
     let profile = unit_square()
         .validate(Tol::witness())
         .expect("the unit square validates");
-    let block =
-        extrude::<f64>(&profile, Extrusion::Distance(1.0), Tol::witness()).expect("it extrudes");
+    let block = extrude::<f64>(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("it extrudes");
 
     // Every edge of a block is straight: a direction, and honestly no
     // reference perpendicular.
@@ -86,8 +108,15 @@ fn both_extrusion_caps_read_off_the_result_s_own_handles() {
     let profile = unit_square()
         .validate(Tol::witness())
         .expect("the unit square validates");
-    let block =
-        extrude::<f64>(&profile, Extrusion::Distance(2.0), Tol::witness()).expect("it extrudes");
+    let block = extrude::<f64>(
+        &profile,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("it extrudes");
 
     let bottom = face_pose(&block.body, block.bottom).expect("a planar cap");
     let top = face_pose(&block.body, block.top).expect("a planar cap");

@@ -33,6 +33,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Vec3};
 use sweep::Revolution;
@@ -384,9 +385,12 @@ fn only_profile_operand_verbs_declare_a_profile_edge_source() {
 /// the only thing a per-edge source can be attached through.
 #[test]
 fn the_sweeps_flow_names_the_wall_family_their_records_mint() {
-    let extruded = Verb::Extrude { distance: 1.0 }
-        .run_profile(&disc(0.5), tol())
-        .expect("the disc extrudes");
+    let extruded = Verb::Extrude {
+        distance: 1.0,
+        side: ExtrudeSide::Along,
+    }
+    .run_profile(&disc(0.5), tol())
+    .expect("the disc extrudes");
     let VerbRecord::Extrude(built) = extruded else {
         panic!("an extrude run produced another family's record");
     };

@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{len, scl};
+use editor_core::ExtrudeSide;
 use editor_core::{
     Datum, Dimension, Doc, DocEdit, EditError, Expr, ExprPath, Node, RecipeNodeId, SlotId,
 };
@@ -48,7 +49,11 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
         .doc
         .apply(
             &TEdit::InsertNode {
-                node: Box::new(Node::Extrude { profile, distance }),
+                node: Box::new(Node::Extrude {
+                    profile,
+                    distance,
+                    side: ExtrudeSide::Along,
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -189,6 +194,7 @@ fn dangling_ref_rejected() {
                 node: Box::new(Node::Extrude {
                     profile: ghost,
                     distance: len(0.01),
+                    side: ExtrudeSide::Along,
                 }),
             },
             Tol::witness(),
@@ -215,6 +221,7 @@ fn self_reference_cannot_forge_the_next_id() {
                 node: Box::new(Node::Extrude {
                     profile: guessed,
                     distance: len(0.01),
+                    side: ExtrudeSide::Along,
                 }),
             },
             Tol::witness(),
