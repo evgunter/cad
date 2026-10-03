@@ -89,7 +89,7 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F10 ×1 — one loop over seven
-rigidity residuals — F13 ×1, F14 ×1, F16 ×1 — 4 shipped sites, tracked as issue #214 and pinned by
+rigidity residuals — F13 ×1, F14 ×2, F16 ×1 — 5 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -847,13 +847,23 @@ Flagged, NOT fixed here (dispositions):
   a vanished row a string. Nothing cites it now: the count above went
   from 8 to 7, and `LEDGER_FLAGGED_SITES` with it.
 - **F14** (added by the clause-(i) migration)
-  `editor-core/eval/wire.rs` `revolve_full_vs_partial`: `|θ| − τ` is
-  **radians** against the linear band — the full-circle coincidence
-  check runs in the editor before the kernel's own metered
-  `revolve_angle`/`revolve_angle_headroom` gates (which lever at the
-  profile's radial extent, correctly). The honest lever lives
-  kernel-side; duplicating it in the editor is a design question, not
-  a same-day fix. Carried as `decide_flagged(.., "F14")`.
+  `editor-core/eval/wire.rs` `turns_off`: `|θ| − k·τ` is **radians**
+  against the linear band. The revolve's full-circle coincidence check
+  (`revolve_full_vs_partial`, at `k = 1`) runs it in the editor before
+  the kernel's own metered `revolve_angle`/`revolve_angle_headroom`
+  gates (which lever at the profile's radial extent, correctly). The
+  honest lever lives kernel-side; duplicating it in the editor is a
+  design question, not a same-day fix. Carried as
+  `decide_flagged(.., "F14")`. The circular pattern's step reads the
+  same helper (`pattern_step_full_turn`: whether the step reaches a
+  turn, and how many whole turns it holds), and one more site of the
+  same comparand, `editor-core/eval/wire/stepped.rs`
+  `SteppedOperands::circular`'s `pattern_step` (the step, radians,
+  against the band: a zero step lands every copy on the master,
+  carried as `decide_flagged_reported(.., "F14")` because a driven
+  step's refusal quotes it). The honest lever is the master's radial
+  extent about the axis, which the mate solve's derived offset (the
+  same constructor) does not have in hand.
 - **F12** (added by the F3+F4 unit, from the #200 review's MIN-3)
   `editor-core/src/expr.rs:656`: the expression evaluator's door-2
   finiteness probe is a shipped raw `sign_within` — its own comment
