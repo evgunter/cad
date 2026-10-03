@@ -2,10 +2,12 @@
 id: a-sweep-row-fails-under-all-features-on-main
 kind: issue
 title: sweep::tilted_sphere_pair_k_rows::a_carved_balls_meridian_fragments_record_no_clearance_charge fails under --all-features on main
-status: open
+status: review
 opened: 2026-10-03
 priority: P2
 cost: E
+pr: 3957
+branch: cleave/all-features-row
 ---
 
 
