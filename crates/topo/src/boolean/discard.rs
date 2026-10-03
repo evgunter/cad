@@ -182,14 +182,18 @@ impl<T: geom_core::Real> HeldInto<'_, T> {
 /// `kept_across(mate)` says whether the face across an edge is one the
 /// result keeps beside it (the stretch is then `bordered`); `kept_ends`
 /// maps that stretch's two ends, in `body`'s keys, to the kept side's
-/// ends in result keys. `held` gives the row its held stretches; a path
-/// that holds no covered pair passes `None`.
+/// ends in result keys, given the face across it. `held` gives the row
+/// its held stretches; a path that holds no covered pair passes `None`.
 pub(super) fn discard_row<T: geom_core::Real>(
     body: &Body<T>,
     face: FaceKey,
     operand: Operand,
     kept_across: &dyn Fn(FaceKey) -> bool,
-    kept_ends: &dyn Fn(VertexKey, VertexKey) -> Result<(VertexKey, VertexKey), BooleanError>,
+    kept_ends: &dyn Fn(
+        FaceKey,
+        VertexKey,
+        VertexKey,
+    ) -> Result<(VertexKey, VertexKey), BooleanError>,
     held: Option<&HeldInto<'_, T>>,
 ) -> Result<DiscardRow, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -228,7 +232,7 @@ pub(super) fn discard_row<T: geom_core::Real>(
                 let end = body
                     .half_edge_end(he)
                     .ok_or_else(|| desync("a discarded face's half-edge has no end"))?;
-                row.bordered.push(kept_ends(h.start, end)?);
+                row.bordered.push(kept_ends(mate_face, h.start, end)?);
             } else {
                 let mut chain = vec![h.edge];
                 let mut at = h.edge;
