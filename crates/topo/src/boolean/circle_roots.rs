@@ -727,8 +727,23 @@ pub(super) fn certified_subdivision<T: Decide>(
                 _ => return Ok(CircleRoots::Uncertain),
             }
             if let Some(meter) = slack {
-                let off = (meter.residual)(root).magnitude();
-                let arc = speed_hi * meter.f_per_metre_hi * off / least_slope;
+                // `|F|` at the root, true to within `reach`: the true root
+                // lies within `reach / L` of it wherever `|F′| ≥ L` holds
+                // that far. `L` is read on a window about the root twice
+                // that width at the root's own slope — valid when the
+                // slack it gives fits inside it — and otherwise on the
+                // whole piece, which holds the true root.
+                let reach = meter.f_per_metre_hi * (meter.residual)(root).magnitude();
+                let (e1, e2, e3) = (slope(root).abs(), bend(root).abs(), jerk(root).abs());
+                let near = e1 - deg * noise;
+                let w = (two * reach / near).min(half).max(T::zero());
+                let window = near
+                    - (e2 + deg.powi(2) * noise) * w
+                    - (e3 + deg.powi(3) * noise) * w.powi(2) / two
+                    - fourth_hi * w.powi(3) / six;
+                let lever =
+                    (reach - window * w).select_le_zero(window.max(least_slope), least_slope);
+                let arc = speed_hi * reach / lever;
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
                     Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),

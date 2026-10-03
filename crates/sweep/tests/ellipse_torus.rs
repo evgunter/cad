@@ -164,7 +164,7 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<(&'static str, BooleanError)> {
 }
 
 /// **A torus just clear of the rim, from outside the corner.** The tube
-/// passes 1e-4 to 100 bands from the rim, nowhere nearer: the rim's arc
+/// passes 1e-4 m down to 100 zero bands from the rim, nowhere nearer: the rim's arc
 /// enclosure cannot clear it, its certified roots answer `Miss`, the
 /// pairs are examined and none accepted, and the crossing layer passes.
 /// Every op then stops at the extent scan, whose oblique torus × plane
@@ -176,7 +176,10 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<(&'static str, BooleanError)> {
 fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
     let a = drum_lower();
     let eps = Tol::witness().eps();
-    for gap in [1e-4, 1e-3 * eps.sqrt(), 1e4 * eps, 100.0 * eps] {
+    // Every gap the band reads as definite (100 zero bands or more), from
+    // the widest the rim's enclosure cannot clear down.
+    let gaps = [1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-10];
+    for gap in gaps.into_iter().filter(|&g| g >= 100.0 * eps) {
         let label = format!("gap {gap:e}");
         let b = corner_torus(0.3, 0.05, 1.05, gap);
         let (examined, accepted) = rim_pairs(&label, &a, &b);
