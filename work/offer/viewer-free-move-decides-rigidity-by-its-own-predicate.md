@@ -22,7 +22,7 @@ the determinant one, each within `RIGID_SLACK` (`1e-9`, absolute). Its doc
 argues this is a display bound nothing downstream decides geometry on, and
 today that holds.
 
-It stops holding at P3 of `docs/EDIT-PLACEMENT-SPEC.md`: "place where
+It stops holding at P3 of `docs/doc-ledger/edit-placement-spec.md`: "place where
 shown" is one edit whose frame comes from the probe. That frame then meets
 the edit door's predicate, which decides against the run's band (ε, K·ε)
 rather than a fixed slack, so a frame the probe shows can be one the door
