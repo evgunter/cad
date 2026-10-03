@@ -2,13 +2,14 @@
 id: vertex-orbit-reads-no-start-vertex
 kind: issue
 title: vertex_orbit's walk reads no start vertex, so every read-side orbit walk answers for a torn orbit as if it were the vertex's
-status: review
+status: closed
 opened: 2026-09-29
 refs: [mev-fan-plan-trusts-the-orbits-start-vertices, kill-ops-anchor-emanating-on-an-unproven-next-mate-step]
 priority: P3
 cost: E
 pr: 3972
 branch: topo/vertex-orbit-proves-its-start
+closed: 2026-10-03
 ---
 
 ## What
