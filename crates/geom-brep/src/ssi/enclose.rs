@@ -606,9 +606,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// cell's. Refused
     /// when the weight hull touches zero (interval arithmetic refuses
     /// the divisor), the net is malformed, or the window has a NaN or
-    /// inverted end. The tests' box reading of a cut cell; the chart
-    /// readings take norms from the same cut ([`NurbsBoxes::speed_sup`]).
-    #[cfg(test)]
+    /// inverted end. The boundary pass reads a directional partial off
+    /// it; the chart readings take norms from the same cut
+    /// ([`NurbsBoxes::speed_sup`]).
     pub(crate) fn deriv_box(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> Box3 {
         self.deriv_hull(u0, u1, v0, v1, along_u, true)
     }
