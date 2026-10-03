@@ -1150,14 +1150,18 @@ pub enum PatternKind {
     Linear {
         /// Step direction components, Scalar ([`SlotId::Direction`]).
         direction: [Expr; 3],
-        /// Distance between instances, Length ([`SlotId::Spacing`]).
+        /// Distance between instances, Length ([`SlotId::Spacing`]): a
+        /// size, positive, since the direction says which way the
+        /// copies step.
         spacing: Expr,
     },
     /// Instances stepped around a datum axis.
     Circular {
         /// The datum-axis node revolved about (an upstream ref).
         axis: RecipeNodeId,
-        /// Angular step between instances ([`SlotId::Step`]).
+        /// Angular step between instances ([`SlotId::Step`]), signed
+        /// by the right-hand rule about the axis, nonzero and within a
+        /// turn.
         step: Expr,
     },
     /// Instances at ABSOLUTE frames, listed (GROUP-BOOLEAN-DESIGN,

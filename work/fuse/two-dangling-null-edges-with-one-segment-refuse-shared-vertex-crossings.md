@@ -2,10 +2,11 @@
 id: two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings
 kind: issue
 title: Two dangling null edges with one segment refuse SharedVertexCrossings: which holds the other is not read off the geometry
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P0
 cost: M
+branch: fuse/one-arc-struts
 ---
 
 

@@ -608,8 +608,8 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 /// outside the placement.
 ///
 /// `None` is the identity: an empty chain, or a chain whose every
-/// placer is itself the identity (copy 0's map is the identity by the
-/// stepped rule's own construction). Kept as absence, so a document
+/// placer is itself the identity (copy 0, the master, reads no operand
+/// and contributes none). Kept as absence, so a document
 /// with no transform and no pattern composes nothing and its solve
 /// stays bit-for-bit what it was.
 ///
@@ -722,8 +722,10 @@ fn refuse(
 }
 
 /// **The map a pattern copy contributes**, or `None` for copy 0 —
-/// whose map is the identity by the stepped rule's own construction,
-/// so composing it would be a no-op that costs bits.
+/// the master, which reads no operand, as on the evaluation's road.
+/// Every other copy builds its operands through the constructor the
+/// evaluation steps by ([`SteppedOperands`]), so a spacing or step the
+/// pattern refuses, the solve refuses the same way.
 ///
 /// # Errors
 ///
@@ -747,32 +749,33 @@ fn pattern_map<P: crate::ProfilePayload>(
     }
     let vals = node_slots(pattern, env).map_err(here)?;
     let ops = match kind {
-        PatternKind::Linear { .. } => SteppedOperands::Linear {
-            direction: crate::eval::unit_direction(
-                need_vec3(&vals, SlotId::Direction).map_err(here)?,
-                crate::eval::PATTERN_DIRECTION_ROLE,
-                band,
-            )
-            .map_err(here)?,
-            spacing: need_scalar(&vals, SlotId::Spacing).map_err(here)?,
-        },
-        PatternKind::Circular { axis, .. } => {
+        PatternKind::Linear { direction, .. } => SteppedOperands::linear(
+            need_vec3(&vals, SlotId::Direction).map_err(here)?,
+            need_scalar(&vals, SlotId::Spacing).map_err(here)?,
+            direction,
+            band,
+        )
+        .map_err(here)?,
+        PatternKind::Circular { axis, step } => {
             // The operand-KIND question is the pattern's wiring, and
             // its refusal is seated where `axis_datum` says; everything
             // read out of the datum below is the datum's.
             let datum = axis_datum(doc, node, *axis)?;
             let at_datum = |kind| Box::new((*axis, kind));
             let dvals = node_slots(datum, env).map_err(at_datum)?;
-            SteppedOperands::Circular {
-                origin: Point3::origin() + need_vec3(&dvals, SlotId::Origin).map_err(at_datum)?,
-                dir: crate::eval::unit_direction(
+            SteppedOperands::circular(
+                Point3::origin() + need_vec3(&dvals, SlotId::Origin).map_err(at_datum)?,
+                crate::eval::unit_direction(
                     need_vec3(&dvals, SlotId::Direction).map_err(at_datum)?,
                     crate::eval::DATUM_AXIS_ROLE,
                     band,
                 )
                 .map_err(at_datum)?,
-                step: need_scalar(&vals, SlotId::Step).map_err(here)?,
-            }
+                need_scalar(&vals, SlotId::Step).map_err(here)?,
+                step,
+                band,
+            )
+            .map_err(here)?
         }
         // The list-rule pattern's count has two spellings, which the
         // pattern node itself refuses; no copy of it has a derived

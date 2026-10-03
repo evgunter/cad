@@ -32,8 +32,8 @@ mod wire;
 pub(crate) use wire::decision_words;
 
 pub(crate) use wire::{
-    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar,
-    need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
+    DATUM_AXIS_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar, need_vec3,
+    stepped_rule_map, transform_map, unit as unit_direction,
 };
 
 pub(crate) use anchor::derive_naming;
@@ -1257,6 +1257,20 @@ pub mod entity_door {
     }
 }
 
+/// How the copies of a circular pattern whose step is a turn or more
+/// would land ([`NodeErrorKind::FullRangeStep`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StepTurns {
+    /// The step is a whole number of turns at tolerance, so every
+    /// copy lands on the master.
+    Whole,
+    /// The angle within one turn that lands every copy where the step
+    /// does, up to rounding, spelled as a user writes it.
+    Within(String),
+    /// The step holds more whole turns than its value resolves.
+    Unresolved,
+}
+
 /// The closed set of node-evaluation failures. Kernel errors are
 /// carried UNALTERED (spec D2: no stringification).
 #[derive(Debug)]
@@ -1578,6 +1592,36 @@ pub enum NodeErrorKind {
     NonPositiveCount {
         /// The evaluated count.
         count: i64,
+    },
+    /// A linear pattern's spacing evaluated definitely below zero. A
+    /// spacing is a size; which way the copies step is the direction's
+    /// to say.
+    NegativeSpacing {
+        /// The spacing as the classifier saw it, in metres, for the
+        /// sentence only.
+        spacing: geom_core::MarginDiag,
+        /// The authored direction negated, each component spelled as
+        /// a user writes it: with the spacing made positive, it builds
+        /// the same copies.
+        reversed: [String; 3],
+    },
+    /// A linear pattern's spacing is zero at tolerance, so every copy
+    /// would land on the master.
+    DegenerateSpacing,
+    /// A circular pattern's step is zero at tolerance, so every copy
+    /// would land on the master.
+    DegenerateStep,
+    /// A circular pattern's step reaches a full turn at tolerance, or
+    /// passes it.
+    FullRangeStep {
+        /// The step as authored.
+        step: String,
+        /// What the step evaluated to, in radians, when it is not a
+        /// literal (a literal's text already says), for the sentence
+        /// only.
+        evaluated: Option<geom_core::MarginDiag>,
+        /// How the copies would land.
+        turns: StepTurns,
     },
     /// A [`crate::node::Node::PlacedUnion`]'s placements could not be
     /// CERTIFIED disjoint (GROUP-BOOLEAN-DESIGN, ratified A′): the two
@@ -2448,6 +2492,69 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::NonPositiveCount { count } => {
                 write!(f, "pattern count {count} is not at least 1")
+            }
+            Self::NegativeSpacing { spacing, reversed } => {
+                let [x, y, z] = reversed;
+                write!(
+                    f,
+                    "the pattern spacing evaluated to {spacing} m, below zero, and a spacing is \
+                     a size: which way the copies step is the direction's to say, not a sign's. \
+                     Recourse: make the spacing evaluate positive (its sign comes from whatever \
+                     drives it) and point the direction the other way, ({x}, {y}, {z})"
+                )
+            }
+            Self::DegenerateSpacing => f.write_str(
+                "the pattern spacing is zero at tolerance, so every copy would land on the \
+                 master. Recourse: make the spacing a length the tolerance tells from zero, \
+                 or lower the tolerance",
+            ),
+            Self::DegenerateStep => f.write_str(
+                "the pattern step is zero at tolerance, so every copy would land on the \
+                 master. Recourse: make the step an angle the tolerance tells from zero \
+                 (360 deg over the count closes a ring), or lower the tolerance",
+            ),
+            Self::FullRangeStep {
+                step,
+                evaluated,
+                turns,
+            } => {
+                write!(f, "the pattern step {step}")?;
+                if let Some(radians) = evaluated {
+                    write!(f, ", which evaluated to {radians} rad,")?;
+                }
+                // A literal is rewritten; anything else is made to
+                // evaluate to the angle.
+                let make = if evaluated.is_some() {
+                    "make it evaluate to"
+                } else {
+                    "make the step"
+                };
+                match turns {
+                    StepTurns::Whole => write!(
+                        f,
+                        " is a whole number of turns, so every copy would land on the master. \
+                         Recourse: {make} a nonzero angle within one turn (360 deg over the \
+                         count closes a ring)"
+                    ),
+                    StepTurns::Within(within) if evaluated.is_some() => write!(
+                        f,
+                        " is past a full turn, and a step is an angle within one. Recourse: \
+                         make it evaluate within one turn; {within} does, and places every copy \
+                         where this does, up to rounding"
+                    ),
+                    StepTurns::Within(within) => write!(
+                        f,
+                        " is past a full turn, and a step is an angle within one. Recourse: \
+                         write it as {within}, which places every copy where this does, up to \
+                         rounding"
+                    ),
+                    StepTurns::Unresolved => write!(
+                        f,
+                        " holds more whole turns than its value resolves, and a step is an \
+                         angle within one. Recourse: {make} an angle within one turn (360 deg \
+                         over the count closes a ring)"
+                    ),
+                }
             }
             Self::PlacementsUncertified { i, j } => write!(
                 f,
