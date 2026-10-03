@@ -2,11 +2,12 @@
 id: klein-bottle-loop-sweeps-from-a-world-axis-placement-not-the-paths-normal-plane
 kind: issue
 title: the klein scene's loop sweep starts from a world-axis placement, not the plane normal to its spine
-status: open
+status: closed
 opened: 2026-09-15
 priority: P3
 cost: E
 rides_with: klein-scene-should-adopt-the-one-body-loop-sweep
+closed: 2026-10-02
 ---
 
 ## Finding

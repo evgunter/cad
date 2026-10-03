@@ -21,7 +21,16 @@ use geom_core::Tol;
 /// The opaque profile payload: this suite never looks inside `P`.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
-impl editor_core::ProfilePayload for FakeProfile {}
+impl editor_core::ProfilePayload for FakeProfile {
+    fn drawn_pieces(
+        &self,
+        _env: &editor_core::ParamEnv<f64>,
+        _tol: geom_core::Tol,
+    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
+    {
+        Ok(std::collections::BTreeSet::new())
+    }
+}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;

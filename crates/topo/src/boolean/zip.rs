@@ -51,17 +51,41 @@ pub(super) type SeamCorrespondence = BTreeMap<VertexKey, BTreeSet<VertexKey>>;
 /// on and no later row names it.
 pub(super) fn survivor(merges: &[(VertexKey, VertexKey)], v: VertexKey) -> VertexKey {
     debug_assert!(
-        {
-            let mut dead_so_far = BTreeSet::new();
-            merges.iter().all(|&(dead, kept)| {
-                !dead_so_far.contains(&kept) && dead_so_far.insert(dead) && dead != kept
-            })
-        },
+        fusions_well_ordered(merges),
         "a fusion row names a key an earlier row killed: {merges:?}"
     );
     merges
         .iter()
         .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })
+}
+
+/// [`survivor`], refusing a corrupt fusion list in every build: a row
+/// that keeps a key an earlier row killed, kills one twice, or fuses a
+/// key into itself would fold `v` onto a dead key.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] on such a list.
+pub(super) fn survivor_checked(
+    merges: &[(VertexKey, VertexKey)],
+    v: VertexKey,
+) -> Result<VertexKey, BooleanError> {
+    if !fusions_well_ordered(merges) {
+        return Err(BooleanError::JoinDesync {
+            what: "a fusion row names a key an earlier row killed",
+        });
+    }
+    Ok(survivor(merges, v))
+}
+
+/// Whether every fusion row's keys are live when it is made: no row
+/// keeps or kills a key an earlier row killed, and none fuses a key
+/// into itself.
+fn fusions_well_ordered(merges: &[(VertexKey, VertexKey)]) -> bool {
+    let mut dead_so_far = BTreeSet::new();
+    merges.iter().all(|&(dead, kept)| {
+        !dead_so_far.contains(&kept) && dead_so_far.insert(dead) && dead != kept
+    })
 }
 
 /// Where a zero-length joint runs between two vertices of one face.
