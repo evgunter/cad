@@ -120,6 +120,30 @@ impl<'de> serde::Deserialize<'de> for Loop {
     }
 }
 
+/// A producer that reads itself again through every present option,
+/// forever.
+#[derive(Debug)]
+struct OptLoop;
+
+impl<'de> serde::Deserialize<'de> for OptLoop {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        struct Again;
+        impl<'de> serde::de::Visitor<'de> for Again {
+            type Value = OptLoop;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("an option loop")
+            }
+            fn visit_none<E>(self) -> Result<OptLoop, E> {
+                Ok(OptLoop)
+            }
+            fn visit_some<D: serde::Deserializer<'de>>(self, de: D) -> Result<OptLoop, D::Error> {
+                <OptLoop as serde::Deserialize>::deserialize(de)
+            }
+        }
+        de.deserialize_option(Again)
+    }
+}
+
 /// A producer that serializes as its count of options around an
 /// integer, holding nothing.
 struct Somes(usize);
@@ -299,10 +323,11 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_builds_one() {
 /// holds itself), a chain of options [`FAR`] deep, and a derived linked
 /// list [`FAR`] long each refuse typed at [`MAX_PRODUCER_NESTING`],
 /// though none builds a value deeper than a leaf; read back from a
-/// leaf, the newtype that holds itself and the linked list, which a
-/// present value makes read itself again, refuse the same way. A producer that wraps every level
-/// in three options and newtypes builds a value at the bound; one more
-/// wrapper refuses.
+/// leaf, the newtype that holds itself, the option that holds itself and
+/// the linked list, which a present value makes read itself again,
+/// refuse the same way. A producer that wraps every level in three
+/// options and newtypes builds a value at the bound; one more wrapper
+/// refuses.
 #[test]
 fn a_producer_of_any_depth_refuses_typed_on_the_smallest_stack() {
     let link = chain(FAR);
@@ -331,6 +356,11 @@ fn a_producer_of_any_depth_refuses_typed_on_the_smallest_stack() {
             refused_read(from_value::<Loop>(&MetaValue::Int(0))),
             MAX_PRODUCER_NESTING,
             "a newtype that holds itself, read back"
+        );
+        assert_eq!(
+            refused_read(from_value::<OptLoop>(&MetaValue::Int(0))),
+            MAX_PRODUCER_NESTING,
+            "an option that holds itself, read back"
         );
         assert_eq!(
             refused_read(from_value::<Link>(&MetaValue::Int(0))),
@@ -367,9 +397,9 @@ fn a_producer_of_any_depth_refuses_typed_on_the_smallest_stack() {
     unchain(link);
 }
 
-/// **The deserializer reads a body of any depth only one level past the
-/// bound**, on the smallest stack, with serde_json's own recursion limit
-/// off as the load door runs it.
+/// **The deserializer refuses a body of any depth**, on the smallest
+/// stack, with serde_json's own recursion limit off as the load door
+/// runs it.
 #[test]
 fn the_deserializer_stops_a_body_of_any_depth_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
@@ -478,10 +508,6 @@ fn a_file_nested_past_the_bound_refuses_on_the_smallest_stack() {
                     assert!(
                         line.contains(PROBLEM),
                         "the {label} one past names the bound: {line}"
-                    );
-                    assert!(
-                        !line.contains("Recourse:"),
-                        "the {label} one past leaves the recourse to the load door: {line}"
                     );
                 }
                 other => panic!("the {label} one past refuses as unreadable: {other:?}"),

@@ -46,6 +46,10 @@ use std::collections::BTreeMap;
 /// from the root to a leaf, both ends included (a leaf, or an empty list
 /// or map, is 1). Every door that builds a list or a map refuses past it
 /// ([`MetaError::NestedTooDeep`]).
+///
+/// Equal to the expression bound ([`crate::expr::MAX_NESTING`]), not
+/// tied to it: either may move alone, since the load door reads the
+/// deeper of the two (`persist::nesting::BODY_NESTING`).
 pub const MAX_NESTING: usize = 128;
 
 /// **How deep a producer may nest**, in the nested `serialize` calls
@@ -64,8 +68,9 @@ const _: () = assert!(
 );
 
 /// The children of a list or a map, with how deep the value holding
-/// them nests. Built only by [`MetaValue::list`] and [`MetaValue::map`],
-/// which refuse past [`MAX_NESTING`], so the nesting it carries is
+/// them nests. Built only by `Nested::over`, which refuses past
+/// [`MAX_NESTING`] and which [`MetaValue::list`], [`MetaValue::map`] and
+/// the deserializer each build through, so the nesting it carries is
 /// never above the bound. Read the children through `Deref`.
 #[derive(Clone)]
 pub struct Nested<C> {
@@ -88,12 +93,6 @@ impl<C> Nested<C> {
             Ok(nesting) if usize::from(nesting) <= MAX_NESTING => Ok(Self { children, nesting }),
             _ => Err(TooDeep(MAX_NESTING)),
         }
-    }
-
-    /// The children, to change and build again.
-    #[must_use]
-    pub fn into_inner(self) -> C {
-        self.children
     }
 }
 
@@ -142,21 +141,16 @@ thread_local! {
     static INSIDE: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
 }
 
-/// Puts [`INSIDE`] back as it was, however the read it guards exits.
-struct Restore(usize);
-
-impl Drop for Restore {
-    fn drop(&mut self) {
-        INSIDE.set(self.0);
-    }
-}
-
 /// A list or a map `read` reads, refused before its children are read
-/// when it would sit past [`MAX_NESTING`], and after, when they nest it
-/// past; so a reader descends at most one level past the bound, however
-/// deep the text nests. The refusal is the problem alone: the door
-/// reading it states its own recourse. The count is a thread-local, the
-/// shape serde_json's own recursion limit has.
+/// when it would sit past [`MAX_NESTING`] (counted by
+/// `persist::nesting::descend`, the expression reader's guard), and
+/// after, when they nest it past. The refusal is the problem alone: the
+/// door reading it states its own recourse.
+///
+/// Unlike the expression reader's, it records no typed refusal
+/// (`persist::refusal`): the load door has an arm to carry a
+/// `DimensionError` and none for a metadata value's, so this one
+/// reaches it as `PersistError::Unreadable` prose.
 fn read_nested<'de, D, C>(
     de: D,
     read: impl FnOnce(D) -> Result<C, D::Error>,
@@ -166,12 +160,9 @@ where
     D: serde::Deserializer<'de>,
 {
     use serde::de::Error as _;
-    let above = INSIDE.get();
-    if above >= MAX_NESTING {
+    let Some(_level) = crate::persist::nesting::descend(&INSIDE, MAX_NESTING) else {
         return Err(D::Error::custom(TooDeep(MAX_NESTING)));
-    }
-    INSIDE.set(above + 1);
-    let _restore = Restore(above);
+    };
     let children = read(de)?;
     let below = below(&children);
     Nested::over(children, below).map_err(D::Error::custom)
@@ -397,8 +388,12 @@ pub enum MetaError {
         /// The deepest a value may nest, in levels.
         bound: usize,
     },
-    /// The producer nests deeper than [`MAX_PRODUCER_NESTING`],
-    /// counting its options and newtypes as well as its lists and maps.
+    /// A producer type's `Serialize` ([`to_value`]) or `Deserialize`
+    /// ([`from_value`]) nests deeper than [`MAX_PRODUCER_NESTING`]
+    /// nested calls, counting its options and newtypes as well as its
+    /// lists and maps, or never ends, however shallow the value it
+    /// writes or reads (a leaf, it may be). [`Self::NestedTooDeep`] is
+    /// the value's own depth.
     ProducerTooDeep {
         /// The deepest a producer may nest, in nested calls.
         bound: usize,
@@ -427,8 +422,11 @@ impl std::fmt::Display for MetaError {
             ),
             Self::ProducerTooDeep { bound } => write!(
                 f,
-                "the producer value nests deeper than {bound} levels of lists, maps, options and \
-                 newtypes. Recourse: store it flatter, keeping a deep part as a string or as bytes"
+                "converting a Rust value to or from metadata took more than {bound} nested \
+                 serde calls (each list, map, option and newtype is one), so its type reads or \
+                 writes itself deeper than that, or without end. Recourse: change the type's \
+                 Serialize or Deserialize impl so it ends sooner, wrapping each level in fewer \
+                 options or newtypes, or keeping a deep part as a string or as bytes"
             ),
             Self::Message(m) => write!(f, "{m}"),
         }

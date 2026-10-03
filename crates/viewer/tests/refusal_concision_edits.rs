@@ -530,13 +530,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "WouldStartPlacing",
             EditError::WouldStartPlacing { mate: s(9, "Mate") },
         ),
-        (
-            "PlacementRuleMismatch",
-            EditError::PlacementRuleMismatch {
-                node: s(5, "Pattern"),
-                shape: CountMismatch::ListedOnPattern,
-            },
-        ),
+        // `PlacementRuleMismatch`: every shape, each spoken with the
+        // node kind that raises it, in `forwarded_edit_refusals`.
         (
             "EmptyPlacementList",
             EditError::EmptyPlacementList {
@@ -976,8 +971,18 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
 /// the row namespace that writes it: the node, measure, sketch step or
 /// mate the refusal is about, and a pair's corner list.
 const LABELS: &[(&str, &str)] = &[
-    ("Edit/PlacementRuleMismatch", "Pattern \"base plate\""),
-    ("Edit/PlacementRuleMismatch", "PlacedUnion \"base plate\""),
+    (
+        "Edit/PlacementRuleMismatch(ListedOnPattern)",
+        "Pattern \"base plate\"",
+    ),
+    (
+        "Edit/PlacementRuleMismatch(ListedWithCount)",
+        "PlacedUnion \"base plate\"",
+    ),
+    (
+        "Edit/PlacementRuleMismatch(SteppedWithoutCount)",
+        "PlacedUnion \"base plate\"",
+    ),
     ("Edit/EmptyPlacementList", "PlacedUnion \"base plate\""),
     ("Edit/MeasureMalformed", "Measure \"base plate\""),
     ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),

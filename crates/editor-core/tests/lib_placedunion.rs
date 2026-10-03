@@ -512,11 +512,11 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             },
             Some(CountMismatch::ListedWithCount),
             "insert it without a count, since the list is the count",
-            Node::PlacedUnion {
+            vec![Node::PlacedUnion {
                 input: fin,
                 count: None,
                 kind: listed(),
-            },
+            }],
         ),
         (
             "a placed union's stepped rule, without a count",
@@ -527,11 +527,11 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             },
             Some(CountMismatch::SteppedWithoutCount),
             "insert it with a count",
-            Node::PlacedUnion {
+            vec![Node::PlacedUnion {
                 input: fin,
                 count: Some(Expr::count(2)),
                 kind: linear(),
-            },
+            }],
         ),
         (
             "a pattern given a list",
@@ -541,24 +541,32 @@ fn a_placement_rule_refusals_recourse_gets_through() {
                 kind: listed(),
             },
             Some(CountMismatch::ListedOnPattern),
-            "insert a placed union to list the placements, since a pattern steps",
-            Node::PlacedUnion {
-                input: fin,
-                count: None,
-                kind: listed(),
-            },
+            "keep a pattern of separate copies by giving it a stepped rule, or insert a placed union to list the placements, fusing the copies into one body",
+            // Both routes: the pattern kept, and the union that fuses.
+            vec![
+                Node::Pattern {
+                    input: fin,
+                    count: Expr::count(1),
+                    kind: linear(),
+                },
+                Node::PlacedUnion {
+                    input: fin,
+                    count: None,
+                    kind: listed(),
+                },
+            ],
         ),
         (
             "a placed union's empty list",
             Node::placed_union_at(fin, Vec::new()),
             None,
             "list at least one placement",
-            Node::placed_union_at(fin, vec![Frame::IDENTITY]),
+            vec![Node::placed_union_at(fin, vec![Frame::IDENTITY])],
         ),
     ];
     // Each row's shape: the count mismatch it is, or `None` for an
     // empty list.
-    for (label, refused, shape, recourse, followed) in rows {
+    for (label, refused, shape, recourse, routes) in rows {
         let error = insert(refused).expect_err(label);
         let refused_as = match &error {
             EditError::PlacementRuleMismatch { shape, .. } => Some(*shape),
@@ -571,7 +579,9 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             line.ends_with(&format!("Recourse: {recourse}")),
             "{label} states its own recourse, {recourse:?}: {line}"
         );
-        assert!(insert(followed).is_ok(), "{label}, followed, applies");
+        for followed in routes {
+            assert!(insert(followed).is_ok(), "{label}, followed, applies");
+        }
     }
 }
 

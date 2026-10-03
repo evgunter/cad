@@ -21,3 +21,14 @@ and `problems` reports three faults: the stage prefix `persist:`, the stage pref
 ## What would close it
 
 A load-door roster over every `PersistError` arm (and `SnapshotError` through `PersistError::Snapshot`), rendered as the edit roster renders `EditError`, with the arms rewritten to the standard or admitted by exact id under a filed row. `a-bad-label-in-a-file-refuses-with-the-regenerate-recourse` (EMIT) is one arm whose recourse is wrong rather than missing; read it first.
+
+## The metadata reader records no typed refusal
+
+The expression reader records its depth refusal through
+`persist::refusal::record`, so the door raises it typed as
+`PersistError::Dimension` and states the place once. The metadata
+reader (`meta::read_nested`) shares its depth guard
+(`persist::nesting::descend`) but has no load-door arm to carry a
+`MetaError`, so a metadata value past its bound reaches the door as
+the `Unreadable` prose quoted above, place doubled. A typed arm for it
+belongs with this roster.

@@ -2475,7 +2475,9 @@ impl EditError {
                                 "insert it without a count, since the list is the count",
                             CountMismatch::SteppedWithoutCount => "insert it with a count",
                             CountMismatch::ListedOnPattern =>
-                                "insert a placed union to list the placements, since a pattern steps",
+                                "keep a pattern of separate copies by giving it a stepped rule, \
+                                 or insert a placed union to list the placements, fusing the \
+                                 copies into one body",
                         }
                     ),
                 )

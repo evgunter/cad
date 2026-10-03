@@ -2550,8 +2550,9 @@ class Node:
         EvaluationError (`placements_uncertified`) naming the pair,
         and the certificate is sufficient-not-necessary, so a
         touching-but-disjoint arrangement refuses too. An `explicit`
-        rule raises EditError (`placement_rule_mismatch`) here — it
-        carries its own count, and `placed_union_at` is its door."""
+        rule raises EditError (`placement_rule_mismatch`,
+        `inner_variant` `listed_with_count`) here — it carries its own
+        count, and `placed_union_at` is its door."""
 
     @staticmethod
     def placed_union_at(input: NodeId, frames: list[Frame]) -> Node:

@@ -259,7 +259,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         // document, it loads back to the document it was.
         let mut deepest = 0;
         for (label, text) in both_saves(&r) {
-            deepest = deepest.max(editor_core::test_support::bracket_depth(body(&text)));
+            deepest = deepest.max(editor_core::test_support::bracket_depth(&text));
             let loaded = editor_core::persist::load(&text, Tol::witness())
                 .unwrap_or_else(|err| panic!("the {label} loads back: {err}"));
             assert_eq!(

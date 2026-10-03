@@ -46,12 +46,12 @@
 //! an expression's children read through [`Child`], which counts the
 //! levels the reader is inside and refuses the child that would pass
 //! [`MAX_NESTING`] before descending into it, with the constructors'
-//! own refusal. The count is a thread-local, the shape serde_json's own
-//! recursion limit has; it is restored on every exit, error or not, so
-//! nothing one read leaves can reach the next.
+//! own refusal. It counts by [`descend`], as the metadata reader counts
+//! its lists and maps.
 
 use core::cell::Cell;
 use std::collections::BTreeSet;
+use std::thread::LocalKey;
 
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -72,13 +72,16 @@ use crate::expr::{DimensionError, MAX_NESTING};
 /// expression at the bound in that position and loads it back.
 pub(crate) const ENVELOPE: usize = 14;
 
-/// JSON levels per expression level, at most: a binary operator is a
-/// tag object around its operand array (`{"Add": [a, b]}`) and a leaf a
-/// tag object around its fields (`{"Literal": {...}}`), two each; a
-/// unary operator is the tag object alone (`{"Neg": a}`), one. So an
+/// JSON levels per level of a value that bounds its nesting, at most,
+/// for both values that do. An expression: a binary operator is a tag
+/// object around its operand array (`{"Add": [a, b]}`) and a leaf a tag
+/// object around its fields (`{"Literal": {...}}`), two each; a unary
+/// operator is the tag object alone (`{"Neg": a}`), one. So an
 /// expression nested `n` levels spans at most `2n` brackets from its
 /// root's own, and a measurement `2n` from its root's (a primitive leaf
-/// is three, and counts one level).
+/// is three, and counts one level). A metadata value: a list or a map
+/// is a tag object around its array or object (`{"List": [...]}`), two
+/// ([`META_BODY_NESTING`]).
 const LEVELS_PER_NESTING: usize = 2;
 
 /// The deepest a body this build saves can nest outside its stable
@@ -100,8 +103,8 @@ pub(crate) const BODY_NESTING: usize = {
 const META_ENVELOPE: usize = 6;
 
 /// The deepest a body nests around a metadata value at its bound
-/// ([`crate::meta::MAX_NESTING`]): a list or a map is two brackets on
-/// the wire (`{"List": [...]}`), and an empty one at the bottom two more.
+/// ([`crate::meta::MAX_NESTING`]), [`LEVELS_PER_NESTING`] brackets a
+/// level, an empty list or map at the bottom included.
 ///
 /// Not a hand count: `meta_nesting_bound`'s
 /// `every_door_takes_a_value_at_the_bound_on_the_smallest_stack` saves
@@ -317,18 +320,38 @@ pub(crate) fn read<T: serde::de::DeserializeOwned>(
     }
 }
 
+/// One level a reader has entered, counted on a thread-local: puts
+/// the count back as it was, however the read it guards exits, error
+/// or not, so nothing one read leaves can reach the next.
+pub(crate) struct Level {
+    count: &'static LocalKey<Cell<usize>>,
+    above: usize,
+}
+
+impl Drop for Level {
+    fn drop(&mut self) {
+        self.count.set(self.above);
+    }
+}
+
+/// **One level deeper on `count`, or `None` when `limit` levels are
+/// already open there**, so the caller refuses before it reads into
+/// another. The guard every reader that bounds its own nesting counts
+/// by: an expression's children ([`Child`]) and a metadata value's
+/// lists and maps (`meta`). The count is a thread-local, the shape
+/// serde_json's own recursion limit has.
+pub(crate) fn descend(count: &'static LocalKey<Cell<usize>>, limit: usize) -> Option<Level> {
+    let above = count.get();
+    if above >= limit {
+        return None;
+    }
+    count.set(above + 1);
+    Some(Level { count, above })
+}
+
 thread_local! {
     /// How many expression children the reader on this thread is inside.
     static INSIDE: Cell<usize> = const { Cell::new(0) };
-}
-
-/// Puts [`INSIDE`] back as it was, however the read it guards exits.
-struct Restore(usize);
-
-impl Drop for Restore {
-    fn drop(&mut self) {
-        INSIDE.set(self.0);
-    }
 }
 
 /// A child of an expression node on the wire (module docs): written
@@ -361,14 +384,12 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Child<T> {
     /// refusal is the constructors' own, recorded for the load door
     /// (`persist::refusal`, which lists this recorder).
     fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-        let above = INSIDE.get();
-        if above + 2 > MAX_NESTING {
+        // The root is level 1 and no one's child.
+        let Some(_level) = descend(&INSIDE, MAX_NESTING - 1) else {
             let refusal = DimensionError::NestedTooDeep { bound: MAX_NESTING };
             super::refusal::record(&refusal);
             return Err(D::Error::custom(format!("expression refused: {refusal}")));
-        }
-        INSIDE.set(above + 1);
-        let _restore = Restore(above);
+        };
         T::deserialize(de).map(Self::new)
     }
 }

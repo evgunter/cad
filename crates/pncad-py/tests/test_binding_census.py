@@ -982,7 +982,10 @@ BOUND_AS = {
     # which answer to "how many placements" the node gives twice, three
     # shapes with three different repairs, crossing at the carrier's
     # second word (`listed_with_count`, `stepped_without_count`,
-    # `listed_on_pattern`).
+    # `listed_on_pattern`). Every carrier of the fault publishes it the
+    # same way: `Node.placed_union`'s boundary refusal on
+    # `EditError.inner_variant` too, and `NodeErrorKind::PlacementRule`
+    # on `EvaluationError.inner_kind`.
     "CountMismatch": "EditError.inner_variant",
     # THE PERSISTENCE DOOR'S PAYLOAD, under the same rule at the
     # carrier that wraps the most refusals of other layers.
