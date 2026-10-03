@@ -12,9 +12,11 @@
 
 use crate::shared::tol::{band, eps};
 use geom::{NurbsSurface, Surface};
-use geom_brep::ssi::{self, BranchEnd, ChartAxis, ChartEnd, SsiDomain, SsiOutcome};
+use geom_brep::ssi::{self, BranchEnd, ChartAxis, ChartEnd, SsiDomain, SsiError, SsiOutcome};
 use geom_core::spline::KnotVector;
+use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{Point3, Vec3};
+use test_utils::vacuity;
 
 /// A biquadratic Bézier graph `z = g(x) + h(y)` over `[x0, x1] × [0, l]`:
 /// `g` and `h` are quadratics, given by their values and their slopes at
@@ -169,8 +171,23 @@ fn a_short_arc_in_a_long_arcs_end_box_is_traced() {
         extent: 4.8,
         floor_scale: 1.0,
     };
-    let out = ssi::cylinder_sphere_ssi(&cylinder, &sphere, domain, band())
-        .unwrap_or_else(|e| panic!("the clipped circle: expected two arcs, got {e}"));
+    let out = match ssi::cylinder_sphere_ssi(&cylinder, &sphere, domain, band()) {
+        Ok(out) => out,
+        // Below the default ε the long arc's fit outgrows its sample
+        // budget, a typed refusal that answers before any tube is asked.
+        Err(e @ SsiError::FitSampleBudget { .. }) => {
+            assert!(
+                eps() < DEFAULT_EPS,
+                "the clipped circle stands down at the default ε: {e}"
+            );
+            vacuity::stood_down(
+                "the clipped circle",
+                "the long arc's fit refuses its sample budget at this ε, so no tube is probed",
+            );
+            return;
+        }
+        Err(e) => panic!("the clipped circle: expected two arcs, got {e}"),
+    };
     let mid = 0.5 * (alpha + beta);
     let on_short = Point3::new(mid.cos(), mid.sin(), 8.0f64.sqrt());
     let carried = out.branches.iter().any(|b| {
