@@ -6327,3 +6327,7 @@ with nothing it may start, set its `status` to `blocked` and stop.
   The lane is still running and owns the fix.
 - **merge-orientation-rung** is open as PR 3992, waiting on CI. I am
   subscribed.
+
+## PR 3972 merged (2026-10-03)
+
+vertex-orbit merged as `fb0b500ac4`, after CI run 37148216835 passed.
