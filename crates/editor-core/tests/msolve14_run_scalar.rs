@@ -1860,8 +1860,9 @@ fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
 /// as tightly as the lane's rounding, so at a fine enough ε it escalates
 /// with no box at all (the spec's §5 (b),
 /// `work/msolve/an-identically-zero-margin-escalates-at-a-fine-eps.md`):
-/// at ε = 1e-12, six of the thirteen documents, and none at the coarser
-/// rows.
+/// at ε = 1e-12, six of the thirteen documents (the clocked coaxial
+/// pair, the gauge chain's true checked offset, both pin documents and
+/// both shafts), and none at the coarser rows.
 const INTERVAL_ESCALATIONS: [(f64, &str, &str); 6] = [
     (
         1e-12,
