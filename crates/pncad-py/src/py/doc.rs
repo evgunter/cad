@@ -845,17 +845,18 @@ pub(crate) struct Doc {
     /// The Rust `apply` returns this beside the new document; the
     /// Python wrapper owns the document and swaps it, so the record
     /// is held here for the same span the document it describes is —
-    /// an invariant [`Doc::accept`] holds by being the only place
+    /// an invariant [`Doc::take_up`] holds by being the only place
     /// either of the two is written.
     pub(crate) maintenance: Vec<d::Maintenance>,
 }
 
-/// The wrapper's own plumbing: the ONE place an accepted edit is taken
-/// up, and the two shared door bodies that land there. None of it is a
+/// The wrapper's own plumbing: the ONE place an accepted document is
+/// taken up ([`Doc::take_up`]), the single-edit door onto it, and the
+/// shared door bodies that land there. None of it is a
 /// Python method.
 impl Doc {
-    /// **The swap point.** Every accepting door lands here, and it
-    /// replaces the held document and the maintenance record TOGETHER
+    /// A single edit's door onto **the swap point**, [`Doc::take_up`],
+    /// which replaces the held document and the maintenance record TOGETHER
     /// — which is what makes `last_maintenance` a fact about the
     /// document now held rather than about some earlier one. Returns
     /// the edit's record so each door can read the id it minted.
@@ -873,16 +874,26 @@ impl Doc {
     /// [`Doc::insert_node`] closes that hole for `insert` by accepting
     /// internally, and [`Doc::declare_findings`] closes it for the
     /// declare doors by taking the kernel sugar's whole acceptance up
-    /// here; a door reaching `d::apply` for any OTHER edit lands here
-    /// or is a bug the test names. The refactoring wrappers are the
+    /// here; a door reaching `d::apply` for any OTHER edit lands here,
+    /// and a kernel door answering a whole action's paired document and
+    /// maintenance lands in [`Doc::take_up`] directly; anything else is a
+    /// bug the test names. The refactoring wrappers are the
     /// one family that does not pass through: they never `apply` a
     /// single edit, they project a kernel outcome whose document and
     /// maintenance were already paired below this wrapper, and they
     /// carry that pairing across whole.
     fn accept(&mut self, applied: d::Applied<d::ProfileProgram>) -> d::EditRecord {
-        self.inner = applied.doc;
-        self.maintenance = applied.maintenance;
+        self.take_up(applied.doc, applied.maintenance);
         applied.record
+    }
+
+    /// [`Doc::accept`]'s swap, for a kernel door that applied a whole
+    /// action and answers its document and maintenance already paired
+    /// (`regauge_then_mate`'s outcome) rather than one edit's
+    /// [`d::Applied`].
+    fn take_up(&mut self, doc: d::ProfileDoc, maintenance: Vec<d::Maintenance>) {
+        self.inner = doc;
+        self.maintenance = maintenance;
     }
 
     /// Insert a node, label it when `label` is given, and take the
@@ -1068,27 +1079,10 @@ impl Doc {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        // Applied in order on values, and taken up once, whole: the
-        // action's record is every edit's, and the funnel (`accept`)
-        // swaps the document and that record together.
-        let mut maintenance = Vec::new();
-        let mut last: Option<d::Applied<d::ProfileProgram>> = None;
-        let edits = d::regauge_then_mate(&self.inner, mate.inner.clone())
+        let out = d::regauge_then_mate(&self.inner, mate.inner.clone(), tol, &reach)
             .map_err(|err| edit_err(py, &err))?;
-        for edit in edits {
-            let base = last.as_ref().map_or(&self.inner, |applied| &applied.doc);
-            let applied = d::apply(base, &edit, tol, &reach).map_err(|err| edit_err(py, &err))?;
-            maintenance.extend(applied.maintenance.iter().cloned());
-            last = Some(applied);
-        }
-        let Some(mut applied) = last else {
-            unreachable!("the compound door's list ends in the mate's insert")
-        };
-        applied.maintenance = maintenance;
-        let Some(id) = self.accept(applied).minted else {
-            unreachable!("the compound door's last edit is an insert, which mints")
-        };
-        Ok(NodeId(id))
+        self.take_up(out.doc, out.maintenance);
+        Ok(NodeId(out.mate))
     }
 
     /// The maintenance the LAST accepted edit performed, in the order
