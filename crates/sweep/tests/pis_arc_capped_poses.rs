@@ -532,16 +532,19 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
-/// **An edge with no crossing row refuses only where it could matter.**
+/// **A spiric-bounded face answers everywhere off its spiric edge.**
 /// The sectioned vessel's cavity carries planar faces bounded by
-/// SPIRICS (a plane's section of the offset torus). The walk holds such
-/// an edge as a ball its arc lies in and steers its rays clear of it: a
-/// point far away along the face's plane is outside the face, the
-/// loop's own vertex is on its boundary (a straight edge leaves it), and
-/// a point ON the spiric — inside its ball, where every ray could meet
-/// the arc — is refused typed rather than read off a chord.
+/// SPIRICS (a plane's section of the offset torus), which the walk
+/// crosses on the oval itself. Every probe of a grid about the spiric —
+/// most of them inside the ball its arc lies in, where no ray from them
+/// could be steered clear of the arc — answers, and its answer is the
+/// region of the face's boundary sampled densely from every edge's own
+/// carrier (probes nearer that polyline than `1e-4` m are not asked). A
+/// point ON the spiric is on the boundary; a point off it by more than
+/// the band's coincidence threshold and less than its escalation
+/// threshold is in band, and refuses.
 #[test]
-fn a_spiric_bounded_face_refuses_only_within_its_reach() {
+fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
     let band = Band::linear(tol()).expect("the witness band");
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
     let spiric_face = cavity
@@ -561,11 +564,10 @@ fn a_spiric_bounded_face_refuses_only_within_its_reach() {
         unreachable!("selected as a plane");
     };
     let vertex = loop_vertex(&cavity, data.outer);
-    // An in-plane direction, and a point far along it.
     let across = normal.cross(Vec3::new(0.3, 0.5, 0.7)).normalize();
-    let far = vertex + across * 10.0;
+    let up = normal.cross(across);
     assert_eq!(
-        topo::test_support::point_in_face(&cavity, spiric_face, far, band).ok(),
+        topo::test_support::point_in_face(&cavity, spiric_face, vertex + across * 10.0, band).ok(),
         Some(Some(false)),
         "far outside the loop's reach, the face is missed"
     );
@@ -574,26 +576,122 @@ fn a_spiric_bounded_face_refuses_only_within_its_reach() {
         Some(None),
         "the loop's own vertex is on its boundary"
     );
-    let on_spiric = loop_half_edges(&cavity, data.outer)
-        .into_iter()
-        .find_map(|he| {
-            let edge = cavity.get_edge(cavity.get_half_edge(he)?.edge)?;
-            let curve = cavity.get_curve_geom(edge.curve)?.certified()?;
+
+    // The face's boundary, sampled from each edge's carrier, in the
+    // plane's (across, up) coordinates.
+    let loops: Vec<_> = core::iter::once(data.outer)
+        .chain(data.rings.iter().copied())
+        .collect();
+    let mut segments = Vec::new();
+    let mut spiric = None;
+    for lk in loops {
+        for he in loop_half_edges(&cavity, lk) {
+            let edge = cavity
+                .get_edge(cavity.get_half_edge(he).expect("half edge").edge)
+                .expect("edge");
+            let curve = cavity
+                .get_curve_geom(edge.curve)
+                .and_then(|c| c.certified())
+                .expect("a certified edge");
             let (t0, t1) = curve.params();
-            matches!(curve.carrier(), geom::Curve3::Spiric { .. })
-                .then(|| curve.carrier().eval((t0 + t1) * 0.5))
-        })
-        .expect("the face's spiric edge");
-    let got = topo::test_support::point_in_face(&cavity, spiric_face, on_spiric, band);
+            if let geom::Curve3::Spiric { .. } = curve.carrier() {
+                spiric = Some((curve.carrier().clone(), t0, t1));
+            }
+            let n = 4000;
+            let at = |k: usize| curve.carrier().eval(t0 + (t1 - t0) * k as f64 / n as f64);
+            for k in 0..n {
+                segments.push((at(k), at(k + 1)));
+            }
+        }
+    }
+    let (carrier, t0, t1) = spiric.expect("the face's spiric edge");
+    let geom::Curve3::Spiric {
+        major_radius: big,
+        minor_radius: r,
+        offset,
+        ..
+    } = carrier
+    else {
+        unreachable!("selected as a spiric");
+    };
+    // The ball the arc lies in: about its midpoint, its speed bound times
+    // half its window.
+    let centre = carrier.eval(0.5 * (t0 + t1));
+    let reach = r * (big - r) / ((big - r).powi(2) - offset.powi(2)).sqrt() * 0.5 * (t1 - t0).abs();
+    let planar = |p: Point3<f64>| ((p - centre).dot(across), (p - centre).dot(up));
+    let segments: Vec<_> = segments
+        .into_iter()
+        .map(|(a, b)| (planar(a), planar(b)))
+        .collect();
+    let truth = |(x, y): (f64, f64)| -> (bool, f64) {
+        let mut inside = false;
+        let mut gap = f64::INFINITY;
+        for &((ax, ay), (bx, by)) in &segments {
+            if (ay > y) != (by > y) && x < ax + (y - ay) / (by - ay) * (bx - ax) {
+                inside = !inside;
+            }
+            let (dx, dy) = (bx - ax, by - ay);
+            let len2 = dx * dx + dy * dy;
+            let s = if len2 > 0.0 {
+                (((x - ax) * dx + (y - ay) * dy) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            gap = gap.min(((x - ax - s * dx).powi(2) + (y - ay - s * dy).powi(2)).sqrt());
+        }
+        (inside, gap)
+    };
+    let mut wrong = Vec::new();
+    let (mut asked, mut in_ball, mut inside) = (0, 0, 0);
+    let steps = 30;
+    for i in 0..=steps {
+        for j in 0..=steps {
+            let (a, b) = (
+                reach * (3.0 * i as f64 / steps as f64 - 1.5),
+                reach * (3.0 * j as f64 / steps as f64 - 1.5),
+            );
+            let (want, gap) = truth((a, b));
+            if gap < 1e-4 {
+                continue;
+            }
+            asked += 1;
+            in_ball += usize::from(a.hypot(b) < reach);
+            inside += usize::from(want);
+            let q = centre + across * a + up * b;
+            match topo::test_support::point_in_face(&cavity, spiric_face, q, band) {
+                Ok(Some(got)) if got == want => {}
+                got => wrong.push(format!("({a}, {b}): want {want}, got {got:?}")),
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} of {asked} probes misread:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
+    assert!(
+        in_ball >= 100 && inside >= 20 && asked - inside >= 20,
+        "the grid is not vacuous: {asked} asked, {in_ball} in the spiric's ball, {inside} inside"
+    );
+
+    // On the spiric, and in its band.
+    let mid = 0.5 * (t0 + t1);
+    let on = carrier.eval(mid);
+    assert_eq!(
+        topo::test_support::point_in_face(&cavity, spiric_face, on, band).ok(),
+        Some(None),
+        "a point on the spiric is on the face's boundary"
+    );
+    let off = normal.cross(carrier.deriv(mid)).normalize();
+    let in_band = on + off * (0.5 * (band.zero() + band.escalate()));
+    let got = topo::test_support::point_in_face(&cavity, spiric_face, in_band, band);
     assert!(
         matches!(
             got,
-            Err(PointInSolidError::EdgeCarrierUnsupported { face, cause })
-                if face == spiric_face
-                    && cause.r#loop == data.outer
-                    && cause.carrier == topo::UncrossableCarrier::Spiric
+            Err(PointInSolidError::Loop(topo::PointInLoopError::Escalated { .. }))
         ),
-        "on the spiric the face refuses typed, got {got:?}"
+        "a point in the spiric's band refuses, got {got:?}"
     );
 }
 

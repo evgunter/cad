@@ -22,6 +22,7 @@ use crate::splitting::containment::{
     BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
 };
 use crate::splitting::{PointInLoopError, Uncrossable};
+use crate::splitting::spiric_arc::SpiricRows;
 use crate::validate::decide;
 
 /// The typed `contfp` verdict.
@@ -337,8 +338,8 @@ fn boundary_pre_pass<T: Decide>(
                 // an escalation — on that margin where it is in band, and
                 // otherwise on the row itself.
                 EdgeContact::End => {
-                    let Some(carrier_ends) = edge.conic_ends() else {
-                        unreachable!("only a conic arc reads End")
+                    let Some(carrier_ends) = edge.carrier_ends() else {
+                        unreachable!("only a conic or spiric arc reads End")
                     };
                     for c in carrier_ends {
                         for v in [ends.0, ends.1] {
@@ -391,6 +392,13 @@ const ROWS: BoundaryRows = BoundaryRows {
         end: "bool_contact_arc_end",
         trim: "bool_contact_arc_trim",
         straddle: "bool_contact_arc_straddle",
+    },
+    spiric: SpiricRows {
+        end: "bool_contact_spiric_end",
+        clear: "bool_contact_spiric_clear",
+        on: "bool_contact_spiric",
+        leaf: "bool_contact_spiric_leaf",
+        depth: "bool_contact_spiric_depth",
     },
 };
 

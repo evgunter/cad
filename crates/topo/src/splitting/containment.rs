@@ -97,6 +97,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 use crate::body::Body;
 use crate::entity::{EdgeKey, LoopBoundary, LoopKey};
 use crate::ray_parity::{self, ParityRows};
+use crate::splitting::spiric_arc::{SpiricArc, SpiricHit, SpiricRows};
 use crate::validate::decide;
 
 /// This consumer's K rows for the shared walk, and the greppable
@@ -471,13 +472,16 @@ pub(crate) struct ConicRows {
 }
 
 /// The rows a caller reads a loop's boundary under: a straight edge's
-/// ([`ray_parity::on_segment`]'s two) and a conic edge's.
+/// ([`ray_parity::on_segment`]'s two), a conic edge's and a spiric
+/// edge's.
 #[derive(Clone, Copy)]
 pub(crate) struct BoundaryRows {
     /// A straight edge's rows.
     pub(crate) line: &'static ParityRows,
     /// A conic edge's rows.
     pub(crate) conic: ConicRows,
+    /// A spiric edge's rows.
+    pub(crate) spiric: SpiricRows,
 }
 
 /// [`point_in_carrier_loop`]'s rows for a loop's boundary.
@@ -489,6 +493,13 @@ const WALK_ROWS: BoundaryRows = BoundaryRows {
         end: "point_in_arc_loop_conic_end",
         trim: "point_in_arc_loop_conic_trim",
         straddle: "point_in_arc_loop_conic_straddle",
+    },
+    spiric: SpiricRows {
+        end: "point_in_arc_loop_spiric_end",
+        clear: "point_in_arc_loop_spiric_clear",
+        on: "point_in_arc_loop_spiric_on",
+        leaf: "point_in_arc_loop_spiric_leaf",
+        depth: "point_in_arc_loop_spiric_depth",
     },
 };
 
@@ -965,7 +976,9 @@ pub(crate) enum LoopEdge<T: geom_core::Real> {
     Chord,
     /// A circle or ellipse arc.
     Conic(ConicArc<T>),
-    /// A carrier with no crossing row, carried as a ball its whole
+    /// An arc of a spiric oval.
+    Spiric(SpiricArc<T>),
+    /// A spline, which has no crossing row, carried as a ball its whole
     /// locus lies in: `|x − center| ≤ reach`.
     Unrowed {
         center: Point3<T>,
@@ -984,10 +997,10 @@ pub(crate) enum EdgeContact {
     Carrier,
     /// On the edge, clear of a conic's ends.
     On,
-    /// Within the band of one of a conic's two ends.
+    /// Within the band of one of a curved edge's two carrier ends.
     End,
-    /// An edge on a carrier with no row (a spiric, a spline): this pass
-    /// cannot say, and the region walk holds it as a ball.
+    /// A spline edge, which has no row: this pass cannot say, and the
+    /// region walk holds it as a ball.
     Unread,
 }
 
@@ -995,7 +1008,8 @@ impl<T: Decide> LoopEdge<T> {
     /// **The one boundary reading of an edge** `a → b`, shared by every
     /// point-in-loop door: a straight edge by the distance to its closed
     /// segment ([`ray_parity::on_segment`]), a conic by
-    /// [`ConicArc::hit`], anything else unread.
+    /// [`ConicArc::hit`], a spiric by [`SpiricArc::contact`], a spline
+    /// unread.
     pub(crate) fn contact(
         &self,
         (a, b): (Point3<T>, Point3<T>),
@@ -1017,17 +1031,26 @@ impl<T: Decide> LoopEdge<T> {
                 ConicHit::On => EdgeContact::On,
                 ConicHit::End => EdgeContact::End,
             },
+            Self::Spiric(k) => match k.contact(q, rows.spiric, band)? {
+                SpiricHit::Off => EdgeContact::Off,
+                SpiricHit::On => EdgeContact::On,
+                SpiricHit::End => EdgeContact::End,
+            },
             Self::Unrowed { .. } => EdgeContact::Unread,
         })
     }
 
-    /// A conic edge's two end points (at its start and end parameters).
-    pub(crate) fn conic_ends(&self) -> Option<[Point3<T>; 2]> {
-        let Self::Conic(k) = self else {
-            return None;
-        };
-        let (t0, t1) = k.span;
-        Some([k.point(t0), k.point(t1)])
+    /// A conic or spiric edge's two carrier end points (at its start and
+    /// end parameters).
+    pub(crate) fn carrier_ends(&self) -> Option<[Point3<T>; 2]> {
+        match self {
+            Self::Conic(k) => {
+                let (t0, t1) = k.span;
+                Some([k.point(t0), k.point(t1)])
+            }
+            Self::Spiric(k) => Some(k.ends()),
+            Self::Chord | Self::Unrowed { .. } => None,
+        }
     }
 }
 
@@ -1158,17 +1181,18 @@ pub(crate) fn carrier_loop<T: Decide>(
                 }
                 // A line: its segment is its two end vertices'.
                 (geom::Curve3::Line { .. }, _) => LoopEdge::Chord,
-                (geom::Curve3::Spiric { .. }, Some((center, reach))) => LoopEdge::Unrowed {
-                    center,
-                    reach,
-                    carrier: UncrossableCarrier::Spiric,
-                },
+                (geom::Curve3::Spiric { .. }, _) => {
+                    match SpiricArc::of(curve.carrier(), curve.params()) {
+                        Some(k) => LoopEdge::Spiric(k),
+                        None => unreachable!("a spiric carrier reads as a spiric arc"),
+                    }
+                }
                 (geom::Curve3::Nurbs(_), Some((center, reach))) => LoopEdge::Unrowed {
                     center,
                     reach,
                     carrier: UncrossableCarrier::Spline,
                 },
-                (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), None) => {
+                (geom::Curve3::Nurbs(_), None) => {
                     unreachable!("step_ball refuses a curved edge it cannot hold")
                 }
             }),
@@ -1453,7 +1477,9 @@ fn carrier_walk<T: Decide>(
     // ---- Boundary pass, and which conics carry `q`. ----
     let mut on_carrier = vec![false; n];
     for (i, edge) in edges.iter().enumerate() {
-        if let (Boundary::Decided, LoopEdge::Chord | LoopEdge::Unrowed { .. }) = (boundary, edge) {
+        if let (Boundary::Decided, LoopEdge::Chord | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. }) =
+            (boundary, edge)
+        {
             continue;
         }
         match edge
@@ -1530,10 +1556,22 @@ fn carrier_walk<T: Decide>(
                 return Ok(None);
             };
             for (i, edge) in edges.iter().enumerate() {
-                let LoopEdge::Conic(k) = *edge else {
-                    continue;
+                let counted = match edge {
+                    LoopEdge::Conic(k) => conic_crossings(*k, on_carrier[i], q, d, band),
+                    LoopEdge::Spiric(k) => {
+                        let counted = k.crossings(q, d, side_axis, band);
+                        if counted.is_none() {
+                            blocked.get_or_insert(Uncrossable {
+                                r#loop,
+                                edge: lp.keys[i],
+                                carrier: UncrossableCarrier::Spiric,
+                            });
+                        }
+                        counted
+                    }
+                    LoopEdge::Chord | LoopEdge::Unrowed { .. } => continue,
                 };
-                match conic_crossings(k, on_carrier[i], q, d, band) {
+                match counted {
                     Some(c) => crossings += c,
                     None => return Ok(None),
                 }
