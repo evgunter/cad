@@ -2,10 +2,12 @@
 id: a-vertex-crossing-both-sides-of-a-pinch-refuses-shared-vertex-crossings
 kind: issue
 title: A vertex that crosses into both neighbourhoods of an operand's pinch refuses SharedVertexCrossings: the insertion handles one crossing pair per vertex
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
+closed: 2026-10-03
+pr: 3927
 ---
 
 
@@ -59,3 +61,32 @@ neighbourhoods, or re-read the later pair against the orbit pieces
 the earlier insertion left (each a vertex at the same point, joined by
 null edges). Either reaches `run_fan`'s one-cyclic-orbit assumption.
 When it lands, that test's expectation flips to a build at its volume.
+
+## Closed (FUSE, PR 3927, 2026-10-03)
+
+The reduction now plans every v-v pair before it mints any
+(`plan_null_pairs`, then `mint_plan`). `reconcile_shared` keeps the
+runs disjoint, struts are minted first in angular order, and a fold
+along a shared edge is reversed (`recl::Reversed`). With that, a vertex
+crossing into both neighbourhoods of a pinch builds under ∪, ∖ and ∩
+in both orders and passes 3′. So do three and four crossings at one
+corner.
+
+The row's own witness wedge was clockwise, so it was an inside-out
+operand. That is filed on cleave as
+`an-inside-out-operand-passes-the-boolean-gates-as-its-complement`
+(P1); every test uses the counterclockwise wedge. This row's second
+witness, two pinches crossing on one line, still refuses typed and
+moves to `two-pinches-crossing-on-one-line-refuse-their-union` (P0).
+The tie and interleave arms are in
+`shared-vertex-crossings-that-tie-or-interleave-are-unprobed` (P2),
+with the tie witness pinned. A pinch line through a face interior
+fails 3′, and the same failure happens on main without a shared
+vertex; that is filed as
+`a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records`.
+
+Review tier: single FULL, with one fix pass. The reviewer reproduced
+every red-when-off claim, matched every volume with an independent
+clipper, and fuzzed 60 further ops, all at the right volume and
+passing 3′.
+
