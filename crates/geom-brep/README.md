@@ -223,12 +223,15 @@ certifies against its carrier and chart alone, on one branch (a τ jump
 is unrepresentable in `Harmonic`'s `α + β·t`); no caller's window enters
 it. The face's rows lift its loops, and `topo::pcurves` certifies the
 loop: at each joint the walk decides the deck element (the whole number
-of periods, and on a sphere the involution twin) as an integer with
-half a period of room; the joint's 3-D coincidence is not decided again
-in the chart, since it follows from the two rows' envelopes and the
-edge certificate's pinning of each carrier's ends to the vertex. Each
-loop winds 0 or ±1 period, and a closed chart polygon is built only
-where it winds 0. A vertex on the chart's singular set (a sphere's pole,
+of periods, and on a sphere the involution twin) as an integer, with
+half the step to the next point of the joint's orbit as room: half a
+period on a cylinder, cone or torus, and a quarter period on a sphere,
+whose twin sits half a period over in azimuth. The joint's 3-D
+coincidence is not decided again in the chart, since it follows from
+the two rows' envelopes and the edge certificate's pinning of each
+carrier's ends to the vertex. Each loop winds at most one period per
+channel (on a sphere also through the twin), and a closed chart
+polygon is built only where it winds 0. A vertex on the chart's singular set (a sphere's pole,
 a cone's apex) is decided as 3-D incidence of the vertex on that set;
 a chart with no singular set decides nothing there. On a spline chart,
 where a net can fold and a 3-D coincidence does not name the sheet, each

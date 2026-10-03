@@ -200,6 +200,51 @@ fn the_remint_admits_the_gaps_the_examination_reports() {
             "inside the window at {f}ε: minted, reported"
         );
     }
+    // Past the joint bound nothing reaches the walk: the door that
+    // builds the cap refuses a 100ε gap (its endpoint pin), and a
+    // minted rim row moved 100ε along the meridian does not certify, so
+    // no row can carry the gap to a joint.
+    assert!(
+        two_level_rim_cap(100.0 * eps / RS).is_err(),
+        "a 100ε gap is refused where the cap is built"
+    );
+    let mut body = two_level_rim_cap(0.5 * eps / RS).unwrap();
+    topo::mint_pcurves(&mut body, tol).unwrap();
+    let band = Band::linear(tol).unwrap();
+    let moved = body
+        .half_edges()
+        .find_map(|(he, h)| {
+            let row = body.pcurve(he)?;
+            let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = row.pcurve() else {
+                return None;
+            };
+            let edge = body.get_edge(h.edge)?;
+            let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+                return None;
+            };
+            let face = body.face_of_half_edge(he)?;
+            let sphere = body.get_surface(body.get_face(face)?.surface)?;
+            let shifted = geom_brep::Pcurve::Harmonic {
+                p0: geom_core::Point2::new(p0.x, p0.y + 100.0 * eps / RS),
+                pa: *pa,
+                pb: *pb,
+                pl: *pl,
+            };
+            let (t0, t1) = row.params();
+            Some(geom_brep::PcurveCache::certify(
+                shifted,
+                t0,
+                t1,
+                curve.carrier(),
+                sphere,
+                band,
+            ))
+        })
+        .expect("the cap stores a harmonic rim row");
+    assert!(
+        moved.is_err(),
+        "a rim row 100ε off its carrier does not certify"
+    );
 }
 
 /// **Nothing that meshes or measures consumes the discarded

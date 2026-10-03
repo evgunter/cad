@@ -62,9 +62,10 @@
 //! **once per loop**, by walking the loop in `next` order and lifting
 //! each half-edge's entry onto the previous half-edge's exit. Two chart
 //! points with one 3-D image differ by a deck element of the chart, so
-//! each joint states WHICH one, as integers decided with half a period
-//! of room ([`lift_joint`]): the whole periods per periodic channel and,
-//! on a sphere, the involution twin. A joint no representation lifts
+//! each joint states WHICH one, as integers decided with half the step
+//! to the next orbit point as room ([`lift_joint`]): the whole periods
+//! per periodic channel and, on a sphere, the involution twin. A joint
+//! no representation lifts
 //! refuses typed ([`PcurveMintError::LoopDiscontinuity`]). The joint's
 //! 3-D coincidence is not decided again in the chart: it follows from
 //! the two rows' envelopes and the edge certificate's endpoint pinning.
@@ -1775,11 +1776,8 @@ fn sphere_twin<T: Decide>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> Option<Pc
 /// The loop-closure test of a chart walk: the closing joint's deck
 /// element ([`lift_joint`]) — the first row read against the last
 /// row's exit `end`, at the first row's entry vertex — is the loop's
-/// **winding**, and the loop closes when it is `0` or `±1` period on
-/// each periodic channel (a seam-closed wall's azimuth, a torus
-/// annulus's meridian), or, on a sphere, through the involution twin
-/// (a pole-crossing loop's walk legitimately ends on the twin of its
-/// start). A closure the deck element does not decide does not close.
+/// **winding**, and the loop closes where [`Lift::closes`] admits it.
+/// A closure the deck element does not decide does not close.
 fn loop_closes<T: Decide>(
     chart: DescribedChart<'_, T>,
     first: &Pcurve<T>,
@@ -1790,7 +1788,7 @@ fn loop_closes<T: Decide>(
     band: Band,
 ) -> bool {
     lift_joint(chart, first.clone(), entry_t, end, vertex, u_period, band)
-        .is_ok_and(|lift| lift.ku.abs() <= 1 && lift.kv.abs() <= 1)
+        .is_ok_and(|lift| lift.closes())
 }
 
 /// One half-edge's minted chart curve, before certification: the
@@ -3117,9 +3115,9 @@ pub(crate) fn apply_site_rows<T: Decide>(
 /// The derivation is the one step that forks by chart: a SPLINE chart
 /// derives from the edge's description ([`nurbs_iso_derive`], the
 /// fitted lane's), every analytic chart from the carrier's closed form
-/// ([`chart_pcurve`]). Everything after the derivation — the branch
-/// pin, the continuity margins, the closure — is [`walk_cycle`], which
-/// is stated under `Decide`.
+/// ([`chart_pcurve`]). Everything after the derivation — each joint's
+/// deck element and the loop's winding — is [`walk_cycle`], which is
+/// stated under `Decide`.
 pub(crate) fn walk_loop<T: AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
@@ -3323,16 +3321,15 @@ pub(crate) struct WalkItem<T: Real> {
 /// its carrier interval.
 type Pinned<T> = (Pcurve<T>, T, T);
 
-/// Why [`pin_branch`] placed no representation of an image.
+/// Why [`lift_joint`] decided no deck element for a joint.
 pub(crate) enum PinMiss {
-    /// No representation meets the predecessor's exit on any branch.
+    /// The image meets the predecessor's exit on no lift: its gap sits
+    /// on a mark, or a spline chart's gap is definite.
     Discontinuity,
-    /// No representation fits and one of them escalated: the first
-    /// such cause, deterministically.
+    /// A decision escalated.
     Escalated(Indeterminate),
-    /// No representation fits, none escalated, and one sat more than
-    /// [`geom_brep::MAX_BRANCH_PERIODS`] periods from the predecessor's
-    /// exit.
+    /// The gap is more than [`geom_brep::MAX_BRANCH_PERIODS`] steps of
+    /// the orbit from the predecessor's exit.
     OutOfReach,
 }
 
@@ -3357,7 +3354,7 @@ pub(crate) enum WalkFail<E> {
 /// **The one-branch walk, stated under `Decide`.** Walks `len` items in
 /// cycle order, asking `item` for each in turn (so an item's refusal
 /// is reported in cycle order, before any later item is read), pins
-/// each image's entry to its predecessor's exit ([`pin_branch`]), and
+/// each image's entry to its predecessor's exit ([`lift_joint`]), and
 /// checks the closure ([`loop_closes`]) when `closes` — an open run of
 /// a loop ([`walk_runs`]) has no closure to check. Returns each item's
 /// pinned image with its interval.
@@ -3394,7 +3391,8 @@ fn walk_cycle<T: Decide, E>(
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
         let pcurve = match prev_exit {
             None => base,
-            Some(prev) => pin_branch(chart, base, entry_t, prev, vertex, u_period, band)
+            Some(prev) => lift_joint(chart, base, entry_t, prev, vertex, u_period, band)
+                .map(|lift| lift.pcurve)
                 .map_err(|miss| WalkFail::Miss { index, miss })?,
         };
         if first.is_none() {
@@ -3414,22 +3412,6 @@ fn walk_cycle<T: Decide, E>(
         return Err(WalkFail::NotClosed);
     }
     Ok(out)
-}
-
-/// The ONE branch decision of one half-edge: [`lift_joint`]'s
-/// representation, shifted by the whole periods that land its entry on
-/// the predecessor's exit `prev`. A body where no representation lifts
-/// refuses rather than snapping to the nearest branch.
-fn pin_branch<T: Decide>(
-    chart: DescribedChart<'_, T>,
-    base: Pcurve<T>,
-    entry_t: T,
-    prev: geom_core::Point2<T>,
-    vertex: geom_core::Point3<T>,
-    u_period: Option<T>,
-    band: Band,
-) -> Result<Pcurve<T>, PinMiss> {
-    lift_joint(chart, base, entry_t, prev, vertex, u_period, band).map(|lift| lift.pcurve)
 }
 
 /// Where a joint's vertex sits against the chart's **singular set**:
@@ -3528,9 +3510,52 @@ struct Lift<T: Real> {
 
 impl<T: Real> Lift<T> {
     /// The deck element is the identity: the two rows already stand on
-    /// one lift.
+    /// one lift. A twin is never the identity, whatever its periods.
     fn identity(&self) -> bool {
         !self.twin && self.ku == 0 && self.kv == 0
+    }
+
+    /// **The windings a closed loop may have**, read at its closing
+    /// joint ([`loop_closes`]): at most one whole period on each
+    /// periodic channel, independently (a seam-closed wall's azimuth, a
+    /// torus annulus's meridian, and a torus face whose boundary winds
+    /// once both ways), and on a sphere the involution twin, alone or
+    /// with at most one period of azimuth beyond it (a pole-crossing
+    /// loop, which may also wind once about the axis). Counted in half
+    /// turns of azimuth, `2·ku + twin`: at most 2 without the twin, at
+    /// most 3 with it.
+    fn closes(&self) -> bool {
+        let half_turns = 2 * self.ku + i32::from(self.twin);
+        let reach = if self.twin { 3 } else { 2 };
+        half_turns.abs() <= reach && self.kv.abs() <= 1
+    }
+}
+
+/// How [`lift_joint`] reads a joint's first channel: the chart × the
+/// vertex's [`Singular`] reading, as one value.
+#[derive(Clone, Copy, Debug)]
+enum AzimuthRule {
+    /// No azimuth integer: the chart has no period, the vertex is on the
+    /// singular set (every azimuth names the point), or a spline chart's
+    /// net-level gate did not read `Off` (its chart-space gap decides,
+    /// [`spline_gap_closes`]).
+    None,
+    /// The integer, by the half-period marks.
+    Marks,
+    /// The integer by the marks; where they are undecided too, the
+    /// unshifted gap at the vertex's lever ([`near_pole_gap_closes`]),
+    /// and otherwise the incidence's escalation.
+    MarksNearPole(Indeterminate),
+}
+
+impl AzimuthRule {
+    fn of(periodic: bool, singular: Singular, spline: bool) -> Self {
+        match (periodic, singular) {
+            (false, _) | (true, Singular::On) => Self::None,
+            (true, Singular::Undecided(_)) if spline => Self::None,
+            (true, Singular::Off) => Self::Marks,
+            (true, Singular::Undecided(cause)) => Self::MarksNearPole(cause),
+        }
     }
 }
 
@@ -3539,13 +3564,23 @@ impl<T: Real> Lift<T> {
 /// number of periods per periodic channel and, on a sphere, possibly
 /// the involution `(u, v) ↦ (u + π, π − v)` ([`sphere_twin`]). This
 /// decides which, for the image `base` entering at `entry_t` against
-/// the predecessor's exit `prev`: each channel's integer by
-/// [`whole_periods`], with half a period of room, the azimuth's marks
-/// metered at the vertex's own lever ([`joint_arm`]). Candidate order
-/// (the image, then its twin) is fixed: D9. The wrong representation of
-/// a sphere image sits a half period off, ON a mark of the branch
-/// decision ([`BranchMiss::OnMark`]), so it decides no branch and the
-/// twin is read.
+/// the predecessor's exit `prev`, by [`whole_periods`] on each channel,
+/// the azimuth's marks metered at the vertex's own lever
+/// ([`joint_arm`]).
+///
+/// **The margin of each decision.** On a cylinder, cone or torus the
+/// orbit of a chart point steps a whole period in azimuth, so the
+/// integer has half a period of room either side. On a sphere the orbit
+/// steps half a period: the image and its twin sit at `kτ` and
+/// `π + kτ` in azimuth. So the azimuth is decided once, as a whole
+/// number `m` of HALF periods (marks at `±π/2`), and `m` names both the
+/// sheet (`m` odd: the twin) and the period (`⌊m/2⌋`). Each orbit point
+/// then has a quarter period of room, `(π/2)·d` in metres at the
+/// vertex's distance `d` from the axis: half the separation of the two
+/// nearest orbit points in the chart metric. It collapses only at the
+/// poles, where the 3-D incidence decides instead. A margin that
+/// small is a decided sign or an escalation, never a wrong sheet,
+/// whatever the band's `K`.
 ///
 /// **The joint's 3-D coincidence is not decided again here**, and needs
 /// no chart margin: it follows from two certified bounds. Each row's
@@ -3553,27 +3588,25 @@ impl<T: Real> Lift<T> {
 /// `geom_brep::PcurveCache`), and the edge certificate pins each
 /// carrier's ends to its vertices within ε (`carrier_endpoint_start` /
 /// `_end`), so the two chart ends of a joint map within `4ε` of each
-/// other. On the lift decided here (`|Δu| ≤ π`), `sin(x/2) ≥ x/π` turns
-/// that into `r·|Δu| ≤ 2π·ε` and `|Δv| ≤ 4ε` on a cylinder of radius
-/// `r`; the sphere, cone and torus give the same shape with the
-/// vertex's own lever away from their singular set. That is a bound the
-/// chart polygon may read ([`chart_boundary`]), not a decision.
+/// other. On the lift decided here (the image or its twin, `|Δu| ≤ π`),
+/// `sin(x/2) ≥ x/π` turns that into `r·|Δu| ≤ 2π·ε` and `|Δv| ≤ 4ε` on
+/// a cylinder of radius `r`; the sphere, cone and torus give the same
+/// shape with the vertex's own lever away from their singular set. That
+/// is a bound the chart polygon may read ([`chart_boundary`]), not a
+/// decision.
 ///
-/// **Where the first channel names no point** — a vertex on the
-/// chart's singular set ([`singular_at`]) — no azimuth lift is decided:
-/// every azimuth agrees there, so the gap need not be near a whole
-/// period at all. That skip rests on the 3-D decision alone. Where the
-/// incidence is UNDECIDED, nothing is skipped on an analytic chart: the
-/// branch is decided as at any other joint, which is sound either way
-/// (a whole-period shift is a deck transformation of the chart, so it
-/// moves no point), and where its marks cannot be decided either, the
-/// unshifted gap must be decided within ε at the vertex's own lever
-/// ([`near_pole_gap_closes`]); otherwise the incidence's escalation is
-/// the joint's. A spline chart has no injectivity lemma
-/// (a net can fold, so a 3-D coincidence does not name the sheet), and
-/// each of its joints states its chart-space gap as well
-/// ([`spline_gap_closes`]), which is what keeps its net-level skip
-/// safe.
+/// **The first channel's rule** is [`AzimuthRule`]'s. On the singular
+/// set no azimuth is decided: every azimuth names the point, and that
+/// skip rests on the 3-D decision alone. Where the incidence is
+/// UNDECIDED nothing is skipped on an analytic chart: the integer is
+/// decided as at any other joint, which is sound either way (a deck
+/// transformation moves no point), and where its marks cannot be
+/// decided either, the unshifted gap must be decided within ε at the
+/// vertex's own lever ([`near_pole_gap_closes`]). A spline chart has no
+/// injectivity lemma (a net can fold, so a 3-D coincidence does not
+/// name the sheet), and each of its joints states its chart-space gap
+/// as well ([`spline_gap_closes`]), which is what keeps its net-level
+/// skip safe.
 fn lift_joint<T: Decide>(
     chart: DescribedChart<'_, T>,
     base: Pcurve<T>,
@@ -3588,98 +3621,106 @@ fn lift_joint<T: Decide>(
     let spline = surface.spline_chart().is_some();
     let singular = singular_at(chart, vertex, band);
     let arm = joint_arm(chart, vertex);
-    let v_arm = polar_arm(surface);
-    let twin = sphere_twin(surface, &base);
-    // A WRONG candidate's miss is not the joint's verdict, so misses
-    // are deferred per candidate and surfaced (the first cause,
-    // deterministically) only when no candidate lifts.
-    let mut deferred: Option<Indeterminate> = None;
-    let mut out_of_reach = false;
     let whole = |k: i32| T::from_f64(f64::from(k));
-    for (is_twin, cand) in core::iter::once((false, base)).chain(twin.map(|t| (true, t))) {
-        let raw = cand.eval(entry_t);
-        let gap = prev.x - raw.x;
-        let ku = match (u_period, singular) {
-            (None, _) | (_, Singular::On) => Ok(0),
-            (Some(_), Singular::Undecided(_)) if spline => Ok(0),
-            (Some(p), Singular::Off) => {
-                whole_periods("pcurve_loop_branch", gap, p, |g| arm.meter(g), band)
-            }
-            (Some(p), Singular::Undecided(cause)) => {
-                match whole_periods("pcurve_loop_branch", gap, p, |g| arm.meter(g), band) {
-                    Err(BranchMiss::Undecided(_) | BranchMiss::OnMark) => {
-                        near_pole_gap_closes(arm, gap, cause, band)
-                    }
-                    decided => decided,
-                }
-            }
-        };
-        let ku = match ku {
-            Ok(k) => k,
-            Err(miss) => {
-                if let Singular::Undecided(cause) = singular {
-                    deferred.get_or_insert(cause);
-                }
-                defer(miss, &mut deferred, &mut out_of_reach);
-                continue;
-            }
-        };
-        let mut shifted = cand.shift_branch(whole(ku), u_period.unwrap_or_else(T::zero));
-        let mut kv = 0;
-        if let Some(polar) = v_arm {
-            match whole_periods(
-                "pcurve_loop_branch",
-                prev.y - shifted.eval(entry_t).y,
-                tau,
-                |gap| Margin::levered(gap, polar),
-                band,
-            ) {
-                Ok(k) => {
-                    kv = k;
-                    shifted = shift_polar_branch(&shifted, whole(k), tau);
-                }
-                Err(miss) => {
-                    defer(miss, &mut deferred, &mut out_of_reach);
-                    continue;
-                }
-            }
+    let twin = sphere_twin(surface, &base);
+    // The orbit's azimuth step: half a period where the image has a
+    // twin, a whole one elsewhere.
+    let step = u_period.map(|p| {
+        if twin.is_some() {
+            p * T::from_f64(0.5)
+        } else {
+            p
         }
-        if spline && !spline_gap_closes(chart, shifted.eval(entry_t), prev, &mut deferred, band) {
-            continue;
-        }
-        return Ok(Lift {
-            pcurve: shifted,
-            twin: is_twin,
-            ku,
-            kv,
-            singular,
-        });
+    });
+    let gap = prev.x - base.eval(entry_t).x;
+    let marks = |s: T| whole_periods("pcurve_loop_branch", gap, s, |g| arm.meter(g), band);
+    let rule = AzimuthRule::of(step.is_some(), singular, spline);
+    let m = match (rule, step) {
+        (AzimuthRule::Marks, Some(s)) => marks(s).map_err(PinMiss::from)?,
+        (AzimuthRule::MarksNearPole(cause), Some(s)) => match marks(s) {
+            Err(BranchMiss::Undecided(_) | BranchMiss::OnMark) => {
+                near_pole_gap_closes(arm, gap, s, twin.is_some(), band)
+                    .ok_or(PinMiss::Escalated(cause))?
+            }
+            decided => decided.map_err(|_| PinMiss::Escalated(cause))?,
+        },
+        _ => 0,
+    };
+    let (is_twin, ku) = match twin {
+        Some(_) => (m.rem_euclid(2) == 1, m.div_euclid(2)),
+        None => (false, m),
+    };
+    let sheet = match twin {
+        Some(t) if is_twin => t,
+        _ => base,
+    };
+    let mut lifted = sheet.shift_branch(whole(ku), u_period.unwrap_or_else(T::zero));
+    let mut kv = 0;
+    if let Some(polar) = polar_arm(surface) {
+        kv = whole_periods(
+            "pcurve_loop_branch",
+            prev.y - lifted.eval(entry_t).y,
+            tau,
+            |g| Margin::levered(g, polar),
+            band,
+        )
+        .map_err(PinMiss::from)?;
+        lifted = shift_polar_branch(&lifted, whole(kv), tau);
     }
-    Err(match deferred {
-        Some(cause) => PinMiss::Escalated(cause),
-        None if out_of_reach => PinMiss::OutOfReach,
-        None => PinMiss::Discontinuity,
+    if spline {
+        spline_gap_closes(chart, lifted.eval(entry_t), prev, band)?;
+    }
+    Ok(Lift {
+        pcurve: lifted,
+        twin: is_twin,
+        ku,
+        kv,
+        singular,
     })
 }
 
+impl From<BranchMiss> for PinMiss {
+    fn from(miss: BranchMiss) -> Self {
+        match miss {
+            BranchMiss::Undecided(cause) => Self::Escalated(cause),
+            BranchMiss::OutOfReach => Self::OutOfReach,
+            BranchMiss::OnMark => Self::Discontinuity,
+        }
+    }
+}
+
 /// The branch of a joint whose vertex's incidence on the singular set
-/// is undecided, where the half-period marks are undecided too: the
-/// vertex sits within the band of a pole or an apex, so its own lever
-/// `arm` is band-sized and no mark reads definitely. `k = 0` is taken
-/// only where the unshifted `gap`, metered at that lever, is decided
-/// within ε (`pcurve_loop_continuity`): the two chart points then agree
-/// in metres at the vertex, and no branch is asserted that a margin did
-/// not see. Anything else is the incidence's escalation, `cause`.
+/// is undecided, where the orbit's marks are undecided too: the vertex
+/// sits within the band of a pole or an apex, so its own lever `arm` is
+/// band-sized and no mark reads definitely. An orbit point is taken
+/// only where the gap to it, metered at that lever, is decided within ε
+/// (`pcurve_loop_pole_gap`): the image itself (`m = 0`) or, where the
+/// image has a twin, the twin either way round (`m = ±1`, a `step` of
+/// half a period off). The two chart points then agree in metres at the
+/// vertex, and no branch is asserted that a margin did not see. `None`
+/// otherwise; the caller escalates with the incidence's cause.
+///
+/// A vertex ON the axis but off the surface (within the band of a pole)
+/// has lever 0, so any gap decides Zero there and the image itself is
+/// taken. That is sound in 3-D: every chart end of the joint then lies
+/// within a few ε of the pole, where no azimuth names a point; and
+/// [`chart_boundary`]'s fence refuses such a joint before a polygon
+/// reads its azimuth.
 fn near_pole_gap_closes<T: Decide>(
     arm: ChartArm<T>,
     gap: T,
-    cause: Indeterminate,
+    step: T,
+    twin: bool,
     band: Band,
-) -> Result<i32, BranchMiss> {
-    match decide("pcurve_loop_continuity", arm.meter(gap), band) {
-        Ok(Sign::Zero) => Ok(0),
-        _ => Err(BranchMiss::Undecided(cause)),
-    }
+) -> Option<i32> {
+    let orbit: &[i32] = if twin { &[0, 1, -1] } else { &[0] };
+    orbit.iter().copied().find(|&m| {
+        let off = gap - T::from_f64(f64::from(m)) * step;
+        matches!(
+            decide("pcurve_loop_pole_gap", arm.meter(off), band),
+            Ok(Sign::Zero)
+        )
+    })
 }
 
 /// **A spline chart's joint gap**: the entry `entry` and the
@@ -3687,47 +3728,29 @@ fn near_pole_gap_closes<T: Decide>(
 /// stretch on each channel ([`chart_u_arm`], [`v_meter`]). A net can
 /// fold, so on a spline chart a 3-D coincidence does not name the
 /// sheet, and the joint states its chart-space gap ([`lift_joint`]).
-/// An escalation is remembered in `deferred` and does not close.
+///
+/// # Errors
+///
+/// [`PinMiss::Discontinuity`] for a definite gap,
+/// [`PinMiss::Escalated`] for an undecided one.
 fn spline_gap_closes<T: Decide>(
     chart: DescribedChart<'_, T>,
     entry: geom_core::Point2<T>,
     prev: geom_core::Point2<T>,
-    deferred: &mut Option<Indeterminate>,
     band: Band,
-) -> bool {
+) -> Result<(), PinMiss> {
     let arm = chart_u_arm(chart, prev.y);
-    let mut fits = true;
     for margin in [
         arm.meter(entry.x - prev.x),
         Margin::metered_sup(entry.y - prev.y, v_meter(chart)),
     ] {
         match decide("pcurve_loop_continuity", margin, band) {
             Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => fits = false,
-            Err(cause) => {
-                fits = false;
-                deferred.get_or_insert(cause);
-            }
+            Ok(Sign::Positive | Sign::Negative) => return Err(PinMiss::Discontinuity),
+            Err(cause) => return Err(PinMiss::Escalated(cause)),
         }
     }
-    fits
-}
-
-/// A candidate's branch [`pin_branch`] could not decide: an undecided
-/// mark is the first deferred cause, a gap past
-/// [`geom_brep::MAX_BRANCH_PERIODS`] is remembered by type, and a gap
-/// on a mark is the wrong candidate (a sphere's base image, π off its
-/// twin) and costs nothing.
-fn defer(miss: BranchMiss, deferred: &mut Option<Indeterminate>, out_of_reach: &mut bool) {
-    match miss {
-        BranchMiss::Undecided(cause) => {
-            if deferred.is_none() {
-                *deferred = Some(cause);
-            }
-        }
-        BranchMiss::OutOfReach => *out_of_reach = true,
-        BranchMiss::OnMark => {}
-    }
+    Ok(())
 }
 
 /// The chart image of one walked half-edge, in loop direction.
@@ -3871,7 +3894,11 @@ fn chart_edge<T: Decide>(
 ///
 /// Each joint's polygon vertex is the row's entry: the walk decided the
 /// joint's deck element, and the entry lies within the joint bound
-/// [`lift_joint`] states of the exit before it.
+/// [`lift_joint`] states of the exit before it. That bound rests on each
+/// row's envelope, so every closed-form row is certified against
+/// `chart` here first ([`PcurveCertifyError`] through
+/// [`PcurveMintError::Certify`] where one does not), minted face or
+/// not, whatever chart the caller names.
 ///
 /// # Errors
 ///
@@ -3963,6 +3990,21 @@ pub fn chart_boundary<T: AtRestPolicy>(
         );
         if !closing.is_ok_and(|lift| lift.identity()) {
             return Err(PcurveMintError::LoopWraps { face, r#loop: *lp });
+        }
+        // The joint bound the polygon leans on rests on each row's
+        // envelope (check 4), and these rows are fresh derivations in
+        // the CALLER's chart, which no mint certified. So each
+        // closed-form row is certified against that chart here, before
+        // its entry is read as a vertex; a fitted or general one reads
+        // its stored certificate ([`chart_edge`]).
+        for w in &walked {
+            if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
+                PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
+                    .map_err(|error| PcurveMintError::Certify {
+                        half_edge: w.key,
+                        error,
+                    })?;
+            }
         }
         let mut edges = Vec::with_capacity(walked.len());
         for w in &walked {
@@ -4142,7 +4184,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
         // The chain starts at the loop's first stored row and runs once
         // around back to it. A half-edge that stores no row is carried
         // by the image the mint would derive for it ([`derive_image`]),
-        // pinned to the chain as the walk pins it ([`pin_branch`]);
+        // pinned to the chain as the walk pins it ([`lift_joint`]);
         // where that half-edge is the cycle's first, the wrap passes to
         // the next stored row the chain reaches. So the rows either side
         // of a gap are measured across it, the wrap is read whenever the
@@ -4198,9 +4240,9 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                     prev_exit = prev_exit.and_then(|prev| {
                         let (base, entry_t, exit_t) = derived(he)?;
                         let vertex = entry_vertex(body, he).ok()?;
-                        pin_branch(chart, base, entry_t, prev, vertex, u_period, band)
+                        lift_joint(chart, base, entry_t, prev, vertex, u_period, band)
                             .ok()
-                            .map(|pinned| pinned.eval(exit_t))
+                            .map(|lift| lift.pcurve.eval(exit_t))
                     });
                     continue;
                 };
@@ -4855,7 +4897,7 @@ pub(crate) mod staleness_posture {
 mod stretch_meter {
     #![allow(clippy::unwrap_used, clippy::float_cmp)]
 
-    use super::{ChartArm, DescribedChart, SupSpeed, chart_u_arm, v_meter};
+    use super::{ChartArm, DescribedChart, Singular, SupSpeed, chart_u_arm, singular_at, v_meter};
     use geom::{NurbsSurface, Surface};
     use geom_core::k_stats::decide;
     use geom_core::spline::KnotVector;
@@ -5005,76 +5047,59 @@ mod stretch_meter {
         );
     }
 
-    /// **The pole-joint gate is LIVE on spline charts, in all three
-    /// outcomes** (review item 5: before this unit the arm was the
-    /// constant `1` there, so the gate could only ever answer
-    /// `Positive` and no row exercised it at all).
-    ///
-    /// The gate reads `Margin::of(chart_u_arm(..).magnitude())` — the arm's own
-    /// size, gated as a length (the collapsed-arm idiom) — and the
-    /// walk converts `Zero` and an escalation alike to "take no
-    /// branch shift".
+    /// **The singular gate answers all three ways**, through
+    /// [`singular_at`], the one door the walk reads. On a spline chart
+    /// it is net-level (the chart's whole `u` stretch, whatever the
+    /// vertex); on a sphere it is the vertex's 3-D distance to the
+    /// nearer pole.
     #[test]
-    fn the_pole_joint_gate_answers_all_three_ways_on_spline_charts() {
-        // A chart whose whole u stretch is 1e-12 m per chart unit:
-        // no u displacement on it moves a point past the band, so
-        // the lever is honestly collapsed and no branch is selectable.
-        let collapsed = flat_chart(1e-12);
-        assert_eq!(
-            decide(
-                "pcurve_loop_pole_joint",
-                Margin::of(chart_u_arm(chart(&collapsed), 0.0).magnitude()),
-                band()
-            ),
-            Ok(Sign::Zero),
+    fn the_singular_gate_answers_all_three_ways() {
+        let anywhere = Point3::new(0.3, 0.4, 0.0);
+        let read = |s: &Surface<f64>, at: Point3<f64>| singular_at(chart(s), at, band());
+        // A chart whose whole u stretch is 1e-12 m per chart unit: no u
+        // displacement on it moves a point past the band.
+        assert!(
+            matches!(read(&flat_chart(1e-12), anywhere), Singular::On),
             "a sub-band chart stretch is a collapsed lever"
         );
-        // In-band: the lever's own size is undecided, so the walk
-        // defers the shift rather than manufacturing one, and the
-        // continuity margins below decide instead.
         for span in [5e-9_f64, 2e-9] {
-            let s = flat_chart(span);
             assert!(
-                decide(
-                    "pcurve_loop_pole_joint",
-                    Margin::of(chart_u_arm(chart(&s), 0.0).magnitude()),
-                    band()
-                )
-                .is_err(),
-                "an in-band lever ({span:e}) escalates rather than deciding"
+                matches!(read(&flat_chart(span), anywhere), Singular::Undecided(_)),
+                "an in-band stretch ({span:e}) escalates rather than deciding"
             );
         }
-        // And a real chart reaches the branch decision.
-        assert_eq!(
-            decide(
-                "pcurve_loop_pole_joint",
-                Margin::of(chart_u_arm(chart(&flat_chart(100.0)), 0.0).magnitude()),
-                band()
-            ),
-            Ok(Sign::Positive)
-        );
-        // The analytic poles are unmoved: a sphere pole still reads
-        // an exactly-zero lever through the same door.
+        assert!(matches!(read(&flat_chart(100.0), anywhere), Singular::Off));
+        // The sphere: on a pole, within the band of one, and clear of both.
         let sphere: Surface<f64> = Surface::Sphere {
             center: Point3::new(0.0, 0.0, 0.0),
             radius: 2.0,
             axis: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let polar = chart_u_arm(chart(&sphere), core::f64::consts::FRAC_PI_2);
-        assert!(
-            matches!(polar, ChartArm::Angular(_)),
-            "a sphere's u gap is an angle, so the arm is metres per radian"
-        );
-        assert_eq!(polar.magnitude(), 2.0 * core::f64::consts::FRAC_PI_2.cos());
-        assert_eq!(
-            decide(
-                "pcurve_loop_pole_joint",
-                Margin::of(polar.magnitude()),
-                band()
-            ),
-            Ok(Sign::Zero)
-        );
+        assert!(matches!(
+            read(&sphere, Point3::new(0.0, 0.0, -2.0)),
+            Singular::On
+        ));
+        assert!(matches!(
+            read(&sphere, Point3::new(5e-9, 0.0, 2.0)),
+            Singular::Undecided(_)
+        ));
+        assert!(matches!(
+            read(&sphere, Point3::new(2.0, 0.0, 0.0)),
+            Singular::Off
+        ));
+        // A cylinder has no singular set, so it decides nothing, even on
+        // its axis.
+        let cylinder: Surface<f64> = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        assert!(matches!(
+            read(&cylinder, Point3::new(0.0, 0.0, 0.0)),
+            Singular::Off
+        ));
     }
 
     /// A placeholder payload has no net to bound, so it has no arms:
@@ -5368,5 +5393,272 @@ mod polar_shift_tests {
             [1.0, 0.25, -0.5, 1.0, 0.125, -0.375],
             "the trigonometric and linear coefficients are not a branch"
         );
+    }
+}
+
+#[cfg(test)]
+mod lift_rows {
+    //! [`super::lift_joint`]'s decisions, each on a joint built to sit
+    //! where one of them is the only thing deciding. Every row runs at
+    //! `f64` and at `Interval`, under a band pinned here (`zero = ε`),
+    //! so the digits mean the same at every ε row.
+    #![allow(clippy::unwrap_used, clippy::panic)]
+
+    use super::{DescribedChart, Lift, PinMiss, Singular, lift_joint};
+    use geom::Surface;
+    use geom_brep::Pcurve;
+    use geom_core::{Band, Decide, Interval, Point2, Point3, Vec2, Vec3};
+
+    const EPS: f64 = 1e-9;
+
+    fn band(k: f64) -> Band {
+        Band::new(EPS, k * EPS).unwrap()
+    }
+
+    fn unit_sphere<T: Decide>() -> Surface<T> {
+        let f = T::from_f64;
+        Surface::Sphere {
+            center: Point3::new(f(0.0), f(0.0), f(0.0)),
+            radius: f(1.0),
+            axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
+            u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
+        }
+    }
+
+    fn torus<T: Decide>() -> Surface<T> {
+        let f = T::from_f64;
+        Surface::Torus {
+            center: Point3::new(f(0.0), f(0.0), f(0.0)),
+            axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
+            major_radius: f(2.0),
+            minor_radius: f(1.0),
+            u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
+        }
+    }
+
+    /// A row that sits at one chart point: what a joint reads of it is
+    /// its entry, and its twin.
+    fn at<T: Decide>(u: f64, v: f64) -> Pcurve<T> {
+        let f = T::from_f64;
+        let zero = Vec2::new(f(0.0), f(0.0));
+        Pcurve::Harmonic {
+            p0: Point2::new(f(u), f(v)),
+            pa: zero,
+            pb: zero,
+            pl: zero,
+        }
+    }
+
+    fn on_sphere<T: Decide>(u: f64, v: f64) -> Point3<T> {
+        let f = T::from_f64;
+        Point3::new(f(v.cos() * u.cos()), f(v.cos() * u.sin()), f(v.sin()))
+    }
+
+    /// The joint at `(u, v)` against a predecessor exit `prev`, on
+    /// `surface`, with `vertex` the joint's point.
+    fn lift<T: Decide>(
+        surface: &Surface<T>,
+        (u, v): (f64, f64),
+        prev: (f64, f64),
+        vertex: Point3<T>,
+        k: f64,
+    ) -> Result<Lift<T>, PinMiss> {
+        let f = T::from_f64;
+        lift_joint(
+            DescribedChart::of(surface).unwrap(),
+            at(u, v),
+            f(0.0),
+            Point2::new(f(prev.0), f(prev.1)),
+            vertex,
+            Some(T::tau()),
+            band(k),
+        )
+    }
+
+    /// **A joint whose predecessor sits on the image's TWIN is the
+    /// twin, at every K** — the reproduction both reviews of the first
+    /// cut made. The predecessor's exit is the twin of `(0.3, 0.4)`,
+    /// `(0.3 + π, π − 0.4)`, moved `δ = ±3.5ε` in metres along the
+    /// azimuth: inside the 4ε joint bound, and past `K·ε` at `K = 3` and
+    /// `K = 2`. Read as a whole number of periods, the image's own
+    /// azimuth then decides a branch half a period off and never
+    /// reaches the twin; read as half periods, the twin has a quarter
+    /// period of room. A twin is never the identity.
+    fn twin_at_every_k<T: Decide>(lane: &str) {
+        let s = unit_sphere::<T>();
+        let (u, v): (f64, f64) = (0.3, 0.4);
+        for k in [10.0, 3.0, 2.0] {
+            for delta in [-3.5 * EPS, 3.5 * EPS] {
+                let du = delta / v.cos();
+                let prev = (u + core::f64::consts::PI + du, core::f64::consts::PI - v);
+                let Ok(lift) = lift(&s, (u, v), prev, on_sphere(u, v), k) else {
+                    panic!("{lane} K = {k} δ = {delta:e}: the joint lifts");
+                };
+                assert!(
+                    lift.twin && lift.ku == 0 && lift.kv == 0,
+                    "{lane} K = {k} δ = {delta:e}: the twin, no period ({}, {}, {})",
+                    lift.twin,
+                    lift.ku,
+                    lift.kv
+                );
+                assert!(
+                    !lift.identity(),
+                    "{lane} K = {k}: a twin is never the identity"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_twin_joint_is_the_twin_at_every_k() {
+        twin_at_every_k::<f64>("f64");
+        twin_at_every_k::<Interval>("Interval");
+    }
+
+    /// **A joint whose vertex is within the band of a pole, at a gap no
+    /// orbit point meets, escalates.** The vertex is `5ε` from the north
+    /// pole (incidence undecided), so its lever is `5ε`; the gap is one
+    /// radian, so no mark decides, and none of the orbit points the
+    /// near-pole reading may take (the image, the twin either way) is
+    /// within ε of it at that lever. Taking the image there would be a
+    /// branch no margin saw.
+    fn near_pole_off_orbit_escalates<T: Decide>(lane: &str) {
+        let s = unit_sphere::<T>();
+        let theta: f64 = 5e-9;
+        let v = core::f64::consts::FRAC_PI_2 - theta;
+        let out = lift(&s, (0.0, v), (1.0, v), on_sphere(0.0, v), 10.0);
+        assert!(
+            matches!(out, Err(PinMiss::Escalated(_))),
+            "{lane}: the incidence's escalation, not a lift: {:?}",
+            out.as_ref().map(|l| (l.twin, l.ku, l.kv)).ok()
+        );
+    }
+
+    #[test]
+    fn a_near_pole_joint_off_every_orbit_point_escalates() {
+        near_pole_off_orbit_escalates::<f64>("f64");
+        near_pole_off_orbit_escalates::<Interval>("Interval");
+    }
+
+    /// **An undecided incidence still decides the branch where its marks
+    /// decide.** The vertex is `9ε` from the pole (undecided), and the
+    /// gap is a whole period: every mark it meets is past the band at
+    /// that lever, so the joint lifts one period over. Skipping the
+    /// azimuth there, as on the singular set, would read it as the
+    /// identity.
+    fn undecided_incidence_still_lifts<T: Decide>(lane: &str) {
+        let s = unit_sphere::<T>();
+        let v = core::f64::consts::FRAC_PI_2 - 9e-9;
+        let out = lift(
+            &s,
+            (0.0, v),
+            (core::f64::consts::TAU, v),
+            on_sphere(0.0, v),
+            10.0,
+        );
+        let Ok(lift) = out else {
+            panic!("{lane}: the marks decide")
+        };
+        assert!(matches!(lift.singular, Singular::Undecided(_)), "{lane}");
+        assert!(
+            !lift.twin && lift.ku == 1 && !lift.identity(),
+            "{lane}: one period over ({}, {})",
+            lift.twin,
+            lift.ku
+        );
+    }
+
+    #[test]
+    fn an_undecided_incidence_still_decides_the_period() {
+        undecided_incidence_still_lifts::<f64>("f64");
+        undecided_incidence_still_lifts::<Interval>("Interval");
+    }
+
+    /// **The azimuth's marks are metered at the vertex's own lever.** At
+    /// colatitude `1e-3` the lever is `1e-3` m per radian, not the
+    /// sphere's radius: a gap `5e-6` rad past the quarter-period mark is
+    /// `5e-9` m there, inside the band, so the joint escalates. Metered
+    /// at the radius it would read `5e-6` m and decide.
+    fn marks_at_the_vertex_lever<T: Decide>(lane: &str) {
+        let s = unit_sphere::<T>();
+        let v = core::f64::consts::FRAC_PI_2 - 1e-3;
+        let gap = core::f64::consts::FRAC_PI_2 + 5e-6;
+        let out = lift(&s, (0.0, v), (gap, v), on_sphere(0.0, v), 10.0);
+        assert!(
+            matches!(out, Err(PinMiss::Escalated(_))),
+            "{lane}: the mark is undecided at the vertex's lever"
+        );
+    }
+
+    #[test]
+    fn the_marks_are_metered_at_the_vertex_lever() {
+        marks_at_the_vertex_lever::<f64>("f64");
+        marks_at_the_vertex_lever::<Interval>("Interval");
+    }
+
+    /// **The second channel's period is part of the deck element.** On a
+    /// torus a predecessor one meridian period over is the same point,
+    /// and the joint between them is not the identity.
+    fn meridian_period<T: Decide>(lane: &str) {
+        let s = torus::<T>();
+        let (u, v): (f64, f64) = (0.3, 0.4);
+        let f = T::from_f64;
+        let r = 2.0 + v.cos();
+        let vertex = Point3::new(f(r * u.cos()), f(r * u.sin()), f(v.sin()));
+        let Ok(lift) = lift(&s, (u, v), (u, v + core::f64::consts::TAU), vertex, 10.0) else {
+            panic!("{lane}: the joint lifts")
+        };
+        assert!(
+            lift.ku == 0 && lift.kv == 1 && !lift.identity(),
+            "{lane}: one meridian period ({}, {})",
+            lift.ku,
+            lift.kv
+        );
+    }
+
+    #[test]
+    fn a_meridian_period_is_not_the_identity() {
+        meridian_period::<f64>("f64");
+        meridian_period::<Interval>("Interval");
+    }
+
+    /// **The windings a loop may close with** ([`Lift::closes`]), the
+    /// whole table: at most one period on each channel, independently,
+    /// and the sphere's twin alone or with one period beyond it.
+    #[test]
+    fn the_closing_windings_are_these() {
+        let row = |twin: bool, ku: i32, kv: i32| Lift::<f64> {
+            pcurve: at(0.0, 0.0),
+            twin,
+            ku,
+            kv,
+            singular: Singular::Off,
+        };
+        let table: &[((bool, i32, i32), bool)] = &[
+            ((false, 0, 0), true),
+            ((false, 1, 0), true),
+            ((false, -1, 0), true),
+            ((false, 0, 1), true),
+            ((false, 1, 1), true),
+            ((false, -1, -1), true),
+            ((false, 2, 0), false),
+            ((false, -2, 0), false),
+            ((false, 0, 2), false),
+            ((false, 4, 0), false),
+            ((true, 0, 0), true),
+            ((true, -1, 0), true),
+            ((true, 1, 0), true),
+            ((true, -2, 0), true),
+            ((true, 2, 0), false),
+            ((true, -3, 0), false),
+            ((true, 0, 2), false),
+        ];
+        for &((twin, ku, kv), closes) in table {
+            assert_eq!(
+                row(twin, ku, kv).closes(),
+                closes,
+                "twin {twin}, ku {ku}, kv {kv}"
+            );
+        }
     }
 }

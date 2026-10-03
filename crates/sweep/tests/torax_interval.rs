@@ -298,15 +298,21 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
         // offset's widened data, straddling the band
         // (`work/pcert/fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar.md`).
         Err(
-            source @ (topo::ReplaceFaceError::Escalated { .. }
-            | topo::ReplaceFaceError::Pcurve {
+            source @ topo::ReplaceFaceError::Pcurve {
                 source:
-                    topo::pcurves::PcurveMintError::Escalated { .. }
-                    | topo::pcurves::PcurveMintError::Certify {
-                        error: geom_brep::PcurveCertifyError::Escalated { .. },
+                    topo::pcurves::PcurveMintError::Certify {
+                        error:
+                            geom_brep::PcurveCertifyError::Escalated {
+                                cause:
+                                    geom_core::Indeterminate {
+                                        predicate: Some("pcurve_map_residual"),
+                                        ..
+                                    },
+                                ..
+                            },
                         ..
                     },
-            }),
+            },
         ) if tol.eps() < DEFAULT_EPS => {
             stood_down(
                 &format!("the sphere lune's interval rim, eps = {:e}", tol.eps()),

@@ -153,8 +153,10 @@
 //! row from the same row a whole period over: both certify
 //! identically. Which branch (`α + kτ`) a half-edge takes is the
 //! loop's fact, decided in `topo::pcurves`: at each joint the walk
-//! decides the deck element as an integer with half a period of room
-//! ([`whole_periods`]), and each loop winds 0 or ±1 period. A joint's
+//! decides the deck element as an integer ([`whole_periods`]), with
+//! half the step to the next orbit point as room (half a period, or a
+//! quarter on a sphere, whose twin sits half a period over), and each
+//! loop winds at most one period per channel. A joint's
 //! 3-D coincidence is not a chart fact either: it follows from the two
 //! rows' envelopes (check 4) and the edge certificate's pinning of each
 //! carrier's ends to its vertices.
@@ -594,7 +596,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
     // `[t0, t0 + angle]` the map is a genuine extrapolation and `g` is
     // legitimately outside `[0, 1]`; the clamp saturates it. Every
     // caller evaluates on the trimmed interval (the schedule, the loop
-    // walk's entry/exit, `trim_containment`), and `locate_spans`
+    // walk's entry/exit, `chart_box`), and `locate_spans`
     // already saturated the span choice off-domain, so no caller sees
     // a changed answer — but a future off-domain one would, and that
     // is a property of this function, not an accident of its callers.
@@ -971,9 +973,9 @@ impl<T: SpanLocate> Pcurve<T> {
     }
 
     /// A **conservative** chart-box enclosure of the pcurve over
-    /// `[t₀, t₁]` — a box over-approximation (module docs), always
-    /// sound in the containment direction: it can only make a
-    /// containment claim harder to satisfy, never falsely satisfied.
+    /// `[t₀, t₁]`: every point of the image over the span lies in it,
+    /// so an extent read off it (check 2's azimuth headroom, the cone's
+    /// `|v|` reach) can only be over-stated.
     /// A harmonic or iso-line image's box is `harmonic_span_box`'s, and
     /// a cone-section image's [`Pcurve::closed_form_span_box`]'s.
     ///
@@ -1061,7 +1063,7 @@ impl<T: SpanLocate> Pcurve<T> {
             //
             // Whole-period in `f` like the carrier's own box, so a
             // sub-span gets a conservative answer, never a wrong one —
-            // the containment direction every arm here keeps.
+            // the enclosure every arm here keeps.
             Pcurve::Spiric {
                 major,
                 minor,
@@ -4323,9 +4325,10 @@ pub enum BranchMiss {
     /// branch at this width (D4 ¶3, escalate-never-guess).
     Undecided(Indeterminate),
     /// The gap sits ON a half-period mark (the mark decided Zero): it
-    /// is half a period from two branches and is the gap of neither —
-    /// a stored image a half period off, or a sphere's involution twin
-    /// read with period `τ`.
+    /// is half a period from two branches and is the gap of neither — a
+    /// stored image half a period off (`topo::pcurves` reads a sphere's
+    /// twin as its own orbit point, with half the period, so a twin is
+    /// never this).
     OnMark,
     /// The gap is more than [`MAX_BRANCH_PERIODS`] periods out.
     OutOfReach,
@@ -5202,8 +5205,10 @@ pub fn chart_stretch_sup<T: Real>(
         //
         // **RATIONAL charts take the same arms since M8-3**, and they
         // must: an arm under-states only in the UNSAFE direction here
-        // (`trim_containment` meters an escape, so a smaller arm makes
-        // an escape easier to admit), and before M8-3 the unit arms
+        // (its consumers meter escapes: a spline chart's joint gap,
+        // `topo::pcurves`' `spline_gap_closes`, and the iso lane's
+        // knot-deviation and overshoot terms; a smaller arm makes an
+        // escape easier to admit), and before M8-3 the unit arms
         // were harmless only because the iso lane's own rational gate
         // refused before any rational chart reached this function.
         // That gate is gone, so the arm has to be real —
