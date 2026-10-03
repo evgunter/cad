@@ -20,7 +20,7 @@ use crate::docm7_union_declare::{
 };
 use crate::fixture::{ang, fname, insert, len, scl, step, wall};
 use editor_core::{
-    BooleanOp, CapEnd, DocEdit, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, ResolveError,
+    BooleanOp, CapEnd, DocEdit, EditError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, ResolveError,
     RoleSeg, SitedRef, find_flush_candidates,
 };
 use geom_core::Tol;
@@ -132,36 +132,37 @@ fn a_merged_row_contact_is_declared_through_its_constituents() {
 // ---------------------------------------------------------------------
 
 /// Sited at the EXTRUDE (the minting node) when the boolean's operand
-/// is a transform of it: `DeclareSiteNotAnOperand`. Sited at the
-/// transform but naming a row it does not carry: `Vanished`.
+/// is a transform of it: the insert door refuses
+/// `DeclaredSiteNotAnOperand`, naming the extrude. Sited at the
+/// transform but naming a row it does not carry: the door admits it
+/// and the evaluation refuses `Vanished`.
 #[test]
 fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() {
     let base = ProfileDoc::empty_derived("r1_site_mint", Tol::witness());
     let (base, a) = block(base, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (base, b0) = block(base, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (base, tr) = placed(base, b0, 0.5);
-    let boolean = |doc: ProfileDoc, decl| {
-        insert(
-            doc,
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a,
-                b: tr,
-                declare: decl,
-            },
-        )
+    let boolean = |declare| Node::Boolean {
+        op: BooleanOp::Union,
+        a,
+        b: tr,
+        declare,
     };
     // Sited at the minting node, which is not an operand.
     let decl = editor_core::declare_continuation(vec![(
         SitedRef::new(a, fname(a, wall(&base, a, 0))),
         SitedRef::new(b0, fname(b0, wall(&base, b0, 0))),
     )]);
-    let (doc, u) = boolean(base.clone(), decl);
-    let ev = run(&doc);
+    let refused = base.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(boolean(decl)),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
     assert!(
-        matches!(failure(&ev, u), Some(NodeErrorKind::DeclareSiteNotAnOperand { at }) if *at == b0),
-        "{:?}",
-        failure(&ev, u)
+        matches!(&refused, Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == b0),
+        "{refused:?}"
     );
     // Sited at the transform, naming a row the block does not have.
     let decl = editor_core::declare_continuation(vec![(
@@ -174,7 +175,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
             ),
         ),
     )]);
-    let (doc, u) = boolean(base, decl);
+    let (doc, u) = insert(base, boolean(decl));
     let ev = run(&doc);
     assert!(
         matches!(
@@ -186,11 +187,21 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     );
 }
 
-/// **Rung 1 outranks the site question at the PAIR boolean too** — a
-/// name whose minting node is gone says `NodeGone`, even when its
-/// site is also not an operand. Both declaring doors ask the question
-/// through one function (`wire.rs`'s `site_operand`), which is where
-/// that order is written.
+/// **A dead name outranks a foreign site** — at the pair boolean's
+/// door, and in the evaluation of a union whose site was stranded.
+///
+/// A pair boolean's foreign site never reaches its evaluation: the
+/// door refuses it. So its order is the door's — name liveness
+/// (`DeclareNamesMissingNode`) is asked before the side rule, and a
+/// pair naming a dead node at a site that is not an operand says the
+/// former, where the same pair with the node live says the latter.
+///
+/// A union's site can still stop being an operand, by a `SetMembers`
+/// that drops it, and there rung 1 is the evaluation's: a name whose
+/// minting node is gone says `NodeGone`, where the same strand with the
+/// node live says `Vanished`. Both declaring nodes ask the evaluation
+/// question through one function (`wire.rs`'s `site_operand`), which
+/// is where that order is written.
 #[test]
 fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
     let doc = ProfileDoc::empty_derived("r1_rung1_pair", Tol::witness());
@@ -203,21 +214,54 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
         SitedRef::new(a, fname(a, wall(&doc, a, 0))),
         SitedRef::new(x, fname(c, wall(&doc, c, 0))),
     )]);
-    let (doc, u) = insert(
+    let boolean = Node::Boolean {
+        op: BooleanOp::Union,
+        a,
+        b,
+        declare: decl.clone(),
+    };
+    let insert_into = |doc: &ProfileDoc| {
+        doc.apply(
+            &DocEdit::InsertNode {
+                node: Box::new(boolean.clone()),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+    };
+    let live = insert_into(&doc);
+    assert!(
+        matches!(&live, Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == x),
+        "with the name's node live, the foreign site is the fault: {live:?}"
+    );
+    let (gone, _) = step(doc.clone(), DocEdit::DeleteNode { id: c });
+    let dead = insert_into(&gone);
+    assert!(
+        matches!(&dead, Err(EditError::DeclareNamesMissingNode { .. })),
+        "the dead name does not outrank the foreign site at the door: {dead:?}"
+    );
+
+    // The union: sited at member `x`, which `SetMembers` then drops.
+    let (doc, u) = declared_union(doc, &[a, b, x], vec![decl[0].0.clone()]);
+    let (stranded, _) = step(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: decl,
+        DocEdit::SetMembers {
+            node: u,
+            members: vec![a, b],
         },
     );
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: c });
-    let ev = run(&doc);
+    let ev = run(&stranded);
+    let got = failure(&ev, u);
+    assert!(
+        matches!(got, Some(NodeErrorKind::DeclareResolve { error }) if matches!(**error, ResolveError::Vanished { .. })),
+        "with the name's node live, the stranded site vanishes: {got:?}"
+    );
+    let (stranded, _) = step(stranded, DocEdit::DeleteNode { id: c });
+    let ev = run(&stranded);
     let got = failure(&ev, u);
     assert!(
         matches!(got, Some(NodeErrorKind::DeclareResolve { error }) if matches!(**error, ResolveError::NodeGone { .. })),
-        "rung 1 does not outrank the site question at the pair boolean: {got:?}"
+        "rung 1 does not outrank the stranded site at the union: {got:?}"
     );
 }
 

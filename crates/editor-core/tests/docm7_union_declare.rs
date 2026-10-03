@@ -218,10 +218,12 @@ fn the_pair_boolean_declares_between_two_placements_of_one_prototype() {
     assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
 }
 
-/// **A site that is neither operand refuses typed.** The site IS the
-/// side, so a site the consumer does not have is a declaration it
-/// cannot read: there is no table to resolve the name in, and the
-/// door says that rather than guessing a side.
+/// **A site that is neither operand refuses typed, at the doors.** The
+/// site IS the side, so a site the consumer does not have is a
+/// declaration it cannot read: there is no table to resolve the name
+/// in. The insert door and `SetDeclare` on a live boolean refuse it
+/// alike, naming the site, and the recourse names the operand to read
+/// it at rather than guessing a side.
 #[test]
 fn a_site_that_is_neither_operand_refuses() {
     let doc = ProfileDoc::empty_derived("docm7_pair_site", Tol::witness());
@@ -234,23 +236,83 @@ fn a_site_that_is_neither_operand_refuses() {
         SitedRef::new(proto, fname(proto, wall(&doc, proto, 0))),
         SitedRef::new(m2, fname(proto, wall(&doc, proto, 0))),
     )]);
-    let (doc, pair) = insert(
+    let boolean = |declare| Node::Boolean {
+        op: BooleanOp::Union,
+        a: m1,
+        b: m2,
+        declare,
+    };
+    let inserted = doc.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(boolean(decl.clone())),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    let (live, pair) = insert(doc, boolean(Vec::new()));
+    let set = live.apply(
+        &DocEdit::SetDeclare {
+            node: pair,
+            pairs: decl,
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    for (door, refused) in [("insert", inserted), ("SetDeclare", set)] {
+        let refused = refused.expect_err("a site that is neither operand was admitted");
+        assert!(
+            matches!(
+                &refused,
+                EditError::DeclaredSiteNotAnOperand { name, site, .. }
+                    if site.id() == proto && name.name().node == proto
+            ),
+            "{door}: expected the site refusal at the prototype, got {refused:?}"
+        );
+        let said = refused.to_string();
+        assert!(
+            said.contains("read it at the operand of") && said.contains("whose entity it is"),
+            "{door}: the recourse names the operand to read it at: {said}"
+        );
+    }
+}
+
+/// **A union's site a later `SetMembers` drops is stranded state, not
+/// a door fault**: the edit is accepted with the pair as written, the
+/// stranded document saves and loads (the load door does not judge a
+/// union's sites), and it is the evaluation that refuses the pair —
+/// alike before and after the round trip.
+#[test]
+fn a_union_site_dropped_by_set_members_strands_and_loads() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("docm7_stranded_site", tol);
+    let (doc, m1) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, m2) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, m3) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let pairs = flush_pairs(&doc, (m1, m1), (m3, m3));
+    let (doc, union) = declared_union(doc, &[m1, m2, m3], pairs);
+    assert!(
+        failure(&run(&doc), union).is_none(),
+        "the declared union builds before the drop: {:?}",
+        failure(&run(&doc), union)
+    );
+    let (doc, _) = step(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: m1,
-            b: m2,
-            declare: decl,
+        DocEdit::SetMembers {
+            node: union,
+            members: vec![m1, m2],
         },
     );
-    let ev = run(&doc);
-    assert!(
-        matches!(
-            failure(&ev, pair),
-            Some(NodeErrorKind::DeclareSiteNotAnOperand { at }) if *at == proto
-        ),
-        "expected the site refusal, got {:?}",
-        failure(&ev, pair)
+    let stranded = run(&doc);
+    let refused = failure(&stranded, union).expect("the stranded site refuses at evaluation");
+    let text = editor_core::persist::save(&doc, &[], tol).expect("the stranded document saves");
+    let loaded = editor_core::persist::load(&text, tol)
+        .expect("the load door does not refuse a union's stranded site")
+        .doc;
+    assert!(loaded.bit_eq(&doc), "the stranded snapshot round-trips");
+    assert_eq!(
+        format!("{:?}", failure(&run(&loaded), union)),
+        format!("{:?}", Some(refused)),
+        "the loaded document refuses as the edited one does"
     );
 }
 
@@ -1091,20 +1153,17 @@ fn a_union_refusal_against_a_merged_wall_names_two_members() {
 }
 
 /// **The site is the OPERAND, not the minting node** — through a
-/// pass-through `Transform` (N1), and the name resolves in the
-/// transform's table.
+/// pass-through `Transform` (N1): sited at the transforms, the name
+/// resolves in each transform's table and the boolean builds; sited at
+/// the extrude that minted it, which is neither operand, the insert
+/// door refuses the site.
 #[test]
 fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
-    let build = |site_at_extrude: bool| {
-        let doc = ProfileDoc::empty_derived("rv_r2_passthrough", Tol::witness());
-        let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, m1) = placed(doc, proto, 0.0);
-        let (doc, m2) = placed(doc, proto, 0.5);
-        let (a_at, b_at) = if site_at_extrude {
-            (proto, proto)
-        } else {
-            (m1, m2)
-        };
+    let doc = ProfileDoc::empty_derived("rv_r2_passthrough", Tol::witness());
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, m1) = placed(doc, proto, 0.0);
+    let (doc, m2) = placed(doc, proto, 0.5);
+    let boolean = |(a_at, b_at): (RecipeNodeId, RecipeNodeId)| {
         let pairs: Vec<(SitedRef, SitedRef)> = [
             wall(&doc, proto, 0),
             wall(&doc, proto, 2),
@@ -1119,31 +1178,31 @@ fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
             )
         })
         .collect();
-        let decl = editor_core::declare_continuation(pairs);
-        let (doc, pair) = insert(
-            doc,
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a: m1,
-                b: m2,
-                declare: decl,
-            },
-        );
-        (doc, pair, proto)
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: m1,
+            b: m2,
+            declare: editor_core::declare_continuation(pairs),
+        }
     };
-    let (doc, pair, _) = build(false);
-    let ev = run(&doc);
-    assert!(failure(&ev, pair).is_none(), "{:?}", failure(&ev, pair));
-    let (doc, pair, proto) = build(true);
-    let ev = run(&doc);
+    let refused = doc.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(boolean((proto, proto))),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
     assert!(
         matches!(
-            failure(&ev, pair),
-            Some(NodeErrorKind::DeclareSiteNotAnOperand { at }) if *at == proto
+            &refused,
+            Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == proto
         ),
-        "expected the site refusal, got {:?}",
-        failure(&ev, pair)
+        "expected the site refusal at the minting node, got {refused:?}"
     );
+    let built = boolean((m1, m2));
+    let (doc, pair) = insert(doc, built);
+    let ev = run(&doc);
+    assert!(failure(&ev, pair).is_none(), "{:?}", failure(&ev, pair));
 }
 
 /// **A name the sited operand does not carry refuses `Vanished`, and
