@@ -1,0 +1,14 @@
+m1_chart_link_true rc=100      Summary [  70.798s] 152 tests run: 151 passed, 1 failed, 814 skipped :: ssi::one_arc::tests::two_windows_on_two_arcs_do_not_link 
+m2_r3_link_true rc=100      Summary [  90.456s] 152 tests run: 151 passed (1 slow), 1 failed, 814 skipped :: ssi::one_arc::tests::two_boxes_on_two_arcs_do_not_link 
+m3a_count_is_some rc=100      Summary [  86.553s] 152 tests run: 151 passed, 1 failed, 814 skipped :: ssi::one_arc::tests::a_window_holding_two_arcs_is_refused_by_its_count_of_four 
+m3b_count_ge2 rc=100      Summary [ 117.834s] 152 tests run: 151 passed (1 slow), 1 failed, 814 skipped :: ssi::one_arc::tests::a_window_holding_two_arcs_is_refused_by_its_count_of_four 
+m4a_ambiguous_joint_no_zero rc=100      Summary [ 103.813s] 152 tests run: 151 passed (1 slow), 1 failed, 814 skipped :: ssi::one_arc::tests::a_touch_at_a_corner_resolves_no_count 
+m4b_unknown_end_as_true rc=100      Summary [ 108.323s] 152 tests run: 151 passed (1 slow), 1 failed, 814 skipped :: ssi::one_arc::tests::a_touch_at_a_corner_resolves_no_count 
+m4c_unknown_end_as_false rc=100      Summary [ 119.252s] 152 tests run: 151 passed (1 slow), 1 failed, 814 skipped :: ssi::one_arc::tests::a_touch_at_a_corner_resolves_no_count 
+m5_monotone_no_slope rc=100      Summary [ 119.531s] 152 tests run: 150 passed (1 slow), 2 failed, 814 skipped :: ssi::one_arc::tests::a_touch_inside_an_edge_resolves_no_count ssi::one_arc::tests::a_window_holding_two_arcs_is_refused_by_its_count_of_four 
+m6_face_depth_drops rc=100      Summary [ 120.060s] 152 tests run: 150 passed (1 slow), 2 failed, 814 skipped :: ssi::one_arc::tests::a_face_graze_resolves_no_count ssi::one_arc::tests::a_solution_on_a_box_edge_is_counted_on_neither_face 
+m7_krawczyk_nonstrict rc=100      Summary [ 115.844s] 152 tests run: 151 passed (1 slow), 1 failed, 814 skipped :: ssi::one_arc::tests::krawczyk_does_not_accept_an_image_on_its_pieces_edge 
+m8_chart_lane_atrest rc=100      Summary [ 116.623s] 152 tests run: 150 passed (1 slow), 2 failed, 814 skipped :: ssi::certify::tests::the_chart_tube_records_its_per_axis_pad_and_accounting_banks_its_windows ssi_limb3_one_arc::the_fold_answers_its_two_arcs_paired_as_the_locus_pairs_them 
+m9_spatial_lane_atrest rc=100      Summary [  81.135s] 152 tests run: 151 passed, 1 failed, 814 skipped :: ssi_limb3_one_arc::a_short_arc_in_a_long_arcs_end_box_is_traced 
+m10_edge_depth_drops rc=0      Summary [  90.269s] 152 tests run: 152 passed, 814 skipped :: 
+DONE
