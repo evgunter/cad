@@ -761,31 +761,16 @@ fn table<T: SolveScalar>(
 pub(super) enum Measured<T: Real> {
     /// A length, in metres.
     Length(T),
-    /// A dimensionless residual and the arm that levers it
-    /// ([`Lever::Residual`]).
-    Residual {
-        /// The residual, a pure number.
-        value: T,
-        /// The arm, in metres.
-        arm: f64,
-    },
-    /// An authored roll and the arm that levers it ([`Lever::Roll`]).
-    Roll {
-        /// The roll, in radians.
-        radians: f64,
-        /// The arm, in metres.
-        arm: f64,
-    },
+    /// A pure number and the arm that levers it.
+    Lever(Lever<T>),
 }
 
 impl<T: SolveScalar> Measured<T> {
-    /// The margin the predicate decides: [`Lever::margin`]'s product at
-    /// `T` for a levered number, the length itself for a length.
+    /// The margin the predicate decides.
     pub(super) fn margin(self) -> Margin<T> {
         match self {
             Self::Length(m) => Margin::of(m),
-            Self::Residual { value, arm } => Margin::levered(value, T::from_f64(arm)),
-            Self::Roll { radians, arm } => Margin::levered(T::from_f64(radians), T::from_f64(arm)),
+            Self::Lever(lever) => lever.margin(),
         }
     }
 
@@ -795,11 +780,13 @@ impl<T: SolveScalar> Measured<T> {
             Self::Length(metres) => Clash::Length {
                 metres: metres.quoted(),
             },
-            Self::Residual { value, arm } => Clash::Levered(Lever::Residual {
+            Self::Lever(Lever::Roll { radians, arm }) => {
+                Clash::Levered(Lever::Roll { radians, arm })
+            }
+            Self::Lever(Lever::Residual { value, arm }) => Clash::Levered(Lever::Residual {
                 value: value.quoted(),
                 arm,
             }),
-            Self::Roll { radians, arm } => Clash::Levered(Lever::Roll { radians, arm }),
         }
     }
 }
@@ -820,7 +807,7 @@ fn member_of<T: SolveScalar>(
     arm: Arm,
 ) -> Result<(), FoldStop> {
     let arm = arm.get();
-    let residual = |value: T| Measured::Residual { value, arm };
+    let residual = |value: T| Measured::Lever(Lever::Residual { value, arm });
     let axis_fixed = |axis: UnitVec3<T>| {
         (
             Refuted::AxisFixed,
@@ -1025,10 +1012,10 @@ fn candidate_rotation<T: SolveScalar>(
                     let (a1, a2) = (a1.get(), a2.get());
                     let m = q1 * q2.transpose();
                     let v = m * a2;
-                    let reach = Measured::Residual {
+                    let reach = Measured::Lever(Lever::Residual {
                         value: v.dot(a1) - a2.dot(a1),
                         arm: arm.get(),
-                    };
+                    });
                     let refuted = Refuted::TwoAxisReachable;
                     if decide(refuted.name(), reach.margin(), band)? != Sign::Zero {
                         return Err(FoldStop::Clash {

@@ -1040,8 +1040,8 @@ fn tangents_match(
 
 /// **A box run's enclosure of every vertex of `node` contains that
 /// vertex in the `f64` builds at the box's two corners and its
-/// nominal**, and the enclosure is wider than rounding where the
-/// vertex moves.
+/// nominal** — so where the vertex moves across the box, the enclosure
+/// spans that motion.
 fn assert_encloses_corners(
     doc: &ProfileDoc,
     opts: &EvalOptions,
@@ -2126,5 +2126,21 @@ fn a5_certified_clearance_runs_over_a_face_framed_mate() {
         matches!(ask(3.5), ClearanceVerdict::Violated(_)),
         "2s − 1 = 3 violates 3.5 over the leaf: {:?}",
         ask(3.5)
+    );
+    // The verdicts alone cannot tell a solve at the leaf's scalar from
+    // one held at the nominal: the leaf is a fraction of ε (the
+    // placement door's limit) and they are decided against ε. The
+    // leaf's own evaluation can: the bolt moves by −2 per unit of `s`,
+    // so its enclosure holds the f64 builds' bolt at both corners, which
+    // a bolt held at its nominal pose would not.
+    let ev = run_at::<Interval>(&b.doc, &boxed(&b.opts, spacing(), lo, hi), None);
+    assert_encloses_corners(
+        &b.doc,
+        &b.opts,
+        &ev,
+        b.bolt,
+        (spacing(), SPACING),
+        (lo, hi),
+        "the clearance leaf",
     );
 }

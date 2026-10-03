@@ -366,7 +366,12 @@ canonical frame (a NURBS carrier) refuses typed and keeps taking a
 part base. Every frame resolves on every lane: `stackup.sensitivities`'
 dual passes read a pose with its tangent, and a certified
 `clearance`'s interval leaf an enclosure of it — a face base's pose,
-and an offset whose step reads a parameter the lane binds. The
+and an offset whose step reads a parameter the lane binds. Two honest
+limits stand at the placement door, where a solved pose becomes a
+placed body: a box wider than about ε over a placer's translation
+refuses there (each placed edge is certified on its placed carrier,
+and the box widens both apart), and a boxed rotation refuses
+`NotRigid`, so such an interval leaf refuses rather than encloses. The
 solve's
 *algorithm* is unchanged — coset intersection over decided
 predicates, no numeric fitting — and its inputs are the document plus

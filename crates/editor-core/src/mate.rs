@@ -827,8 +827,11 @@ impl core::fmt::Display for FaceRefusal {
 /// over the largest lever of the mates folded so far — so a pair can
 /// print one arm on a roll and a larger one on a residual, each the
 /// truth of its own decision.
+///
+/// The solve measures a residual at its own scalar `T` and decides it
+/// there; a refusal carries it at `f64` (the default).
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Lever {
+pub enum Lever<T = f64> {
     /// An authored roll, in radians (the clocking rider's
     /// `mate_clocking_redundant`).
     Roll {
@@ -842,32 +845,36 @@ pub enum Lever {
     /// the predicate that measured it.
     Residual {
         /// The residual, a pure number.
-        value: f64,
+        value: T,
         /// The arm, in metres.
         arm: f64,
     },
 }
 
-impl Lever {
+impl<T> Lever<T> {
     /// The arm, in metres, whichever kind of number it levered.
     pub fn arm(self) -> f64 {
         match self {
             Self::Roll { arm, .. } | Self::Residual { arm, .. } => arm,
         }
     }
+}
 
+impl<T: geom_core::Real> Lever<T> {
     /// **The margin this lever decides**: the pure number levered by
     /// the arm through [`Margin::levered`] — the ONE home of that
-    /// multiplication for every levered predicate in the solve, so
-    /// the number a refusal quotes and the number the funnel decided
-    /// are one value.
-    pub fn margin(self) -> Margin<f64> {
+    /// multiplication for every levered predicate in the solve, at
+    /// whichever scalar it runs, so the number a refusal quotes and
+    /// the number the funnel decided are one value.
+    pub fn margin(self) -> Margin<T> {
         match self {
-            Self::Roll { radians, arm } => Margin::levered(radians, arm),
-            Self::Residual { value, arm } => Margin::levered(value, arm),
+            Self::Roll { radians, arm } => Margin::levered(T::from_f64(radians), T::from_f64(arm)),
+            Self::Residual { value, arm } => Margin::levered(value, T::from_f64(arm)),
         }
     }
+}
 
+impl Lever {
     /// The deviation the lever measured, in metres: [`Self::margin`]'s
     /// value, computed here and nowhere stored.
     pub fn deviation(self) -> f64 {

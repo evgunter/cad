@@ -5590,8 +5590,8 @@ class MateFrame:
     @staticmethod
     def from_face() -> MateFrame:
         """The side's own head face with no offset: the face's pose
-        itself (see the class docs); it resolves on the nominal lane
-        only."""
+        itself (see the class docs), resolved on every lane at the
+        evaluation's own scalar."""
     @staticmethod
     def on_face(offset: Placement) -> MateFrame:
         """The side's own head face composed with `offset`, written in

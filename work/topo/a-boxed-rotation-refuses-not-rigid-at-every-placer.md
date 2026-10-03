@@ -1,7 +1,7 @@
 ---
 id: a-boxed-rotation-refuses-not-rigid-at-every-placer
 kind: issue
-title: transform_rigid at Interval refuses a widened rotation NotRigid, so every boxed rotation angle on a placer or a tilted mate frame refuses in a box run
+title: transform_rigid at Interval refuses a boxed placer — a widened rotation NotRigid, a translation boxed wider than about eps at its endpoint certification — so every boxed placer, instance or tilted mate frame refuses in a box run
 status: open
 opened: 2026-10-01
 priority: P3
@@ -51,3 +51,11 @@ independently, so the on-carrier check encloses `[0, 2·width]` and
 escalates; a box narrower than the band places. A mate solved at the
 box's scalar meets the same refusal at the mated instance, pinned by
 `msolve14_run_scalar::a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors`.
+
+No instance is needed for it: a plain `Transform` over a plain extrude,
+its translation boxed at `gap ± 0.25`, refuses
+`Certify(EndpointStart, carrier_endpoint_start, margin [0, 0.5])`
+(measured by MSOLVE-14's review).
+
+The priority deserves reconsidering: this row now gates every boxed
+translated instance, not only a boxed rotation.

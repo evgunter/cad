@@ -17,7 +17,11 @@
 //!   instances alone, each with its document-order-first ROOT.
 //! - [`solve_document`] — the per-pair coset fold along a deterministic
 //!   spanning tree, yielding every instance's pose around its group's
-//!   frame, every group's space, and every mate's role.
+//!   frame, every group's space, and every mate's role, at `f64`.
+//! - `solve_with_env` — that fold at an evaluation's own scalar and
+//!   environment, asked once per run, its decisions kept per mate.
+//! - [`solve_document_at`] — that fold at a run's scalar for a caller
+//!   outside an evaluation that holds the run's environment.
 //! - [`admit_mate`] — one mate's own admission, the per-mate prefix
 //!   of the solve asked by the edit door of a mate being inserted.
 //!
@@ -1184,10 +1188,10 @@ fn mate_coset<T: SolveScalar>(
                         refusal: Box::new(refusal),
                     })
                 })?;
-                let roll = Measured::<T>::Roll {
+                let roll = Measured::<T>::Lever(super::Lever::Roll {
                     radians: theta,
                     arm: arm.get(),
-                };
+                });
                 let sign = geom_core::k_stats::decide(
                     Refuted::ClockingRedundant.name(),
                     roll.margin(),
