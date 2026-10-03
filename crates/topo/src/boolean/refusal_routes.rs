@@ -84,6 +84,19 @@ pub enum Contradiction {
     TorusMajorRadiiDiffer,
     /// The declared tori's tube radii differ.
     TorusTubeRadiiDiffer,
+    /// A tangency claimed between faces on ONE carrier: conformal
+    /// contact, which is a `Rest` contact or a continuation.
+    OneCarrier,
+    /// A seam's two faces leave the tangency on one side: a cusp.
+    SeamCusp,
+    /// A seam's two faces leave the tangency on opposite sides along
+    /// part of it and on one side along another.
+    SeamSidesMixed,
+    /// A face of a declared seam runs on through the tangency where the
+    /// other face touches it, instead of ending there.
+    SeamFaceRunsOn,
+    /// A declared seam's faces touch along no stretch of the tangency.
+    SeamUntouched,
 }
 
 impl Contradiction {
@@ -103,6 +116,26 @@ impl Contradiction {
             Self::TorusCentresDiffer => "the declared tori's centres differ",
             Self::TorusMajorRadiiDiffer => "the declared tori's major radii differ",
             Self::TorusTubeRadiiDiffer => "the declared tori's tube radii differ",
+            Self::OneCarrier => {
+                "the declared faces lie on one carrier, which is a Rest contact or a \
+                 continuation, not a tangency"
+            }
+            Self::SeamCusp => {
+                "the declared faces leave the curve they are tangent along on the same \
+                 side, which is a cusp, not a seam"
+            }
+            Self::SeamSidesMixed => {
+                "the declared faces leave the curve they are tangent along on opposite \
+                 sides in one stretch and on the same side in another"
+            }
+            Self::SeamFaceRunsOn => {
+                "a declared face runs on through the curve the faces are tangent along, \
+                 where the other face touches it, instead of ending there"
+            }
+            Self::SeamUntouched => {
+                "the declared faces touch along no stretch of the curve they are tangent \
+                 along"
+            }
         }
     }
 
@@ -125,7 +158,12 @@ impl Contradiction {
             | Self::TorusAxesNotParallel
             | Self::TorusCentresDiffer
             | Self::TorusMajorRadiiDiffer
-            | Self::TorusTubeRadiiDiffer => false,
+            | Self::TorusTubeRadiiDiffer
+            | Self::OneCarrier
+            | Self::SeamCusp
+            | Self::SeamSidesMixed
+            | Self::SeamFaceRunsOn
+            | Self::SeamUntouched => false,
         }
     }
 }
@@ -476,11 +514,12 @@ pub enum Coincide {
     /// tangentially touch: its rungs pass on different sets, and the
     /// escalation does not say which refused.
     TangentLocus,
-    /// Whether a face of each solid ends on one circle, asked only at a
-    /// declared-`Tangent` pair's door: every verdict goes on to a
+    /// Whether a face of each solid ends on one circle, asked at a
+    /// declared-`Tangent` pair's door, where every verdict goes on to a
     /// refusal of that declaration (the rim's routing, or the class
     /// unsupported), so no verdict passes the operation
-    /// ([`RIM_FRONTIER`]).
+    /// ([`RIM_FRONTIER`]); and at a declared seam's, where the one
+    /// circle is its locus ([`RIM_SEAM_LEVER`]).
     Rim,
     /// Whether a declared contact holds along its witness: the contact
     /// table's rows pass on different sets.
@@ -561,13 +600,14 @@ impl Coincide {
     /// undeclared one, or meets no declaration its door verifies.
     #[must_use]
     pub const fn settled_by(self, class: BooleanCoincidence) -> bool {
-        use BooleanCoincidence::{Contact, Continuation};
+        use BooleanCoincidence::{Contact, Continuation, Seam};
         match (self, class) {
             (Self::OnPlanes, Contact(ContactClass::Rest) | Continuation)
             | (Self::Sectors, Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation) => {
                 true
             }
-            (Self::OnPlanes, Contact(ContactClass::Tangent))
+            (Self::OnPlanes, Contact(ContactClass::Tangent) | Seam)
+            | (Self::Sectors, Seam)
             | (
                 Self::Planes
                 | Self::VertexOnFace
@@ -587,7 +627,7 @@ impl Coincide {
                 | Self::DeclaredReach
                 | Self::Section
                 | Self::Join,
-                Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation,
+                Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation | Seam,
             ) => false,
         }
     }
@@ -628,10 +668,7 @@ impl Coincide {
     /// settle it: the declaration, then the question's own ending.
     const fn settled(self) -> Ending {
         match self {
-            Self::OnPlanes => Ending::Lever(
-                geom_core::DEFINITE_COINCIDENCE_RECOURSE,
-                LeverPass::ZeroOnly,
-            ),
+            Self::OnPlanes => Ending::Lever(geom_core::COINCIDENCE_RECOURSE, LeverPass::ZeroOnly),
             Self::Sectors => Ending::Sized(SizedDecision {
                 lever: concat!(
                     geom_core::coincidence_declare_arm!(),
@@ -694,11 +731,17 @@ const PLANES_FRONTIER: &str = "Whichever way it reads, the Boolean cannot yet ac
 
 /// Whether the faces of a declared-`Tangent` pair end on one circle
 /// ([`Coincide::Rim`]): every verdict goes on to a refusal, whatever
-/// the rims are (one rim: `RimSeamNotDeclarable`, `RimCuspArmUnbuilt` or
-/// `ContactContradicted`; none: `UnsupportedDeclarationClass`), so no
-/// move of the parts passes under that declaration.
+/// the rims are (one rim: `RimCuspArmUnbuilt` or `ContactContradicted`;
+/// none: `UnsupportedDeclarationClass`), so no move of the parts passes
+/// under that declaration.
 const RIM_FRONTIER: &str = "Whichever way it reads, the Boolean cannot yet act on a Tangent \
                             contact declared between faces that end on one circle";
+
+/// Whether the faces of a declared seam end on one circle
+/// ([`Coincide::Rim`] under a spent `Seam`): the one circle is the
+/// locus the seam is verified along, so only a shared rim passes.
+const RIM_SEAM_LEVER: &str = "move the parts so the faces declared a seam clearly end on one \
+                              shared circle";
 
 /// A curved flank's membership tie ([`Coincide::CurvedFlankSense`]):
 /// either sense goes on to the curved flank, which the Boolean cannot
@@ -1467,6 +1510,12 @@ impl BooleanDecision {
                 Coincide::FlankSense,
                 DeclarationRead::Spent(BooleanCoincidence::REST | BooleanCoincidence::Continuation),
             ) => Ending::Sized(CORNER_SENSE),
+            // A declared seam is verified along the rim the two faces
+            // share: one circle passes, and a definitely different one
+            // leaves the seam without a locus, refused as a class.
+            Self::Coincidence(Coincide::Rim, DeclarationRead::Spent(BooleanCoincidence::Seam)) => {
+                Ending::Lever(RIM_SEAM_LEVER, LeverPass::ZeroOnly)
+            }
             Self::Coincidence(which, _) => which.ending(),
             // Its margin is the normals' cosine at the door's arm, `≈ ±arm`,
             // and the offset rung asks next: a declared `Rest` pair's
@@ -2088,6 +2137,18 @@ mod tests {
             ) => (
                 coincide_subject(Coincide::FlankSense),
                 Ending::Sized(LONGER, SizedPass::NonZero),
+            ),
+            // A declared seam's rim is its locus: the shared circle passes.
+            BooleanDecision::Coincidence(
+                Coincide::Rim,
+                DeclarationRead::Spent(BooleanCoincidence::Seam),
+            ) => (
+                coincide_subject(Coincide::Rim),
+                Ending::Lever(
+                    "Recourse: move the parts so the faces declared a seam clearly end on one \
+                     shared circle",
+                    LeverPass::ZeroOnly,
+                ),
             ),
             BooleanDecision::Coincidence(
                 which,
@@ -2737,7 +2798,7 @@ mod tests {
                 );
             }
             assert!(
-                split.ends_with("Recourse: move the geometry, or lower the tolerance")
+                split.ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE))
                     && !split.contains("declare"),
                 "{predicate}: the split takes no declaration: {split}"
             );
@@ -2801,10 +2862,8 @@ mod tests {
                 Some(_) => assert_eq!(split, boolean, "{fault:?}"),
                 None => {
                     assert!(
-                        split.ends_with(
-                            "Recourse: move the split plane or the geometry, or lower the \
-                             tolerance"
-                        ) && !split.contains("declare"),
+                        split.ends_with(&format!("Recourse: {}", geom_core::SPLIT_PLANE_RECOURSE))
+                            && !split.contains("declare"),
                         "{fault:?}: {split}"
                     );
                     assert!(

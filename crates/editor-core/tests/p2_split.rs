@@ -12,7 +12,9 @@
 //! it; a mate-placed instance inlines over a part that is one group at
 //! the empty chain on its world, whose root takes its place. Every cut
 //! split admits, inlined back at the empty offset, returns the document
-//! it was given up to node ids (R1). `Promote` and `Fold` carry a
+//! it was given up to node ids and the one regrouping A10's replacement
+//! rule makes of a cut whose roots a kept root separates (R1). `Promote`
+//! and `Fold` carry a
 //! group's frame onto a gauge and back, so a part at a frame of its own
 //! is a promote and a cut leaving the gauge behind.
 //!
@@ -1215,11 +1217,12 @@ fn r1_a_round_trip_keeping_a_profile_compares_equal() {
 
 /// **R1 over every shape split admits**: a cut moves as selected, so
 /// inlining it back at the empty offset returns the document up to node
-/// ids whatever the cut holds — one placed group, one with a checked
-/// member, a lone instance, a group rooted at a parametric offset, a
-/// gauge at the empty chain holding a group, a gauge holding one group
-/// at the empty chain, a gauge on a kept gauge holding two groups and a
-/// gauge, a group on a kept gauge, and plain geometry on the world.
+/// ids whatever the cut holds, its roots adjacent in the list — one
+/// placed group, one with a checked member, a lone instance, a group
+/// rooted at a parametric offset, a gauge at the empty chain holding a
+/// group, a gauge holding one group at the empty chain, a gauge on a
+/// kept gauge holding two groups and a gauge, a group on a kept gauge,
+/// and plain geometry on the world.
 #[test]
 fn r1_every_shape_split_admits_round_trips_exactly() {
     type Scene = (ProfileDoc, Vec<RecipeNodeId>);
@@ -1428,13 +1431,14 @@ fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
     round_trip(&folded, &ids, &p, "a face frame");
 }
 
-/// **The one shape whose round trip moves the root order** (the
-/// split-amendment rider (i), `refactor`'s module docs): three lone
-/// instances x, y, z, listed in that order, and a cut of x and z. The
-/// instance left behind takes x's one position, so inline lists z
-/// before y. The comparator reads root order, and this is the only
-/// disagreement it finds; with the cut's roots listed together the
-/// cut round-trips exactly.
+/// **A cut a kept root separates comes back regrouped** (A10's
+/// replacement rule, A4): three lone instances x, y, z, listed in that
+/// order, and a cut of x and z. The instance takes x's position, so
+/// inline lists x and z there and y after them; that regrouping is the
+/// only thing the comparator reads as changed. The regrouped document's
+/// cut is adjacent, so a second round trip changes nothing, and with
+/// the cut's roots listed together from the start the round trip is
+/// exact.
 #[test]
 fn r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order() {
     let p = parts("r1-interleaved");
@@ -1450,11 +1454,17 @@ fn r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order() {
     store.insert(out.part.clone(), Tol::witness());
     let back = inline(&out.remainder, out.instance, &store);
     let (map, steps) = composed(&doc, &out, &back);
+    assert_eq!(
+        back.doc.roots(),
+        &[map[&x], map[&z], y],
+        "the cut's roots come together where x was, y after them"
+    );
     let said = same_up_to_ids(&doc, &back.doc, &map, &steps).expect_err("z comes before y");
     assert!(
         said.lines().all(|l| l.starts_with("roots")) && said.lines().count() == 1,
         "only the root order moves: {said}"
     );
+    round_trip(&back.doc, &[map[&x], map[&z]], &p, "the regrouped document");
     let (together, _) = step(
         doc,
         DocEdit::SetRoots {

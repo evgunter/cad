@@ -56,20 +56,17 @@
 //! — and the placing mates of one pair must still read one pair (A4's
 //! frame and fold rules).
 //!
-//! The remainder receives ONE `InstantiatePart` for the whole cut
-//! (the D-2 amendment, adjudicated at review ordinal 40): each
-//! remainder instance materializes the ENTIRE new document's product,
-//! so per-group instances of one pinned document would duplicate
-//! every other group's material N times. The single instance carries
-//! every cut group where it sat. Consequence (amendment
-//! rider i): the cut roots COLLAPSE onto the instance's root-list
-//! position, so `inline(split(d))` restores the root SET and the
-//! spliced block's relative order but NOT the original interleaving of
-//! non-adjacent cut roots with kept roots — inline never sees the
-//! interleaving, which lives only in the pre-split list. That is
-//! within D-4's ratified identity (census, bit-equal volumes, name
-//! re-resolution; root order is unnamed there), and it is pinned by
-//! test rather than left implicit.
+//! The remainder receives ONE `InstantiatePart` for the whole cut:
+//! each remainder instance materializes the ENTIRE new document's
+//! product, so per-group instances of one pinned document would
+//! duplicate every other group's material N times. The single instance
+//! carries every cut group where it sat. It replaces the cut's roots,
+//! so by A10's replacement rule it goes where the first of them was:
+//! split brings the cut's roots together there, and keeps the root
+//! order exactly when they are adjacent in it. Inline splices the
+//! part's roots, in the part's root order, at the instance's position,
+//! so `inline(split(d))` is `d` up to node ids and that one regrouping
+//! (A4).
 //!
 //! # Labels follow their nodes
 //!

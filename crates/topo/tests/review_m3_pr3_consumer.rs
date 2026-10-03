@@ -11,8 +11,8 @@ use common::{brick, prism};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{
-    Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, mass_properties,
-    plane_section, split, validate_closed, validate_geometric,
+    Body, SplitError, SplitJoinError, SplitPart, SplitPlane, mass_properties, plane_section, split,
+    validate_closed, validate_geometric,
 };
 
 fn plane_y(c: f64) -> SplitPlane<f64> {
@@ -227,27 +227,22 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
     );
 }
 
-/// Judgment call (b): the single-solid gate — `split` refuses a
-/// two-solid body typed; `plane_section` (which never reaches the
-/// finish stage) quietly accepts the same operand. Witnessed
-/// inconsistency, for the writeup.
+/// **A two-solid body splits whole**: `split` takes bodies, so both
+/// prisms are cut and each side holds one solid per piece, as
+/// `plane_section` slices both into two regions.
 #[test]
-fn single_solid_gate_split_vs_section() {
+fn a_two_solid_body_splits_whole_like_its_section() {
     let mut body = Body::<f64>::new();
     add_quad_prism(&mut body, 0.0);
     add_quad_prism(&mut body, 10.0);
     assert_eq!(body.solids().count(), 2);
     assert_eq!(validate_closed(&body), Ok(()));
-    let err = split(&body, &plane_y(1.0), Tol::witness()).unwrap_err();
-    assert!(
-        matches!(
-            err,
-            SplitError::Finish(SplitFinishError::NotSingleSolid { count: 2 })
-        ),
-        "got {err:?}"
-    );
-    // plane_section never reaches the finish gate: it quietly slices
-    // BOTH solids (two regions) — the gate asymmetry, witnessed.
+    let r = split(&body, &plane_y(1.0), Tol::witness()).expect("both prisms split");
+    for side in [&r.above, &r.below] {
+        let side = side.body().expect("each side holds material");
+        assert_eq!(side.solids().count(), 2, "one solid per piece");
+        assert_eq!(validate_closed(side), Ok(()));
+    }
     let s = plane_section(&body, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(s.regions.len(), 2);
 }

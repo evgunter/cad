@@ -245,14 +245,14 @@ fn void_birth_cube_minus_inner_cube() {
 fn disjoint_operands() {
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick::<f64>((2.0, 3.0), (2.0, 3.0), (2.0, 3.0), Tol::witness());
-    // ∪: the typed disjoint union — one solid, two shells.
+    // ∪: the typed disjoint union — two solids, one per piece.
     let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Assembly);
     assert_eq!(
         arena_counts(&body.body),
         ArenaCounts {
-            solids: 1,
+            solids: 2,
             shells: 2,
             faces: 12,
             loops: 12,
@@ -305,14 +305,14 @@ fn corner_kiss_operands() {
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     // ∪: a touching assembly with the vv contact carried, remapped to
-    // live result keys.
+    // live result keys. Pieces that only touch are distinct solids.
     let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Assembly);
     assert_eq!(
         arena_counts(&body.body),
         ArenaCounts {
-            solids: 1,
+            solids: 2,
             shells: 2,
             faces: 12,
             loops: 12,

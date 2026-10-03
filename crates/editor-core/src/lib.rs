@@ -131,8 +131,8 @@ pub use eval::{
     ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
     EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
     NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault,
-    ProfileLift, ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate,
-    mate_reach,
+    ProfileLift, ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload, VerbKind,
+    evaluate, mate_reach,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};

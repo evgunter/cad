@@ -8,15 +8,15 @@
 //! so the book's "delete the inserted vertices to restore S" step
 //! vanishes). The first real sectioning feature.
 //!
-//! # Gate asymmetry vs `split`
+//! # A multi-solid body
 //!
 //! `plane_section` stops after the join — it shares the section-loop
 //! reading (`section_loops`) with the finish, not the finish
-//! itself — so it BYPASSES the single-solid gate: a multi-solid body is sliced whole — every solid
-//! the plane crosses contributes regions, and they all land in one
+//! itself — so a multi-solid body is sliced whole: every solid the
+//! plane crosses contributes regions, and they all land in one
 //! `regions` vec (no per-solid attribution). This is deliberate for a
-//! read-only query; [`super::split`] on the same body refuses typed
-//! with `NotSingleSolid`.
+//! read-only query; [`super::split`] on the same body splits it whole
+//! too and sorts each side into solids.
 
 use geom_core::{Decide, Indeterminate, Point2, Point3, Real, Vec2, Vec3};
 

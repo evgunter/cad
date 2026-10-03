@@ -19,8 +19,8 @@
 //!   one face whose outer loop is `Empty`, holding a lone vertex.
 //!   Tier-1-legal by design.
 //!
-//! Plus [`refile_shells`], the raw arena write that files several
-//! shells under one solid, which no operator does.
+//! Plus [`refile_shells`], which files several pieces under one solid
+//! (construction state no verb hands back).
 //!
 //! Plus the whole-body observations the suites compare by —
 //! [`arena_snapshot`] (every arena's length), [`deep_snapshot`]
@@ -828,30 +828,16 @@ pub(crate) fn detached_digons(n: usize) -> (Body<f64>, ShellKey, FaceKey, Vec<Fa
     (body, seed.shell, seed.face, promoted)
 }
 
-/// Every shell of `donor` refiled under `keeper` — appended to
-/// `keeper`'s shell list in `donor`'s order, each back-pointer moved —
-/// and `donor` removed: the raw-arena spelling of "these shells are
-/// one solid's".
-///
-/// **A solid with several shells is not constructible through the
-/// public operators** (`mvfs` mints one solid per shell), so every row
-/// that needs one writes the arenas. The emptied donor is REMOVED,
-/// not left standing — a shell-less solid is `SolidWithoutShells` —
-/// and its arena removal is PAIRED with its provenance removal the
-/// way `kvfs` pairs them, because a removal that leaves the record
-/// behind is `LeakedProvenance`. Which of `keeper`'s shells comes
-/// first is the caller's choice of which solid is the keeper.
+/// Every shell of `donor` refiled under `keeper`
+/// ([`Body::fold_solid_into`], the one home of that write). Several
+/// pieces of material under one solid are not constructible through
+/// the public operators — the verbs sort their results into one solid
+/// per piece ([`crate::pieces`]) — so every row that needs one folds
+/// solids here. Which of `keeper`'s shells comes first is the caller's
+/// choice of which solid is the keeper.
 pub(crate) fn refile_shells(body: &mut Body<f64>, donor: SolidKey, keeper: SolidKey) {
-    let moved = body.shells_of_solid(donor).expect("a live donor").to_vec();
-    for shell in &moved {
-        body.get_shell_mut(*shell).expect("a live shell").solid = keeper;
-    }
-    body.get_solid_mut(keeper)
-        .expect("a live keeper")
-        .shells
-        .extend(moved);
-    body.solids.remove(donor);
-    body.solid_provenance.remove(donor);
+    body.fold_solid_into(donor, keeper)
+        .expect("a live donor, keeper and shells");
 }
 
 /// Key bundle for [`prism`].

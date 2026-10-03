@@ -189,7 +189,7 @@ Announce each crossing.
 - a checked offset that disagrees with the solve faults that instance, typed;
 - deleting a gauge, a placed member or a placing mate is not refused, and the group becomes unplaced: it evaluates in its own frame, the gate mints none of its cross-space pairs, a cross-space measure refuses typed, and STEP export refuses naming the parts and the cause;
 - the A4 table, one row per arm: every split refusal and both hoists; inline's gauge, its sugar, its mate-placed admission and refusal, and the moved-member refusal; and the frame-rule and fold-rule refusals;
-- inline-of-split returns the document split was given, up to node ids;
+- inline-of-split returns the document split was given, up to node ids and the regrouping of a cut whose roots a kept root separates;
 - a declaring mate crossing a cut fills `InterfaceRecord`;
 - the two main defects above, red on main;
 - an old file refuses, typed, and a dangling gauge reference saves and loads;
@@ -279,7 +279,7 @@ Announce each crossing in the PR body.
 The face rulings (7, the `FromFace` case of 8, rows F1–F5 with F3b and F3c) are P2-face's.
 
 **Where the clauses disagree with themselves, ruled.**
-- **D1. A4's round trip against the gauge hoist and inline's sugar.** Ruling (i) retires it: with no hoist and no sugar, `inline(split(d))` is `d` up to node ids on every shape split admits, the two shapes D1 named among them (a gauge at the empty chain holding a group, a gauge holding one group at the empty chain). One disagreement remains, and R1 pins it rather than hiding it: a cut whose roots a kept root separates in the root list collapses onto the instance's one position, so the round trip lists the kept root after the cut's (the split amendment's rider (i), `refactor`'s module docs). The comparator reads root order, and that row's only disagreement is its root line.
+- **D1. A4's round trip against the gauge hoist and inline's sugar.** Ruling (i) retires it: with no hoist and no sugar, `inline(split(d))` is `d` up to node ids on every shape split admits, the two shapes D1 named among them (a gauge at the empty chain holding a group, a gauge holding one group at the empty chain). One disagreement remains, and R1 pins it rather than hiding it: a cut whose roots a kept root separates in the root list comes together where the first of them was (A10's replacement rule; A4 states the regrouping), so the round trip lists the kept root after the cut's. The comparator reads root order, and that row's only disagreement is its root line.
 - **D2. An unplaced cut group on a gauge other than the anchor.** A4 wins: every gauge reference leaving the cut lands on one anchor. A group unplaced for lack of an offset votes its gauge like any other instance; it only places nothing. A cut whose references then name two anchors refuses `TwoAnchors`. This narrows what P2-core admits (it sent such a group to the part's world and lost its gauge), and that admission was the defect.
 - **D3. A hoisted gauge's label.** Ruling (i) retires it with the hoist. The gauge inline mints takes the instance's label under ruling 5, since the instance it stands in for is deleted; `Fold` hands a lone unlabelled dependent the gauge's label and reports one it drops. R1's comparator reads every label.
 

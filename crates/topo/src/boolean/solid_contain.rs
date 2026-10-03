@@ -211,7 +211,7 @@ pub enum SolidContainment {
 }
 
 /// Typed failure of [`point_in_solid`].
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum PointInSolidError {
     /// A predicate escalated (in-band margin).
     Escalated {
@@ -3598,6 +3598,10 @@ pub fn point_in_solid_of<T: Decide>(
 pub struct SolidFaces {
     faces: Vec<FaceKey>,
     charts: ChartGroups,
+    /// The side a ray that crosses nothing reads, when the selection's
+    /// role is already decided ([`SolidFaces::with_role`]); `None`
+    /// reads it off the selection's closed-form signed volume.
+    at_infinity: Option<SolidContainment>,
 }
 
 impl SolidFaces {
@@ -3643,7 +3647,29 @@ impl SolidFaces {
     fn select<T: Decide>(body: &Body<T>, faces: Vec<FaceKey>) -> Result<Self, PointInSolidError> {
         let charts = ChartGroups::within(body, faces.iter().copied())
             .map_err(|face| PointInSolidError::CorruptFace { face })?;
-        Ok(Self { faces, charts })
+        Ok(Self {
+            faces,
+            charts,
+            at_infinity: None,
+        })
+    }
+
+    /// This selection with its role already decided — an `Outer`
+    /// boundary leaves infinity outside its material, a `Void` inside —
+    /// so a ray that crosses nothing reads that side instead of
+    /// re-deriving it from the closed-form signed volume, which an
+    /// obliquely trimmed curved face does not certify. The role is the
+    /// same fact either way; a reader that decided it through the
+    /// quadrature lane (`crate::validate::ShellRead`) hands it over.
+    pub(crate) fn with_role(self, role: crate::props::ShellRole) -> Self {
+        let side = match role {
+            crate::props::ShellRole::Outer => SolidContainment::Out,
+            crate::props::ShellRole::Void => SolidContainment::In,
+        };
+        Self {
+            at_infinity: Some(side),
+            ..self
+        }
     }
 
     /// The selected faces, in face-arena order.
@@ -5341,7 +5367,10 @@ fn cast_ray<T: Decide>(
         Some((_, Sign::Positive)) => Ok(Some(SolidContainment::In)),
         Some((_, _)) => Ok(Some(SolidContainment::Out)),
         // No crossing: q is on the at-infinity side (module docs).
-        None => Ok(Some(at_infinity_side(body, faces, band, tol)?)),
+        None => match sel.at_infinity {
+            Some(side) => Ok(Some(side)),
+            None => Ok(Some(at_infinity_side(body, faces, band, tol)?)),
+        },
     }
 }
 
@@ -5383,7 +5412,7 @@ fn at_infinity_side<T: Decide>(
                 // diagnostics and the face it happened on.
                 crate::props::MassPropsError::Face {
                     face,
-                    source: geom_brep::props::PropsError::Escalated { cause },
+                    source: geom_brep::props::PropsError::Escalated { cause, .. },
                 } => PointInSolidError::Escalated { face, diag: cause },
                 // Corruption-shaped: a face whose area enclosure will not
                 // certify a positive extent, a key the props walk could not

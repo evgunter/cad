@@ -167,18 +167,18 @@ new_key_type! {
     pub struct VertexKey;
 }
 
-/// A solid: the material its one or more closed shells enclose, read by
-/// winding number — an outer shell adds `+1` inside itself, a void
-/// `-1` inside its cavity, and every point winds `0` or `1`
-/// (`validate_geometric`'s check 10).
+/// A solid: one piece of material (`docs/DESIGN.md`, "A solid is one
+/// piece of material") — its one outer shell and the void shells of the
+/// cavities in its material, which together bound that material and
+/// nothing else, so every point winds `0` or `1` (`validate_geometric`'s
+/// check 10).
 ///
-/// The material need not be connected. A boolean's `A ∖ B` with `B`
+/// A body holds any number of solids. A boolean's `A ∖ B` with `B`
 /// strictly inside `A` yields an outer shell plus a reverted void
-/// shell; a union of disjoint operands yields one solid with two outer
-/// shells, and a split may leave several outer shells on one side,
-/// apart or touching along a line. A consumer that needs one material
-/// component per solid reads the roles and refuses otherwise (`shell`'s
-/// `OperandOuterShells`).
+/// shell; a union of disjoint operands yields two solids, and so does
+/// an island inside a cavity, or two pieces that only touch. The verbs
+/// that build a result under one solid sort it into pieces before they
+/// return it ([`crate::pieces`]).
 ///
 /// The outer-shell/cavity-shell distinction — which shell bounds
 /// material from outside versus which bound internal voids — is
