@@ -2,11 +2,12 @@
 id: pattern-spacing-is-a-signed-size-beside-a-direction
 kind: issue
 title: A linear pattern's signed spacing and a circular pattern's signed step state the direction a second time (a named follow-on of Ev's #3551 rule)
-status: open
+status: review
 opened: 2026-10-01
 priority: P2
 cost: M
-design: true
+branch: recipe/pattern-spacing
+pr: 3947
 ---
 
 
@@ -33,3 +34,7 @@ Weighed by two designers in two rounds (fork-log row 56); their reports are in t
 ## Ruled (Ev, PR 3941, 2026-10-03)
 
 The circular step keeps its sign within a turn, as angles do elsewhere ("we allow angles between -2pi and 2pi like everywhere else"); the linear spacing is a positive length; the extrude stands. Ev on the revised answer: "sounds good!". Build as the section above says.
+
+## Built (2026-10-03, PR 3947)
+
+`SteppedOperands::linear` and `SteppedOperands::circular` (`eval/wire.rs`) are the one constructor of the stepped operands; `stepped_map` (pattern and placed union) and the mate solve's `pattern_map` both build through them, and placement 0 reads no operand on either road, so a one-copy rule (a placed union too) builds. Four refusals with tags: `NegativeSpacing` (`negative_spacing`, quoting the spacing and the evaluated direction negated), `DegenerateSpacing` (`degenerate_spacing`), `DegenerateStep` (`degenerate_step`), `FullRangeStep` (`full_range_step`; at a turn it says the copies coincide, past one it quotes the step a turn nearer zero). The spacing's sign is `decide_reported("pattern_spacing", Margin::of(spacing))`, the extrude depth's decision; the step's two decisions (`pattern_step`, `pattern_step_full_turn`) are radians against the band under ledger row F14, the revolve's own comparand, so the flagged census moves 4 → 6. A spacing range certificate now stops above zero (`docm9_range::a_driven_spacing_does_not_certify_through_zero`). Nothing remains on this row.
