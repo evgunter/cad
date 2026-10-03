@@ -48,3 +48,11 @@ banded form reproduces today's bits is the first thing to check; the
 argument above says it does where every off-band entry is an exact zero
 and every in-band product is finite.
 
+## Three solves, one matrix (PR 3998's review, 2026-10-03)
+
+The three interpolations in `fit_branch` share one parameter vector,
+one degree and so one knot vector: the collocation matrix is the same
+for all three, and only the right-hand sides differ. One factorization
+against three right-hand sides (or one solve with a six-column
+right-hand side) is a third of today's factorization work before any
+banding.

@@ -74,3 +74,12 @@ ladder's widest rung is a separation scale, and the seeding floor only
 finds what the ε-tied accounting floor proves. The fixed pcurve schedule
 the sweep found is
 `work/ssi/the-cylinder-chart-ellipse-pcurve-samples-a-fixed-schedule.md`.
+
+Review fixes (PR 3998, 2026-10-03): refinement lives in
+`ssi/refine.rs` and halves each refused gap with one gap on each side;
+a limb whose margin is no number is not located; a refusal refinement
+could not answer is `SsiError::RefinementExhausted`, naming the stop
+and the samples. The step budget names each lane's own cap
+(`StepCap`), and the step-scale ending names a domain holding more of
+the intersection. Filed:
+`work/ssi/the-march-domain-diagonal-mixes-state-units-on-the-chart-lane.md`.
