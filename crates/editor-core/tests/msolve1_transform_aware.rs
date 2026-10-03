@@ -19,10 +19,10 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EditError,
-    EntityKind, EvalOptions, Evaluation, Expr, MateFault, MateFrame, MatePrimitive, MateRole,
-    MateSide, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, load,
-    product, save,
+    Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId,
+    EditError, EntityKind, EvalOptions, Evaluation, Expr, MateFault, MateFrame, MatePrimitive,
+    MateRole, MateSide, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace,
+    StableName, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, map_gap, product_face_frame, seat_map};
@@ -646,17 +646,17 @@ fn a4_a_placed_root_group_seats_through_both_chains() {
 
 // ---- A5: two operands, one instance ----
 
-/// Two mates from `base` to `top`, each read at a DIFFERENT node over
-/// `top`: `x1` lifts, and `x2` sits over `x1` carrying `second`.
+/// Two mates from `base` to `top`, each read at a DIFFERENT transform
+/// of `top`, the two transforms siblings under a `Union` so both
+/// placed copies reach the product.
 ///
-/// `second` is what makes the pair consistent or not, and it is never
-/// the identity: two operands that compose to the same map are one
-/// member wearing two names, and a row built on them would show
-/// nothing about two members at all. The consistent case turns the
-/// block a quarter turn about its own vertical centre line — a
-/// DIFFERENT map that asks for the same seat, because the block is
-/// square and the alignment fixes no roll the turn disturbs.
-fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeNodeId; 2]) {
+/// `x1` lifts the block, and the first mate seats it at the slab's
+/// `(1, 1)` corner. `x2` is `x1` moved `(2, 2)` across the slab plus
+/// `extra_lift`, and the second mate seats it at the slab's `(3, 3)`
+/// corner: with no extra lift the two seats agree (a consistent loop),
+/// and with one the second copy floats clear of the slab. The two
+/// copies stand apart either way, so the union fuses nothing.
+fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [RecipeNodeId; 2]) {
     let mut store = PartStore::default();
     let (base_ref, base_body) = store.insert_part(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
@@ -669,7 +669,17 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, x1) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, x2) = insert(doc, xform(x1, second.0, second.1, second.2));
+    let (doc, x2) = insert(
+        doc,
+        xform(top, [2.0, 2.0, 10.0 + extra_lift], [0.0, 0.0, 1.0], 0.0),
+    );
+    let (doc, _) = insert(
+        doc,
+        Node::Union {
+            members: vec![x1, x2],
+            declare: Vec::new(),
+        },
+    );
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_part(top, top_body, CapEnd::Start);
     let (doc, m1) = step(
@@ -681,13 +691,22 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
             )),
         },
     );
+    let far_corner = Node::Mate {
+        a: crate::fixture::head(a),
+        b: crate::fixture::head_at(x2, b),
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame::authored([3.0, 3.0, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            b: b_frame(),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Opposed,
+            clocking: None,
+        },
+    };
     let (doc, m2) = step(
         doc,
         DocEdit::InsertNode {
-            node: Box::new(seat(
-                crate::fixture::head(a),
-                crate::fixture::head_at(x2, b),
-            )),
+            node: Box::new(far_corner),
         },
     );
     (doc, opts, [m1.unwrap(), m2.unwrap()])
@@ -696,31 +715,23 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
 /// **A5.** Two mates from one instance through two different maps are
 /// two MEMBERS over one instance: they key as different pairs, so the
 /// second is a loop-closing DECLARING edge rather than a fold-mate of
-/// the first, consistent or not.
+/// the first. A geometrically consistent pair solves AND passes the
+/// at-rest gate; an inconsistent one is refused there, attributed to
+/// the declaration the geometry contradicts.
 ///
-/// At the gate, the first mate is read at `x1` and `x2` places that
-/// body again before the product holds it, so the reference refuses
-/// `MovedAbove { at: x1, by: x2 }` in both documents — in the
-/// consistent one too, where the quarter turn lands the face back on
-/// the same seat: the face the product holds is `x2`'s image, not the
-/// one the mate reads, and a route through a placer never succeeds.
+/// The gate is where a declaring mate is verified — the solve places
+/// on the tree edge and never checks the loop (A11 rule 4) — so a
+/// fixture whose CONSISTENT pair the gate also refuses would make
+/// this row vacuous. Both halves are asserted. (A placer ABOVE an
+/// operand is a different document, refused `MovedAbove`:
+/// `msolve13_read_at_operand`'s A1(b).)
 #[test]
 fn a5_two_operands_over_one_instance_are_two_members() {
-    // Consistent: `x2` is a quarter turn of the square block about its
-    // own vertical centre line. A different map from `x1`'s, and one
-    // that asks for the same seat. Inconsistent: `x2` lifts 3 further,
-    // so the two mates cannot both be satisfied.
-    let quarter_turn: Step = (
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-        std::f64::consts::FRAC_PI_2,
-    );
-    let lift: Step = ([0.0, 0.0, 3.0], [0.0, 0.0, 1.0], 0.0);
-    for (what, label, second) in [
-        ("consistent", "msolve1-a5-consistent", quarter_turn),
-        ("inconsistent", "msolve1-a5-inconsistent", lift),
+    for (what, label, extra_lift) in [
+        ("consistent", "msolve1-a5-consistent", 0.0),
+        ("inconsistent", "msolve1-a5-inconsistent", 3.0),
     ] {
-        let (doc, opts, [m1, m2]) = two_operands(label, second);
+        let (doc, opts, [m1, m2]) = two_operands(label, extra_lift);
         let poses = solve(&doc, &opts, Tol::witness());
         assert!(
             poses.fault(m1).is_none() && poses.fault(m2).is_none(),
@@ -739,33 +750,24 @@ fn a5_two_operands_over_one_instance_are_two_members() {
             product(&doc, &ev, Tol::witness()).is_ok(),
             "A5 {what}: the product gathers"
         );
-        let err = gate(&doc, &ev).expect_err("the face read at x1 is moved by x2");
-        let AssemblyError::Mint { refusals } = &err else {
-            panic!("A5 {what}: expected the reference refusal, got {err:?}");
+        let gated = gate(&doc, &ev);
+        if extra_lift == 0.0 {
+            assert!(
+                gated.is_ok(),
+                "A5 consistent: the gate refused a consistent pair: {gated:?}"
+            );
+            continue;
+        }
+        let err = gated.expect_err("the gate refuses the unmet declaration");
+        let AssemblyError::AtRest { findings } = &err else {
+            panic!("A5 inconsistent: expected the at-rest gate's refusal, got {err:?}");
         };
-        let [
-            editor_core::MintRefusal::Reference {
-                mate, side, why, ..
-            },
-        ] = refusals.as_slice()
-        else {
-            panic!("A5 {what}: expected one reference refusal, got {refusals:?}");
-        };
-        let Some(Node::Mate { b, .. }) = doc.node(m2) else {
-            panic!("m2 is a mate");
-        };
-        let x2 = b.at;
-        let Some(Node::Mate { b, .. }) = doc.node(m1) else {
-            panic!("m1 is a mate");
-        };
-        assert_eq!(
-            (*mate, *side, why.clone()),
-            (
-                m1,
-                MateSide::B,
-                editor_core::RefusedRef::MovedAbove { at: b.at, by: x2 }
-            ),
-            "A5 {what}"
+        assert!(
+            findings
+                .iter()
+                .any(|f| matches!(&f.attribution, Attribution::Refuted(d) if d.mate == m2)),
+            "A5 inconsistent: the refusal names the declaring mate the geometry \
+             contradicts: {findings:?}"
         );
     }
 }
