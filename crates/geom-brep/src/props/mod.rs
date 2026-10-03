@@ -438,7 +438,7 @@ pub enum PropsError {
     /// unbuilt lane, while an edge off its surface is a contradiction
     /// between a stored carrier and the surface it is stored against.
     /// The split is taken at the RAISING site, by the premise the
-    /// residual checks ([`PropsCheck::OnSurface`]), not by a census of
+    /// residual checks ([`PropsCheck::Exact`]), not by a census of
     /// predicate names: the same name is one premise on one surface and
     /// the other on another — `props_rim_fit` places a circle on a
     /// cylinder, cone or sphere, while on a torus it additionally asks
@@ -616,12 +616,12 @@ pub enum PropsError {
 pub enum PropsCheck {
     /// **A premise an exact construction establishes**: a boundary
     /// edge's incidence on its own face's surface, a cone face staying
-    /// on one nappe, one surface's representation of every rim level of
-    /// a face. No valid body violates it at any tolerance, so every
-    /// refused arm — definitely nonzero, or in band — is a defect of the
-    /// kernel or of the file the body was read from
-    /// ([`Unsized::Defect`]).
-    OnSurface,
+    /// on one nappe, a sphere loop that closes with no cusp, one
+    /// surface's representation of every rim level of a face. No valid
+    /// body violates it at any tolerance, so every refused arm —
+    /// definitely nonzero, or in band — is a defect of the kernel or of
+    /// the file the body was read from ([`Unsized::Defect`]).
+    Exact,
     /// **A premise of a lane's certified inventory**: iso-ness, a rim's
     /// level or side, a stored span inside certification's per-edge
     /// bounds, a boundary shape a closed form has an arm for, a trim
@@ -689,7 +689,8 @@ impl PropsCheck {
     #[must_use]
     pub fn subject(self) -> &'static str {
         match self {
-            Self::OnSurface => "whether a boundary edge lies on its own face's surface",
+            Self::Exact => "whether the face's stored boundary is one a construction here \
+                            could produce",
             Self::Inventory => "whether this face's boundary is one the closed forms here fold",
             Self::Extent => "whether the face's area is positive",
             Self::Converged => "whether the quadrature's enclosure has converged",
@@ -701,7 +702,7 @@ impl PropsCheck {
     #[must_use]
     pub fn ending(self, arm: RefusedArm<'_>, reading: Reading) -> String {
         match self {
-            Self::OnSurface => Unsized::Defect.recourse(arm, reading),
+            Self::Exact => Unsized::Defect.recourse(arm, reading),
             Self::Inventory => crate::recourse::not_yet(arm),
             Self::Extent => FACE_EXTENT.recourse(arm, reading),
             Self::Converged => Unsized::LastResort.recourse(arm, reading),
@@ -958,7 +959,7 @@ mod tests {
         };
         // A premise no valid body violates is a defect however it is
         // refused, and no tolerance is offered for one.
-        let on_surface = under(PropsCheck::OnSurface);
+        let on_surface = under(PropsCheck::Exact);
         assert!(
             on_surface.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
             "{on_surface}"
@@ -1028,6 +1029,10 @@ mod tests {
             PropsError::OffSurface {
                 what: "props_rim_fit",
             },
+            PropsError::SphereLoop {
+                what: "props_sphere_loop_cusp",
+            },
+            PropsError::SenseContradicted,
             PropsError::NappeSpanning,
             PropsError::NotOneChartBranch {
                 edge: 0,
@@ -1052,7 +1057,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 9, "an arm was added without a row here");
+        assert_eq!(arms.len(), 11, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(

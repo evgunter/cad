@@ -2744,7 +2744,7 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             // no valid body violates — is read as a defect.
             P::Escalated { cause, check } => reading(
                 match check {
-                    PropsCheck::OnSurface => {
+                    PropsCheck::Exact => {
                         "a stored boundary edge may not lie on its own face's surface"
                     }
                     PropsCheck::Inventory => "a face's contribution is too close to call at \
@@ -2758,7 +2758,7 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 check
                     .ending(RefusedArm::Undecided(cause), Reading::AtRest)
                     .into(),
-                *check == PropsCheck::OnSurface,
+                *check == PropsCheck::Exact,
             ),
             P::QuadratureBudget { width_len, .. } => reading(
                 "a face's contribution did not converge to the tolerance",

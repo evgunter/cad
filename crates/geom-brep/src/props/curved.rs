@@ -674,7 +674,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 // door answers `props_meridian_generator` for.
                 if classify(
                     "props_meridian_apex",
-                    PropsCheck::OnSurface,
+                    PropsCheck::Exact,
                     Margin::norm3((apex - e.p0()).cross(dir)),
                     band,
                 )? != Sign::Zero
@@ -927,7 +927,7 @@ impl Premise {
     /// The check an escalation of this residual names.
     fn check(self) -> PropsCheck {
         match self {
-            Self::OnSurface => PropsCheck::OnSurface,
+            Self::OnSurface => PropsCheck::Exact,
             Self::Inventory => PropsCheck::Inventory,
         }
     }
@@ -1680,6 +1680,7 @@ fn cylinder_chart<T: Decide>(
         for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
             require_zero(
                 "props_loop_closed",
+                Premise::Inventory,
                 Margin::of((e.traversal_ends().1 - next.traversal_ends().0).norm()),
                 band,
             )?;
@@ -1708,6 +1709,7 @@ fn cylinder_chart<T: Decide>(
     let winding = rims.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
     require_zero(
         "props_chart_loops_closed",
+        Premise::Inventory,
         Margin::levered(winding, radius),
         band,
     )?;
@@ -1745,6 +1747,7 @@ fn require_holes_wound_against<T: Decide>(
     let two = T::from_f64(2.0);
     let whole = classify(
         "props_chart_area_side",
+        PropsCheck::Inventory,
         Margin::over_lever(radius * area * two, length),
         band,
     )?;
@@ -1754,6 +1757,7 @@ fn require_holes_wound_against<T: Decide>(
         let winding = ring.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
         if classify(
             "props_ring_contractible",
+            PropsCheck::Inventory,
             Margin::levered(winding, radius),
             band,
         )? != Sign::Zero
@@ -1763,6 +1767,7 @@ fn require_holes_wound_against<T: Decide>(
         let (a, l) = loop_chart(ring, lines);
         let side = classify(
             "props_ring_winding",
+            PropsCheck::Inventory,
             Margin::over_lever(radius * a * two, l),
             band,
         )?;
@@ -1787,6 +1792,7 @@ fn cylinder_material_sign<T: Decide>(
     let chart = cylinder_chart(origin, axis, radius, loops, band)?;
     match classify(
         "props_chart_area_side",
+        PropsCheck::Inventory,
         Margin::over_lever(radius * chart.area * T::from_f64(2.0), chart.length),
         band,
     )? {
@@ -2014,8 +2020,8 @@ pub fn cone_face_closed_form<T: Decide>(
     };
     // Single-nappe check: a definitely-negative low AND a
     // definitely-positive high straddle the apex through both nappes.
-    let s_lo = classify("props_cone_nappe", PropsCheck::OnSurface, Margin::of(lo), band)?;
-    let s_hi = classify("props_cone_nappe", PropsCheck::OnSurface, Margin::of(hi), band)?;
+    let s_lo = classify("props_cone_nappe", PropsCheck::Exact, Margin::of(lo), band)?;
+    let s_hi = classify("props_cone_nappe", PropsCheck::Exact, Margin::of(hi), band)?;
     if s_lo == Sign::Negative && s_hi == Sign::Positive {
         return Err(PropsError::NappeSpanning);
     }
@@ -2453,6 +2459,7 @@ fn sphere_tilted_circle<T: Decide>(
         };
         if classify(
             "props_sphere_circle_tilt",
+            PropsCheck::Inventory,
             Margin::levered(n_c.cross(axis).norm(), r_c),
             band,
         )? == Sign::Zero
@@ -2461,11 +2468,13 @@ fn sphere_tilted_circle<T: Decide>(
         }
         if classify(
             "props_circle_axis_class",
+            PropsCheck::Inventory,
             Margin::levered(n_c.dot(axis), r_c),
             band,
         )? == Sign::Zero
             && classify(
                 "props_sphere_circle_great",
+                PropsCheck::Inventory,
                 Margin::of((c_c - center).norm().max((r_c - radius).abs())),
                 band,
             )? == Sign::Zero
@@ -2608,6 +2617,7 @@ fn sphere_circle_loop<T: Decide>(
     let area = radius.powi(2) * (tau - turning);
     match classify(
         "props_sphere_loop_area",
+        PropsCheck::Inventory,
         // The smaller of the face's and its complement's solid angles,
         // metered at the sphere radius (angle × radius, metres).
         Margin::levered((tau - turning).min(tau + turning), radius),
@@ -2633,7 +2643,7 @@ fn require_on_loop<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<(), PropsError> {
-    match classify(name, margin, band)? {
+    match classify(name, PropsCheck::Inventory, margin, band)? {
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(PropsError::SphereLoop { what: name }),
     }
@@ -2729,6 +2739,7 @@ fn side_on_meridian<T: Decide>(
     let radial = m - up * m.dot(up);
     if classify(
         "props_sphere_side_meridian",
+        PropsCheck::Inventory,
         Margin::of(radial.norm()),
         band,
     )? != Sign::Positive
@@ -2755,13 +2766,30 @@ fn side_on_meridian<T: Decide>(
         let v_ref = n_c.cross(u_ref);
         let (a, b, d) = (k.dot(u_ref) * rho, k.dot(v_ref) * rho, k.dot(c_c - center));
         let amp = (a.powi(2) + b.powi(2)).sqrt();
-        if classify("props_sphere_side_plane", Margin::of(amp), band)? == Sign::Zero {
-            if classify("props_sphere_side_plane", Margin::of(d), band)? == Sign::Zero {
+        if classify(
+            "props_sphere_side_plane",
+            PropsCheck::Inventory,
+            Margin::of(amp),
+            band,
+        )? == Sign::Zero
+        {
+            if classify(
+                "props_sphere_side_plane",
+                PropsCheck::Inventory,
+                Margin::of(d),
+                band,
+            )? == Sign::Zero
+            {
                 return Ok(MaterialSign::Unencoded);
             }
             continue;
         }
-        match classify("props_sphere_side_roots", Margin::of(amp - d.abs()), band)? {
+        match classify(
+            "props_sphere_side_roots",
+            PropsCheck::Inventory,
+            Margin::of(amp - d.abs()),
+            band,
+        )? {
             Sign::Negative => continue,
             Sign::Zero => return Ok(MaterialSign::Unencoded),
             Sign::Positive => {}
@@ -2775,11 +2803,13 @@ fn side_on_meridian<T: Decide>(
             let s = mid + (t - mid).reduce_periodic_centred(tau);
             let from_start = classify(
                 "props_sphere_side_in_arc",
+                PropsCheck::Inventory,
                 Margin::levered(s - e.t0, rho),
                 band,
             )?;
             let to_end = classify(
                 "props_sphere_side_in_arc",
+                PropsCheck::Inventory,
                 Margin::levered(e.t1 - s, rho),
                 band,
             )?;
@@ -2791,6 +2821,7 @@ fn side_on_meridian<T: Decide>(
             let p = e.carrier.eval(s);
             match classify(
                 "props_sphere_side_half",
+                PropsCheck::Inventory,
                 Margin::of((p - center).dot(out)),
                 band,
             )? {
@@ -2819,7 +2850,12 @@ fn side_on_meridian<T: Decide>(
             } else {
                 best.0 - c.0
             };
-            match classify("props_sphere_side_order", Margin::of(gap), band)? {
+            match classify(
+                "props_sphere_side_order",
+                PropsCheck::Inventory,
+                Margin::of(gap),
+                band,
+            )? {
                 Sign::Positive => nearest = Some(c),
                 Sign::Negative => {}
                 Sign::Zero => return Ok(MaterialSign::Unencoded),
@@ -2839,6 +2875,7 @@ fn side_on_meridian<T: Decide>(
         let enter = left.dot(away) / away.norm();
         sides[slot] = match classify(
             "props_sphere_side_enter",
+            PropsCheck::Inventory,
             Margin::levered(enter, radius),
             band,
         )? {
@@ -2876,6 +2913,7 @@ fn require_cusp_free<T: Decide>(
 ) -> Result<(), PropsError> {
     match classify(
         "props_sphere_loop_cusp",
+        PropsCheck::Exact,
         Margin::levered((depart + arrive).norm(), radius),
         band,
     )? {
@@ -4220,7 +4258,10 @@ fn torus_meridian_orient<T: Decide>(
         LeveredUnitError::Direction(e) => {
             torus_frame_refused(e, "props_torus_axis", "torus axis length not measurable")
         }
-        LeveredUnitError::Arm(Some(cause)) => PropsError::Escalated { cause },
+        LeveredUnitError::Arm(Some(cause)) => PropsError::Escalated {
+            cause,
+            check: PropsCheck::Inventory,
+        },
         LeveredUnitError::Arm(None) => PropsError::NotIsoRectangle {
             what: UNIT_DIRECTION_ARM,
         },
