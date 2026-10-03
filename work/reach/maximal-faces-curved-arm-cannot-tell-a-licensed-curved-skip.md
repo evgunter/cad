@@ -2,12 +2,13 @@
 id: maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip
 kind: issue
 title: The maximal-faces gate's curved arm cannot tell a declared continuation's recorded curved skip from an unlicensed cosurface adjacency
-status: open
+status: parked
 opened: 2026-10-01
 priority: P2
 cost: M
 design: true
 refs: [cosurface-disjoint-curved-walls-refuse, a-union-glues-same-sense-cosurface-walls-without-merging-them]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by the unit that built the continuation ruling
