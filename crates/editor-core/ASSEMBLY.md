@@ -458,15 +458,17 @@ reference resolves by walking from its OPERAND down to a live
 `InstantiatePart`, through any number of `Transform`s and `Part`
 instance selections and any number of `Pattern` levels (each of which
 the name qualifies `Instance(i)`); the member's frame is the composed
-static offset of every node that walk passed, on that instance's pose,
-so mates never solve pattern or transform parameters or give one
-placed body its own pose. A member's identity is its instance, the
+offset of every node that walk passed, evaluated as that node is
+evaluated, on that instance's pose, so mates never solve for a
+pattern's or transform's parameters or give one placed body its own
+pose. A member's identity is its instance, the
 CHAIN of copies the walk consumed (outermost first) and the operand it
 was read at: two references to one instance read at different operands
 are two members, and so are two references to sibling copies at any
 level. Nothing in the walk is evaluated, so the partitions never
 depend on a slot value. The solve's inputs are the document plus its
-mated parts' evaluations, and it reads no geometry except what each
+mated parts' evaluations, at the evaluation's own scalar and over the
+evaluation's own parameters, and it reads no geometry except what each
 mated part's own evaluation answers, through one door asked lazily
 per pair (`mate::MateReach`; the evaluation answers from its own part
 cache, so a mated part is evaluated once). Two answers cross that
@@ -485,14 +487,21 @@ frame refuses typed and keeps taking authored vectors. Neither read
 changes the solve's algorithm — coset intersection over decided
 predicates, no numeric fitting, no geometry inspected inside the
 fold — and nothing is stored twice: the face name is the state, the
-frame is derived. A mated part that does not resolve faults its
+frame is derived. At `f64` the solve is the nominal solve; in a seed
+run each solved pose carries its tangent, in a box run each is an
+enclosure over the box, and every branch inside the fold is a named
+predicate decided at that scalar. So a face frame resolves on every
+lane, and a parametric placer on a member's chain moves its member's
+pose in the run that binds it. A mated part that does not resolve faults its
 mate in the resolver's own voice, carrying the part fault unaltered —
 `MateFault::FaceUnresolved` (`FacePoseRefusal::PartUnresolved`, in
 `FaceRefusal::Reach`) where a
 `FromFace` side stands on it, since a side's frame is read before the
 lever, else `MateFault::Unleverable` — and that fault poisons the
-group as any mate fault does. The two questions that DO need a number are
-asked once per reference, where the solve reads it — for every
+group as any mate fault does. The two questions that DO need a number
+— a pattern's count and a `Part`'s index, which no box or seed binds,
+so they are read at the nominal in every run — are asked once per
+reference, where the solve reads it — for every
 reference of every live mate, not only the ones a tree edge's offset
 derives: the named copy must exist (its index against the pattern's
 evaluated count, else `MateFault::DanglingHead` at the pattern), and a
