@@ -133,12 +133,16 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
     // evaluated directly, 200k samples. If the number were an artifact
     // of the composite or the certificate, this scan could not see it.
     //
-    // This row is about the MARCH ε, which it hands to `trace_deviation`
-    // explicitly (1e-9 below) — the ambient band is not an input to it,
-    // so it asserts on every ε row. Measured: 4.503e-9 m at u = 0.4868
-    // on all three ambient bands, bit for bit. The window is ±7% of it:
-    // step rungs read on the ℝ⁴ state curve rather than the carrier
-    // sample this wall more densely and read 3.805e-9 m, outside it.
+    // The march runs at ε = 1e-9, handed to `trace_deviation`
+    // explicitly. The door then refines the trace where the certificate,
+    // at the ambient band, refuses it, as the certifying door does. On a
+    // band whose zero is above the march's own deviation nothing is
+    // refined, and the scan reproduces it: measured 4.503e-9 m at
+    // u = 0.4868, and the window is ±7% of it. On a finer band the gap at
+    // the inflection is halved until limb 2 is answered or the fit's
+    // budget stops it, and the scan reads below the march's deviation;
+    // what is left peaks wherever refinement stopped, not necessarily
+    // at the inflection.
     //
     // The budget refusal is handled where it can actually happen rather
     // than pre-empted by a guard: if a future ambient band ever does
@@ -157,18 +161,26 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
         return;
     };
     eprintln!("[review] inflected-wall fit deviation: {max:.3e} m at u = {u_at_max:.4}");
-    assert!(
-        (4.2e-9..=4.8e-9).contains(&max),
-        "reported ~4.5e-9 m not reproduced: {max:e}"
-    );
-    // And it sits at the section's curvature-zero crossing, where the
-    // step rule's h_fit ∝ (ε/κ³)^¼ rung unbinds.
-    let u_kzero = section_curvature_zero();
-    eprintln!("[review] section curvature zero at u = {u_kzero:.4}");
-    assert!(
-        (u_at_max - u_kzero).abs() < 0.15,
-        "deviation peak (u = {u_at_max:.4}) is not at the inflection (u = {u_kzero:.4})"
-    );
+    if band().zero() > 4.8e-9 {
+        assert!(
+            (4.2e-9..=4.8e-9).contains(&max),
+            "reported ~4.5e-9 m not reproduced: {max:e}"
+        );
+        // And it sits at the section's curvature-zero crossing, where
+        // the step rule's h_fit ∝ (ε/κ³)^¼ rung unbinds.
+        let u_kzero = section_curvature_zero();
+        eprintln!("[review] section curvature zero at u = {u_kzero:.4}");
+        assert!(
+            (u_at_max - u_kzero).abs() < 0.15,
+            "deviation peak (u = {u_at_max:.4}) is not at the inflection (u = {u_kzero:.4})"
+        );
+    } else {
+        assert!(
+            max < 4.2e-9,
+            "the march's deviation is not refined at ε {:e}: {max:e}",
+            band().zero()
+        );
+    }
 }
 
 #[test]
@@ -255,6 +267,10 @@ fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
         control.push(Point3::new(x, y, 0.8));
     }
     let w = NurbsSurface::new(ku, kv, control, vec![1.0; 10]).unwrap();
+    // Refined where limb 2 refuses, the wall certifies at each ε the
+    // suite runs (measured 37, 162 and 827 samples at 1e-6, 1e-9 and
+    // 1e-12); elsewhere a refusal must still be the typed kind.
+    let certifies_here = [1.0e-6, 1.0e-9, 1.0e-12].contains(&eps());
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
         Ok(out) => {
             let sup = out.branches[0].certificate.hull_sup;
@@ -262,7 +278,11 @@ fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
             assert!(sup <= eps());
         }
         Err(e) => {
-            eprintln!("[review] multi-cell wall refused: {e}");
+            assert!(
+                !certifies_here,
+                "the multicell wall certifies once refined at ε {:e}: {e}",
+                eps()
+            );
             // A refusal must be the loud, typed kind — never a panic
             // (reaching here at all proves that much); pin that it is
             // the hull limb or an in-band escalation, i.e. the bound
@@ -272,6 +292,7 @@ fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
                 | SsiError::Escalated { .. }
                 | SsiError::CertificateEscalated { .. }
                 | SsiError::FitSampleBudget { .. }
+                | SsiError::RefinementExhausted { .. }
                 | SsiError::ExhaustivenessInconclusive(_) => {}
                 other => panic!("unexpected refusal shape: {other}"),
             }
