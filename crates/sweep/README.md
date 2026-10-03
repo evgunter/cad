@@ -152,7 +152,8 @@ exactly when the trim CONTAINS it, metered before any mutation under
 `fillet3_ring_clearance` (`blend/surgery.rs`'s ring carry-through
 pass, which meters every ring of every touched support face against
 every blend trimline in closed form, every other outer-boundary edge
-of a closed rim's supports against that support's trim, and every edge
+of a closed rim's supports — one requested in the same call at its own
+trim — against that support's trim, and every edge
 a convex ruled cut-off leaves on its cap against the sliver it
 removes). A merged cap that is an ANNULUS
 therefore carves on both its rims, one call each. A CURVED single face

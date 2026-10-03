@@ -184,6 +184,8 @@ mod axis_lap;
 mod band_annulus_host_boundary;
 #[path = "band_clearance_screen_reads_every_feature.rs"]
 mod band_clearance_screen_reads_every_feature;
+#[path = "band_co_requested_boundary.rs"]
+mod band_co_requested_boundary;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
