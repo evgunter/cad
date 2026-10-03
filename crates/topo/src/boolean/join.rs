@@ -1013,11 +1013,18 @@ fn partners<T: Decide>(
     // site by chord can be the far one along the walk.
     if let Some((center, _)) = frame {
         for other in open {
-            for (g, _) in &other.a {
+            for &(g, used) in &other.a {
                 if g.a_locus != rga.a_locus || g.b_locus != rga.b_locus {
                     continue;
                 }
-                let p = point_of(g.he)?;
+                // A used germ's half may be gone once its segment is
+                // joined; its site is then no longer a site of this
+                // locus's unjoined part.
+                let p = match red.a.half_edge_start_point(g.he) {
+                    Some(p) => p,
+                    None if used => continue,
+                    None => return Err(desync("germ site has no point")),
+                };
                 if walk_passes(center, &rga, p_c, p_e, p, band)? {
                     return Ok(None);
                 }
