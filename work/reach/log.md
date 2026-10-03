@@ -708,3 +708,23 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-03 — the split gate reads its boxes in the cut's frame (PR 3982)
+
+- The split gate reads every unarmed face's reach in the cut plane's own
+  frame (`boxes::BoxFrame`, `census::face_reach_in`), with closed-form
+  supports for a sphere zone and a ring torus's chart rectangle, so a
+  cut clear of a turned body no longer refuses by its pose.
+- Dual review: both APPROVE-WITH-FIXES, R1 0/1/4 and R2 0/1/3; no MAJOR,
+  so nothing enters the tally (DR row on this commit).
+- Last fix pass: partial-window torus and rim-grazing zone rows end to
+  end (they now kill the extent mutants R1 showed admitting meeting
+  cuts), an aimed spiric row, a per-coordinate row over the extents and
+  the frame's rounding measured; zone ends read from the rim pairs; one
+  window composition; the azimuth-window and spindle-fallback gaps
+  filed.
+- An independent verifier session re-ran the claimed mutants and the
+  three-ε rows: VERIFIED. Its notes: the per-coordinate row pins
+  coordinate 0 only, and no row sees the rim-pair reading in
+  `zone_extent`.
+— (REACH orchestrator)
