@@ -454,10 +454,11 @@ pub enum SsiError {
         rungs: u32,
     },
     /// Limb 3's transversality is not certified clear of the zero band
-    /// over the tube chain (its enclosure straddles zero, or its
-    /// clearance lies inside the band): two branches pass within the
-    /// band of each other. A genuine sliver (F6), not a resolution
-    /// failure to retry.
+    /// over the tube chain at any rung (its enclosure straddles zero, or
+    /// its clearance lies inside the band). Either two branches pass
+    /// within the band of each other, a genuine sliver (F6), or the
+    /// enclosure's remaining slack does not resolve the pair; both
+    /// escalate, typed, never retried.
     TubeStraddles {
         /// The verdict on the certified transversality clearance: a
         /// dimensionless sine-like lower bound levered by the tube

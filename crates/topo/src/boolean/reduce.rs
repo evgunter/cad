@@ -717,6 +717,12 @@ pub(super) fn gate_maximal_faces<T: Decide>(
 /// `edge_box` are that door's padded boxes (`boxes::face_box`,
 /// `boxes::edge_box` at `pad`).
 ///
+/// **What it returns is the settled pairs it read**: every undeclared
+/// pair the ladder called one carrier, which with `declared: false` is
+/// rung 1 alone (shared recipe source, N6), in the scan's order. The
+/// declared pairs it skips are settled by the declaration door instead
+/// ([`super::DeclaredPairs::settled`]).
+///
 /// # Errors
 ///
 /// [`BooleanError::UndeclaredCoincidence`] naming the first undeclared
@@ -730,7 +736,8 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
     pad: f64,
     face_box: impl Fn(&Body<T>, FaceKey) -> Result<bvh::Aabb, BooleanError>,
     edge_box: impl Fn(&Body<T>, EdgeKey) -> Result<bvh::Aabb, BooleanError>,
-) -> Result<(), BooleanError> {
+) -> Result<Vec<super::SettledPair>, BooleanError> {
+    let mut settled = Vec::new();
     let a_faces: Vec<(FaceKey, bvh::Aabb)> = a
         .faces()
         .map(|(k, _)| Ok((k, face_box(a, k)?)))
@@ -764,12 +771,23 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
                     });
                 }
             };
-            let Err(super::CarrierEqError::Undeclared {
-                diag,
-                relation: relation @ super::CarrierRelation::SameOriented,
-            }) = relation
-            else {
-                continue;
+            let (diag, relation) = match relation {
+                Ok(
+                    relation @ (super::CarrierRelation::SameOriented
+                    | super::CarrierRelation::SameOpposite),
+                ) => {
+                    settled.push(super::SettledPair {
+                        a: fa,
+                        b: fb,
+                        relation,
+                    });
+                    continue;
+                }
+                Err(super::CarrierEqError::Undeclared {
+                    diag,
+                    relation: relation @ super::CarrierRelation::SameOriented,
+                }) => (diag, relation),
+                _ => continue,
             };
             if edge_boxes.is_none() {
                 edge_boxes = Some([face_edges(a, &edge_box)?, face_edges(b, &edge_box)?]);
@@ -797,7 +815,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
             }
         }
     }
-    Ok(())
+    Ok(settled)
 }
 
 /// Each face's boundary edges with their padded boxes.

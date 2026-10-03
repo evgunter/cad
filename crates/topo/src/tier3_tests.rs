@@ -1619,6 +1619,9 @@ pub(crate) fn cusp_prism(tol: Tol) -> crate::fixtures::RawPrism {
         let spec = edge_spec(&p.body, e, kind);
         p.body.set_edge_curve(e, spec, tol).unwrap();
     }
+    // The assembly's closing mint: its two cylinder walls store their
+    // rows at rest (C4).
+    crate::pcurves::mint_pcurves(&mut p.body, tol).unwrap();
     p
 }
 
@@ -2034,6 +2037,7 @@ fn kissing_cylinder_pillow(
                 .at_rest_in_chart(chart, false);
         body.set_edge_curve(e, spec, tol).unwrap();
     }
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
     let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
     (
         validate_geometric(&flipped, tol).unwrap_err(),

@@ -1689,21 +1689,16 @@ impl<T: Decide> Body<T> {
         }
         // A body that carried stored pcurve caches RE-MINTS them on
         // the staged result before commit (the `topo::pcurves` module
-        // docs' rule for ops that mutate minted bodies): the merge
+        // docs' rule for ops that mutate minted bodies; a body at rest
+        // carries them on every face whose chart mints): the merge
         // rebuilds face loops, and two absorbed fragments' walks were
         // branch-anchored independently — the merged loop's one-branch
         // walk must be derived fresh, never stitched from the
         // fragments' rows. Still on the staged clone, so a mint
-        // refusal keeps the untouched-on-error contract.
-        //
-        // LATENT (named, not reachable by any current path): the mint
-        // pass holds the fitted door (`AtRestPolicy::fitted_lane`) and
-        // mints U2's `General` arm and a sphere's general circle
-        // through it, but a `Fitted` cache over a RUNG-3 carrier has no
-        // mint site, so one attached at rest on a merged body would
-        // come back as the mint pass's honest-skip — the face legally
-        // UNCACHED, its fitted certificate silently dropped. This site
-        // inherits the fix when that route lands.
+        // refusal keeps the untouched-on-error contract. A row the mint
+        // has no route to (a `Fitted` row on a class the closed-form
+        // lane does not cover) is carried across, re-certified, not
+        // dropped (`pcurves::carry_rows`).
         if !self.pcurves.is_empty() {
             crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;
