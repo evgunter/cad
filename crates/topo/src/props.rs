@@ -2448,12 +2448,20 @@ fn classify_shells_via<T: Decide>(
         }
         let (area, area_pad) = (sums.surface_area, sums.area_pad);
         let (volume, volume_pad) = (sums.volume, sums.volume_pad);
-        // The walk's sums round at `f64` with no pad to say so, so where
-        // the lane offers the shell's interval re-derivation, that is the
-        // bracket the role is read off ([`crate::validate::plus_v_certify`]'s
-        // argument); a lane-free walk reads its own sums.
+        // The role the walk's own sums read, whose refusals stand. They
+        // round at `f64` with no pad to say so, so where the lane offers
+        // the shell's interval re-derivation a decided role is certified
+        // there, and its reading is the role
+        // ([`crate::validate::plus_v_certify`]'s argument).
+        let role = shell_role_at(
+            "chk_shell_volume_sign",
+            shell_key,
+            sums.enclosure(),
+            volume_pad > 0.0,
+            band,
+        )?;
         let role = match quad {
-            None => shell_role_at(shell_key, sums.enclosure(), volume_pad > 0.0, band)?,
+            None => role,
             Some(lane) => {
                 let (volume, area) = rederive(body, band, lane, &runs).map_err(props)?;
                 let ends = VolumeEnclosure {
@@ -2461,7 +2469,13 @@ fn classify_shells_via<T: Decide>(
                     volume_hi: volume,
                     surface_area: area,
                 };
-                shell_role_at(shell_key, ends, false, band)?
+                shell_role_at(
+                    "chk_shell_volume_sign_enclosure",
+                    shell_key,
+                    ends,
+                    false,
+                    band,
+                )?
             }
         };
         out.push(ShellClassification {
@@ -2478,23 +2492,23 @@ fn classify_shells_via<T: Decide>(
 }
 
 /// A shell's role read off its volume bracket `ends` — the named sign
-/// read, ONE funnel site (`chk_shell_volume_sign`), evaluated at a
-/// bracket end. `V/A` is a length (check 7's margin convention): the
+/// read, ONE funnel site, evaluated at a bracket end:
+/// `chk_shell_volume_sign` on the walk's own sums and
+/// `chk_shell_volume_sign_enclosure` on their interval re-derivation,
+/// two questions as check 7's `positive_volume` and
+/// `positive_volume_enclosure` are. `V/A` is a length (check 7's margin convention): the
 /// mean displacement of the shell's boundary that the volume
 /// corresponds to. The low end first; the high end only when the low
 /// end decides nothing, and an unpadded bracket reuses the one verdict.
 fn shell_role_at<U: Decide>(
+    name: &'static str,
     shell: ShellKey,
     ends: VolumeEnclosure<U>,
     padded: bool,
     band: Band,
 ) -> Result<ShellRole, ShellClassifyError> {
     let sign_at = |end: U| {
-        crate::validate::decide_reported(
-            "chk_shell_volume_sign",
-            Margin::over_lever(end, ends.surface_area),
-            band,
-        )
+        crate::validate::decide_reported(name, Margin::over_lever(end, ends.surface_area), band)
     };
     let role_at = |end, decided: Result<Decided, Indeterminate>| {
         decided

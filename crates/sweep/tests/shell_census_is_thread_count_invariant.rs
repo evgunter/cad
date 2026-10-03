@@ -52,6 +52,11 @@ fn voided_rod() -> Body<f64> {
 /// junctions (`props_loop_closed`), and each wall's loops wind the
 /// cylinder zero times (`props_chart_loops_closed`) — per-junction and
 /// per-face facts, whichever edge a walk starts at.
+///
+/// Each shell is read twice, so every `props_*` count is even: once at
+/// `f64` (`chk_shell_volume_sign`), and once re-derived at the interval
+/// scalar, where the role the first reading decided is certified
+/// (`chk_shell_volume_sign_enclosure`).
 #[test]
 fn voided_rods_verdicts_as_a_sorted_multiset() {
     let body = voided_rod();
@@ -70,15 +75,17 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
     let want: Vec<(String, usize)> = [
         ("chk_shell_volume_sign Negative", 1),
         ("chk_shell_volume_sign Positive", 1),
-        ("props_chart_loops_closed Zero", 2),
-        ("props_circle_axis_class Positive", 4),
-        ("props_face_extent Positive", 2),
-        ("props_loop_closed Zero", 8),
-        ("props_meridian_axial Zero", 4),
-        ("props_meridian_on_surface Zero", 4),
-        ("props_rim_axis_parallel Zero", 4),
-        ("props_rim_center_on_axis Zero", 4),
-        ("props_rim_fit Zero", 4),
+        ("chk_shell_volume_sign_enclosure Negative", 1),
+        ("chk_shell_volume_sign_enclosure Positive", 1),
+        ("props_chart_loops_closed Zero", 4),
+        ("props_circle_axis_class Positive", 8),
+        ("props_face_extent Positive", 4),
+        ("props_loop_closed Zero", 16),
+        ("props_meridian_axial Zero", 8),
+        ("props_meridian_on_surface Zero", 8),
+        ("props_rim_axis_parallel Zero", 8),
+        ("props_rim_center_on_axis Zero", 8),
+        ("props_rim_fit Zero", 8),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))
