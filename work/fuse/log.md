@@ -215,3 +215,12 @@ closed. Its two-crossing residue is P0 on this slate.
   A/B mapping (byte 211, A=fable B=opus). The two-Parts row closes:
   the `On` verdict (PR 3897) already answers it, and the rows live in
   `on_verdict_rows.rs`.
+
+- 2026-10-03 — PR 3927 (shared-vertex crossings) lands after a single
+  FULL review and one fix pass. Five MINORs were addressed: a new
+  3′-failing build filed with a pin, the `Reversed` doc premise
+  corrected, in-band and tie readings given typed refusals, the
+  refusal's fields pinned, and the P2 row's tie witness pinned. The row
+  closes. Its second witness moves to
+  `two-pinches-crossing-on-one-line-refuse-their-union` (P0), and the
+  inside-out operand is cleave's (P1).
