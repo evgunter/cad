@@ -53,9 +53,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeDescription, MustCarryVerdict, SurfaceKind, must_carry_over_edge};
+use geom_brep::{
+    EdgeDescription, LeverEscalation, LeverRung, MustCarryEscalation, MustCarryVerdict,
+    must_carry_over_edge,
+};
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
@@ -126,7 +130,15 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the filleted block is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness()).map(|e| e.body)
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body)
 }
 
 /// The eight smooth struts of [`filleted_block`] — the count is the
@@ -561,11 +573,21 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
     let (a, b) = both_orders(&flat, &tilted, &axis_line, extent, extent);
     for (order, verdict) in [("flat first", a), ("tilted first", b)] {
         match verdict {
-            MustCarryVerdict::InBand(source) => assert_eq!(
-                source.predicate,
-                Some("dihedral_wedge"),
-                "{order}: the sliver is the first-order wedge's escalation"
-            ),
+            MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(LeverEscalation {
+                rung,
+                diag,
+            })) => {
+                assert_eq!(
+                    rung,
+                    LeverRung::Reading,
+                    "{order}: the sliver is the wedge's rung, not the arm's"
+                );
+                assert_eq!(
+                    diag.predicate,
+                    Some("dihedral_wedge"),
+                    "{order}: the sliver is the first-order wedge's escalation"
+                );
+            }
             other => panic!("{order}: a sliver crossing must escalate in band, not {other:?}"),
         }
     }
@@ -606,9 +628,14 @@ fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
     for extent in [in_band_margin(), definite_zero_margin()] {
         let (a, b) = both_orders(&plane, &cylinder, &ruling, extent, extent);
         for (order, verdict) in [("plane first", a), ("cylinder first", b)] {
-            let MustCarryVerdict::InBand(source) = verdict else {
+            let MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(LeverEscalation {
+                rung: LeverRung::Arm,
+                diag: source,
+            })) = verdict
+            else {
                 panic!(
-                    "{order}, extent {extent:e}: a collapsed arm must escalate, not {verdict:?}"
+                    "{order}, extent {extent:e}: a collapsed arm must escalate at the arm rung, \
+                     not {verdict:?}"
                 );
             };
             assert_eq!(
@@ -672,8 +699,8 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
                 geom_brep::tangent_certificate_lane(c.carrier(), &a, &b),
                 "{name}: edge {k:?} presents the rule a triple the certificate's lane \
                  refuses — surfaces {:?} / {:?}",
-                SurfaceKind::of(&a),
-                SurfaceKind::of(&b)
+                a.kind(),
+                b.kind()
             );
         }
         assert!(
@@ -694,8 +721,9 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
 /// where the first station decides (the walk exits there) — and an
 /// out-of-lane one spends none: the lane gates the second-order
 /// reading. Its first-order reading is metered like any pair's, one
-/// `dihedral_arm` and one `dihedral_wedge` per station read — every
-/// interior station for a smooth pair, the first alone for a crossing.
+/// `dihedral_arm` and one `dihedral_wedge` per interior station, a
+/// crossing's included: every station is classified first-order before
+/// the walk decides.
 #[cfg(feature = "probe")]
 #[test]
 fn the_rule_meters_the_schedules_interior_stations_and_the_lane_meters_no_second_order() {
@@ -771,9 +799,9 @@ fn the_rule_meters_the_schedules_interior_stations_and_the_lane_meters_no_second
         "the first station decides an under-determined join, and the walk stops there"
     );
 
-    // Out of lane: no second-order sample, and the first-order walk
-    // metered as in lane — to the end for the smooth pair, one station
-    // for the crossing.
+    // Out of lane: no second-order sample, and the first-order pass
+    // metered as in lane, every station for the smooth pair and the
+    // crossing alike.
     let first_order = |samples: &[geom_core::k_stats::MarginSample]| {
         ["dihedral_arm", "dihedral_wedge"]
             .map(|name| samples.iter().filter(|s| s.predicate == name).count())
@@ -789,7 +817,7 @@ fn the_rule_meters_the_schedules_interior_stations_and_the_lane_meters_no_second
             "the out-of-lane crossing",
             out_of_lane_crossing(),
             MustCarryVerdict::Transverse,
-            1,
+            interior,
         ),
     ] {
         let (s1, s2, carrier) = (
@@ -853,9 +881,16 @@ fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
         .validate(Tol::witness())
         .expect("the filleted block is a valid profile");
     k_stats::start_recording();
-    let body = extrude(&profile, Extrusion::Distance(Probe(q)), Tol::witness())
-        .expect("the block extrudes")
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: Probe(q),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the block extrudes")
+    .body;
     let metered = k_stats::take_samples()
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")

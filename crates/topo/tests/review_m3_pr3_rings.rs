@@ -19,10 +19,11 @@ fn body_of<T: Real>(part: &SplitPart<T>) -> &Body<T> {
 }
 
 fn plane_x<T: geom_core::Decide>(c: f64) -> SplitPlane<T> {
-    SplitPlane {
-        origin: Point3::new(T::from_f64(c), T::from_f64(0.0), T::from_f64(0.0)),
-        normal: Vec3::new(T::from_f64(1.0), T::from_f64(0.0), T::from_f64(0.0)),
-    }
+    topo::test_support::split_plane(
+        Point3::new(T::from_f64(c), T::from_f64(0.0), T::from_f64(0.0)),
+        Vec3::new(T::from_f64(1.0), T::from_f64(0.0), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// The multi-ring `laringmv` sweep: two holes, split between them —
@@ -62,7 +63,8 @@ fn two_hole_box_split_between_rehomes_both_ways() {
 fn split_through_hole_two_section_polygons() {
     let body = holed_block::<f64>(6.0, &[1.0, 5.0], Tol::witness());
     let s = topo::plane_section(&body, &plane_x::<f64>(1.0), Tol::witness()).unwrap();
-    assert_eq!(s.polygons.len(), 2, "channel splits the section in two");
+    assert_eq!(s.regions.len(), 2, "channel splits the section in two");
+    assert!(s.regions.iter().all(|r| r.holes.is_empty()));
     let r = split(&body, &plane_x(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));

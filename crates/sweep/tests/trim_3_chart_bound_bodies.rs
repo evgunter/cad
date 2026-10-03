@@ -33,6 +33,7 @@
 )]
 
 use std::f64::consts::{PI, TAU};
+use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
 use crate::common::interval::{iv, p2, v2};
@@ -316,17 +317,6 @@ fn edge_mids(body: &Body<Interval>, face: FaceKey) -> Vec<Point3<f64>> {
     out
 }
 
-fn kind(s: &Surface<Interval>) -> &'static str {
-    match s {
-        Surface::Plane { .. } => "plane",
-        Surface::Cylinder { .. } => "cylinder",
-        Surface::Cone { .. } => "cone",
-        Surface::Sphere { .. } => "sphere",
-        Surface::Torus { .. } => "torus",
-        _ => "other",
-    }
-}
-
 fn arms(s: &Surface<Interval>) -> Option<(Interval, Interval)> {
     match s {
         Surface::Plane { .. } => Some((Interval::one(), Interval::one())),
@@ -479,11 +469,11 @@ fn probe_face(
 ) -> (Option<ChartBound<Interval>>, Option<GridStats>) {
     match chart_boundary(body, face, chart, band()) {
         Err(e) => {
-            eprintln!("{label} [{}]: REFUSED: {e}", kind(chart));
+            eprintln!("{label} [{}]: REFUSED: {e}", chart.kind().name());
             (None, None)
         }
         Ok(b) => {
-            eprintln!("{label} [{}]: {}", kind(chart), describe_line(&b));
+            eprintln!("{label} [{}]: {}", chart.kind().name(), describe_line(&b));
             let stats = match (arms(chart), oracle) {
                 (Some(a), Some(o)) => Some(grid(&b, chart, a, window_of(&b, 0.3), 32, o, label)),
                 _ => None,
@@ -530,7 +520,7 @@ fn extrude_oracles(
         ));
     }
     let all_segs: Vec<Seg> = loops.iter().flat_map(|l| segs_of(l)).collect();
-    for faces in &t.side_faces {
+    for faces in &t.side_faces() {
         for &face in faces {
             let mids = edge_mids(body, face);
             let seg = all_segs
@@ -591,7 +581,7 @@ fn revolve_oracles(
     let all_segs: Vec<Seg> = loops.iter().flat_map(|l| segs_of(l)).collect();
     let mut out: Vec<(FaceKey, Oracle, &'static str)> = Vec::new();
     let mut walls = std::collections::HashSet::new();
-    let _ = &t.walls;
+    let _ = &t.walls();
     for (face, _) in body.faces() {
         let mids = edge_mids(body, face);
         let seg = all_segs.iter().copied().find(|s| {
@@ -644,7 +634,15 @@ fn revolve_oracles(
 fn run_extrude(name: &str, loops: &[Vec<((f64, f64), f64)>], h: f64) -> Vec<GridStats> {
     eprintln!("=== extrude fixture: {name} (h = {h}) ===");
     let vp = profile_of(loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(h)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(h),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let mut all = Vec::new();
     for (face, oracle, fname) in extrude_oracles(&t.body, &t, loops, h) {
         let s = face_surface(&t.body, face);
@@ -926,7 +924,15 @@ fn p12_wide_slab_with_hole_is_sound() {
     // The pointed version: the hole's centre lifted by τ in u is material.
     let loops = wide_slab_with_hole();
     let vp = profile_of(&loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let s = face_surface(&t.body, t.bottom);
     let b = chart_boundary(&t.body, t.bottom, &s, band()).unwrap();
     eprintln!(
@@ -1053,7 +1059,15 @@ fn widen(b: &ChartBound<Interval>, w: f64) -> ChartBound<Interval> {
 fn p14_fat_intervals_only_lose_cells() {
     let loops = bumped_block();
     let vp = profile_of(&loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let b = band();
     let mut lost_total = 0usize;
     let mut gained_total = 0usize;
@@ -1098,7 +1112,7 @@ fn p14_fat_intervals_only_lose_cells() {
             }
             eprintln!(
                 "{face:?} [{}] widen {w}: lost={lost} gained={gained}",
-                kind(&s)
+                s.kind().name()
             );
             lost_total += lost;
             gained_total += gained;
@@ -1144,7 +1158,7 @@ fn singular_probe(name: &str, loops: &[Vec<((f64, f64), f64)>], theta: f64) -> (
     let (mut singular_refusals, mut violations) = (0usize, 0usize);
     for (face, oracle, fname) in revolve_oracles(&t.body, &t, loops, Some(theta)) {
         let s = face_surface(&t.body, face);
-        let label = format!("{name}/{fname}/{face:?} [{}]", kind(&s));
+        let label = format!("{name}/{fname}/{face:?} [{}]", s.kind().name());
         match chart_boundary(&t.body, face, &s, band()) {
             Err(topo::PcurveMintError::SingularChartJoint { .. }) => {
                 singular_refusals += 1;
@@ -1261,7 +1275,15 @@ fn describe_census(
 fn r2_the_envelope_arm_is_reached_and_sound_on_an_arc_bounded_cap() {
     for (name, loops) in [("bumped", bumped_block()), ("notched", notched_block())] {
         let vp = profile_of(&loops);
-        let t = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness()).unwrap();
+        let t = extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: iv(1.0),
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
         let faces: Vec<FaceKey> = t.body.faces().map(|(k, _)| k).collect();
         let (described, envelopes, _, _, _) = describe_census(&t.body, &faces);
         eprintln!("{name}: described={described} envelope edges={envelopes}");
@@ -1293,7 +1315,15 @@ fn r2_the_envelope_arm_is_reached_and_sound_on_an_arc_bounded_cap() {
 fn r2_a_vertical_planar_wall_describes_on_its_stored_chart() {
     let loops = l_profile();
     let vp = profile_of(&loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(1.5)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.5),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let faces: Vec<FaceKey> = t.body.faces().map(|(k, _)| k).collect();
     let (_, _, vertical, via_rechart, via_stored) = describe_census(&t.body, &faces);
     eprintln!(

@@ -40,6 +40,9 @@ pub struct DocDiff {
     /// Whether the appearance stores differ (attribute values are
     /// float-free, so structural comparison is bit comparison).
     pub appearance_changed: bool,
+    /// Nodes whose label was added, removed, or changed, in the order
+    /// [`Self::nodes`] uses.
+    pub labels: Vec<RecipeNodeId>,
 }
 
 impl DocDiff {
@@ -52,6 +55,7 @@ impl DocDiff {
             && self.witnesses.is_empty()
             && !self.metadata_changed
             && !self.appearance_changed
+            && self.labels.is_empty()
     }
 }
 
@@ -95,10 +99,15 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
         params.sort();
         params.dedup();
         let witness_moved = |id: &RecipeNodeId| self.witnesses.get(id) != other.witnesses.get(id);
+        let label_moved = |id: &RecipeNodeId| self.labels.get(id) != other.labels.get(id);
         let mut witnesses: Vec<RecipeNodeId> = Vec::new();
+        let mut labels: Vec<RecipeNodeId> = Vec::new();
         for &id in self.order.iter().chain(&other.order) {
             if witness_moved(&id) && !witnesses.contains(&id) {
                 witnesses.push(id);
+            }
+            if label_moved(&id) && !labels.contains(&id) {
+                labels.push(id);
             }
         }
         DocDiff {
@@ -109,6 +118,7 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
             witnesses,
             metadata_changed: self.metadata != other.metadata,
             appearance_changed: self.appearance != other.appearance,
+            labels,
         }
     }
 }

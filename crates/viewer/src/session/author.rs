@@ -158,11 +158,7 @@ impl ProfilePlane {
     pub fn xy_numbers() -> ([f64; 3], [f64; 3], [f64; 3]) {
         let plane = Self::xy_placement();
         let (origin, u, v) = (plane.origin(), plane.u(), plane.v());
-        (
-            [origin.x, origin.y, origin.z],
-            [u.x, u.y, u.z],
-            [v.x, v.y, v.z],
-        )
+        (origin.to_array(), u.to_array(), v.to_array())
     }
 
     /// The world XY frame as [`Self::NewXy`] commits it: the numbers

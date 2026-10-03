@@ -3,7 +3,9 @@
 //! and the DEV-1 Tangent witness lane; a VERIFIED declared `Rest`
 //! pair opens the declared-cosurface reduction rung and the carrier
 //! lump at both wall sites; declared `Tangent` pairs descend to the
-//! second-order sector trilean. Undeclared touching refuses forever,
+//! second-order sector trilean, save a union whose ruling runs through
+//! a plane face's interior, which refuses until the doubled-slit arm
+//! is built. Undeclared touching refuses forever,
 //! typed — the door only widens what a verified declaration unlocks.
 //!
 //! The canonical reachability fixture is the two-peg kernel shape's
@@ -16,8 +18,9 @@
 use crate::common::operands::{slab as plate, three_arc_cylinder};
 use crate::common::three_arc;
 use geom_core::k_stats::Bracket;
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::test_support::extruded;
 use sweep::{Extrusion, extrude};
 use topo::{
@@ -54,9 +57,10 @@ fn cyl_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
         .collect()
 }
 
-/// Every bore-wall × peg-wall pair declared under `class`.
+/// Every bore-wall × peg-wall pair declared under `class`, beside the
+/// peg ends flush with the plate's faces, which are continuations.
 fn wall_declarations(a: &Body<f64>, b: &Body<f64>, class: ContactClass) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
+    let mut decls = crate::mate2_common::continuations(a, b);
     for &fa in &cyl_faces(a) {
         for &fb in &cyl_faces(b) {
             decls
@@ -79,12 +83,15 @@ fn wall_declarations(a: &Body<f64>, b: &Body<f64>, class: ContactClass) -> Boole
 fn undeclared_touching_curved_pair_still_refuses_typed() {
     let bored = bored_plate();
     let peg = cyl(0.0, 1.0, 0.5);
-    let err = topo::union(&bored, &peg, Tol::witness())
+    // The peg's ends are flush with the plate's faces — continuations,
+    // declared; the wall pair is not.
+    let flush = crate::mate2_common::continuations(&bored, &peg);
+    let err = topo::union_with(&bored, &peg, &flush, Tol::witness())
         .expect_err("an undeclared exactly-filling peg must refuse");
     // The SAME typed refusal, at the SAME site, as before this unit
     // opened the declared rung: the sweep's curved frontier door on
     // the on-carrier rim circle (the spike's run-1 measurement of the
-    // undeclared posture — bool_circle_curved_clearance decides Zero,
+    // undeclared posture — bool_conic_curved_clearance decides Zero,
     // the frontier door fires).
     assert!(
         matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
@@ -106,15 +113,32 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
     let decls = wall_declarations(&bored, &peg, ContactClass::Rest);
     let bracket = Bracket::open();
     let out = topo::union_with(&bored, &peg, &decls, Tol::witness());
-    let v = bracket.finish().verdicts;
-    // The carrier ladder's cylinder rungs ran — the declared descent
-    // executed rather than being skipped past (telemetry from birth).
-    for name in ["carrier_cyl_axis_parallel", "carrier_cyl_radius"] {
-        assert!(
-            v.iter().any(|x| x.predicate == name),
-            "{name} never reached the funnel — the declared descent did not run"
-        );
-    }
+    let log = bracket.finish();
+    let v = log.verdicts;
+    // The carrier ladder's declared cylinder reading ran — the declared
+    // descent executed rather than being skipped past (telemetry from
+    // birth) — and read every declared wall pair coincident: the peg
+    // fills the bore exactly, so each reach decides zero, and none
+    // escalates.
+    let reach: Vec<_> = v
+        .iter()
+        .filter(|x| x.predicate == "carrier_cyl_reach")
+        .collect();
+    assert!(
+        !reach.is_empty(),
+        "carrier_cyl_reach never reached the funnel — the declared descent did not run"
+    );
+    assert!(
+        reach.iter().all(|x| x.sign == geom_core::Sign::Zero),
+        "every declared wall pair reads coincident: {reach:?}"
+    );
+    assert!(
+        !log.escalations
+            .iter()
+            .any(|e| e.source.predicate == Some("carrier_cyl_reach")),
+        "no declared wall pair's reach escalates: {:?}",
+        log.escalations
+    );
     match out {
         Ok(BooleanResult::Body(b)) => {
             // Exactly additive against the closed-form oracle: the peg
@@ -133,41 +157,20 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
             // this row was the measured refusal before the
             // conventional-arc lane existed).
             //
-            // **Re-expressed at PCURVE P-1b.** "Conventionally
-            // described" was the `MappedCurve` variant; U2 collapsed
-            // the conventional forms into one chart image, so the
-            // variant is gone. What the row is actually about survives
-            // untouched and is asserted directly: the rim is NOT
-            // intrinsically described — the coplanar pair cannot
-            // support an Intersection citation, and a stale one is
-            // exactly the `JoinDesync` defect this row exists for —
-            // and the chart it names is one of the two coplanar PLANES
-            // it lies between, which is what "conventionally, on the
-            // unchanged circle carrier" meant.
-            let mut rims = 0;
-            for (_, e) in b.body.edges() {
-                let Some(c) = b.body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
-                    continue;
-                };
-                if matches!(c.carrier(), geom::Curve3::Circle { .. }) {
-                    rims += 1;
-                    let geom_brep::EdgeDescription::Chart(chart) = c.description() else {
-                        panic!(
-                            "a coplanar-adjacent rim is conventionally described: {:?}",
-                            c.description()
-                        );
-                    };
-                    assert!(!chart.seam, "a cap rim is not its chart's seam");
-                    assert!(
-                        matches!(
-                            b.body.get_surface(chart.surface),
-                            Some(geom::Surface::Plane { .. })
-                        ),
-                        "the chart is one of the two coplanar planar caps"
-                    );
-                }
-            }
-            assert_eq!(rims, 6, "two rim circles of three arcs each survive");
+            // The peg's ends are flush with the plate's faces —
+            // declared continuations the union merges — so no rim
+            // circle survives between two coplanar faces.
+            let rims = b
+                .body
+                .edges()
+                .filter(|(_, e)| {
+                    b.body
+                        .get_curve_geom(e.curve)
+                        .and_then(|g| g.certified())
+                        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+                })
+                .count();
+            assert_eq!(rims, 0, "the flush peg ends merge into the plate's faces");
         }
         Ok(BooleanResult::Empty) => panic!("a filled plate cannot be empty"),
         // PR-B: the zip's band closure landed — the union SUCCEEDS
@@ -239,11 +242,11 @@ fn top_wall_declarations(
 
 /// The Tangent door, three-outcome honest on the witness lane's own
 /// rows: definite counter-evidence CONTRADICTS (apart and crossing
-/// both), an in-band gap ESCALATES, and the touching pair is ADMITTED
-/// past the door (whatever the classification then answers, it is
-/// never the door's refusal).
+/// both), an in-band gap ESCALATES, and the touching pair VERIFIES,
+/// and its union then refuses because the ruling runs through the
+/// plate top's interior.
 #[test]
-fn tangent_door_contradicts_escalates_and_admits() {
+fn tangent_door_contradicts_escalates_and_verifies() {
     let a = plate();
     // Definitely apart (gap 0.5): contradicted.
     let apart = lying_cyl(2.0);
@@ -285,8 +288,7 @@ fn tangent_door_contradicts_escalates_and_admits() {
     )
     .expect_err("an in-band tangency gap escalates");
     assert!(matches!(err, BooleanError::Escalated { .. }), "{err:?}");
-    // The genuinely-touching pair is ADMITTED: whatever the outcome,
-    // it is not a door refusal, and the second-order sector rows run.
+    // The genuinely-touching pair verifies.
     let resting = lying_cyl(1.5);
     let bracket = Bracket::open();
     let out = topo::union_with(
@@ -296,36 +298,25 @@ fn tangent_door_contradicts_escalates_and_admits() {
         Tol::witness(),
     );
     let v = bracket.finish().verdicts;
+    // A verdict names its row, not its caller: any `pc_parallel_gap` Zero
+    // in the bracket satisfies this, the witness lane's among them.
     assert!(
-        v.iter().any(|x| x.predicate == "tangent_locus_gap"),
-        "the witness lane must have derived the ruling"
+        v.iter()
+            .any(|x| x.predicate == "pc_parallel_gap" && x.sign == Sign::Zero),
+        "the witness lane must have derived the ruling from the section's tangent gap"
     );
-    // Admitted past the door AND carried through: a `Tangent` pair's
-    // carriers are distinct by its own verification, so the pair never
-    // reaches the planar coplanar-merge door, and the join lane unions
-    // the line-contact pair into ONE solid. The contact is a tangent
-    // ruling — measure zero — so the volume is the operands' sum, to
-    // the rounding of the mass integral: it accumulates over the
-    // union's faces in minting order, which the operands' authored
-    // loop starts decide, so the sum agrees to an ulp of the oracle
-    // rather than bit for bit (measured: one ulp above it).
-    let Ok(BooleanResult::Body(b)) = out else {
-        panic!("the admitted tangent pair must union: {out:?}");
-    };
-    assert_eq!(
-        topo::validate_geometric(&b.body, Tol::witness()),
-        Ok(()),
-        "the tangent union is tier-3 valid"
-    );
-    assert_eq!(b.body.solids().count(), 1, "one solid, not a graft");
-    let vol = topo::mass_properties(&b.body, Tol::witness())
-        .unwrap()
-        .volume;
-    let want = 16.0 + 0.75 * core::f64::consts::PI;
-    assert!(
-        (vol - want).abs() <= 2.0 * f64::EPSILON * want,
-        "plate + lying cylinder, additive across the tangent ruling: {vol} against {want}"
-    );
+    // Verified, and the ruling runs through the plate top's interior:
+    // the union would have material on both sides of it, the doubled
+    // slit #131 rules for, whose arm is unbuilt, so it refuses typed.
+    match out {
+        Err(BooleanError::TangentSlitArmUnbuilt { interior, .. }) => {
+            assert_eq!(interior, topo::Operand::A, "the plate top's interior");
+        }
+        other => panic!(
+            "the verified tangent union refuses as the unbuilt slit arm: {:?}",
+            other.map(|_| ())
+        ),
+    }
 }
 
 /// Outside the DEV-1 witness lane the class refusal stands, naming
@@ -347,9 +338,16 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
         let profile = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-            .unwrap()
-            .body
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     };
     let top: Vec<_> = a
         .faces()
@@ -383,7 +381,7 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
         matches!(
             err,
             BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent
+                class: topo::BooleanCoincidence::TANGENT
             }
         ),
         "{err:?}"

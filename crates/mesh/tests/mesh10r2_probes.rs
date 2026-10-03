@@ -24,6 +24,7 @@ use common::*;
 use geom::Curve3;
 use geom_core::{Point2, Tol};
 use profile::RawLoop;
+use sweep::ExtrudeSide;
 use topo::Body;
 
 /// The tour donut with its seam meridian (edge 0) split at `fracs`.
@@ -192,7 +193,10 @@ fn m10r2_split_lineage_after_graft() {
                 Point2::new(11.0, 11.0),
                 Point2::new(10.0, 11.0),
             ])]),
-            sweep::Extrusion::Distance(1.0),
+            sweep::Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             tol,
         )
         .unwrap()

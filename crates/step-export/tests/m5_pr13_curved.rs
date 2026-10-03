@@ -7,8 +7,9 @@
 //! value, which the writer copies from `Tol::witness().get()` (or the
 //! explicit override the fixtures use); that single dependence is
 //! pinned by [`epsilon_reaches_only_the_uncertainty_record`], and the
-//! one new refusal arm is run at two tolerances by
-//! [`curved_multi_shell_refuses_at_both_tolerances`]. No other row
+//! two-stub body that once reached the one new refusal arm is exported
+//! at two tolerances by
+//! [`two_curved_stubs_are_two_solids_and_export_at_both_tolerances`]. No other row
 //! would change value if ε moved, because no other row reads a
 //! distance: they compare emitted floats to the body's OWN stored
 //! floats, bit for bit.
@@ -351,7 +352,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     let corpus = common::fixture_corpus();
     let corpus_names: Vec<&'static str> = corpus.iter().map(|(n, _)| *n).collect();
     // Pin A and pin B count reversed faces over DIFFERENT sets (the
-    // whole corpus vs the curved half), and both must reach 91 — the
+    // whole corpus vs the curved half), and both must reach 89 — the
     // planar fixtures contribute none. Two counters, deliberately.
     let mut reversed_seen = 0usize;
     let mut chart_axis_checked = 0usize;
@@ -510,17 +511,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "CYLINDRICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(
-                        l,
-                        [origin.x, origin.y, origin.z],
-                        "FRAME: {name} cylinder origin"
-                    );
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} cylinder axis");
-                    assert_eq!(
-                        x,
-                        [u_ref.x, u_ref.y, u_ref.z],
-                        "FRAME: {name} cylinder u_ref"
-                    );
+                    assert_eq!(l, origin.to_array(), "FRAME: {name} cylinder origin");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} cylinder axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} cylinder u_ref");
                     assert_eq!(real(&a[2]), radius, "FRAME: {name} cylinder radius");
                 }
                 Surface::Cone {
@@ -531,9 +524,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "CONICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(l, [apex.x, apex.y, apex.z], "FRAME: {name} cone apex");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} cone axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} cone u_ref");
+                    assert_eq!(l, apex.to_array(), "FRAME: {name} cone apex");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} cone axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} cone u_ref");
                     assert_eq!(real(&a[2]), 0.0, "FRAME: {name} cone radius at the apex");
                     assert_eq!(real(&a[3]), half_angle, "FRAME: {name} cone semi-angle");
                 }
@@ -545,13 +538,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "SPHERICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(
-                        l,
-                        [center.x, center.y, center.z],
-                        "FRAME: {name} sphere centre"
-                    );
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} sphere axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} sphere u_ref");
+                    assert_eq!(l, center.to_array(), "FRAME: {name} sphere centre");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} sphere axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} sphere u_ref");
                     assert_eq!(real(&a[2]), radius, "FRAME: {name} sphere radius");
                 }
                 Surface::Torus {
@@ -563,13 +552,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "TOROIDAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(
-                        l,
-                        [center.x, center.y, center.z],
-                        "FRAME: {name} torus centre"
-                    );
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} torus axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} torus u_ref");
+                    assert_eq!(l, center.to_array(), "FRAME: {name} torus centre");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} torus axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} torus u_ref");
                     assert_eq!(
                         real(&a[2]),
                         major_radius,
@@ -610,7 +595,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                     for (r, p) in control_refs.iter().zip(ns.control()) {
                         assert_eq!(
                             triple(&recs[r]),
-                            [p.x, p.y, p.z],
+                            p.to_array(),
                             "FRAME: {name}: control point bitwise"
                         );
                     }
@@ -661,7 +646,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             let (_, z, _) = place(&recs);
             assert_eq!(
                 z,
-                [chart.x, chart.y, chart.z],
+                chart.to_array(),
                 "CHART-AXIS: {name}: a .F. face must keep the chart axis, not negate it"
             );
         }
@@ -682,25 +667,25 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     }
 
     // The corpus really does contain reversed faces, so pin A above is
-    // not vacuous: 91 = notched 1 + washer 2 + cone 2 (the
-    // original five) + die_pips 21·2 (each pip's two sense:false
+    // not vacuous: 89 = notched 1 + washer 2 + cone 1 (the
+    // original four) + die_pips 21·2 (each pip's two sense:false
     // half-band walls, S11 discipline) + the M6 composed die's 21·2
     // (the same half-caps, carried through the surgery) + the globe
-    // lily's lantern 2 (its MOUTH disc's two half-bands: a revolve
-    // mints both cap planes on the profile plane's own +y normal, so
-    // the cap facing −y opposes the solid's outward normal and the
-    // one facing +y agrees — exactly one of the two caps reverses,
-    // and each cap is two half-bands). The M6-3 loft_prism adds ZERO:
+    // lily's lantern 1 (its MOUTH disc: a revolve mints both cap
+    // planes on the profile plane's own +y normal, so the cap facing
+    // −y opposes the solid's outward normal and the one facing +y
+    // agrees — exactly one of the two caps reverses, and a full
+    // revolve builds each cap as one disc). The M6-3 loft_prism adds ZERO:
     // it mirrors extrude's minting (M5-LOG item 6(i)) — the bottom
     // cap's LOOP is reversed at mint so its plane derives normal-down
     // (outward), and every skinned wall chart's normal S_u × S_v
     // follows the material-left traversal (loft.rs module docs,
     // "Orientation") — so all six faces keep sense = true.
-    assert_eq!(reversed_seen, 91, "BOUND: the corpus's reversed faces");
+    assert_eq!(reversed_seen, 89, "BOUND: the corpus's reversed faces");
     assert_eq!(
-        chart_axis_checked, 91,
-        "CHART-AXIS: all 91 reversed faces checked (5 original + die_pips' 42 + the \
-         composed die's 42 + the lily lantern's 2; loft_prism contributes 0 — every \
+        chart_axis_checked, 89,
+        "CHART-AXIS: all 89 reversed faces checked (4 original + die_pips' 42 + the \
+         composed die's 42 + the lily lantern's 1; loft_prism contributes 0 — every \
          face sense-true, see pin A's derivation). Every one is on a CURVED fixture, \
          which is why this equals the whole-corpus count above."
     );
@@ -787,9 +772,9 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                 } => {
                     assert_eq!(kw, "CIRCLE", "{name}");
                     let (l, z, x) = place();
-                    assert_eq!(l, [center.x, center.y, center.z], "{name} circle centre");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "{name} circle axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "{name} circle u_ref");
+                    assert_eq!(l, center.to_array(), "{name} circle centre");
+                    assert_eq!(z, axis.to_array(), "{name} circle axis");
+                    assert_eq!(x, u_ref.to_array(), "{name} circle u_ref");
                     assert_eq!(real(&a[2]), radius, "{name} circle radius");
                 }
                 Curve3::Ellipse {
@@ -802,9 +787,9 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                     saw_ellipse = true;
                     assert_eq!(kw, "ELLIPSE", "{name}");
                     let (l, z, x) = place();
-                    assert_eq!(l, [center.x, center.y, center.z], "{name} ellipse centre");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "{name} ellipse axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "{name} ellipse u_ref");
+                    assert_eq!(l, center.to_array(), "{name} ellipse centre");
+                    assert_eq!(z, axis.to_array(), "{name} ellipse axis");
+                    assert_eq!(x, u_ref.to_array(), "{name} ellipse u_ref");
                     // semi_axis_1 along ref_direction is the MAJOR: the
                     // kernel's `u_ref` is the semi-major direction, and
                     // AP214's first semi-axis is measured along
@@ -960,57 +945,27 @@ fn epsilon_reaches_only_the_uncertainty_record() {
     assert!(differing[0].1.contains("LENGTH_MEASURE(1.0E-6)"));
 }
 
-/// **The one new refusal arm, at two tolerances.** The outward/void
-/// classifier did not grow curved closed forms, so a MULTI-shell
-/// curved solid refuses even though every one of its faces has a
-/// printer — the message says exactly that. S12's two-stub
-/// `boss ∖ plate` complement is the only such body constructible at
-/// rest.
-///
-/// The refusal is reached by a **type-level match** on the surface
-/// variant, before any arithmetic: no distance, no comparison, no ε.
-/// It is therefore ε-independent by derivation, and the two-tolerance
-/// run below checks that rather than asserting it — both the writer's
-/// own ε input (the uncertainty override, the only tolerance this
-/// crate reads) and, in CI, the ambient `CAD_EPS` lane that rebuilds
-/// the body itself. The body construction is pinned too: two shells at
-/// whatever ε the process was built under.
-///
-/// The COMPLEMENT — the single-shell curved solids never reaching the
-/// classifier, which is why this refusal is narrow rather than a
-/// curved-export blocker — is the `SINGLE-SHELL` block of the corpus
-/// row (retired name:
-/// `single_shell_curved_solids_never_reach_the_classifier`).
-///
-/// Since VERBS-RING the two-stub complement is no longer the only
-/// reachable body in the class: the one-call hollow ring is a REAL
-/// two-shell curved solid, pinned on the same gate below
+/// **Two curved stubs are two solids, and export.** S12's two-stub
+/// `boss ∖ plate` complement used to be one solid of two curved shells,
+/// and the outward/void classifier (which has closed forms for planar
+/// faces only) refused it. A solid is one piece of material now
+/// (`docs/DESIGN.md`), so the complement is two solids of one shell
+/// each, which never reach the classifier: the body exports at both
+/// tolerances. The classifier's refusal stays pinned on the shape that
+/// still reaches it, the hollow ring below
 /// ([`hollow_ring_hits_the_curved_shell_gate`]).
 #[test]
-fn curved_multi_shell_refuses_at_both_tolerances() {
+fn two_curved_stubs_are_two_solids_and_export_at_both_tolerances() {
     let stubs = common::two_stub_complement();
     assert_eq!(stubs.shells().count(), 2, "two disjoint stubs");
-    assert!(
-        Tol::witness().get().eps > 0.0,
-        "the body above was built at the run's ambient tolerance"
-    );
+    assert_eq!(stubs.solids().count(), 2, "one solid per stub");
     for eps in [1e-9, 1e-6] {
         let options = StepOptions {
             uncertainty_m: Some(eps),
             ..StepOptions::default()
         };
-        match step_string(&stubs, &options, Tol::witness()) {
-            Err(StepExportError::CurvedShellClassification { kind, .. }) => {
-                // The classifier walks a shell face-first and each
-                // face surface-then-carriers, so the entity it meets
-                // first on a stub is the planar CAP's circular rim —
-                // not the cylinder wall one face later. Either way the
-                // refusal is typed and names the geometry; the exact
-                // kind is pinned so a change in walk order is visible.
-                assert_eq!(kind, "circle", "at eps = {eps}");
-            }
-            other => panic!("expected CurvedShellClassification at {eps}, got {other:?}"),
-        }
+        step_string(&stubs, &options, Tol::witness())
+            .unwrap_or_else(|e| panic!("the two stubs export at {eps}: {e}"));
     }
 }
 
@@ -1044,7 +999,7 @@ fn hollow_ring_hits_the_curved_shell_gate() {
     match step_string(&ring.body, &StepOptions::default(), tol) {
         Err(StepExportError::CurvedShellClassification { kind, .. }) => {
             // The classifier meets the torus wall's surface first.
-            assert_eq!(kind, "torus");
+            assert_eq!(kind, "torus surface");
         }
         other => panic!("expected the standing curved-shell gate, got {other:?}"),
     }

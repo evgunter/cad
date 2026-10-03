@@ -35,9 +35,9 @@ fn two_named_nodes(doc: &ProfileDoc) -> ProfileDoc {
         doc = apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::Datum(Datum::Point {
+                node: Box::new(Node::Datum(Datum::Point {
                     position: [len(x), len(0.0), len(0.0)],
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -127,18 +127,20 @@ fn every_form() -> ProfileDoc {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(expr, vec![name(doc.order()[0]), name(doc.order()[1])])
-                .expect("indices in range"),
+            node: Box::new(
+                Node::measure(expr, vec![name(doc.order()[0]), name(doc.order()[1])])
+                    .expect("indices in range"),
+            ),
         },
     );
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure: crate::fixture::newest(&doc),
                 bound: len(0.0005),
                 dir: AssertionDir::AtMost,
-            },
+            }),
         },
     );
     doc
@@ -168,21 +170,23 @@ fn angular() -> ProfileDoc {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(
-                MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-                vec![name(doc.order()[0]), name(doc.order()[1])],
-            )
-            .expect("indices in range"),
+            node: Box::new(
+                Node::measure(
+                    MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
+                    vec![name(doc.order()[0]), name(doc.order()[1])],
+                )
+                .expect("indices in range"),
+            ),
         },
     );
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure: crate::fixture::newest(&doc),
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     doc
@@ -241,7 +245,7 @@ fn a_measure_indexing_past_its_refs_refuses_at_the_load_door() {
     assert_ne!(corrupt, text, "the corruption must actually land");
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::MeasureRefs { node, fault })) => {
-            assert_eq!(node, measure(&doc));
+            assert_eq!(node.id(), measure(&doc));
             assert!(
                 matches!(
                     fault,
@@ -341,11 +345,11 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure: measure(&doc),
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -371,12 +375,12 @@ fn an_assertion_over_a_non_measure_refuses() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 // An assertion is not a measure.
                 measure: assertion(&doc),
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

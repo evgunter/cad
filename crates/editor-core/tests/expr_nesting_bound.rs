@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -96,6 +97,7 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
     let extrude = r.insert(Node::Extrude {
         profile,
         distance: deep_length(0.5, levels),
+        side: ExtrudeSide::Along,
     });
     let measure = r.insert(Node::Measure {
         expr: deep_measure(0.5, levels, levels.div_ceil(2)),
@@ -113,7 +115,11 @@ fn extrude_document(distance: Expr) -> (Recorder, RecipeNodeId) {
         plane,
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
-    let extrude = r.insert(Node::Extrude { profile, distance });
+    let extrude = r.insert(Node::Extrude {
+        profile,
+        distance,
+        side: ExtrudeSide::Along,
+    });
     (r, extrude)
 }
 
@@ -151,33 +157,6 @@ fn measured(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
 /// The saved `text`'s body: everything from the brace that opens it.
 fn body(text: &str) -> &str {
     &text[text.find('{').expect("a saved body is an object")..]
-}
-
-/// How deep `body` nests, in JSON brackets outside strings.
-fn bracket_depth(body: &str) -> usize {
-    let (mut depth, mut deepest) = (0usize, 0usize);
-    let (mut in_string, mut escaped) = (false, false);
-    for byte in body.bytes() {
-        if in_string {
-            match byte {
-                _ if escaped => escaped = false,
-                b'\\' => escaped = true,
-                b'"' => in_string = false,
-                _ => {}
-            }
-            continue;
-        }
-        match byte {
-            b'"' => in_string = true,
-            b'[' | b'{' => {
-                depth += 1;
-                deepest = deepest.max(depth);
-            }
-            b']' | b'}' => depth -= 1,
-            _ => {}
-        }
-    }
-    deepest
 }
 
 /// `text` with the first extrude distance wrapped in `levels` more
@@ -286,7 +265,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         // document, it loads back to the document it was.
         let mut deepest = 0;
         for (label, text) in both_saves(&r) {
-            deepest = deepest.max(bracket_depth(body(&text)));
+            deepest = deepest.max(editor_core::test_support::bracket_depth(&text));
             let loaded = editor_core::persist::load(&text, Tol::witness())
                 .unwrap_or_else(|err| panic!("the {label} loads back: {err}"));
             assert_eq!(

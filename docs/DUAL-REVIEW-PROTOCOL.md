@@ -23,11 +23,27 @@ under.
 
 ## Rules
 
-1. **Population.** Every unit the review tiers
-   (`memories/orchestration-model.md`) send to a DUAL review enters
-   `docs/DUAL-REVIEW-LOG.md`. Which unit gets which tier is decided there, not here;
-   units that get a single review or the orchestrator's read do not
-   enter.
+1. **Population and arms.** Every unit the review tiers
+   (`memories/orchestration-model.md`) send to the DUAL tier enters
+   `docs/DUAL-REVIEW-LOG.md`. Which unit gets which tier is decided
+   there, not here; units that get a single review or the
+   orchestrator's read do not enter. A dual-tier unit's ARM follows
+   from the difficulty letter logged at spec time (the row's class
+   cell), and the row names the arm:
+   - **H or L: CONCURRENT.** A pair per rule 2.
+   - **M (or S): drawn at dispatch** by a `/dev/urandom` byte,
+     recorded in the row. Byte mod 3 = 0: **HOLDOUT**, a concurrent
+     pair per rule 2, read separately as the measure of what the
+     sequential arm misses. Otherwise: **SEQUENTIAL** — one review
+     on a frozen head; if it raises any MAJOR, a second Opus review
+     runs after the fix pass on the fix pass's head, briefed with the
+     same claims to falsify plus the adjudicated findings whose fixes
+     it confirms, and it reviews the whole unit, not only the delta.
+     A first review that raises no MAJOR is the unit's only review.
+   A sequential unit is not a pair: it enters neither the tally nor
+   the pair count, and its row records each review's verdict and
+   findings, whether the second review ran, and what it raised that
+   the first did not.
 2. **The pair.** Two Opus reviewers, dispatched CONCURRENTLY on the
    SAME FROZEN HEAD (the commit is named in both briefs and in the
    row). Identical brief and claims to falsify, each also pointed at
@@ -92,21 +108,25 @@ under.
    findings each direction, tally candidates); the tally itself is
    what the blinded coding confirms.
 8. **Record at merge.** The row rides the unit's own PR as its LAST
-   commit, after both reviews are delivered, and a missing field is a
-   merge blocker for the row. **Pair numbers are assigned AT MERGE in
+   commit, after every review is delivered, and a missing field is a
+   merge blocker for the row. **Row numbers are assigned AT MERGE in
    main's merge order** (DR-1, DR-2, …); a collision on a concurrent
    merge is resolved by renumbering the later merge, never by
    renumbering a row already on main.
-9. **Readout point: a readout is owed when TWELVE fair pairs have
-   found any MAJOR, or when the tally reaches EIGHT, whichever comes
-   first** (Ev, 2026-09-28, PR 3342: "continue duals until there are
-   12 pairs which found any MAJOR"). A pair found a MAJOR when either
-   review raised at least one, bilateral or unilateral; zero-MAJOR
-   pairs are nearly uninformative, so they do not advance the count.
-   This is a readout, not a stop — duals continue until Ev rules on
-   the result. The orchestrator recording the triggering row asks Ev
-   per `CLAUDE.md` "Asking Ev". The running tally and the count of
-   fair pairs that found a MAJOR are kept at the foot of the log's
+9. **Readout point: a readout is owed when TWENTY M-tier units have
+   been recorded under rule 1's arms (holdout and sequential
+   together), or at the first M-TIER MISS, whichever comes first**
+   (Ev, 2026-10-01, PR 3704). An M-tier miss is either
+   - a tallied finding in a holdout pair whose other review raised no
+     MAJOR at all (taken first, the sequential arm would have shipped
+     it), or
+   - a later escape (rule 11) traced to a sequential unit that meets
+     rule 6(b) and (d) and that no review of the unit raised as MAJOR.
+   This is a readout, not a stop — the arms continue until Ev rules
+   on the result. The orchestrator recording the triggering row asks
+   Ev per `CLAUDE.md` "Asking Ev". The running tally, the count of
+   fair pairs that found any MAJOR, the count of M-tier units toward
+   twenty and the M-tier misses are kept at the foot of the log's
    rows table.
 10. **Readouts are off-file**, on the standing A/B rule: a directional
     result ("the second review rarely finds anything") creates
@@ -115,9 +135,11 @@ under.
     with a dual in flight should not read them.
 11. **Later escapes.** When a defect is later traced to a unit in this
     log (an issue, a red row, a fix PR), append a line under the unit's
-    row naming it and whether either review raised it. Escapes that
-    both reviewers missed bound what a second review can buy from
-    above.
+    row naming it, the unit's difficulty letter and arm, and whether
+    any review raised it. Escapes that both reviewers of a pair missed
+    bound what a second review can buy from above; escapes from a
+    sequential unit its single review let through are what the
+    sequential arm costs, counted per difficulty letter.
 
 ## Seams
 
@@ -126,6 +148,10 @@ under.
   Opus/Opus over the hard units only. The v4 same-model stream
   (fable/fable, closed at sample #16) is the nearest precedent and is
   still a different model.
+- **Arms.** Rows recorded before rule 1's arms existed are all
+  concurrent pairs, whatever their difficulty letter. The tally and
+  the pair count read concurrent pairs only, and a readout reports
+  holdout pairs apart from H and L pairs.
 - **Opus 5.5 era.** Every pair here post-dates the 2026-09-22 Opus 5.5
   release; any future model change is an instrument seam recorded as a
   dated note here, and a readout spanning it reports the eras

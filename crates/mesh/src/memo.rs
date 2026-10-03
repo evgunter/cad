@@ -1150,6 +1150,19 @@ impl KeyWriter {
                     }
                 }
             }
+            Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            } => {
+                self.u8(6);
+                for x in [u0, v0, va, vb, beta, sense] {
+                    self.f64(*x);
+                }
+            }
         }
     }
 }

@@ -36,6 +36,7 @@ use geom_core::{
     Decide, ParamSymbol, Point2, Point3, Real, Sym, SymBudget, SymCounts, SymRules, Tol, Vec2,
 };
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis};
 
 fn budget() -> SymBudget {
@@ -49,7 +50,7 @@ fn budget() -> SymBudget {
 /// `(d, d, d)`, extruded by one unit along the plane normal: four
 /// arc-arm registrants per lamina rim (two arcs × {bottom, top} ×
 /// {rim, span}) plus the side walls'.
-fn stadium_extrude<T: Decide>(d: T, r: T) -> Result<usize, String> {
+fn stadium_extrude<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
     let lp = bulge_loop(vec![
@@ -61,9 +62,16 @@ fn stadium_extrude<T: Decide>(d: T, r: T) -> Result<usize, String> {
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .map_err(|e| format!("validate: {e:?}"))?;
-    sweep::extrude(&vp, Extrusion::Distance(lit(1.0)), Tol::witness())
-        .map(|e| e.body.faces().count())
-        .map_err(|e| format!("extrude: {e:?}"))
+    sweep::extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: lit(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body.faces().count())
+    .map_err(|e| format!("extrude: {e:?}"))
 }
 
 /// **The M10-9 washer** — `sweep::revolve_washer`'s parametric
@@ -99,7 +107,7 @@ fn washer_revolve<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, S
 /// **R2's triangle**, adopted from that review's own e2e probe: three
 /// straight edges and no arc, so it carries no arc registrant at all —
 /// which is why its column moves independently of the other two.
-fn triangle_extrude<T: Decide>(d: T, _r: T) -> Result<usize, String> {
+fn triangle_extrude<T: Decide + topo::AtRestPolicy>(d: T, _r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
     let lp = ProfileLoop::polygon([
@@ -110,9 +118,16 @@ fn triangle_extrude<T: Decide>(d: T, _r: T) -> Result<usize, String> {
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .map_err(|e| format!("validate: {e:?}"))?;
-    sweep::extrude(&vp, Extrusion::Distance(lit(1.0)), Tol::witness())
-        .map(|e| e.body.faces().count())
-        .map_err(|e| format!("extrude: {e:?}"))
+    sweep::extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: lit(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body.faces().count())
+    .map_err(|e| format!("extrude: {e:?}"))
 }
 
 /// The three bodies, in the order [`TABLE`]'s cells list them.
@@ -172,39 +187,52 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   identities the point channel could not certify — which is the
 ///   whole point of the tier, and is why "the symbolic lane refuses
 ///   wherever the bare lane does" would have been a false summary.
+/// - **The certified lane's stadium claims nothing about its arcs.** It
+///   is written through the fixture door, which holds no tolerance and
+///   so registers none of the lowering's endpoint facts, and the sweep
+///   registers only rigidity: the far placements it once built on the
+///   sweep's own rim and span registrations are typed refusals now —
+///   `EndpointEnd` at `(1e-6, 1e9)`, `MappedSource` at `(1e-9, 1e6)`,
+///   and `EndpointStart` from `3.7e7` out at `1e-9` and at every
+///   placement off the origin at `1e-12`, cells where rule G
+///   (`SymRules::canonical_root`) alone builds it over the sweep's
+///   registrations. Never a contradiction, never a wrong answer
+///   (`work/paths/fixture-built-sym-rows-lose-registered-discharges.md`).
 /// - **The certified lane is not a superset or a subset of either.**
 ///   It refuses the washer at `(1e-6, 1e9)` and `(1e-9, 1e6)` where
 ///   every point lane builds it (the enclosure straddles the band where
-///   the point does not), and it builds the triangle and the stadium
-///   everywhere, including the cells where both point lanes refuse
-///   them. The stadium's is rule G's (`SymRules::canonical_root`):
-///   with it shut, the stadium refuses on `Surface1Residual` from
-///   `3.7e7` out at `1e-9`.
+///   the point does not), and it builds the triangle everywhere,
+///   including the cells where both point lanes refuse it.
+/// - **The certified lane builds the stadium** wherever the point lanes
+///   do, its extrude's closing pcurve mint included: the arc walls'
+///   rows are certified over the `r` box by their closed-form envelope,
+///   every term a theorem, the loop walk's branch a literal. The washer,
+///   minted by revolve already, and the arc-free triangle do not move.
 #[rustfmt::skip]
 const TABLE: [[Cell; 4]; 3] = [
-    // ε = 1e-6: nothing refuses anywhere, except the certified lane's
-    // washer at the furthest placement.
+    // ε = 1e-6: the point lanes refuse nothing anywhere; the certified
+    // lane refuses the stadium and the washer at the furthest.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "MappedSource", "built"], 0) },
+        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointEnd", "MappedSource", "built"], 0) },
     ],
     // ε = 1e-9 (the shipped default): the mechanism reaches the point
     // lanes at 1e9, and at 3.7e7 the tier rescues two bodies the bare
     // lift refuses.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "MappedSource", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["built", "MappedSource", "built"], 0), exact: lane(["built", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["built", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MappedSource", "MappedSource", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["built", "MappedSource", "built"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],
     // ε = 1e-12: every placement off the origin disputes.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["built", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["built", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["built", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],
 ];
 

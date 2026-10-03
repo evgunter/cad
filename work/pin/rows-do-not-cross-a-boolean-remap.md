@@ -82,3 +82,23 @@ this line and is kept as the record of why the file was where it was.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## 2026-10-03 — the fence moved to the editor (FUSE, PR 3891)
+
+Ev ruled (PR 3901) that a solid is one piece and that booleans take
+bodies, so the pair boolean no longer refuses a multi-solid operand —
+step 2's reason above no longer holds at the kernel. The fence holds in
+the editor instead. A value's part count (`NodeValue::parts`) is a
+product's number of gathered parts: an instantiation counts the
+referenced document's root outputs at their own counts (so a
+sub-assembly counts through), and the placers (`Transform`, `Pattern`)
+and `Part` carry it. Every op that fuses or reshapes one body — the
+pair boolean, the n-ary union, a placed union's prototype and the rest
+of `body_operand`'s callers — refuses a product
+(`NodeErrorKind::ProductOperand`); a datum's face frame only reads a
+face, mints no record, and takes a product as it is. An instance carrying a declaration
+is such a product. The acceptance rows in
+`crates/editor-core/tests/docm6_seam_declarations.rs`
+(`no_carried_declaration_can_reach_a_boolean_operand` and the nested,
+transformed and placed-union rows beside it) pin the refusal. This row
+stays unreachable for as long as products refuse.

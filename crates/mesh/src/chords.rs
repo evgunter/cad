@@ -52,7 +52,6 @@
 //! polyline meeting at a vertex shares its mesh vertex id; interior
 //! points are `carrier(t₀ + (t₁−t₀)·i/n)` in `he_plus`-forward order.
 
-use geom_core::Bounds;
 use std::collections::HashMap;
 
 use geom::Curve3;
@@ -309,8 +308,8 @@ fn nurbs_chord_count(
 /// `[w_lo, w_hi]` computes exactly that, outward-rounded, and refuses
 /// if positivity was never proven). Recentring at the span's control
 /// centroid keeps the cross terms span-sized. The domain bound is the
-/// max over spans (hull of the squared enclosures), `next_up` after
-/// the final square root — a refusal flows to the caller's finite check.
+/// max over spans (hull of the squared enclosures), read from above
+/// off its root — a refusal flows to the caller's finite check.
 fn rational_carrier_m_bound(
     n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
@@ -484,13 +483,7 @@ fn rational_carrier_m_bound(
         });
     }
     // Same contract, same reason: a refused hull answers `NaN`.
-    Ok(sq_acc.map_or(f64::NAN, |s| {
-        if !s.is_certified() {
-            f64::NAN
-        } else {
-            s.hi().sqrt().next_up()
-        }
-    }))
+    Ok(sq_acc.map_or(f64::NAN, |s| s.sqrt().mag()))
 }
 
 /// The adjacent-NURBS chord tightening (module docs): for each
@@ -508,19 +501,9 @@ fn nurbs_tighten(
 ) -> Result<usize, TessellateError> {
     let (t0, t1) = params;
     let span = t1 - t0;
-    let edge = body
-        .get_edge(ek)
-        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-    for hek in [edge.he_plus, edge.he_minus] {
-        let he = body
-            .get_half_edge(hek)
-            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?;
-        let lp = body
-            .get_loop(he.parent_loop)
-            .ok_or(TessellateError::MissingEntity {
-                what: "parent loop",
-            })?;
-        let fk = lp.face;
+    let sides = sides_of(body, ek)?;
+    for side in [sides.plus, sides.minus] {
+        let (hek, fk) = (side.half_edge, side.face);
         let surface = adjacent_surface(body, fk)?;
         // The UV step schedule is a statement about the chart, so both
         // spline kinds take it — an approximating surface's chart is
@@ -576,7 +559,7 @@ fn nurbs_tighten(
             Pcurve::Fitted(_) => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
-                    note: "NURBS-face half-edge carries a FITTED (rung-3) pcurve — no \
+                    note: "NURBS-face half-edge carries a FITTED pcurve — no \
                            certified UV speed bound is wired for a fitted image's \
                            chord schedule; its first tessellation consumer is the \
                            edge×NURBS-face boolean layer (the cut-loft unit)",
@@ -598,6 +581,15 @@ fn nurbs_tighten(
                     note: "NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
                            chart images live on its own cutting plane and its own \
                            torus, so no spline chart mints one",
+                });
+            }
+            // As the spiric: a cone-section image certifies on a cone
+            // chart only, so no spline chart mints one.
+            Pcurve::ConeSection { .. } => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "NURBS-face half-edge carries a CONE-SECTION pcurve — that \
+                           image lives on a cone chart, so no spline chart mints one",
                 });
             }
         };
@@ -766,26 +758,27 @@ fn adjacent_surface(
         })
 }
 
+/// An edge's two sides, each lookup's miss named as the tessellator
+/// names it.
+fn sides_of(body: &Body<f64>, ek: EdgeKey) -> Result<topo::EdgeSides, TessellateError> {
+    topo::readback::edge_sides(body, ek).map_err(|what| TessellateError::MissingEntity {
+        what: match what {
+            topo::DanglingRef::Entity(topo::EntityId::Edge(_)) => "edge",
+            topo::DanglingRef::Entity(topo::EntityId::HalfEdge(_)) => "half-edge",
+            topo::DanglingRef::Entity(topo::EntityId::Loop(_)) => "parent loop",
+            _ => "face",
+        },
+    })
+}
+
 /// The (≤ 2 distinct) faces adjacent to an edge.
 fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, TessellateError> {
-    let edge = body
-        .get_edge(ek)
-        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-    let mut out = Vec::with_capacity(2);
-    for hek in [edge.he_plus, edge.he_minus] {
-        let he = body
-            .get_half_edge(hek)
-            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?;
-        let lp = body
-            .get_loop(he.parent_loop)
-            .ok_or(TessellateError::MissingEntity {
-                what: "parent loop",
-            })?;
-        if !out.contains(&lp.face) {
-            out.push(lp.face);
-        }
-    }
-    Ok(out)
+    let (plus, minus) = sides_of(body, ek)?.faces();
+    Ok(if plus == minus {
+        vec![plus]
+    } else {
+        vec![plus, minus]
+    })
 }
 
 #[cfg(test)]

@@ -52,6 +52,7 @@
 
 use crate::common;
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
@@ -133,7 +134,10 @@ fn holed_loops() -> Vec<ProfileLoop<f64>> {
 fn notched() -> sweep::Extruded<f64> {
     extrude(
         &validated(notched_loops()),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -160,7 +164,7 @@ fn notched_body_validates_meters_and_carries_one_reversed_wall() {
         vol(&t.body)
     );
     // Segment order: convex arc, line, concave arc, line.
-    let senses: Vec<bool> = t.side_faces[0]
+    let senses: Vec<bool> = t.side_faces()[0]
         .iter()
         .map(|&f| sense_of(&t.body, f))
         .collect();
@@ -194,7 +198,7 @@ fn downward_extrusion_keeps_the_same_senses() {
     // side_faces is per canonical segment? No — per swept segment; the
     // reversal retraces the canonical chain backwards, so the concave
     // wall sits at the mirrored index. Count, don't index.
-    let senses: Vec<bool> = t.side_faces[0]
+    let senses: Vec<bool> = t.side_faces()[0]
         .iter()
         .map(|&f| sense_of(&t.body, f))
         .collect();
@@ -204,7 +208,7 @@ fn downward_extrusion_keeps_the_same_senses() {
         "still exactly one reversed wall: {senses:?}"
     );
     // And it is the concave one (material outside its carrier).
-    for &fk in &t.side_faces[0] {
+    for &fk in &t.side_faces()[0] {
         let sk = t.body.get_face(fk).unwrap().surface;
         if let Surface::Cylinder { origin, radius, .. } = *t.body.get_surface(sk).unwrap() {
             let d = geom_core::Point2::new(1.0, 0.75) - geom_core::Point2::new(origin.x, origin.y);
@@ -225,7 +229,10 @@ fn downward_extrusion_keeps_the_same_senses() {
 fn hole_walls_mint_sense_false_and_the_door_reads_the_hole_as_void() {
     let t = extrude(
         &validated(holed_loops()),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -241,10 +248,10 @@ fn hole_walls_mint_sense_false_and_the_door_reads_the_hole_as_void() {
     );
     // Loop 0 (outer): all planar, all true. Loop 1 (hole): both
     // half-cylinder walls reversed.
-    for &f in &t.side_faces[0] {
+    for &f in &t.side_faces()[0] {
         assert!(sense_of(&t.body, f), "outer plate walls stay true");
     }
-    for &f in &t.side_faces[1] {
+    for &f in &t.side_faces()[1] {
         assert!(!sense_of(&t.body, f), "hole walls are concave: false");
     }
     // Doors: hole interior is void, meat is material.
@@ -303,7 +310,7 @@ fn washer_bore_and_under_annulus_mint_sense_false() {
         vol(&t.body)
     );
     assert_eq!(
-        wall_senses(&t.body, &t.walls[0]),
+        wall_senses(&t.body, &t.walls()[0]),
         vec![Some(false), Some(true), Some(true), Some(false)],
         "bottom annulus and bore reversed; outer wall and top true"
     );
@@ -346,11 +353,11 @@ fn washer_wedge_partial_revolve_mints_the_same_wall_senses() {
         vol(&t.body)
     );
     assert_eq!(
-        wall_senses(&t.body, &t.walls[0]),
+        wall_senses(&t.body, &t.walls()[0]),
         vec![Some(false), Some(true), Some(true), Some(false)],
     );
     // Every remaining face (wedge caps) stays true.
-    let wall_set: Vec<FaceKey> = t.walls[0].iter().flatten().copied().collect();
+    let wall_set: Vec<FaceKey> = t.walls()[0].iter().flatten().copied().collect();
     for (fk, f) in t.body.faces() {
         if !wall_set.contains(&fk) {
             assert!(f.sense, "wedge caps are Newell-outward: sense true");
@@ -409,7 +416,7 @@ fn countersink_cone_wall_mints_sense_false() {
         vol(&t.body)
     );
     assert_eq!(
-        wall_senses(&t.body, &t.walls[0]),
+        wall_senses(&t.body, &t.walls()[0]),
         vec![Some(false), Some(true), Some(true), Some(false)],
         "bottom annulus false; outer cylinder true; top annulus true; \
          countersink cone false"
@@ -454,7 +461,7 @@ fn dimple_sphere_wall_mints_sense_false() {
     // (Δz > 0 ⇒ true), top annulus (Δr < 0 ⇒ true), dimple sphere
     // (clockwise ⇒ false), axis segment (no wall).
     assert_eq!(
-        wall_senses(&t.body, &t.walls[0]),
+        wall_senses(&t.body, &t.walls()[0]),
         vec![Some(false), Some(true), Some(true), Some(false), None],
     );
     // The dimple bowl is a PARTIAL sphere band — rimmed against the top
@@ -525,7 +532,7 @@ fn notched_ring_torus_band_mints_sense_false() {
     // Canonical segments: convex torus (true), outer cylinder (Δz > 0,
     // true), concave torus (false), bore cylinder (Δz < 0, false).
     assert_eq!(
-        wall_senses(&t.body, &t.walls[0]),
+        wall_senses(&t.body, &t.walls()[0]),
         vec![Some(true), Some(true), Some(false), Some(false)],
     );
 }
@@ -563,7 +570,10 @@ fn loft_pair(loops: &[ProfileLoop<f64>], h: f64) -> Lofted<f64> {
 fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
     extrude(
         &validated(loops.to_vec()),
-        Extrusion::Distance(h),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -625,7 +635,7 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             );
         }
         Err(topo::MassPropsError::Face {
-            source: geom_brep::PropsError::Escalated { cause },
+            source: geom_brep::PropsError::Escalated { cause, .. },
             ..
         }) => assert_eq!(
             cause.predicate,
@@ -820,9 +830,16 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let pellet = extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body;
+    let pellet = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 0.4,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
 
     let err = match topo::boolean::union(&lofted.body, &pellet, Tol::witness()) {
         Err(e) => e.to_string(),

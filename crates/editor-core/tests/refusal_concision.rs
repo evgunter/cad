@@ -10,6 +10,7 @@
 
 use crate::corpus::eval;
 use crate::fixture::{Recorder, ang, axis_in_plane, frame, len};
+use editor_core::ExtrudeSide;
 
 use editor_core::{BooleanOp, LoopProgram, Node, NodeResult, ProfileProgram};
 
@@ -44,12 +45,13 @@ fn cone_block_union_refusal() -> String {
     let block = r.insert(Node::Extrude {
         profile: block_p,
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: cone,
         b: block,
-        declare: None,
+        declare: Vec::new(),
     });
     let ev = eval::<f64>(&r.doc);
     match ev.nodes.get(&union) {
@@ -148,7 +150,8 @@ const A_TOLERANCE_PASSES: &[&str] = &["SpheresMeet (touching, nested within the 
 
 /// Every rewritten arm, rendered the way the viewer renders a failed node.
 fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
-    use geom_brep::{MaterialWedge, RadiusEvidence, SurfaceKind};
+    use geom::SurfaceKind;
+    use geom_brep::{MaterialWedge, RadiusEvidence};
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     use topo::{
         BooleanError, BooleanOp, ContactClass, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
@@ -261,14 +264,20 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             "ArcLoopContainmentUnsupported",
             BooleanError::ArcLoopContainmentUnsupported {
                 operand: Operand::A,
-                r#loop: LoopKey::default(),
+                cause: topo::Uncrossable {
+                    r#loop: LoopKey::default(),
+                    edge,
+                    carrier: topo::UncrossableCarrier::Spiric,
+                },
             },
         ),
         (
             "ScaffoldingOperand",
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
-                edge,
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex {
+                    vertex: topo::VertexKey::default(),
+                }],
             },
         ),
         (
@@ -380,7 +389,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::Coincidence(
                     topo::Coincide::TangentSide,
-                    topo::DeclarationRead::Spent(ContactClass::Tangent),
+                    topo::DeclarationRead::Spent(topo::BooleanCoincidence::TANGENT),
                 ),
                 diag: enclosed,
             },
@@ -445,7 +454,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::Coincidence(
                     topo::Coincide::TangentSide,
-                    topo::DeclarationRead::Spent(ContactClass::Tangent),
+                    topo::DeclarationRead::Spent(topo::BooleanCoincidence::TANGENT),
                 ),
                 diag: in_band,
             },
@@ -463,17 +472,126 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::ShellWitnessExhausted {
                 operand: Operand::B,
                 shell: topo::ShellKey::default(),
+                on_boundary: 26,
+                in_band: 0,
+                first_in_band: None,
             },
         ),
         (
-            "RimSeamNotDeclarable",
-            BooleanError::RimSeamNotDeclarable { declaration },
+            "ShellWitnessExhausted (in band)",
+            BooleanError::ShellWitnessExhausted {
+                operand: Operand::B,
+                shell: topo::ShellKey::default(),
+                on_boundary: 20,
+                in_band: 6,
+                first_in_band: Some(topo::PointInSolidError::RayExhausted),
+            },
+        ),
+        (
+            "SeamContradicted",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: None,
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (one carrier)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::OneCarrier),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (cusp)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamCusp),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (sides mixed)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamSidesMixed),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (face runs on)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamFaceRunsOn),
+                margin: diag,
+            },
+        ),
+        (
+            "SeamContradicted (untouched)",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                fact: Some(topo::Contradiction::SeamUntouched),
+                margin: diag,
+            },
+        ),
+        (
+            "CoincidentShell (unpaired)",
+            BooleanError::CoincidentShell {
+                operand: Operand::A,
+                shell: topo::ShellKey::default(),
+                orientation: topo::ShellOrientation::Unpaired { face },
+            },
+        ),
+        (
+            "CoincidentShell (mixed)",
+            BooleanError::CoincidentShell {
+                operand: Operand::B,
+                shell: topo::ShellKey::default(),
+                orientation: topo::ShellOrientation::Mixed,
+            },
+        ),
+        (
+            "CoincidentShell (not covered back)",
+            BooleanError::CoincidentShell {
+                operand: Operand::A,
+                shell: topo::ShellKey::default(),
+                orientation: topo::ShellOrientation::Same,
+            },
         ),
         (
             "RimCuspArmUnbuilt",
             BooleanError::RimCuspArmUnbuilt {
                 declaration,
                 wedge: MaterialWedge::Slit,
+            },
+        ),
+        (
+            "TangentSlitArmUnbuilt",
+            BooleanError::TangentSlitArmUnbuilt {
+                declaration,
+                interior: Operand::A,
+            },
+        ),
+        (
+            "SharedVertexCrossings",
+            BooleanError::SharedVertexCrossings {
+                operand: Operand::B,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
+            },
+        ),
+        (
+            "NonManifoldResult",
+            BooleanError::NonManifoldResult {
+                a_vertex: VertexKey::default(),
+                b_vertices: [VertexKey::default(); 2],
             },
         ),
     ];
@@ -516,7 +634,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         ),
         (
             "Containment(EdgeCarrierUnsupported)",
-            PointInSolidError::EdgeCarrierUnsupported { face },
+            PointInSolidError::EdgeCarrierUnsupported {
+                face,
+                cause: topo::Uncrossable {
+                    r#loop: Default::default(),
+                    edge: Default::default(),
+                    carrier: topo::UncrossableCarrier::Spiric,
+                },
+            },
         ),
         (
             "Containment(WallOutlineUnsupported)",

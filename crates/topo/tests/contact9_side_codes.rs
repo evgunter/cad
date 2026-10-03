@@ -22,7 +22,7 @@
 use crate::common;
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
-    Body, BooleanError, BooleanResult, CarrierDesc, FaceKey, SolidContainment, SplitPlane,
+    Body, BooleanError, BooleanResult, CarrierDesc, FaceKey, SolidContainment, ValidationError,
     face_carrier, intersect, mass_properties, point_in_solid, split, subtract, subtract_with,
     union, union_with, validate_geometric,
 };
@@ -61,7 +61,7 @@ fn needle(x: f64, y: f64, s: f64, rise: [[f64; 3]; 2]) -> [[f64; 3]; 3] {
 
 /// The face of `body` whose outward normal is `n`, to within 1e-3.
 fn face_with_normal(body: &Body<f64>, n: [f64; 3]) -> FaceKey {
-    let n = Vec3::new(n[0], n[1], n[2]);
+    let n = Vec3::from_array(n);
     let hits: Vec<FaceKey> = body
         .faces()
         .map(|(k, _)| k)
@@ -95,6 +95,20 @@ fn body_checked(r: Result<BooleanResult<f64>, BooleanError>, what: &str, tier3: 
         );
     }
     b
+}
+
+/// `r` is the result gate's refusal of exactly one scaffold at rest:
+/// the seam along the 1 mm edge, the one edge of these results whose
+/// faces that length cannot tell from tangent. The refusal withholds the
+/// body, so the edge is pinned by the count; a second scaffold, or a
+/// different finding, turns the row red.
+fn refuses_the_seam_alone(r: &Result<BooleanResult<f64>, BooleanError>, what: &str) {
+    assert!(
+        matches!(r, Err(BooleanError::ResultInvalid { errors })
+            if matches!(errors.as_slice(), [ValidationError::ScaffoldAtRest { .. }])),
+        "{what}: the 1 mm seam's scaffold, alone, is refused at rest, got {:?}",
+        r.as_ref().err()
+    );
 }
 
 fn contains(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
@@ -140,20 +154,6 @@ fn answers(
     q: Point3<f64>,
     what: &str,
 ) {
-    answers_with(solid, tool, overlap, corners, q, what, true);
-}
-
-/// [`answers`], with `tier3` false where the pose's seam is itself one
-/// tier 3 reads as tangent (the reason is at the caller).
-fn answers_with(
-    solid: &Body<f64>,
-    tool: &Body<f64>,
-    overlap: f64,
-    corners: &[Point3<f64>],
-    q: Point3<f64>,
-    what: &str,
-    tier3: bool,
-) {
     let tol = Tol::witness();
     assert_eq!(
         contains(tool, q),
@@ -166,11 +166,7 @@ fn answers_with(
         "{what}: q in the solid"
     );
     let resolved = overlap >= RESOLVED_VOLUME;
-    let meet = body_checked(
-        intersect(solid, tool, tol),
-        &format!("{what}: ∩"),
-        resolved && tier3,
-    );
+    let meet = body_checked(intersect(solid, tool, tol), &format!("{what}: ∩"), resolved);
     has_corners(&meet, corners, &format!("{what}: ∩"));
     if resolved {
         let v = volume(&meet);
@@ -180,13 +176,13 @@ fn answers_with(
         );
     }
     assert_eq!(contains(&meet, q), SolidContainment::In, "{what}: q in ∩");
-    let cut = body_checked(subtract(solid, tool, tol), &format!("{what}: −"), tier3);
+    let cut = body_of(subtract(solid, tool, tol), &format!("{what}: −"));
     assert_eq!(
         contains(&cut, q),
         SolidContainment::Out,
         "{what}: the sliver is cut"
     );
-    let joined = body_checked(union(solid, tool, tol), &format!("{what}: ∪"), tier3);
+    let joined = body_of(union(solid, tool, tol), &format!("{what}: ∪"));
     assert_eq!(
         contains(&joined, q),
         SolidContainment::In,
@@ -273,9 +269,10 @@ fn a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex() {
 /// the block's top, its bottom holding a 1 mm edge on that face and
 /// tilting `500·ε` over 10 m. The normals agree at the 1 mm arm, which
 /// only proposes coplanar: the long bound reads In at its far vertex,
-/// so the sector is not lumped, and the op answers. (Lumped, the bottom
+/// so the sector is not lumped, and the ∪ answers. (Lumped, the bottom
 /// went to the carrier ladder, which found the planes definitely apart
-/// and refused as a kernel invariant.) Declared `Rest`, the tilt is
+/// and refused as a kernel invariant.) The ∩ and the − refuse at the
+/// result gate (the reason is in the body). Declared `Rest`, the tilt is
 /// contradicted at the door.
 #[test]
 fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
@@ -286,27 +283,24 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     let corner = Vec3::new(5.0, 5.0, 0.0);
     let point = move |u, v, w| at(e, u, v, w) + corner;
     let wedge = common::mapped_cube(point, tol);
-    // Below z = 0 where `w·c_z < u·dip`: `det·dip/(2·c_z)`.
-    let det = e[0][0] * e[1][1] * e[2][2] - e[0][1] * e[1][0] * e[2][2];
-    let overlap = det * dip / (2.0 * e[2][2]);
-    let rise = dip / e[2][2];
-    let corners = [
-        point(0.0, 0.0, 0.0),
-        point(0.0, 1.0, 0.0),
-        point(1.0, 0.0, 0.0),
-        point(1.0, 1.0, 0.0),
-        point(1.0, 0.0, rise),
-        point(1.0, 1.0, rise),
-    ];
-    let q = point(0.99, 0.5, 0.1 * rise);
-    // No tier 3: every result's seam along the 1 mm edge joins faces
-    // `dip/10` radians apart, which that edge's length cannot tell from
-    // tangent, so tier 3 reads a scaffold edge at rest (and, on the
-    // intersection, a lamina wedge). That is the seam description's
-    // lever, filed as
-    // `work/contact/seam-description-reads-a-dihedral-at-the-seams-own-length`;
-    // the vertex set, the volume and the membership stand.
-    answers_with(&block, &wedge, overlap, &corners, q, "tilted wedge", false);
+    let q = point(0.99, 0.5, 0.1 * dip / e[2][2]);
+    // ∩ and − keep a seam along the 1 mm edge between faces `dip/10`
+    // radians apart, which that edge's length cannot tell from tangent:
+    // the seam is left a scaffold, and the result gate refuses it at
+    // rest. That is the seam description's lever, filed as
+    // `work/contact/seam-description-reads-a-dihedral-at-the-seams-own-length`.
+    for (what, r) in [
+        ("∩", intersect(&block, &wedge, tol)),
+        ("−", subtract(&block, &wedge, tol)),
+    ] {
+        refuses_the_seam_alone(&r, &format!("tilted wedge {what}"));
+    }
+    let joined = body_of(union(&block, &wedge, tol), "tilted wedge: ∪");
+    assert_eq!(
+        contains(&joined, q),
+        SolidContainment::In,
+        "tilted wedge: ∪ holds q"
+    );
 
     let mut decls = topo::BooleanDeclarations::none();
     decls.coincident_faces.push(topo::FacePairDeclaration::rest(
@@ -325,14 +319,228 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     }
 }
 
+/// The plane arm's lever, on a 10 m wedge resting at the origin on a
+/// block's top (20 m square), its bottom tilted so the far end stands
+/// `5·K·ε` below: `0.5·Kε` at a one-metre arm, which the ladder there
+/// bridges, and `5·Kε` at the wedge's far end. The declared `Rest`
+/// door levers the tilt at the pair's consumed extent (at least the
+/// wedge's 10 m) and contradicts it, and so does every op that uses
+/// the declaration.
+#[test]
+fn a_declared_plane_tilt_is_read_across_the_faces() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let dip = 5.0 * band.escalate();
+    let block = common::brick::<f64>((-10.0, 10.0), (-10.0, 10.0), (-20.0, 0.0), tol);
+    let wedge = parallelepiped([[10.0, 0.0, -dip], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
+    let (top, bottom) = (
+        face_with_normal(&block, [0.0, 0.0, 1.0]),
+        face_with_normal(&wedge, [0.0, 0.0, -1.0]),
+    );
+    let (ca, cb) = (
+        face_carrier(&block, top).unwrap(),
+        face_carrier(&wedge, bottom).unwrap(),
+    );
+    let declared = topo::PlaneIdentity {
+        s1: None,
+        s2: None,
+        declared: true,
+    };
+    let metre =
+        topo::boolean::carrier_eq::carrier_eq_verdict(&ca, &cb, declared, &metre_ball(1.0), band);
+    assert!(
+        matches!(
+            metre,
+            Ok((
+                topo::PlaneRelation::SameOpposite,
+                topo::ContactVerdict::Bridged
+            ))
+        ),
+        "at a 1 m arm the tilt reads in band and the declaration bridges it: {metre:?}"
+    );
+    let door = topo::boolean::contact_pair_verdict(
+        &block,
+        top,
+        &wedge,
+        bottom,
+        topo::ContactClass::Rest,
+        None,
+        band,
+    );
+    assert!(
+        matches!(door, Err(topo::ContactRefusal::Contradicted { .. })),
+        "the door reads the tilt across the faces and contradicts it: {door:?}"
+    );
+    let mut decls = topo::BooleanDeclarations::none();
+    decls
+        .coincident_faces
+        .push(topo::FacePairDeclaration::rest(top, bottom));
+    for (what, r) in [
+        ("block - wedge", subtract_with(&block, &wedge, &decls, tol)),
+        ("union", union_with(&block, &wedge, &decls, tol)),
+    ] {
+        assert!(
+            matches!(r, Err(BooleanError::ContactContradicted { .. })),
+            "{what}: the declared tilt is contradicted, got {:?}",
+            r.as_ref().err()
+        );
+    }
+}
+
+/// A 10 m × 1 m wedge whose bottom (`u·(10, 0, rise) + v·(0, 1, 0)`,
+/// lifted `lift`) rests declared on the 20 m block top `z = 0`, with
+/// the door's verdict on the pair. The pair's consumed extent is the
+/// ball about the mean of the two faces' box centres, `(2.5, 0.25, 0)`,
+/// out to the top's far corner: radius `√200 + |(2.5, 0.25)| ≈
+/// 16.655 m`.
+fn wedge_on_the_top(
+    rise: f64,
+    lift: f64,
+) -> (
+    Body<f64>,
+    FaceKey,
+    Body<f64>,
+    FaceKey,
+    Result<topo::ContactVerdict, topo::ContactRefusal>,
+) {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let block = common::brick::<f64>((-10.0, 10.0), (-10.0, 10.0), (-20.0, 0.0), tol);
+    let e = [[10.0, 0.0, rise], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+    let wedge = common::mapped_cube(
+        move |u, v, w| at(e, u, v, w) + Vec3::new(0.0, 0.0, lift),
+        tol,
+    );
+    let (top, bottom) = (
+        face_with_normal(&block, [0.0, 0.0, 1.0]),
+        face_with_normal(&wedge, [0.0, 0.0, -1.0]),
+    );
+    let door = topo::boolean::contact_pair_verdict(
+        &block,
+        top,
+        &wedge,
+        bottom,
+        topo::ContactClass::Rest,
+        None,
+        band,
+    );
+    (block, top, wedge, bottom, door)
+}
+
+/// The pair's consumed-extent radius ([`wedge_on_the_top`]).
+const REACH: f64 = 16.655;
+
+/// **The offset and the tilt add.** The wedge's bottom stands `0.9·Kε`
+/// off the top at the extent's centre (`x = 2.5`), and tilts so that
+/// the tilt levered at the extent's radius reads another `0.9·Kε`: each
+/// in band on its own, which a datum-by-datum reading bridged, while the
+/// far corner stands `0.9·Kε + 7.5 m·tilt ≈ 1.3·Kε` off. Read as one
+/// displacement, the far corner contradicts the declaration.
+#[test]
+fn a_declared_offset_and_tilt_each_in_band_do_not_bridge_their_sum() {
+    let k = Band::linear(Tol::witness()).unwrap().escalate();
+    let slope = 0.9 * k / REACH;
+    let lift = 0.9 * k - 2.5 * slope;
+    let far = lift + 10.0 * slope;
+    assert!(far > 1.25 * k, "the far corner stands past the band: {far}");
+    let (block, top, wedge, bottom, door) = wedge_on_the_top(10.0 * slope, lift);
+    assert!(
+        matches!(door, Err(topo::ContactRefusal::Contradicted { .. })),
+        "the far corner contradicts the declaration: {door:?}"
+    );
+    let mut decls = topo::BooleanDeclarations::none();
+    decls
+        .coincident_faces
+        .push(topo::FacePairDeclaration::rest(top, bottom));
+    let r = union_with(&block, &wedge, &decls, Tol::witness());
+    assert!(
+        matches!(r, Err(BooleanError::ContactContradicted { .. })),
+        "the op refuses it at the door: {:?}",
+        r.as_ref().err()
+    );
+}
+
+/// **An upper bound past the band is not a contradiction.** The wedge
+/// pivots on its near edge so its far corner stands `d` off the top,
+/// for `d` across `0.3…1.5·Kε`. The door's upper bound is the offset at
+/// the extent's centre plus the tilt levered at its radius,
+/// `d·(2.5 + 16.655)/10 ≈ 1.92·d`; its lower bound is the far corner's
+/// own `d`. So it bridges below `d ≈ 0.52·Kε` (every point in band),
+/// contradicts from `d = Kε` (a corner past the band), and between them
+/// — every point in band, but the ball over-states the faces — refuses
+/// as unsettled rather than contradicting.
+#[test]
+fn a_wedge_sweep_bridges_then_escalates_then_contradicts() {
+    let k = Band::linear(Tol::witness()).unwrap().escalate();
+    for (d, expect) in [
+        (0.3, "bridged"),
+        (0.4, "bridged"),
+        (0.45, "bridged"),
+        (0.6, "unsettled"),
+        (0.75, "unsettled"),
+        (0.9, "unsettled"),
+        (1.1, "contradicted"),
+        (1.3, "contradicted"),
+        (1.5, "contradicted"),
+    ] {
+        let (.., door) = wedge_on_the_top(d * k, 0.0);
+        let read = match door {
+            Ok(topo::ContactVerdict::Bridged) => "bridged",
+            Err(topo::ContactRefusal::Escalated { .. }) => "unsettled",
+            Err(topo::ContactRefusal::Contradicted { .. }) => "contradicted",
+            ref other => panic!("d = {d}·Kε: unexpected {other:?}"),
+        };
+        assert_eq!(read, expect, "d = {d}·Kε");
+    }
+}
+
+/// **The Boolean names the unsettled reach as its own question.** At
+/// `d = 0.75·Kε` the sweep above reads unsettled at the door: the
+/// upper bound stands past the band, and no corner is shown off. The
+/// union refuses on that question, stating the bound as past the band,
+/// and does not speak of a contact's witness, which no step of it read.
+#[test]
+fn an_unsettled_declared_pair_refuses_as_its_reach() {
+    let k = Band::linear(Tol::witness()).unwrap().escalate();
+    let (block, top, wedge, bottom, door) = wedge_on_the_top(0.75 * k, 0.0);
+    assert!(
+        matches!(door, Err(topo::ContactRefusal::Escalated { .. })),
+        "the door reads it unsettled: {door:?}"
+    );
+    let mut decls = topo::BooleanDeclarations::none();
+    decls
+        .coincident_faces
+        .push(topo::FacePairDeclaration::rest(top, bottom));
+    let err = union_with(&block, &wedge, &decls, Tol::witness()).expect_err("it refuses");
+    assert!(
+        matches!(
+            err,
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(topo::Coincide::DeclaredReach, _),
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    let text = err.to_string();
+    assert!(
+        text.contains("lies past the ambiguity band")
+            && !text.contains("inside the ambiguity band")
+            && !text.contains("witness")
+            && text.ends_with(
+                "Recourse: move the parts so the declared faces clearly coincide, or clearly do not"
+            ),
+        "{text}"
+    );
+}
+
 /// The pierce germ line, read at the sector's reach: a wedge on the
 /// block's top whose 1 mm edge lies on that face while its 10 m edge
 /// RISES `500·ε` and its third edge descends into the block. The
 /// bottom's transition sector meets the top at `dip/10` radians, which
 /// the 1 mm arm reads as coplanar; the reach (10 m) reads the germ line.
-/// `tool − block` is the sliver above the top: its corners, its volume
-/// `det·dip/(2·|c_z|)` where the door resolves it, and a point inside.
-/// No tier 3, for the seam reason at the wedge row above.
+/// `tool − block`, the sliver above the top, refuses at the result gate
+/// for the seam reason at the wedge row above; `tool ∩ block` answers.
 #[test]
 fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
     let tol = Tol::witness();
@@ -342,33 +550,13 @@ fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
     let corner = Vec3::new(5.0, 5.0, 0.0);
     let point = move |u, v, w| at(e, u, v, w) + corner;
     let tool = common::mapped_cube(point, tol);
-    let det = e[0][0] * (e[1][1] * e[2][2] - e[1][2] * e[2][1])
-        - e[0][1] * (e[1][0] * e[2][2] - e[1][2] * e[2][0]);
-    let rise = dip / -e[2][2];
-    let above = det * rise / 2.0;
-    let q = point(0.5, 0.99, 0.1 * rise);
-    let cut = body_checked(subtract(&tool, &block, tol), "tool − block", false);
-    has_corners(
-        &cut,
-        &[
-            point(0.0, 0.0, 0.0),
-            point(1.0, 0.0, 0.0),
-            point(0.0, 1.0, 0.0),
-            point(1.0, 1.0, 0.0),
-            point(0.0, 1.0, rise),
-            point(1.0, 1.0, rise),
-        ],
-        "tool − block",
-    );
-    if above >= RESOLVED_VOLUME {
-        let v = volume(&cut);
-        assert!(
-            (v - above).abs() <= 1e-2 * above,
-            "tool − block is the sliver: {v:e} vs {above:e}"
-        );
-    }
-    assert_eq!(contains(&cut, q), SolidContainment::In, "q above the top");
-    let meet = body_checked(intersect(&tool, &block, tol), "tool ∩ block", false);
+    let q = point(0.5, 0.99, 0.1 * dip / -e[2][2]);
+    // The sliver reaches the result gate, so the classification read
+    // the germ line; its seam along the 1 mm edge is the wedge row's
+    // scaffold, which the gate refuses at rest.
+    let cut = subtract(&tool, &block, tol);
+    refuses_the_seam_alone(&cut, "tool − block");
+    let meet = body_of(intersect(&tool, &block, tol), "tool ∩ block");
     assert_eq!(contains(&meet, q), SolidContainment::Out, "q is not in ∩");
 }
 
@@ -481,10 +669,11 @@ fn a_dip_inside_the_band_still_reads_on() {
 fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
     let tol = Tol::witness();
     let e = needle(10.0, 0.0, 1e-3, [[0.0, 1.0, 1.0], [0.0, 0.0, 1.0]]);
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        geom_core::Tol::witness(),
+    );
     let r = split(&parallelepiped(e), &plane, tol).unwrap();
     let below = r.below.body().expect("a below part");
     has_corners(below, &needle_corners(e), "the below part");
@@ -496,4 +685,10 @@ fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
             sliver(e)
         );
     }
+}
+
+/// A ball of radius `arm` about the origin, no point of either face
+/// known: the extent a bare arm names.
+fn metre_ball(arm: f64) -> topo::ConsumedExtent<'static, f64> {
+    topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), arm))
 }

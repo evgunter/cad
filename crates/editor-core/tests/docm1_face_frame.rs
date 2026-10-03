@@ -18,6 +18,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::{ang, len};
 use editor_core::persist::{load, save};
@@ -28,7 +29,7 @@ use editor_core::{
     all_edges, all_faces, apply, edge_carrier_kind, edge_frame, evaluate, face_carrier_kind,
     face_frame,
 };
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Tol, UnitVec3, Vec3};
 use topo::readback;
 use topo::{CurveKind, DatumValue};
@@ -57,6 +58,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -668,6 +670,7 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
         Node::Extrude {
             profile,
             distance: len(0.3),
+            side: ExtrudeSide::Along,
         },
     );
     assert!(corpus::failures(&eval(&doc)).is_empty());
@@ -676,7 +679,7 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
     // its node is live, and the table lacks it — N5's `Vanished`.
     let gone = fixture::fname(
         cube,
-        editor_core::RoleSeg::Lateral(fixture::no_piece_of(&doc)),
+        editor_core::RoleSeg::Lateral(fixture::no_piece_of(&doc).into()),
     );
     let rebind = |doc: &ProfileDoc, from: StableName, to: StableName| {
         apply(

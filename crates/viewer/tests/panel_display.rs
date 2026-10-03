@@ -27,6 +27,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{
     Axis3, Datum, Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, ProfileProgram, SlotId,
@@ -155,6 +156,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -177,6 +179,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
         Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -304,6 +307,7 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -362,6 +366,7 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
         Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -473,6 +478,7 @@ fn a_unit_change_refuses_typed_on_a_computed_slot_and_a_foreign_unit() {
         Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -507,6 +513,7 @@ fn the_field_shows_a_bare_literals_number_without_its_unit() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -614,6 +621,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -790,6 +798,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
             Node::Extrude {
                 profile,
                 distance: Expr::param(name.clone(), Dimension::Length),
+                side: ExtrudeSide::Along,
             },
             tol,
         );
@@ -907,6 +916,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

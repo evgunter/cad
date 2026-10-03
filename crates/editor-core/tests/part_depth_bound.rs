@@ -23,6 +23,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -64,6 +65,7 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, boss_profile) = on_frame(
@@ -78,6 +80,7 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: boss_profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = insert(
@@ -86,7 +89,7 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Union,
             a: block,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, block)
@@ -487,10 +490,12 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
     let asked = authoring.insert_part(leaf_labelled("part-descent-asked"), Tol::witness());
     let lost = authoring.insert_part(leaf_labelled("part-descent-lost"), Tol::witness());
     let asked_ref = asked.0;
+    // `lost` is the mate's second operand, so its group roots the pair
+    // and the solve asks for its part first.
     let (holder, ids) = mated(
         "part-descent-holder",
-        lost,
         asked,
+        lost,
         &with_resolver(authoring),
     );
     let holder_ref = unpinned_ref("part-descent-holder");

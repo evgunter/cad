@@ -9,6 +9,7 @@
 
 use core::f64::consts::FRAC_PI_8;
 use profile::RawLoop;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom_brep::{EdgeDescription, newell_plane};
@@ -167,7 +168,10 @@ fn extruded_l_profile_passes_all_tiers() {
     // (a) The L-prism: 8 faces, genus 0, every join a corner.
     let t = extrude(
         &validated(vec![l_loop()]),
-        Extrusion::Distance(1.5),
+        Extrusion::Distance {
+            depth: 1.5,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -185,8 +189,8 @@ fn extruded_l_profile_passes_all_tiers() {
     );
     // Every profile join is a corner: all six struts carry the upgraded
     // Intersection description (prefer-intrinsic, D2).
-    assert_eq!(t.strut_edges[0].len(), 6);
-    for &edge in &t.strut_edges[0] {
+    assert_eq!(t.strut_edges()[0].len(), 6);
+    for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         assert!(matches!(
             description(&t.body, edge),
             EdgeDescription::Intersection { .. }
@@ -226,7 +230,10 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
     let hole = circle_loop(0.5, 0.5, 0.1);
     let t = extrude(
         &validated(vec![outer, hole]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -239,9 +246,9 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
     assert_eq!(t.body.get_face(t.bottom).unwrap().rings.len(), 1);
     // The hole wall is TWO faces (the carrier is split at the profile's
     // seam vertices) on ONE shared cylinder surface.
-    assert_eq!(t.side_faces[1].len(), 2);
-    let k0 = t.body.get_face(t.side_faces[1][0]).unwrap().surface;
-    let k1 = t.body.get_face(t.side_faces[1][1]).unwrap().surface;
+    assert_eq!(t.side_faces()[1].len(), 2);
+    let k0 = t.body.get_face(t.side_faces()[1][0]).unwrap().surface;
+    let k1 = t.body.get_face(t.side_faces()[1][1]).unwrap().surface;
     assert_eq!(k0, k1, "same-carrier hole walls share one surface key");
     assert!(matches!(
         t.body.get_surface(k0).unwrap(),
@@ -257,11 +264,11 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
     // the variant no longer separates a declared locus from a derived
     // one. The authority record (U2 Q3) does, and the chart key — the
     // very key asserted shared two lines above — is now pinned too.
-    for &edge in &t.strut_edges[1] {
+    for edge in t.strut_edges()[1].iter().map(|e| e.unwrap()) {
         assert_declared_image_in(&t.body, edge, k0);
     }
     // The outer square's corners upgrade to Intersection.
-    for &edge in &t.strut_edges[0] {
+    for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         assert!(matches!(
             description(&t.body, edge),
             EdgeDescription::Intersection { .. }
@@ -307,7 +314,10 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     lp = lp.with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let t = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(0.5),
+        Extrusion::Distance {
+            depth: 0.5,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -330,7 +340,7 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     // so the eight struts now carry the intrinsic TangentIntersection
     // description — the fillet-grade class, upgraded exactly as
     // transverse joins upgrade to Intersection.
-    for &edge in &t.strut_edges[0] {
+    for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         assert!(matches!(
             description(&t.body, edge),
             EdgeDescription::TangentIntersection { .. }
@@ -351,10 +361,10 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     assert_eq!(intersections, 16);
     // Adjacent walls at each tangent join really are distinct surfaces.
     for j in 0..8 {
-        let a = t.body.get_face(t.side_faces[0][j]).unwrap().surface;
+        let a = t.body.get_face(t.side_faces()[0][j]).unwrap().surface;
         let b = t
             .body
-            .get_face(t.side_faces[0][(j + 1) % 8])
+            .get_face(t.side_faces()[0][(j + 1) % 8])
             .unwrap()
             .surface;
         assert_ne!(a, b, "line–arc tangency keeps distinct surfaces");
@@ -368,7 +378,10 @@ fn disc_extrudes_to_a_shared_carrier_cylinder() {
     // same-carrier smooth-join class).
     let t = extrude(
         &validated(vec![circle_loop(0.0, 0.0, 0.5)]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -378,8 +391,8 @@ fn disc_extrudes_to_a_shared_carrier_cylinder() {
     assert_eq!(v - e + f - r, 2);
     // 2 cap planes + exactly one shared cylinder.
     assert_eq!(t.body.surfaces().count(), 3);
-    let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
-    let k1 = t.body.get_face(t.side_faces[0][1]).unwrap().surface;
+    let k0 = t.body.get_face(t.side_faces()[0][0]).unwrap().surface;
+    let k1 = t.body.get_face(t.side_faces()[0][1]).unwrap().surface;
     assert_eq!(k0, k1);
     // Both joins smooth on ONE shared carrier: the surfaces
     // under-determine each strut's locus, so each is an image in that
@@ -388,7 +401,7 @@ fn disc_extrudes_to_a_shared_carrier_cylinder() {
     // support. (Pre-U2 this asserted the `MappedCurve` variant; the
     // authority record is where "the profile declared it" lives now,
     // and the shared chart is pinned besides.)
-    for &edge in &t.strut_edges[0] {
+    for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         assert_declared_image_in(&t.body, edge, k0);
     }
 }
@@ -406,7 +419,10 @@ fn d_profile_mixes_plane_and_cylinder_corners() {
     ]);
     let t = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -414,7 +430,7 @@ fn d_profile_mixes_plane_and_cylinder_corners() {
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (4, 6, 4, 0));
     assert_eq!(t.body.surfaces().count(), 4);
-    for &edge in &t.strut_edges[0] {
+    for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         assert!(matches!(
             description(&t.body, edge),
             EdgeDescription::Intersection { .. }
@@ -428,12 +444,28 @@ fn both_extrusion_directions_build_outward_solids() {
     // the sweep is outward along w; the sketch-plane cap is outward
     // along −w.
     let vp = validated(vec![l_loop()]);
-    let up = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let up = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&up.body);
     assert!(outward_normal(&up.body, up.top).z > 0.99);
     assert!(outward_normal(&up.body, up.bottom).z < -0.99);
 
-    let down = extrude(&vp, Extrusion::Distance(-1.0), Tol::witness()).unwrap();
+    let down = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Against,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&down.body);
     // Downward: the swept (top) cap sits at z = −1, outward −z; the
     // bottom cap keeps the sketch plane, outward +z.
@@ -462,7 +494,10 @@ fn both_extrusion_directions_build_outward_solids() {
     ]);
     let holed = extrude(
         &validated(vec![outer, circle_loop(0.5, 0.5, 0.1)]),
-        Extrusion::Distance(-0.5),
+        Extrusion::Distance {
+            depth: 0.5,
+            side: ExtrudeSide::Against,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -480,10 +515,91 @@ fn placed_profile_extrudes_along_its_own_normal() {
     let vp = Profile::new(plane, vec![l_loop()])
         .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert!(outward_normal(&t.body, t.top).y > 0.99);
     assert!(outward_normal(&t.body, t.bottom).y < -0.99);
+}
+
+/// **A depth is a size.** A definitely negative one refuses
+/// `NegativeDepth`, carrying the side it was written with and the value
+/// it saw, and its sentence quotes that value and names the OTHER side
+/// as the recourse. Followed — the depth made positive, the side
+/// flipped — it builds the very body the vector door builds along the
+/// direction the signed depth used to mean, bit for bit. A depth within
+/// the tolerance of zero, of either sign, stays `DegenerateExtrusion`:
+/// only the definite arm gains the recourse.
+#[test]
+fn a_negative_depth_refuses_naming_the_other_side() {
+    let vp = validated(vec![l_loop()]);
+    let normal = vp.plane().placement.linear.c2;
+    for side in ExtrudeSide::ALL {
+        let err = extrude(
+            &vp,
+            Extrusion::Distance { depth: -1.0, side },
+            Tol::witness(),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, ExtrudeError::NegativeDepth { side: s, .. } if s == side),
+            "{side:?}: {err:?}"
+        );
+        let text = err.to_string();
+        let problems = test_utils::refusal::problems("NegativeDepth", &text, &[], false);
+        assert!(problems.is_empty(), "{problems:#?}");
+        assert!(
+            text.contains("evaluated to -1 m"),
+            "the sentence quotes the value it refused: {text}"
+        );
+        assert!(
+            text.contains(&format!("set the side to {}", side.flipped().noun())),
+            "the recourse names the other side: {text}"
+        );
+        let mended = extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: side.flipped(),
+            },
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("the recourse, followed, builds ({side:?}): {e}"));
+        // What `-1` along `side` meant before a depth was a size: one
+        // unit toward the OTHER side.
+        let toward = match side {
+            ExtrudeSide::Along => normal * -1.0,
+            ExtrudeSide::Against => normal,
+        };
+        let vector = extrude(&vp, Extrusion::Vector(toward), Tol::witness()).unwrap();
+        assert_eq!(
+            point_bits(&mended.body),
+            point_bits(&vector.body),
+            "{side:?}: the recourse builds the vector door's body"
+        );
+    }
+    for depth in [-0.0, -0.5 * eps()] {
+        assert_eq!(
+            extrude(
+                &vp,
+                Extrusion::Distance {
+                    depth,
+                    side: ExtrudeSide::Along
+                },
+                Tol::witness()
+            )
+            .unwrap_err(),
+            ExtrudeError::DegenerateExtrusion,
+            "depth {depth}"
+        );
+    }
 }
 
 #[test]
@@ -501,11 +617,27 @@ fn error_paths_are_typed_and_leave_no_body() {
     );
     // Zero distance.
     assert_eq!(
-        extrude(&vp, Extrusion::Distance(0.0), Tol::witness()).unwrap_err(),
+        extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: 0.0,
+                side: ExtrudeSide::Along
+            },
+            Tol::witness()
+        )
+        .unwrap_err(),
         ExtrudeError::DegenerateExtrusion
     );
     // Sliver distance: strictly inside the band (ε, K·ε) escalates.
-    let err = extrude(&vp, Extrusion::Distance(3.0 * eps()), Tol::witness()).unwrap_err();
+    let err = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 3.0 * eps(),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap_err();
     assert!(
         matches!(err, ExtrudeError::ExtrusionEscalated { ref source }
             if source.predicate == Some("extrusion_normal_component")),
@@ -539,7 +671,10 @@ fn sliver_dihedral_join_is_a_typed_error() {
     ]);
     let err = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(1.0e-3),
+        Extrusion::Distance {
+            depth: 1.0e-3,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap_err();
@@ -577,7 +712,14 @@ fn certification_failures_surface_the_report() {
     // And the Op wrapper carries certification reports verbatim when an
     // operator-level gate fires (exercised here through the public
     // sweep API only as the absence case: a clean build has none).
-    let ok = extrude(&vp, Extrusion::Distance(1.0), Tol::witness());
+    let ok = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    );
     assert!(ok.is_ok());
     drop(ok);
     // Shape check: the error type embeds EulerOpError::Certification.
@@ -623,7 +765,10 @@ fn rebuild_is_byte_identical() {
     let build = || {
         extrude(
             &validated(vec![outer.clone(), circle_loop(0.5, 0.5, 0.1)]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -632,10 +777,13 @@ fn rebuild_is_byte_identical() {
     let b = build();
     assert_eq!(dump(&a), dump(&b));
     assert_eq!(
-        format!("{:?}", a.strut_edges),
-        format!("{:?}", b.strut_edges)
+        format!("{:?}", a.strut_edges()),
+        format!("{:?}", b.strut_edges())
     );
-    assert_eq!(format!("{:?}", a.side_faces), format!("{:?}", b.side_faces));
+    assert_eq!(
+        format!("{:?}", a.side_faces()),
+        format!("{:?}", b.side_faces())
+    );
 }
 
 #[test]
@@ -646,7 +794,10 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     use geom_core::{Dual, Dual64};
     let f = extrude(
         &validated(vec![l_loop()]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -658,7 +809,10 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     .unwrap();
     let d = extrude(
         &dp,
-        Extrusion::Distance(Dual::constant(1.0)),
+        Extrusion::Distance {
+            depth: Dual::constant(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -686,4 +840,25 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     for (fv, dv) in f_res.iter().zip(&d_res) {
         assert_eq!(fv.to_bits(), dv.value.to_bits());
     }
+}
+
+/// Every stored vertex point's coordinate bits, sorted, beside the
+/// body's census: equal for two bodies only when they agree bit for bit
+/// on where every vertex is and how many entities they hold.
+fn point_bits(body: &Body<f64>) -> (usize, usize, usize, Vec<[u64; 3]>) {
+    let mut coords: Vec<[u64; 3]> = body
+        .vertices()
+        .filter_map(|(k, _)| {
+            body.get_vertex(k)
+                .and_then(|v| body.get_point(v.point))
+                .map(|p| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()])
+        })
+        .collect();
+    coords.sort_unstable();
+    (
+        body.vertices().count(),
+        body.edges().count(),
+        body.faces().count(),
+        coords,
+    )
 }

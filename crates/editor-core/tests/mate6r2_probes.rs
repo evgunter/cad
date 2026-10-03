@@ -23,6 +23,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocEdit, DocRef,
@@ -52,6 +53,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -124,12 +126,12 @@ fn stand(
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
+            node: Box::new(mate_node(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Rest,
                 seat,
-            ),
+            )),
         },
     );
     (doc, ids, mate.expect("the mate inserts"))
@@ -151,9 +153,11 @@ fn row_of(
             let dx = spacing * i as f64;
             let (next, _) = step(
                 doc,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(&Frame::translation([
+                        dx, 0.0, 0.0,
+                    ]))),
                 },
             );
             doc = next;
@@ -199,23 +203,23 @@ fn p1_both_bad_mates_refuse_badref_heading_the_list() {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
+            node: Box::new(mate_node(
                 vanished(ids[0]),
                 in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Rest,
                 1.5,
-            ),
+            )),
         },
     );
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
+            node: Box::new(mate_node(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Tangent,
                 1.5,
-            ),
+            )),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -245,23 +249,23 @@ fn p2_both_bad_mates_refuse_tangent_heading_the_list() {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
+            node: Box::new(mate_node(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Tangent,
                 1.5,
-            ),
+            )),
         },
     );
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
+            node: Box::new(mate_node(
                 vanished(ids[0]),
                 in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Rest,
                 1.5,
-            ),
+            )),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -333,21 +337,23 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
     // (unmintable, and not touching, so it contributes no pair).
     let (next, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[2],
-            frame: Frame::translation([10.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[2],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                10.0, 0.0, 0.0,
+            ]))),
         },
     );
     doc = next;
     let (next, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
+            node: Box::new(mate_node(
                 in_part(ids[2], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Tangent,
                 5.0,
-            ),
+            )),
         },
     );
     doc = next;
@@ -355,12 +361,12 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
+            node: Box::new(mate_node(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Rest,
                 1.0,
-            ),
+            )),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -439,12 +445,12 @@ fn p8_inner_mint_refusals_reach_the_outer_gate() {
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
-            node: mate_node(
+            node: Box::new(mate_node(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Tangent,
                 5.0,
-            ),
+            )),
         },
     );
     let inner_ev = run(&inner, &with_resolver(store.clone()));

@@ -15,6 +15,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -60,13 +61,7 @@ fn opened(path: std::path::PathBuf, instance: RecipeNodeId, tol: Tol) -> (TreeRo
     let mut session = DocSession::inline(Doc::empty_derived("partroot-boot", tol), tol);
     let outcome = session.perform(SessionOp::Open(path));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let row = |session: &DocSession| {
-        session
-            .tree_rows()
-            .into_iter()
-            .find(|row| row.id == instance)
-            .expect("the instance has a row")
-    };
+    let row = |session: &DocSession| common::row_of(&session.tree_rows(), instance).clone();
     let before = row(&session);
     session.pump();
     (before, row(&session))
@@ -130,6 +125,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
             profile,
             distance: Expr::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -330,6 +326,7 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: common::len(0.02),
+            side: ExtrudeSide::Along,
         },
         tol,
     )

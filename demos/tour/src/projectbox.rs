@@ -1,35 +1,280 @@
 //! The project-box enclosure (#91 C3): one part carrying the tour's
 //! longest boolean-of-boolean chain — cavity subtract, then 6 vent
 //! through-slots (each a two-ring tunnel seam through a wall), then 4
-//! interior screw bosses unioned to the floor (inset-overlap, the
-//! table-leg pattern), then 4 square pilot pockets into the boss tops:
-//! 15 sequential ops, every one against the exact dyadic volume
-//! oracle (a volume + Seamed-kind gate per op; tier 3′ with declared
-//! contacts runs once, on the FINAL body, in `crate::run_body`).
+//! round screw bosses standing ON the floor, each union declaring what
+//! the flush detector finds ([`crate::booleans::try_union_declared`]):
+//! the cap-on-floor contact, plus continuations against the disjoint
+//! tops of the bosses already standing, which the union does not need
+//! (work/tang/flush-detector-offers-disjoint-coplanar-pairs-as-continuations.md),
+//! then a through-bore down each boss and out through the floor: 15
+//! sequential ops, every one against the closed-form volume oracle (a
+//! volume + Seamed-kind gate per op; tier 3′ with declared contacts
+//! runs once, on the FINAL body, in `crate::run_body`).
 //!
-//! Square-only honesty: real enclosures want ROUND bosses and drilled
-//! pilot holes; this chain does not attempt them, and says so. Not
-//! because a blanket gate forbids curved operands — the operand gate
-//! (`topo`'s `reduce::gate_operand_pairs`) admits `Cylinder` and
-//! `Sphere` faces; the curved refusals live per C5 arm, at the sites
-//! that exercise one. Everything here is square. Coordinates follow the #91 design rule: no two operand planes
-//! coincide anywhere in the chain (all features offset in 1/16 steps).
+//! A six-turn compression spring stands on one boss, around its bore:
+//! ONE `sweep_body` along the whole coil, the long-turn helical sweep,
+//! against the Pappus–Guldin volume `A·L` ([`standing_spring`]).
 //!
 //! Retires the abstract `openbox` stop (this is the cavity story with
 //! a real part around it).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use core::f64::consts::{PI, TAU};
+use pncad::document::ExtrudeSide;
+
+use pncad::geom::NurbsCurve3;
+use pncad::geom_core::Point3;
+use pncad::geom_core::linalg::frame::path_start_frame;
+use pncad::prelude::{ConstructedLoop, circle_split};
 use pncad::topo::BooleanBody;
 
 use crate::bool_bodies::slab;
-use crate::booleans::{check, expect_seamed, try_subtract, try_union};
+use crate::booleans::{check, expect_seamed, try_subtract, try_union_declared};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::geom_core::Tol;
+use pncad::authoring::{p2, p3, polygon, validated};
+use pncad::geom_core::{OrthoFrame, Tol};
+use pncad::profile::SketchPlane;
+use pncad::sweep::{Extrusion, LoftError, extrude, sweep_body};
+
+/// The bosses' radius (m).
+pub(crate) const BOSS_R: f64 = 0.1875;
+
+/// The floor's top (m): walls and floor are 0.25 thick.
+pub(crate) const FLOOR_TOP: f64 = 0.25;
+
+/// The bosses' span in `z`: standing on the floor, [`FLOOR_TOP`] to
+/// the boss tops.
+pub(crate) const BOSS_Z: (f64, f64) = (FLOOR_TOP, 0.875);
+
+/// The bores' radius (m).
+pub(crate) const BORE_R: f64 = 0.09375;
+
+/// The boss axes, `(x, y)`, each boss's bore on the same axis.
+pub(crate) const BOSS_AXES: [(f64, f64); 4] = [
+    (0.625, 0.625),
+    (0.625, 1.375),
+    (2.375, 0.625),
+    (2.375, 1.375),
+];
+
+/// The height of material a bore removes: the boss's column, from the
+/// floor's underside (`z = 0`) to the boss top.
+pub(crate) const BORED_HEIGHT: f64 = BOSS_Z.1;
+
+/// The boss the spring stands on: a far corner's, which the section
+/// passes over, so the spring rides whole with the below half.
+const SPRING_AXIS: (f64, f64) = BOSS_AXES[0];
+
+/// The coil's mean radius (m): its wire clears the bore inside and
+/// the boss's rim outside.
+const COIL_R: f64 = 0.14;
+
+/// The wire's half-side (m): a square section.
+const WIRE_H: f64 = 0.025;
+
+/// The coil's rise per turn (m).
+const PITCH: f64 = 0.08;
+
+/// The spring's render colour: steel.
+pub(crate) const SPRING_COLOR: [f64; 3] = [0.62, 0.62, 0.66];
+
+/// The coil's turns.
+const TURNS: u32 = 6;
+
+/// The coil's stations per turn, and its spine's exact points per turn.
+const PER_TURN: u32 = 32;
+
+/// The coil's spine: a degree-3 interpolant through [`PER_TURN`] exact
+/// helix points a turn, about [`SPRING_AXIS`], starting at angle 0 at
+/// height `z0`.
+fn coil(z0: f64) -> NurbsCurve3<f64> {
+    let n = TURNS * PER_TURN;
+    let points: Vec<Point3<f64>> = (0..=n)
+        .map(|k| {
+            let s = f64::from(k) / f64::from(n);
+            let a = TAU * f64::from(TURNS) * s;
+            Point3::new(
+                COIL_R.mul_add(a.cos(), SPRING_AXIS.0),
+                COIL_R.mul_add(a.sin(), SPRING_AXIS.1),
+                (PITCH * f64::from(TURNS)).mul_add(s, z0),
+            )
+        })
+        .collect();
+    NurbsCurve3::interpolate(&points, 3).expect("the coil's spine interpolates")
+}
+
+/// The square wire section, centred on the spine.
+fn square_wire(tol: Tol) -> ConstructedLoop<f64> {
+    let h = WIRE_H;
+    polygon(&[(-h, -h), (h, -h), (h, h), (-h, h)], tol).expect("the wire section is a square")
+}
+
+/// `wire` swept along the coil at `per_turn` stations a turn, from the
+/// plane normal to the spine's start tangent (`path_start_frame`).
+///
+/// The coil starts at the height that puts the square section's lowest
+/// corner on the boss top. The frame's axes do not depend on that
+/// height, so it is read off the coil at `z0 = 0`. That corner is the
+/// spring's lowest point, because every corner climbs along the coil.
+/// With `α` the helix angle and `φ` the frame's roll from the Frenet
+/// frame, whose normal is horizontal and whose binormal rises at
+/// `cos α`, a corner sits `WIRE_H cos α (±sin φ ± cos φ)` above the
+/// spine. The roll turns at `τ = sin α cos α / R` per unit of arc, so
+/// that height changes at most `√2 WIRE_H cos α τ` per unit of arc,
+/// while the spine climbs `sin α`. Every corner therefore rises at no
+/// less than `sin α (1 − √2 WIRE_H cos² α / R)`, which is positive:
+/// `√2 WIRE_H / R ≈ 0.25`. [`standing_spring`] asserts the walls'
+/// convex hulls clear the boss top as well.
+fn spring<S: Scalar>(
+    wire: &[ConstructedLoop<f64>],
+    per_turn: u32,
+    tol: Tol,
+) -> Result<pncad::topo::Body<S>, LoftError> {
+    let start_frame = |path: &NurbsCurve3<f64>| {
+        let (t0, _) = path.domain();
+        let (p, d) = path.ders1(t0);
+        path_start_frame(p, d, tol).expect("the coil's start tangent fixes a frame")
+    };
+    let at_zero = start_frame(&coil(0.0));
+    let depth = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
+        .into_iter()
+        .map(|(u, v)| {
+            -at_zero
+                .transform_point(Point3::new(u * WIRE_H, v * WIRE_H, 0.0))
+                .z
+        })
+        .fold(f64::NEG_INFINITY, f64::max);
+    let path = coil(BOSS_Z.1 + depth);
+    let stations = usize::try_from(TURNS * per_turn + 1).expect("a station count");
+    sweep_body::<S>(wire, start_frame(&path), &path, stations, 3, tol).map(|l| l.body)
+}
+
+/// The continuum volume of a wire of cross-section `area` swept along
+/// the helix: `area · L`, `L = TURNS · √((2π COIL_R)² + PITCH²)`.
+/// Exact for any section whose centroid is on the spine, swept in a
+/// frame normal to it (Pappus–Guldin: the section's first moment about
+/// the spine is zero, so curvature drops out, and roll about the
+/// tangent leaves the Jacobian alone).
+fn coil_volume(area: f64) -> f64 {
+    area * f64::from(TURNS) * (TAU * COIL_R).hypot(PITCH)
+}
+
+/// The kernel's coil against [`coil_volume`]: the body is a stack of
+/// station-to-station skinned slabs, not the continuum tube, and falls
+/// SHORT of it (the gap is negative) by a discretization gap, measured 3.6e-3 at [`PER_TURN`]
+/// stations a turn (1.7e-4 at twice that, 1.1e-5 at four times). The
+/// spine's own length is 1.8e-6 short of the helix's, below all three.
+const COIL_GAP: f64 = 5e-3;
+
+/// The cap on the gap at twice [`PER_TURN`] stations a turn, measured
+/// 1.7e-4.
+#[cfg(test)]
+const FINE_GAP: f64 = 5e-4;
+
+/// The spring: a square-wire compression spring of [`TURNS`] turns,
+/// one `sweep_body` along the whole coil, standing on [`SPRING_AXIS`]'s
+/// boss. Returns the body and its relative gap to [`coil_volume`].
+///
+/// Round wire is the natural section, and it is wall 1: the swept
+/// `circle_split` wire builds, and its volume refuses
+/// `QuadratureBudget` (width 1.7e-3 m, past even ε = 1e-6's target)
+/// (`work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`).
+fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
+    let round: Vec<ConstructedLoop<f64>> = vec![
+        circle_split(p2(0.0, 0.0), WIRE_H, 4, 0.0, tol)
+            .expect("a round wire")
+            .into(),
+    ];
+    let round = spring::<f64>(&round, PER_TURN, tol).expect("the round-wire coil builds");
+    crate::walls::wall(
+        "projectbox",
+        1,
+        "measure the round-wire spring's volume",
+        pncad::topo::mass_properties(&round, tol),
+        |e| {
+            matches!(
+                e,
+                pncad::topo::MassPropsError::Face {
+                    source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+                    ..
+                }
+            )
+        },
+        "make the spring's wire `circle_split`, its section area π WIRE_H²",
+    );
+
+    let body = spring::<f64>(&[square_wire(tol)], PER_TURN, tol).expect("the coil builds");
+    let props = pncad::topo::mass_properties(&body, tol).expect("the coil's volume");
+    let want = coil_volume(4.0 * WIRE_H * WIRE_H);
+    let gap = (props.volume - want) / want;
+    assert!(
+        (-COIL_GAP..0.0).contains(&gap) && props.volume_pad <= want * 1e-6,
+        "the coil's volume {} ± {:.1e} against A·L = {want}: relative gap {gap:.3e}",
+        props.volume,
+        props.volume_pad
+    );
+
+    // It stands: its lowest point is a start-cap corner on the boss
+    // top, over the boss's material between the bore and the rim.
+    let (low, foot) = body
+        .vertices()
+        .filter_map(|(_, v)| body.get_point(v.point))
+        .map(|p| (p.z, (p.x - SPRING_AXIS.0).hypot(p.y - SPRING_AXIS.1)))
+        .fold((f64::INFINITY, 0.0), |a, b| if b.0 < a.0 { b } else { a });
+    assert!(
+        (low - BOSS_Z.1).abs() <= 1e-12 && BORE_R < foot && foot < BOSS_R,
+        "the spring's lowest corner sits at z = {low}, {foot} off the boss axis: \
+         on the boss top (z = {}) between the bore ({BORE_R}) and the rim ({BOSS_R})",
+        BOSS_Z.1
+    );
+    // …and nothing between the corners dips below it: each wall is a
+    // NURBS patch with positive weights, so it lies in the convex hull
+    // of its control points, and those all clear the boss top. (The
+    // caps are planar and bounded by the corners above.)
+    let mut walls = 0;
+    for (_, surface) in body.surfaces() {
+        if let pncad::geom::Surface::Nurbs(patch) = surface {
+            walls += 1;
+            let lowest = patch
+                .control()
+                .iter()
+                .map(|p| p.z)
+                .fold(f64::INFINITY, f64::min);
+            assert!(
+                patch.weights().iter().all(|&w| w > 0.0) && lowest >= BOSS_Z.1 - 1e-12,
+                "a wall's control net reaches z = {lowest}, below the boss top {}",
+                BOSS_Z.1
+            );
+        }
+    }
+    assert_eq!(walls, 4, "the square wire's four walls");
+    (body, gap)
+}
+
+/// A rod of radius `r` on the vertical axis through `(cx, cy)`, from
+/// `z.0` to `z.1`.
+fn rod<S: Scalar>(cx: f64, cy: f64, r: f64, z: (f64, f64), tol: Tol) -> pncad::topo::Body<S> {
+    let circle = pncad::profile::circle(p2(cx, cy), S::from_f64(r), tol)
+        .expect("the rod radius is positive")
+        .into();
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+    let profile = validated(plane, vec![circle], tol).expect("the rod profile validates");
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(z.1 - z.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("extrude the rod")
+    .body
+}
 
 /// Builds the 15-op enclosure chain, generic (the Probe sweep runs the
-/// same ops); returns the final body and its exact volume.
+/// same ops); returns the final body and its closed-form volume.
 pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
     // Outer shell 3 x 2 x 1.5, walls/floor 0.25.
     let outer: pncad::topo::Body<S> = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5), tol);
@@ -58,38 +303,33 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
         }
     }
 
-    // Interior screw bosses: 4, unioned to the floor with a 1/16
-    // overlap INTO it (flush contact would refuse — ladder rung (b)).
-    let bx = [(0.4375, 0.8125), (2.1875, 2.5625)];
-    let by = [(0.4375, 0.8125), (1.1875, 1.5625)];
-    for &x in &bx {
-        for &y in &by {
-            let boss = slab(x, y, (0.1875, 0.875), tol);
-            vol += 0.375 * 0.375 * 0.625;
-            acc = expect_seamed(
-                "boss union",
-                check(try_union(&acc.body, &boss, tol), vol, tol),
+    // Interior screw bosses: 4 cylinders standing on the floor, their
+    // flush findings declared.
+    for (cx, cy) in BOSS_AXES {
+        vol += PI * BOSS_R * BOSS_R * (BOSS_Z.1 - BOSS_Z.0);
+        acc = expect_seamed(
+            "boss union",
+            check(
+                try_union_declared(&acc.body, &rod(cx, cy, BOSS_R, BOSS_Z, tol), tol),
                 vol,
-            );
-            ops += 1;
-        }
+                tol,
+            ),
+            vol,
+        );
+        ops += 1;
     }
 
-    // Square pilot pockets, centered in each boss top (round pilot
-    // HOLES are the M5 upgrade).
-    for &x in &bx {
-        for &y in &by {
-            let px = (x.0 + 0.09375, x.1 - 0.09375);
-            let py = (y.0 + 0.09375, y.1 - 0.09375);
-            let pocket = slab(px, py, (0.5625, 1.0625), tol);
-            vol -= 0.1875 * 0.1875 * 0.3125;
-            acc = expect_seamed(
-                "pilot pocket",
-                check(try_subtract(&acc.body, &pocket, tol), vol, tol),
-                vol,
-            );
-            ops += 1;
-        }
+    // A through-bore down each boss's axis and out through the floor,
+    // overshooting into air at both ends.
+    for (cx, cy) in BOSS_AXES {
+        vol -= PI * BORE_R * BORE_R * BORED_HEIGHT;
+        let bore = rod(cx, cy, BORE_R, (-0.125, BOSS_Z.1 + 0.25), tol);
+        acc = expect_seamed(
+            "boss bore",
+            check(try_subtract(&acc.body, &bore, tol), vol, tol),
+            vol,
+        );
+        ops += 1;
     }
     assert_eq!(ops, 15);
     (acc, vol)
@@ -102,26 +342,43 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
 /// onto the whole.
 pub fn stop(tol: Tol) -> Stop {
     let (acc, vol) = build::<f64>(tol);
-    let (section_bodies, section_note) = crate::cutaway::sectioned_beside(&acc.body, tol);
+    let (spring, spring_gap) = standing_spring(tol);
+    let (section_bodies, section_note) = crate::cutaway::sectioned_beside(&acc.body, &spring, tol);
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \
-         4 boss unions -> 4 pocket subtracts), volume matching the dyadic oracle \
-         after every op (observed bit-exact, gated 1e-9), final V = {vol}; square-only honesty: round bosses/pilot holes are not \
-         attempted here (curved operands are gated per C5 arm, not by a blanket \
-         operand gate); no two operand planes coincide \
-         anywhere in the chain (the #91 design rule). SECTIONED: {section_note}"
+         4 declared boss unions -> 4 bore subtracts), volume within 1e-9 of the closed-form \
+         oracle after every op, final V = {vol} (each boss adds pi R^2 x {boss_h}, \
+         R = {BOSS_R}; each bore removes pi r^2 x {BORED_HEIGHT}, r = {BORE_R}); \
+         each boss stands on the floor; each union declares the detector's findings, \
+         its cap-on-floor contact plus continuations against the other bosses' disjoint \
+         tops. \
+         SPRING: a {TURNS}-turn square-wire coil (mean radius {COIL_R}, wire {wire}, pitch \
+         {PITCH}) as ONE sweep_body along a degree-3 interpolant of the helix, from \
+         path_start_frame; its volume within {spring_gap:.2e} (relative) of A x L, the \
+         Pappus-Guldin volume of the continuum coil (gap cap {COIL_GAP:.0e}: the body is \
+         station-to-station skinned slabs); its lowest point a start-cap corner exactly on \
+         the boss top, between the bore and the rim. \
+         SECTIONED: {section_note}; the spring split by the same plane lies wholly below \
+         it and rides with the below half",
+        boss_h = BOSS_Z.1 - BOSS_Z.0,
+        wire = 2.0 * WIRE_H,
     );
     Stop {
         name: "projectbox",
         caption: "project box — whole, and sectioned".to_string(),
         montage: true,
-        story: "electronics enclosure: cavity, 6 vent through-slots, 4 floor bosses, \
-                4 pilot pockets — the tour's longest boolean-of-boolean chain — and \
-                beside it the SAME body split by a tilted plane and pulled apart, a \
-                machinist's section showing the bosses, pockets and wall sections the \
-                whole one hides",
-        ops: "extrude 15 cutters/bosses -> 15 sequential subtract/union nodes; \
-              topo::split(tilted plane) -> 2 bodies -> 2 transform nodes",
+        story: "electronics enclosure: cavity, 6 vent through-slots, 4 round floor \
+                bosses, 4 through-bores — the tour's longest boolean-of-boolean chain \
+                — and beside it the SAME body split by a tilted plane through two \
+                bored bosses and pulled apart, a machinist's section whose boss \
+                sections are rings around the bores, showing what the whole one hides: \
+                a six-turn compression spring standing on a far boss, around its bore",
+        ops: "extrude the shell, 7 slab cutters, 4 boss rods, 4 bore rods -> 15 sequential \
+              subtract/union nodes, each boss union through flush::find_flush_candidates \
+              -> declare_all -> union_with; sweep::sweep_body(square wire, 6-turn helix \
+              interpolant, path_start_frame) -> the spring; topo::split(tilted plane) of \
+              the box -> 2 bodies, of the spring -> below only; 3 transform nodes; \
+              topo::plane_section(same plane) -> regions with holes",
         delta: 1e-2,
         note: Some(note),
         // The SECTION's camera, not the box's. A merged cell has one
@@ -148,7 +405,83 @@ pub fn stop(tol: Tol) -> Stop {
             acc.body,
             acc.contacts,
         ))
+        .chain(core::iter::once(SceneBody::plain(
+            "spring",
+            SPRING_COLOR,
+            spring,
+        )))
         .chain(section_bodies)
         .collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// **The bored box, its halves and the spring pass their tiers,
+    /// and the above half is three outer shells.** Building the stop
+    /// asserts the chain's per-op volume oracle and Seamed kind, the
+    /// halves' section rings, `plane_section`'s areas against their
+    /// closed forms and the spring's volume and footing; this adds what `crate::run_body`
+    /// asserts on the tour pass (tier 3′ on the box with its declared
+    /// contacts, tier 3 on every other body), and the above half's
+    /// pieces: the cut frees the two bored bosses' tops, so that half is
+    /// the walls' piece and two caps, each bounding material, and each a
+    /// solid of its own.
+    #[test]
+    fn the_bored_box_its_halves_and_the_spring_pass_their_tiers_and_the_above_half_is_three_solids()
+    {
+        use pncad::topo::ShellRole;
+        let tol = Tol::witness();
+        let stop = stop(tol);
+        let [boxbody, spring, above, below, spring_below] = &stop.bodies[..] else {
+            panic!("the box, its spring, the box's two halves and the spring again");
+        };
+        let contacts = boxbody
+            .contacts
+            .as_ref()
+            .expect("the box is a boolean result");
+        pncad::topo::validate_pseudomanifold_certificate(&boxbody.body, contacts, tol)
+            .expect("the box: tier 3′ with its declared contacts");
+        for part in [spring, above, below, spring_below] {
+            pncad::topo::validate_geometric_certificate(&part.body, tol)
+                .unwrap_or_else(|e| panic!("{}: tier 3: {e:?}", part.name));
+        }
+        let shells: Vec<_> = above.body.shells().map(|(k, _)| k).collect();
+        let roles: Vec<ShellRole> = pncad::topo::classify_shells_of(&above.body, &shells, tol)
+            .expect("the above half's shells classify")
+            .into_iter()
+            .map(|c| c.role)
+            .collect();
+        assert_eq!(roles, [ShellRole::Outer; 3], "the above half's shell roles");
+        assert_eq!(above.body.solids().count(), 3, "one solid per piece");
+    }
+
+    /// **The coil's gap to `A·L` is discretization, not a volume
+    /// error.** The stop caps the gap at [`COIL_GAP`]; a cap alone
+    /// cannot tell a skinning gap from a wrong volume, so this doubles
+    /// the stations a turn and asserts the gap stays negative (the
+    /// slabs fall short of the tube), shrinks at least at second order
+    /// (measured: 21×), and lands under an absolute cap: a volume bias
+    /// of either sign larger than the cap reds it.
+    #[test]
+    fn the_coils_volume_gap_converges_at_least_at_second_order() {
+        let tol = Tol::witness();
+        let want = coil_volume(4.0 * WIRE_H * WIRE_H);
+        let gap = |per_turn| {
+            let body = spring::<f64>(&[square_wire(tol)], per_turn, tol).expect("the coil");
+            let v = pncad::topo::mass_properties(&body, tol)
+                .expect("the coil's volume")
+                .volume;
+            (v - want) / want
+        };
+        let (coarse, fine) = (gap(PER_TURN), gap(2 * PER_TURN));
+        assert!(
+            (-COIL_GAP..0.0).contains(&coarse)
+                && (-FINE_GAP..0.0).contains(&fine)
+                && fine.abs() <= coarse.abs() / 4.0,
+            "the coil's A·L gap went {coarse:.3e} -> {fine:.3e} on doubling the stations"
+        );
     }
 }

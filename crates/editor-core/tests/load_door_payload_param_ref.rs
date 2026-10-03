@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
@@ -56,6 +57,7 @@ fn with_depth_and_extrude() -> (ProfileDoc, ParamName, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
@@ -155,10 +157,10 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Measure {
+            node: Box::new(Node::Measure {
                 expr: MeasureExpr::value(Expr::param(missing.clone(), Dimension::Length)),
                 refs: Vec::new(),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -172,7 +174,7 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
     load(&text, Tol::witness()).expect("the fixture loads");
     match load(&undeclare(&text, &name), Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PayloadUnknownDocParam { node, name: n })) => {
-            assert_eq!((node, n), (measure, name));
+            assert_eq!((node.id(), n), (measure, name));
         }
         other => panic!("the load door must refuse an undeclared payload param, got {other:?}"),
     }
@@ -202,7 +204,7 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
             declared,
             referenced,
         }) => {
-            assert_eq!((n, node), (name.clone(), measure));
+            assert_eq!((n, node.id()), (name.clone(), measure));
             assert_eq!(
                 (declared, referenced),
                 (Dimension::Angle, Dimension::Length)
@@ -219,7 +221,7 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
             declared,
             referenced,
         })) => {
-            assert_eq!((node, n), (measure, name));
+            assert_eq!((node.id(), n), (measure, name));
             assert_eq!(
                 (declared, referenced),
                 (Dimension::Angle, Dimension::Length)
@@ -253,7 +255,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: bound(&missing),
+            node: Box::new(bound(&missing)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -266,7 +268,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
     load(&text, Tol::witness()).expect("the fixture loads");
     match load(&undeclare(&text, &name), Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PayloadUnknownDocParam { node, name: n })) => {
-            assert_eq!((node, n), (assertion, name));
+            assert_eq!((node.id(), n), (assertion, name));
         }
         other => panic!("the load door must refuse an undeclared bound param, got {other:?}"),
     }
@@ -351,7 +353,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
             node,
             slot,
             name: n,
-        })) => assert_eq!((node, slot, n), (extrude, SlotId::Distance, name)),
+        })) => assert_eq!((node.id(), slot, n), (extrude, SlotId::Distance, name)),
         other => panic!(
             "a file broken in a slot AND in a payload must read the slot walk's refusal — the \
              walk order `validate_document` documents. Got {other:?}"
@@ -398,11 +400,11 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure: extrude,
                 bound: Expr::param(name.clone(), Dimension::Length),
                 dir: editor_core::AssertionDir::AtLeast,
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -431,7 +433,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
 
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PayloadUnknownDocParam { node, name: n })) => {
-            assert_eq!((node, n), (assertion, name));
+            assert_eq!((node.id(), n), (assertion, name));
         }
         other => panic!(
             "a node broken in a payload AND structurally must read the PAYLOAD walk's refusal — \
