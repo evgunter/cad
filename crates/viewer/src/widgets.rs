@@ -3484,8 +3484,8 @@ mod value_field_tests {
     use crate::test_support::{declared, framed_square, inserted, len, scl};
     use eframe::egui;
     use pncad::document::{
-        Dimension, DimensionError, Doc, DocParam, Expr, Node, ParamName, PatternKind,
-        ProfileProgram, RecipeNodeId, SlotId,
+        Dimension, DimensionError, Doc, Expr, FreeVar, Node, PatternKind, ProfileProgram,
+        RecipeNodeId, SlotId, VarName,
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::MM;
@@ -3504,7 +3504,7 @@ mod value_field_tests {
     #[derive(Clone)]
     enum Subject {
         /// A document parameter's row — `Selection::Param`'s arm.
-        Param(ParamName),
+        Param(VarName),
         /// A feature's slot row — `slot_value_ui`.
         Slot { node: RecipeNodeId, slot: SlotId },
     }
@@ -3536,12 +3536,12 @@ mod value_field_tests {
         /// `canonical` metres.
         fn millimetres(label: &str, canonical: f64) -> Self {
             let tol = Tol::witness();
-            let name = ParamName::from_static("base_r");
+            let name = VarName::from_static("base_r");
             let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
             let mut session = DocSession::inline(doc, tol);
             let outcome = session.perform(SessionOp::CreateParam {
                 name: name.clone(),
-                value: DocParam::written_length(WrittenLength::canonical_in(canonical, MM)),
+                value: FreeVar::written_length(WrittenLength::canonical_in(canonical, MM)),
             });
             assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
             Self {
@@ -3567,8 +3567,8 @@ mod value_field_tests {
             let tol = Tol::witness();
             let doc = declared(
                 label,
-                &ParamName::from_static("base_r"),
-                DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
+                &VarName::from_static("base_r"),
+                FreeVar::written_length(WrittenLength::canonical_in(0.004, MM)),
                 tol,
             );
             let (doc, profile) = framed_square(&doc, 0.04, tol);

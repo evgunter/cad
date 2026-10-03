@@ -1240,14 +1240,14 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
     use std::collections::BTreeMap;
 
     use pncad::analysis::{BoxAxis, ParamBox};
-    use pncad::document::{Datum, Dimension, DocParam, Expr, Node, NodeErrorKind, ParamName};
+    use pncad::document::{Datum, Dimension, Expr, FreeVar, Node, NodeErrorKind, VarName};
 
     let tol = Tol::witness();
-    let span = ParamName::from_static("span");
+    let span = VarName::from_static("span");
     let doc = common::declared(
         "tree-frame-direction",
         &span,
-        DocParam::continuous(Dimension::Scalar, 0.0),
+        FreeVar::continuous(Dimension::Scalar, 0.0),
         tol,
     );
     let (doc, frame) = common::inserted(

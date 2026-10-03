@@ -26,8 +26,8 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, DocParam, EntityKind, Expr, Node, ParamName, PartSelect,
-    PatternKind, RecipeNodeId, RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym,
+    BooleanOp, Dimension, DocEdit, EntityKind, Expr, FreeVar, Node, PartSelect, PatternKind,
+    RecipeNodeId, RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym, VarName,
 };
 
 use crate::fixture::{ang, desc, len, scl, xy_frame};
@@ -64,8 +64,8 @@ pub fn section_face(split: RecipeNodeId, side: SplitHalf) -> StableName {
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static(H),
-        value: DocParam::Continuous {
+        name: VarName::from_static(H),
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: BOX_H,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -86,7 +86,7 @@ pub fn document() -> CorpusDoc {
     )));
     let cube = r.insert(Node::Extrude {
         profile: box_p,
-        distance: Expr::param(ParamName::from_static(H), Dimension::Length),
+        distance: Expr::param(VarName::from_static(H), Dimension::Length),
         side: ExtrudeSide::Along,
     });
 

@@ -354,6 +354,10 @@ mod reach_cone_split;
 mod reach_continuation;
 #[path = "reach_split_gate_per_face.rs"]
 mod reach_split_gate_per_face;
+#[path = "reach_split_gate_pose.rs"]
+mod reach_split_gate_pose;
+#[path = "reach_split_gate_window.rs"]
+mod reach_split_gate_window;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
 #[path = "reach_wall_chord_rows.rs"]

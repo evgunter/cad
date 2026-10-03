@@ -36,15 +36,15 @@ use editor_core::range::{
     CertifiedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range, derive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
-    LoopProgram, Node, NodeResult, ParamName, PatternKind, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SlotId, SpokenNode, StableName, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr, FreeVar,
+    LoopProgram, Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
+    SpokenNode, StableName, VarName, evaluate,
 };
 
 use fixture::{Recorder, len, scl, tol, xy_frame};
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn param(n: &'static str) -> Expr {
@@ -68,7 +68,7 @@ fn frame(r: &mut Recorder) -> RecipeNodeId {
 fn declare(r: &mut Recorder, n: &'static str, value: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(n),
-        value: DocParam::continuous(Dimension::Length, value),
+        value: FreeVar::continuous(Dimension::Length, value),
     });
 }
 
@@ -166,7 +166,7 @@ fn two_param_slab() -> ProfileDoc {
     declare(&mut r, "depth", 1.0);
     r.push(DocEdit::SetDocParam {
         name: name("side"),
-        value: DocParam::continuous_with(
+        value: FreeVar::continuous_with(
             Dimension::Length,
             1.0,
             Distribution::Uniform { lo: -0.1, hi: 0.1 },
@@ -242,7 +242,7 @@ fn no_new_failure(doc: &editor_core::ProfileDoc, p: &'static str, value: f64) ->
         doc,
         &DocEdit::SetDocParamValue {
             name: name(p),
-            value: editor_core::DocParamValue::Continuous(value),
+            value: editor_core::FreeValue::Continuous(value),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -711,7 +711,7 @@ fn the_slot_rewrite_is_exact() {
     )
     .expect("the slot widens");
     assert_eq!(derived.nominal.to_bits(), literal.to_bits());
-    let Some(DocParam::Continuous { value, dim, .. }) = derived.doc.params().get(&derived.axis)
+    let Some(FreeVar::Continuous { value, dim, .. }) = derived.doc.params().get(&derived.axis)
     else {
         panic!("the derived document declares the synthetic parameter");
     };
@@ -914,7 +914,7 @@ fn a_profile_step_argument_widens() {
         })
         .expect("the square carries a literal step argument");
     assert!(
-        ParamName::new(slot.label().replace(' ', "_")).is_err(),
+        VarName::new(slot.label().replace(' ', "_")).is_err(),
         "the fixture's premise: the label {:?} is not an identifier",
         slot.label()
     );
@@ -949,8 +949,8 @@ fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
         doc = editor_core::apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::new(spelled.clone()).expect("an author can type it"),
-                value: DocParam::continuous(Dimension::Length, 3.0 + i as f64),
+                name: VarName::new(spelled.clone()).expect("an author can type it"),
+                value: FreeVar::continuous(Dimension::Length, 3.0 + i as f64),
             },
             tol(),
             &editor_core::RefusingReach,
@@ -1140,12 +1140,12 @@ fn every_other_parameter_is_pinned() {
     )
     .expect("the parameter boxes");
     let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
-    let varying: Vec<&ParamName> = analyzed.varying().map(|(n, _)| n).collect();
+    let varying: Vec<&VarName> = analyzed.varying().map(|(n, _)| n).collect();
     assert_eq!(varying, vec![&name("depth")]);
     assert!(
         matches!(
             derived.doc.params().get(&name("side")),
-            Some(DocParam::Continuous {
+            Some(FreeVar::Continuous {
                 distribution: None,
                 ..
             })

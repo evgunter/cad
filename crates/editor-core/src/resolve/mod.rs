@@ -2525,7 +2525,7 @@ fn structural_param_change(
     ddiff: &crate::diff::DocDiff,
     path: Option<&BTreeSet<RecipeNodeId>>,
 ) -> Option<(RecipeNodeId, SlotId)> {
-    let changed_params: Vec<&crate::doc::ParamName> = ddiff.params.iter().collect();
+    let changed_params: Vec<&crate::doc::VarName> = ddiff.params.iter().collect();
     // In document order: a node both runs hold is in `new`'s order.
     let candidates: Vec<RecipeNodeId> = new
         .order()

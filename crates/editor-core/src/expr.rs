@@ -21,7 +21,7 @@
 use geom_core::Real;
 use geom_core::predicate::{Band, Decide, Sign};
 
-use crate::doc::ParamName;
+use crate::doc::VarName;
 use crate::node::{RecipeNodeId, SlotId};
 
 /// The v1 quantity-dimension lattice (ratified F1, GQ5's banked
@@ -366,13 +366,13 @@ pub(crate) fn nesting_over(below: u8) -> Result<u8, DimensionError> {
 /// **Serialization goes through the SYMBOL, never the index**, and the
 /// impls below are what keep that true now that the type is public and
 /// two carriers store it: `persist::wire`'s `WireExpr::Literal` writes
-/// the symbol as its own field, and [`crate::DocParam::Continuous`]
+/// the symbol as its own field, and [`crate::FreeVar::Continuous`]
 /// writes one through this type's `Serialize`. Both read back through
 /// [`quantity::unit_by_symbol`], so a table REORDER still moves no
 /// byte of any file.
 ///
 /// Public because a document parameter's declaration carries one
-/// ([`crate::DocParam::Continuous`]'s `display_unit`) and an enum
+/// ([`crate::FreeVar::Continuous`]'s `display_unit`) and an enum
 /// variant's fields are public with it. The FIELD stays private to
 /// this module, which is what every totality argument above rests on —
 /// nothing about the seal depended on the type's visibility.
@@ -466,7 +466,7 @@ impl UnitSym {
     /// **The one place that reading is spelled**, and every caller that
     /// needs it asks here rather than re-laddering it: the expression
     /// TEXT door (`parse`, on a suffix), [`Expr::literal_with_unit`] at
-    /// construction, [`crate::DocParam::with_display_unit`] at the
+    /// construction, [`crate::FreeVar::with_display_unit`] at the
     /// parameter's notation door, `write_doc_param` at the
     /// create-or-replace door, and the save/load validator's parameter
     /// walk (`persist::check`). Callers restating one `match` are that
@@ -498,7 +498,7 @@ impl UnitSym {
     /// **Total, including `Count`** — deliberately, though a count has
     /// no notation and the table no row for one. [`Expr::literal`]
     /// refuses `Count` before ever reaching here, so no LITERAL takes
-    /// that arm; what can is [`crate::DocParam::continuous`], whose
+    /// that arm; what can is [`crate::FreeVar::continuous`], whose
     /// `dim` is a caller's argument and whose `Count` spelling is a
     /// corrupt parameter the edit door refuses typed
     /// (`EditError::ContinuousParamCannotBeCount`). Panicking here
@@ -735,7 +735,7 @@ pub(crate) enum ExprKind {
     /// A document-level named-parameter reference, carrying the
     /// dimension the parameter was declared with at construction time
     /// (`apply` re-checks it against the document's table).
-    Param(ParamName),
+    Param(VarName),
     /// Same-dimension addition.
     Add(Box<Expr>, Box<Expr>),
     /// Same-dimension subtraction.
@@ -961,7 +961,7 @@ impl Expr {
     /// A document-parameter reference, recording the dimension the
     /// parameter is declared with; `apply` re-checks the record against
     /// the document's table (spec D6).
-    pub fn param(name: ParamName, dim: Dimension) -> Self {
+    pub fn param(name: VarName, dim: Dimension) -> Self {
         Self::leaf(dim, ExprKind::Param(name))
     }
 
@@ -1150,7 +1150,7 @@ impl Expr {
 
     /// The parameter names this expression references, with their
     /// recorded dimensions (used by `apply`'s re-check, spec D6).
-    pub fn param_refs(&self, out: &mut Vec<(ParamName, Dimension)>) {
+    pub fn param_refs(&self, out: &mut Vec<(VarName, Dimension)>) {
         match &self.kind {
             ExprKind::Param(name) => out.push((name.clone(), self.dim)),
             ExprKind::Literal(_) | ExprKind::CountLiteral(_) => {}
@@ -1316,7 +1316,7 @@ impl<T> ParamValue<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParamEnv<T> {
     /// The bindings, by parameter name.
-    pub bindings: std::collections::BTreeMap<ParamName, ParamValue<T>>,
+    pub bindings: std::collections::BTreeMap<VarName, ParamValue<T>>,
 }
 
 // Manual impl: the derive would demand `T: Default`, which certified
@@ -1336,7 +1336,7 @@ impl<T> Default for ParamEnv<T> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvalError {
     /// A parameter ref with no binding in the environment.
-    UnknownParam(ParamName),
+    UnknownParam(VarName),
     /// A parameter bound with a different dimension than the ref
     /// recorded at construction.
     ///
@@ -1351,7 +1351,7 @@ pub enum EvalError {
     /// and its two families are stated.
     ParamDimensionMismatch {
         /// The parameter name.
-        name: ParamName,
+        name: VarName,
         /// The dimension the expression's ref recorded.
         expected: Dimension,
         /// The dimension the environment bound.

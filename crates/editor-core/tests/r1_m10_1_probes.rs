@@ -29,14 +29,14 @@ use crate::corpus;
 use test_utils::fuzz;
 
 use editor_core::{
-    AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit, DocParam,
-    DocumentId, EvalOptions, MeasureUnavailable, OffsetInterval, ParamName, ProfileDoc,
+    AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit,
+    DocumentId, EvalOptions, FreeVar, MeasureUnavailable, OffsetInterval, ProfileDoc, VarName,
     analyzed_box, apply, box_mass, evaluate, tail_mass,
 };
 use geom_core::Tol;
 
-fn p(name: &'static str) -> ParamName {
-    ParamName::from_static(name)
+fn p(name: &'static str) -> VarName {
+    VarName::from_static(name)
 }
 
 /// An independent oracle for `P(lo <= X <= hi)`, X ~ N(0, sigma²):
@@ -234,7 +234,7 @@ fn the_quantile_box_is_deterministic_monotone_and_covers_its_mass() {
             &doc,
             &DocEdit::SetDocParam {
                 name: p("n"),
-                value: DocParam::continuous_with(Dimension::Length, 0.0, dist),
+                value: FreeVar::continuous_with(Dimension::Length, 0.0, dist),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -304,8 +304,8 @@ fn every_annotation_pair_is_visible_to_bit_eq_and_diff() {
     let doc_for = |ann: Option<Distribution>| {
         let doc = ProfileDoc::empty(DocumentId::derive("r1-bit-eq"), Tol::witness());
         let value = match ann {
-            None => DocParam::continuous(Dimension::Length, 1.0),
-            Some(d) => DocParam::continuous_with(Dimension::Length, 1.0, d),
+            None => FreeVar::continuous(Dimension::Length, 1.0),
+            Some(d) => FreeVar::continuous_with(Dimension::Length, 1.0, d),
         };
         apply(
             &doc,
@@ -350,7 +350,7 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
         &d.doc,
         &DocEdit::SetDocParam {
             name: p(corpus::plate_param::HOLE_R),
-            value: DocParam::continuous_with(
+            value: FreeVar::continuous_with(
                 Dimension::Length,
                 corpus::plate_param::HOLE_R_VALUE,
                 Distribution::Normal { sigma: 1e-4 },
@@ -399,7 +399,7 @@ fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
             &doc,
             &DocEdit::SetDocParam {
                 name: p("d"),
-                value: DocParam::continuous(Dimension::Angle, 0.25),
+                value: FreeVar::continuous(Dimension::Angle, 0.25),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -413,7 +413,7 @@ fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
             &doc,
             &DocEdit::SetDocParam {
                 name: p("d"),
-                value: DocParam::continuous_with(
+                value: FreeVar::continuous_with(
                     Dimension::Angle,
                     0.25,
                     Distribution::Uniform {
@@ -448,10 +448,10 @@ fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
 #[test]
 fn a_mixed_document_analyzes_end_to_end() {
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-mixed"), Tol::witness());
-    let sets: [(&str, DocParam); 6] = [
+    let sets: [(&str, FreeVar); 6] = [
         (
             "band",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Length,
                 1.0,
                 Distribution::Band { lo: -0.1, hi: 0.1 },
@@ -459,7 +459,7 @@ fn a_mixed_document_analyzes_end_to_end() {
         ),
         (
             "uniform",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Length,
                 2.0,
                 Distribution::Uniform { lo: -0.2, hi: 0.05 },
@@ -467,11 +467,11 @@ fn a_mixed_document_analyzes_end_to_end() {
         ),
         (
             "normal",
-            DocParam::continuous_with(Dimension::Scalar, 0.5, Distribution::Normal { sigma: 0.01 }),
+            FreeVar::continuous_with(Dimension::Scalar, 0.5, Distribution::Normal { sigma: 0.01 }),
         ),
         (
             "truncated",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Angle,
                 0.1,
                 Distribution::TruncatedNormal {
@@ -481,8 +481,8 @@ fn a_mixed_document_analyzes_end_to_end() {
                 },
             ),
         ),
-        ("fixed", DocParam::continuous(Dimension::Length, 3.0)),
-        ("count", DocParam::Count { value: 6 }),
+        ("fixed", FreeVar::continuous(Dimension::Length, 3.0)),
+        ("count", FreeVar::Count { value: 6 }),
     ];
     for (name, value) in sets {
         doc = apply(
