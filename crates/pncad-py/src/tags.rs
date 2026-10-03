@@ -374,7 +374,7 @@ pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
 /// [`BoundaryEdit`] its raise takes.
 ///
 /// Exhaustive over that enum, so the boundary's set of refusals is
-/// closed: a fourth needs a variant there and an arm here before it can
+/// closed: another needs a variant there and an arm here before it can
 /// be raised. Two arms FORWARD the kernel value whole rather than
 /// restating its word, so the delegation is the real one the inventory
 /// reads — the whole of each delegate's vocabulary is reachable
@@ -383,7 +383,6 @@ pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
 pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
     match refusal {
         BoundaryEdit::NameSerialize => "name_serialize",
-        BoundaryEdit::NoMintedId => "no_minted_id",
         BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
         BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
         BoundaryEdit::ParamName(_) => "param_name_not_an_identifier",
@@ -398,7 +397,6 @@ pub fn boundary_edit_inner_tag(refusal: BoundaryEdit<'_>) -> Option<&'static str
     match refusal {
         BoundaryEdit::PlacementRule(fault) => placement_rule_inner_tag(fault),
         BoundaryEdit::NameSerialize
-        | BoundaryEdit::NoMintedId
         | BoundaryEdit::MateHead(_)
         | BoundaryEdit::ParamName(_)
         | BoundaryEdit::Label(_) => None,
@@ -626,6 +624,13 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::NotAGauge { .. } => "not_a_gauge",
         EditError::GaugeCycle { .. } => "gauge_cycle",
         EditError::WouldStartPlacing { .. } => "would_start_placing",
+        EditError::PromoteOnNonInstance { .. } => "promote_on_non_instance",
+        EditError::PromoteWithoutOffset { .. } => "promote_without_offset",
+        EditError::PromoteNonRoot { .. } => "promote_non_root",
+        EditError::PromoteMemberOffset { .. } => "promote_member_offset",
+        EditError::FoldOnNonGauge { .. } => "fold_on_non_gauge",
+        EditError::FoldWouldStartPlacing { .. } => "fold_would_start_placing",
+        EditError::FoldWouldDangle { .. } => "fold_would_dangle",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
@@ -1288,6 +1293,13 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::NotAGauge { .. } => None,
         EditError::GaugeCycle { .. } => None,
         EditError::WouldStartPlacing { .. } => None,
+        EditError::PromoteOnNonInstance { .. } => None,
+        EditError::PromoteWithoutOffset { .. } => None,
+        EditError::PromoteNonRoot { .. } => None,
+        EditError::PromoteMemberOffset { .. } => None,
+        EditError::FoldOnNonGauge { .. } => None,
+        EditError::FoldWouldStartPlacing { .. } => None,
+        EditError::FoldWouldDangle { .. } => None,
         // Which answer the rule gives twice is the arm.
         EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
@@ -2444,12 +2456,12 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::TwoAnchors { .. } => "two_anchors",
         SplitError::DeadGaugeReference { .. } => "dead_gauge_reference",
         SplitError::NoMaterial { .. } => "no_material",
+        SplitError::UnplaceableRoot { .. } => "unplaceable_root",
         SplitError::UnplacedAlone { .. } => "unplaced_alone",
         SplitError::WouldStartPlacing { .. } => "would_start_placing",
         SplitError::PlacingMateLeft { .. } => "placing_mate_left",
         SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
         SplitError::MateFaceFrameCrosses { .. } => "mate_face_frame_crosses",
-        SplitError::HoistedMemberOffset { .. } => "hoisted_member_offset",
         SplitError::UncutParamReference { .. } => "uncut_param_reference",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
@@ -3203,6 +3215,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::OffsetCleared { .. } => "offset_cleared",
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
+        Maintenance::LabelDropped { .. } => "label_dropped",
     }
 }
 

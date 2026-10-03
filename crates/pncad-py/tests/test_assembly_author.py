@@ -576,12 +576,12 @@ class TestBenchStand(BenchWorkspace):
         together, so `last_maintenance` on a refactoring's document
         reads that refactoring's own record.
 
-        A whole-group cut HOISTS the group's root offset onto the
-        instance left behind and lands the root at the empty offset in
-        the part: no edit records a frame and none joins two groups
+        A whole-group cut moves as selected: the root keeps its offset
+        in the part and the instance left behind sits at the empty
+        offset. No edit records a frame and none joins two groups
         carrying offsets, so both halves report nothing — and inlining
-        it back, the part's root takes the instance's offset (A4's
-        sugar), which reports nothing either."""
+        it back at the empty offset lands the content as it is, which
+        reports nothing either."""
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
         self.assertEqual(pncad.groups(doc), [[post_a, shelf_i, post_b]])
         root_offset = doc.offset(post_a)
@@ -594,9 +594,15 @@ class TestBenchStand(BenchWorkspace):
         )
         self.assertEqual(outcome.part.last_maintenance, [])
         self.assertEqual(outcome.remainder.last_maintenance, [])
-        # The hoist: the root's offset moved onto the instance left
-        # behind, verbatim.
-        self.assertEqual(outcome.remainder.offset(outcome.instance), root_offset)
+        # The cut moves as selected: the instance left behind sits at
+        # the empty offset, and the root keeps its own.
+        self.assertEqual(
+            outcome.remainder.offset(outcome.instance), Placement.identity()
+        )
+        groups = pncad.groups(outcome.part)
+        self.assertEqual(
+            outcome.part.offset(pncad.root_of(outcome.part, groups[0][0])), root_offset
+        )
         # The door is PURE, so the input's own reading is untouched —
         # still the clear the stand's second mate performed.
         self.assertEqual(

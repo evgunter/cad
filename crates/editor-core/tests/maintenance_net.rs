@@ -4,17 +4,16 @@
 //! `Applied::maintenance` answers what ONE edit did. An action of
 //! several edits can report a row an edit later in the same action
 //! takes back, and the net is what is true of the document the action
-//! ends at. These rows drive real edits through `apply` and fold each
-//! one's rows against the document it produced, the way a caller that
-//! commits the action does.
+//! ends at. These rows drive real edits through `Recording`, the
+//! kernel's recorder for an action of several edits.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::docm7_union_declare::block;
 use crate::fixture::{ang, flush_pairs, fname, insert, union_over, wall};
 use editor_core::{
-    Applied, Attr, AttrKind, DocEdit, Maintenance, MaintenanceNet, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusingReach, Rgba8, StableName, apply,
+    Applied, Attr, AttrKind, DocEdit, EditError, Maintenance, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, Recorded, Recording, RefusingReach, Rgba8, StableName, apply,
 };
 use geom_core::Tol;
 
@@ -25,22 +24,22 @@ fn applied(
     apply(doc, &edit, Tol::witness(), &RefusingReach).expect("the edit lands")
 }
 
-/// The net of `edits` applied in order from `doc`, and the document
+/// The net of `edits` recorded in order from `doc`, and the document
 /// they end at; each edit's own rows beside it, for the premises.
 fn net_of(
     doc: &ProfileDoc,
     edits: Vec<DocEdit<ProfileProgram>>,
 ) -> (Vec<Maintenance>, Vec<Vec<Maintenance>>, ProfileDoc) {
-    let mut net = MaintenanceNet::new();
+    let mut action = Recording::start(doc, Tol::witness(), &RefusingReach);
     let mut each = Vec::new();
-    let mut at = doc.clone();
     for edit in edits {
-        let step = applied(&at, edit);
-        each.push(step.maintenance.clone());
-        net.push(&step);
-        at = step.doc;
+        each.push(applied(action.doc(), edit.clone()).maintenance);
+        action.apply(edit).expect("the edit lands");
     }
-    (net.finish(&at), each, at)
+    let Recorded {
+        doc, maintenance, ..
+    } = action.finish().expect("every edit landed");
+    (maintenance, each, doc)
 }
 
 /// A derived frame on `at` carrying `face`.
@@ -191,5 +190,162 @@ fn a_declared_strand_a_later_set_declare_clears_is_not_reported() {
         cleared,
         Vec::new(),
         "the union holds no stranded pair at the end"
+    );
+}
+
+/// **What a recorded action answers beside its net**: the edits in the
+/// order they applied, what each minted — the typed insert's id among
+/// them — and the document the last one produced, which is the one
+/// `apply` threaded edit by edit produces. A strand an early delete
+/// made and a later `SetDeclare` of the same action cleared is netted
+/// out; an action that records nothing answers its start.
+#[test]
+fn a_recording_answers_its_edits_ids_and_document_in_order() {
+    let doc = ProfileDoc::empty_derived("net-record", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let pairs = editor_core::declare_continuation(flush_pairs(&doc, (a, a), (b, b)));
+    let (doc, union) = union_over(doc, &[a, b, c], pairs);
+    let doc = applied(
+        &doc,
+        DocEdit::SetMembers {
+            node: union,
+            members: vec![a, c],
+        },
+    )
+    .doc;
+    let other = Node::Union {
+        members: vec![a, c],
+        declare: Vec::new(),
+    };
+
+    let mut action = Recording::start(&doc, Tol::witness(), &RefusingReach);
+    assert!(action.is_empty(), "a started action has recorded nothing");
+    let deleted = action.apply(DocEdit::DeleteNode { id: b });
+    assert_eq!(deleted, Ok(None), "a delete mints nothing");
+    assert!(!action.is_empty(), "the delete is recorded");
+    let inserted = action.insert(other.clone()).expect("the union lands");
+    let cleared = action.apply(DocEdit::SetDeclare {
+        node: union,
+        pairs: Vec::new(),
+    });
+    assert_eq!(cleared, Ok(None), "a set-declare mints nothing");
+    assert_eq!(action.minted(), &[None, Some(inserted), None]);
+    let recorded = action.finish().expect("every edit landed");
+
+    let delete = DocEdit::DeleteNode { id: b };
+    let insert = DocEdit::InsertNode {
+        node: Box::new(other),
+    };
+    let clear = DocEdit::SetDeclare {
+        node: union,
+        pairs: Vec::new(),
+    };
+    let first = applied(&doc, delete.clone());
+    let second = applied(&first.doc, insert.clone());
+    let third = applied(&second.doc, clear.clone());
+    assert_eq!(
+        second.record.minted,
+        Some(inserted),
+        "the typed insert answers the id the door mints"
+    );
+    assert_eq!(
+        recorded,
+        Recorded {
+            doc: third.doc,
+            edits: vec![delete, insert, clear],
+            maintenance: Vec::new(),
+            minted: vec![None, Some(inserted), None],
+        },
+        "the edits as applied, the strands the cleared declaration held netted out"
+    );
+    assert!(
+        first
+            .maintenance
+            .iter()
+            .any(|row| matches!(row, Maintenance::Strand { .. })),
+        "the premise: the delete alone strands the declared names: {:?}",
+        first.maintenance
+    );
+
+    let idle = Recording::start(&doc, Tol::witness(), &RefusingReach)
+        .finish()
+        .expect("nothing was refused");
+    assert!(idle.doc.bit_eq(&doc), "no edit, the start");
+    assert_eq!(
+        (idle.edits, idle.maintenance, idle.minted),
+        (Vec::new(), Vec::new(), Vec::new())
+    );
+}
+
+/// **A refusal ends the action**, whether or not its caller stops at
+/// it: the refused edit records nothing, an edit that would land on its
+/// own after it is refused with the same refusal and applies nothing,
+/// and `finish` answers that refusal instead of the edits around it. A
+/// caller that swallows the refusal therefore cannot finish with a
+/// partial action: this row reds if a recording goes on past an
+/// `apply`'s refusal, or if `finish` answers edits around one. An
+/// `insert` that drops its own refusal is held by `lib_placedunion` and
+/// the viewer's `an_action_that_swallows_a_refusal_commits_nothing`.
+#[test]
+fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
+    let doc = ProfileDoc::empty_derived("net-refused", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+    let delete_b = DocEdit::DeleteNode { id: b };
+    let union = Node::Union {
+        members: vec![b, c],
+        declare: Vec::new(),
+    };
+
+    let mut action = Recording::start(&doc, Tol::witness(), &RefusingReach);
+    action
+        .apply(DocEdit::DeleteNode { id: a })
+        .expect("the first delete lands");
+    let after_first = action.doc().clone();
+    for edit in [
+        delete_b.clone(),
+        DocEdit::InsertNode {
+            node: Box::new(union.clone()),
+        },
+    ] {
+        assert!(
+            apply(&after_first, &edit, Tol::witness(), &RefusingReach).is_ok(),
+            "the premise: {edit:?} lands on its own where the refusal left the action"
+        );
+    }
+    let refused = action
+        .apply(DocEdit::DeleteNode { id: a })
+        .expect_err("the node is gone");
+    assert!(
+        matches!(refused, EditError::UnknownNode { .. }),
+        "the door's own refusal: {refused:?}"
+    );
+    // The caller swallows the refusal and goes on.
+    assert_eq!(
+        action.apply(delete_b),
+        Err(refused.clone()),
+        "an apply after the refusal answers it"
+    );
+    assert_eq!(
+        action.insert(union),
+        Err(refused.clone()),
+        "an insert after the refusal answers it"
+    );
+    assert!(
+        action.doc().bit_eq(&after_first),
+        "nothing after the refusal applied"
+    );
+    assert_eq!(
+        action.minted(),
+        &[None],
+        "only the edit before the refusal is recorded"
+    );
+    assert_eq!(
+        action.finish(),
+        Err(refused),
+        "the action finishes as its refusal, not as the edits around it"
     );
 }

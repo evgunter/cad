@@ -36,3 +36,12 @@ net.
 ## Narrowed (2026-10-02, RECIPE `declared-pairs-are-a-booleans-own-payload`)
 
 The `Declare` node is gone: declared pairs are a boolean's or union's own payload, so no delete can orphan a declaration, and `Maintenance::OrphanedDeclare` (`orphaned_declare`) no longer exists. What this row says of the orphan arm no longer applies; the rest stands.
+
+**The kernel door to bind is now `Recording`** (RECIPE's
+`three-loops-apply-several-edits-and-net-their-maintenance`, 2026-10-03):
+`editor_core::Recording` applies an action's edits in order, nets their
+rows, and collects the ids they minted, answering a `Recorded`; the
+viewer, refactor, `regauge_then_mate` and pncad-py's labelled
+`Doc.insert` all record through it, and `pncad::document` carries both
+names (the census lists them under this gap). An `apply_all` over it
+is the natural Python spelling.
