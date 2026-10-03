@@ -728,3 +728,11 @@ coincidence is now a margined verdict (no declarations), checked by the
   coordinate 0 only, and no row sees the rim-pair reading in
   `zone_extent`.
 — (REACH orchestrator)
+
+## 2026-10-03 — the probe sweep reads lily_leaf_b's bracket at ε 1e-12 (PR 3976)
+
+- **The red.** Since #3838 the nightly `k-lint (dev-probe)` row panicked at ε 1e-12. `lily_leaf_b`'s mass ran out of quadrature budget, and the sweep demanded a number.
+- **The change.** The sweep, the tour gate, the lily row and klein now read a volume through one type, `topo::VolumeReading`, which is a number or a certified bracket. Any other reading fails. The new rows check that every bracket encloses its leaf's Pappus volume. They also check that the bracket set is exactly the two swept leaves at 1e-12 and empty at 1e-9 and 1e-6.
+- **Review.** A single full review came back APPROVE-WITH-FIXES with no MAJOR. In the last fix pass the rows learned to catch a degenerate or displaced bracket. The pass also reverted an unrelated `k_report.rs` change and deleted wild's bracket arm, which never ran.
+- **Verification.** An independent verifier session found the pass VERIFIED. All five mutants are red, the rows are green at all three ε, and `k_probe_sweep.sh` exits 0 at all three, where main panics at 1e-12.
+— (REACH orchestrator)
