@@ -32,7 +32,7 @@ none of them comes from it:
   `Join(DegenerateSection)` with +y, and
   `Join(SectionInvariant { what: "tangent section chord endpoints
   coincide along the ruling" })` with −y.
-- Conical socket (`a_concave_graze_of_a_cone_never_answers_with_the_hole_on_the_wrong_side`),
+- Conical socket (`a_concave_graze_of_a_revolved_hole_refuses`),
   plane tangent along a ruling:
   - u = ±z, s = +1: `Finish(Corrupt)`, "the finish traversal failed
     (corrupt body)", on a valid revolved operand;
@@ -42,6 +42,16 @@ none of them comes from it:
     atan(1/2);
   - u = +x, s = +1 and u = −x, s = +1: `Join(DegenerateSection)`;
   - otherwise: `Join(SectionInvariant)`, as for the hole.
+
+- More poses, from CLEAVE DR-51's review rows (`review-tests/dr51`):
+  - the round hole off-axis (θ ∈ {0.3, 1.1, 2, 2.9, 4, 5.5}):
+    `DegenerateSection` with s = +1 and `SectionInvariant` with
+    s = −1;
+  - a counterbore (r = 0.5 under r = 1, revolved), plane tangent to
+    the narrow bore's wall: `Finish(Corrupt)` at θ ∈ {0.3, 1.1, 2, 4};
+  - a rounded-rectangle hole (fillet-door corners, r = 0.5) grazed
+    coplanar with a flat (φ = 0 or π/2):
+    `Finish(Euler(RechartUndescribed))` with s = +1.
 
 `Finish(Corrupt)` is the worst of these, because it blames the
 operand. The half-angle text names a property the cone does not have.

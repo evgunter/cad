@@ -347,8 +347,8 @@ pub enum WallBendError {
 ///
 /// The datum is the sum of the principal curvatures, read branch-free
 /// from the implicit Hessian as the restricted trace
-/// `tr H − n̂ᵀHn̂` over `|∇F|` (as [`crate::implicit_max_normal_curvature`]
-/// reads its invariants). A positive Hessian form bends the surface
+/// `tr H − n̂ᵀHn̂` over `|∇F|` — the trace
+/// [`crate::implicit_max_normal_curvature`] reads too. A positive Hessian form bends the surface
 /// toward `−∇F` (differentiate `F(c(t)) = 0` twice along a surface
 /// curve: `∇F·c'' = −c'ᵀHc'`), so the sum is folded by `∇̂F · n_out`
 /// (±1: which way the face's outward normal runs against the implicit
@@ -398,11 +398,7 @@ pub fn bends_into_material<T: Decide>(
     let g = crate::implicit_gradient(surface, p);
     let g_norm = g.norm();
     let g_hat = g / g_norm;
-    let form = |d: Vec3<T>| crate::implicit_hessian_form(surface, p, d);
-    let trace = form(Vec3::new(T::one(), T::zero(), T::zero()))
-        + form(Vec3::new(T::zero(), T::one(), T::zero()))
-        + form(Vec3::new(T::zero(), T::zero(), T::one()))
-        - form(g_hat);
+    let trace = crate::implicit::implicit_restricted_trace(surface, p, g_hat);
     let fold = g_hat.dot(outward_normal.vec());
     let mean_into = trace / g_norm * fold / T::from_f64(2.0);
     let margin = Margin::sagitta(mean_into, arm);
@@ -607,5 +603,51 @@ mod tests {
             (e.rung, e.diag.predicate),
             (LeverRung::Arm, Some("wall_bend_order2_arm"))
         );
+    }
+
+    /// The same read at `T = Interval`: a cylinder seen from outside
+    /// and as a hole, and a cone on its mirror nappe, decide as at
+    /// `f64`, their enclosures clear of the band.
+    #[test]
+    fn wall_bend_reads_the_material_side_at_interval() {
+        use geom::Surface;
+        use geom_core::{Interval, Point3};
+        let i = Interval::from_f64;
+        let v = |x, y, z| Vec3::new(i(x), i(y), i(z));
+        let (x, z) = (v(1.0, 0.0, 0.0), v(0.0, 0.0, 1.0));
+        let o = Point3::new(i(0.0), i(0.0), i(0.0));
+        let walls = [
+            (
+                "cylinder",
+                Surface::Cylinder {
+                    origin: o,
+                    axis: z,
+                    radius: i(0.5),
+                    u_ref: x,
+                },
+                Point3::new(i(0.0), i(0.5), i(0.3)),
+            ),
+            (
+                "cone, the mirror nappe",
+                Surface::Cone {
+                    apex: o,
+                    axis: z,
+                    half_angle: i(0.5).atan(),
+                    u_ref: x,
+                },
+                Point3::new(i(0.5), i(0.0), i(-1.0)),
+            ),
+        ];
+        for (label, surface, p) in &walls {
+            let g = crate::implicit_gradient(surface, *p).normalize();
+            for (sense, want) in [
+                (true, WallBend::IntoMaterial),
+                (false, WallBend::OutOfMaterial),
+            ] {
+                let n_out = OutwardNormal::from_chart(g, sense);
+                let got = bends_into_material(surface, *p, n_out, i(1.0), band());
+                assert_eq!(got, Ok(want), "{label}, sense {sense}");
+            }
+        }
     }
 }

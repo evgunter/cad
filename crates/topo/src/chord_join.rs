@@ -575,7 +575,7 @@ impl SplitJoinError {
             Self::DegenerateSection { .. } => write!(
                 f,
                 "a section is degenerate: it bounds zero area, where the plane only \
-                 grazes a face (a one-sided tangency) or pinches the solid. Recourse: \
+                 grazes a hole's wall from inside or pinches the solid. Recourse: \
                  {recourse}"
             ),
             Self::SectionSpur { .. } => write!(

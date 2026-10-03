@@ -114,8 +114,12 @@
 //!   declaration channel, refuses. The entry goes opposite `S`, which
 //!   mints the null edge, and the graze refuses
 //!   (`wedge_end_doors::a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint`
-//!   pins the knife edge's refusal). Sending it to `S` instead returns
-//!   the true volumes with the undeclared knife edge in them.
+//!   pins the knife edge's refusal, and
+//!   `split_tangent_edge_curved.rs`'s concave rows pin it at every
+//!   azimuth). Sending it to `S` instead returns the true volumes with
+//!   the hole's wall touching the cut face's interior along the
+//!   contact, with no edge for it, and tier 3 passes that
+//!   (`work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md`).
 //! - A wall's first- and second-order reads that disagree contradict
 //!   the `S`-ON-`S` neighbours, which are curves on the same wall, and
 //!   refuse as a sliver; a wall that osculates its tangent plane is
@@ -147,14 +151,20 @@ use crate::validate::decide;
 /// earlier one's on a shared entry (only reachable through adjacent
 /// coplanar faces — a maximal-faces violation; deterministic
 /// last-wins, as the book).
+///
+/// Returns, per entry, whether its sector's face is a curved wall the
+/// plane grazes (tangent at the vertex, definitely bending off it):
+/// rule (b) reads those walls' convexity rather than deciding the
+/// tangency again.
 pub(super) fn apply_rule_a<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     vertex: VertexKey,
     entries: &mut [SectorEntry],
     band: Band,
-) -> Result<(), SplitReduceError> {
+) -> Result<Vec<bool>, SplitReduceError> {
     let n = entries.len();
+    let mut grazes = vec![false; n];
     for k in 0..n {
         let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
@@ -166,12 +176,10 @@ pub(super) fn apply_rule_a<T: Decide>(
         match decide("split_sector_extent", Margin::of(extent), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
-                return Err(sliver(geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
+                return Err(sliver(crate::invalid_margin::invalid(
                     band,
-                    predicate: Some("split_sector_extent"),
-                    terminal_sliver: false,
-                }));
+                    "split_sector_extent",
+                )));
             }
             Err(diag) => return Err(sliver(diag)),
         }
@@ -207,13 +215,16 @@ pub(super) fn apply_rule_a<T: Decide>(
                         .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
                         .ok_or_else(corrupt)?;
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
-                    // Ledger row F11 (unchanged by the clause-(i)
-                    // migration): the sagitta is metered at the
-                    // WHOLE-FACE extent, over-refusal direction —
+                    // Ledger row F11: the sagitta is metered at the
+                    // WHOLE-FACE extent, which decides a bend more
+                    // readily than the contact's own arm would —
                     // arm-policy question, own unit.
                     let so_margin = Margin::sagitta(kappa, extent);
                     match decide("tangent_sector_osculation", so_margin, band) {
-                        Ok(Sign::Positive) => continue,
+                        Ok(Sign::Positive) => {
+                            grazes[k] = true;
+                            continue;
+                        }
                         Ok(Sign::Zero | Sign::Negative) => {
                             return Err(SplitReduceError::TangencyUnsupported { face, vertex });
                         }
@@ -245,31 +256,31 @@ pub(super) fn apply_rule_a<T: Decide>(
             // Tangent after the parallelism gate is contradictory —
             // escalate rather than guess.
             Ok(EntersMaterial::Tangent) => {
-                return Err(sliver(geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
+                return Err(sliver(crate::invalid_margin::invalid(
                     band,
-                    predicate: Some("enters_material"),
-                    terminal_sliver: false,
-                }));
+                    "enters_material",
+                )));
             }
             Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
         };
         entries[k].class = class;
         entries[(k + 1) % n].class = class;
     }
-    Ok(())
+    Ok(grazes)
 }
 
 /// Rule (b): reclassify every remaining ON entry by its cyclic
 /// neighbours and, where both sit on one side, by the convexity of the
 /// in-plane edge between its two flanking faces — the derived table
 /// (module docs). Checks the no-consecutive-ONs invariant loudly first
-/// (the book assumes it; we refuse if it fails).
+/// (the book assumes it; we refuse if it fails). `grazes` is rule (a)'s
+/// per-entry report of the curved walls the plane grazes.
 pub(super) fn apply_rule_b<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     vertex: VertexKey,
     entries: &mut [SectorEntry],
+    grazes: &[bool],
     band: Band,
 ) -> Result<(), SplitReduceError> {
     let n = entries.len();
@@ -282,7 +293,8 @@ pub(super) fn apply_rule_b<T: Decide>(
         if entries[k].class != PlaneSide::On {
             continue;
         }
-        let prev = entries[(k + n - 1) % n];
+        let k_prev = (k + n - 1) % n;
+        let prev = entries[k_prev];
         let next = entries[(k + 1) % n].class;
         entries[k].class = match (prev.class, next) {
             (side @ (PlaneSide::Below | PlaneSide::Above), next) if next == side => {
@@ -290,9 +302,14 @@ pub(super) fn apply_rule_b<T: Decide>(
                 // more, so it has no edge to read: its face's wall
                 // decides, as both faces' walls do at a smooth edge.
                 match entries[k].kind {
-                    SectorEntryKind::WideBisector => {
-                        wall_graze(body, plane, vertex, &[entries[k].he], side, band)?
-                    }
+                    SectorEntryKind::WideBisector => wall_graze(
+                        body,
+                        plane,
+                        vertex,
+                        &[(entries[k].he, grazes[k])],
+                        side,
+                        band,
+                    )?,
                     SectorEntryKind::Edge => {
                         match edge_wedge(body, vertex, prev.he, entries[k].he, band)? {
                             Some(true) => side,
@@ -301,7 +318,7 @@ pub(super) fn apply_rule_b<T: Decide>(
                                 body,
                                 plane,
                                 vertex,
-                                &[prev.he, entries[k].he],
+                                &[(prev.he, grazes[k_prev]), (entries[k].he, grazes[k])],
                                 side,
                                 band,
                             )?,
@@ -378,14 +395,15 @@ fn edge_wedge<T: Decide>(
 /// Where an `S`-ON-`S` entry with no corner to read goes (module docs,
 /// "Smooth edges and duplicates"): a duplicate inside one face's wide
 /// sector (`sectors` holds its orbit half-edge), or a smooth edge (the
-/// orbit half-edges of both its faces' sectors). Each face is read over
-/// its face extent, the arm rule (a) reads it over; every face must
-/// give the same verdict, or the reading refuses.
+/// orbit half-edges of both its faces' sectors), each with rule (a)'s
+/// verdict on whether the plane grazes that face. Each face is read
+/// over its face extent, the arm rule (a) reads it over (ledger F11);
+/// every face must give the same verdict, or the reading refuses.
 fn wall_graze<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     vertex: VertexKey,
-    sectors: &[HalfEdgeKey],
+    sectors: &[(HalfEdgeKey, bool)],
     side: PlaneSide,
     band: Band,
 ) -> Result<PlaneSide, SplitReduceError> {
@@ -399,28 +417,13 @@ fn wall_graze<T: Decide>(
         -plane.normal.get()
     };
     let mut verdict = None;
-    for &he in sectors {
-        let (face, n_face, is_plane) = sector_face(body, vertex, he)?;
+    for &(he, tangent) in sectors {
+        let (face, n_face, _) = sector_face(body, vertex, he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
-        let contradiction = |predicate| {
-            sliver(geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some(predicate),
-                terminal_sliver: false,
-            })
-        };
-        let extent = face_extent(body, vertex, face)?;
-        let tangent = !is_plane && {
-            let parallel = Margin::levered(n_face.vec().cross(plane.normal.get()).norm(), extent);
-            match decide("split_sector_coplanar", parallel, band) {
-                Ok(Sign::Zero) => true,
-                Ok(_) => false,
-                Err(diag) => return Err(sliver(diag)),
-            }
-        };
+        let contradiction = |predicate| sliver(crate::invalid_margin::invalid(band, predicate));
         let this =
             if tangent {
+                let extent = face_extent(body, vertex, face)?;
                 let surface = body
                     .get_face(face)
                     .and_then(|f| body.get_surface(f.surface))
@@ -718,7 +721,9 @@ mod tests {
             geom_core::Vec3::unit_z(),
             Tol::witness(),
         );
-        let err = apply_rule_b(&body, &plane, VertexKey::default(), &mut e, band).unwrap_err();
+        let grazes = vec![false; e.len()];
+        let err =
+            apply_rule_b(&body, &plane, VertexKey::default(), &mut e, &grazes, band).unwrap_err();
         assert!(matches!(err, SplitReduceError::ConsecutiveOnSectors { .. }));
     }
 
