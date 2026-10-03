@@ -2,10 +2,11 @@
 id: point-in-loop-answers-on-an-arc-loops-corner-polygon
 kind: issue
 title: the public splitting::point_in_loop reads an arc-bearing loop as its corner polygon with no refusal: a point inside a bore's circle reads Out, its centre OnBoundary
-status: open
+status: dispatched
 opened: 2026-10-02
-priority: P2
+priority: P1
 cost: E
+branch: cleave/ptloop-arcs
 ---
 
 Found by the `plane-section-polygons-drop-their-arcs` lane's class
