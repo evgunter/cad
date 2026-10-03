@@ -349,7 +349,7 @@ fn a4_the_static_gaps_refuse_table_lacks_with_no_reach_asked() {
 }
 
 /// **A frame with no definite direction refuses at its authoring, and
-/// an offset step with none refuses `FrameOffset` at insert**, with
+/// an offset step with none refuses `FrameUnevaluated` at insert**, with
 /// no reach asked: the frame is read before any decision is levered.
 #[test]
 fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
@@ -375,7 +375,7 @@ fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
     assert!(
         matches!(
             fault,
-            MateFault::FrameOffset {
+            MateFault::FrameUnevaluated {
                 side: MateSide::B,
                 ..
             }
@@ -835,7 +835,7 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::SelfMate { mate, .. }
         | MateFault::Unleverable { mate, .. }
         | MateFault::FaceUnresolved { mate, .. }
-        | MateFault::FrameOffset { mate, .. } => Some(*mate),
+        | MateFault::FrameUnevaluated { mate, .. } => Some(*mate),
         MateFault::Contradictory {
             held,
             added,
@@ -872,11 +872,11 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             side,
             error,
         },
-        MateFault::FrameOffset {
+        MateFault::FrameUnevaluated {
             mate,
             side,
             refusal,
-        } => MateFault::FrameOffset {
+        } => MateFault::FrameUnevaluated {
             mate: r(mate),
             side,
             refusal,

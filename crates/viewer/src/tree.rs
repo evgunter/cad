@@ -1282,7 +1282,7 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::SelfMate { .. }
         | MateFault::Unleverable { .. }
         | MateFault::FaceUnresolved { .. }
-        | MateFault::FrameOffset { .. }
+        | MateFault::FrameUnevaluated { .. }
         | MateFault::Contradictory { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. } => None,
@@ -1339,7 +1339,7 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::Unleverable { mate, .. }
         | MateFault::FaceUnresolved { mate, .. }
-        | MateFault::FrameOffset { mate, .. } => vec![*mate],
+        | MateFault::FrameUnevaluated { mate, .. } => vec![*mate],
         // Names no mate and reaches EVERY row of the document — the
         // asymmetry with the arm below is stated once, on `MateFault`.
         MateFault::Band { .. } => Vec::new(),

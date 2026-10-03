@@ -3725,18 +3725,13 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "FrameOffset",
-            M::FrameOffset {
+            "FrameUnevaluated",
+            M::FrameUnevaluated {
                 mate: n(9),
                 side: MateSide::B,
                 refusal: Box::new(
-                    NodeErrorKind::Expr {
-                        slot: editor_core::SlotId::MateOffset {
-                            side: MateSide::B,
-                            step: 0,
-                            arg: editor_core::RigidArg::RotationAngle,
-                        },
-                        source: editor_core::EvalError::NonFiniteResult,
+                    NodeErrorKind::DegenerateDirection {
+                        role: "transform rotation axis",
                     }
                     .into(),
                 ),

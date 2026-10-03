@@ -367,7 +367,11 @@ part base. A face base also resolves at the NOMINAL value only: under
 an analysis lane — `stackup.sensitivities`' dual passes, a certified
 `clearance`'s interval leaf — the part's product pins no single
 number, the face side refuses `unpinned`, and those two doors refuse
-an assembly that holds one, where a part base still solves. The
+an assembly that holds one. A part base whose offset reads no
+parameter solves on those lanes as it does at the nominal; one whose
+offset reads a parameter the lane binds is solved at the parameter's
+nominal value while the lane moves it, which is an open gap
+(`work/msolve/a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs.md`). The
 solve's
 *algorithm* is unchanged — coset intersection over decided
 predicates, no numeric fitting — and its inputs are the document plus
@@ -380,7 +384,8 @@ actually do", kept visible.
 **What the solve would refuse about a mate on its own, the insert
 refuses.** A head that resolves to no member, one member named
 twice, a class outside the vocabulary, a frame offset that does not
-evaluate, a primitive-and-rider pair the coset table has no row
+evaluate, a frame with no definite direction, a primitive-and-rider
+pair the coset table has no row
 for, a clocking rider that contradicts the frame coincidence it rides
 — each is a fact about the mate alone, which the solve records
 against the mate whenever it reads the datum. So `Doc.insert` asks

@@ -524,7 +524,7 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::Stations => "stations",
         SlotId::Profile { .. } => "profile",
         SlotId::PlacementStep { .. } => "placement_step",
-        SlotId::MateOffset { .. } => "mate_offset",
+        SlotId::MateFrameStep { .. } => "mate_frame_step",
     }
 }
 
@@ -1069,7 +1069,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateOffsetDisagrees => "mate_offset_disagrees",
         C::MateOffsetUnchecked => "mate_offset_unchecked",
         C::MateFaceUnresolved => "mate_face_unresolved",
-        C::MateFrameOffset => "mate_frame_offset",
+        C::MateFrameUnevaluated => "mate_frame_unevaluated",
         C::CrossingUnverified => "crossing_unverified",
         // A node reading an unplaced group's space beside another.
         C::Unplaced => "unplaced",

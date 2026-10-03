@@ -125,6 +125,13 @@ impl MateFrame {
     /// it, or — asked before either sign — when the axis's length or
     /// that perpendicular offset is not a finite number, whose
     /// `variant` reads `non_finite_aim` or `non_finite_roll_reference`.
+    ///
+    /// The frame is decided at the process tolerance, the one ε this
+    /// session holds: every door here — `Doc.insert`, `Doc.apply` —
+    /// decides at it, and a document recording another ε is refused
+    /// before any of its geometry is read (D4). The literal step it
+    /// stores is judged again where it lands, by the placement frame
+    /// rule (finite, proper, rigid) at the insert door and at load.
     #[new]
     fn new(
         py: Python<'_>,
@@ -179,7 +186,7 @@ impl MateFrame {
     /// BIT-exact equality: the same base, and offsets equal by
     /// `Placement.__eq__`'s rule.
     fn __eq__(&self, other: &Self) -> bool {
-        self.0.base == other.0.base && self.0.offset.bit_eq(&other.0.offset)
+        self.0.bit_eq(&other.0)
     }
 
     fn __repr__(&self) -> String {
@@ -387,8 +394,10 @@ impl Alignment {
             .map(|r| Angle(pncad::quantity::Angle::from_radians(r)))
     }
 
+    /// BIT-exact equality, `MateFrame.__eq__`'s rule over both frames,
+    /// with the primitive's lengths and the rider compared by bits.
     fn __eq__(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.0.bit_eq(&other.0)
     }
 
     fn __repr__(&self) -> String {

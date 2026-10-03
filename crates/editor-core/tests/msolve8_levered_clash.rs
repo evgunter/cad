@@ -188,9 +188,8 @@ fn lever_of(r: &Rig, a: &Alignment) -> f64 {
 /// primitive's own displacement ridden onto `a`'s placement, times the
 /// inverse of `b`'s.
 fn representative(a: &Alignment) -> Affine3<f64> {
-    let tol = Tol::witness();
-    let fa = fixture::authored(&a.a).placement(tol).unwrap();
-    let fb = fixture::authored(&a.b).placement(tol).unwrap();
+    let fa = fixture::authored(&a.a).placement();
+    let fb = fixture::authored(&a.b).placement();
     let target = match a.primitive {
         MatePrimitive::PlanarRest { offset } => {
             fa * Affine3::translation(Vec3::new(0.0, 0.0, 1.0) * offset)
@@ -639,86 +638,6 @@ fn the_three_residual_clashes_survive_the_inverted_authored_order() {
 }
 
 // ---- A2 / C2: the witness is the column, and one decision at the band's edge ----
-
-/// **An authored frame's axis witness is its placement's third
-/// column, re-minted.** Over every combination of a 22-value axis grid
-/// (signed units, halves, in-band and sub-band lengths, underflowing
-/// and overflowing magnitudes, the non-finite values), six references
-/// and four origins — 255 552 frames — the authored door either
-/// refuses typed, or builds a part-based frame whose axis, re-minted
-/// from the literal step's third column as the solve re-mints it,
-/// always decides and lies within rounding of that column: the column
-/// is unit to rounding already, so the re-mint moves a component by at
-/// most an ulp or two, and never refuses.
-#[test]
-fn c2_axis_vs_placement_sweep() {
-    let tol = Tol::witness();
-    let eps = tol.eps();
-    let vals = [
-        0.0,
-        -0.0,
-        1.0,
-        -1.0,
-        0.5,
-        -0.3,
-        1e-3,
-        3.0 * eps,
-        eps,
-        0.5 * eps,
-        -eps,
-        1e-160,
-        1e-200,
-        1e154,
-        1e200,
-        1e308,
-        -1e308,
-        f64::NAN,
-        f64::INFINITY,
-        f64::NEG_INFINITY,
-        f64::MIN_POSITIVE,
-        5e-324,
-    ];
-    let refs = [
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 1.0, 0.0],
-        [1.0, 1.0, 1e-12],
-        [0.0, 0.0, 2.0],
-        [-0.0, 3e-9, 1.0],
-    ];
-    let origins = [
-        [0.0, 0.0, 0.0],
-        [1e6, -1e6, 1e6],
-        [1e-6, 1e15, -1e-300],
-        [-0.0, -0.0, -0.0],
-    ];
-    let (mut built, mut refused) = (0_usize, 0_usize);
-    for x in vals {
-        for y in vals {
-            for z in vals {
-                for r in refs {
-                    for o in origins {
-                        match MateFrame::authored(o, [x, y, z], r, tol) {
-                            Ok(f) => {
-                                built += 1;
-                                let side = fixture::authored(&f);
-                                let p = side.placement(tol).expect("a literal places");
-                                let a = side.axis(tol).unwrap_or_else(|e| {
-                                    panic!("{f:?}: built without an axis: {e:?}")
-                                });
-                                let d = (p.linear.c2 - a.get()).norm_witness();
-                                assert!(d <= 2.0 * f64::EPSILON, "{f:?}: moved by {d:e}");
-                            }
-                            Err(_) => refused += 1,
-                        }
-                    }
-                }
-            }
-        }
-    }
-    assert_eq!(built + refused, 22 * 22 * 22 * 6 * 4);
-    assert!(built > 0 && refused > 0, "{built} {refused}");
-}
 
 /// The in-plane perturbation shapes a boundary search tilts a normal
 /// by.

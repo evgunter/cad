@@ -76,7 +76,7 @@ path the frame cancels and is not read, so the check is lane-exact.
 
 A mate frame is now a base composed with an offset `Placement`
 (`[ev]` #3920), and a rigid step of that offset may read a document
-parameter (its slots are `SlotId::MateOffset`). The solve evaluates
+parameter (its slots are `SlotId::MateFrameStep`). The solve evaluates
 the offset where it resolves the side's frame
 (`crates/editor-core/src/mate/solve.rs`, `compose_offset`), at the
 solve's own environment — `doc.param_env::<f64>()`, the nominal, in
@@ -85,9 +85,11 @@ door's `admit_mate`; `solve_document`). So a box or seed run that binds
 a parameter a mate-frame offset reads solves the pair at the nominal
 while the mate's own slot values widen in the lane: the same class,
 with the offset's parameters as a third set of names the proposed
-refusal must intersect with the run's bound names. Pinned at the
-nominal by `place_mate_frame_offset::a_parameter_drives_an_offset_and_the_solved_pose_moves`
-(f64 only); no box or seed row reads it yet.
+refusal must intersect with the run's bound names. Nothing pins
+this in a box or seed lane: `place_mate_frame_offset::a_parameter_drives_an_offset_and_the_solved_pose_moves`
+reads the offset's parameter in an f64 run only, so the lane gap is
+read off the code (`compose_offset` is handed the nominal env), not
+measured.
 
 ## Weighed (2026-10-01)
 

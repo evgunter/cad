@@ -482,7 +482,7 @@ lengths|`, no floor and no constant. A side on a face
 base takes its head face's canonical pose, read off its surface
 parameters exactly (`topo::readback::face_pose`, no tolerance) in the
 part's own coordinates, composed with the side's offset (an offset
-that does not evaluate faults `MateFault::FrameOffset`), as the side's
+that does not evaluate faults `MateFault::FrameUnevaluated`), as the side's
 frame, so a side set on a face follows that face through any edit of
 the part. The offset is any rigid motion; which offsets a mate admits
 is its contact class's to say (a `Rest` side set back from its face

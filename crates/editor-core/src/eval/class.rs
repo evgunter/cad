@@ -268,8 +268,8 @@ pub enum NodeErrorClass {
     PlacementRefused,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::FaceUnresolved`].
     MateFaceUnresolved,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::FrameOffset`].
-    MateFrameOffset,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::FrameUnevaluated`].
+    MateFrameUnevaluated,
     /// [`NodeErrorKind::CrossingUnverified`].
     CrossingUnverified,
     /// [`NodeErrorKind::MeasureRefResolve`].
@@ -463,7 +463,7 @@ impl NodeErrorClass {
             MateFault::OffsetDisagrees { .. } => Self::MateOffsetDisagrees,
             MateFault::OffsetUnchecked { .. } => Self::MateOffsetUnchecked,
             MateFault::FaceUnresolved { .. } => Self::MateFaceUnresolved,
-            MateFault::FrameOffset { .. } => Self::MateFrameOffset,
+            MateFault::FrameUnevaluated { .. } => Self::MateFrameUnevaluated,
         }
     }
 
@@ -630,7 +630,7 @@ mod tests {
         Unplaced,
         PlacementRefused,
         MateFaceUnresolved,
-        MateFrameOffset,
+        MateFrameUnevaluated,
         CrossingUnverified,
         MeasureRefResolve,
         MeasureRefUnreadable,
@@ -1121,17 +1121,12 @@ mod tests {
                     refusal: crate::FacePoseRefusal::NoSuchName,
                 }),
             }),
-            C::MateFrameOffset => mate(crate::MateFault::FrameOffset {
+            C::MateFrameUnevaluated => mate(crate::MateFault::FrameUnevaluated {
                 mate: n(9),
                 side: crate::MateSide::B,
                 refusal: Box::new(
-                    K::Expr {
-                        slot: SlotId::MateOffset {
-                            side: crate::MateSide::B,
-                            step: 0,
-                            arg: crate::RigidArg::RotationAngle,
-                        },
-                        source: EvalError::NonFiniteResult,
+                    K::DegenerateDirection {
+                        role: crate::eval::TRANSFORM_AXIS_ROLE,
                     }
                     .into(),
                 ),

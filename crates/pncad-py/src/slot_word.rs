@@ -25,7 +25,7 @@
 //! address is completed by two integers and an argument role that the
 //! word does not carry; `placement_step` names one expression of a
 //! transform's placement past its first step, completed by a step
-//! index; `mate_offset` names one expression of a mate side's frame
+//! index; `mate_frame_step` names one expression of a mate side's frame
 //! offset, completed by the side, a step index and a component. There
 //! is nothing to answer with, so each answers nothing —
 //! the same stop the forward map makes one level out, where the word

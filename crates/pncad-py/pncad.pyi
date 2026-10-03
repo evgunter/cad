@@ -81,7 +81,7 @@ downstream door: `Node.pattern` says the unfused family and
 says the same family fused into one.
 """
 
-from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
+from typing import Any, Final, Generic, Literal, Optional, TypeAlias, TypeVar, overload
 
 # --- errors -----------------------------------------------------------
 # Every subclass carries its refusal as ATTRIBUTES, never as parsed
@@ -5581,7 +5581,11 @@ class MateFrame:
         """Three authored vectors: the part base with the one literal
         step they denote. Raises FrameError when the axis has no
         definite direction or the reference no definite perpendicular,
-        or a length is not a finite number."""
+        or a length is not a finite number. Decided at the session's
+        tolerance, the one every edit door decides at (a document
+        recording another epsilon is refused before its geometry is
+        read); the stored literal is judged again by the placement
+        frame rule where it lands."""
     @staticmethod
     def on_part(offset: Placement) -> MateFrame:
         """The part base composed with `offset`, in the part's own
@@ -5598,7 +5602,7 @@ class MateFrame:
         +Y along its reference direction."""
 
     @property
-    def base(self) -> str:
+    def base(self) -> Literal["part", "face"]:
         """What the offset is written in: `"part"` or `"face"`."""
 
     @property

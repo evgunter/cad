@@ -411,7 +411,7 @@ pub enum SlotId {
     /// ([`crate::MateFrame`]): `arg` of step `step` of side `side`'s
     /// offset. A mate holds two placements, so its addresses carry
     /// the side, and step 0 is addressed by its index like any other.
-    MateOffset {
+    MateFrameStep {
         /// Which side's frame.
         side: crate::mate::MateSide,
         /// The step's index in the offset's chain.
@@ -494,8 +494,8 @@ fn rigid_label(step: usize, noun: &str) -> String {
 /// **The prose of a mate side's offset component**, `noun`, at chain
 /// index `step` of side `side`'s offset — counted from one, as
 /// [`rigid_label`] counts.
-fn mate_offset_label(side: crate::mate::MateSide, step: usize, noun: &str) -> String {
-    format!("side {} offset step {} {noun}", side.name(), step + 1)
+fn mate_step_label(side: crate::mate::MateSide, step: usize, noun: &str) -> String {
+    format!("side {} frame step {} {noun}", side.name(), step + 1)
 }
 
 /// A slot family whose members are the three COMPONENTS of one
@@ -550,16 +550,16 @@ pub enum VectorSlot {
         step: usize,
     },
     /// A rigid step's translation in a mate side's frame offset
-    /// ([`SlotId::MateOffset`]).
-    MateTranslation {
+    /// ([`SlotId::MateFrameStep`]).
+    MateFrameTranslation {
         /// Which side's frame.
         side: crate::mate::MateSide,
         /// The step's index in the offset's chain.
         step: usize,
     },
     /// A rigid step's rotation axis in a mate side's frame offset
-    /// ([`SlotId::MateOffset`]).
-    MateRotationAxis {
+    /// ([`SlotId::MateFrameStep`]).
+    MateFrameRotationAxis {
         /// Which side's frame.
         side: crate::mate::MateSide,
         /// The step's index in the offset's chain.
@@ -579,12 +579,12 @@ impl VectorSlot {
             Self::V => SlotId::V(axis),
             Self::Translation { step } => SlotId::rigid(step, RigidArg::Translation(axis)),
             Self::RotationAxis { step } => SlotId::rigid(step, RigidArg::RotationAxis(axis)),
-            Self::MateTranslation { side, step } => SlotId::MateOffset {
+            Self::MateFrameTranslation { side, step } => SlotId::MateFrameStep {
                 side,
                 step,
                 arg: RigidArg::Translation(axis),
             },
-            Self::MateRotationAxis { side, step } => SlotId::MateOffset {
+            Self::MateFrameRotationAxis { side, step } => SlotId::MateFrameStep {
                 side,
                 step,
                 arg: RigidArg::RotationAxis(axis),
@@ -607,8 +607,10 @@ impl VectorSlot {
             Self::V => "y axis".to_owned(),
             Self::Translation { step } => rigid_label(step, "translation"),
             Self::RotationAxis { step } => rigid_label(step, "rotation axis"),
-            Self::MateTranslation { side, step } => mate_offset_label(side, step, "translation"),
-            Self::MateRotationAxis { side, step } => mate_offset_label(side, step, "rotation axis"),
+            Self::MateFrameTranslation { side, step } => mate_step_label(side, step, "translation"),
+            Self::MateFrameRotationAxis { side, step } => {
+                mate_step_label(side, step, "rotation axis")
+            }
         }
     }
 
@@ -652,7 +654,7 @@ impl SlotId {
             | Self::TubeWindowEnd => Dimension::Angle,
             Self::Count | Self::VDegree | Self::Stations | Self::Instance => Dimension::Count,
             // A later step's component has its step-0 twin's dimension.
-            Self::PlacementStep { arg, .. } | Self::MateOffset { arg, .. } => {
+            Self::PlacementStep { arg, .. } | Self::MateFrameStep { arg, .. } => {
                 SlotId::rigid(0, arg).dimension()
             }
             // Profile-program roles carry V2's per-role table; none is
@@ -730,8 +732,8 @@ impl SlotId {
                 Some((step, RigidArg::RotationAngle)) => rigid_label(step, "rotation angle"),
                 _ => String::from("component"),
             },
-            Self::MateOffset { side, step, arg } => match arg {
-                RigidArg::RotationAngle => mate_offset_label(side, step, "rotation angle"),
+            Self::MateFrameStep { side, step, arg } => match arg {
+                RigidArg::RotationAngle => mate_step_label(side, step, "rotation angle"),
                 RigidArg::Translation(_) | RigidArg::RotationAxis(_) => String::from("component"),
             },
             // Every component variant answered above.
@@ -772,12 +774,12 @@ impl SlotId {
                     (_, RigidArg::RotationAngle) => None,
                 }
             }
-            Self::MateOffset { side, step, arg } => match arg {
+            Self::MateFrameStep { side, step, arg } => match arg {
                 RigidArg::Translation(axis) => {
-                    Some((VectorSlot::MateTranslation { side, step }, axis))
+                    Some((VectorSlot::MateFrameTranslation { side, step }, axis))
                 }
                 RigidArg::RotationAxis(axis) => {
-                    Some((VectorSlot::MateRotationAxis { side, step }, axis))
+                    Some((VectorSlot::MateFrameRotationAxis { side, step }, axis))
                 }
                 RigidArg::RotationAngle => None,
             },
@@ -818,6 +820,12 @@ impl SlotId {
             };
         };
         SlotId::PlacementStep { step, arg }
+    }
+
+    /// Whether this slot addresses a step of a mate side's frame
+    /// offset — an address only a mate carries.
+    pub fn is_mate_frame_step(self) -> bool {
+        matches!(self, Self::MateFrameStep { .. })
     }
 
     /// The chain position and component a rigid step's slot addresses
@@ -3084,7 +3092,7 @@ macro_rules! node_rows {
                         let Some((step, arg)) = slot.rigid_arg() else {
                             unreachable!("a placement's rows are rigid-step slots")
                         };
-                        $out.push((S::MateOffset { side, step, arg }, e));
+                        $out.push((S::MateFrameStep { side, step, arg }, e));
                     }
                 }
             }
@@ -4532,11 +4540,26 @@ impl<P: PartialEq> Node<P> {
             return false;
         }
         // A literal FRAME is float payload no slot addresses, and the
-        // `PartialEq` above compares its coordinates by value: a
-        // transform's literal steps and an explicit rule's listed
-        // frames compare here, by bits.
+        // `PartialEq` above compares its coordinates by value: every
+        // placement's literal steps — a transform's, a gauge's, an
+        // instance's offset — an explicit rule's listed frames, and a
+        // mate's alignment datum compare here, by bits.
         match (self, other) {
-            (Node::Transform { placement: a, .. }, Node::Transform { placement: b, .. }) => {
+            (Node::Transform { placement: a, .. }, Node::Transform { placement: b, .. })
+            | (Node::Gauge { placement: a, .. }, Node::Gauge { placement: b, .. })
+            | (
+                Node::InstantiatePart {
+                    offset: Some(a), ..
+                },
+                Node::InstantiatePart {
+                    offset: Some(b), ..
+                },
+            ) => {
+                if !a.bit_eq(b) {
+                    return false;
+                }
+            }
+            (Node::Mate { alignment: a, .. }, Node::Mate { alignment: b, .. }) => {
                 if !a.bit_eq(b) {
                     return false;
                 }

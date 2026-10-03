@@ -597,6 +597,17 @@ impl Placement {
         }
     }
 
+    /// Whether every step is a literal frame that is the identity by
+    /// its bits — the empty chain included: the placements that move
+    /// nothing with no arithmetic, which [`Placement::motion_at`]
+    /// answers [`Motion::Identity`] for, known without evaluating.
+    #[must_use]
+    pub fn is_identity_bits(&self) -> bool {
+        self.steps
+            .iter()
+            .all(|step| matches!(step, Step::Literal(frame) if frame.is_identity_bits()))
+    }
+
     /// The first literal step [`Frame::admission_fault`] refuses at
     /// `tol`, with its index in the chain.
     #[must_use]

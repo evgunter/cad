@@ -180,7 +180,7 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
     let (p, doc, [base, top, m]) =
         seated(label, slid_by_the_parameter(), |d| declare_slide(d, 0.5));
     let o = p.opts();
-    let slot = SlotId::MateOffset {
+    let slot = SlotId::MateFrameStep {
         side: MateSide::B,
         step: 0,
         arg: RigidArg::Translation(editor_core::Axis3::Y),
@@ -538,4 +538,125 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
 
 fn top_image(map: &editor_core::NodeMap, top: RecipeNodeId) -> RecipeNodeId {
     *map.get(&top).expect("the top is carried")
+}
+
+// ---- Row 7: a slot edit at a frame step is admitted as an insert is ----
+
+/// **A slot edit that reaches a mate's frame offset asks the mate's
+/// admission.** A rigid step turning about +z is admitted; zeroing its
+/// axis one component at a time through `SetParam` is admitted until
+/// the last zero leaves no direction, which refuses `MateRefused`
+/// carrying `FrameUnevaluated` — what the insert of that mate refuses
+/// with. `SetExpression` at the same address refuses alike.
+#[test]
+fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
+    let turn: Placement = Step::Rigid {
+        translation: [len(0.0), len(0.5), len(0.0)],
+        axis: [0.0, 0.0, 1.0].map(scl),
+        angle: ang(0.0),
+    }
+    .into();
+    let (p, doc, [_, _, m]) = seated("place-mfo-slot", turn, std::convert::identity);
+    let opts = p.opts();
+    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
+    let axis = |ax| SlotId::MateFrameStep {
+        side: MateSide::B,
+        step: 0,
+        arg: RigidArg::RotationAxis(ax),
+    };
+    let doc = apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: m,
+            slot: axis(editor_core::Axis3::X),
+            expr: scl(0.0),
+        },
+        Tol::witness(),
+        &reach,
+    )
+    .expect("x is already zero")
+    .doc;
+    let zeroed = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| {
+        apply(doc, &edit, Tol::witness(), &reach).expect_err("no direction is left")
+    };
+    let refused = |err: &EditError| {
+        matches!(
+            err,
+            EditError::MateRefused { fault, .. }
+                if matches!(**fault, editor_core::MateFault::FrameUnevaluated { side: MateSide::B, .. })
+        )
+    };
+    let err = zeroed(
+        &doc,
+        DocEdit::SetParam {
+            node: m,
+            slot: axis(editor_core::Axis3::Z),
+            expr: scl(0.0),
+        },
+    );
+    assert!(refused(&err), "{err:?}");
+    let err = zeroed(
+        &doc,
+        DocEdit::SetExpression {
+            path: editor_core::ExprPath {
+                node: m,
+                slot: axis(editor_core::Axis3::Z),
+                path: vec![],
+            },
+            expr: scl(0.0),
+        },
+    );
+    assert!(refused(&err), "{err:?}");
+}
+
+// ---- Row 8: a mate's alignment compares by bits ----
+
+/// **Two mates differing only in a signed zero are two nodes to D7.**
+/// A literal frame offset at `+0.0` and at `-0.0`, a rider at `+0.0`
+/// and `-0.0`: each pair is equal by value and different by bits, and
+/// `Node::bit_eq` says so, as it does for a gauge's literal step.
+#[test]
+fn a_mates_alignment_compares_by_bits() {
+    let cap = |node, end| {
+        head(editor_core::StableName {
+            kind: editor_core::EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![editor_core::RoleSeg::Cap(end)],
+        })
+    };
+    let mate = |offset: Placement, clocking: Option<f64>| Node::<ProfileProgram>::Mate {
+        a: cap(1, editor_core::CapEnd::Start),
+        b: cap(2, editor_core::CapEnd::End),
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame::from_face(),
+            b: MateFrame::on_face(offset),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Opposed,
+            clocking,
+        },
+    };
+    let plus = literal([0.0, 0.5, 0.0]);
+    let minus = literal([-0.0, 0.5, 0.0]);
+    for (what, x, y) in [
+        (
+            "offset",
+            mate(plus.clone(), None),
+            mate(minus.clone(), None),
+        ),
+        (
+            "rider",
+            mate(plus.clone(), Some(0.0)),
+            mate(plus.clone(), Some(-0.0)),
+        ),
+        (
+            "gauge",
+            Node::gauge(None, plus.clone()),
+            Node::gauge(None, minus.clone()),
+        ),
+    ] {
+        assert_eq!(x, y, "{what}: equal by value");
+        assert!(!x.bit_eq(&y), "{what}: different by bits");
+        assert!(x.bit_eq(&x.clone()), "{what}: equal to itself");
+    }
 }

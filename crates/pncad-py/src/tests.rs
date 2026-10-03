@@ -2417,7 +2417,7 @@ fn node_error_tags_are_the_published_words() {
         MateOffsetDisagrees => "mate_offset_disagrees",
         MateOffsetUnchecked => "mate_offset_unchecked",
         MateFaceUnresolved => "mate_face_unresolved",
-        MateFrameOffset => "mate_frame_offset",
+        MateFrameUnevaluated => "mate_frame_unevaluated",
         CrossingUnverified => "crossing_unverified",
         Unplaced => "unplaced",
         PlacementRefused => "placement_refused",
@@ -4220,7 +4220,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // offset's by a side, a step index and a component, none
             // of which the word carries.
             None => assert!(
-                matches!(*word, "profile" | "placement_step" | "mate_offset"),
+                matches!(*word, "profile" | "placement_step" | "mate_frame_step"),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
         }
@@ -5316,7 +5316,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_dangling_head",
             "mate_face_unresolved",
             "mate_frame_degenerate",
-            "mate_frame_offset",
+            "mate_frame_unevaluated",
             "mate_indeterminate",
             "mate_offset_disagrees",
             "mate_offset_unchecked",
@@ -5847,7 +5847,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "direction_z",
             "distance",
             "instance",
-            "mate_offset",
+            "mate_frame_step",
             "normal_x",
             "normal_y",
             "normal_z",

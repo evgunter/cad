@@ -294,10 +294,9 @@ pub fn face(name: StableName) -> editor_core::FaceName {
 pub struct Authored(geom_core::Affine3<f64>);
 
 impl Authored {
-    /// The frame's placement.
-    #[allow(clippy::unnecessary_wraps)]
-    pub fn placement(&self, _tol: Tol) -> Result<geom_core::Affine3<f64>, geom_core::FrameError> {
-        Ok(self.0)
+    /// The frame's placement: the literal step's map.
+    pub fn placement(&self) -> geom_core::Affine3<f64> {
+        self.0
     }
 
     /// The frame's axis: its third column, re-minted.

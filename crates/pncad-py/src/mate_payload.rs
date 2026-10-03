@@ -551,7 +551,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
         },
         // The offset's own refusal crosses as its class's word, as a
         // placer's does.
-        MateFault::FrameOffset {
+        MateFault::FrameUnevaluated {
             mate,
             side,
             refusal,

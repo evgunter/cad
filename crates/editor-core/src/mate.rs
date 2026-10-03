@@ -224,6 +224,13 @@ impl MateFrame {
         }
     }
 
+    /// Bit-semantic equality (D7): the same base, and offsets equal by
+    /// [`Placement::bit_eq`], so `0.0` and `-0.0` are different frames.
+    #[must_use]
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        self.base == other.base && self.offset.bit_eq(&other.offset)
+    }
+
     /// **Three authored vectors as a frame**: the part base with one
     /// literal step, the frame whose local +Z is `axis`, whose local
     /// origin is `origin`, and whose roll is fixed by `reference`
@@ -412,6 +419,27 @@ impl Alignment {
             .into_iter()
             .flatten()
             .fold(norm(a) + norm(b), |lever, length| lever + length.abs())
+    }
+
+    /// **Bit-semantic equality** (D7), the one comparator every reader
+    /// of an alignment's equality asks: both frames by
+    /// [`MateFrame::bit_eq`], the primitive's lengths and the rider by
+    /// bits, so `0.0` and `-0.0` are different datums — as the content
+    /// key, which feeds the same fields by bits, already says.
+    #[must_use]
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        let bits = |x: Option<f64>| x.map(f64::to_bits);
+        self.a.bit_eq(&other.a)
+            && self.b.bit_eq(&other.b)
+            && core::mem::discriminant(&self.primitive) == core::mem::discriminant(&other.primitive)
+            && self
+                .primitive
+                .authored_lengths()
+                .into_iter()
+                .zip(other.primitive.authored_lengths())
+                .all(|(x, y)| bits(x) == bits(y))
+            && self.sense == other.sense
+            && bits(self.clocking) == bits(other.clocking)
     }
 
     /// Whether every number the alignment holds outside its frames is
@@ -1174,13 +1202,19 @@ pub enum MateFault {
         refusal: Box<FaceRefusal>,
     },
     /// **A side's frame offset did not evaluate** at the document's
-    /// parameters: an expression of one of its rigid steps refused, or
-    /// a rotation axis has no definite direction — the evaluation
-    /// layer's own refusal, carried unaltered. Raised where the solve
-    /// reads the side's frame, at the insert door for a mate being
-    /// inserted and at every evaluation for a state a parameter edit
-    /// brings the mate to.
-    FrameOffset {
+    /// parameters: a rigid step's rotation axis has no definite
+    /// direction, or one of its expressions refused — the evaluation
+    /// layer's own refusal, its slot named by the mate's own address
+    /// ([`crate::SlotId::MateFrameStep`]). Raised where the solve reads
+    /// the side's frame: at the edit doors that write a mate's datum
+    /// (the insert, and a slot edit at a frame step), and at
+    /// evaluation, where it is what the solve records against the mate
+    /// and its group. An expression that does not evaluate at the
+    /// document's parameters also fails the mate's own slot
+    /// evaluation, so the mate's row states it as its own
+    /// [`crate::NodeErrorKind::Expr`]; an axis of no direction
+    /// evaluates as numbers and is this fault alone.
+    FrameUnevaluated {
         /// The mate.
         mate: RecipeNodeId,
         /// Which side's frame.
@@ -1339,7 +1373,7 @@ impl MateFault {
             | Self::SelfMate { .. }
             | Self::Unleverable { .. }
             | Self::FaceUnresolved { .. }
-            | Self::FrameOffset { .. }
+            | Self::FrameUnevaluated { .. }
             | Self::OffsetDisagrees { .. } => None,
             Self::OffsetUnchecked { cause, .. } => match &**cause {
                 OffsetCheck::Placement { node, error } => Some((*node, error)),
@@ -1698,7 +1732,7 @@ impl crate::spoken::Say for MateFault {
                 side.name(),
                 Said(&**refusal, by)
             ),
-            Self::FrameOffset {
+            Self::FrameUnevaluated {
                 mate,
                 side,
                 refusal,

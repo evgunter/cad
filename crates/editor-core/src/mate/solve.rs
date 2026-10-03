@@ -1068,8 +1068,8 @@ fn mate_coset(
 /// The subgroup's directions are transported by the representative's
 /// rotation and re-minted under the band ([`derived_direction`]): a
 /// proper rotation keeps a witness's length one within rounding, so
-/// the mint decides a length within rounding of one and refuses on no
-/// document the doors build.
+/// the mint decides a length within rounding of one and refuses under
+/// no band that clears it (`Kε < 1`).
 ///
 /// # Errors
 ///
@@ -1113,8 +1113,10 @@ fn invert(c: Coset, band: Band) -> Result<Coset, FrameError> {
 /// an in-band length carries its diagnostic, a length that is no
 /// number is `NonFiniteLength`. The invariant a caller relies on is
 /// that a proper rotation of a witness has length one within
-/// rounding, so on a document the doors build the mint never refuses;
-/// a refusal is the witness doing its job.
+/// rounding, so the mint never refuses under a band that clears a
+/// length of one (`Kε < 1`); under a coarser one it refuses whatever
+/// the parts' scale
+/// (`work/msolve/a-mate-frame-axis-is-decided-against-a-length-band.md`).
 fn derived_direction(
     v: Vec3<f64>,
     site: &'static str,
@@ -1269,15 +1271,21 @@ fn face_base<P: crate::ProfilePayload>(
 /// placement chain takes ([`crate::placement::Placement::motion_after`]),
 /// at `env`, the document's own parameters as the solve reads them.
 ///
-/// An offset that evaluates to the bit-exact identity leaves the base
-/// as it is, its axis included. Any other offset composes, and the
-/// frame's axis is its third column re-minted under the band
-/// ([`derived_direction`]): a rigid map keeps a witness's length one
-/// within rounding, so the mint refuses on no frame the doors admit.
+/// An offset whose every step is a bit-exact identity literal (the
+/// empty chain among them) leaves the base as it is, its axis
+/// included, and evaluates nothing. Any other offset is evaluated
+/// once, folded onto the base, and the frame's axis is its third
+/// column re-minted under the run's LINEAR band ([`derived_direction`]).
+/// The column is unit to rounding, so the mint decides a length of one
+/// against `(ε, Kε)`: it never refuses where `Kε < 1`, and at a coarser
+/// ε (`ε ≥ 0.1` at the default K) every such side refuses
+/// [`MateFault::Frame`], whatever the part's scale
+/// (`work/msolve/a-mate-frame-axis-is-decided-against-a-length-band.md`).
 ///
 /// # Errors
 ///
-/// [`MateFault::FrameOffset`] carrying the evaluation layer's refusal;
+/// [`MateFault::FrameUnevaluated`] carrying the evaluation layer's
+/// refusal, an expression's slot named by the mate's own address;
 /// [`MateFault::Frame`] where the composed axis is no direction.
 fn compose_offset(
     mate: RecipeNodeId,
@@ -1292,13 +1300,23 @@ fn compose_offset(
         Some(face) => (Motion::Map(face.to_affine()), face),
     };
     let refused = |error: crate::eval::NodeErrorKind| {
-        Box::new(MateFault::FrameOffset {
+        let error = match error {
+            crate::eval::NodeErrorKind::Expr { slot, source } => {
+                let slot = match slot.rigid_arg() {
+                    Some((step, arg)) => crate::node::SlotId::MateFrameStep { side, step, arg },
+                    None => slot,
+                };
+                crate::eval::NodeErrorKind::Expr { slot, source }
+            }
+            other => other,
+        };
+        Box::new(MateFault::FrameUnevaluated {
             mate,
             side,
             refusal: Box::new(NodeRefusal::from(error)),
         })
     };
-    if let Motion::Identity = offset.motion_at(env, band).map_err(refused)? {
+    if offset.is_identity_bits() {
         return Ok(SideFrame {
             placement: base.to_affine(),
             axis: base.w(),
@@ -1404,7 +1422,7 @@ fn admit_class(mate: RecipeNodeId, class: super::ContactClass) -> Result<(), Box
 /// The fault the solve records against the mate for its own datum,
 /// unaltered: [`MateFault::Band`] when no band forms; the walk's
 /// [`MateFault::DanglingHead`]; [`check_references`]'s; the class
-/// door's; [`resolve_side`]'s [`MateFault::FaceUnresolved`], [`MateFault::FrameOffset`] and [`MateFault::Frame`]; and
+/// door's; [`resolve_side`]'s [`MateFault::FaceUnresolved`], [`MateFault::FrameUnevaluated`] and [`MateFault::Frame`]; and
 /// [`mate_coset`]'s — `Frame`, `TableLacks`, the decided
 /// contradictory rider or its escalation, and
 /// [`MateFault::Unleverable`] where the rider needs a lever the reach
@@ -2269,6 +2287,138 @@ mod tests {
     use geom_core::ErrorTextReading;
 
     const SITE: &str = "solve_test_direction";
+
+    /// **The composed axis is decided against the run's LENGTH band,
+    /// whatever the part's scale** (the limit
+    /// `work/msolve/a-mate-frame-axis-is-decided-against-a-length-band.md`
+    /// records). Under a band whose escalation edge clears one, an
+    /// authored side — authored with a long axis, as a part at a large
+    /// scale would author it — composes; under one that holds a length
+    /// of one inside it, the same side refuses `Frame`, because its
+    /// literal is unit-length. The part base with no step decides
+    /// nothing and composes under both.
+    #[test]
+    fn a_composed_axis_is_decided_against_the_length_band() {
+        let tol = Tol::witness();
+        let env = ParamEnv::<f64>::default();
+        let frame =
+            MateFrame::authored([0.0; 3], [0.0, 0.0, 1e4], [1e4, 0.0, 0.0], tol).expect("a frame");
+        let fine = Band::linear_at(tol, 1e-3).expect("a band");
+        let coarse = Band::linear_at(tol, 0.5).expect("a band");
+        let compose = |offset: &crate::placement::Placement, band| {
+            compose_offset(RecipeNodeId(1), MateSide::A, None, offset, &env, band)
+        };
+        assert!(
+            compose(&frame.offset, fine).is_ok(),
+            "a fine band decides it"
+        );
+        assert!(
+            matches!(
+                compose(&frame.offset, coarse).map_err(|f| *f),
+                Err(MateFault::Frame { .. })
+            ),
+            "a band holding one refuses it"
+        );
+        let none = crate::placement::Placement::IDENTITY;
+        assert!(
+            compose(&none, coarse).is_ok(),
+            "the empty chain decides nothing"
+        );
+    }
+
+    /// **An authored side, as the solve composes it, is the literal's
+    /// map with that map's third column as its axis.** Over every
+    /// combination of a 22-value axis grid (signed units, halves,
+    /// in-band and sub-band lengths, underflowing and overflowing
+    /// magnitudes, the non-finite values), six references and four
+    /// origins — 255 552 frames — the authored door either refuses
+    /// typed, or builds a part base with one literal step that
+    /// [`compose_offset`] composes to that literal bit for bit, with an
+    /// axis that always decides and lies within rounding of the third
+    /// column (the column is unit to rounding, so the re-mint moves a
+    /// component by an ulp or two).
+    #[test]
+    fn an_authored_side_composes_to_its_literal_with_its_column_as_axis() {
+        let tol = Tol::witness();
+        let eps = tol.eps();
+        let env = ParamEnv::<f64>::default();
+        let vals = [
+            0.0,
+            -0.0,
+            1.0,
+            -1.0,
+            0.5,
+            -0.3,
+            1e-3,
+            3.0 * eps,
+            eps,
+            0.5 * eps,
+            -eps,
+            1e-160,
+            1e-200,
+            1e154,
+            1e200,
+            1e308,
+            -1e308,
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::MIN_POSITIVE,
+            5e-324,
+        ];
+        let refs = [
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0],
+            [1.0, 1.0, 1e-12],
+            [0.0, 0.0, 2.0],
+            [-0.0, 3e-9, 1.0],
+        ];
+        let origins = [
+            [0.0, 0.0, 0.0],
+            [1e6, -1e6, 1e6],
+            [1e-6, 1e15, -1e-300],
+            [-0.0, -0.0, -0.0],
+        ];
+        let (mut built, mut refused) = (0_usize, 0_usize);
+        for x in vals {
+            for y in vals {
+                for z in vals {
+                    for r in refs {
+                        for o in origins {
+                            let Ok(frame) = MateFrame::authored(o, [x, y, z], r, tol) else {
+                                refused += 1;
+                                continue;
+                            };
+                            built += 1;
+                            let [crate::placement::Step::Literal(literal)] =
+                                frame.offset.steps.as_slice()
+                            else {
+                                panic!("{frame:?}: one literal step");
+                            };
+                            let side = compose_offset(
+                                RecipeNodeId(1),
+                                MateSide::A,
+                                None,
+                                &frame.offset,
+                                &env,
+                                band(),
+                            )
+                            .unwrap_or_else(|e| panic!("{frame:?}: composes: {e:?}"));
+                            assert!(
+                                Frame::from_affine(side.placement).bit_eq(literal),
+                                "{frame:?}: the literal, bit for bit"
+                            );
+                            let d = (side.placement.linear.c2 - side.axis.get()).norm_witness();
+                            assert!(d <= 2.0 * f64::EPSILON, "{frame:?}: moved by {d:e}");
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(built + refused, 22 * 22 * 22 * 6 * 4);
+        assert!(built > 0 && refused > 0, "{built} {refused}");
+    }
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()

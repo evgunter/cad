@@ -217,9 +217,7 @@ fn resolved(pose: &topo::readback::Pose<f64>) -> Frame {
     )
     .expect("a definite frame")
     .to_affine();
-    let fb = fixture::authored(&identity())
-        .placement(Tol::witness())
-        .expect("a definite frame");
+    let fb = fixture::authored(&identity()).placement();
     Frame::from_affine(fa * fb.inverse())
 }
 

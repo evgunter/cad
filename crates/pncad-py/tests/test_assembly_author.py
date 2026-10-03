@@ -2083,6 +2083,20 @@ class TestMateFrameFromFace(BenchWorkspace):
         later = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(later.origin[0].meters - at.origin[0].meters, 0.2, places=12)
 
+        # Equality is bit-exact, on the frame and on the alignment.
+        plus = MateFrame.on_face(Placement.literal(Frame.translation((0 * m, 0.1 * m, 0 * m))))
+        minus = MateFrame.on_face(Placement.literal(Frame.translation((-0.0 * m, 0.1 * m, 0 * m))))
+        self.assertNotEqual(plus, minus)
+        rest = MatePrimitive.frame_coincidence()
+        self.assertNotEqual(
+            Alignment(plus, plus, rest, AxisSense.Aligned),
+            Alignment(plus, minus, rest, AxisSense.Aligned),
+        )
+        self.assertEqual(
+            Alignment(plus, plus, rest, AxisSense.Aligned),
+            Alignment(plus, plus, rest, AxisSense.Aligned),
+        )
+
         mirror = Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
         with self.assertRaises(pncad.EditError) as caught:
             self.seated("face-offset-mirror", MateFrame.on_face(Placement.literal(mirror)))

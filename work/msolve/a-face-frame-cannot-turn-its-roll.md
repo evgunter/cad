@@ -66,6 +66,8 @@ Corrections to this row, which both designers found:
   `clocking: None`.
 - No edit rewrites a committed mate's datum
   (`DocEdit::writes_a_mates_datum` is true only for `InsertNode`).
+  Since PLACE's mate-frame-offset unit, a slot edit at a frame-offset
+  step writes one too, and asks the same admission.
 
 ## Re-weighed (2026-10-03, round 3)
 

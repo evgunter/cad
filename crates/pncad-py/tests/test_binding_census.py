@@ -3619,7 +3619,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::PartSelectsAnotherCopy": "MateFault.variant",
     "MateFault::SelfMate": "MateFault.variant",
     "MateFault::FaceUnresolved": "MateFault.variant",
-    "MateFault::FrameOffset": "MateFault.variant",
+    "MateFault::FrameUnevaluated": "MateFault.variant",
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::OffsetDisagrees": "MateFault.variant",
     "MateFault::OffsetUnchecked": "MateFault.variant",

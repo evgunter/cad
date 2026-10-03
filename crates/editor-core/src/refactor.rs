@@ -2125,9 +2125,11 @@ fn remap_node(
                 name: face(&b.name)?,
             },
             class: *class,
-            // The datum crosses verbatim: its vectors are numbers, and
-            // a face-based side holds nothing, its face being the
-            // head's, remapped above.
+            // The datum crosses verbatim: its frames are a base word
+            // and a placement of numbers and expressions over document
+            // parameters, which split and inline carry beside it, and
+            // a face base holds no name, its face being the head's,
+            // remapped above.
             alignment: alignment.clone(),
         },
         // A measure's references are BOTH names and edges, so they
