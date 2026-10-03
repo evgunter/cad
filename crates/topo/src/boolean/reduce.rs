@@ -3821,6 +3821,7 @@ mod declaration_order_rows {
     };
     use crate::contact::{BooleanCoincidence, ContactClass};
     use crate::entity::VertexKey;
+    use crate::test_support::finished;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
     use geom_core::{Band, Point3, Tol};
 
@@ -4395,8 +4396,8 @@ mod declaration_order_rows {
 
     /// `a ∪ b` with the pair `(fa, fb)` declared as `class`.
     fn union_declared(
-        a: &crate::body::Body<f64>,
-        b: &crate::body::Body<f64>,
+        a: &crate::AtRestBody<f64>,
+        b: &crate::AtRestBody<f64>,
         pair: (crate::entity::FaceKey, crate::entity::FaceKey),
         class: Option<BooleanCoincidence>,
     ) -> Result<(), BooleanError> {
@@ -4454,6 +4455,7 @@ mod declaration_order_rows {
             ),
         ];
         for (label, a, b, n) in poses {
+            let (a, b) = (finished(label, a, tol), finished(label, b, tol));
             let pair = (face_facing(&a, n), face_facing(&b, [-n[0], -n[1], -n[2]]));
             let got = union_declared(&a, &b, pair, Some(BooleanCoincidence::TANGENT));
             assert_eq!(
@@ -4514,7 +4516,7 @@ mod declaration_order_rows {
         let band = Band::linear(tol).expect("the witness band");
         let phi = 5.0_f64.to_radians();
         let p = Point3::new(0.5, 0.2, 1.0);
-        let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+        let block = finished("block", brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol), tol);
         let block_volume = 3.0 * 4.5;
         for (label, theta, sunk, facing, offered, other, volume) in [
             (
@@ -4542,11 +4544,15 @@ mod declaration_order_rows {
                 geom_core::Vec3::new(1.0, 0.0, 0.0),
                 geom_core::Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
             );
-            let wedge = mapped_cube::<f64>(
-                move |u, v, w| {
-                    let z = if sunk { 0.5 * (w - 1.0) } else { w };
-                    p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, z)
-                },
+            let wedge = finished(
+                label,
+                mapped_cube::<f64>(
+                    move |u, v, w| {
+                        let z = if sunk { 0.5 * (w - 1.0) } else { w };
+                        p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, z)
+                    },
+                    tol,
+                ),
                 tol,
             );
             let pair = (
@@ -4605,7 +4611,7 @@ mod declaration_order_rows {
         let p = Point3::new(0.5, 0.2, 1.0);
         // Its top face reaches far enough from the tilt axis that each
         // of its corners reads definitely off the wedge's tilted plane.
-        let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+        let block = finished("block", brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol), tol);
         type Pose = (
             &'static str,
             crate::body::Body<f64>,
@@ -4638,6 +4644,7 @@ mod declaration_order_rows {
             ),
         ];
         for (label, wedge, facing, offered, other) in poses {
+            let wedge = finished(label, wedge, tol);
             let pair = (face_facing(&block, [0.0, 0.0, 1.0]), {
                 let hits: Vec<_> = wedge
                     .faces()

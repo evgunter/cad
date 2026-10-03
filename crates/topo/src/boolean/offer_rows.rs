@@ -50,6 +50,7 @@ use super::tests::every_decision;
 use super::*;
 use crate::contact::ContactClass;
 use crate::entity::VertexKey;
+use crate::test_support::finished;
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
 use core::f64::consts::FRAC_1_SQRT_2;
 use geom_brep::OutwardNormal;
@@ -708,7 +709,10 @@ fn wedge_on_a_block(
 }
 
 /// The block and the wedge of [`wedge_on_a_block`].
-fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::body::Body<f64>, crate::body::Body<f64>) {
+fn lane_wedge(
+    opening_deg: f64,
+    tilt: f64,
+) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
     use crate::test_support_fixtures::{brick, mapped_cube};
     let tol = Tol::witness();
     let phi = opening_deg.to_radians();
@@ -721,7 +725,10 @@ fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::body::Body<f64>, crate::bo
         move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, w),
         tol,
     );
-    (brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol), wedge)
+    (
+        finished("the lane's block", brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol), tol),
+        finished("the lane's wedge", wedge, tol),
+    )
 }
 
 /// A block tilted by an in-band angle on a block's top face, the pair
@@ -734,9 +741,13 @@ fn tilted_block_declared_tangent() -> Result<(), BooleanError> {
 fn block_declared_tangent_at(tilt: f64) -> Result<(), BooleanError> {
     use crate::test_support_fixtures::{brick, mapped_cube};
     let tol = Tol::witness();
-    let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol);
-    let b = mapped_cube::<f64>(
-        move |u, v, w| Point3::new(1.0 + 2.0 * u, 1.0 + 2.0 * v, 1.0 + w + tilt * u),
+    let a = finished("block", brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol), tol);
+    let b = finished(
+        "tilted block",
+        mapped_cube::<f64>(
+            move |u, v, w| Point3::new(1.0 + 2.0 * u, 1.0 + 2.0 * v, 1.0 + w + tilt * u),
+            tol,
+        ),
         tol,
     );
     let facing = |body: &crate::body::Body<f64>, up: bool| {
@@ -865,8 +876,8 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
 fn block_on_a_block(z0: f64) -> Result<(), BooleanError> {
     use crate::test_support_fixtures::brick;
     let tol = Tol::witness();
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol);
-    let b = brick::<f64>((0.5, 1.5), (0.5, 1.5), (z0, 2.0), tol);
+    let a = finished("block", brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol), tol);
+    let b = finished("standing block", brick::<f64>((0.5, 1.5), (0.5, 1.5), (z0, 2.0), tol), tol);
     super::super::union(&a, &b, tol).map(|_| ())
 }
 
@@ -1313,10 +1324,10 @@ fn bent_neighbours_in_a_union(margin: f64) -> Result<(), BooleanError> {
         let up = Vec3::new(0.0, 0.0, 1.0);
         plane_through(p0, along, up * theta.cos() + along.cross(up) * theta.sin())
     });
-    let far = crate::test_support_fixtures::brick::<f64>(
-        (5.0, 6.0),
-        (0.0, 1.0),
-        (0.0, 1.0),
+    let body = finished("the bent prism", body, Tol::witness());
+    let far = finished(
+        "far brick",
+        crate::test_support_fixtures::brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     super::super::union(&body, &far, Tol::witness()).map(|_| ())
@@ -1326,8 +1337,8 @@ fn bent_neighbours_in_a_union(margin: f64) -> Result<(), BooleanError> {
 /// `b`, `decls` declared.
 fn public_op(
     k: u8,
-    a: &crate::body::Body<f64>,
-    b: &crate::body::Body<f64>,
+    a: &crate::AtRestBody<f64>,
+    b: &crate::AtRestBody<f64>,
     decls: &BooleanDeclarations,
 ) -> Result<(), BooleanError> {
     let op = match k {
@@ -1358,7 +1369,7 @@ fn turned_z(deg: f64, v: Vec3<f64>) -> Vec3<f64> {
 /// in-face edge rising off the face by `tilt · s · sin(opening)` away
 /// from the block (into it where negative), the whole turned by `rot`
 /// degrees about `z`.
-fn review_wedge(top: bool, rot: f64, opening: f64, s: f64, tilt: f64) -> crate::body::Body<f64> {
+fn review_wedge(top: bool, rot: f64, opening: f64, s: f64, tilt: f64) -> crate::AtRestBody<f64> {
     use crate::test_support_fixtures::mapped_cube;
     let tol = Tol::witness();
     let phi = opening.to_radians();
@@ -1368,16 +1379,22 @@ fn review_wedge(top: bool, rot: f64, opening: f64, s: f64, tilt: f64) -> crate::
         + Vec3::new(0.0, 0.0, up * tilt * s * phi.sin());
     let p = Point3::new(0.3, -0.2, if top { 1.0 } else { 0.0 });
     let h = Vec3::new(0.0, 0.0, up);
-    if top {
+    let wedge = if top {
         mapped_cube::<f64>(move |u, v, w| p + ea * u + eb * v + h * w, tol)
     } else {
         mapped_cube::<f64>(move |u, v, w| p + eb * u + ea * v + h * w, tol)
-    }
+    };
+    finished("the review's wedge", wedge, tol)
 }
 
 /// The review's big block, `[−4, 4]² × [0, 1]`.
-fn big_block() -> crate::body::Body<f64> {
-    crate::test_support_fixtures::brick((-4.0, 4.0), (-4.0, 4.0), (0.0, 1.0), Tol::witness())
+fn big_block() -> crate::AtRestBody<f64> {
+    let tol = Tol::witness();
+    finished(
+        "the review's big block",
+        crate::test_support_fixtures::brick((-4.0, 4.0), (-4.0, 4.0), (0.0, 1.0), tol),
+        tol,
+    )
 }
 
 /// The review's wedge on its big block, through the public op `k`.
@@ -1411,8 +1428,8 @@ fn z_face(body: &crate::body::Body<f64>, z: f64, up: bool) -> crate::entity::Fac
 /// declared `Rest` on the block's top through the public door, by op `k`.
 fn declared_rest_wedge(
     k: u8,
-    block: &crate::body::Body<f64>,
-    wedge: &crate::body::Body<f64>,
+    block: &crate::AtRestBody<f64>,
+    wedge: &crate::AtRestBody<f64>,
 ) -> Result<(), BooleanError> {
     let decls = BooleanDeclarations {
         coincident_faces: vec![FacePairDeclaration::new(
@@ -1431,13 +1448,17 @@ fn declared_rest_wedge(
 fn corner_on_a_corner(axis: Vec3<f64>, theta: f64) -> Result<(), BooleanError> {
     use crate::test_support_fixtures::{brick, mapped_cube};
     let tol = Tol::witness();
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let a = finished("unit block", brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol);
     let k = axis.normalize();
     let c = Point3::new(1.0, 1.0, 1.0);
     let turn = move |v: Vec3<f64>| {
         v * theta.cos() + k.cross(v) * theta.sin() + k * (k.dot(v) * (1.0 - theta.cos()))
     };
-    let b = mapped_cube::<f64>(move |u, v, w| c + turn(Vec3::new(u, v, w)), tol);
+    let b = finished(
+        "turned block",
+        mapped_cube::<f64>(move |u, v, w| c + turn(Vec3::new(u, v, w)), tol),
+        tol,
+    );
     public_op(0, &a, &b, &BooleanDeclarations::none())
 }
 
@@ -1450,16 +1471,20 @@ const KINK_HEIGHT: f64 = 0.1;
 /// The public op `k` of `body` and the brick `cross`, or, where `k` is
 /// `None`, the union of `body` and a far brick.
 fn beside_or_crossed(
-    body: &crate::body::Body<f64>,
+    body: &crate::AtRestBody<f64>,
     k: Option<u8>,
-    cross: &crate::body::Body<f64>,
+    cross: &crate::AtRestBody<f64>,
 ) -> Result<(), BooleanError> {
     match k {
         None => {
-            let far = crate::test_support_fixtures::brick::<f64>(
-                (20.0, 21.0),
-                (0.0, 1.0),
-                (0.0, 1.0),
+            let far = finished(
+                "far brick",
+                crate::test_support_fixtures::brick::<f64>(
+                    (20.0, 21.0),
+                    (0.0, 1.0),
+                    (0.0, 1.0),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
             );
             public_op(0, body, &far, &BooleanDeclarations::none())
@@ -1483,19 +1508,28 @@ fn kinked_prism(k: Option<u8>, theta: f64) -> Result<(), BooleanError> {
         (10.1, 1.0),
         (0.0, 1.0),
     ];
-    let body = prism_z::<f64>(&profile, 0.0, h, tol).body;
-    let cross = crate::test_support_fixtures::brick::<f64>(
-        (4.0, 5.0),
-        (-0.5, 0.5),
-        (0.02, 0.5 * h + 0.3),
+    let body = finished("the kinked prism", prism_z::<f64>(&profile, 0.0, h, tol).body, tol);
+    let cross = finished(
+        "crossing brick",
+        crate::test_support_fixtures::brick::<f64>(
+            (4.0, 5.0),
+            (-0.5, 0.5),
+            (0.02, 0.5 * h + 0.3),
+            tol,
+        ),
         tol,
     );
     beside_or_crossed(&body, k, &cross)
 }
 
 /// The brick that crosses a split top.
-fn split_top_crossing() -> crate::body::Body<f64> {
-    crate::test_support_fixtures::brick::<f64>((0.3, 2.0), (0.2, 0.7), (0.5, 1.5), Tol::witness())
+fn split_top_crossing() -> crate::AtRestBody<f64> {
+    let tol = Tol::witness();
+    finished(
+        "the split top's crossing brick",
+        crate::test_support_fixtures::brick::<f64>((0.3, 2.0), (0.2, 0.7), (0.5, 1.5), tol),
+        tol,
+    )
 }
 
 /// A valid split top: the re-described half bent by [`KINK`] about the
@@ -1508,6 +1542,7 @@ fn bent_split_far_origin(k: Option<u8>, l: f64) -> Result<(), BooleanError> {
         let n = up * KINK.cos() + along.cross(up) * KINK.sin();
         plane_through(p0 + n.cross(along) * l, along, n)
     });
+    let body = finished("the bent split top", body, Tol::witness());
     beside_or_crossed(&body, k, &split_top_crossing())
 }
 
@@ -1524,9 +1559,13 @@ fn bent_split_far_origin(k: Option<u8>, l: f64) -> Result<(), BooleanError> {
 fn a_stranded_split_top_crossed_by_a_brick_reaches_the_classification_invariant() {
     let up = Vec3::new(0.0, 0.0, 1.0);
     let offset = 1e3 * Tol::witness().get().eps;
-    let body = super::tests::top_split_redescribed(|p0, along, _| {
-        plane_through(p0 + up * offset, along, up)
-    });
+    let body = finished(
+        "the stranded split top",
+        super::tests::top_split_redescribed(|p0, along, _| {
+            plane_through(p0 + up * offset, along, up)
+        }),
+        Tol::witness(),
+    );
     for k in 0..3 {
         let err = public_op(
             k,

@@ -42,9 +42,9 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError, SplitJoinError};
+use topo::{AtRestBody, Body, BooleanError, SplitJoinError};
 
 const R: f64 = 0.5;
 const LEN: f64 = 4.0;
@@ -72,29 +72,27 @@ fn polygon(pts: &[(f64, f64)]) -> profile::ProfileLoop<f64> {
 }
 
 /// The rod: an extruded circle.
-fn rod() -> Body<f64> {
+fn rod() -> AtRestBody<f64> {
     let disc = profile::circle(Point2::new(0.0, 0.0), R, tol()).unwrap();
-    extruded(SketchPlane::xy(), disc.into(), LEN)
+    finished("the rod", extruded(SketchPlane::xy(), disc.into(), LEN), tol())
 }
 
 /// The rod's all-planar twin: a square turned 45°, its corners where
 /// the rod's semicircles meet, so its side edges `x = ±0.5, y = 0` are
 /// the rod's rulings.
-fn diamond() -> Body<f64> {
-    extruded(
-        SketchPlane::xy(),
-        polygon(&[(R, 0.0), (0.0, R), (-R, 0.0), (0.0, -R)]),
-        LEN,
-    )
+fn diamond() -> AtRestBody<f64> {
+    let square = polygon(&[(R, 0.0), (0.0, R), (-R, 0.0), (0.0, -R)]);
+    finished("the diamond", extruded(SketchPlane::xy(), square, LEN), tol())
 }
 
 fn cut(
-    a: &Body<f64>,
+    a: &AtRestBody<f64>,
     x: (f64, f64),
     y: (f64, f64),
     z: (f64, f64),
-) -> Result<Body<f64>, BooleanError> {
-    topo::subtract(a, &brick(x, y, z, tol()), tol())
+) -> Result<AtRestBody<f64>, BooleanError> {
+    let cutter = finished("the cutter", brick(x, y, z, tol()), tol());
+    topo::subtract(a, &cutter, tol())
         .map(|r| r.body().expect("a body remains").body.clone())
 }
 
@@ -135,7 +133,7 @@ fn assert_sound(body: &Body<f64>, expect: f64, what: &str) {
 fn an_axis_lap_builds_every_op_as_its_planar_twin_does() {
     let (rod_v, diamond_v, cutter_v) = (PI * R * R * LEN, 2.0 * R * R * LEN, 2.0 * 1.5);
     for y in [(0.0, 1.0), (-1.0, 0.0)] {
-        let cutter = brick(ACROSS, y, LAP, tol());
+        let cutter = finished("the lap cutter", brick(ACROSS, y, LAP, tol()), tol());
         for (name, body, v, held) in [
             ("rod", rod(), rod_v, PI * R * R / 2.0),
             ("diamond", diamond(), diamond_v, R * R),
@@ -238,7 +236,11 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
         };
         kept
     };
-    let capped = part(&part(&rod(), 3.5, false), 0.5, true);
+    let capped = finished(
+        "the oblique-capped rod",
+        part(&part(&rod(), 3.5, false), 0.5, true),
+        tol(),
+    );
     // Between two parallel planes 3 apart along z, over the disc.
     assert_sound(&capped, 3.0 * PI * R * R, "the oblique-capped rod");
     let err = cut(&capped, ACROSS, (0.2, 1.0), FLAT).expect_err("the flat refuses");
@@ -276,6 +278,7 @@ fn a_rim_semicircle_decides_role_resolution_at_its_own_midpoint() {
             ]),
             6.0,
         );
+        let cutter = finished("the half-space cutter", cutter, tol());
         let r = topo::subtract(&rod(), &cutter, tol())
             .unwrap_or_else(|e| panic!("bulge {bulge}: {e:?}"));
         let body = &r.body().expect("a half rod remains").body;
@@ -285,12 +288,13 @@ fn a_rim_semicircle_decides_role_resolution_at_its_own_midpoint() {
 
 /// The block `[−1, 1]² × [0, 1]` minus a D-profile rod (chord `x = 0.3`,
 /// major arc `r = 0.5` about the origin) extruded `1.0` from `z = z0`.
-fn d_pocket(z0: f64) -> Result<Body<f64>, BooleanError> {
+fn d_pocket(z0: f64) -> Result<AtRestBody<f64>, BooleanError> {
     let block = extruded(
         SketchPlane::xy(),
         polygon(&[(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
         1.0,
     );
+    let block = finished("the block", block, tol());
     let c = sweep::test_support::rod_chord_at(0.3);
     let d = extruded(
         SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0))),
@@ -300,6 +304,7 @@ fn d_pocket(z0: f64) -> Result<Body<f64>, BooleanError> {
         ]),
         1.0,
     );
+    let d = finished("the D rod", d, tol());
     topo::subtract(&block, &d, tol()).map(|r| r.body().expect("a body remains").body.clone())
 }
 

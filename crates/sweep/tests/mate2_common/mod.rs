@@ -125,7 +125,7 @@ pub fn boolean_body(r: BooleanResult<f64>) -> topo::BooleanBody<f64> {
 }
 
 pub fn body_of(r: BooleanResult<f64>) -> Body<f64> {
-    boolean_body(r).body
+    boolean_body(r).body.into_body()
 }
 
 /// The additivity distance in ULPs of the sum — the raw number both

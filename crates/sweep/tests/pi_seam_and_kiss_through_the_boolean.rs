@@ -58,10 +58,10 @@ use core::f64::consts::PI;
 use crate::common::seam_pairs::meeting;
 use geom::SurfaceKind;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use sweep::test_support::{ball_poled_z, brick, revolved_about_y};
+use sweep::test_support::{ball_poled_z, brick, finished, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
 use topo::{
-    Body, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult, ContactClass,
+    AtRestBody, Body, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult, ContactClass,
     FaceKey, FacePairDeclaration,
 };
 
@@ -106,13 +106,13 @@ fn declared(
 /// The union both ways round, each with its declarations' sides
 /// swapped to match, and both refusals.
 fn union_both_orders(
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
     fa: &[FaceKey],
     fb: &[FaceKey],
     class: Option<BooleanCoincidence>,
 ) -> [BooleanError; 2] {
-    let run = |x: &Body<f64>, y: &Body<f64>, fx: &[FaceKey], fy: &[FaceKey]| {
+    let run = |x: &AtRestBody<f64>, y: &AtRestBody<f64>, fx: &[FaceKey], fy: &[FaceKey]| {
         let r = match class {
             None => topo::union(x, y, Tol::witness()),
             Some(c) => topo::union_with(x, y, &meeting(x, y, declared(fx, fy, c)), Tol::witness()),
@@ -128,14 +128,14 @@ fn union_both_orders(
 
 /// A z-axis cylinder of radius `r` from `z0`, length `len`, through the
 /// extrude door.
-fn rod_z(r: f64, z0: f64, len: f64) -> Body<f64> {
+fn rod_z(r: f64, z0: f64, len: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
     let plane = profile::SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol)
         .unwrap();
-    extrude(
+    let rod = extrude(
         &p,
         Extrusion::Distance {
             depth: len,
@@ -144,14 +144,15 @@ fn rod_z(r: f64, z0: f64, len: f64) -> Body<f64> {
         tol,
     )
     .unwrap()
-    .body
+    .body;
+    finished("the rod", rod, tol)
 }
 
 /// A revolved cap standing on `z = H`: the profile (sketch x radial,
 /// sketch y axial from the cap's base) revolved, turned onto `+z`,
 /// lifted, and its base disc's two revolve halves merged (the boolean
 /// refuses a non-maximal operand).
-fn cap_on_the_tube(profile: Vec<(Point2<f64>, f64)>) -> Body<f64> {
+fn cap_on_the_tube(profile: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let at0 = revolved_about_y(profile, Revolution::Full, tol);
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
@@ -159,11 +160,11 @@ fn cap_on_the_tube(profile: Vec<(Point2<f64>, f64)>) -> Body<f64> {
     let mut cap =
         topo::transform_rigid(&turned, &Affine3::translation(Vec3::new(0.0, 0.0, H)), tol).unwrap();
     cap.merge_coplanar_faces(tol).unwrap();
-    cap
+    finished("the cap", cap, tol)
 }
 
 /// A solid hemisphere of radius [`R`] standing on `z = H`.
-fn hemisphere_on_the_cap() -> Body<f64> {
+fn hemisphere_on_the_cap() -> AtRestBody<f64> {
     let bulge = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     cap_on_the_tube(vec![
         (Point2::new(0.0, 0.0), 0.0),
@@ -175,7 +176,7 @@ fn hemisphere_on_the_cap() -> Body<f64> {
 /// A 45° cone frustum standing on `z = H`: base radius [`R`], top
 /// radius `R / 2` at height `R / 2`. Its wall meets the tube's along
 /// the rim circle at a 45° corner, not tangentially.
-fn frustum_on_the_cap() -> Body<f64> {
+fn frustum_on_the_cap() -> AtRestBody<f64> {
     cap_on_the_tube(vec![
         (Point2::new(0.0, 0.0), 0.0),
         (Point2::new(R, 0.0), 0.0),
@@ -187,7 +188,7 @@ fn frustum_on_the_cap() -> Body<f64> {
 /// A spherical cap of radius `√2·R` standing on `z = H`, its centre on
 /// the axis `R` below the cap's base, so the base circle is the tube's
 /// rim and the sphere meets the tube's wall there at 45°.
-fn dome_on_the_cap() -> Body<f64> {
+fn dome_on_the_cap() -> AtRestBody<f64> {
     let bulge = (core::f64::consts::FRAC_PI_4 / 4.0).tan();
     cap_on_the_tube(vec![
         (Point2::new(0.0, 0.0), 0.0),
@@ -203,8 +204,8 @@ fn is_pierce(e: &BooleanError) -> bool {
 /// The tube and a cap, unioned both ways round with the discs at
 /// `z = H` declared `Rest`.
 fn unions_with_discs_rest(
-    tube: &Body<f64>,
-    cap: &Body<f64>,
+    tube: &AtRestBody<f64>,
+    cap: &AtRestBody<f64>,
 ) -> [Result<BooleanResult<f64>, BooleanError>; 2] {
     let tol = Tol::witness();
     let (dt, dc) = (planes_at_z(tube, H), planes_at_z(cap, H));
@@ -485,7 +486,11 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds_with_its_discs_decla
     // Turned a twelfth of a turn about the axis, the dome's seams miss
     // the tube's, so each rim runs along two of the other's arcs.
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), PI / 6.0);
-    let turned = topo::transform_rigid(&dome, &turn, tol).unwrap();
+    let turned = finished(
+        "the turned dome",
+        topo::transform_rigid(&dome, &turn, tol).unwrap(),
+        tol,
+    );
     // The same tube revolved: its wall's seam is a meridian ruling.
     let revolved = cap_on_the_tube(vec![
         (Point2::new(0.0, -H), 0.0),
@@ -580,7 +585,11 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
     // (`work/tang/a-turned-lens-keeps-the-door.md`).
     for angle in [PI / 7.0, PI / 2.0] {
         let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), angle);
-        let turned = topo::transform_rigid(&dome, &turn, tol).unwrap();
+        let turned = finished(
+            "the turned dome",
+            topo::transform_rigid(&dome, &turn, tol).unwrap(),
+            tol,
+        );
         for (order, r) in unions_with_discs_rest(&bowl, &turned)
             .into_iter()
             .enumerate()
@@ -604,7 +613,11 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
 fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     let tol = Tol::witness();
     let none = BooleanDeclarations::none();
-    let ball = ball_poled_z(2.0_f64.sqrt(), Vec3::new(0.0, 0.0, 0.0), tol);
+    let ball = finished(
+        "the ball",
+        ball_poled_z(2.0_f64.sqrt(), Vec3::new(0.0, 0.0, 0.0), tol),
+        tol,
+    );
     let at0 = revolved_about_y(
         vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(3.0, 0.0), 1.0)],
         Revolution::Full,
@@ -613,6 +626,7 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
     let mut torus = topo::transform_rigid(&at0, &turn, tol).unwrap();
     torus.merge_coplanar_faces(tol).unwrap();
+    let torus = finished("the torus", torus, tol);
     let s = core::f64::consts::FRAC_1_SQRT_2;
     for (label, tube, partner) in [
         ("tube on a ball", rod_z(R, 1.0, 2.0), &ball),
@@ -783,7 +797,11 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
 #[test]
 fn the_tube_and_an_overlapping_ball_refuse_at_the_crossing_layer() {
     let tube = rod_z(R, 0.0, H);
-    let ball = ball_poled_z(R, Vec3::new(0.0, 0.0, H), Tol::witness());
+    let ball = finished(
+        "the ball",
+        ball_poled_z(R, Vec3::new(0.0, 0.0, H), Tol::witness()),
+        Tol::witness(),
+    );
     for e in union_both_orders(&tube, &ball, &[], &[], None) {
         assert!(is_pierce(&e), "tube ∪ ball: {e:?}");
     }
@@ -792,7 +810,11 @@ fn the_tube_and_an_overlapping_ball_refuse_at_the_crossing_layer() {
 #[test]
 fn the_stadiums_plane_cylinder_seam_is_contradicted_as_a_tangent() {
     let tol = Tol::witness();
-    let slab: Body<f64> = brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol);
+    let slab: AtRestBody<f64> = finished(
+        "the slab",
+        brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol),
+        tol,
+    );
     let lp = profile::circle(Point2::new(2.0, 0.0), 0.5, tol).unwrap();
     // Sketch normal onto +y: the rod's axis is the line x = 2, z = 0.
     let plane = profile::SketchPlane::new(Affine3::rotation_about_axis(
@@ -813,6 +835,7 @@ fn the_stadiums_plane_cylinder_seam_is_contradicted_as_a_tangent() {
     )
     .unwrap()
     .body;
+    let rod = finished("the rod", rod, tol);
     for e in union_both_orders(&slab, &rod, &[], &[], None) {
         // Which of the two the run's band lands on is ε-dependent: the
         // `B ∪ A` order escalates at the default ε on a contact-vertex
@@ -896,7 +919,11 @@ fn coplanar_pairs(x: &Body<f64>, y: &Body<f64>) -> Vec<FacePairDeclaration> {
 #[test]
 fn a_d_bar_on_the_slab_builds_with_its_line_seams_declared() {
     let tol = Tol::witness();
-    let slab: Body<f64> = brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol);
+    let slab: AtRestBody<f64> = finished(
+        "the slab",
+        brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol),
+        tol,
+    );
     let lp = profile::test_support::bulge_loop(vec![
         (Point2::new(2.0, -0.5), 1.0),
         (Point2::new(2.0, 0.5), 0.0),
@@ -919,6 +946,7 @@ fn a_d_bar_on_the_slab_builds_with_its_line_seams_declared() {
     )
     .unwrap()
     .body;
+    let dbar = finished("the D-bar", dbar, tol);
     let half_rod = PI * 0.25 / 2.0;
     let v = topo::mass_properties(&dbar, tol).unwrap().volume;
     assert!(
@@ -1051,6 +1079,7 @@ fn a_puck_and_its_rounding_ring_build_with_the_top_declared_a_seam() {
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
     let mut ring = topo::transform_rigid(&ring, &turn, tol).unwrap();
     ring.merge_coplanar_faces(tol).unwrap();
+    let ring = finished("the ring", ring, tol);
     let puck = rod_z(a, 0.0, r);
     let want =
         PI * a * a * r + (PI * r * r / 4.0) * core::f64::consts::TAU * (a + 4.0 * r / (3.0 * PI));
@@ -1116,7 +1145,11 @@ fn a_rod_in_a_bore_declared_tangent_refuses_at_the_crossing_layer() {
         tol,
     );
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
-    let tube = topo::transform_rigid(&tube, &turn, tol).unwrap();
+    let tube = finished(
+        "the tube",
+        topo::transform_rigid(&tube, &turn, tol).unwrap(),
+        tol,
+    );
     let bore: Vec<FaceKey> = faces_of(&tube, SurfaceKind::Cylinder)
         .into_iter()
         .filter(|&f| {
@@ -1130,7 +1163,11 @@ fn a_rod_in_a_bore_declared_tangent_refuses_at_the_crossing_layer() {
     for k in 0..30 {
         let th = f64::from(k) * core::f64::consts::TAU / 30.0;
         let at = Affine3::translation(Vec3::new(0.5 * th.cos(), 0.5 * th.sin(), 0.0));
-        let rod = topo::transform_rigid(&rod_z(0.5, -0.5, 1.0), &at, tol).unwrap();
+        let rod = finished(
+            "the rod",
+            topo::transform_rigid(&rod_z(0.5, -0.5, 1.0), &at, tol).unwrap(),
+            tol,
+        );
         let d = declared(
             &bore,
             &faces_of(&rod, SurfaceKind::Cylinder),
@@ -1181,7 +1218,11 @@ fn a_seam_on_one_carrier_or_across_a_gap_is_contradicted() {
             "the message says it in words"
         );
     }
-    let slab: Body<f64> = brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol);
+    let slab: AtRestBody<f64> = finished(
+        "the slab",
+        brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol),
+        tol,
+    );
     let lp = profile::circle(Point2::new(2.0, -1.5), 0.5, tol).unwrap();
     let plane = profile::SketchPlane::new(Affine3::rotation_about_axis(
         Point3::origin(),
@@ -1201,6 +1242,7 @@ fn a_seam_on_one_carrier_or_across_a_gap_is_contradicted() {
     )
     .unwrap()
     .body;
+    let rod = finished("the rod", rod, tol);
     for (x, y, fx, fy) in [
         (&slab, &rod, planes_at_z(&slab, 0.5), cyl(&rod)),
         (&rod, &slab, cyl(&rod), planes_at_z(&slab, 0.5)),
@@ -1216,12 +1258,20 @@ fn a_seam_on_one_carrier_or_across_a_gap_is_contradicted() {
 #[test]
 fn a_ball_seated_in_its_own_bore_refuses_declared_or_not() {
     let tol = Tol::witness();
-    let block: Body<f64> = brick((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol);
+    let block: AtRestBody<f64> = finished(
+        "the block",
+        brick((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+        tol,
+    );
     let bored = match topo::subtract(&block, &rod_z(R, -3.0, 6.0), tol).unwrap() {
         BooleanResult::Body(b) => b.body,
         BooleanResult::Empty => panic!("the bored block is not empty"),
     };
-    let ball = ball_poled_z(R, Vec3::new(0.0, 0.0, 0.0), tol);
+    let ball = finished(
+        "the ball",
+        ball_poled_z(R, Vec3::new(0.0, 0.0, 0.0), tol),
+        tol,
+    );
     let bore = faces_of(&bored, SurfaceKind::Cylinder);
     let sph = faces_of(&ball, SurfaceKind::Sphere);
     for e in union_both_orders(&bored, &ball, &bore, &sph, None) {
@@ -1332,7 +1382,11 @@ fn a_dome_sunk_into_the_tube_builds_undeclared() {
     let rho = 2.0_f64.sqrt() * R;
     for dz in [-1e-3, -0.3] {
         let lift = Affine3::translation(Vec3::new(0.0, 0.0, dz));
-        let dome = topo::transform_rigid(&dome_on_the_cap(), &lift, tol).unwrap();
+        let dome = finished(
+            "the sunk dome",
+            topo::transform_rigid(&dome_on_the_cap(), &lift, tol).unwrap(),
+            tol,
+        );
         let want = PI * R * R * H + cap_volume(rho, rho - R + dz);
         for (order, r) in [
             topo::union_with(&tube, &dome, &none, tol),
@@ -1354,7 +1408,11 @@ fn a_dome_sunk_into_the_tube_builds_undeclared() {
             assert_eq!(c, (6, 12, 9, 1), "{label}: F, E, V, shells");
         }
         let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), PI / 6.0);
-        let turned = topo::transform_rigid(&dome, &turn, tol).unwrap();
+        let turned = finished(
+            "the turned dome",
+            topo::transform_rigid(&dome, &turn, tol).unwrap(),
+            tol,
+        );
         for e in union_both_orders(&tube, &turned, &[], &[], None) {
             assert!(
                 is_pierce(&e),
@@ -1486,12 +1544,12 @@ fn a_g1_joint_authored_inside_one_profile_needs_no_declaration() {
 /// z = 0.5`: its wall's lowest ruling is the line `y = z = 0`, and its
 /// flat on `y = 0` faces away from the side it lies on (`side` −1 or +1
 /// in `y`).
-fn quarter_rod(side: f64, tol: Tol) -> Body<f64> {
+fn quarter_rod(side: f64, tol: Tol) -> AtRestBody<f64> {
     quarter_rod_of(side, 1.0, tol)
 }
 
 /// [`quarter_rod`] of length `len` along `x`.
-fn quarter_rod_of(side: f64, len: f64, tol: Tol) -> Body<f64> {
+fn quarter_rod_of(side: f64, len: f64, tol: Tol) -> AtRestBody<f64> {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     let lp = if side < 0.0 {
         profile::test_support::bulge_loop(vec![
@@ -1516,7 +1574,7 @@ fn quarter_rod_of(side: f64, len: f64, tol: Tol) -> Body<f64> {
     let p = profile::Profile::new(plane, vec![lp])
         .validate(tol)
         .unwrap();
-    extrude(
+    let rod = extrude(
         &p,
         Extrusion::Distance {
             depth: len,
@@ -1525,7 +1583,8 @@ fn quarter_rod_of(side: f64, len: f64, tol: Tol) -> Body<f64> {
         tol,
     )
     .unwrap()
-    .body
+    .body;
+    finished("the quarter rod", rod, tol)
 }
 
 /// **A line seam is read at the line, not off the boundary.** The
@@ -1575,6 +1634,7 @@ fn a_line_seam_is_read_where_the_faces_leave_the_line() {
         )
         .unwrap()
         .body;
+        let plate = finished("the plate", plate, tol);
         for (pose, side) in [("cusp", -1.0), ("seam", 1.0)] {
             let rod = quarter_rod(side, tol);
             for (x, y) in [(&plate, &rod), (&rod, &plate)] {
@@ -1622,7 +1682,7 @@ fn a_line_seam_is_read_where_the_faces_leave_the_line() {
 
 /// A plate on `z ∈ [0, 0.25]` extruded from the polygon `outline` in
 /// the `xy` plane.
-fn plate(outline: &[(f64, f64)], tol: Tol) -> Body<f64> {
+fn plate(outline: &[(f64, f64)], tol: Tol) -> AtRestBody<f64> {
     let lp = profile::test_support::bulge_loop(
         outline
             .iter()
@@ -1632,7 +1692,7 @@ fn plate(outline: &[(f64, f64)], tol: Tol) -> Body<f64> {
     let p = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
         .validate(tol)
         .unwrap();
-    extrude(
+    let plate = extrude(
         &p,
         Extrusion::Distance {
             depth: 0.25,
@@ -1641,7 +1701,8 @@ fn plate(outline: &[(f64, f64)], tol: Tol) -> Body<f64> {
         tol,
     )
     .unwrap()
-    .body
+    .body;
+    finished("the plate", plate, tol)
 }
 
 /// The plate's bottom against the rod's wall, declared a `Seam` in
@@ -1666,8 +1727,8 @@ fn bottom_and_wall(x: &Body<f64>, y: &Body<f64>) -> BooleanDeclarations {
 /// The seam's verdict on `plate` against `rod`, both member orders, as
 /// the refusal's fact and label (`None` where the door verified).
 fn seam_verdicts(
-    plate: &Body<f64>,
-    rod: &Body<f64>,
+    plate: &AtRestBody<f64>,
+    rod: &AtRestBody<f64>,
 ) -> Vec<Option<(Option<topo::Contradiction>, Option<&'static str>)>> {
     [(plate, rod), (rod, plate)]
         .into_iter()
@@ -1816,7 +1877,7 @@ fn the_seam_pair_filter_keeps_every_pair_that_meets() {
             tol,
         )
         .unwrap();
-        for (x, y) in [(&tube, &hemi), (&hemi, &tube)] {
+        for (x, y) in [(&*tube, &hemi), (&hemi, &*tube)] {
             let d = walls_and_discs(x, y, BooleanCoincidence::Seam);
             assert_eq!(d.coincident_faces.len(), 5, "turned {turn}");
         }
@@ -1854,7 +1915,11 @@ fn narrow_review_dome_battery() {
                 Vec3::unit_z(),
                 turn_deg.to_radians(),
             );
-            let tdome = topo::transform_rigid(&dome, &turn, tol).unwrap();
+            let tdome = finished(
+                "the turned dome",
+                topo::transform_rigid(&dome, &turn, tol).unwrap(),
+                tol,
+            );
             for (plabel, partner) in [
                 ("tube", rod_z(R, 0.0, H)),
                 ("short tube", rod_z(R, H - 0.25, 0.25)),
@@ -1939,7 +2004,7 @@ fn narrow_review_corner_on_ball_battery() {
     let mut refusals = std::collections::BTreeMap::<String, usize>::new();
     let s3 = 3.0_f64.sqrt();
     let s2 = 2.0_f64.sqrt();
-    let mut poses: Vec<(String, Body<f64>, Body<f64>)> = Vec::new();
+    let mut poses: Vec<(String, AtRestBody<f64>, AtRestBody<f64>)> = Vec::new();
     for (bl, ball) in [
         ("ball z", ball_poled_z(s3, Vec3::new(0.0, 0.0, 0.0), tol)),
         (
@@ -1947,6 +2012,7 @@ fn narrow_review_corner_on_ball_battery() {
             sweep::test_support::ball_poled_y(s3, Vec3::new(0.0, 0.0, 0.0), tol),
         ),
     ] {
+        let ball = finished("the ball", ball, tol);
         for (kl, x, y, z) in [
             ("out", (1.0, 2.0), (1.0, 2.0), (1.0, 2.0)),
             ("in", (0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
@@ -1958,7 +2024,7 @@ fn narrow_review_corner_on_ball_battery() {
             poses.push((
                 format!("{bl} brick {kl}"),
                 ball.clone(),
-                brick(x, y, z, tol),
+                finished("the brick", brick(x, y, z, tol), tol),
             ));
         }
         // A tube whose rim lies on the ball (radius 1 at height 1).
@@ -1970,7 +2036,11 @@ fn narrow_review_corner_on_ball_battery() {
             poses.push((format!("{bl} {tl}"), ball.clone(), rod_z(1.0, z0, len)));
         }
         // A ball of radius √2 at the origin: the tube rim at z = 1.
-        let small = ball_poled_z(s2, Vec3::new(0.0, 0.0, 0.0), tol);
+        let small = finished(
+            "the small ball",
+            ball_poled_z(s2, Vec3::new(0.0, 0.0, 0.0), tol),
+            tol,
+        );
         poses.push((
             format!("{bl} small tube"),
             small.clone(),

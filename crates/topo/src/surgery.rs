@@ -670,14 +670,21 @@ pub(crate) mod tests {
         // guardless site and whose result body is grafted out of them.
         // Its operands are described: a scaffold they kept would reach
         // the result, which the result gate refuses.
-        let block =
-            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let offset = crate::transform_rigid(
-            &block,
-            &geom_core::Affine3::translation(geom_core::Vec3::new(0.5, 0.5, 0.5)),
+        let block = crate::test_support::finished(
+            "unit block",
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
             tol,
-        )
-        .expect("a rigid move of a cube");
+        );
+        let offset = crate::test_support::finished(
+            "offset block",
+            crate::transform_rigid(
+                &block,
+                &geom_core::Affine3::translation(geom_core::Vec3::new(0.5, 0.5, 0.5)),
+                tol,
+            )
+            .expect("a rigid move of a cube"),
+            tol,
+        );
         let united = crate::boolean::union(&block, &offset, tol).expect("two boxes unite");
         let crate::boolean::BooleanResult::Body(united) = united else {
             panic!("overlapping boxes produce a body")

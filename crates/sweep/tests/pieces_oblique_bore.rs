@@ -11,12 +11,13 @@
 
 use crate::common::shell_operands::two_void_box;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use sweep::test_support::finished;
 use topo::{BooleanResult, ShellRole};
 
 #[test]
 fn an_oblique_bore_through_a_two_void_block_stays_one_hollow_solid() {
     let tol = Tol::witness();
-    let (block, _) = two_void_box();
+    let block = finished("the two-void block", two_void_box().0, tol);
     // A three-arc cylinder of radius 0.3 on (5, 2), z ∈ [-1, 5], tilted
     // 15° about the x axis through its centre: it misses both cavities
     // (x ≤ 3.8) and the side walls, and crosses the top and bottom.
@@ -30,7 +31,11 @@ fn an_oblique_bore_through_a_two_void_block_stays_one_hollow_solid() {
     );
     let pivot = Point3::new(5.0, 2.0, 2.0) - Point3::origin();
     let map = Affine3::from_parts(tilt, pivot - tilt * pivot);
-    let bore = topo::transform_rigid(&upright, &map, tol).expect("the cylinder tilts");
+    let bore = finished(
+        "the tilted cylinder",
+        topo::transform_rigid(&upright, &map, tol).expect("the cylinder tilts"),
+        tol,
+    );
 
     let started = std::time::Instant::now();
     let r = topo::subtract(&block, &bore, tol).expect("the bore cuts");

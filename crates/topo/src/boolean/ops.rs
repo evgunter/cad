@@ -576,10 +576,10 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
-    // do not each re-derive the whole body, and `gate` below — tiers 1
-    // and 2 and tier 3's transience fence over the result, on every
-    // build — is what this door pays instead. The guard owns the borrow, so a refusal on the way
-    // closes the scope by dropping it.
+    // do not each re-derive the whole body, and `gate` below — tier 3
+    // over the result, on every build — is what this door pays instead.
+    // The guard owns the borrow, so a refusal on the way closes the
+    // scope by dropping it.
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
@@ -3583,6 +3583,7 @@ mod tests {
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::{gate, seam_class, seam_must_carry, volume_backstop};
+    use crate::test_support::finished;
     use crate::boolean::{BooleanDecision, BooleanError, BooleanOp, LeverArm};
     use crate::props::QuadLane;
     use crate::splitting::reassembly::quad_prism;
@@ -3601,7 +3602,8 @@ mod tests {
             Ok(()),
             "the raw box is closed"
         );
-        let Err(BooleanError::ResultInvalid { errors }) = gate(&raw) else {
+        let band = Band::linear(tol).unwrap();
+        let Err(BooleanError::ResultInvalid { errors }) = gate(raw.clone(), band, tol) else {
             panic!("the raw box's chords are scaffolds at rest");
         };
         let mut named: Vec<_> = errors
@@ -3618,7 +3620,9 @@ mod tests {
         let described =
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         assert_eq!(
-            gate(&described).map_err(|e| e.to_string()),
+            gate(described, band, tol)
+                .map(|_| ())
+                .map_err(|e| e.to_string()),
             Ok(()),
             "the described box passes"
         );
@@ -3632,9 +3636,12 @@ mod tests {
     fn an_operand_carried_scaffold_is_refused_at_the_door() {
         let tol = Tol::witness();
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-        let far =
-            crate::test_support_fixtures::brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let raw = quad_prism(&square, 1.0, tol);
+        let far = finished(
+            "far brick",
+            crate::test_support_fixtures::brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        );
+        let raw = finished("undescribed box", quad_prism(&square, 1.0, tol), tol);
         let refused = crate::boolean::subtract(&raw, &far, tol);
         let Err(BooleanError::ResultInvalid { errors }) = &refused else {
             panic!(
@@ -3649,17 +3656,20 @@ mod tests {
                 .all(|e| matches!(e, crate::ValidationError::ScaffoldAtRest { .. })),
             "{errors:?}"
         );
-        let described =
-            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let described = finished(
+            "described box",
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        );
         assert!(
             crate::boolean::subtract(&described, &far, tol).is_ok(),
             "the described box answers"
         );
     }
 
-    /// The gate's fence is check 2's: on tier-2-valid bodies,
-    /// `scaffolds_at_rest` is exactly the `ScaffoldAtRest` findings of
-    /// `validate_geometric`, in the same order. An undescribed box has
+    /// The gate's fence is check 2's: on tier-2-valid bodies, the
+    /// gate's `ScaffoldAtRest` refusals are exactly the `ScaffoldAtRest`
+    /// findings of `validate_geometric`, in the same order. An undescribed box has
     /// a scaffold on every edge; a described prism with a collinear
     /// profile run keeps one, on the smooth edge between its two
     /// coplanar walls.
@@ -3677,7 +3687,15 @@ mod tests {
             ),
         ] {
             assert_eq!(crate::validate_closed(&body), Ok(()), "{what}: tier 2");
-            let fence = crate::validate::scaffolds_at_rest(&body);
+            let band = Band::linear(tol).unwrap();
+            let fence: Vec<_> = match gate(body.clone(), band, tol) {
+                Ok(_) => Vec::new(),
+                Err(BooleanError::ResultInvalid { errors }) => errors
+                    .into_iter()
+                    .filter(|e| matches!(e, crate::ValidationError::ScaffoldAtRest { .. }))
+                    .collect(),
+                Err(other) => panic!("{what}: the gate refuses at tier 3 only, got {other:?}"),
+            };
             let check_two: Vec<_> = crate::validate_geometric(&body, tol)
                 .err()
                 .unwrap_or_default()
@@ -4011,8 +4029,12 @@ mod tests {
             body
         };
 
-        let a = declined_cube::<f64>(Tol::witness()).body;
-        let b = far_cube(10.0);
+        let a = finished(
+            "declined cube",
+            declined_cube::<f64>(Tol::witness()).body,
+            Tol::witness(),
+        );
+        let b = finished("far declined cube", far_cube(10.0), Tol::witness());
         let err = boolean_op_with(
             BooleanOp::Union,
             &a,

@@ -28,7 +28,7 @@
 
 use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Real, Tol, Vec3};
 use sweep::Revolution;
-use sweep::test_support::revolved_about_y_at;
+use sweep::test_support::{finished, revolved_about_y_at};
 use topo::{
     Body, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult, Operand, SolidContainment,
     SweepStrategy, ValidationError, face_azimuth_window_traces, point_in_solid, validate,
@@ -188,8 +188,8 @@ fn subtract<T: Decide + topo::AtRestPolicy + Bounds>(
 ) -> Result<BooleanResult<T>, BooleanError> {
     topo::boolean_op_with(
         BooleanOp::Subtract,
-        a,
-        b,
+        &finished("operand A", a.clone(), Tol::witness()),
+        &finished("operand B", b.clone(), Tol::witness()),
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
         Tol::witness(),

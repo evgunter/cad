@@ -56,9 +56,14 @@ refusals.)
   `emit_union_rim_piece_ranks`, `docm7_union_declare`, `boolean_covered`,
   `reach_wall_chord_rows`, `m3_pr6_tier3prime::closure_kiss_vs_mover`):
   FUSE's and WIRE's filed findings, `blocked_on` above.
-- **`CensusEscalated`** (`contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex`
-  ×6, `docm2_part_interval` ×3): unfiled until this row; cause not
-  measured here.
+- **`CensusEscalated`**, by payload: `contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex`
+  ×6 escalates `pm_census_ee_span` at margins −8.79e-9 and +8.29e-9,
+  inside the `escalate` band 1e-8: two result edges whose spans end
+  within 9 nm of each other, in a fixture built near-coincident on
+  purpose. `docm2_part_interval` ×3 (`Interval`, a widened height)
+  reads enclosures [−1.0e-9, 1.0e-9] and [−2.0e-9, 2.0e-9] that straddle
+  zero: the parameter's own width. Whether either is the census's
+  honest answer or a door defect is not decided here.
 
 ## What closes it
 
