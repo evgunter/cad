@@ -921,7 +921,8 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
         *why,
         RefusedRef::MovedAbove {
             at: part,
-            by: outer
+            by: outer,
+            copies: true,
         }
     );
     // Read AT the outer pattern instead, the same document gathers
@@ -1131,9 +1132,10 @@ fn a2d_a_rotating_outer_map_on_the_tree_edge_seats_and_closes() {
 /// **A4′(a) — a `Part` mismatch on a DECLARING mate refuses too.**
 ///
 /// Two `Part`s over one pattern: `m1` (at `part1`, selects 0, names 0)
-/// takes the tree edge and seats copy 0; `m2` (at `part2`, selects 2,
-/// NAMES 0) is a different member — a different operand — so its pair
-/// is not the tree edge and its offset is never derived.
+/// takes the tree edge and seats copy 0; `m2` (read at a transform
+/// over `part2`, selects 2, NAMES 0) is a different member — a
+/// different placement, the transform on its chain — so its pair is
+/// not the tree edge and its offset is never derived.
 ///
 /// While the check lived in the offset this document was SILENTLY
 /// GREEN: `m2` solved `Declaring` with no fault, the product gathered,
@@ -1153,6 +1155,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
     // re-pointed at copy 2 below, which is how a `Part` comes to
     // disagree after insert.
     let (doc, part2) = insert(doc, part_of(pattern, 0));
+    let (doc, moved) = insert(doc, xform(part2, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0], 0.0));
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_copy(pattern, 0, in_part(top, top_body, CapEnd::Start));
     let (doc, m1) = step(
@@ -1170,12 +1173,17 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
         DocEdit::InsertNode {
             node: Box::new(seat_at(
                 crate::fixture::head(a),
-                crate::fixture::head_at(part2, b.clone()),
+                crate::fixture::head_at(moved, b.clone()),
                 FIRST_SEAT,
             )),
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());
+    assert_ne!(
+        member_of(&doc, &crate::fixture::head_at(part1, b.clone())),
+        member_of(&doc, &crate::fixture::head_at(moved, b.clone())),
+        "the premise: two placements, two members"
+    );
     let (doc, _) = step(
         doc,
         DocEdit::SetStructuralParam {
@@ -1186,7 +1194,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
     );
     // Both references are members: admission is structural and the
     // disagreement is about two numbers.
-    assert!(member_of(&doc, &crate::fixture::head_at(part2, b)).is_some());
+    assert!(member_of(&doc, &crate::fixture::head_at(moved, b)).is_some());
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(m1).is_none(),

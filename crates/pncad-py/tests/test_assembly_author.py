@@ -55,7 +55,7 @@ The other two are not reached here:
   first wants the referenced part to change shape under a name the
   assembly still holds, which the pin gate refuses
   (`part_pin_mismatch`) one door earlier; the second is the kernel's
-  own row (`msolve5_read_below_a_root`, an empty boolean over the
+  own row (`msolve5_operand_refusals`, an empty boolean over the
   operand).
 * `ref_ambiguous` — a tie. Nothing the instantiate seam's naming
   produces is tied, and Python cannot hand-build a name.
@@ -1114,7 +1114,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         gate refuses in the operand's voice: the name is spelled at
         the transform, and the placed union places that body again
         before the product holds it."""
-        doc = Doc("pncad-read-below-a-root")
+        doc = Doc("pncad-moved-above")
         post_a = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         lifted = doc.insert(

@@ -292,13 +292,17 @@ target carry it verbatim, a union as its member's name, a pair boolean
 as `FromA`/`FromB`, a fillet, chamfer or shell as `FromTarget`; a
 transform, pattern or placed union places it again). Exactly one
 product face reached is the face minted on, and two refuse
-`RefusedRef::Ambiguous`. A placer on the way up refuses
-`RefusedRef::MovedAbove { at, by }`: the product holds the face where
-`by` put it, not where the mate reads it, so a route through a placer
-never succeeds. A consumer that merges, cuts or drops the face refuses
-`RefusedRef::Vanished { by }`, and a name the operand does not spell
-`Vanished { by: None }`. Where the operand is a root, or reaches one
-through verbatim edges alone, the lift is the identity. The gate asks
+`RefusedRef::Ambiguous`. A route through a placer never succeeds:
+the product holds the face where the placer put it, not where the mate
+reads it. So when no route carries the face to the product unmoved, a
+placer on the way up refuses `RefusedRef::MovedAbove { at, by }`, whose
+recourse is to re-pick the face on `by` (naming the copy, when `by`
+places copies). A consumer that merges or cuts the face refuses
+`RefusedRef::Vanished { by }` naming it — or, when none does, a
+consumer reading the body in a seat that holds no face of it — and a
+name the operand does not spell `Vanished { by: None }`. Where the
+operand is a root, or reaches one through `Part` selections and split
+targets alone, the lift is the identity. The gate asks
 no KIND question at all: a head is a
 `SitedFace` over a `FaceName` (A3), so what the name denotes is fixed
 by the type, and the refusal vocabulary here has three arms and no

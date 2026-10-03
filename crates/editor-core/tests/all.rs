@@ -292,8 +292,8 @@ mod msolve2_member_chain;
 mod msolve3_placer_refused;
 #[path = "msolve4_mate_memo.rs"]
 mod msolve4_mate_memo;
-#[path = "msolve5_read_below_a_root.rs"]
-mod msolve5_read_below_a_root;
+#[path = "msolve5_operand_refusals.rs"]
+mod msolve5_operand_refusals;
 #[path = "msolve6_part_extent.rs"]
 mod msolve6_part_extent;
 #[path = "msolve7_member_residue.rs"]

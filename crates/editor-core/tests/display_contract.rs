@@ -1974,6 +1974,7 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
         why: RefusedRef::MovedAbove {
             at: RecipeNodeId(tagged(5)),
             by: RecipeNodeId(tagged(6)),
+            copies: false,
         },
     });
     assert_f6(
@@ -1982,8 +1983,28 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
             "mate 000000000002's b reference",
             "does not name a face of the product",
             "it is read at node 000000000005, but node 000000000006 places it again before the \
-             product holds it; read it at node 000000000006",
+             product holds it; re-pick the face on node 000000000006",
         ],
+        &["MovedAbove", "Reference"],
+    );
+    assert!(
+        !moved.to_string().contains("naming the copy"),
+        "a placer that places no copies asks for no copy: {moved}"
+    );
+
+    let copied = mint(MintRefusal::Reference {
+        mate: RecipeNodeId(tagged(2)),
+        side: MateSide::B,
+        name: Box::new(face_name()),
+        why: RefusedRef::MovedAbove {
+            at: RecipeNodeId(tagged(5)),
+            by: RecipeNodeId(tagged(6)),
+            copies: true,
+        },
+    });
+    assert_f6(
+        &copied,
+        &["re-pick the face on node 000000000006, naming the copy"],
         &["MovedAbove", "Reference"],
     );
 

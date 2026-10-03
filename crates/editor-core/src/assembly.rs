@@ -322,8 +322,10 @@ pub enum RefusedRef {
     /// `by: None` is a name nothing answers to where the mate reads it:
     /// the operand's own table is silent. `by: Some(node)` is a name
     /// the operand spells and `node` consumes on its way up: it merges
-    /// or cuts the face, so its table holds no row under the name, or
-    /// it reads the body in a seat that holds no face of it.
+    /// or cuts the face, so its table holds no row under the name — or,
+    /// only where no consumer does that, it reads the body in a seat
+    /// that holds no face of it (a datum, a measure, an axis, a split's
+    /// tool).
     ///
     /// It is also the release answer where the product's table holds a
     /// row whose KEY is not a face under a face name, or holds no row
@@ -340,12 +342,16 @@ pub enum RefusedRef {
     /// — a transform, a pattern, a placed union — before the product
     /// holds it, and no other route carries it to the product
     /// unmoved. The face the mate speaks about is where `at` holds it;
-    /// the product holds it where `by` put it. Read it at `by`.
+    /// the product holds it where `by` put it, so the face is picked
+    /// again on `by`.
     MovedAbove {
         /// The operand the mate reads at.
         at: RecipeNodeId,
         /// The nearest node above `at` that places the face again.
         by: RecipeNodeId,
+        /// Whether `by` places COPIES — a pattern or a placed union —
+        /// so a face picked on it names which copy.
+        copies: bool,
     },
     /// Several product faces answer to it — a tie in the product's
     /// table, or two routes from the operand to two faces. A mate
@@ -808,13 +814,18 @@ impl crate::spoken::Say for RefusedRef {
                  or holds no face of it — so no one face carries it to the product",
                 by.node(*node)
             ),
-            Self::MovedAbove { at, by: placer } => write!(
+            Self::MovedAbove {
+                at,
+                by: placer,
+                copies,
+            } => write!(
                 f,
                 "it is read at {}, but {} places it again before the product holds it; \
-                 read it at {}",
+                 re-pick the face on {}{}",
                 by.node(*at),
                 by.node(*placer),
-                by.node(*placer)
+                by.node(*placer),
+                if *copies { ", naming the copy" } else { "" }
             ),
             Self::Ambiguous { width } => write!(
                 f,
@@ -1258,12 +1269,14 @@ pub(crate) fn mint<P, T: Decide>(
 ///   product holds the face where that node moved it, which is not
 ///   where the mate reads it — so a route through a placer never
 ///   succeeds.
-/// - None, with a consumer that merged, cut or dropped it
-///   ([`RefusedRef::Vanished`] naming it).
+/// - None, with a consumer that merged or cut it
+///   ([`RefusedRef::Vanished`] naming it) — and only when no consumer
+///   lost it that way, one that reads it in a seat holding no face of
+///   it (a datum, a measure, an axis, a split's tool).
 ///
-/// Where the operand is a root, or reaches one through verbatim edges
-/// alone, the lift is the identity and the product answers to the
-/// name as the mate spells it.
+/// Where the operand is a root, or reaches one through `Part`
+/// selections and split targets alone, the lift is the identity and
+/// the product answers to the name as the mate spells it.
 ///
 /// **There is no kind question here.** A head is a [`SitedFace`], so
 /// the name this resolves denotes a face before the lookup runs, and
@@ -1301,7 +1314,8 @@ fn resolve_face<P, T: Decide>(
     }
     let mut faces: Vec<FaceKey> = Vec::new();
     let mut moved: Vec<RecipeNodeId> = Vec::new();
-    let mut consumed: Vec<RecipeNodeId> = Vec::new();
+    let mut lost: Vec<RecipeNodeId> = Vec::new();
+    let mut dropped: Vec<RecipeNodeId> = Vec::new();
     let mut seen: Vec<(RecipeNodeId, StableName)> = Vec::new();
     let mut frontier = std::collections::VecDeque::from([(at, (*reference.name).clone())]);
     while let Some((node, name)) = frontier.pop_front() {
@@ -1343,9 +1357,8 @@ fn resolve_face<P, T: Decide>(
                     crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {
                         frontier.push_back((consumer, carried));
                     }
-                    crate::names::Lift::Spelled(_) | crate::names::Lift::Dropped => {
-                        consumed.push(consumer);
-                    }
+                    crate::names::Lift::Spelled(_) => lost.push(consumer),
+                    crate::names::Lift::Dropped => dropped.push(consumer),
                     crate::names::Lift::Moved => moved.push(consumer),
                 }
             }
@@ -1353,9 +1366,17 @@ fn resolve_face<P, T: Decide>(
     }
     faces.sort_unstable();
     faces.dedup();
-    match (faces.as_slice(), moved.first(), consumed.first()) {
+    let consumed = lost.first().or(dropped.first());
+    match (faces.as_slice(), moved.first(), consumed) {
         ([face], _, _) => Ok(*face),
-        ([], Some(&by), _) => Err(refuse(RefusedRef::MovedAbove { at, by })),
+        ([], Some(&by), _) => Err(refuse(RefusedRef::MovedAbove {
+            at,
+            by,
+            copies: matches!(
+                doc.node(by),
+                Some(Node::Pattern { .. } | Node::PlacedUnion { .. })
+            ),
+        })),
         ([], None, by) => Err(refuse(RefusedRef::Vanished { by: by.copied() })),
         (several, _, _) => Err(refuse(RefusedRef::Ambiguous {
             width: several.len(),

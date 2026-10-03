@@ -291,7 +291,8 @@ fn the_issues_document_refuses_moved_above_naming_the_transform_and_the_pattern(
         *why,
         RefusedRef::MovedAbove {
             at: s.xf,
-            by: s.pattern
+            by: s.pattern,
+            copies: true,
         }
     );
 }
@@ -424,7 +425,8 @@ fn a_tied_face_below_a_placer_refuses_moved_above_and_at_the_root_ambiguous() {
         *why,
         RefusedRef::MovedAbove {
             at: s.xf,
-            by: s.pattern
+            by: s.pattern,
+            copies: true,
         }
     );
 

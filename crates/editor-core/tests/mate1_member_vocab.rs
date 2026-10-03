@@ -615,7 +615,8 @@ fn the_master_name_spelling_refuses_moved_above() {
         *why,
         editor_core::RefusedRef::MovedAbove {
             at: leg,
-            by: pattern
+            by: pattern,
+            copies: true,
         },
         "the consumed master's face is placed again by the pattern: {why:?}"
     );

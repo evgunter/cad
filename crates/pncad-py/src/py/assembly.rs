@@ -264,7 +264,7 @@ impl RefusedRef {
     #[getter]
     fn at(&self) -> Option<NodeId> {
         match self.0 {
-            d::RefusedRef::MovedAbove { at, by: _ } => Some(NodeId(at)),
+            d::RefusedRef::MovedAbove { at, .. } => Some(NodeId(at)),
             d::RefusedRef::Vanished { by: _ } | d::RefusedRef::Ambiguous { width: _ } => None,
         }
     }
@@ -275,7 +275,7 @@ impl RefusedRef {
     #[getter]
     fn by(&self) -> Option<NodeId> {
         match self.0 {
-            d::RefusedRef::MovedAbove { at: _, by } => Some(NodeId(by)),
+            d::RefusedRef::MovedAbove { by, .. } => Some(NodeId(by)),
             d::RefusedRef::Vanished { by } => by.map(NodeId),
             d::RefusedRef::Ambiguous { width: _ } => None,
         }
@@ -287,7 +287,7 @@ impl RefusedRef {
     fn width(&self) -> Option<usize> {
         match self.0 {
             d::RefusedRef::Ambiguous { width } => Some(width),
-            d::RefusedRef::Vanished { by: _ } | d::RefusedRef::MovedAbove { at: _, by: _ } => None,
+            d::RefusedRef::Vanished { .. } | d::RefusedRef::MovedAbove { .. } => None,
         }
     }
 
