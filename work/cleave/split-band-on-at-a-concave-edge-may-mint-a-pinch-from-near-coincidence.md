@@ -55,67 +55,66 @@ near-coincidence never silently becomes contact) is violated on a
 reachable input.
 
 
-## Designed (2026-10-03): the pinch below ε is correct; the residue is the δ = 5e-10 arm
+## Ev's ruling (2026-10-03)
 
-A designer pair (Opus and Fable; labels on `analysis/design-fork/split-band-on`,
-byte 40) weighed this row independently and converged on every point, so it
-does not go to Ev:
+In chat: tier 3′ (i) "specifically DOES refer to coincidence < eps, and
+says we can't infer intent from that." A value coincidence is not intent
+however small its margin, so a pinch minted from a ≤ ε ON verdict, at
+δ = 0 and at 0 < δ ≤ ε alike, violates (i). (A first designer round read
+"near-coincidence" as the band only and recommended keeping the pinch;
+that reading is overturned. Record: `analysis/design-fork/split-band-on`.)
 
-- **No clash between ratified clauses.** Q1's vocabulary makes |m| ≤ ε
-  *coincidence* (Zero) and ε < |m| < Kε *near-coincidence* (the band). D1
-  tier 3′ (i)'s "near-coincidence NEVER silently becomes contact (escalated
-  typed error instead)" means the band, and split honours it: δ ≥ 1e-9
-  refuses typed. Both clauses were written in one commit (`e16309aa7`).
-- **δ = 0 and 0 < δ ≤ ε cannot be told apart without an exact-zero test**, which
-  the "coincidence is structural or declared" commitment forbids (an
-  equal-vs-one-ulp cliff with no band). A rule that refused the δ = 1e-13 pinch
-  would also refuse the δ = 0 pinch, and with it `notched_block_end_to_end` and
-  the D7 pinch behaviour.
-- **"Not ON" is not buildable below ε.** The true cut has prong tips 2δ apart
-  and a sliver δ thick, which the census reads as `UndeclaredContact` on
-  distinct points. The real choice is the pinch or a refusal, and refusing is
-  the ulp cliff.
-- **The pinch is tier 3′ (ii) by name**: one ON operand vertex cut into copies
-  that share its point. After PR 3856 the door is right to pass it.
+## Designed (2026-10-03, round 2; both designers converged)
 
-So the P1 premise ("a ratified never is violated") does not hold, and the
-priority drops to P2. What is owed:
+- **The line** is structural, read before any surgery: at an ON vertex in
+  `split_reduce`'s per-ON-vertex loop, after rules (a)/(b), the count of
+  maximal one-side runs of its orbit (`insert::above_runs`). 0 runs (a
+  touch, a convex edge per PR 3642, a face in the plane) or 1 run (an
+  ordinary cut through a vertex) mint nothing that touches: derived, as
+  today. ≥ 2 runs is the pinch class (`NOTCHED`, the D7 mirror lane, the
+  both-sided frontier): every success there is a half holding two copies of
+  the vertex on one point.
+- **Undeclared ≥ 2 runs refuses typed**, the same answer at δ = 0 and at
+  0 < δ ≤ ε (nothing structural tells them apart). The text names the
+  vertex (or edge) and the side whose pieces would touch. Its recourse is to
+  declare it on the split, or move the plane or the geometry. Per D4 (i)
+  and SELECT-DESIGN §3d, a contact site has no "tighten the tolerance" arm.
+- **A user who means the pinch declares it on the Split node**, the same shape
+  as the boolean's declarations (F5: recipe data on the node). The node names
+  target vertices/edges asserted to lie on the tool plane, and the kernel
+  door takes `SplitDeclarations` ("none" for a plain call). A declaration is
+  verified, never trusted: Zero holds; in band it is bridged, as a C4
+  `Rest` is; definitely off refuses `SplitDeclarationContradicted`. The
+  result carries no new contact record: the copies share the cut vertex's
+  point (rung 1), and the intent lives on the node.
+- **Consequences.** These pinch rows re-baseline to the declared door with
+  the same bodies, each gaining a sibling that pins the undeclared refusal at
+  δ = 0 and δ = 1e-10:
+  - `notched_block_end_to_end`;
+  - `review_m3_pr3_bob`'s table and mirrored fixture (`bob_mirror_pinch_refuses_typed`
+    succeeds today, so its name is wrong);
+  - `review_m3_pr6`'s mirror rows;
+  - the BOOL1 notch rows;
+  - PR 3856's rows;
+  - `seat8_split_lowering`.
 
-1. **Measure, then fix, the δ = 5e-10 arm.** The tip reads ON (5e-10 ≤ ε), then
-   an edge split builds from that verdict fails the attachment gate's chart
-   residual at 4.0e-9 (about 8δ; 8 is `NOTCHED`'s x-extent), in kernel-defect
-   voice. The designers differ only on the form of the fix, both pending a
-   trace:
-   - (a) split's ON decision should promise what its build certifies, by
-     measuring the margin the build will carry (distance × worst lever);
-   - (b) the section pcurve mint is lossy, or the residual is extent-scaled.
-
-   Find which edge and which residual, per `memories/refusal-text-is-not-cause.md`.
-2. **Pin δ ∈ {1e-13 … 1e-10} as success**: the same body as δ = 0, passing the
-   pseudomanifold door.
-3. **`SliverVertex`'s text** says "lies within tolerance of the split plane".
-   The arm fires only in the band, beyond ε, so the text says the opposite of
-   what decided it. Reword it in `SliverSector`'s manner ("too close to the
-   split plane to call").
-
-Brief correction: the fixture is `crates/topo/tests/m3_pr3_split.rs`.
-
-## Overturned by Ev (2026-10-03): the section above is withdrawn
-
-The designers' reading above is wrong. Ev, in chat: "(i) specifically DOES
-refer to coincidence < eps, and says we can't infer intent from that." A value
-coincidence is not intent, however small the margin. So a pinch that split
-mints from a ≤ ε ON verdict, at δ = 0 or at 0 < δ ≤ ε alike, breaks tier
-3′ (i). The P1 stands.
-
-The designers are re-weighing in round 2, with this as a given. Open
-questions:
-- where the line runs between an ON verdict that only adds topology and one
-  that creates touching;
-- what a user who means the pinch does;
-- how far the same inference reaches past split;
-- what ratified text then conflicts.
-
-Items 2 and 3 of the withdrawn section (the δ = 5e-10 voice, and
-`SliverVertex`'s wording) still need measuring. The "pin the sub-ε pinch as
-success" item is withdrawn.
+  D7's mirror lane stays, as the mechanism for a declared below-side pinch.
+  PR 3642 stands.
+- **Ratified text** (the `[ev]` PR's diff): tier 3′ (ii)'s "an op's copies of
+  one vertex" is qualified to copies at a structural or declared coincidence;
+  D1's "Coincidence discipline in the reduction" gains the derived/declared
+  line; the frontier's "single-sided pinches succeed" becomes "declared
+  single-sided pinches succeed".
+- **Reach past split: a separate row and a separate fork.** The boolean's
+  `ContactAcc` vertex-level records come from Zero verdicts with no declaration
+  (`corner_kiss_promoted`), and tier 3′ (ii) calls them "declared":
+  `work/contact/boolean-vertex-contact-records-are-inferred-from-values.md`.
+- **Still owed beside the design:**
+  1. The δ = 5e-10 arm. A Zero-decided vertex yields a chart residual of
+     about 8δ that the attachment gate refuses in kernel-defect voice. Under
+     this design an undeclared pinch refuses earlier, but a declared one still
+     meets it. Measure first.
+  2. `SliverVertex`'s text says "within tolerance", but it fires beyond ε.
+  3. Before building, add one scratch row confirming that a 2-run vertex
+     whose sides connect elsewhere refuses rather than succeeds.
+- Brief correction: the fixture is `crates/topo/tests/m3_pr3_split.rs`.
