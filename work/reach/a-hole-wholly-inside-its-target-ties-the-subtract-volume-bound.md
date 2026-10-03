@@ -54,11 +54,21 @@ This is the certified-scalar face of the family
 `a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`
 names ("∖ ≥ A − B when B ⊂ A"): there the f64 result crosses the tie
 by a settled gap; here nothing crosses it, and the interval lane
-cannot say so on any box. Every through-hole, pocket and bore cut
-from a part is this shape.
+cannot say so on any box. Every hole, pocket or bore SUBTRACTED by a
+tool that lies wholly inside the part is this shape. A hole sketched
+as an inner loop of the part's own profile never reaches the bound
+(no boolean): the same plate as one extrude of a profile with two
+`LoopProgram::Circle` inner loops certifies the `1e-9` whole box
+(and whole boxes up to `1e-2` of the study), and its wider frontier is
+`work/paths/inner-loop-circles-bound-the-plate-study-at-arc-span.md`.
 
-## Unmeasured
+## A tool that overshoots refuses too, elsewhere
 
-Whether a hole extrude that overshoots the blank (B ⊄ A, so the bound
-is slack) certifies; the plate does not author that, since the hole's
-depth is the plate's.
+Measured by the PR 3922 review: hole extrudes at z = −0.5 mm, 2 mm
+deep (no flush pair, so B ⊄ A and this bound is slack) still refuse
+the `1e-9` whole box, `FlipCrossing` with `chart_bound_outer_span`
+diverging 0 → 2 on both boolean nodes — a second certified-lane
+frontier, independent of this tie, filed as
+`work/chart/an-overshooting-subtract-flips-chart-bound-outer-span-over-a-tiny-box.md`.
+Overshoot is not the plate's spelling (its holes are its depth); it is
+evidence that clearing the tie alone would not certify a cut part.

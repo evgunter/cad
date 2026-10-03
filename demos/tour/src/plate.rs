@@ -11,10 +11,20 @@
 //! picture cannot survive.
 //!
 //! **The study's document does not cut its holes**: the web is read
-//! off the hole extrudes' own walls, so its product is the blank. The
-//! natural spelling, [`cut_plate`], is authored beside it and attempted
-//! every run as two walls — the certified drive certifies no box of it,
-//! and it has no product root.
+//! off the hole extrudes' own walls, so its product is the blank. A
+//! user would write the holes one of two natural ways, and both stop
+//! short of the study:
+//!
+//! - **cut**: the blank minus the two hole extrudes, [`cut_plate`],
+//!   authored beside the study and attempted every run as two walls —
+//!   the certified drive certifies no box of it, and it has no product
+//!   root;
+//! - **sketched**: one extrude of a profile with the two circles as
+//!   inner loops. No boolean, so no tie: it certifies whole boxes up to
+//!   `1e-2` of the study, and 0 of 512 leaves over the real study
+//!   (`work/paths/inner-loop-circles-bound-the-plate-study-at-arc-span.md`).
+//!   Its measure would read the part's own walls, so it has no product
+//!   root either.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -24,9 +34,10 @@ use pncad::document::{
     ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
 };
 use pncad::geom_core::Tol;
+use pncad::prelude::PlaneRelation;
 use pncad::select::{
-    EntityKind, GeomPred, NamePat, SegPat, SegTag, Selector, SurfaceKindSet, declare_node,
-    find_flush_candidates, select_where,
+    BooleanCoincidence, EntityKind, GeomPred, NamePat, SegPat, SegTag, Selector, SurfaceKindSet,
+    declare_node, find_flush_candidates, select_where,
 };
 
 /// The nominal hole spacing, in metres (3.1 mm).
@@ -101,7 +112,8 @@ fn declare(
 }
 
 /// The plate, its two holes, the web measure and the assertion — the
-/// worked example, authored the way a user would.
+/// worked example, as one of [`plate`] (the study's document, holes
+/// left as extrudes) or [`cut_plate`] (the holes cut).
 ///
 /// The two tolerances are passed separately rather than scaled from
 /// one number: their RATIO is what decides whether the RSS and the
@@ -138,9 +150,11 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
     author(spacing_half_width, radius_sigma, bound, false, tol)
 }
 
-/// **The plate in its natural spelling**: the holes CUT from the blank
-/// by two `Boolean(Subtract)`s, and the web read off the cut part's
-/// bore walls. Not the study's document, because two doors refuse it:
+/// **The plate with its holes cut**, one of its two natural spellings
+/// (the other, inner-loop circles in one extrude, is the module doc's):
+/// the holes subtracted from the blank by two `Boolean(Subtract)`s, and
+/// the web read off the cut part's bore walls. Not the study's
+/// document, because two doors refuse it:
 /// the certified drive certifies no box of it
 /// (`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`,
 /// pinned in [`crate::tolerance`]), and its one root is the assertion,
@@ -257,11 +271,17 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     let subtract = |doc: &mut ProfileDoc, a: RecipeNodeId, b: RecipeNodeId| {
         let found = find_flush_candidates(&eval_here(doc), a, b, tol)
             .expect("the hole's caps are definite flush pairs");
-        let declare = insert(
-            doc,
-            declare_node(&found).expect("a full-depth hole has flush caps"),
-            tol,
+        // The inspection: the hole's two caps, each continuing the
+        // blank's cap it lies in.
+        assert_eq!(found.len(), 2, "one continuation per cap: {found:#?}");
+        assert!(
+            found
+                .iter()
+                .all(|f| f.class == BooleanCoincidence::Continuation
+                    && f.evidence.relation == PlaneRelation::SameOriented),
+            "each hole cap continues the blank's: {found:#?}"
         );
+        let declare = insert(doc, declare_node(&found).expect("nonempty findings"), tol);
         insert(
             doc,
             Node::Boolean {

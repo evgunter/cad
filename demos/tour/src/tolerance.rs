@@ -301,11 +301,35 @@ fn cut_wall(tol: Tol) {
          a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md)",
     );
     // The advisory lane is not walled: it samples the cut plate over
-    // the real study.
-    let cut = crate::plate::cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
-    let cut_box = analyzed_box(&cut.doc, &AnalysisPolicy::default());
-    monte_carlo(&cut.doc, &cut_box, &McConfig::default(), tol)
-        .expect("the Monte-Carlo lane answers on the cut plate");
+    // the real study, and the web it reads off the cut part's bores is
+    // the study's bit for bit: the same draws (one seed, the same three
+    // laws) measured between the same cylinder axes.
+    let row = |p: &Plate| {
+        let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
+        let mc = monte_carlo(&p.doc, &analyzed, &McConfig::default(), tol)
+            .expect("the Monte-Carlo lane answers");
+        let m = mc
+            .measures
+            .iter()
+            .find(|m| m.node == p.measure)
+            .expect("the web measure has a row");
+        (m.measured, m.mean, m.min, m.max)
+    };
+    let cut = row(&crate::plate::cut_plate(
+        SPACING_HALF_WIDTH,
+        RADIUS_SIGMA,
+        WEB_BOUND,
+        tol,
+    ));
+    let study = row(&crate::plate::real_study(tol));
+    assert!(
+        cut.0 == study.0
+            && [(cut.1, study.1), (cut.2, study.2), (cut.3, study.3)]
+                .iter()
+                .all(|(a, b)| a.to_bits() == b.to_bits()),
+        "the cut plate's sampled web (measured, mean, min, max) is the study's bit for bit: \
+         {cut:?} against {study:?}"
+    );
 }
 
 /// **Stop 1 — the study a user actually has.** ±0.05 mm on the
