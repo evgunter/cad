@@ -1390,7 +1390,7 @@ class TestMateFaultPayload(BenchWorkspace):
         # The same coincidence with the shelf's frame turned onto +x:
         # no rotation satisfies both.
         turned = MateFrame(
-            origin=mate_frame(SEAT_A).origin,
+            origin=(SEAT_A[0] * m, SEAT_A[1] * m, SEAT_A[2] * m),
             axis=(1.0, 0.0, 0.0),
             reference=(0.0, 0.0, 1.0),
         )
@@ -1506,52 +1506,30 @@ class TestMateFaultPayload(BenchWorkspace):
         self.assertIsNone(fault.lever_arm)
 
     def test_a_mate_frame_in_the_ambiguity_band_carries_the_classifier(self):
-        """The frame ladder's refusal crosses under its own word, out
-        of the edit door that meets it, and the classifier's payload
-        rides on the words the frame door already uses — `margin`,
-        `zero`, `escalate`, `predicate` — so a caller that learned
-        them at `FrameError` reads them here.
+        """The frame ladder's refusal crosses under its own word where
+        the frame is authored, before any mate exists, and the
+        classifier's payload rides on the words the frame door already
+        uses — `margin`, `zero`, `escalate`, `predicate`.
 
         The axis is derived from the run's epsilon rather than
         hard-coded: the band's edges move with the tolerance."""
-        doc, post_i, shelf_i = self.two_instances()
-        a_top = self.instance_face(doc, post_i, CapEnd.End)
-        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        doc, _, _ = self.two_instances()
         in_band = 1.5 * doc.epsilon
-        short = MateFrame(
-            origin=(0 * m, 0 * m, 0 * m),
-            axis=(0.0, 0.0, in_band),
-            reference=(1.0, 0.0, 0.0),
-        )
-        alignment = Alignment(
-            short,
-            mate_frame(SEAT_A),
-            MatePrimitive.frame_coincidence(),
-            AxisSense.Aligned,
-        )
-        # A frame with no definite direction is a fact about the mate
-        # alone: the edit door refuses it where it is authored, and the
-        # fault it carries is the solve's own.
-        with self.assertRaises(pncad.EditError) as caught:
-            doc.insert(
-                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
+        with self.assertRaises(pncad.FrameError) as caught:
+            MateFrame(
+                origin=(0 * m, 0 * m, 0 * m),
+                axis=(0.0, 0.0, in_band),
+                reference=(1.0, 0.0, 0.0),
             )
-        self.assertEqual(caught.exception.variant, "mate_refused")
-        self.assertEqual(caught.exception.inner_variant, "mate_frame_degenerate")
-        fault = caught.exception.fault
-        self.assertEqual(fault.variant, "mate_frame_degenerate")
-        # One level in: the word `FrameError` itself crosses under.
-        self.assertEqual(fault.inner_variant, "degenerate_aim")
-        self.assertEqual(fault.side, pncad.MateSide.A)
-        self.assertEqual(fault.margin.meters, in_band)
-        self.assertLess(fault.zero, fault.escalate)
-        self.assertLess(fault.zero, fault.margin.meters)
-        self.assertLess(fault.margin.meters, fault.escalate)
-        self.assertIsNotNone(fault.predicate)
-        # An f64 classification saw a VALUE, not an enclosure, and the
-        # band arm's own payload is absent on a degenerate one.
-        for absent in ("margin_low", "margin_high", "field", "value"):
-            self.assertIsNone(getattr(fault, absent), absent)
+        err = caught.exception
+        self.assertEqual(err.variant, "degenerate_aim")
+        self.assertEqual(err.margin, in_band)
+        self.assertLess(err.zero, err.escalate)
+        self.assertLess(err.zero, err.margin)
+        self.assertLess(err.margin, err.escalate)
+        # An f64 classification saw a VALUE, not an enclosure.
+        for absent in ("margin_low", "margin_high"):
+            self.assertIsNone(getattr(err, absent), absent)
 
 
 class TestPinUpdateDoor(BenchWorkspace):
@@ -2016,29 +1994,26 @@ class TestMateFrameFromFace(BenchWorkspace):
 
     def test_from_face_is_its_own_arm_and_names_nothing(self):
         frame = MateFrame.from_face()
-        self.assertEqual(frame.variant, "from_face")
-        self.assertIsNone(frame.origin)
-        self.assertIsNone(frame.axis)
-        self.assertIsNone(frame.reference)
+        self.assertEqual(frame.base, "face")
+        self.assertEqual(frame.offset, Placement.identity())
         # The head is the face: the frame carries no name to read back.
         self.assertFalse(hasattr(frame, "face"))
-        with self.assertRaises(TypeError):
-            frame.placement()
-        # Nothing can be authored beside it: not a face, not a roll.
+        # Nothing can be authored beside it but an offset, through its
+        # own door.
         with self.assertRaises(TypeError):
             MateFrame.from_face("a face")
         with self.assertRaises(TypeError):
             MateFrame.from_face(reference=(0.0, 1.0, 0.0))
         self.assertEqual(frame, MateFrame.from_face())
-        self.assertEqual(repr(frame), "MateFrame.from_face()")
+        self.assertEqual(frame, MateFrame.on_face(Placement.identity()))
+        self.assertEqual(repr(frame), "MateFrame.on_face(Placement([]))")
+        # Three authored vectors are the part base with one literal step.
         authored = mate_frame(POST_SEAT)
-        self.assertEqual(authored.variant, "authored")
+        self.assertEqual(authored.base, "part")
+        self.assertEqual(len(authored.offset), 1)
+        self.assertEqual(authored, MateFrame.on_part(authored.offset))
         self.assertNotEqual(frame, authored)
-        self.assertIsNone(
-            Alignment(
-                frame, authored, MatePrimitive.frame_coincidence(), AxisSense.Aligned
-            ).lever_arm
-        )
+        self.assertNotEqual(MateFrame.on_face(authored.offset), authored)
 
     def test_the_mate_follows_the_edited_face(self):
         doc, _post_i, shelf_i, mate = self.seated(

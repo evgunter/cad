@@ -19,13 +19,15 @@
 //! reads the forward map whole and this file is checked against the
 //! inventory that guard pins.
 //!
-//! # The two words with no reading
+//! # The three words with no reading
 //!
 //! `profile` names one expression inside a profile PROGRAM, and its
 //! address is completed by two integers and an argument role that the
 //! word does not carry; `placement_step` names one expression of a
 //! transform's placement past its first step, completed by a step
-//! index. There is nothing to answer with, so each answers nothing —
+//! index; `mate_offset` names one expression of a mate side's frame
+//! offset, completed by the side, a step index and a component. There
+//! is nothing to answer with, so each answers nothing —
 //! the same stop the forward map makes one level out, where the word
 //! says which kind of slot it is and the rest of the address is in the
 //! refusal's prose.

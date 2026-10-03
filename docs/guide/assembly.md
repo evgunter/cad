@@ -266,12 +266,12 @@ shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 # takes nothing, and one `own_face` serves every side framed on its
 # own head: the solve reads the cap's pose off the post's
 # evaluation every time, so a post whose height changes moves the
-# seat with it. The shelf's seats are authored numbers: both posts
-# meet ONE face of the shelf, its underside, and a face frame is that
-# face's canonical origin with no offset inside the face, so two seats
-# spelled as the face would land on the same point. The posts sit
-# flush with the shelf's two ends, which is the obvious way to draw a
-# bench.
+# seat with it. The shelf's seats are authored numbers in the shelf's
+# own coordinates — the part base with one literal step. (Each could
+# equally be the underside face with an offset inside it,
+# `MateFrame.on_face(...)`; the shelf is modelled from its underside
+# up, so no shelf edit moves these.) The posts sit flush with the
+# shelf's two ends, which is the obvious way to draw a bench.
 own_face = MateFrame.from_face()
 seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 seat_b = frame_at(SHELF_LENGTH - POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
@@ -343,37 +343,44 @@ assert stand.roots[:3] == [shelf_i, post_a, post_b]
 
 Two things in that block are worth pausing on.
 
-**A mate frame is the side's own face, or three authored vectors.**
-`MateFrame.from_face()` takes nothing: the side's frame is the face
-its reference names, and the solve resolves it from the part's own
-evaluation at every evaluation — its origin, its chart axis and the
-carrier's own roll reference — so nothing is stored twice and the
-mate follows the face when the part is edited, when the reference is
-rebound, and across a split or an inline; a face with no canonical
-frame (a NURBS carrier) refuses typed and keeps taking authored
-vectors. The face is the whole frame: a face frame's roll is the
-carrier's, and its origin is the face's canonical one. Authored
-vectors are the spelling for a point that is not a face's origin (the
-shelf's two seats above, both on its one underside), and for a roll
-the carrier does not give. A
-face frame also resolves at the NOMINAL value only: under an analysis
-lane — `stackup.sensitivities`' dual passes, a certified `clearance`'s
-interval leaf — the part's product pins no single number, the face
-side refuses `unpinned`, and those two doors refuse an assembly that
-holds one, where the same mate authored as vectors still solves. The
+**A mate frame is a base and an offset.** The base is the side's
+part frame, or its own face; the offset is a `Placement` written in
+the base's frame — any rigid motion, the empty chain by default.
+`MateFrame.from_face()` is the face base with no offset: the side's
+frame is the face its reference names, and the solve resolves it from
+the part's own evaluation at every evaluation — its origin, its chart
+axis as local +Z and the carrier's own reference direction as local
++Y — so nothing is stored twice and the mate follows the face when
+the part is edited, when the reference is rebound, and across a split
+or an inline. `MateFrame.on_face(offset)` adds an offset in that
+face's frame: a slide along the face, a turn about its normal, a
+set-back from it — and the side follows the face, offset and all.
+`MateFrame(origin, axis, reference)` is three authored vectors, the
+part base with one literal step, and `MateFrame.on_part(offset)` the
+part base with any chain. A rigid step's expressions may read a
+document parameter, so a parameter can drive where a side sits. The
+offset is any rigid motion, and the mate's contact class says which
+are legal: a `Rest` side set back from its face declares a contact
+that is not there, and the at-rest gate refutes it. A face with no
+canonical frame (a NURBS carrier) refuses typed and keeps taking a
+part base. A face base also resolves at the NOMINAL value only: under
+an analysis lane — `stackup.sensitivities`' dual passes, a certified
+`clearance`'s interval leaf — the part's product pins no single
+number, the face side refuses `unpinned`, and those two doors refuse
+an assembly that holds one, where a part base still solves. The
 solve's
 *algorithm* is unchanged — coset intersection over decided
 predicates, no numeric fitting — and its inputs are the document plus
-its mated parts' evaluations. What is still not checked is an
-AUTHORED frame against the faces the mate names: such a mate can
+its mated parts' evaluations. What is still not checked is a PART
+frame against the faces the mate names: such a mate can
 solve perfectly and still be refuted at the gate, which is the
 boundary between "where you said the parts meet" and "where they
 actually do", kept visible.
 
 **What the solve would refuse about a mate on its own, the insert
 refuses.** A head that resolves to no member, one member named
-twice, a class outside the vocabulary, a frame with no definite
-direction, a primitive-and-rider pair the coset table has no row
+twice, a class outside the vocabulary, a frame offset that does not
+evaluate, a primitive-and-rider pair the coset table has no row
 for, a clocking rider that contradicts the frame coincidence it rides
 — each is a fact about the mate alone, which the solve records
 against the mate whenever it reads the datum. So `Doc.insert` asks
@@ -1206,13 +1213,14 @@ is one node whose placements are a rule; a mate names an instance. The
 bench's flat-pack layout and its assembled stand are two documents for
 this reason, not one.
 
-**A face frame gives up two things authored vectors keep.** Its roll
-is the carrier's own reference, so it cannot turn a mate about its
-axis; and it resolves on the nominal lane only, so sensitivities and
-certified clearance refuse an assembly that holds one. An authored
-frame keeps both, and pays for them the old way: nothing checks it
-against the faces the mate names, which is why the gate exists, and
-why a mate that solves is not yet a mate that certifies.
+**A face base resolves on the nominal lane only**, so sensitivities
+and certified clearance refuse an assembly that holds one. A part
+base solves on every lane, and pays for it the old way: nothing
+checks it against the faces the mate names, which is why the gate
+exists, and why a mate that solves is not yet a mate that certifies.
+A face base's in-plane axes are the witness ladder's: the carrier's
+reference is local +Y, not +X, so an offset along the face's
+reference is written along y.
 
 **A mate is a product root.** Roots are the live nodes nothing else
 consumes, and a mate is consumed by nothing, so `Doc.roots` on the

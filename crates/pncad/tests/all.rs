@@ -3674,7 +3674,15 @@ fn asm_r2a_mated_assembly(
             .into(),
         }],
     };
-    let axis = |origin: [f64; 3]| MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    let axis = |origin: [f64; 3]| {
+        MateFrame::authored(
+            origin,
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            Tol::witness(),
+        )
+        .expect("a definite frame")
+    };
     // A mate head is a `SitedFace`: the fixture's claim that the name
     // it just built is a face is made where the name is built.
     let face_head = |name: pncad::prelude::StableName| {

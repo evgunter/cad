@@ -50,7 +50,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 25] {
+) -> [(&'static str, Py<PyAny>); 26] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -116,6 +116,7 @@ fn edit_fields(
             "index",
             num(payload.index.map(|n| infallible(n.into_pyobject(py)))),
         ),
+        ("side", word(payload.side)),
         (
             "path",
             opt(payload.path.map(|p| {
@@ -773,10 +774,10 @@ pub(crate) fn face_name_from_text(
 /// carry is a different question and belongs to the kernel, which
 /// answers it as `unknown_slot` naming the slot the node lacks.
 ///
-/// `profile` and `placement_step` are words of the alphabet with no
-/// slot to read back: the rest of each address holds an integer the
-/// word does not carry, so each refuses in its own sentence rather
-/// than as a misspelling.
+/// `profile`, `placement_step` and `mate_offset` are words of the
+/// alphabet with no slot to read back: the rest of each address holds
+/// an integer the word does not carry, so each refuses in its own
+/// sentence rather than as a misspelling.
 fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
     if let Some(slot) = crate::slot_word::slot_from_word(word) {
         return Ok(slot);
@@ -791,6 +792,12 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
             "`placement_step` addresses one expression of a later step of a transform's \
          placement, and the rest of that address — the step index and which component — \
          is an integer the word does not carry, so no slot word here writes at it"
+                .to_owned()
+        } else if word == "mate_offset" {
+            "`mate_offset` addresses one expression of a mate side's frame offset, and the \
+         rest of that address — the side, the step index and which component — is not \
+         carried by the word, so no slot word here writes at it: a parameter the \
+         expression reads moves it, or the mate is re-authored"
                 .to_owned()
         } else {
             format!(

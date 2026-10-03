@@ -1028,7 +1028,9 @@ fn child_band_refusal_rows() {
             path: Vec::new(),
         })
     };
-    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    // The part base with no step: no band forms to author vectors
+    // through.
+    let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
     // DOOR 2a — a mate cannot be INSERTED where no band exists: the
     // edit door refuses it with the solve's own `Band`. A snapshot
     // loaded under this tolerance can still hold one, and the solve

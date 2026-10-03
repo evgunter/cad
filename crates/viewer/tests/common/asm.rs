@@ -197,7 +197,7 @@ pub fn face_side(
     frame: &pncad::document::MateFrame,
     head: &pncad::document::SitedFace,
 ) -> Option<StableName> {
-    if *frame != pncad::document::MateFrame::FromFace {
+    if *frame != pncad::document::MateFrame::from_face() {
         return None;
     }
     pncad::document::head_face(doc, head).map(pncad::document::FaceName::into_name)
@@ -214,11 +214,25 @@ pub fn authored_from_world(
     pose: &pncad::topo::readback::Pose<f64>,
     reference: Vec3<f64>,
 ) -> pncad::document::MateFrame {
+    let [origin, axis, reference] = vectors_from_world(placement, pose, reference);
+    pncad::document::MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
+        .expect("a definite frame")
+}
+
+/// The three vectors [`authored_from_world`] authors: the origin, the
+/// axis and the roll reference, pulled back into the instance's own
+/// part coordinates.
+pub fn vectors_from_world(
+    placement: &pncad::geom_core::Affine3<f64>,
+    pose: &pncad::topo::readback::Pose<f64>,
+    reference: Vec3<f64>,
+) -> [[f64; 3]; 3] {
     let inverse = placement.inverse();
-    let origin = inverse.transform_point(pose.origin);
-    let axis = inverse.transform_vec(pose.axis);
-    let reference = inverse.transform_vec(reference);
-    pncad::document::MateFrame::authored(origin.to_array(), axis.to_array(), reference.to_array())
+    [
+        inverse.transform_point(pose.origin).to_array(),
+        inverse.transform_vec(pose.axis).to_array(),
+        inverse.transform_vec(reference).to_array(),
+    ]
 }
 
 // The assembly suites say `asm::down_at` / `asm::up_at`; both name the
@@ -270,12 +284,16 @@ pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Align
             [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT],
             [0.0, 0.0, 1.0],
             [1.0, 0.0, 0.0],
-        ),
+            geom_core::Tol::witness(),
+        )
+        .expect("a definite frame"),
         b: MateFrame::authored(
             [b_x, SHELF_DEPTH / 2.0, 0.0],
             [0.0, 0.0, -1.0],
             [1.0, 0.0, 0.0],
-        ),
+            geom_core::Tol::witness(),
+        )
+        .expect("a definite frame"),
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking,

@@ -152,7 +152,8 @@ impl FrameBase {
 /// coordinates ([`MateReach::face_pose`]): the pose's origin, its
 /// CHART axis as local +Z, and the carrier's own in-frame reference
 /// direction as the roll reference, through the witness ladder
-/// (`geom_core::linalg::frame::point_at_frame`). The head is the
+/// (`geom_core::linalg::frame::point_at_frame`), which puts the
+/// reference on local +Y and their cross product on local +X. The head is the
 /// state and the frame is derived, so whatever moves or re-spells the
 /// head — a part edit, `Rebind`, split, inline — carries the frame
 /// with it, offset and all. The empty chain is the face's pose
@@ -214,7 +215,7 @@ impl MateFrame {
     }
 
     /// The side's own head face composed with `offset`, written in the
-    /// face's frame (origin on the face, +Z along its chart axis, +X
+    /// face's frame (origin on the face, +Z along its chart axis, +Y
     /// along its reference direction).
     pub fn on_face(offset: impl Into<Placement>) -> Self {
         Self {
