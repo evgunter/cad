@@ -125,7 +125,7 @@
 //! intent-recording property, and C4's verify-at-use backstops lies
 //! either way.
 
-use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
+use geom_core::{Band, BandError, Decide, Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, Tol};
 
 use crate::body::Body;
 use crate::boolean::{
@@ -264,10 +264,8 @@ impl core::fmt::Display for FlushRefusal {
                 f,
                 "flush detection: face pair {:?}/{:?} is compared on a surface datum that is \
                  not finite, so the pair describes no shape to compare and is named rather \
-                 than reported or dropped. {}",
-                pair.0,
-                pair.1,
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                 than reported or dropped. {KERNEL_OR_FILE_DEFECT_ENDING}",
+                pair.0, pair.1,
             ),
             Self::Distinct(defect) => defect.fmt(f),
         }
