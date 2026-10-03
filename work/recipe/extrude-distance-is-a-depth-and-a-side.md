@@ -2,12 +2,13 @@
 id: extrude-distance-is-a-depth-and-a-side
 kind: issue
 title: An extrude's distance becomes a positive depth with a structural side (Ev, #3551), and a negative depth refuses with a recourse that names side
-status: review
+status: closed
 opened: 2026-10-01
 priority: P0
 cost: H
 branch: recipe/extrude-depth-and-side
 pr: 3912
+closed: 2026-10-03
 ---
 
 
