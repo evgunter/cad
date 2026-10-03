@@ -76,4 +76,4 @@ A mate frame is a base composed with an offset, a `Placement` written in the bas
 - today's authored vectors become the part base plus one literal step;
 - `FromFace` is the face base, with the empty chain by default.
 
-The crate sits on the shelf's gauge, with a placing mate whose shelf side is the shelf's top face offset in that face's frame. It follows any edit of the shelf. Gauges are unchanged, and A11 (2) is unchanged. The offset can be any rigid motion; the mate's contact class decides which offsets are legal. A3 and A11 (5) state this, and the design-fork log records it as row 52. The tour's shelf-top gauge goes when this is built.
+The crate sits on the shelf's gauge, with a placing mate whose shelf side is the shelf's top face offset in that face's frame. It follows any edit of the shelf. Gauges are unchanged, and A11 (2) is unchanged. The offset can be any rigid motion; the mate's contact class decides which offsets are legal. A3 and A11 (5) state this, and the design-fork log records it as row 53. The tour's shelf-top gauge goes when this is built.
