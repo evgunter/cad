@@ -196,7 +196,10 @@ contradict it. Wherever the two faces touch along the curve, each must
 END there and the two must leave it on opposite sides: a cusp, a face
 running on through the curve where the other touches it, sides that
 differ along the curve, and a pair touching nowhere each contradict it,
-with the fact named. Rim routing by material wedge (C7) then decides the
+with the fact named. A pair that meets the curve only at a point (two
+faces of two face sets across a vertex of the curve) is read at that
+point when both faces end there; one that shares no point at all is the
+pair touching nowhere. Rim routing by material wedge (C7) then decides the
 rim, and the zip mints it as the smooth seam carrying
 `TangentIntersection`. A G1 joint authored inside one profile is the
 structural form of the same fact and needs no declaration.

@@ -1633,6 +1633,12 @@ fn seam_verdicts(
 ///   and still does not cover it (`seam_locus_no_edge`);
 /// - the FAR plate (`x ∈ [2, 3]`, `y < 0`) never meets the rod, on
 ///   either side of it (`seam_locus_untouched`).
+/// - the NOTCH plate rides the line at `x ∈ [0, 0.4]` below it, leaves
+///   it out through a notch opening upward on `(0.4, 0.8)`, and contains
+///   it again from `x = 0.8`, where the notch's diagonal edge
+///   `(0.6, −0.5) → (1, 0.5)` crosses the line with no vertex there: only
+///   the crossing's own cut finds the plate's interior under the rod on
+///   `[0.8, 1]` (`seam_locus_no_edge`).
 #[test]
 fn a_line_seam_is_read_only_where_the_faces_touch() {
     let tol = Tol::witness();
@@ -1659,6 +1665,19 @@ fn a_line_seam_is_read_only_where_the_faces_touch() {
         tol,
     );
     let far = plate(&[(2.0, -1.0), (3.0, -1.0), (3.0, 0.0), (2.0, 0.0)], tol);
+    let notch = plate(
+        &[
+            (0.0, 0.0),
+            (0.0, -1.0),
+            (1.5, -1.0),
+            (1.5, 0.5),
+            (1.0, 0.5),
+            (0.6, -0.5),
+            (0.4, -0.5),
+            (0.4, 0.0),
+        ],
+        tol,
+    );
     let no_edge = Some((
         Some(topo::Contradiction::SeamFaceRunsOn),
         Some("seam_locus_no_edge"),
@@ -1668,7 +1687,11 @@ fn a_line_seam_is_read_only_where_the_faces_touch() {
         Some("seam_locus_untouched"),
     ));
     let above = quarter_rod(1.0, tol);
-    for (label, body, want) in [("tab", &tab, &no_edge), ("partial", &partial, &no_edge)] {
+    for (label, body, want) in [
+        ("tab", &tab, &no_edge),
+        ("partial", &partial, &no_edge),
+        ("notch", &notch, &no_edge),
+    ] {
         assert_eq!(seam_verdicts(body, &above), vec![*want; 2], "{label}");
     }
     for side in [1.0, -1.0] {
@@ -1709,9 +1732,32 @@ fn a_seam_whose_faces_leave_on_both_sides_is_contradicted_as_mixed() {
     let rod = quarter_rod_of(1.0, 3.0, tol);
     let mixed = Some((
         Some(topo::Contradiction::SeamSidesMixed),
-        Some("seam_traversal_mixed"),
+        Some("seam_sides_mixed"),
     ));
     assert_eq!(seam_verdicts(&lobes, &rod), vec![mixed; 2]);
+}
+
+/// **The suite's pair filter keeps every pair that meets, turned or
+/// not.** The hemisphere turned 0.3 rad about the axis: each half-wall
+/// shares a stretch of the rim with BOTH half-caps, so all four wall
+/// pairs meet, and the filter keeps them with the disc pair (5), as it
+/// does unturned, where the cross pairs meet at the rim's vertices.
+#[test]
+fn the_seam_pair_filter_keeps_every_pair_that_meets() {
+    let tol = Tol::witness();
+    let tube = rod_z(R, 0.0, H);
+    for turn in [0.0, 0.3] {
+        let hemi = topo::transform_rigid(
+            &hemisphere_on_the_cap(),
+            &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), turn),
+            tol,
+        )
+        .unwrap();
+        for (x, y) in [(&tube, &hemi), (&hemi, &tube)] {
+            let d = walls_and_discs(x, y, BooleanCoincidence::Seam);
+            assert_eq!(d.coincident_faces.len(), 5, "turned {turn}");
+        }
+    }
 }
 
 /// Narrow review (JOIN-1 fix pass 3): domes and bowls of several corner

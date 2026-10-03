@@ -3941,10 +3941,13 @@ pub(crate) fn verify_tangent_declaration<T: Decide>(
 ///    every stretch of the locus both faces contain, each must have a
 ///    boundary edge running along it, and their traversals there decide.
 ///    The same side is a cusp (`seam_cusp`); opposite along one stretch
-///    and the same along another is `seam_traversal_mixed`; a face that
-///    runs on through the locus where the other touches it is
-///    `seam_locus_no_edge`; a pair touching along no stretch is
-///    `seam_locus_untouched`. Each carries its fact. A face bounded by a
+///    and the same along another, or a face running one stretch both
+///    ways, is `seam_sides_mixed` (it was `seam_traversal_mixed`, a
+///    within-face escalation, before the read was tied to the touch); a
+///    face that runs on through the locus where the other touches it is
+///    `seam_locus_no_edge`. A pair meeting only at a point is read there
+///    when both faces END at that point, and a pair sharing no stretch
+///    and no such point is `seam_locus_untouched`. Each carries its fact. A face bounded by a
 ///    curve the read does not place against the locus (an ellipse, a
 ///    spline) is refused as outside the envelope
 ///    ([`BooleanError::UnsupportedDeclarationClass`]).
@@ -4127,7 +4130,7 @@ fn verify_tangency_declaration<T: Decide>(
             rim_wedge::Departure::Opposite => None,
             rim_wedge::Departure::Same => Some((Contradiction::SeamCusp, "seam_cusp")),
             rim_wedge::Departure::Mixed => {
-                Some((Contradiction::SeamSidesMixed, "seam_traversal_mixed"))
+                Some((Contradiction::SeamSidesMixed, "seam_sides_mixed"))
             }
             rim_wedge::Departure::NoEdge => {
                 Some((Contradiction::SeamFaceRunsOn, "seam_locus_no_edge"))
@@ -4616,6 +4619,44 @@ mod tests {
             .chain([(Torus, Cylinder), (Cylinder, Torus), (Torus, Torus)])
             .collect();
         assert_eq!(seen, rows, "a fixture for every row and torus exclusion");
+    }
+
+    /// **An undecided sample leaves the cover's side unread.** The top
+    /// face of the unit brick against the plane `x = −5e-9`: the samples
+    /// on `x = 0` sit in the band, those on `x = 1` and `x = ½` are
+    /// definitely Positive. A side read off the definite ones alone
+    /// would be `Off(Positive)`; the in-band ones keep it `Unread`. The
+    /// plane `x = −1` reads every sample definitely, and the side is read.
+    #[test]
+    fn an_escalated_sample_leaves_the_cover_side_unread() {
+        use geom_core::{Point3, Tol, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let body: crate::Body<f64> =
+            crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+        let top = body
+            .faces()
+            .find(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Plane { origin, normal, .. })
+                        if origin.z > 0.5 && normal.z.abs() > 0.5
+                )
+            })
+            .map(|(k, _)| k)
+            .unwrap();
+        let wall = |x: f64| geom::Surface::Plane {
+            origin: Point3::new(x, 0.0, 0.0),
+            normal: Vec3::new(1.0, 0.0, 0.0),
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        assert_eq!(
+            read_cover_side(&body, top, &wall(-5e-9), band),
+            CoverSide::Unread
+        );
+        assert_eq!(
+            read_cover_side(&body, top, &wall(-1.0), band),
+            CoverSide::Off(Sign::Positive)
+        );
     }
 
     /// **The cover carries its side, and admits an off-carrier point
