@@ -256,6 +256,11 @@ fn torus_roots<T: Decide>(
     let placed = |theta: T| {
         geom_brep::conic_torus_residual(conic, center, axis, major_radius, minor_radius, theta)
     };
+    let meter = RootSlack {
+        row: "bool_ellipse_torus_root_slack",
+        residual: &placed,
+        f_per_metre_hi: h.f_per_metre_hi,
+    };
     certified_subdivision(
         &TrigPoly {
             cos: h.cos,
@@ -271,11 +276,7 @@ fn torus_roots<T: Decide>(
             f_per_metre: h.f_per_metre_lo,
         },
         &TORUS_ROWS,
-        Some(&RootSlack {
-            row: "bool_ellipse_torus_root_slack",
-            residual: &placed,
-            f_per_metre_hi: h.f_per_metre_hi,
-        }),
+        Some(&meter),
         band,
     )
 }
@@ -1154,5 +1155,378 @@ mod graze_rows {
             }
             println!("ε {eps}: {certified} certified, {misses} misses, {declined} declined");
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torus_rows {
+    //! The torus arm against the geometry: random ellipses against random
+    //! tori in four families — posed through the carrier (crossings),
+    //! grazing it by a few bands either side of zero (near-tangent), the
+    //! same carried a kilometre out (far-out), and at millimetre scale.
+
+    use core::f64::consts::{PI, TAU};
+    use std::fmt::Write as _;
+
+    use super::*;
+    use crate::boolean::conic_oracle::{distance, sign_changes, unit};
+    use geom_core::{Point3, Vec3};
+    use test_utils::fuzz;
+
+    /// The families a pose is drawn from.
+    const FAMILIES: [&str; 4] = ["crossing", "graze", "far-out", "millimetre"];
+
+    /// One pose of family `family` at band zero `eps`: the carrier, the
+    /// torus and the arc.
+    fn pose(
+        rng: &mut fuzz::Rng,
+        family: usize,
+        eps: f64,
+    ) -> (geom::Curve3<f64>, geom::Surface<f64>, f64, f64) {
+        let scale = if family == 3 { 1e-3 } else { 1.0 };
+        let out = if family == 2 {
+            Vec3::new(
+                rng.range(-1e3, 1e3),
+                rng.range(-1e3, 1e3),
+                rng.range(-1e3, 1e3),
+            )
+        } else {
+            Vec3::new(0.0, 0.0, 0.0)
+        };
+        let n = unit(rng);
+        let u = unit(rng);
+        let big = scale * rng.range(0.1, 2.0);
+        let small = big / rng.range(1.0, 20.0);
+        let (major, minor) = if rng.below(2) == 0 {
+            (big, small)
+        } else {
+            (small, big)
+        };
+        let center = Point3::new(0.0, 0.0, 0.0) + out;
+        let e = geom::Curve3::Ellipse {
+            center,
+            axis: n,
+            major,
+            minor,
+            u_ref: (u - n * u.dot(n)).normalize(),
+        };
+        let theta = rng.range(0.0, TAU);
+        let p = e.eval(theta);
+        let tangent = e.deriv(theta).normalize();
+        let tube = scale * rng.range(0.02, 0.5);
+        let ring = tube * rng.range(1.2, 6.0);
+        // A direction off the carrier at `p`, square to its tangent: the
+        // tube's near point lies along it, `gap` from `p` — a few bands
+        // either side of zero on a graze, a crossing's depth otherwise.
+        let off = {
+            let w = unit(rng);
+            (w - tangent * w.dot(tangent)).normalize()
+        };
+        let gap = if family == 1 {
+            eps * rng.range(-40.0, 40.0)
+        } else {
+            -tube * rng.range(0.0, 1.0)
+        };
+        let core = p + off * (tube + gap);
+        // The core circle passes through `core` square to `off` there.
+        let along = {
+            let w = unit(rng);
+            (w - off * w.dot(off)).normalize()
+        };
+        let axis = {
+            let w = unit(rng);
+            let w = w - along * w.dot(along);
+            w.normalize()
+        };
+        let to_hub = axis.cross(along).normalize();
+        let hub = core + to_hub * ring;
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let x = if axis.cross(x).norm() < 0.1 {
+            Vec3::new(0.0, 1.0, 0.0)
+        } else {
+            x
+        };
+        let s = geom::Surface::Torus {
+            center: hub,
+            axis,
+            major_radius: ring,
+            minor_radius: tube,
+            u_ref: (x - axis * x.dot(axis)).normalize(),
+        };
+        let t0 = rng.range(0.0, TAU);
+        let t1 = t0 + rng.range(0.1, TAU);
+        (e, s, t0, t1)
+    }
+
+    /// **Every certified answer is true of the geometry**, at three
+    /// bands, over every family:
+    ///
+    /// - every certified root lies on the torus, its TRUE distance
+    ///   inside the zero band;
+    /// - a certified count is never below the true sign changes, which a
+    ///   dense sampling of the true distance finds;
+    /// - a `Miss` is never certified for a carrier that comes within the
+    ///   zero band of the torus, or crosses it.
+    ///
+    /// The counts per answer are printed. The independent high-precision
+    /// check of the same draws, root positions included, is
+    /// [`dump_for_the_mpmath_oracle`].
+    #[test]
+    fn certified_torus_answers_hold_against_the_true_distance() {
+        let mut rng = fuzz::start("ellipse_roots::certified_torus_answers_hold");
+        let dense = 40_000;
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            for (family, name) in FAMILIES.iter().enumerate() {
+                let (mut certified, mut misses, mut uncertain) = (0, 0, 0);
+                for i in 0..fuzz::scaled(150) {
+                    let (e, s, t0, t1) = pose(&mut rng, family, eps);
+                    let mid = (t0 + t1) / 2.0;
+                    let found = ellipse_roots(&e, t0, t1, &s, band).unwrap_or_else(|err| {
+                        panic!("ε {eps}, {name} {i}: the torus arm escalated {err:?}")
+                    });
+                    let samples: Vec<f64> = (0..=dense)
+                        .map(|k| {
+                            distance(&s, e.eval(mid - PI + TAU * f64::from(k) / f64::from(dense)))
+                        })
+                        .collect();
+                    let changes = sign_changes(&samples);
+                    let closest = samples.iter().fold(f64::INFINITY, |m, d| m.min(d.abs()));
+                    let label = format!(
+                        "ε {eps}, {name} {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
+                        fuzz::replay()
+                    );
+                    match found {
+                        CircleRoots::Certified { count, thetas } => {
+                            certified += 1;
+                            for &t in &thetas[..count] {
+                                let off = distance(&s, e.eval(t)).abs();
+                                assert!(off <= eps, "{label}: root {t} lies {off} off the torus");
+                            }
+                            assert!(
+                                count >= changes,
+                                "{label}: {count} certified roots, {changes} sign changes"
+                            );
+                        }
+                        CircleRoots::Miss => {
+                            misses += 1;
+                            assert!(
+                                changes == 0 && closest > eps,
+                                "{label}: a Miss {closest} from the torus, {changes} sign changes"
+                            );
+                        }
+                        CircleRoots::Uncertain => uncertain += 1,
+                        other => panic!("{label}: {other:?}"),
+                    }
+                }
+                println!(
+                    "ε {eps}, {name}: {certified} certified, {misses} misses, {uncertain} uncertain"
+                );
+            }
+        }
+    }
+
+    /// **A root the representation cannot place is refused, not
+    /// certified.** Two grazes the fuzz drew at ε = 1e-12, each crossing
+    /// the torus twice within 1e-4 rad: there the residual's slope along
+    /// the carrier is about 1e-5, so its `f64` rounding moves the bisected
+    /// root by tens of zero bands. The true roots are the 40-digit ones
+    /// `scripts/oracles/ellipse_torus_mpmath.py` finds from the stored
+    /// values. Every certified root must lie within the zero band, as arc
+    /// length, of one; the root-slack meter answers `Uncertain` for both.
+    /// Without it the subdivision certifies all four roots of each, the
+    /// graze pair 4.4e-11 and 6.6e-11 m of arc off.
+    #[test]
+    fn a_root_the_band_cannot_place_is_not_certified() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let cases: [(
+            [f64; 3],
+            [f64; 3],
+            f64,
+            f64,
+            [f64; 3],
+            [f64; 3],
+            f64,
+            f64,
+            f64,
+            f64,
+            [f64; 4],
+        ); 2] = [
+            (
+                [
+                    0.203_297_924_652_609_5,
+                    -0.849_258_597_911_928_6,
+                    -0.487_267_675_620_502_5,
+                ],
+                [
+                    -0.947_599_164_518_603_8,
+                    -0.295_910_810_043_571_84,
+                    0.120_385_281_089_513_89,
+                ],
+                0.468_167_765_509_919_23,
+                0.029_302_888_415_728_03,
+                [
+                    0.555_302_572_861_934_7,
+                    -0.432_052_166_574_670_16,
+                    -1.582_439_375_116_944_3,
+                ],
+                [
+                    0.631_422_079_152_858_2,
+                    -0.720_417_358_371_581_6,
+                    0.286_888_458_665_025_5,
+                ],
+                1.962_544_801_084_216_4,
+                0.349_075_956_625_705_34,
+                1.226_257_671_700_713_4,
+                6.066_069_630_592_406_4,
+                [
+                    1.655_031_910_583_527_7,
+                    1.655_125_629_734_536_3,
+                    2.047_503_220_344_307_7,
+                    5.772_456_607_894_865_5,
+                ],
+            ),
+            (
+                [
+                    0.585_210_592_572_929_7,
+                    0.025_848_412_147_504_423,
+                    -0.810_469_260_323_852_8,
+                ],
+                [
+                    0.351_512_957_155_989_74,
+                    0.892_611_310_206_308_1,
+                    0.282_282_996_022_129_2,
+                ],
+                1.622_886_978_643_085_3,
+                0.116_744_224_570_161_3,
+                [
+                    -0.396_557_758_150_929_8,
+                    -0.550_975_344_440_982_3,
+                    -1.626_369_091_986_125_1,
+                ],
+                [
+                    0.970_926_661_587_580_1,
+                    0.209_414_540_512_199_7,
+                    0.115_961_062_604_914_39,
+                ],
+                1.632_177_296_965_134,
+                0.289_732_944_160_409_07,
+                2.866_752_917_421_971,
+                4.963_815_025_747_772,
+                [
+                    2.204_785_365_190_525_8,
+                    3.334_730_708_216_814_8,
+                    3.689_491_881_643_564_1,
+                    3.689_517_963_451_269_6,
+                ],
+            ),
+        ];
+        for (k, (n, u, major, minor, hub, t_axis, big, small, t0, t1, truth)) in
+            cases.into_iter().enumerate()
+        {
+            let e = geom::Curve3::Ellipse {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::from_array(n),
+                major,
+                minor,
+                u_ref: Vec3::from_array(u),
+            };
+            let t_axis = Vec3::from_array(t_axis);
+            let s = geom::Surface::Torus {
+                center: Point3::from_array(hub),
+                axis: t_axis,
+                major_radius: big,
+                minor_radius: small,
+                u_ref: (x - t_axis * x.dot(t_axis)).normalize(),
+            };
+            let got = ellipse_roots(&e, t0, t1, &s, band).unwrap();
+            let CircleRoots::Certified { count, thetas } = got else {
+                continue;
+            };
+            for &t in &thetas[..count] {
+                let (off, at) = truth
+                    .iter()
+                    .map(|&r| {
+                        let (sr, cr) = r.sin_cos();
+                        ((t - r).abs() * (major * sr).hypot(minor * cr), r)
+                    })
+                    .min_by(|a, b| a.0.total_cmp(&b.0))
+                    .unwrap();
+                assert!(
+                    off <= band.zero(),
+                    "case {k}: root {t} is {off:e} m of arc from the true {at}"
+                );
+            }
+        }
+    }
+
+    /// **The draws, for the high-precision oracle.** Writes one JSON line
+    /// per pose — the carrier, the torus, the arc, the band and the door's
+    /// answer — to the file `CAD_ELLIPSE_TORUS_DUMP` names;
+    /// `scripts/oracles/ellipse_torus_mpmath.py` then re-solves each pose
+    /// at 40 digits and checks the count, every root's place along the
+    /// arc, and every `Miss`. Run:
+    /// `CAD_ELLIPSE_TORUS_DUMP=/tmp/et.jsonl cargo nextest run -p topo --lib
+    /// --run-ignored only dump_for_the_mpmath_oracle`, then
+    /// `python3 scripts/oracles/ellipse_torus_mpmath.py /tmp/et.jsonl`.
+    #[test]
+    #[ignore = "an oracle dump; run command in the docs"]
+    fn dump_for_the_mpmath_oracle() {
+        let path = std::env::var("CAD_ELLIPSE_TORUS_DUMP").expect("CAD_ELLIPSE_TORUS_DUMP");
+        let mut rng = fuzz::start("ellipse_roots::dump_for_the_mpmath_oracle");
+        let mut out = String::new();
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            for (family, name) in FAMILIES.iter().enumerate() {
+                for _ in 0..fuzz::scaled(250) {
+                    let (e, s, t0, t1) = pose(&mut rng, family, eps);
+                    let (
+                        geom::Curve3::Ellipse {
+                            center,
+                            axis,
+                            major,
+                            minor,
+                            u_ref,
+                        },
+                        geom::Surface::Torus {
+                            center: hub,
+                            axis: t_axis,
+                            major_radius,
+                            minor_radius,
+                            ..
+                        },
+                    ) = (&e, &s)
+                    else {
+                        unreachable!("the pose is an ellipse and a torus")
+                    };
+                    let (answer, roots) = match ellipse_roots(&e, t0, t1, &s, band) {
+                        Ok(CircleRoots::Certified { count, thetas }) => {
+                            ("certified", thetas[..count].to_vec())
+                        }
+                        Ok(CircleRoots::Miss) => ("miss", vec![]),
+                        Ok(CircleRoots::Uncertain) => ("uncertain", vec![]),
+                        other => panic!("{other:?}"),
+                    };
+                    let v = |p: Vec3<f64>| format!("[{:?}, {:?}, {:?}]", p.x, p.y, p.z);
+                    let pt = |p: Point3<f64>| format!("[{:?}, {:?}, {:?}]", p.x, p.y, p.z);
+                    writeln!(
+                        out,
+                        "{{\"family\": \"{name}\", \"eps\": {eps:?}, \"center\": {}, \"axis\": {}, \
+                         \"u_ref\": {}, \"major\": {major:?}, \"minor\": {minor:?}, \"hub\": {}, \
+                         \"t_axis\": {}, \"R\": {major_radius:?}, \"r\": {minor_radius:?}, \
+                         \"t0\": {t0:?}, \"t1\": {t1:?}, \"answer\": \"{answer}\", \"roots\": {roots:?}}}",
+                        pt(*center),
+                        v(*axis),
+                        v(*u_ref),
+                        pt(*hub),
+                        v(*t_axis),
+                    )
+                    .unwrap();
+                }
+            }
+        }
+        std::fs::write(&path, out).expect("the dump file");
     }
 }

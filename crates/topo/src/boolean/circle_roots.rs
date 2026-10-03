@@ -1040,6 +1040,53 @@ mod subdivision_guard_rows {
         }
     }
 
+    /// **The remainder reads every harmonic up to the degree.**
+    /// `F = −7 + 3·10⁻⁴ + 16 cos 3φ − 9 cos 4φ`, `φ = θ − θg`, has no first
+    /// or second harmonic, so `A₁ + 16A₂` is zero, and at `φ = 0` its
+    /// derivatives to third order vanish (`9·16 = 16·9`) while
+    /// `F⁗ = 81·16 − 256·9 = −1008`: a fourth-order graze,
+    /// `F ≈ 3·10⁻⁴ − 42φ⁴`, crossing at `φ ≈ ±0.052`. `θg` is the midpoint
+    /// of the first cut's piece about zero, whose ends read the same sign,
+    /// so the derivatives the walk reads there say `F` barely moves. Only
+    /// `M₄ = Σ k⁴Aₖ` over all four harmonics says it can fall `0.2` over
+    /// the piece; read at degree two the piece is clear, the pair is lost,
+    /// and the count is certified short by two.
+    #[test]
+    fn a_fourth_harmonic_graze_is_not_read_clear() {
+        let piece = core::f64::consts::TAU / f64::from(SUBDIVISION_START);
+        let (l, r) = (
+            (-PI + piece * 7.0) + piece * SPLITS[0],
+            (-PI + piece * 8.0) + piece * SPLITS[0],
+        );
+        let at = l + (r - l) / 2.0;
+        let (s3, c3) = (3.0 * at).sin_cos();
+        let (s4, c4) = (4.0 * at).sin_cos();
+        let f = TrigPoly {
+            cos: [-7.0 + 3e-4, 0.0, 0.0, 16.0 * c3, -9.0 * c4],
+            sin: [0.0, 0.0, 0.0, 16.0 * s3, -9.0 * s4],
+            degree: 4,
+        };
+        let value =
+            |t: f64| f.cos[0] + 16.0 * (3.0 * (t - at)).cos() - 9.0 * (4.0 * (t - at)).cos();
+        let truth = sign_changes(&value);
+        assert!(truth > 2, "the graze pair and the rest, read {truth}");
+        let frame = SubdivisionFrame {
+            t0: -0.5,
+            t1: 0.5,
+            speed_hi: 1.0,
+            noise: 0.0,
+            f_per_metre: 1.0,
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        match certified_subdivision(&f, &value, &frame, &ROWS, None, band).unwrap() {
+            CircleRoots::Certified { count, .. } => {
+                assert_eq!(count, truth, "certified {count} roots of {truth}");
+            }
+            CircleRoots::Uncertain => {}
+            other => panic!("{other:?} for a residual crossing {truth} times"),
+        }
+    }
+
     /// **A located root must read ON the surface.** The residual is
     /// `sin θ` resolved only to steps of `20ε` — never zero, its sign
     /// change a jump from `−10ε` to `+10ε` — the harmonics exact to within
