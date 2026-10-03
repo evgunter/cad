@@ -2344,3 +2344,63 @@ plan that set none leaves a walk nothing to check. This program closes on
 Ev's ruling when the eleven land, with a note under `docs/doc-ledger/`
 as its done-state of record.
 - 2026-10-02: Seam note from TANG (PR 3851, `tang/pierce-ring`). The cylinder arm of `curved_face` is now the chart Green form over every loop, `R²·(−Σ∮ v du) + origin·A⃗` (`curved_face_loops`; `topo::props` hands a cylinder face its rings), so `props_rim_level`, `props_rim_level_group`, `props_du_consistent` and `props_rim_side` no longer run on a cylinder's flux; the shape door, the material-side gate and the cone/sphere/torus arms keep them. Closed `a-notched-cylinder-wall-has-no-volume-measurement`; noted on `not-iso-rectangle-names-off-surface-edges-and-inventory-gaps-alike`. #649's cylinder rows now measure exactly. (TANG implementer lane)
+
+## The recourse-grammar unit, at review (2026-10-03, PR 3942)
+
+The last unit of this program's own slate. **Ten of the eleven rows
+served, one stopped and reported**; green on hosted run 37111489979,
+`gate ok` pass, every `test` step run rather than skipped.
+
+**The shape.** No arm's tolerance offer can be a `&'static str`, because
+D4 ¶1 (i) wants it conditional and valued and the value comes from the
+margin. So `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and
+`SPLIT_PLANE_RECOURSE` are now the LEVERS alone;
+`geom_core::Indeterminate::ending(levers)` is the one home for the whole
+labelled ending, composed through the existing
+`MarginDiag::sized_recourse`; `DEFINITE_COINCIDENCE_RECOURSE` retired
+into `COINCIDENCE_RECOURSE`, the two having become one string. No
+twelfth spelling was minted: every ending composes from a home ENCL or
+TOPO already built, and the two helpers added
+(`geom_brep::recourse::not_yet`, `props::quadrature_budget_recourse`)
+each consolidate two spellings into one.
+
+**Row 3 is the stop-and-report**, moved to `work/flux/` with the reach
+sweep it asked for: two of the five `classify_dihedral` callers that can
+see an arbitrary body face establish its no-spline-kind premise and three
+do not (filed on `work/topo/`), and one of its two candidate fixes is
+closed by ENCL's PR 3418 — `MarginDiag` is opaque, so nothing can ride
+the margin. What remains is a typed refusal on a public predicate's
+error, rippling to its non-test callers across `topo` and `sweep`: a
+typing unit, not a refusal-text one.
+
+**This program does NOT close on these eleven, and that is the fact to
+hand on.** The 2026-10-01 cut left eleven rows here; eleven MORE have
+been filed on this slate since, by lanes crossing this ground
+(`a-cylinder-rims-level-...`, `a-sphere-face-whose-boundary-encodes-no-side-...`,
+`an-ellipse-trimmed-ring-...`, `authored-and-derived-directions-...`,
+`interval-sin-theta-...`, `nurbs-interval-ders-...`,
+`sphere-flux-arm-carries-two-closed-forms-...`,
+`the-convex-boehm-step-...`, `the-projective-applier-...`,
+`the-race-rows-leaves-...`, `trim-walk-chord-lengths-...`), and
+`f64-refinement-inside-an-enclosure-has-five-more-sites` is still at
+review on PR 3524. The refusal-text family is finished; the slate is not.
+Closing PROPS now means cutting those twelve somewhere, which is the
+orchestrator's call and not this lane's.
+
+**Three things worth not relearning**, beyond the four `plan.md` already
+carries:
+
+- **A shorter shared constant can break a test that used it as a
+  discriminator.** `refusal_concision_chains` asked "does the split
+  rendering offer the JOIN's recourse" by `contains(NO_DECLARATION_RECOURSE)`;
+  once that constant became "move the geometry" the question matched any
+  arm with that lever of its own. The repair was to say what the join's
+  recourse IS (an escalated arm's, so its payload is beside it), not to
+  lengthen the constant back.
+- **k-lint's `predicate_roster` reads a mint's margin POSITIONALLY**, as
+  the funnel call's second argument, and reds on a respelling by design.
+  A new funnel argument goes after `(name, margin, band)`.
+- **A new closed type on a curated carrier is a payload rung**, and
+  `scripts/payload-rung-sweep.py --check` fires on it in the `lint` job.
+  Decide it in the same change — carry it, or file it with its argument
+  in `DISPOSITIONS`.
