@@ -3386,15 +3386,20 @@ impl MaintenanceNet {
 /// its maintenance is folded into a [`MaintenanceNet`].
 /// [`Self::finish`] answers the action as a [`Recorded`].
 ///
-/// A refused edit records nothing and the recording stays usable, so
-/// an action may go on past a refusal. Nothing is written anywhere
-/// until a caller takes the [`Recorded`] up, so a caller that drops the
-/// recording still holds the document it started from: whether an
-/// action is all or nothing is the caller's, by dropping it on the
-/// first refusal.
+/// **A refusal ends the action.** A refused edit records nothing, every
+/// edit after it is refused with that same refusal and applies nothing,
+/// and [`Self::finish`] answers it in place of the action. So an action
+/// is all or nothing whether or not its caller stops at the refusal: a
+/// caller that goes on past one cannot finish with the edits around it.
+/// A caller asking whether an edit would land asks [`apply`] against
+/// [`Self::doc`], which records nothing.
+///
+/// Nothing is written anywhere until a caller takes the [`Recorded`]
+/// up, so undo is the caller keeping the document it started from.
 pub struct Recording<'a, P> {
     start: &'a Doc<P>,
     produced: Option<Doc<P>>,
+    refused: Option<EditError>,
     edits: Vec<DocEdit<P>>,
     minted: Vec<Option<RecipeNodeId>>,
     maintenance: MaintenanceNet,
@@ -3409,6 +3414,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         Self {
             start: doc,
             produced: None,
+            refused: None,
             edits: Vec::new(),
             minted: Vec::new(),
             maintenance: MaintenanceNet::new(),
@@ -3438,10 +3444,12 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     ///
     /// # Errors
     ///
-    /// The edit's own refusal ([`apply`]'s); nothing is recorded on
-    /// that arm.
+    /// The edit's own refusal ([`apply`]'s), which ends the action; or,
+    /// once an earlier edit has ended it, that edit's refusal. Nothing
+    /// is recorded on that arm.
     pub fn apply(&mut self, edit: DocEdit<P>) -> Result<Option<RecipeNodeId>, EditError> {
-        let applied = apply(self.doc(), &edit, self.tol, self.reach)?;
+        self.open()?;
+        let applied = apply(self.doc(), &edit, self.tol, self.reach).map_err(|e| self.end(e))?;
         Ok(self.take(edit, applied))
     }
 
@@ -3450,9 +3458,11 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     ///
     /// # Errors
     ///
-    /// The insert's own refusal; nothing is recorded on that arm.
+    /// As [`Self::apply`]'s.
     pub fn insert(&mut self, node: Node<P>) -> Result<RecipeNodeId, EditError> {
-        let (applied, id) = apply_insert(self.doc(), &node, self.tol, self.reach)?;
+        self.open()?;
+        let (applied, id) =
+            apply_insert(self.doc(), &node, self.tol, self.reach).map_err(|e| self.end(e))?;
         self.take(
             DocEdit::InsertNode {
                 node: Box::new(node),
@@ -3460,6 +3470,16 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
             applied,
         );
         Ok(id)
+    }
+
+    /// The refusal that ended the action, if one has.
+    fn open(&self) -> Result<(), EditError> {
+        self.refused.clone().map_or(Ok(()), Err)
+    }
+
+    fn end(&mut self, refusal: EditError) -> EditError {
+        self.refused = Some(refusal.clone());
+        refusal
     }
 
     fn take(&mut self, edit: DocEdit<P>, applied: Applied<P>) -> Option<RecipeNodeId> {
@@ -3472,14 +3492,19 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
 
     /// The action, its maintenance netted against the document its
     /// last edit produced.
-    pub fn finish(self) -> Recorded<P> {
+    ///
+    /// # Errors
+    ///
+    /// The refusal that ended the action, if an edit was refused.
+    pub fn finish(self) -> Result<Recorded<P>, EditError> {
+        self.open()?;
         let doc = self.produced.unwrap_or_else(|| self.start.clone());
-        Recorded {
+        Ok(Recorded {
             maintenance: self.maintenance.finish(&doc),
             doc,
             edits: self.edits,
             minted: self.minted,
-        }
+        })
     }
 }
 
@@ -4032,7 +4057,7 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
         edits,
         maintenance,
         ..
-    } = action.finish();
+    } = action.finish()?;
     Ok(RegaugeThenMateOutcome {
         doc,
         edits,

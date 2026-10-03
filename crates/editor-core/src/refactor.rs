@@ -2718,15 +2718,13 @@ pub fn split(
     let part_reach = crate::eval::PartReach::<f64>::with_resolver(resolver, tol);
     let empty = Doc::empty(part_id, tol);
     let mut part = Recording::start(&empty, tol, &part_reach);
-    let part_apply = |part: &mut Recording<'_, ProfileProgram>,
-                      edit: DocEdit<ProfileProgram>|
-     -> Result<(), SplitError> {
-        part.apply(edit)
-            .map(|_| ())
-            .map_err(|error| SplitError::PartEdit {
-                error: Box::new(error),
-            })
+    let part_refused = |error: EditError| SplitError::PartEdit {
+        error: Box::new(error),
     };
+    let part_apply =
+        |part: &mut Recording<'_, ProfileProgram>,
+         edit: DocEdit<ProfileProgram>|
+         -> Result<(), SplitError> { part.apply(edit).map(|_| ()).map_err(part_refused) };
     // The recorded ε carries over iff it differs from what the empty
     // document adopts (the committed process ε — the only value a
     // document this process can evaluate records anyway).
@@ -2760,9 +2758,7 @@ pub fn split(
             |g: RecipeNodeId| cut.contains(&g),
             |_: RecipeNodeId, _: &mut Node<ProfileProgram>| {},
         ),
-        |error| SplitError::PartEdit {
-            error: Box::new(error),
-        },
+        part_refused,
         |old, miss| match miss {
             RemapMiss::Input(input) => SplitError::PartEdit {
                 error: Box::new(EditError::UnresolvedInput {
@@ -2978,13 +2974,13 @@ pub fn split(
         edits: remainder_edits,
         maintenance: remainder_maintenance,
         ..
-    } = remainder.finish();
+    } = remainder.finish().map_err(rem_refused)?;
     let Recorded {
         doc: part,
         edits: part_edits,
         maintenance: part_maintenance,
         ..
-    } = part.finish();
+    } = part.finish().map_err(part_refused)?;
     Ok(SplitOutcome {
         remainder,
         part,
@@ -3427,9 +3423,7 @@ pub fn inline(
                 }
             },
         ),
-        |error| InlineError::Edit {
-            error: Box::new(error),
-        },
+        refused,
         |_, miss| match miss {
             RemapMiss::Input(input) => InlineError::Edit {
                 error: Box::new(EditError::UnresolvedInput {
@@ -3533,7 +3527,7 @@ pub fn inline(
         edits,
         maintenance,
         ..
-    } = current.finish();
+    } = current.finish().map_err(refused)?;
     Ok(InlineOutcome {
         doc,
         edits,
