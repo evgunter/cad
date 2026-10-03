@@ -282,7 +282,7 @@ area `api`; prefix `place/`; tag `(PLACE orchestrator)`; ab_band `10300-10399`.
 | P0 | `placement-is-spelled-three-ways-node-registry-and-rule` | issue | H | spec | Placement is spelled three ways — a DAG node, a document registry row, and a pattern rule — and the three disagree on whether a placement can be parametric |  |  |
 | P1 | `a-from-face-mate-side-cannot-cross-the-split-or-inline-seam` | issue | H | open | a FromFace mate side refuses at the split and inline seam even where its frame provably does not move; how it crosses is a design question on A4 |  |  |
 | P1 | `placement-split-and-inline-at-a-gauge-are-refused-until-p2-split` | issue | H | spec | edit: split and inline refuse the shapes A4 builds with a minted gauge — the gauge hoist, a cut holding a gauge, an inline at an offset over any other part, and a mate-placed instance |  | #3908 |
-| P3 | `a-part-resting-on-a-gauge-cannot-follow-a-part-edit` | issue | H +design | open | a part set on another part's gauge cannot follow that part's edit: a mate across gauges only declares, and a nested gauge restates the solved face by hand |  |  |
+| P3 | `a-part-resting-on-a-gauge-cannot-follow-a-part-edit` | issue | H | open | a part set on another part's gauge cannot follow that part's edit: a mate across gauges only declares, and a nested gauge restates the solved face by hand |  |  |
 
 ## `recipe` — RECIPE — the document model's doors: the persisted recipe, the edit vocabulary and the node shapes Ev ruled
 
