@@ -20,7 +20,7 @@
 //! swept in a fixed order every run). For each planar face:
 //! intersect the ray with the face plane, test the hit point against
 //! the face's loops (outer minus rings) on their edges' own carriers
-//! ([`point_in_loop_projected`]: the vertex polygon for a loop of lines,
+//! (`point_in_loop_projected`: the vertex polygon for a loop of lines,
 //! each circle or ellipse arc crossed on its conic otherwise) — and
 //! keep the **closest** crossing; the curved kinds' arms below fold
 //! their roots the same way. The verdict reads the material side

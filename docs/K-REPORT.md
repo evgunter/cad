@@ -1065,6 +1065,20 @@ under `bool_box_cylinder_axis` — the `bool_germ_plane_normal` case: a
 committed ε. It samples once per cylinder face per box built, in both
 box lanes.
 
+**Roster change (CLEAVE, 2026-10-03): three names added.** The public
+`topo::point_in_loop` certifies its plane before it walks
+(`topo/src/splitting/containment.rs`'s `certify_plane`), each a bare
+literal at its `decide` site: `point_in_loop_normal` (`(|n| − 1)`
+levered by the loop's reach), `point_in_loop_plane` (a vertex, a conic
+centre or control point off the plane, or a conic's or spiric's tilt
+levered by its reach), and `point_in_loop_query` (the query off the
+plane). Each is `Zero` on a well-posed call, so on the shipped callers
+they sample zero-centred residues once per call (the plane row once per
+vertex and carrier datum). `boolean::solid_contain`'s in-face test does
+not certify (it reads a face's trim at its own surface plane) and adds
+no samples. Dimensions: `docs/predicate-dimension-audit.md`'s rows of
+the same names.
+
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare
 `decide`, which recorded a sample for every offset it was handed. It

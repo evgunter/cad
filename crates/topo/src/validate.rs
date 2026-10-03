@@ -6414,9 +6414,9 @@ pub(crate) fn tier3_local_checks_marked<
     // the polygon, the one circle's disc, the slot, the D-shaped cap
     // whose arc bows past the chord its vertices span, the half-disc
     // whose vertices are two. On a loop of lines it walks the vertex
-    // polygon, whose K rows are `point_in_loop_*` and which this arm pools as a fourth consumer
-    // the way `boolean::contfp` and the solid-containment sweep
-    // already pool; an arc-bearing loop's rows are
+    // polygon, whose K rows are `point_in_loop_*` and which this arm
+    // pools as a fourth consumer the way `boolean::contfp` and the
+    // solid-containment sweep already pool; an arc-bearing loop's rows are
     // `point_in_arc_loop_*`, pooled with `boolean::contfp` and
     // `solid_contain`'s in-face walk.
     //
@@ -11047,7 +11047,7 @@ mod tests {
         (body, face)
     }
 
-    /// **The carrier walk's verdict is blind to the normal's sign on an
+    /// **`point_in_loop`'s verdict is blind to the normal's sign on an
     /// arc-bearing loop**, the property `chord_join::face_plane_normal`
     /// relies on when it hands `rehome_rings` the chart normal with the
     /// face's sense left out. The polygon rows' half of it is pinned in
@@ -11055,7 +11055,7 @@ mod tests {
     /// bowed square: the lune, past the arc, the polygon's interior,
     /// outside the chord side, and the arc's apex.
     #[test]
-    fn the_carrier_walk_is_blind_to_the_normals_sign_on_an_arc_bearing_loop() {
+    fn point_in_loop_is_blind_to_the_normals_sign_on_an_arc_bearing_loop() {
         use crate::splitting::LoopContainment as C;
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");

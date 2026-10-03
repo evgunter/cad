@@ -7,11 +7,18 @@
 //!
 //! # Method: in-plane ray parity with a deterministic retry schedule
 //!
-//! The walk itself — the boundary pre-pass and one ray's parity count
-//! — is [`crate::ray_parity`], shared with the 2-D chart-space
-//! consumer. What this module owns is the *3-D* half: reading the
-//! loop's vertex cycle out of the body, and turning each member of
-//! the space-direction schedule into an in-plane frame.
+//! [`point_in_loop`] first certifies its plane: the normal is a unit
+//! vector, and the loop and `q` lie in the plane through the loop's
+//! first vertex with that normal (the `point_in_loop_{normal,plane,
+//! query}` rows below). It then reads the loop on its edges' own
+//! carriers. A loop of lines is the polygon through its vertices, and
+//! its walk — the boundary pre-pass and one ray's parity count — is
+//! [`crate::ray_parity`], shared with the 2-D chart-space consumer. A
+//! loop bearing any other edge crosses each conic on its conic and
+//! holds each uncrossable edge as a ball (the `point_in_arc_loop_*`
+//! rows). What this module owns is the *3-D* half: reading the loop out
+//! of the body, and turning each member of the space-direction schedule
+//! into an in-plane frame.
 //!
 //! Cast a ray from `q` in a direction lying in the loop's plane and
 //! count proper crossings; odd ⇒ In. Grazing configurations (an
@@ -32,6 +39,13 @@
 //!
 //! # Predicates (all K-tagged, meters)
 //!
+//! - **`point_in_loop_normal`**, **`point_in_loop_plane`**,
+//!   **`point_in_loop_query`**: the plane certification — `(|n| − 1)`
+//!   levered by the loop's reach; a loop feature's distance off the
+//!   plane (a vertex, a conic's centre, its tilt levered by its larger
+//!   semi-axis, a spiric's cutting plane the same way, a spline's
+//!   control point); `q`'s distance off it.
+//!   Anything but `Zero` refuses ([`PointInLoopError::OffPlane`]).
 //! - **`point_in_loop_segment`**: an edge segment's own length — the
 //!   degeneracy gate. Zero-length segments are legal null scaffolding
 //!   in mid-join loops, and the clamped-foot division would poison on
@@ -263,7 +277,7 @@ impl core::fmt::Display for PointInLoopError {
                 write!(f, "loop {loop:?} is not walkable")
             }
             Self::Uncrossable(u) => write!(f, "whether a point lies in a loop is undecided: {u}"),
-            Self::OffPlane(o) => write!(f, "whether a point lies in a loop is not asked: {o}"),
+            Self::OffPlane(o) => write!(f, "{o}"),
         }
     }
 }
@@ -342,40 +356,12 @@ fn loop_points<T: Decide>(
 /// Trilean containment of `q` in the POLYGON through `r#loop`'s
 /// vertices, with unit plane normal `normal`; `q` is assumed to lie in
 /// the loop's plane. That polygon is the loop's region only when every
-/// edge is a line, so [`point_in_loop`] is the only caller: it comes
-/// here once it has read every edge's carrier as a line.
+/// edge is a line, so the walk's one caller is [`point_in_loop`] (and
+/// its projected read), once every edge's carrier reads as a line;
+/// check 9's tests call it only to show a fixture's polygon is not its
+/// region.
 ///
-/// # The sign of `normal`
-///
-/// `normal` is read only to recover the loop's PLANE, so a caller may
-/// hand over a raw CHART normal without folding in the face's sense —
-/// `chord_join::face_plane_normal` does exactly that. The
-/// invariance is derived here because it is this walk's property, not
-/// that producer's.
-///
-/// Each schedule member is projected as `r − n̂(n̂·r)`, which is
-/// invariant under `n̂ ↦ −n̂`, and the parity walk then runs in the
-/// in-plane frame `(d, n̂ × d)` — whose second axis is the only thing
-/// a sign flip moves. Negating that axis negates every vertex ordinate
-/// `y`, so the straddle test `sign(yᵢ) ≠ sign(yⱼ)` is unchanged, the
-/// vertex-on-the-ray `Zero` graze is unchanged, and the crossing's
-/// advance `(xᵢyⱼ − xⱼyᵢ)/(yⱼ − yᵢ)` has numerator and denominator
-/// both negated. Negation is exact and both `sign_within` classifiers
-/// are symmetric about zero, so **the verdict is bit-identical either
-/// way**, and a refusal is identical in variant, predicate and band.
-///
-/// One thing is NOT identical, and saying so is what keeps the
-/// sentence above true: an escalation carries the **signed** margin it
-/// refused on, so the two signs refuse with `MarginKind::Value(−m)`
-/// against `Value(m)`. That is diagnostic payload —
-/// [`geom_core::Indeterminate`]'s own docs call its fields *"honest
-/// diagnostic data … for actionable error messages and later margin
-/// telemetry"*, and nothing in this walk reads a margin back — but a
-/// differential test comparing whole `Debug` renderings would see
-/// it.
-/// `topo/tests/review_m3_pr3_pil.rs`'s
-/// `the_verdict_is_blind_to_the_normals_sign` pins all of this, and
-/// compares variant, predicate and band rather than the rendering.
+/// Blind to the sign of `normal`, as [`point_in_loop`] states.
 ///
 /// # Errors
 ///
@@ -1414,6 +1400,48 @@ enum Boundary {
 /// or point that does not hold refuses rather than being read in some
 /// other plane.
 ///
+/// # The sign of `normal`
+///
+/// `normal` is read only to recover the loop's PLANE, so a caller may
+/// hand over a raw CHART normal without folding in the face's sense —
+/// `chord_join::face_plane_normal` does exactly that. The invariance
+/// is derived here because it is this walk's property, not that
+/// producer's, and it holds over lines and conics alike.
+///
+/// - **The preconditions.** The unit row reads `|n|`; a conic's tilt
+///   reads `|axis × n|` — both unchanged. Every plane offset
+///   `(p − o)·n` is negated, and the band's classifier is symmetric
+///   about zero, so each decides `Zero` or not the same way.
+/// - **The schedule.** Each member is projected as `r − n̂(n̂·r)`, which
+///   is invariant under `n̂ ↦ −n̂`, and so is the arm row on its norm;
+///   the walk then runs in the in-plane frame `(d, n̂ × d)`, whose
+///   second axis is the only thing a sign flip moves.
+/// - **Straight edges.** Negating that axis negates every vertex
+///   ordinate `y`, so the straddle test `sign(yᵢ) ≠ sign(yⱼ)` is
+///   unchanged, the vertex-on-the-ray `Zero` graze is unchanged, and the
+///   crossing's advance `(xᵢyⱼ − xⱼyᵢ)/(yⱼ − yᵢ)` has numerator and
+///   denominator both negated.
+/// - **Conics and uncrossable edges.** A conic's crossing reads the ray
+///   `q + d·t` in the conic's own frame, and an uncrossable edge's ball
+///   its clearance from that ray: neither reads `n̂ × d`. The boundary
+///   pre-pass reads no normal at all.
+///
+/// Negation is exact, so **the verdict is bit-identical either way**,
+/// and a refusal is identical in variant, predicate and band. One thing
+/// is NOT identical, and saying so is what keeps that sentence true: an
+/// escalation carries the **signed** margin it refused on, so the two
+/// signs refuse with `MarginKind::Value(−m)` against `Value(m)`. That is
+/// diagnostic payload — [`geom_core::Indeterminate`]'s own docs call its
+/// fields *"honest diagnostic data … for actionable error messages and
+/// later margin telemetry"*, and nothing here reads a margin back — but
+/// a differential test comparing whole `Debug` renderings would see it.
+/// `topo/tests/review_m3_pr3_pil.rs`'s
+/// `the_verdict_is_blind_to_the_normals_sign` pins the straight-edge
+/// half, and `validate.rs`'s
+/// `point_in_loop_is_blind_to_the_normals_sign_on_an_arc_bearing_loop`
+/// the conic half; both compare variant, predicate and band rather than
+/// the rendering.
+///
 /// # Errors
 ///
 /// [`PointInLoopError`] — an escalation, exhaustion, an unwalkable
@@ -1463,19 +1491,10 @@ pub(crate) fn point_in_loop_projected<T: Decide>(
 
 /// **[`point_in_loop`]'s preconditions, certified**: `normal` is a unit
 /// vector, the whole loop lies in the plane through its first vertex
-/// with that normal, and so does `q`. Each is a length decided through
-/// the band, and anything but a definite `Zero` refuses — a wrong plane
-/// is a different region, so a reading off it is never an answer.
-///
-/// - **`point_in_loop_normal`**: `(|n| − 1)` levered by the loop's reach
-///   from its first vertex — the displacement a unit error in the
-///   normal commands across the loop.
-/// - **`point_in_loop_plane`**: a loop feature's distance off the plane:
-///   each vertex; a conic's centre, and its plane's tilt `|axis × n|`
-///   levered by its larger semi-axis; a spiric's cutting plane, the
-///   same way, levered by `R + r + |offset|`; a spline's every control
-///   point (positive weights keep the curve in their hull).
-/// - **`point_in_loop_query`**: `q`'s distance off the plane.
+/// with that normal, and so does `q` (the module docs' three rows). A
+/// wrong plane is a different region, so anything but a definite
+/// `Zero` refuses. A spline's control points stand for its locus:
+/// positive weights keep the curve in their hull.
 fn certify_plane<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
@@ -1742,7 +1761,10 @@ fn conic_crossings<T: Decide>(
 ) -> Option<usize> {
     let (px, py) = k.unit(q);
     let (dx, dy) = (d.dot(k.u) / k.a, d.dot(k.v) / k.b);
-    // `d` is unit and in the conic's plane, so `(dx, dy)` is nonzero.
+    // On `point_in_loop`, `certify_plane` has put the conic in the plane
+    // `d` lies in, so `(dx, dy)` is nonzero. On the projected read a
+    // conic tilted off that plane shrinks it, and a zero poisons every
+    // margin below, which abandons the ray.
     let dn = (dx.powi(2) + dy.powi(2)).sqrt();
     let (ex, ey) = (dx / dn, dy / dn);
     let along = px * ex + py * ey;
