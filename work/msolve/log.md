@@ -1196,3 +1196,12 @@ with R1. Closes MSOLVE-12,
 `plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`.
 Filed: `a-far-meeting-point-fails-membership-by-its-own-rounding` (P2).
 The spec was deleted, with a note in `docs/doc-ledger/msolve-12-spec.md`.
+
+MSOLVE-12 merged on PR 3698. Its MERGED entry rode the unit branch.
+MSOLVE-13 was dispatched on Opus with a single full review, red rows
+first. Two things the MSOLVE-12 lane noted:
+- The editor-core rustdoc gate trips on two redundant link targets in
+  `meta/ser.rs`, a file identical to main's, so the nightly may be red
+  on main. Unverified here; it is not this program's file.
+- One merge commit on that branch (`84db7bf21`) lacks the trailers. It
+  is merged history now, and merge-only means it stays.

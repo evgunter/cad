@@ -293,8 +293,9 @@ and CHROME; triaged 2026-10-01:**
     - `mate-solve-carries-the-cluster-maintenance-half` (P1, M):
       `mate/maintain.rs`.
 
-    Spec `docs/MSOLVE-12-SPEC.md` is on the unit branch. Review tier:
-    single, full.
+    Spec `docs/MSOLVE-12-SPEC.md` (deleted at merge). Review tier:
+    single, full. Merged on PR 3698 (2026-10-03); the third row was
+    overtaken by #3676.
 24. **`mate-primitive-unit-variants-load-from-a-null-payload`** (P0,
     E): blocked on item 22. Under `[ev]` PR 3681's answer no unit
     variant remains; under its fallback the row is owed.
@@ -316,8 +317,8 @@ and CHROME; triaged 2026-10-01:**
     refuses `MovedAbove`, the walk descends a union, and a member is
     its instance plus the placing nodes passed. The sentences that move
     are agent text, so Ev is told rather than asked. This is
-    `MSOLVE-13` (spec on `msolve/13-read-at-operand`), dispatched after
-    MSOLVE-12.
+    `MSOLVE-13` (spec on `msolve/13-read-at-operand`), dispatched
+    2026-10-03 on Opus after MSOLVE-12 merged.
 
 EDIT's PR #3676 deleted the cluster maintenance, so item 23's third
 row (the `mate/maintain.rs` move) was overtaken. Main closed that row,
