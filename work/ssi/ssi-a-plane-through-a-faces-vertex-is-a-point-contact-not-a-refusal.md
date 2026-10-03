@@ -167,6 +167,11 @@ changed after review:
   (`SSI_REGION_REACH_MAX`) is gone. A side whose strip holds the locus
   but not within ε (`SideClass::Apart`) is no region: it keeps its
   interior roots, each decided along it, and an arc there is traced.
+  A corner both of whose sides are apart is classified as a corner on
+  no decided side, and their roots there are its; a branch's start
+  corner is one crossing by the corner's identity, not its cell, since
+  on a wall narrower than the widest rung every cell is the whole
+  domain.
   On rational walls a plane between ε and `Kε` off a side then traces
   the metre-long branch, which the certificate refuses as it does
   mid-wall (Ev, option (i)); the remedy is filed as

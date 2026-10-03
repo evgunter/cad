@@ -4253,6 +4253,45 @@ fn a_side_the_plane_crosses_inside_the_band_ends_its_arc_at_its_own_root() {
     );
 }
 
+/// **A corner both of whose sides lie apart from the locus ends its
+/// arc.** On a flat wall 5 cm square, at extent 1 m, the widest strip
+/// spans the whole domain, so a nearly coplanar plane leaves every side
+/// within the band and its locus inside each side's strip, not within
+/// ε of it: every side is apart. The plane `y = a·(x − k·z)`, the
+/// wall's least slope across a side `a·min(1, k)` from `2Kε` to `5Kε`
+/// (so it clears the band) and its distance at most `Kε/2` over the
+/// wall, meets the wall in the line `x = k·z` from the
+/// `(0, 0)` corner, whose two sides are both apart; that corner is
+/// classified as a corner on no decided side, a branch starts there,
+/// and the branch to the far side's crossing is traced: for `k = ½` to
+/// the top side, for `k = 2` to the `u = high` side, for `k = 1` along
+/// the diagonal to the opposite corner. Every ε.
+#[test]
+fn a_corner_both_of_whose_sides_lie_apart_from_the_locus_ends_its_arc() {
+    let k_eps = band().escalate();
+    let w = 0.05;
+    for slope in [2.0 * k_eps, 3.5 * k_eps, 5.0 * k_eps] {
+        for k in [0.5_f64, 2.0, 1.0] {
+            // The wall's least slope across a side, `a·min(1, k)`.
+            let a = slope / k.min(1.0);
+            let what = format!("least slope {:.1}Kε, k = {k}", slope / k_eps);
+            let plane = plane_off(Point3::new(0.0, 0.0, 0.0), Vec3::new(-a, 1.0, a * k), 0.0);
+            let r = ssi::plane_nurbs_ssi(&plane, &flat_wall(w, w), wall_box(w, 1.0), band());
+            let (_, span) = one_branch(&what, r);
+            let want = if k <= 1.0 {
+                w * (1.0 + k * k).sqrt()
+            } else {
+                w * (1.0 + 1.0 / (k * k)).sqrt()
+            };
+            // Its ends are settled to within the band's zero.
+            assert!(
+                (span - want).abs() <= 2.0 * band().zero(),
+                "{what}: spans {span:e}, want {want:e}"
+            );
+        }
+    }
+}
+
 /// The half cylinder of radius `r` about the `z` axis, `x ≥ 0`, a
 /// metre tall: two rational quadratic quarter arcs in `u`, its `u`
 /// sides the lines `(0, ∓r, z)`.

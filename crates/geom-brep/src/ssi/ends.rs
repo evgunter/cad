@@ -17,7 +17,8 @@
 //! - Where the march cannot progress, its step falling in the band
 //!   ([`SsiError::StepCollapsed`], or undecided there), the candidate is
 //!   the Hermite cubic from `A` to `B` through their tangents, in both
-//!   charts and in space. The march and the Hermite are two candidate
+//!   charts and in space; whether `B` is the branch's other end is the
+//!   certificate's to decide. The march and the Hermite are two candidate
 //!   generators, each trusted for nothing; C2's three limbs decide
 //!   either, and a Hermite candidate they refuse on a branch too short
 //!   for a step of it to clear the band is a sized refusal in its length
@@ -430,8 +431,12 @@ impl<'a> Ends<'a> {
     ///
     /// # Errors
     ///
-    /// [`SsiError::ShortBranchUncertified`] when the certificate refuses
-    /// the candidate.
+    /// The march tolerance's refusal ([`seam_tol`]). Where the
+    /// certificate refuses the candidate:
+    /// [`SsiError::ShortBranchUncertified`] on a branch too short for
+    /// `length / SHORT_BRANCH_STEPS` to clear the band, and on a longer
+    /// one the certificate's refusal itself, bare, which the caller
+    /// replaces by the march's.
     fn hermite(&self, a: Crossing, b: Crossing, length: f64) -> Result<SsiBranch, SsiError> {
         let march_tol = seam_tol(self.ctx.tol, self.band)?;
         let ta = tangent(self.sys, &a.state, &self.ctx, true);

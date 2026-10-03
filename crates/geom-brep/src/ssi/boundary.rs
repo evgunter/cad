@@ -12,9 +12,12 @@
 //!   the plane, or it meets the plane at isolated roots, each decided
 //!   transversal along the side. A side within the band whose slope
 //!   across it is one-signed over a strip beside it is a
-//!   [`SsiBoundaryContact::Side`] region, or nothing where the strip is
-//!   clear of the plane; otherwise its own roots decide it.
-//! - **A corner** within the band of the plane is classified by the
+//!   [`SsiBoundaryContact::Side`] region where the locus is coincident
+//!   with it, nothing where the strip is clear of the plane, and
+//!   otherwise apart: no region, its interior roots kept. A side no
+//!   strip decides is decided by its own roots.
+//! - **A corner** within the band of the plane, on no side a strip
+//!   decides or on two apart sides, is classified by the
 //!   plane distance's two inward partials over a corner cell
 //!   ([`NurbsBoxes::deriv_box`]), the cell walking the tube ladder.
 //!   Both one-signed and of one sign: the locus leaves the domain
@@ -311,7 +314,9 @@ enum SideClass {
     Clear { strip: UvRect },
     /// A strip holds the locus's cover, but no rung holds it within ε
     /// of the side: no region, and an arc there ends on the domain's
-    /// sides.
+    /// sides. On a wall narrower than the widest rung the strip is the
+    /// whole domain, which holds any cover, so a side in the band whose
+    /// slope across it clears the band is apart there by default.
     Apart,
 }
 
@@ -324,7 +329,7 @@ enum CornerClass {
     /// The plane misses the corner cell (the exact empty answer).
     Empty { cell: UvRect },
     /// A branch starts at the corner.
-    Start { cell: UvRect },
+    Start,
     /// No rung holds the locus within ε of the corner: the corner's
     /// roots are ordinary crossings, and the arc between them is traced.
     Through,
@@ -657,7 +662,7 @@ impl Pass<'_> {
         let su = sign(pu) == Some(inward(corner.u) > 0.0);
         let sv = sign(pv) == Some(inward(corner.v) > 0.0);
         if su != sv {
-            return Ok(CornerClass::Start { cell });
+            return Ok(CornerClass::Start);
         }
         // Both inward partials carry φ away from the corner's value with
         // sign `su`: a corner distance of that sign keeps the cell clear.
@@ -754,8 +759,18 @@ impl Pass<'_> {
         let mut apart: Vec<SideSection> = Vec::new();
         for side in SIDES {
             let curve = self.curve(side)?;
-            let own_roots = || {
-                boundary_roots(
+            // The section door and the roots door read one argument list.
+            type Door = fn(
+                &geom::NurbsCurve3<f64>,
+                Point3<f64>,
+                Vec3<f64>,
+                geom_core::SupSpeed<f64>,
+                f64,
+                f64,
+                Band,
+            ) -> Result<BoundarySection, SsiError>;
+            let call = |door: Door| {
+                door(
                     &curve,
                     self.plane.origin,
                     self.plane.normal,
@@ -766,16 +781,7 @@ impl Pass<'_> {
                 )
                 .map_err(|e| e.on_side(side))
             };
-            let section = boundary_section(
-                &curve,
-                self.plane.origin,
-                self.plane.normal,
-                self.along_speed(side),
-                self.floor,
-                self.extent,
-                self.band,
-            )
-            .map_err(|e| e.on_side(side))?;
+            let section = call(boundary_section)?;
             let section = match section {
                 BoundarySection::On { sup, side_of_plane } => {
                     match self.side_region(side, sup, side_of_plane)? {
@@ -791,19 +797,14 @@ impl Pass<'_> {
                         // The locus lies inside a strip beside the side, so
                         // an arc there ends on the domain's sides: at this
                         // one's interior roots, each decided along it, or
-                        // on another side. The corners on it are its, and a
-                        // root at one is the other side's through it.
+                        // on another side. A root at a corner is the other
+                        // side's through it, unless that side is apart too
+                        // (below).
                         Some(SideClass::Apart) => {
-                            if let BoundarySection::Roots { interior, .. } = own_roots()? {
-                                apart.push(SideSection {
-                                    side,
-                                    section: BoundarySection::Roots {
-                                        interior,
-                                        at_start: None,
-                                        at_end: None,
-                                    },
-                                });
-                            }
+                            apart.push(SideSection {
+                                side,
+                                section: call(boundary_roots)?,
+                            });
                             section
                         }
                         // The side lies within the band of the plane, and
@@ -814,7 +815,7 @@ impl Pass<'_> {
                         // the strip. The side's own roots decide it; a
                         // plane tangent to the wall along it refuses as
                         // their graze.
-                        None => own_roots()?,
+                        None => call(boundary_roots)?,
                     }
                 }
                 roots => roots,
@@ -826,8 +827,19 @@ impl Pass<'_> {
                 .iter()
                 .any(|x| x.side == s && matches!(x.section, BoundarySection::On { .. }))
         };
+        let is_apart = |s: ChartSide| apart.iter().any(|x| x.side == s);
+        // Whether both sides through a corner are apart.
+        let doubly_apart = |c: ChartCorner| {
+            is_apart(ChartSide {
+                fixed: ChartAxis::U,
+                end: c.u,
+            }) && is_apart(ChartSide {
+                fixed: ChartAxis::V,
+                end: c.v,
+            })
+        };
         // The corners: each end root of a side lands at one.
-        let mut starts: Vec<UvRect> = Vec::new();
+        let mut starts: Vec<ChartCorner> = Vec::new();
         for corner in CORNERS {
             let through = [
                 ChartSide {
@@ -839,9 +851,12 @@ impl Pass<'_> {
                     end: corner.v,
                 },
             ];
-            if through.iter().any(|s| on(*s)) {
+            if through.iter().any(|s| on(*s)) && !through.iter().all(|s| is_apart(*s)) {
                 // A side whose strip the pass decided holds the corner:
-                // its region, its clear strip, or its cover.
+                // its region, its clear strip, or its cover, with the
+                // other side's root ending an arc there. A corner both of
+                // whose sides are apart has no such root, and is
+                // classified as a corner on no decided side.
                 continue;
             }
             let phi = self.corner_distance(corner);
@@ -860,7 +875,7 @@ impl Pass<'_> {
                     contacts.push(SsiBoundaryContact::Corner { corner, reach });
                     regions.push(cell);
                 }
-                CornerClass::Start { cell } => starts.push(cell),
+                CornerClass::Start => starts.push(corner),
                 CornerClass::Through => {}
             }
         }
@@ -868,7 +883,12 @@ impl Pass<'_> {
         // a corner within the band only where a branch starts there, and
         // once per corner.
         let mut crossings: Vec<Crossing> = Vec::new();
-        for SideSection { side, section } in sections.iter().chain(&apart) {
+        let mut started: Vec<ChartCorner> = Vec::new();
+        for (SideSection { side, section }, of_apart) in sections
+            .iter()
+            .map(|x| (x, false))
+            .chain(apart.iter().map(|x| (x, true)))
+        {
             let BoundarySection::Roots {
                 interior,
                 at_start,
@@ -877,7 +897,7 @@ impl Pass<'_> {
             else {
                 continue;
             };
-            let mut roots: Vec<SectionRoot> = Vec::new();
+            let mut roots: Vec<(SectionRoot, Option<ChartCorner>)> = Vec::new();
             for (end_root, end) in [(at_start, ChartEnd::Low), (at_end, ChartEnd::High)] {
                 let Some(root) = end_root else { continue };
                 let corner = match side.fixed {
@@ -890,8 +910,13 @@ impl Pass<'_> {
                         v: side.end,
                     },
                 };
+                // An apart side's root at a corner is the other side's,
+                // unless both are apart.
+                if of_apart && !doubly_apart(corner) {
+                    continue;
+                }
                 let point = (at((u0, u1), corner.u), at((v0, v1), corner.v));
-                let in_start = starts.iter().any(|c| holds(*c, point));
+                let in_start = starts.contains(&corner);
                 // Inside a region's cell the root is the region's; in a
                 // cell the plane is certified clear of, it is none.
                 if regions.iter().chain(&clear).any(|c| holds(*c, point)) {
@@ -903,10 +928,11 @@ impl Pass<'_> {
                     super::section::decide_crossing(*root, self.extent, self.band)
                         .map_err(|e| e.on_side(*side))?;
                 }
-                roots.push(*root);
+                roots.push((*root, in_start.then_some(corner)));
             }
-            roots.extend(interior.iter().copied());
-            for root in roots {
+            roots.extend(interior.iter().map(|r| (*r, None)));
+            // The start corners a crossing already ends a branch at.
+            for (root, start) in roots {
                 let c = self.settle(*side, root)?;
                 let point = (c.state[2], c.state[3]);
                 // A region's cell holds its zero set only within the
@@ -915,15 +941,13 @@ impl Pass<'_> {
                 if regions.iter().any(|r| holds(*r, point)) {
                     continue;
                 }
-                // One crossing per corner a branch starts at.
-                let twin = starts.iter().any(|cell| {
-                    holds(*cell, point)
-                        && crossings
-                            .iter()
-                            .any(|o| holds(*cell, (o.state[2], o.state[3])))
-                });
-                if twin {
-                    continue;
+                // One crossing per corner a branch starts at: its two
+                // sides' end roots there are one.
+                if let Some(corner) = start {
+                    if started.contains(&corner) {
+                        continue;
+                    }
+                    started.push(corner);
                 }
                 crossings.push(c);
             }

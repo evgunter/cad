@@ -163,7 +163,11 @@ certified distance plus ε. Otherwise no region is reported, and the
 roots decide, the arc traced between them as any branch is. A side
 whose strip holds the locus's certified zero set but not within ε of it
 keeps its interior roots, each decided along it, and leaves a root at
-one of its corners to the other side through that corner. A reported
+one of its corners to the other side through that corner; a corner
+both of whose sides are such is classified as a corner on no decided
+side, and their roots there are its. On a wall narrower than the
+widest strip every side within the band whose slope across it clears
+the band is such a side, its strip the whole domain. A reported
 region's cell holds no zero beyond its certified zero set, so a root in
 the cell is the region's, and every other root is kept. Whether a
 vertex lies on a face stays the
@@ -182,8 +186,9 @@ branch at the caller's slab by its boundary search
 (`ssi_branch_open_end`), and the slab is not
 geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). Where the march
 cannot progress, its step falling in the band (`StepCollapsed`, or
-undecided there), the candidate is the Hermite cubic through the
-branch's two certified ends and their tangents. Either way the
+undecided there), the candidate is the Hermite cubic from its crossing
+to the nearest crossing not yet used, through their tangents. Either
+way the
 certificate decides; a Hermite candidate it refuses on a branch too
 short for a fifth of it to clear the band is a sized refusal in the
 branch's length (`SsiError::ShortBranchUncertified`), and on a longer
