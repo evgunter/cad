@@ -2,12 +2,13 @@
 id: blind-d-pocket-subtract-refuses-with-join-internal-words
 kind: issue
 title: boolean: a blind D-profile pocket (block minus a D rod) refuses JoinDesync from the top face — an internal-desync payload for an ordinary pocket
-status: open
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: H
 refs: [an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired, ring-run-winding-is-a-second-spelling-of-the-loop-winding-sum]
 parent: JOIN-3
+closed: 2026-10-03
 ---
 
 
@@ -120,3 +121,5 @@ certificate, and are legal operands
 (`sweep/tests/axis_lap.rs`, `a_blind_d_pocket_builds_from_either_face`).
 Closing the run with the straight chord again turns that row red with
 this item's original payload.
+
+Closed with JOIN-3, PR 3895, 2026-10-03.

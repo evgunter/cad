@@ -2,13 +2,14 @@
 id: JOIN-3
 kind: unit
 title: A matched section segment carries its chord curve, computed once, and role resolution and the ring-run winding read it
-status: spec
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
 branch: join/3-segment-curve
 refs: [JOIN-1, blind-d-pocket-subtract-refuses-with-join-internal-words]
 pr: 3895
+closed: 2026-10-03
 ---
 
 Spec: `docs/JOIN-3-SPEC.md`. Carries the second defect of `blind-d-pocket-subtract-refuses-with-join-internal-words`.
@@ -32,3 +33,10 @@ the item is claimed and closed here
 (`an-engraved-annular-sector-refuses-seam-orientation`).
 The split lane keeps its per-chord computation
 (`work/cleave/split-lane-second-chord-recomputes-the-first-chords-arc`).
+
+## Closed 2026-10-03 — PR 3895
+
+Merged after a dual review (DR row in `docs/DUAL-REVIEW-LOG.md`), two
+fix passes and a delta review (`work/join/log.md`). The pocket poses
+that refuse at ring re-homing on a curved face stay open on
+`a-pocket-crossing-a-side-face-refuses-at-ring-rehoming-on-a-curved-face`.

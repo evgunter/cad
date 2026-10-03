@@ -245,3 +245,27 @@ Filed: `a-reflex-corner-boolean-a-hair-off-flush-ships-a-body-tier-3-cannot-cens
 The ZIP wrong-volume row gains its wider class.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-03 — PR 3895 lands: JOIN-3, the segment's chord curve
+
+JOIN-3 closed, and with it
+`blind-d-pocket-subtract-refuses-with-join-internal-words`. Review tier:
+DUAL (two cloud sessions, frozen head `3191f2ee`), both
+APPROVE-WITH-FIXES with no MAJOR; coded blind, tally 0. A fix pass
+took both reviews' minors and style and filed R2's ring re-homing
+pockets. A delta review
+(`3191f2ee..2cc1455c`) executed the reversal rows and mutations: one
+MINOR (the winding unit row never reached `running_from`'s reversal
+arm) and style (two spellings of the boolean adjacency skip, a second
+reversal spelling in the scaffold-line arm and in
+`blend::surgery::scaled`, a silent fallback in `oriented_arc`, a dead
+error arm, a stale module doc). A second fix pass, in a fresh cloud session,
+closed them all: one `between_is_segment`, one reversal through
+`Curve3::reversed`, `oriented_arc` refusing `SectionInvariant`, and the
+winding row run from both halves so the reversal arm is read. The
+orchestrator read that diff.
+
+`docs/JOIN-3-SPEC.md` deleted at merge, and `docs/JOIN-1-SPEC.md`
+with it (missed at JOIN-1's merge); both under `docs/doc-ledger/`.
+
+Signed (JOIN orchestrator).
