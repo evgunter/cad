@@ -1221,23 +1221,27 @@ Coaxiality is one `Axis` variable read twice; tangency is constructed (a
 sketch may read another surface's trace in its plane and continue
 tangent to it).
 
-A Zero coincidence that is not structural holds only at the current
-values of the variables. The f64 build glues it all the same — so no
-setting changes a built body — and the checks registry reports it as a
-lint, with the edit that would make it one construction; the analysis
-lanes, which run over a parameter box, see it as the point coincidence
-it is and escalate there. Every structural decision goes through one
-door, so a later rung — such as the symbolic tier's identities — is one
-addition there that may only make more coincidences structural.
+Every coincidence the kernel infers from values — a boolean's glue, a
+split's ON verdict, a contact the at-rest census finds — is recorded at
+the one door where structure is decided, and the **`unproven-coincidence`
+lint** checks each one holds symbolically. One that does not holds only
+at the current values of the variables: the f64 build glues it all the
+same, so no setting changes a built body, and the lint reports it with
+the edit that would make it one construction. The analysis lanes, which
+run over a parameter box, see such a coincidence as the point it is and
+escalate there. "Symbolically" is decided at that door; today it is the
+canonical-form equality above, and a later rung — such as the symbolic
+tier's identities — is one addition there that may only prove more.
 
 **Booleans.** A boolean's operands are already in one space. It glues
 what its verdicts decide Zero, keeping one fixed operand's description
 for a merged face, and refuses what falls in the sliver band.
 
 **Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`,
-the bound a variable) checks and never places. At rest, contact and
-interference between copies are findings of the checks registry, not
-refusals, as is a coincidence that is not structural; a finding is
+the bound a variable) checks and never places. At rest, contact
+between copies is an `unproven-coincidence` finding unless it is
+structural (a mate-placed face is), and interference is a finding of
+its own; neither refuses. A finding is
 quiet exactly when an assertion on the same measure at the same site has
 a bound the observation meets and that does not straddle zero.
 
@@ -1466,7 +1470,8 @@ Cross-milestone commitments; each binds at the layer named.
   coincidence is **structural** when the two cells are one construction
   of the same variables, compared in canonical form — exact across the
   whole parameter family; (b) a Zero coincidence that is not structural
-  glues too and is reported as a lint, since it holds only at the
+  glues too, and the `unproven-coincidence` lint, which checks every
+  coincidence inferred from values, reports it as holding only at the
   current values; (c) a margin in the sliver band refuses typed, its
   resolution an explicit construction or repair/adoption — D7's
   machinery applied natively. Nothing is declared. Consequence: topology
