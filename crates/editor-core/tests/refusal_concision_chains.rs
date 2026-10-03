@@ -685,10 +685,14 @@ fn every_node_refusal_renders_within_the_budget() {
                 .find(|(n, _)| *n == format!("Split/Join/{arm}"))
                 .map(|(_, t)| t)
                 .expect("every Boolean join row has its split twin");
-            let escalated = ["lies inside the ambiguity band", "lies within the zero band",
-                             "cannot be classified against", "margin is invalid"]
-                .iter()
-                .any(|p| split.contains(p));
+            let escalated = [
+                "lies inside the ambiguity band",
+                "lies within the zero band",
+                "cannot be classified against",
+                "margin is invalid",
+            ]
+            .iter()
+            .any(|p| split.contains(p));
             if escalated && split.contains(geom_core::NO_DECLARATION_RECOURSE) {
                 assert!(
                     text.contains(geom_core::COINCIDENCE_RECOURSE),

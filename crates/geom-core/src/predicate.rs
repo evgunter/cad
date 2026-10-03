@@ -1722,8 +1722,9 @@ impl fmt::Display for IndeterminateUnder<'_> {
             MarginKind::Invalid => write!(
                 f,
                 " — {}",
-                self.diag
-                    .ending(&format!("check the operation's inputs upstream, then {levers}"))
+                self.diag.ending(&format!(
+                    "check the operation's inputs upstream, then {levers}"
+                ))
             ),
         }
     }

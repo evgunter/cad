@@ -111,7 +111,11 @@ impl core::fmt::Display for KnotAlgebraError {
                  Recourse: ask for at most {left} more cop{plural} of it, or raise the degree",
                 Readable(*u),
                 left = budget.saturating_sub(*have),
-                plural = if budget.saturating_sub(*have) == 1 { "y" } else { "ies" },
+                plural = if budget.saturating_sub(*have) == 1 {
+                    "y"
+                } else {
+                    "ies"
+                },
             ),
             KnotAlgebraError::KnotNotPresent { u } => write!(
                 f,

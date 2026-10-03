@@ -628,10 +628,7 @@ impl Coincide {
     /// settle it: the declaration, then the question's own ending.
     const fn settled(self) -> Ending {
         match self {
-            Self::OnPlanes => Ending::Lever(
-                geom_core::COINCIDENCE_RECOURSE,
-                LeverPass::ZeroOnly,
-            ),
+            Self::OnPlanes => Ending::Lever(geom_core::COINCIDENCE_RECOURSE, LeverPass::ZeroOnly),
             Self::Sectors => Ending::Sized(SizedDecision {
                 lever: concat!(
                     geom_core::coincidence_declare_arm!(),
@@ -2741,10 +2738,8 @@ mod tests {
                 );
             }
             assert!(
-                split.ends_with(&format!(
-                    "Recourse: {}",
-                    geom_core::NO_DECLARATION_RECOURSE
-                )) && !split.contains("declare"),
+                split.ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE))
+                    && !split.contains("declare"),
                 "{predicate}: the split takes no declaration: {split}"
             );
             assert!(
@@ -2807,10 +2802,8 @@ mod tests {
                 Some(_) => assert_eq!(split, boolean, "{fault:?}"),
                 None => {
                     assert!(
-                        split.ends_with(&format!(
-                            "Recourse: {}",
-                            geom_core::SPLIT_PLANE_RECOURSE
-                        )) && !split.contains("declare"),
+                        split.ends_with(&format!("Recourse: {}", geom_core::SPLIT_PLANE_RECOURSE))
+                            && !split.contains("declare"),
                         "{fault:?}: {split}"
                     );
                     assert!(

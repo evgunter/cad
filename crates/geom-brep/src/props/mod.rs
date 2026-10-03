@@ -689,8 +689,10 @@ impl PropsCheck {
     #[must_use]
     pub fn subject(self) -> &'static str {
         match self {
-            Self::Exact => "whether the face's stored boundary is one a construction here \
-                            could produce",
+            Self::Exact => {
+                "whether the face's stored boundary is one a construction here \
+                            could produce"
+            }
             Self::Inventory => "whether this face's boundary is one the closed forms here fold",
             Self::Extent => "whether the face's area is positive",
             Self::Converged => "whether the quadrature's enclosure has converged",
@@ -968,7 +970,10 @@ mod tests {
         // An inventory premise a valid face can fail is a lane not
         // built: no lever, and the sentence says so plainly.
         let inventory = under(PropsCheck::Inventory);
-        assert!(inventory.ends_with(geom_core::NOT_YET_ENDING), "{inventory}");
+        assert!(
+            inventory.ends_with(geom_core::NOT_YET_ENDING),
+            "{inventory}"
+        );
         assert!(!inventory.contains("Recourse:"), "{inventory}");
         // A size the user may intend carries the value its margin gives.
         assert!(

@@ -2319,7 +2319,10 @@ fn unnamed(margin: &geom_core::MarginDiag) -> Cow<'static, str> {
 #[test]
 fn the_not_yet_ending_is_one_spelling() {
     let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
-    for margin in [geom_core::MarginDiag::value(5e-9), geom_core::MarginDiag::INVALID] {
+    for margin in [
+        geom_core::MarginDiag::value(5e-9),
+        geom_core::MarginDiag::INVALID,
+    ] {
         let cause = geom_core::Indeterminate {
             margin,
             band,
@@ -2754,13 +2757,17 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                     PropsCheck::Exact => {
                         "a stored boundary edge may not lie on its own face's surface"
                     }
-                    PropsCheck::Inventory => "a face's contribution is too close to call at \
-                                              this tolerance",
+                    PropsCheck::Inventory => {
+                        "a face's contribution is too close to call at \
+                                              this tolerance"
+                    }
                     PropsCheck::Extent => {
                         "a face's area could not be certified positive at this tolerance"
                     }
-                    PropsCheck::Converged => "the quadrature could not decide whether its \
-                                              enclosure of a face's contribution had converged",
+                    PropsCheck::Converged => {
+                        "the quadrature could not decide whether its \
+                                              enclosure of a face's contribution had converged"
+                    }
                 },
                 check
                     .ending(RefusedArm::Undecided(cause), Reading::AtRest)
