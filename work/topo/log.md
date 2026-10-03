@@ -6425,3 +6425,8 @@ any future unit on this ground.
   - The review also confirmed `edge_extent` is a lower bound for every
     carrier, with closed NURBS still over-refusing, the safe side.
   - The fix runs as cloud session `session_01KwoWmcpHhVj3Zd5UL2kCxL`.
+
+## PR 3974 merged (2026-10-03)
+
+The plane offset rung merged as `ccb3751050`, after CI run 37155436401
+passed on `6ee9164cd6`.
