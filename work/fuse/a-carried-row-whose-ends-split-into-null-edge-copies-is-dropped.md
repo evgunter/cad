@@ -34,8 +34,22 @@ result's `a_on_b`/`b_on_a` are empty, so this is not
 `a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records`
 (a pierce's vertex-on-face rows).
 
+## A second witness
+
+`y ∖ cube` in `two_dangling_null_edges_with_one_segment_build_in_every_op`
+and `a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op`
+(`lens_in_a_lens`, same test file). `y` is a block less a lens, with a
+smaller lens put back. They touch along pinch lines in the cube's
+bottom face, whose far ends (0.5, 0.15, 0) and (0.15, 0.5, 0) lie
+inside that face. Measured on the first: `remap_carried` resolves
+neither end of the carried rows (A 17v3, 9v5) and (13v5, 18v1). The
+undeclared `VertexVertex` pairs are (27v1, 29v1) and (28v1, 30v1),
+exactly those ends' copies in `desc.copies_of`. `EdgeEdgeOverlap`
+fails along both lines too. The other five ops pass. Pinned there as
+it stands.
+
 ## Owed
 
 Have `remap_carried` record a carried row between the live copies of
 its two ends, as `remap_contacts` does for its groups, then flip the
-pin to 3′ passing in all six ops.
+pins to 3′ passing in all six ops.
