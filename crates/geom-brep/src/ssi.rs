@@ -476,6 +476,17 @@ pub enum SsiError {
         /// Boxes in the chain.
         boxes: u32,
     },
+    /// Limb 3, chart arm: at every rung whose windows made the locus a
+    /// graph, the chain's solution set was not certified to be the
+    /// traced arc alone — a window's boundary held other than the arc's
+    /// two crossings, or two consecutive windows shared no zero. Either
+    /// another arc of the locus lies within the tube at every rung, or
+    /// the carrier does not follow one arc.
+    TubeNotOneArc {
+        /// How many rungs were graphs over their chain but held more
+        /// than the one arc.
+        rungs: u32,
+    },
     /// A certified foot point would not converge, so limb 1 has no
     /// residual to check against a NURBS operand.
     FootPointInconclusive {
@@ -837,6 +848,12 @@ impl core::fmt::Display for SsiError {
                  branch may lie inside the tube",
                 verdict.margin()
             ),
+            Self::TubeNotOneArc { rungs } => write!(
+                f,
+                "ssi: at each of the {rungs} rungs where the uniqueness tube made the locus a \
+                 graph, its windows were not certified to hold the traced arc alone, so another \
+                 arc of the locus may lie inside the tube"
+            ),
             Self::FootPointInconclusive { t, last_distance } => write!(
                 f,
                 "ssi: the certified foot point at t = {t} would not converge (last \
@@ -993,6 +1010,9 @@ impl SsiError {
             }
             Self::CertificateLimb { limb, .. } => {
                 crate::certify::recourse(limb.check(), RefusedArm::SignCertain, reading)
+            }
+            Self::TubeNotOneArc { .. } => {
+                crate::certify::recourse(SsiLimb::Tube.check(), RefusedArm::SignCertain, reading)
             }
             Self::TubeStraddles { verdict, .. } => {
                 crate::certify::recourse(SsiLimb::Tube.check(), verdict.arm(), reading)
@@ -2124,6 +2144,7 @@ fn finish_r3(
         &SsiOperand::Analytic(a),
         &SsiOperand::Analytic(b),
         TubeScale::split(arm, domain.extent),
+        Some(domain.slab()),
         band,
     )?;
     let params = carrier.domain();
@@ -2550,7 +2571,7 @@ pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::Certi
     scale: TubeScale<T>,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
-    certify::certify_branch(carrier, pcurve_b, a, b, scale, band)
+    certify::certify_branch(carrier, pcurve_b, a, b, scale, None, band)
 }
 
 /// The idealized stepper's trace of an analytic pair from an explicit
@@ -3053,7 +3074,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 37;
+    const ARMS: usize = 38;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3097,6 +3118,7 @@ mod ending_tests {
             SsiError::CrossingUnmatched { .. } => 34,
             SsiError::ShortBranchUncertified { .. } => 35,
             SsiError::WindowShortOfWall { .. } => 36,
+            SsiError::TubeNotOneArc { .. } => 37,
         }
     }
 
@@ -3262,6 +3284,7 @@ mod ending_tests {
                 },
             ),
             ("tube probe", SsiError::TubeProbeSilent { rungs: 6 }),
+            ("tube not one arc", SsiError::TubeNotOneArc { rungs: 3 }),
             (
                 "tube straddles",
                 SsiError::TubeStraddles {

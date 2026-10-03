@@ -396,6 +396,7 @@ impl<'a> Ends<'a> {
             &SsiOperand::Analytic(self.plane),
             self.wall,
             TubeScale::uniform(self.extent),
+            None,
             self.band,
         )?;
         let params = carrier.domain();

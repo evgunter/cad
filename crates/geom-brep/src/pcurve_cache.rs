@@ -2710,6 +2710,12 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         E::UnsupportedCertificate { what } => (None, what, None),
         E::ChartSpeed(r) => (None, r.what(), None),
         E::TubeDegenerate(d) => (Some(SsiLimb::Tube), d.what(), None),
+        E::TubeNotOneArc { .. } => (
+            Some(SsiLimb::Tube),
+            "the uniqueness tube's windows were not certified to hold the traced arc alone at \
+             any rung where they made the locus a graph",
+            None,
+        ),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
         // compiler is what enforces that. These are the structural
