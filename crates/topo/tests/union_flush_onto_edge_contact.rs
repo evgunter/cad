@@ -1050,81 +1050,208 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
     }
 }
 
-/// **A dangling null edge whose segment holds another pair's cut
-/// refuses typed.** A box with a pyramidal pit whose apex is the
-/// origin, and a spike in the pit touching the box only there, against
-/// the unit cube's corner: the pit opens across the cube's bottom face,
-/// so the pit's pair crosses that face's corner twice and the box's
-/// material holds all the corner but the segment between, which is a
-/// dangling null edge on the Out side; the spike's pair cuts inside
-/// that segment. No run of the pit's pair keeps clear of the spike's
-/// cuts (its other way round is the whole orbit), and every op, in
-/// both operand orders, refuses `SharedVertexCrossings` naming the
-/// cube's corner and the two vertices of `y` there: pinned as it
-/// stands
-/// (`work/fuse/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`).
-/// A convex piece cannot do this: its cone holds the segment between
-/// two of its own points in one face.
-#[test]
-fn a_dangling_null_edge_holding_another_pairs_cut_refuses_typed() {
-    let tol = Tol::witness();
-    let pit = corner_prism(
-        [[1.0, 0.6, -0.3], [0.6, 1.0, -0.3], [1.0, 1.0, 0.5]],
-        3.0,
-        tol,
+/// The faces of [`corner_prism`]`(rays, scale)` as vertex loops.
+fn prism_faces(rays: [[f64; 3]; 3], scale: f64) -> Vec<Vec<[f64; 3]>> {
+    let at = |u: f64, v: f64, w: f64| {
+        core::array::from_fn(|k| scale * (u * rays[0][k] + v * rays[1][k] + w * rays[2][k]))
+    };
+    let (b, t) = (
+        [at(0.0, 0.0, 0.0), at(1.0, 0.0, 0.0), at(0.0, 1.0, 0.0)],
+        [at(0.0, 0.0, 1.0), at(1.0, 0.0, 1.0), at(0.0, 1.0, 1.0)],
     );
+    let mut faces = vec![b.to_vec(), t.to_vec()];
+    for k in 0..3 {
+        let l = (k + 1) % 3;
+        faces.push(vec![b[k], b[l], t[l], t[k]]);
+    }
+    faces
+}
+
+/// The half-spaces `n·p ≤ d` of the box `lo ≤ p ≤ hi`.
+fn box_planes(lo: f64, hi: f64) -> Vec<([f64; 3], f64)> {
+    (0..3)
+        .flat_map(|k| {
+            let e: [f64; 3] = core::array::from_fn(|j| if j == k { 1.0 } else { 0.0 });
+            [(e, hi), (e.map(|x| -x), -lo)]
+        })
+        .collect()
+}
+
+/// The volume of the convex polyhedron `faces` cut to `planes`, outside
+/// the kernel: each face loop clipped to each half-space in turn
+/// (Sutherland–Hodgman), the points on the plane closing the cut's cap
+/// in angular order, then the pyramids from the mean vertex summed.
+fn clipped_volume(mut faces: Vec<Vec<[f64; 3]>>, planes: &[([f64; 3], f64)]) -> f64 {
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let cross = |a: [f64; 3], b: [f64; 3]| {
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+    };
+    let mean = |ps: &[[f64; 3]]| -> [f64; 3] {
+        core::array::from_fn(|k| ps.iter().map(|p| p[k]).sum::<f64>() / ps.len() as f64)
+    };
+    for &(n, d) in planes {
+        let mut kept = Vec::new();
+        let mut cap = Vec::new();
+        for f in &faces {
+            let mut g = Vec::new();
+            for i in 0..f.len() {
+                let (p, q) = (f[i], f[(i + 1) % f.len()]);
+                let (sp, sq) = (dot(n, p) - d, dot(n, q) - d);
+                if sp <= 0.0 {
+                    g.push(p);
+                }
+                if sp == 0.0 {
+                    cap.push(p);
+                }
+                if sp * sq < 0.0 {
+                    let t = sp / (sp - sq);
+                    let x = core::array::from_fn(|k| p[k] + t * (q[k] - p[k]));
+                    g.push(x);
+                    cap.push(x);
+                }
+            }
+            if g.len() >= 3 {
+                kept.push(g);
+            }
+        }
+        if cap.len() >= 3 {
+            let c = mean(&cap);
+            let u = sub(cap[0], c);
+            let w = cross(n, u);
+            cap.sort_by(|&a, &b| {
+                let ang = |p| f64::atan2(dot(sub(p, c), w), dot(sub(p, c), u));
+                ang(a).total_cmp(&ang(b))
+            });
+            kept.push(cap);
+        }
+        faces = kept;
+    }
+    let c = mean(&faces.concat());
+    faces
+        .iter()
+        .map(|f| {
+            let area = (1..f.len() - 1)
+                .map(|i| cross(sub(f[i], f[0]), sub(f[i + 1], f[0])))
+                .fold([0.0; 3], |s, a| core::array::from_fn(|k| s[k] + a[k]));
+            dot(area, sub(f[0], c)).abs() / 6.0
+        })
+        .sum()
+}
+
+/// The pit's corner: a cone at the origin crossing the cube's bottom
+/// face, scaled out past the block.
+const PIT: [[f64; 3]; 3] = [[1.0, 0.6, -0.3], [0.6, 1.0, -0.3], [1.0, 1.0, 0.5]];
+
+/// **A dangling null edge whose segment holds other pairs' cuts, in
+/// every op.** `y` is the block `[-1, 1]³` with a pyramidal pit whose
+/// apex is the origin ([`PIT`]), and `spikes` in the pit, each
+/// touching the block and each other only there, against the unit
+/// cube's corner: the pit opens across the cube's bottom face, so the
+/// pit's pair crosses that face's corner twice, and its run is a
+/// dangling null edge on the Out side (its other way round is the
+/// whole orbit) whose segment holds each spike's pair's In segment
+/// whole. Each spike's dangling null edge hangs at the pit's tip.
+/// Every op, in both operand orders, builds at the volume clipping
+/// each prism to each box gives ([`clipped_volume`]), and the result
+/// passes 3′ with `y`'s records carried except in the ops `drops` names
+/// ([`a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op`]).
+fn pit_holding_spikes(spikes: &[([[f64; 3]; 3], f64)], drops: &[&str], tol: Tol) {
+    let pit = corner_prism(PIT, 3.0, tol);
     let block: Body<f64> = brick((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol);
-    let BooleanResult::Body(holed) =
+    let BooleanResult::Body(mut y) =
         subtract_with(&block, &pit, &flush_declarations(&block, &pit, tol), tol)
             .expect("the pit is cut")
     else {
         panic!("the block ∖ pit came back empty");
     };
-    let spike = corner_prism(
-        [[1.0, 0.8, -0.1], [0.8, 1.0, -0.1], [1.0, 1.0, 0.2]],
-        0.5,
-        tol,
-    );
-    let mut decls = flush_declarations(&holed.body, &spike, tol);
-    decls.carried_a.vv = rest_rows(&holed.contacts);
-    let BooleanResult::Body(y) =
-        union_with(&holed.body, &spike, &decls, tol).expect("the spike touches the pit's apex")
-    else {
-        panic!("the union came back empty");
-    };
-    let origin = (0.0, 0.0, 0.0);
-    let ends = keys_at(&y.body, origin);
-    assert_eq!(ends.len(), 2, "the pit's apex and the spike's corner");
-    // `against_the_cube` builds this same brick, so its keys are these.
-    let cube_corner = keys_at(&brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), origin);
-    assert_eq!(cube_corner.len(), 1, "one cube corner at the origin");
-    for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
-        let cube_first = op.starts_with("cube");
-        match got {
-            Err(BooleanError::SharedVertexCrossings {
-                operand,
-                vertex,
-                partners: [p0, p1],
-            }) => {
-                let mut partners = vec![p0, p1];
-                partners.sort();
-                let side = if cube_first {
-                    topo::Operand::A
-                } else {
-                    topo::Operand::B
-                };
-                assert_eq!(
-                    (operand, vertex, partners),
-                    (side, cube_corner[0], ends.clone()),
-                    "{op}: the cube's corner and both of y's vertices there"
-                );
-            }
-            other => panic!(
-                "{op}: want SharedVertexCrossings, got {:?}",
-                other.map(|_| ())
-            ),
-        }
+    for &(rays, scale) in spikes {
+        let spike = corner_prism(rays, scale, tol);
+        let mut decls = flush_declarations(&y.body, &spike, tol);
+        decls.carried_a.vv = rest_rows(&y.contacts);
+        let BooleanResult::Body(next) =
+            union_with(&y.body, &spike, &decls, tol).expect("the spike touches the pit's apex")
+        else {
+            panic!("the union came back empty");
+        };
+        y = next;
     }
+    let (cube, block) = (box_planes(0.0, 1.0), box_planes(-1.0, 1.0));
+    let in_cube: f64 = spikes
+        .iter()
+        .map(|&(r, s)| clipped_volume(prism_faces(r, s), &cube))
+        .sum();
+    let whole: f64 = spikes
+        .iter()
+        .map(|&(r, s)| clipped_volume(prism_faces(r, s), &block))
+        .sum();
+    let common = 1.0 - clipped_volume(prism_faces(PIT, 3.0), &cube) + in_cube;
+    let y_volume = 8.0 - clipped_volume(prism_faces(PIT, 3.0), &block) + whole;
+    let got = mass_properties(&y.body, tol).expect("mass").volume;
+    assert!(
+        (got - y_volume).abs() < 1e-9,
+        "y: volume {got}, want {y_volume}"
+    );
+    assert_eq!(
+        keys_at(&y.body, (0.0, 0.0, 0.0)).len(),
+        1 + spikes.len(),
+        "the pit's apex and each spike's corner"
+    );
+    for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
+        let want = match op {
+            "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
+            "y ∖ cube" => y_volume - common,
+            "cube ∖ y" => 1.0 - common,
+            _ => common,
+        };
+        let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
+            panic!("{op} came back empty");
+        };
+        let volume = mass_properties(&out.body, tol).expect("mass").volume;
+        assert!(
+            (volume - want).abs() < 1e-9,
+            "{op}: volume {volume}, want {want}"
+        );
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        assert_eq!(
+            verdict.is_err(),
+            drops.contains(&op),
+            "{op}: 3′ {:?}",
+            verdict.err()
+        );
+    }
+}
+
+/// **One spike in the pit** ([`pit_holding_spikes`]). Its far corners
+/// `0.5·(r₀ + r₂)` and `0.5·(r₁ + r₂)` rest on the cube's faces x = 1
+/// and y = 1, inside the pit, and with the cube first ∖ drops the rest
+/// at (0.9, 1, 0.05) and ∩ declares it on a face that survives only
+/// away from it; a brick that never reaches the origin does the same,
+/// so neither touches the origin's null edges
+/// (`work/fuse/a-vertex-on-face-row-follows-its-face-not-the-part-it-rests-on.md`):
+/// pinned as they stand. Red as the first row: the pit's dangling null
+/// edge held the spike's cuts, and every op refused
+/// `SharedVertexCrossings`. Red if the spike's strut hangs at the cube's
+/// corner beside the pit's: the corner would be the In end of one and
+/// the Out end of the other, an invariant.
+#[test]
+fn a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op() {
+    let spike = [[1.0, 0.8, -0.1], [0.8, 1.0, -0.1], [1.0, 1.0, 0.2]];
+    pit_holding_spikes(&[(spike, 0.5)], &["cube ∖ y", "cube ∩ y"], Tol::witness());
+}
+
+/// **Two spikes in the pit**, side by side ([`pit_holding_spikes`]): both
+/// struts hang at the pit's tip, the later past the earlier by their
+/// lower germs. Every op builds, and every result passes 3′.
+#[test]
+fn a_dangling_null_edge_holding_two_pairs_cuts_builds_in_every_op() {
+    let one = [[1.0, 0.78, -0.1], [1.0, 0.9, -0.1], [1.0, 0.86, 0.15]];
+    let two = [[0.9, 1.0, -0.1], [0.78, 1.0, -0.1], [0.86, 1.0, 0.15]];
+    pit_holding_spikes(&[(one, 0.4), (two, 0.4)], &[], Tol::witness());
 }
 
 /// **A corner crossing the cube's corner four times refuses

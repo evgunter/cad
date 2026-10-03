@@ -3632,18 +3632,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .map(|(_, a_sectors, b_sectors, ..)| (a_sectors.as_slice(), b_sectors.as_slice()))
         .collect();
     insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
-    // A strut at a shared vertex is minted before any fan there.
-    let mut order: Vec<usize> = (0..plans.len()).collect();
-    order.sort_by_key(|&i| !plans[i].hangs_shared_strut([orbits[i].0, orbits[i].1]));
-    let mut hung = insert::Hung::default();
-    for i in order {
-        let (_, a_sectors, b_sectors, ..) = &classified[i];
-        let out = insert::mint_plan(
-            &mut a, &mut b, &plans[i], a_sectors, b_sectors, &mut hung, band,
-        )?;
-        null_edges.extend(out.edges);
-        null_pairs.extend(out.pairs);
-    }
+    let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
+    null_edges.extend(out.edges);
+    null_pairs.extend(out.pairs);
     let held = border_held(held, &covered, &null_edges, &a, &b)?;
     let rest_contacts = decls
         .coincident_faces
