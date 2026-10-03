@@ -13,6 +13,7 @@
 use core::f64::consts::PI;
 
 use crate::revolve_common::{axis_y, validated};
+use geom::SurfaceKind;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ArcSweep, RawLoop, bulge_from_center, test_support::bulge_loop};
 use sweep::{Revolution, revolve};
@@ -251,6 +252,7 @@ struct Tally {
     meets_other: usize,
     near: usize,
     wrong_volume: usize,
+    props_refused: usize,
 }
 
 fn poses(s: f64) -> [(&'static str, Affine3<f64>); 3] {
@@ -310,9 +312,17 @@ fn probe() {
                                 let oracle = half_volume(&f, s, n * sign, d * sign);
                                 let got = match part {
                                     SplitPart::Body(b) => {
-                                        let p = topo::props::mass_properties(b, Tol::witness())
-                                            .unwrap();
-                                        (p.volume, p.volume_pad)
+                                        match topo::props::mass_properties(b, Tol::witness()) {
+                                            Ok(p) => (p.volume, p.volume_pad),
+                                            Err(e) => {
+                                                t.props_refused += 1;
+                                                println!(
+                                                    "PROPS {} s={s} {pose} n={n:?} d={d} clear={clear}: {e}",
+                                                    f.name
+                                                );
+                                                continue;
+                                            }
+                                        }
                                     }
                                     SplitPart::Empty => (0.0, 0.0),
                                 };
@@ -345,6 +355,132 @@ fn probe() {
                     }
                 }
                 println!("ROW | {} | {s:e} | {pose} | {t:?}", f.name);
+            }
+        }
+    }
+}
+
+/// Split `body` posed by `map` with the body-frame plane `(n, q)`, and
+/// read each half's volume against the slice integral.
+fn split_posed(
+    f: &Fixture,
+    s: f64,
+    posed: &Body<f64>,
+    map: Affine3<f64>,
+    (n, q): (Vec3<f64>, Point3<f64>),
+    what: &str,
+) -> Result<(), SplitError> {
+    let n = n * (1.0 / n.norm());
+    let d = n.dot(Vec3::new(q.x, q.y, q.z));
+    let cut = SplitPlane {
+        origin: map.transform_point(q),
+        normal: unit(map.transform_vec(n)),
+    };
+    let result = split(posed, &cut, Tol::witness())?;
+    for (part, sign, side) in [
+        (&result.above, 1.0, "above"),
+        (&result.below, -1.0, "below"),
+    ] {
+        let oracle = half_volume(f, s, n * sign, d * sign);
+        let SplitPart::Body(b) = part else {
+            assert!(
+                oracle.abs() <= 1e-9 * s * s * s,
+                "{what}, {side}: empty against the oracle {oracle}"
+            );
+            continue;
+        };
+        let p = topo::props::mass_properties(b, Tol::witness()).unwrap();
+        assert!(
+            (p.volume - oracle).abs() <= p.volume_pad + 1e-7 * s * s * s,
+            "{what}, {side}: {} ± {} against the oracle {oracle}",
+            p.volume,
+            p.volume_pad
+        );
+    }
+    Ok(())
+}
+
+/// **A cut clear of a sphere or torus face splits the body however
+/// the body is turned.** Each fixture is cut square to its own axis at
+/// mid-height of the cylinder, under the cap or the rounding, and along
+/// a direction tilted off its axis `10⁻³` of its size clear of the
+/// face's own support there; in all three poses at unit scale, and
+/// skewed at the other two scales. Both halves match the slice
+/// integral.
+#[test]
+fn a_cut_clear_of_the_face_splits_in_every_pose() {
+    let tilted = Vec3::new(
+        0.7f64.sin() * 1.3f64.cos(),
+        0.7f64.cos(),
+        0.7f64.sin() * 1.3f64.sin(),
+    );
+    for (s, pose_set) in [(1.0, 0..3), (1e-3, 2..3), (1e3, 2..3)] {
+        for f in [capped(s), rounded(s)] {
+            let body = build(&f);
+            let (lo, _) = face_support(&f, s, tilted);
+            let d = lo - 1e-3 * s;
+            for (pose, map) in &poses(s)[pose_set.clone()] {
+                let posed = transform_rigid(&body, map, Tol::witness()).unwrap();
+                for (cut, plane) in [
+                    (
+                        "square",
+                        (Vec3::new(0.0, 1.0, 0.0), Point3::new(0.0, 0.5 * s, 0.0)),
+                    ),
+                    (
+                        "tilted",
+                        (
+                            tilted,
+                            Point3::new(tilted.x * d, tilted.y * d, tilted.z * d),
+                        ),
+                    ),
+                ] {
+                    let what = format!("{} at scale {s}, {pose}, {cut}", f.name);
+                    split_posed(&f, s, &posed, *map, plane, &what)
+                        .unwrap_or_else(|e| panic!("{what}: {e}"));
+                }
+            }
+        }
+    }
+}
+
+/// **A cut through the face refuses naming it, however the body is
+/// turned**: the gate is scoped to the plane's reach in the plane's own
+/// frame, never lifted. The cuts are the clear row's tilted cut moved
+/// `10⁻³` of the size INTO the face, and one across the truncated ball's
+/// flank that meets its sphere face in a circle crossing no edge.
+#[test]
+fn a_cut_into_the_face_refuses_in_every_pose() {
+    let s = 1.0;
+    let tilted = Vec3::new(
+        0.7f64.sin() * 1.3f64.cos(),
+        0.7f64.cos(),
+        0.7f64.sin() * 1.3f64.sin(),
+    );
+    for (f, kind) in [
+        (capped(s), SurfaceKind::Sphere),
+        (rounded(s), SurfaceKind::Torus),
+        (truncated(s), SurfaceKind::Sphere),
+    ] {
+        let body = build(&f);
+        let (lo, _) = face_support(&f, s, tilted);
+        let d = lo + 1e-3 * s;
+        for (pose, map) in poses(s) {
+            let posed = transform_rigid(&body, &map, Tol::witness()).unwrap();
+            let what = format!("{}, {pose}", f.name);
+            let plane = (
+                tilted,
+                Point3::new(tilted.x * d, tilted.y * d, tilted.z * d),
+            );
+            match split_posed(&f, s, &posed, map, plane, &what) {
+                Err(SplitError::Reduce(SplitReduceError::CurvedBooleanUnsupported {
+                    face,
+                    kind: k,
+                })) => {
+                    assert_eq!(k, kind, "{what}");
+                    let surface = posed.get_face(face).unwrap().surface;
+                    assert_eq!(posed.get_surface(surface).unwrap().kind(), kind, "{what}");
+                }
+                other => panic!("{what}: expected the gate's refusal, got {other:?}"),
             }
         }
     }

@@ -238,10 +238,10 @@ fn sphere_zone_reach<T: Decide>(
 /// decided here, and an `h` read a rounding off its true value moves
 /// `G` by as little, since `G` is continuous.
 fn zone_extent<T: Decide>(c: T, a: T, h: Span<T>, r: T) -> (T, T) {
-    let s = (T::one() - a * a).max(T::zero()).sqrt();
+    let s = (T::one() - a.powi(2)).max(T::zero()).sqrt();
     let most = |a: T| {
         let at = (r * a).max(h.lo).min(h.hi);
-        at * a + s * (r * r - at * at).max(T::zero()).sqrt()
+        at * a + s * (r.powi(2) - at.powi(2)).max(T::zero()).sqrt()
     };
     (c - most(T::zero() - a), c + most(a))
 }
@@ -307,8 +307,8 @@ fn torus_rect_extent<T: Decide>(
     (u, v): crate::boolean::boxes::TorusWindowPair<T>,
 ) -> (T, T) {
     let most = |p: T, q: T, a: T| {
-        let m = (p * p + q * q).sqrt() * most_cos(q.atan2(p), u);
-        major * m + minor * (m * m + a * a).sqrt() * most_cos(a.atan2(m), v)
+        let m = (p.powi(2) + q.powi(2)).sqrt() * most_cos(q.atan2(p), u);
+        major * m + minor * (m.powi(2) + a.powi(2)).sqrt() * most_cos(a.atan2(m), v)
     };
     let neg = |x: T| T::zero() - x;
     (c - most(neg(p), neg(q), neg(a)), c + most(p, q, a))

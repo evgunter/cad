@@ -26,6 +26,14 @@ not aligned with, `boxes::slab_extent`), so a pair that clears upright
 may refuse turned. That is the class the split gate had, in its
 pairwise form.
 
+A second site of the same shape, on the same ground:
+`boolean::ops`'s sphere extent scan boxes a sphere's section circle as
+`foot ± ρ` on every world axis (`circle_box`) and the ball as
+`center ± r` (`ball_box`), and clears each against boundary-edge boxes
+by world-axis overlap. A circle in a plane tilted off every axis is
+boxed as a cube of side `2ρ` there, where its own extent along axis `i`
+is `ρ·√(1 − nᵢ²)`.
+
 ## The general form
 
 The split gate now reads each face's reach in the frame of the one
