@@ -204,7 +204,7 @@ fn stretches(
 /// a fragment of.
 fn a_face(out: &topo::BooleanBody<f64>, f: FaceKey) -> FaceKey {
     let rows = &out.naming.face_fragments_b;
-    topo::fragment_root(f, rows.len(), |k| {
+    topo::lineage_root(f, rows.len(), |k| {
         rows.iter().find(|(new, _)| *new == k).map(|&(_, up)| up)
     })
     .expect("the fragment rows do not cycle")

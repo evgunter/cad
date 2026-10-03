@@ -27,11 +27,11 @@ use crate::wire::doctored;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocParam, DocParamValue,
-    DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, Maintenance, MateFault, MateFrame,
-    MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, ParamName,
-    PartResolver, PersistError, Placement, ProfileDoc, RecipeNodeId, SitedFace, SitedRef,
-    StableName, Step, Unplaced, ValuePayload, apply, apply_replayed, evaluate, groups, load,
-    product, regauge_then_mate, root_of, save,
+    DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Frame, Maintenance, MateFault,
+    MateFrame, MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind,
+    ParamName, PartResolver, PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach,
+    SitedFace, SitedRef, StableName, Step, Unplaced, ValuePayload, apply, apply_replayed, evaluate,
+    groups, load, product, regauge_then_mate, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, seat_map};
@@ -41,12 +41,12 @@ use topo::Body;
 
 // ---- substrate ----
 
-const BASE_WIDTH: f64 = 3.0;
-const BASE_HEIGHT: f64 = 1.0;
-const TOP_HEIGHT: f64 = 3.0;
+pub(crate) const BASE_WIDTH: f64 = 3.0;
+pub(crate) const BASE_HEIGHT: f64 = 1.0;
+pub(crate) const TOP_HEIGHT: f64 = 3.0;
 
 /// A `w x w x h` block, as a whole part document, and its body.
-fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
+pub(crate) fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -66,15 +66,15 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 
 /// The two parts in one store: the store's options, each part's
 /// reference and body.
-struct Parts {
-    store: PartStore,
-    base: DocRef,
-    base_body: RecipeNodeId,
-    top: DocRef,
-    top_body: RecipeNodeId,
+pub(crate) struct Parts {
+    pub(crate) store: PartStore,
+    pub(crate) base: DocRef,
+    pub(crate) base_body: RecipeNodeId,
+    pub(crate) top: DocRef,
+    pub(crate) top_body: RecipeNodeId,
 }
 
-fn parts(label: &str) -> Parts {
+pub(crate) fn parts(label: &str) -> Parts {
     let mut store = PartStore::new();
     let (base, base_body) = store.insert_part(
         block(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
@@ -94,37 +94,41 @@ fn parts(label: &str) -> Parts {
 }
 
 impl Parts {
-    fn opts(&self) -> EvalOptions {
+    pub(crate) fn opts(&self) -> EvalOptions {
         with_resolver(self.store.clone())
     }
     /// The base's top cap.
-    fn base_cap(&self, base: RecipeNodeId) -> StableName {
+    pub(crate) fn base_cap(&self, base: RecipeNodeId) -> StableName {
         in_part(base, self.base_body, CapEnd::End)
     }
     /// The top block's bottom cap.
-    fn top_cap(&self, top: RecipeNodeId) -> StableName {
+    pub(crate) fn top_cap(&self, top: RecipeNodeId) -> StableName {
         in_part(top, self.top_body, CapEnd::Start)
     }
     /// The top block's upper cap, which a second block seats on.
-    fn top_upper_cap(&self, top: RecipeNodeId) -> StableName {
+    pub(crate) fn top_upper_cap(&self, top: RecipeNodeId) -> StableName {
         in_part(top, self.top_body, CapEnd::End)
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+pub(crate) fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
 }
 
 /// **"Mate the top to the base"**: the top block's bottom cap (the
 /// FIRST operand, which moves) seated on the base's top cap at
 /// `(1, 1)`, outward normals opposed.
-fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
     seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
 }
 
 /// [`seat`] onto a cap whose seat point is `at`, in its own part's
 /// coordinates.
-fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn seat_on(
+    mover: SitedFace,
+    onto: SitedFace,
+    at: [f64; 3],
+) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
         a: mover,
         b: onto,
@@ -139,13 +143,16 @@ fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core:
     }
 }
 
-fn lift() -> ParamName {
+pub(crate) fn lift() -> ParamName {
     ParamName::from_static("lift")
 }
 
 /// A gauge on `parent` at `[0, 0, lift]`, turned `angle` about z — a
 /// placement the document's `lift` drives.
-fn lifting_gauge(parent: Option<RecipeNodeId>, angle: f64) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn lifting_gauge(
+    parent: Option<RecipeNodeId>,
+    angle: f64,
+) -> Node<editor_core::ProfileProgram> {
     Node::gauge(
         parent,
         Step::Rigid {
@@ -156,11 +163,11 @@ fn lifting_gauge(parent: Option<RecipeNodeId>, angle: f64) -> Node<editor_core::
     )
 }
 
-fn literal(t: [f64; 3]) -> Placement {
+pub(crate) fn literal(t: [f64; 3]) -> Placement {
     Placement::literal(&Frame::translation(t))
 }
 
-fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
+pub(crate) fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
         DocEdit::SetDocParamValue {
@@ -171,7 +178,7 @@ fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     .0
 }
 
-fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
+pub(crate) fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
         DocEdit::SetDocParam {
@@ -182,15 +189,23 @@ fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     .0
 }
 
-fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -> ProfileDoc {
+pub(crate) fn set_gauge(
+    doc: ProfileDoc,
+    node: RecipeNodeId,
+    gauge: Option<RecipeNodeId>,
+) -> ProfileDoc {
     step(doc, DocEdit::SetGauge { node, gauge }).0
 }
 
-fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement>) -> ProfileDoc {
+pub(crate) fn set_offset(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    offset: Option<Placement>,
+) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
 
-fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Body<T>> {
+pub(crate) fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Body<T>> {
     match &ev
         .value(id)
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
@@ -202,25 +217,25 @@ fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Bo
 }
 
 /// A body's points, in arena order, as `f64` triples.
-fn points(body: &Body<f64>) -> Vec<[f64; 3]> {
+pub(crate) fn points(body: &Body<f64>) -> Vec<[f64; 3]> {
     body.points().map(|(_, p)| [p.x, p.y, p.z]).collect()
 }
 
 /// A body's lowest corner — where a block's own origin landed.
-fn min_corner(body: &Body<f64>) -> [f64; 3] {
+pub(crate) fn min_corner(body: &Body<f64>) -> [f64; 3] {
     points(body).into_iter().fold([f64::INFINITY; 3], |m, p| {
         [m[0].min(p[0]), m[1].min(p[1]), m[2].min(p[2])]
     })
 }
 
-fn close(a: [f64; 3], b: [f64; 3], what: &str) {
+pub(crate) fn close(a: [f64; 3], b: [f64; 3], what: &str) {
     assert!(
         a.iter().zip(b).all(|(x, y)| (x - y).abs() <= 1e-12),
         "{what}: {a:?} vs {b:?}"
     );
 }
 
-fn resolver(store: PartStore) -> Arc<dyn PartResolver> {
+pub(crate) fn resolver(store: PartStore) -> Arc<dyn PartResolver> {
     Arc::new(store)
 }
 
@@ -376,10 +391,11 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
     );
     assert_eq!(groups(&plain).len(), 2, "a declaring mate joins nothing");
 
-    // The compound door.
-    let edits = regauge_then_mate(&doc, mate.clone()).expect("no other mate starts placing");
+    // The compound door: the whole action applied, with its record.
+    let out = regauge_then_mate(&doc, mate.clone(), Tol::witness(), &RefusingReach)
+        .expect("no other mate starts placing");
     assert_eq!(
-        edits,
+        out.edits,
         vec![
             DocEdit::SetGauge {
                 node: top,
@@ -390,19 +406,34 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
                 gauge: Some(g),
             },
             DocEdit::InsertNode {
-                node: Box::new(mate)
+                node: Box::new(mate),
             },
         ],
-        "every member of the first operand's group, then the mate"
+        "the record is the group's re-gauges in document order, then the insert"
     );
-    let mut done = doc;
-    let mut minted = None;
-    for edit in edits {
-        let (next, id) = step(done, edit);
-        done = next;
-        minted = id;
-    }
-    let mate = minted.expect("the mate mints");
+    assert!(
+        replay(&doc, &out.edits).bit_eq(&out.doc),
+        "the record replays from the input to the outcome's document"
+    );
+    assert_eq!(
+        out.doc.order().last(),
+        Some(&out.mate),
+        "the outcome names the mate its insert minted"
+    );
+    let done = out.doc;
+    let mate = out.mate;
+    assert_eq!(
+        out.maintenance
+            .iter()
+            .filter_map(|row| match row {
+                Maintenance::OffsetCleared { instance, .. } => Some(instance.id()),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![top],
+        "the action reports the insert's offset clear: {:?}",
+        out.maintenance
+    );
     assert_eq!(groups(&done), vec![vec![base, top, upper]]);
     for id in [top, upper] {
         assert_eq!(done.node(id).and_then(Node::gauge_ref), Some(g));
@@ -423,6 +454,40 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
         poses.placement(&done, top).expect("placed").translation,
         [11.0, 1.0, BASE_HEIGHT],
         "the top seats on the base, on the base's gauge",
+    );
+}
+
+/// **A refusal after a re-gauge applied leaves no partial outcome.**
+/// The same group, mated onto the base by a mate the insert door
+/// refuses on its own datum (a standalone clocking, `TableLacks`): the
+/// two re-gauges apply, then the insert refuses, and the door answers
+/// that refusal, not a document with the group re-gauged and no mate.
+#[test]
+fn a_refusal_at_the_insert_after_the_regauge_refuses_the_whole_action() {
+    let p = parts("p2-regauge-refused");
+    let doc = ProfileDoc::empty(DocumentId::derive("p2-regauge-refused"), Tol::witness());
+    let (doc, g) = insert(doc, Node::gauge(None, literal([10.0, 0.0, 0.0])));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_gauge(doc, base, Some(g));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let mut mate = seat(head(p.top_cap(top)), head(p.base_cap(base)));
+    let Node::Mate { alignment, .. } = &mut mate else {
+        unreachable!("seat builds a mate")
+    };
+    alignment.primitive = MatePrimitive::Clocking;
+    let before = doc.clone();
+    match regauge_then_mate(&doc, mate, Tol::witness(), &RefusingReach) {
+        Err(EditError::MateRefused { fault, .. }) => assert!(
+            matches!(*fault, MateFault::TableLacks { .. }),
+            "the insert refuses on the table's gap: {fault:?}"
+        ),
+        other => panic!("the insert step refuses the whole action: {other:?}"),
+    }
+    assert!(doc.bit_eq(&before), "the input document is untouched");
+    assert_eq!(
+        doc.node(top).and_then(Node::gauge_ref),
+        None,
+        "and the top was never re-gauged in it"
     );
 }
 
@@ -794,7 +859,7 @@ fn with_no_placer_on_the_path_the_world_pose_is_the_frame_onto_the_solve_bit_for
 
 /// A placed pair — the base at an offset, the top mated onto it — and
 /// the store holding its parts.
-fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
+pub(crate) fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
     let p = parts(label);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
@@ -804,14 +869,14 @@ fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
     (p, doc, [base, top, mate])
 }
 
-fn cut(ids: &[RecipeNodeId]) -> BTreeSet<RecipeNodeId> {
+pub(crate) fn cut(ids: &[RecipeNodeId]) -> BTreeSet<RecipeNodeId> {
     ids.iter().copied().collect()
 }
 
-/// **A cut holding a gauge refuses until the gauge hoist is built, and
-/// gauge references leaving a cut must land on one anchor** (A4).
+/// **Gauge references leaving a cut must land on one anchor** (A4). A
+/// cut holding a gauge is `p2_split`'s.
 #[test]
-fn a_cut_holding_a_gauge_or_landing_on_two_anchors_refuses_typed() {
+fn a_cut_landing_on_two_anchors_refuses_typed() {
     let p = parts("p2-split-gauge");
     let doc = ProfileDoc::empty(DocumentId::derive("p2-split-gauge"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 5.0, 0.0])));
@@ -828,12 +893,6 @@ fn a_cut_holding_a_gauge_or_landing_on_two_anchors_refuses_typed() {
             o.resolver.as_ref(),
         )
     };
-    let err = split(&[g, on_g]).expect_err("the gauge hoist is not built");
-    assert!(
-        matches!(&err, editor_core::SplitError::CutHoldsGauge { gauge } if gauge.id() == g),
-        "{err:?}"
-    );
-    assert!(err.to_string().contains("Recourse:"), "{err}");
     let err = split(&[on_g, on_world]).expect_err("two anchors");
     assert!(
         matches!(
@@ -879,8 +938,8 @@ fn a_cut_reaching_a_dead_gauge_or_of_unplaced_material_alone_refuses_typed() {
     assert!(
         matches!(
             &err,
-            editor_core::SplitError::DeadGaugeReference { instance, gauge }
-                if instance.id() == dead && gauge.id() == g
+            editor_core::SplitError::DeadGaugeReference { node, gauge }
+                if node.id() == dead && gauge.id() == g
         ),
         "{err:?}"
     );
@@ -1007,13 +1066,14 @@ fn the_group_hoist_and_the_frame_rule_at_a_split() {
     assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
-/// **Inline, as built in P2-core** (A4): the sugar — a root-placed
-/// instance over a part that is one group rooted at the empty chain on
-/// its world, whose root takes the instance's offset — and the empty
-/// offset, where the content lands verbatim; every other shape refuses
-/// typed. `inline(split(d))` is `d` up to node ids.
+/// **Inline's sugar and its empty offset** (A4): a root-placed instance
+/// over a part that is one group rooted at the empty chain on its
+/// world has that root take the instance's offset, and at the empty
+/// offset the content lands verbatim. The round trip of the group
+/// hoist through the sugar is equal in evaluation (the spec's D1); the
+/// minted gauge and the mate-placed inline are `p2_split`'s.
 #[test]
-fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_rest_typed() {
+fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_unplaced_typed() {
     let (p, doc, [base, top, mate]) = placed_pair("p2-inline");
     let o = p.opts();
     let out = editor_core::split(
@@ -1053,31 +1113,7 @@ fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_rest_typed() {
     editor_core::inline(&at_origin, out.instance, &r, Tol::witness())
         .expect("the empty offset lands the content verbatim");
 
-    // The refusals.
-    let mated = {
-        let (d, host) = insert(out.remainder.clone(), Node::instantiate_part(p.base));
-        let d = set_offset(d, out.instance, None);
-        let (d, _) = insert(
-            d,
-            seat(
-                head(StableName {
-                    kind: editor_core::EntityKind::Face,
-                    node: out.instance,
-                    path: vec![editor_core::RoleSeg::InPart {
-                        of: p.top_cap(out.node_map[&top]).into(),
-                    }],
-                }),
-                head(p.base_cap(host)),
-            ),
-        );
-        d
-    };
-    let err = editor_core::inline(&mated, out.instance, &r, Tol::witness())
-        .expect_err("a mate-placed instance");
-    assert!(
-        matches!(&err, editor_core::InlineError::MatePlaced { instance, .. } if instance.id() == out.instance),
-        "{err:?}"
-    );
+    // The refusal: an unplaced instance has no frame to splice at.
     let unplaced = set_offset(out.remainder.clone(), out.instance, None);
     let err = editor_core::inline(&unplaced, out.instance, &r, Tol::witness())
         .expect_err("an unplaced instance");
@@ -1085,40 +1121,7 @@ fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_rest_typed() {
         matches!(&err, editor_core::InlineError::Unplaced { instance, cause: Unplaced::NoOffset } if instance.id() == out.instance),
         "{err:?}"
     );
-    // A part whose root does NOT sit at the empty chain needs a gauge.
-    let (shifted, _) = step(
-        out.part.clone(),
-        DocEdit::SetOffset {
-            instance: out.node_map[&base],
-            offset: Some(literal([1.0, 0.0, 0.0])),
-        },
-    );
-    let mut shifted_store = p.store.clone();
-    let shifted_ref = shifted_store.insert(shifted, Tol::witness());
-    let (repinned, _) = step(
-        out.remainder.clone(),
-        DocEdit::UpdateReference {
-            node: out.instance,
-            new_pin: shifted_ref.pin,
-        },
-    );
-    let err = editor_core::inline(
-        &repinned,
-        out.instance,
-        &resolver(shifted_store),
-        Tol::witness(),
-    )
-    .expect_err("an inline at an offset over a part not rooted at the empty chain");
-    assert!(
-        matches!(&err, editor_core::InlineError::NeedsAGauge { instance } if instance.id() == out.instance),
-        "{err:?}"
-    );
-    for err in [
-        editor_core::inline(&mated, out.instance, &r, Tol::witness()).unwrap_err(),
-        editor_core::inline(&unplaced, out.instance, &r, Tol::witness()).unwrap_err(),
-    ] {
-        assert!(err.to_string().contains("Recourse:"), "{err}");
-    }
+    assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
 /// **A declaring mate crossing a cut fills the instance's interface
@@ -1409,4 +1412,260 @@ fn a_cut_of_two_placed_groups_moves_verbatim_rather_than_hoisting() {
         offset_of(&out.part, out.node_map[&second]),
         Some(literal([0.0, 9.0, 0.0]))
     );
+}
+
+// ---- P2-carry: the carry keeps offsets ----
+
+/// The survey's probe: a placed pair whose top carries a checked
+/// offset (its solved world pose), beside a second placed base, so a
+/// cut of all four is two groups and moves verbatim. Returns the store,
+/// the document, `[base, top, mate, second]` and the top's offset.
+fn checked_pair_beside_a_base(
+    label: &str,
+) -> (Parts, ProfileDoc, [RecipeNodeId; 4], Option<Placement>) {
+    let (p, doc, [base, top, mate]) = placed_pair(label);
+    let solved = solve(&doc, &p.opts(), Tol::witness())
+        .placement(&doc, top)
+        .expect("the top is placed");
+    let checked = Some(Placement::literal(&solved));
+    let doc = set_offset(doc, top, checked.clone());
+    let (doc, second) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, second, Some(literal([0.0, 9.0, 0.0])));
+    (p, doc, [base, top, mate, second], checked)
+}
+
+/// Split's verbatim move of [`checked_pair_beside_a_base`], whole.
+fn split_all_four(
+    p: &Parts,
+    doc: &ProfileDoc,
+    ids: [RecipeNodeId; 4],
+    part_id: DocumentId,
+) -> editor_core::SplitOutcome {
+    editor_core::split(
+        doc,
+        &cut(&ids),
+        part_id,
+        Tol::witness(),
+        p.opts().resolver.as_ref(),
+    )
+    .expect("two placed groups move verbatim")
+}
+
+/// Every instance's offset in `doc` beside the offset `onto` holds at
+/// its image under `map`.
+fn offsets_through(
+    doc: &ProfileDoc,
+    map: impl Fn(RecipeNodeId) -> RecipeNodeId,
+    onto: &ProfileDoc,
+) -> Vec<(Option<Placement>, Option<Placement>)> {
+    doc.order()
+        .iter()
+        .filter(|id| matches!(doc.node(**id), Some(Node::InstantiatePart { .. })))
+        .map(|&id| (offset_of(doc, id), offset_of(onto, map(id))))
+        .collect()
+}
+
+fn cleared(rows: &[Maintenance]) -> Vec<&Maintenance> {
+    rows.iter()
+        .filter(|row| matches!(row, Maintenance::OffsetCleared { .. }))
+        .collect()
+}
+
+/// Replays `edits` from `from` with no reach: no store, no solve.
+fn replay(from: &ProfileDoc, edits: &[DocEdit<editor_core::ProfileProgram>]) -> ProfileDoc {
+    edits.iter().fold(from.clone(), |doc, edit| {
+        apply_replayed(&doc, edit, Tol::witness())
+            .expect("a recorded edit replays")
+            .doc
+    })
+}
+
+/// **C1 at split: a verbatim move keeps a carried member's checked
+/// offset.** The cut mate lands in the part through the mate door,
+/// which clears the top's offset as it joins the top to the placed
+/// base; the part still holds exactly the source's offsets, and no
+/// `OffsetCleared` survives in `part_maintenance`.
+#[test]
+fn a_verbatim_split_keeps_a_carried_members_checked_offset() {
+    let (p, doc, ids, checked) = checked_pair_beside_a_base("p2-carry-split");
+    let out = split_all_four(&p, &doc, ids, DocumentId::derive("p2-carry-split-part"));
+    assert_eq!(
+        offset_of(&out.remainder, out.instance),
+        Some(Placement::IDENTITY),
+        "the move is verbatim, not a hoist"
+    );
+    assert_eq!(
+        offset_of(&out.part, out.node_map[&ids[1]]),
+        checked,
+        "the top's checked offset survives the carry"
+    );
+    for (source, part) in offsets_through(&doc, |id| out.node_map[&id], &out.part) {
+        assert_eq!(part, source, "the part holds exactly the source's offsets");
+    }
+    assert_eq!(
+        cleared(&out.part_maintenance),
+        Vec::<&Maintenance>::new(),
+        "no OffsetCleared for a carried node survives"
+    );
+}
+
+/// **C1 at inline: an empty-offset inline keeps a carried member's
+/// checked offset.** The part is the probe's document itself, so this
+/// row reads inline's carry alone, whatever split's keeps.
+#[test]
+fn an_empty_offset_inline_keeps_a_carried_members_checked_offset() {
+    let (p, part, ids, checked) = checked_pair_beside_a_base("p2-carry-inline");
+    let mut store = p.store.clone();
+    let part_ref = store.insert(part.clone(), Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("p2-carry-inline-host"), Tol::witness());
+    let (host, instance) = insert(host, Node::instantiate_part(part_ref));
+    assert_eq!(offset_of(&host, instance), Some(Placement::IDENTITY));
+    let back = editor_core::inline(&host, instance, &resolver(store), Tol::witness())
+        .expect("the empty offset lands the content verbatim");
+    let through = |id: RecipeNodeId| back.node_map[&id];
+    assert_eq!(
+        offset_of(&back.doc, through(ids[1])),
+        checked,
+        "the top's checked offset survives the splice"
+    );
+    for (source, spliced) in offsets_through(&part, through, &back.doc) {
+        assert_eq!(
+            spliced, source,
+            "the host holds exactly the source's offsets"
+        );
+    }
+    assert_eq!(
+        cleared(&back.maintenance),
+        Vec::<&Maintenance>::new(),
+        "no OffsetCleared for a carried node survives"
+    );
+}
+
+/// `inline(split(d))` over a verbatim cut of all of `doc`: the split
+/// and the inline each keep every source offset through their node
+/// maps (the inline's through the composed map), report no
+/// `OffsetCleared`, and replay with no reach to their documents.
+fn round_trip_keeps_every_offset(
+    p: &Parts,
+    doc: &ProfileDoc,
+    label: &str,
+) -> (editor_core::SplitOutcome, editor_core::InlineOutcome) {
+    let part_id = DocumentId::derive(&format!("{label}-part"));
+    let out = editor_core::split(
+        doc,
+        &doc.order().iter().copied().collect(),
+        part_id,
+        Tol::witness(),
+        p.opts().resolver.as_ref(),
+    )
+    .expect("a cut of whole groups moves verbatim");
+    assert_eq!(
+        offset_of(&out.remainder, out.instance),
+        Some(Placement::IDENTITY),
+        "the move is verbatim, not a hoist"
+    );
+    for (source, part) in offsets_through(doc, |id| out.node_map[&id], &out.part) {
+        assert_eq!(part, source, "the part holds exactly the source's offsets");
+    }
+    assert_eq!(
+        cleared(&out.part_maintenance),
+        Vec::<&Maintenance>::new(),
+        "split: no OffsetCleared for a carried node survives"
+    );
+    let part = replay(&ProfileDoc::empty(part_id, Tol::witness()), &out.part_edits);
+    assert!(part.bit_eq(&out.part), "the part's edit list is the part");
+
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    let back = editor_core::inline(
+        &out.remainder,
+        out.instance,
+        &resolver(store),
+        Tol::witness(),
+    )
+    .expect("the empty offset lands the content verbatim");
+    let through = |id: RecipeNodeId| back.node_map[&out.node_map[&id]];
+    for (source, host) in offsets_through(doc, through, &back.doc) {
+        assert_eq!(host, source, "inline(split(d)) holds exactly d's offsets");
+    }
+    assert_eq!(
+        cleared(&back.maintenance),
+        Vec::<&Maintenance>::new(),
+        "inline: no OffsetCleared for a carried node survives"
+    );
+    let host = replay(&out.remainder, &back.edits);
+    assert!(host.bit_eq(&back.doc), "the inline's edit list is the host");
+    (out, back)
+}
+
+/// **The carry's edit lists replay to its documents without a solve**:
+/// the part from the empty document and the host from the document
+/// inlined into, each with no reach, and every source offset comes
+/// back through the composed map.
+#[test]
+fn a_carry_keeping_a_checked_offset_replays_without_a_solve() {
+    let (p, doc, ids, checked) = checked_pair_beside_a_base("p2-carry-replay");
+    let (out, back) = round_trip_keeps_every_offset(&p, &doc, "p2-carry-replay");
+    assert_eq!(
+        offset_of(&back.doc, back.node_map[&out.node_map[&ids[1]]]),
+        checked,
+        "the round trip holds the checked offset"
+    );
+}
+
+/// **The re-statement waits for the last carried node, covers roots,
+/// and states nothing the source does not.** T is inserted first and X
+/// seated on T (clearing X); T is then seated on a placed base B,
+/// which clears T's whole group; T and X are given their solved poses,
+/// so T roots the group. A second group, Y seated on a placed base G,
+/// keeps Y at no offset. A carry that re-stated right after each
+/// insert would lose X and T to the second mate's clear; one that
+/// skipped each group's first member would lose T; one that wrote the
+/// empty chain for a missing offset would give Y one.
+#[test]
+fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
+    let p = parts("p2-carry-chain");
+    let doc = ProfileDoc::empty(DocumentId::derive("p2-carry-chain"), Tol::witness());
+    let (doc, t) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, x) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, _) = insert(
+        doc,
+        seat_on(
+            head(p.top_cap(x)),
+            head(p.top_upper_cap(t)),
+            [1.0, 1.0, TOP_HEIGHT],
+        ),
+    );
+    assert_eq!(offset_of(&doc, x), None, "the first mate cleared X");
+    let (doc, b) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, b, Some(literal([4.0, 0.0, 0.0])));
+    let (doc, _) = insert(doc, seat(head(p.top_cap(t)), head(p.base_cap(b))));
+    assert_eq!(offset_of(&doc, t), None, "the second mate cleared T");
+    let poses = solve(&doc, &p.opts(), Tol::witness());
+    let pose = |i| {
+        Some(Placement::literal(
+            &poses.placement(&doc, i).expect("placed"),
+        ))
+    };
+    let (t_pose, x_pose) = (pose(t), pose(x));
+    let doc = set_offset(doc, t, t_pose.clone());
+    let doc = set_offset(doc, x, x_pose.clone());
+    assert_eq!(root_of(&doc, x), t, "T roots its group");
+    let (doc, g) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, g, Some(literal([0.0, 9.0, 0.0])));
+    let (doc, y) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, _) = insert(doc, seat(head(p.top_cap(y)), head(p.base_cap(g))));
+    assert_eq!(offset_of(&doc, y), None, "Y sits at no offset");
+    assert_eq!(doc.order().len(), 8, "eight nodes, all cut");
+
+    let (out, back) = round_trip_keeps_every_offset(&p, &doc, "p2-carry-chain");
+    let host = |i: RecipeNodeId| back.node_map[&out.node_map[&i]];
+    for (what, i, want) in [("T", t, t_pose), ("X", x, x_pose), ("Y", y, None)] {
+        assert_eq!(
+            offset_of(&out.part, out.node_map[&i]),
+            want,
+            "{what} in the part"
+        );
+        assert_eq!(offset_of(&back.doc, host(i)), want, "{what} in the host");
+    }
 }

@@ -123,6 +123,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // node-kind vocabulary census, code view
     },
     Entry {
+        path: "crates/editor-core/src/stackup.rs",
+        disposition: Shared, // value-digest retired-tag census, code view
+    },
+    Entry {
         path: "crates/editor-core/src/verbs/mod.rs",
         disposition: Shared, // the two-Verb naming convention, code view
     },
@@ -369,6 +373,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/src/boolean/offer_rows.rs",
         disposition: Shared, // the Boolean's decision sites, code view
+    },
+    Entry {
+        path: "crates/topo/src/boolean/ops.rs",
+        disposition: Shared, // the smooth seam arm's route through the rule, code view
     },
     Entry {
         path: "crates/topo/src/boolean/wall_section_rows.rs",

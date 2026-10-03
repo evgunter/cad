@@ -7,15 +7,14 @@
 //! face patches — on ANY carrier the ladder certifies (plane, sphere,
 //! cylinder, torus; the C4 `Rest` inventory) — and its boundary ∂R — the
 //! seam — runs along operand edges or across single faces, never
-//! through material. The chord joining ([`super::join`]) cannot
-//! complete such seams: at a REST site a germ direction lies in FOUR
-//! coincident tangent planes (two per solid, cosurface via the
-//! declared rung), the two end records of one segment can resolve
-//! that ambiguity onto different face pairs, and the germ-identity
-//! match (face pairs agree) then never fires — the typed
-//! `Join(UnpairedLooseEnds)` / `JoinDesync` refusals (and, for
-//! curved-adjacent seams the join has no section arm for, its typed
-//! per-kind refusal).
+//! through material. The chord joining ([`super::join`]) completes
+//! the seams whose segments name one cell per solid at both of their
+//! ends (germs carry their loci; a segment along an edge of a solid is
+//! that edge, and at an edge-edge site each solid folds it by its own
+//! membership), and refuses typed where it does not —
+//! `Join(UnpairedLooseEnds)` / `JoinDesync`, or for a seam the join
+//! has no section arm for, its per-kind refusal. This lane takes over
+//! those refusals.
 //!
 //! This lane replaces the chord/null-face machinery for exactly that
 //! frontier, **union only**, reached ONLY when (a) the op carries
@@ -384,7 +383,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         KeyView::Direct,
         KeyView::Graft(&graft),
         &desc,
-    );
+    )?;
     remap_carried(
         &mut contacts,
         &body,
@@ -392,7 +391,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &KeyView::Direct,
         &KeyView::Graft(&graft),
         &desc,
-    );
+    )?;
     body.sweep_and_close();
     let body = zipped;
     gate(&body)?;
@@ -465,7 +464,10 @@ fn patch_discards<T: Decide>(
     let kept_across = |f: FaceKey| !patch.contains(&f);
     patch
         .iter()
-        .map(|&f| super::discard::discard_row(body, f, operand, &kept_across, result_ends, None))
+        .map(|&f| {
+            let ends = |_, u, w| result_ends(u, w);
+            super::discard::discard_row(body, f, operand, &kept_across, &ends, None)
+        })
         .collect()
 }
 
@@ -511,16 +513,10 @@ fn enumerate_segments<T: Decide>(
             .ok_or_else(|| desync("REST lane: pair B edge without a record"))?;
         sites.push((a_rec.at_vertex, b_rec.at_vertex));
         for g in &a_rec.germs {
-            let v = red
+            let point = red
                 .a
-                .get_half_edge(g.he)
-                .ok_or_else(|| desync("REST lane: germ half no longer resolves"))?
-                .start;
-            let point = *red
-                .a
-                .get_vertex(v)
-                .and_then(|vd| red.a.get_point(vd.point))
-                .ok_or_else(|| desync("REST lane: germ vertex has no point"))?;
+                .half_edge_start_point(g.he)
+                .ok_or_else(|| desync("REST lane: germ site has no point"))?;
             germs.push(Germ {
                 pair: i,
                 point,

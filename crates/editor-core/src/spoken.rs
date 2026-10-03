@@ -602,7 +602,6 @@ pub fn node_kind_noun<P>(node: &Node<P>) -> &'static str {
         Node::Datum(Datum::AxisInPlane { .. }) => "Datum axis (in sketch)",
         Node::Datum(Datum::Axis { .. }) => "Datum axis",
         Node::Datum(Datum::Point { .. }) => "Datum point",
-        Node::Declare { .. } => "Declare",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",
         Node::Shell { .. } => "Shell",

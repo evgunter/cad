@@ -243,11 +243,13 @@ _open_fillet = Open.at((0 * mm, 0 * mm)).toward(1.0, 0.0)
 _open_fillet.fillet_arc(1 * mm, Bulge((5 * mm, 5 * mm), 0.5))  # ty: error
 
 # LIB-PYG5. The declare doors take FINDINGS — values from the
-# detector — never name text or bare pairs; the detector takes node
-# ids; a finding's fields are read-only projections of the report.
-doc.declare_all(["some-name-text", "another"])  # ty: error
-doc.declare("name-text")  # ty: error
-Node.declare([("a", "b")])  # ty: error
+# detector — never name text or bare pairs, and the live-node doors
+# take the node first; the detector takes node ids; a finding's fields
+# are read-only projections of the report.
+doc.declare_all(solid, ["some-name-text", "another"])  # ty: error
+doc.declare(solid, "name-text")  # ty: error
+Node.union([solid, solid], declare=[("a", "b")])  # ty: error
+DocEdit.set_declare(solid, ["name-text"])  # ty: error
 evaluate(doc).find_flush_candidates(solid, "not-a-node")  # ty: error
 
 # LIB-PYPU. A spacing is an `Expr`, not a bare number: the slot's own

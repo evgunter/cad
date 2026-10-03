@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-01
 priority: P1
 cost: M
-needs_ev: true
 ---
 
 
@@ -51,3 +50,7 @@ The words of a name:
 - **Joins.** A carry through a primary operand (a Boolean's A, a fillet's target) is the body's own continuation and is silent. A carry through a secondary operand (a Boolean's B, a union member) is a join, said with its node, outermost first: "the end cap of Extrude e548, cut in at Subtract 1669". Over carry chains this is injective: two names in one table first differ at a node where one went through B.
 - **Detail.** Below that core, how deep cited names and how wide neighbour lists are said is chosen per speaker: a speaker holding the body's name table (the viewer's pick readout, refusals raised at evaluation) says the least detail unique in that table. A speaker holding no table says {the full form | a fixed default detail} (the open choice).
 - **Gates.** Over the corpus: the full form is injective; table-scoped words are unique per body except ties; every refusal that forwards a name meets the budget with the corpus's longest scoped names; `PairInBand`'s own prose meets the refusal standard.
+
+## Ruled (Ev, PR 3906, 2026-10-03)
+
+The shared core as recommended (joins said, one sentence shape, table-scoped detail, corpus gates), and on the one split the full form for a speaker holding no table. PR 3886 builds it in its fix pass.

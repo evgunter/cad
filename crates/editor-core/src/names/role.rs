@@ -12,7 +12,7 @@
 //! # Kind tagging (spec D1, reported choice)
 //!
 //! A RUNTIME kind tag ([`EntityKind`] field), not phantom typing:
-//! `Declare` pairs, table keys, and (PR 4) hit-test returns all need
+//! declared pairs, table keys, and (PR 4) hit-test returns all need
 //! kind-heterogeneous collections, and the F3 serialization story
 //! wants one concrete type. Kind agreement is enforced at emission
 //! (the table refuses a name whose kind disagrees with its entity).
@@ -1607,7 +1607,6 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Union { .. }
         | Node::Pattern { .. }
         | Node::PlacedUnion { .. }
-        | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Gauge { .. }
         | Node::Mate { .. }
@@ -2115,26 +2114,47 @@ impl StableName {
     /// so a name that spells it is a name on that step's pieces,
     /// whichever node minted the name.
     pub(crate) fn piece_steps(&self) -> std::collections::BTreeSet<StepId> {
-        let mut steps = PieceSteps(std::collections::BTreeSet::new());
-        let Ok(_) = self.clone().rewrite_path(&mut steps);
-        steps.0
+        self.step_pieces()
+            .iter()
+            .filter_map(ProfileEdgeRef::step)
+            .collect()
+    }
+
+    /// **Every authored step's piece this name spells**, over the same
+    /// walk as [`Self::piece_steps`]: an edge locator as itself, a
+    /// vertex locator as the piece that starts there (N1: a vertex is
+    /// named by the piece of the same spelling), a kernel-built
+    /// section's not at all.
+    ///
+    /// What a `SetProgram` that keeps a step asks of each name the
+    /// document holds (DM7): whether the new program still draws the
+    /// piece the name spells.
+    pub(crate) fn step_pieces(&self) -> std::collections::BTreeSet<ProfileEdgeRef> {
+        let mut pieces = StepPieces(std::collections::BTreeSet::new());
+        let Ok(_) = self.clone().rewrite_path(&mut pieces);
+        pieces.0
     }
 }
 
-/// [`StableName::piece_steps`]'s walk: every locator's step collected,
-/// every carried name descended, nothing rewritten.
-struct PieceSteps(std::collections::BTreeSet<StepId>);
+/// [`StableName::step_pieces`]'s walk: every step locator collected
+/// as the piece it names, every carried name descended, nothing
+/// rewritten.
+struct StepPieces(std::collections::BTreeSet<ProfileEdgeRef>);
 
-impl SegRewrite for PieceSteps {
+impl SegRewrite for StepPieces {
     type Error = core::convert::Infallible;
 
     fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
-        self.0.extend(e.step());
+        if let ProfileEdgeRef::Piece { .. } = e {
+            self.0.insert(e);
+        }
         Ok(e)
     }
 
     fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
-        self.0.extend(v.step());
+        if let ProfileVertexRef::Piece { step, role } = v {
+            self.0.insert(ProfileEdgeRef::Piece { step, role });
+        }
         Ok(v)
     }
 

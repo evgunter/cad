@@ -372,12 +372,9 @@ fn triangular_prism(tol: Tol) -> Body<f64> {
 fn scaffold_descriptions(body: &Body<f64>) -> usize {
     body.edges()
         .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(pncad::topo::CurveGeom::certified)
-                    .map(pncad::topo::EdgeCurve::description),
-                Some(&pncad::topo::EdgeDescription::Scaffold(_))
-            )
+            body.get_curve_geom(e.curve)
+                .and_then(pncad::topo::CurveGeom::certified)
+                .is_some_and(|c| c.description().is_scaffold())
         })
         .count()
 }

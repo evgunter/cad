@@ -458,4 +458,57 @@ Signed (PCERT orchestrator).
   - CI was green on 14239df.
   - `mint-has-no-route-to-the-fitted-general-circle-arm` is closed. The sphere general circle is the first uncovered class retired under the 3617 ruling.
 - The incidence/fidelity unit is dispatched (session_01QjnkkS1HoEHDzjjkW3CCWq, branch `pcert/certificate-incidence-fidelity`).
+
+## 2026-10-02 — 3759 delta review; 3812 sequencing
+
+- **The first delta reviewer never started.** It was dispatched with a short SHA as `source_revision`, and the session failed with `ref_not_found`. I re-dispatched it against the branch and the full SHA. Lesson: always give `create_session` a branch name or a full SHA.
+- **3759 delta review (comment 5951607360): merge with 3812, after one more pass.**
+  - All four mutants die.
+  - The 3733 reconciliation is clean.
+  - Both implementer deviations stand. On item 3, m10_9 was left red, which holds only if 3812 restores its pins. On item 6, the stored hull plus `RowInterval` is sound. A row widened by 2π cannot be built; a row shifted by 2π is caught by continuity, except at the wrap joint (MINOR-3).
+  - Fix list sent:
+    - certify the derived images of covered edges on an excused face (MINOR-2, a fix rather than a stated limit);
+    - check the wrap joint (MINOR-3);
+    - stale prose;
+    - `carry_rows` also runs `RowInterval`;
+    - file a row noting that check 5 is vacuous at rest.
+- **3812.** It carries part 2 and the literal walk branch (my ruling: a branch is structure, C4's "chosen once by the loop walk"). It must show the nine widening rows going green on its own head, which is the delta review's pre-merge check.
+  - `chaintol` stays red until `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin` lands.
+  - The trio (3759 + 3812 + the loop-decision unit) lands together, or chaintol is re-baselined with that row named. I'll decide when 3812's dual review is in.
+
+## 2026-10-02 — 3759 settled; 3812 dual review adjudicated
+
+- **3759 settled.** Both delta rounds are in. MINOR-A (a spurious discontinuity at gap position 0) is fixed at `e3d330393`, with a row covering every gap position and `revert()`. I accepted it on my own read: a small fix with its own row.
+- **3812 dual review, frozen head 47f6f723.** R1 (comment 5952460526): APPROVE-WITH-FIXES. R2 (comment 5953499653): NOT-MERGEABLE-AS-IS.
+  - **Correspondence:**
+    - Bilateral: `samples: 0` on point Interval; pin docs measured against the intermediate head; the narrowed dial-set gate; the `MAX_BRANCH_PERIODS` boundary; the `periodic_branch` class left at three sites; the duplicate unlogged door; the fuzz being f64-only and coverage-thin (R1 NOTE-6/S5 sits at NOTE, R2's at MAJOR).
+    - R1 only: the sphere twin refusing at Interval (MAJOR).
+    - R2 only: the frame premise unenforced over a box (MAJOR, a false accept); 4 of 12 mutants surviving, M8 unsound (MAJOR); CI red on the cut_cylinder sidecar (MAJOR); m10_9's bracket and pad refusing (a regression); stale work notes.
+  - The fix list is the union, with all four MAJORs blocking. A confirming review follows the fix pass.
+  - `m10_9`: fix the fillet-meridian radius term if it is a spelling question. Otherwise leave it as an asserted, disclosed regression at P0, like chaintol.
 - 2026-10-02 — Seam note from TANG: main is red on `bounds_census::every_sole_bracket_bound_door_is_in_the_roster` because `pcurve_cache::circle_image_envelope` (PR 3733) has no roster line. Filed as `circle-image-envelope-is-a-sole-bracket-door-missing-from-the-bounds-roster` (P0, E) on your slate; it reds every geom-core-touching PR. (TANG orchestrator)
+
+## 2026-10-02 — 3759 merged (82b52c36c), carrying 3812
+
+- **Merged** on a green head (025d8a0), after two more merges of main. The DUAL-REVIEW-LOG rows landed with it: DR-51 (3759, excluded under 6(e), one review truncated) and DR-52 (3812).
+- **Closed:** S331, `validate-pcurves-cannot-tell-…`, `validate-pcurves-never-recertifies-…`, `site-rows-leaves-an-off-chart-edge-silent`, `extrude-mints-no-pcurve-rows`, `pcurve-certificate-states-incidence-and-fidelity`, SYM's `pcurve-certificate-checks-widen-…` (its residue rowed), and `circle-image-envelope-is-a-sole-bracket-door-…` (fixed on main by 467d4b42f).
+- **Regressions that landed, each rowed:** chaintol's certified wall (the tip box about 1.6e6× worse) until `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`; M10-9's bracket and pad refusing (`fillet-meridian-radius-term-is-registered-only`, P0); the shallow-arc Interval grid (pctail's wide-arc row, given P2).
+- **Next:** the loop-decision unit, with a designer pair first (it touches C4's trim containment against the caller's ChartWindow); then the fillet-meridian P0.
+
+## 2026-10-03 — chart angular comparisons: designer pair, [ev] PR 3919
+
+- **Designer pair** dispatched on `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`, from main at 82b52c36c, with one problem statement and no candidate answers.
+  - They agreed on the core: check 5 and the caller's `ChartWindow` retire, and joints and closure state the integer branch and winding.
+  - They differed on three points: the pole joint, `chart_boundary`'s polygon, and spline charts. After one reconciliation round they converged (one designer moved on all three; they did not cross).
+- **[ev] PR 3919** rewords C4's domain-validity sentence and records DESIGN-FORK-LOG row 47's recommendation half.
+  - Provenance: the trim-window sentence was agent-written on 2026-09-03 (585b3422f, the docs-to-README sweep), and I found no ratification. PR 3781 left it untouched.
+  - Deviation: the blinding byte (87) was drawn after the reports came in, not at dispatch. This is recorded on `analysis/design-fork/pcert-chart-angles-2026-10-03`.
+  - My first commit on that branch overwrote README.md; the next two commits fixed it forward.
+- **Renders:** the nightly re-baselined the kernel, uv, mc and freecad cells after 3759 (e416e33de through a9732a08c).
+
+## 2026-10-03 — fillet-meridian: designer pair, not a fork; parked on PATHS 5b
+
+- I dispatched the pair with the byte drawn at dispatch (101, recorded on `analysis/design-fork/pcert-fillet-meridian-2026-10-03`).
+- Both designers came back with the same answer: the question is already ratified (D1, PR 3453), and the fix is PATHS 5b's fillet arm. So no `[ev]` PR goes out, and no fork-log row is written (protocol rule 1: only forks that go to Ev are rows).
+- The row is corrected and parked on `store-constructed-carriers`. I left a seam note in `work/paths/log.md` asking PATHS to rank 5b.
+- My call: don't take 5b into PCERT. It is PATHS' unit, already specced, and its fillet arm is the fix.

@@ -14,15 +14,19 @@
 //!   band under the bar, times the depth. These poses once returned ∩
 //!   bodies missing that face (a wrong volume, negative on some, tier 3
 //!   red): the join took the chord for the section segment and never
-//!   minted the arc (`chord_join`'s `between_edge_is_section`, the
-//!   `bool_between_line_on_wall` arm).
+//!   minted the arc. REACH first fixed it with a geometric test of the
+//!   chord against the wall; the join's adjacency skip now reads the
+//!   segment's locus instead (JOIN-1), and the section segment here
+//!   lies inside the bar's floor, so no edge is ever taken for it.
 //! - **Cubes touching a drum's wall at a corner**, their main diagonal
 //!   along the wall's normal, inside or outside: each op is the cube's
 //!   volume combined with the drum's, exactly.
 //!
 //! Each row runs ∪, both ∖ and ∩; a body must hold its closed-form
 //! volume and pass tier 3, and a refusal must be the door the row
-//! names.
+//! names. The bars' rows all build: a cut that notches the cap's wall
+//! measures, and one whose section closes inside the wall joins
+//! through the pierce rings.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_1_SQRT_2, PI};
@@ -31,18 +35,13 @@ use crate::common::germ_pair::cyl;
 use crate::common::operands::{framed_bar, three_arc_cylinder};
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::brick;
-use topo::{ArcWindowCase, Body, BooleanError, BooleanResult, SplitJoinError};
+use topo::{Body, BooleanError, BooleanResult};
 
 /// What one op must answer.
 #[derive(Clone, Copy, Debug)]
 enum Want {
     /// A body of this volume (0 for an empty result).
     Volume(f64),
-    /// The pierce ring's join door (`work/tang/pierce-ring-has-no-join-arm`).
-    RingDoor,
-    /// The backstop cannot measure a cap wall the cut notched
-    /// (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`).
-    RimUnmeasured,
 }
 
 fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
@@ -62,27 +61,6 @@ fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
                 "{what}: volume {got}, closed form {v}"
             );
         }
-        (
-            Err(BooleanError::Join(SplitJoinError::SectionArcWindow {
-                case: ArcWindowCase::NoChartedRun,
-                ..
-            })),
-            Want::RingDoor,
-        ) => {}
-        (
-            Err(BooleanError::VolumeUnmeasured {
-                source:
-                    topo::MassPropsError::Face {
-                        source:
-                            geom_brep::props::PropsError::NotIsoRectangle {
-                                what: "props_rim_level",
-                            },
-                        ..
-                    },
-                ..
-            }),
-            Want::RimUnmeasured,
-        ) => {}
         (got, want) => panic!(
             "{what}: wanted {want:?}, got {:?}",
             got.map(|r| r.body().is_some())
@@ -111,8 +89,8 @@ fn band_area(y0: f64, y1: f64) -> f64 {
 /// its centreline `c` off the axis of the unit cylinder `z ∈ [0, 2]`,
 /// sunk `depth` into the top cap. Its near floor edge, at lateral
 /// `c − w/2`, is a chord of the wall, clipped by the bar's own ends.
-/// ∩ and B∖A build; ∪ and A∖B stop where the backstop cannot measure
-/// the notched wall; the deeper poses at `c = 0.9` reach the ring door.
+/// Every op builds, the deeper poses at `c = 0.9` through the pierce
+/// rings their sections close on.
 #[test]
 fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
     let (w, t0, t1) = (
@@ -122,7 +100,7 @@ fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
     );
     let s = FRAC_1_SQRT_2;
     let a = three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0);
-    let vbar = w * w * (t1 - t0);
+    let (vcyl, vbar) = (2.0 * PI, w * w * (t1 - t0));
     for c in [0.9_f64, 1.047, 1.15] {
         let lo = c - w / 2.0;
         let half = (1.0 - lo * lo).sqrt();
@@ -133,17 +111,17 @@ fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
             let b = framed_bar(o, Vec3::new(s, s, 0.0), t0, t1, w);
             let i = area * depth;
             let what = format!("c {c}, depth {depth}:");
-            let want = if c == 0.9 && depth >= 0.03 {
-                [Want::RingDoor; 4]
-            } else {
+            four(
+                &what,
+                &a,
+                &b,
                 [
-                    Want::RimUnmeasured,
-                    Want::RimUnmeasured,
+                    Want::Volume(vcyl + vbar - i),
+                    Want::Volume(vcyl - i),
                     Want::Volume(vbar - i),
                     Want::Volume(i),
-                ]
-            };
-            four(&what, &a, &b, want);
+                ],
+            );
         }
     }
 }
@@ -152,14 +130,13 @@ fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
 /// disc along `x`, lateral band `y ∈ [c − h, c + h]`, sunk `0.1` into
 /// the top cap or raised `0.1` into the bottom one: ∩ is the disc's
 /// band times the depth, whether both floor edges are chords, one is,
-/// or the band runs off the disc. ∪ and A∖B stop where the backstop
-/// cannot measure the notched wall.
+/// or the band runs off the disc.
 #[test]
 fn an_x_bar_sunk_into_either_cap_answers_its_closed_form() {
     let (w, depth) = (0.4_f64, 0.1);
     let h = w / 2.0;
     let a = three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0);
-    let vbar = w * w * 6.0;
+    let (vcyl, vbar) = (2.0 * PI, w * w * 6.0);
     for c in [0.3, -0.95, 1.1] {
         let i = band_area(c - h, c + h) * depth;
         for (cap, zc) in [("top", 2.0 - depth + h), ("bottom", depth - h)] {
@@ -175,8 +152,8 @@ fn an_x_bar_sunk_into_either_cap_answers_its_closed_form() {
                 &a,
                 &b,
                 [
-                    Want::RimUnmeasured,
-                    Want::RimUnmeasured,
+                    Want::Volume(vcyl + vbar - i),
+                    Want::Volume(vcyl - i),
                     Want::Volume(vbar - i),
                     Want::Volume(i),
                 ],

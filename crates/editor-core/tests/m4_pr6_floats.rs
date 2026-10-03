@@ -194,7 +194,7 @@ fn metadata_floats_round_trip_bit_exactly() {
         let mut m = std::collections::BTreeMap::new();
         m.insert("v".to_owned(), MetaValue::Int(1));
         m.insert("x".to_owned(), MetaValue::Float(v));
-        let value = MetaValue::Map(m);
+        let value = MetaValue::map(m).expect("a shallow value");
         // Bit-eq PartialEq (D7): equality on the canonical tree IS
         // bit equality, so assert_eq pins the bits.
         let json = serde_json::to_string(&value).expect("ser");
