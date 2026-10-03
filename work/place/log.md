@@ -120,3 +120,7 @@ A fresh lane ran the fix pass from the union of both reviews:
 - the docs state only the reachable cases.
 
 Next on this ground: the general mate frame (`MateFrame { base, offset }`, `[ev]` #3920) and the root-order docs and tests (`[ev]` #3939).
+
+## 2026-10-03 — root order as A10 and A4 state it (PR 3946)
+
+Review tier: orchestrator's read (docs and tests only). `refactor.rs`'s module docs and the R1 comparator's docs state A10's replacement rule; the reviewer history ("rider (i)", "ordinal 40", "D-4") is gone. The interleaved-cut row asserts the regrouped roots and that a second round trip changes nothing. The asm4 row is renamed off "D-4". The mutant (anchor at the last cut root) turned both rows red.

@@ -1,5 +1,5 @@
 //! **The round-trip comparator** (A4: "inline-of-split returns the
-//! document split was given, up to node ids").
+//! document split was given, up to node ids and that one regrouping").
 //!
 //! Two documents are the same up to node ids under a node map and a
 //! step map when:
@@ -15,7 +15,12 @@
 //!   alignments and heads, and a profile's step ids are all fields;
 //! - **the root lists agree** through the map, in order — the order is
 //!   the product's solid order, semantic and in the content pin
-//!   (`roots.rs`) — and the parameters, labels and ε agree;
+//!   (`roots.rs`) — and the parameters, labels and ε agree. By A10's
+//!   replacement rule split's instance goes where the first cut root
+//!   was and inline splices the part's roots there, so a round trip
+//!   agrees in order exactly when the cut's roots are adjacent in the
+//!   list; a cut a kept root separates comes back regrouped, and this
+//!   check reports that regrouping as a `roots` line;
 //! - **each placement group keeps its document order.** Order is
 //!   semantic within a group (its root is its earliest member carrying
 //!   an offset), so the images of each group's members read in the
