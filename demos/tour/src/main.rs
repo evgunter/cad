@@ -477,7 +477,10 @@ fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured<f64> {
 
 /// A gate's certificate, continued to the number where the quadrature
 /// can reach it.
-fn continued<T: Gated>(label: &str, certificate: pncad::topo::SignCertificate<'_, T>) -> Measured<T> {
+fn continued<T: Gated>(
+    label: &str,
+    certificate: pncad::topo::SignCertificate<'_, T>,
+) -> Measured<T> {
     match certificate.measure() {
         Ok(props) => Measured::Number(props),
         // A body the gate ADMITTED whose schedule cannot reach the

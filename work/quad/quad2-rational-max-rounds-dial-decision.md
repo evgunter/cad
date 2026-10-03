@@ -49,3 +49,26 @@ Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
 and header are unchanged; the directory is the claim (`work/README.md`).
 The `## Home` section above naming `work/cert/` is superseded by this
 line and is kept as the record of why the file was filed there.
+
+## The lily's swept leaves at ε = 1e-12 (REACH, 2026-10-03)
+
+Measured by instrumenting `last_round_width_lo` on `lily_leaf_b`
+(`demos/tour/src/lily.rs`'s `LEAF_B`, a lens section swept along a
+cubic spine), the face the demo K sweep refused:
+
+| face | round-0 width | last-round bound | of which remainder | of which 2·pad | target |
+| --- | --- | --- | --- | --- | --- |
+| leaf_b face 3 | 1.85e-4 | 1.54e-8 | 1.007e-8 (flux) | 2.3e-15 (flux) | 1.024e-9 |
+| leaf_b's other arc wall | 3.91e-5 | 3.89e-9 | 2.49e-9 (flux) | 9.9e-16 (flux) | 1.024e-9 |
+
+(lengths are mean boundary displacement, the flux widths divided by
+the area; the schedule's last round is 1025 × 1031 cuts over 8 × 14
+hull blocks, the composite arm — the weights are not uniform in v.)
+
+The bound is all Taylor remainder: the per-block `f_uu`/`f_vv` hulls
+times the last round's cell sums. Clearing the target at 1e-12 would
+take the dial 7 → 9 on this face (15×, two quarterings), or tighter
+hulls at the same rounds. The refusal is the schedule's honest ending
+and the demo sweep now reads it as the bracket `measure()` hands back
+(`demos/tour/tests/k_probe_brackets.rs`); at 1e-9 and 1e-6 both leaves
+certify a number.

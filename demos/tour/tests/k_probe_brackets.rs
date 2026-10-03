@@ -33,16 +33,12 @@ fn sweep(eps: &str) -> (BTreeSet<String>, Vec<String>) {
         .output()
         .expect("spawn demo-tour");
     let stderr = String::from_utf8_lossy(&out.stderr);
+    let lines: Vec<&str> = stderr.lines().collect();
     assert!(
         out.status.success(),
         "k-probe at eps {eps} exited {:?}; stderr tail:\n{}",
         out.status.code(),
-        stderr
-            .lines()
-            .rev()
-            .take(20)
-            .collect::<Vec<_>>()
-            .join("\n")
+        lines[lines.len().saturating_sub(20)..].join("\n")
     );
     let bracketed = stderr
         .lines()
