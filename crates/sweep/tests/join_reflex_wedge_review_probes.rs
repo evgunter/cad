@@ -86,7 +86,11 @@ fn star(phi: f64, theta: f64, r0: f64, r1: f64) -> Vec<[(f64, f64); 3]> {
     let k = (theta / 50.0).ceil().max(1.0) as usize;
     let at = |i: usize| {
         let f = i as f64 / k as f64;
-        let wob = if i == 0 || i == k { 0.0 } else { 0.18 * (2.3 * i as f64 + 0.4).sin() };
+        let wob = if i == 0 || i == k {
+            0.0
+        } else {
+            0.18 * (2.3 * i as f64 + 0.4).sin()
+        };
         let r = (r0 + (r1 - r0) * f) * (1.0 + wob);
         let t = (phi + theta * f).to_radians();
         (r * t.cos(), r * t.sin())
@@ -144,15 +148,27 @@ fn planar_pose(theta_a: f64, theta_b: f64, phi_b: f64, m: M, declare: bool) -> P
         .flat_map(|p| tb.iter().map(move |q| (p, q)))
         .map(|(p, q)| {
             let c = clip_convex(p, q);
-            if c.len() < 3 || area(&c).abs() < 1e-15 { 0.0 } else { image_volume(&c, zc, m) }
+            if c.len() < 3 || area(&c).abs() < 1e-15 {
+                0.0
+            } else {
+                image_volume(&c, zc, m)
+            }
         })
         .sum();
     let d = if declare {
-        (flush_declarations(&a, &b, tol()), flush_declarations(&b, &a, tol()))
+        (
+            flush_declarations(&a, &b, tol()),
+            flush_declarations(&b, &a, tol()),
+        )
     } else {
         Default::default()
     };
-    Pose { a, b, d, want: [vi, vi, va + vb - vi, va + vb - vi, va - vi, vb - vi] }
+    Pose {
+        a,
+        b,
+        d,
+        want: [vi, vi, va + vb - vi, va + vb - vi, va - vi, vb - vi],
+    }
 }
 
 fn run(p: &Pose, op: &str) -> Result<BooleanResult<f64>, BooleanError> {
@@ -168,8 +184,7 @@ fn run(p: &Pose, op: &str) -> Result<BooleanResult<f64>, BooleanError> {
 }
 
 fn caught(f: impl FnOnce() -> String) -> String {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
-        .unwrap_or_else(|_| "PANIC".into())
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|_| "PANIC".into())
 }
 
 const MAPS: [(&str, M); 3] = [("id", map_id), ("rot", map_rot), ("proj", map_proj)];
@@ -199,8 +214,10 @@ fn rv_planar_battery() {
                         OPS.iter()
                             .zip(p.want)
                             .map(|(op, want)| {
-                                format!("RV {mn} {theta_a} {theta_b} {phi_b} {op} => {}\n",
-                                    caught(|| outcome(run(&p, op), want, tol())))
+                                format!(
+                                    "RV {mn} {theta_a} {theta_b} {phi_b} {op} => {}\n",
+                                    caught(|| outcome(run(&p, op), want, tol()))
+                                )
                             })
                             .collect()
                     });
@@ -303,21 +320,42 @@ fn curved_pose(theta_b: f64, phi_b: f64, rb: f64, tilt: bool, declare: bool) -> 
     curved_pose_z(theta_b, phi_b, rb, tilt, declare, BZ)
 }
 
-fn curved_pose_z(theta_b: f64, phi_b: f64, rb: f64, tilt: bool, declare: bool, bz: (f64, f64)) -> Pose {
+fn curved_pose_z(
+    theta_b: f64,
+    phi_b: f64,
+    rb: f64,
+    tilt: bool,
+    declare: bool,
+    bz: (f64, f64),
+) -> Pose {
     let (o, u, v) = if tilt {
-        (Vec3::new(0.2, 0.1, -0.3), Vec3::new(0.8, 0.5, 0.2), Vec3::new(-0.3, 0.6, 0.7))
+        (
+            Vec3::new(0.2, 0.1, -0.3),
+            Vec3::new(0.8, 0.5, 0.2),
+            Vec3::new(-0.3, 0.6, 0.7),
+        )
     } else {
-        (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
+        (
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        )
     };
     let plane_at = |z0: f64| {
         let pl = sweep::test_support::sketch_from_axes(Point3::new(o.x, o.y, o.z), u, v, tol());
         let n = pl.normal();
         sweep::test_support::sketch_from_axes(
-            Point3::new(o.x + n.x * z0, o.y + n.y * z0, o.z + n.z * z0), u, v, tol())
+            Point3::new(o.x + n.x * z0, o.y + n.y * z0, o.z + n.z * z0),
+            u,
+            v,
+            tol(),
+        )
     };
     let tb = star(phi_b, theta_b, rb, rb);
-    let bv: Vec<(Point2<f64>, f64)> =
-        outline(&tb).iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect();
+    let bv: Vec<(Point2<f64>, f64)> = outline(&tb)
+        .iter()
+        .map(|&(x, y)| (Point2::new(x, y), 0.0))
+        .collect();
     let a = sweep::test_support::prism_on(plane_at(AZ.0), keyhole(), AZ.1 - AZ.0, tol());
     let b = sweep::test_support::prism_on(plane_at(bz.0), bv, bz.1 - bz.0, tol());
     let half_disc = std::f64::consts::PI * KR * KR / 2.0;
@@ -329,7 +367,11 @@ fn curved_pose_z(theta_b: f64, phi_b: f64, rb: f64, tilt: bool, declare: bool, b
             let low = clip_convex(t, &[(-2.0, -2.0), (2.0, -2.0), (2.0, 0.0), (-2.0, 0.0)]);
             let low = if low.len() < 3 { 0.0 } else { area(&low) };
             let up = clip_convex(t, &[(-9.0, 0.0), (9.0, 0.0), (9.0, 9.0), (-9.0, 9.0)]);
-            let up = if up.len() < 3 { 0.0 } else { poly_disc_area(&up, (-KR, 0.0), KR) };
+            let up = if up.len() < 3 {
+                0.0
+            } else {
+                poly_disc_area(&up, (-KR, 0.0), KR)
+            };
             low + up
         })
         .sum();
@@ -337,26 +379,54 @@ fn curved_pose_z(theta_b: f64, phi_b: f64, rb: f64, tilt: bool, declare: bool, b
     let hc = AZ.1.min(bz.1) - AZ.0.max(bz.0);
     let (va, vb, vi) = (area_a * ha, area_b * hb, common * hc);
     let d = if declare {
-        (flush_declarations(&a, &b, tol()), flush_declarations(&b, &a, tol()))
+        (
+            flush_declarations(&a, &b, tol()),
+            flush_declarations(&b, &a, tol()),
+        )
     } else {
         Default::default()
     };
-    Pose { a, b, d, want: [vi, vi, va + vb - vi, va + vb - vi, va - vi, vb - vi] }
+    Pose {
+        a,
+        b,
+        d,
+        want: [vi, vi, va + vb - vi, va + vb - vi, va - vi, vb - vi],
+    }
 }
 
 #[test]
 fn rv_oracles_agree() {
     // The disc oracle against a unit-disc quadrant and a full square.
-    let q = poly_disc_area(&[(0.0, 0.0), (5.0, 0.0), (5.0, 5.0), (0.0, 5.0)], (0.0, 0.0), 1.0);
+    let q = poly_disc_area(
+        &[(0.0, 0.0), (5.0, 0.0), (5.0, 5.0), (0.0, 5.0)],
+        (0.0, 0.0),
+        1.0,
+    );
     assert!((q - std::f64::consts::FRAC_PI_4).abs() < 1e-12, "{q}");
-    let s = poly_disc_area(&[(-0.1, -0.1), (0.1, -0.1), (0.1, 0.1), (-0.1, 0.1)], (0.0, 0.0), 1.0);
+    let s = poly_disc_area(
+        &[(-0.1, -0.1), (0.1, -0.1), (0.1, 0.1), (-0.1, 0.1)],
+        (0.0, 0.0),
+        1.0,
+    );
     assert!((s - 0.04).abs() < 1e-12, "{s}");
-    let h = poly_disc_area(&[(-0.6, 0.0), (5.0, 0.0), (5.0, 5.0), (-0.6, 5.0)], (-0.6, 0.0), 0.6);
+    let h = poly_disc_area(
+        &[(-0.6, 0.0), (5.0, 0.0), (5.0, 5.0), (-0.6, 5.0)],
+        (-0.6, 0.0),
+        0.6,
+    );
     assert!((h - std::f64::consts::PI * 0.09).abs() < 1e-12, "{h}");
     // The image volume of a unit cube under the identity.
-    let c = image_volume(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], (0.0, 1.0), map_id);
+    let c = image_volume(
+        &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        (0.0, 1.0),
+        map_id,
+    );
     assert!((c - 1.0).abs() < 1e-12, "{c}");
-    let r = image_volume(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], (0.0, 1.0), map_rot);
+    let r = image_volume(
+        &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        (0.0, 1.0),
+        map_rot,
+    );
     assert!((r - 1.0).abs() < 1e-12, "{r}");
     // The projective oracle against the kernel on one operand alone.
     for m in [map_rot as M, map_proj] {
@@ -368,7 +438,10 @@ fn rv_oracles_agree() {
     }
     let p = curved_pose(30.0, 200.0, 0.8, true, false);
     let v = topo::mass_properties(&p.a, tol()).unwrap().volume;
-    assert!((v - (8.0 + std::f64::consts::PI * KR * KR / 2.0)).abs() < 1e-9, "keyhole {v}");
+    assert!(
+        (v - (8.0 + std::f64::consts::PI * KR * KR / 2.0)).abs() < 1e-9,
+        "keyhole {v}"
+    );
 }
 
 #[test]
@@ -385,8 +458,10 @@ fn rv_curved_battery() {
                         OPS.iter()
                             .zip(p.want)
                             .map(|(op, want)| {
-                                format!("RVK {tilt} {rb} {theta_b} {phi_b} {op} => {}\n",
-                                    caught(|| outcome(run(&p, op), want, tol())))
+                                format!(
+                                    "RVK {tilt} {rb} {theta_b} {phi_b} {op} => {}\n",
+                                    caught(|| outcome(run(&p, op), want, tol()))
+                                )
                             })
                             .collect()
                     });
@@ -402,8 +477,10 @@ fn rv_curved_battery() {
                         OPS.iter()
                             .zip(p.want)
                             .map(|(op, want)| {
-                                format!("RVKC {tilt} {rb} {theta_b} {phi_b} {op} => {}\n",
-                                    caught(|| outcome(run(&p, op), want, tol())))
+                                format!(
+                                    "RVKC {tilt} {rb} {theta_b} {phi_b} {op} => {}\n",
+                                    caught(|| outcome(run(&p, op), want, tol()))
+                                )
                             })
                             .collect()
                     });
@@ -434,7 +511,14 @@ fn chord_a(t0: f64, sweep: f64) -> (Vec<(Point2<f64>, f64)>, f64) {
         (Point2::new(2.5, 2.0), 0.0),
         (Point2::new(-2.0, 2.0), 0.0),
     ];
-    let poly = [(-2.0, 0.0), (0.0, 0.0), q, (2.5, q.1), (2.5, 2.0), (-2.0, 2.0)];
+    let poly = [
+        (-2.0, 0.0),
+        (0.0, 0.0),
+        q,
+        (2.5, q.1),
+        (2.5, 2.0),
+        (-2.0, 2.0),
+    ];
     let th = sweep.abs().to_radians();
     let seg = 0.5 * (th - th.sin());
     // A concave arc bows into the interior, a convex one out of it.
@@ -448,14 +532,19 @@ fn chord_a(t0: f64, sweep: f64) -> (Vec<(Point2<f64>, f64)>, f64) {
 fn chord_pose(t0: f64, sweep: f64, phi_b: f64, theta_b: f64, bz: (f64, f64)) -> Pose {
     let (av, area_a) = chord_a(t0, sweep);
     let tb = star(phi_b, theta_b, 0.3, 0.3);
-    let bv: Vec<(Point2<f64>, f64)> =
-        outline(&tb).iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect();
+    let bv: Vec<(Point2<f64>, f64)> = outline(&tb)
+        .iter()
+        .map(|&(x, y)| (Point2::new(x, y), 0.0))
+        .collect();
     let a = sweep::test_support::prism_at(av, AZ.0, AZ.1 - AZ.0, tol());
     let b = sweep::test_support::prism_at(bv, bz.0, bz.1 - bz.0, tol());
     // The disc: centre one unit from the origin, left of the tangent
     // for a convex arc, right for a concave one.
     let side = if sweep > 0.0 { 90.0 } else { -90.0 };
-    let c = ((t0 + side).to_radians().cos(), (t0 + side).to_radians().sin());
+    let c = (
+        (t0 + side).to_radians().cos(),
+        (t0 + side).to_radians().sin(),
+    );
     let area_b: f64 = tb.iter().map(|t| area(t)).sum();
     let in_disc: f64 = tb.iter().map(|t| poly_disc_area(t, c, 1.0)).sum();
     let common = if sweep > 0.0 {
@@ -469,7 +558,12 @@ fn chord_pose(t0: f64, sweep: f64, phi_b: f64, theta_b: f64, bz: (f64, f64)) -> 
     let (va, vb, vi) = (area_a * (AZ.1 - AZ.0), area_b * (bz.1 - bz.0), common * hc);
     let va_k = topo::mass_properties(&a, tol()).unwrap().volume;
     assert!((va - va_k).abs() < 1e-9, "a's closed form {va} vs {va_k}");
-    Pose { a, b, d: Default::default(), want: [vi, vi, va + vb - vi, va + vb - vi, va - vi, vb - vi] }
+    Pose {
+        a,
+        b,
+        d: Default::default(),
+        want: [vi, vi, va + vb - vi, va + vb - vi, va - vi, vb - vi],
+    }
 }
 
 #[test]
@@ -477,27 +571,36 @@ fn chord_pose(t0: f64, sweep: f64, phi_b: f64, theta_b: f64, bz: (f64, f64)) -> 
 fn rv_chord_battery() {
     // Concave flank at a convex wedge (160°, 170°, 175°), chord reading
     // reflex; and convex flank at a reflex wedge (200°), chord convex.
-    for (t0, sweep) in [(20.0, -60.0), (10.0, -60.0), (5.0, -40.0), (20.0, -30.0), (-20.0, 60.0)] {
-      for bz in [BZ, BZT] {
-        for phi_b in [2.0, 5.0, 10.0, 15.0, 25.0, 40.0] {
-            for theta_b in [20.0, 60.0, 120.0] {
-                if phi_b + theta_b > 175.0 {
-                    continue;
+    for (t0, sweep) in [
+        (20.0, -60.0),
+        (10.0, -60.0),
+        (5.0, -40.0),
+        (20.0, -30.0),
+        (-20.0, 60.0),
+    ] {
+        for bz in [BZ, BZT] {
+            for phi_b in [2.0, 5.0, 10.0, 15.0, 25.0, 40.0] {
+                for theta_b in [20.0, 60.0, 120.0] {
+                    if phi_b + theta_b > 175.0 {
+                        continue;
+                    }
+                    let line = caught(|| {
+                        let p = chord_pose(t0, sweep, phi_b, theta_b, bz);
+                        OPS.iter()
+                            .zip(p.want)
+                            .map(|(op, want)| {
+                                format!(
+                                    "RVH {} {t0} {sweep} {phi_b} {theta_b} {op} => {}\n",
+                                    bz.1,
+                                    caught(|| outcome(run(&p, op), want, tol()))
+                                )
+                            })
+                            .collect()
+                    });
+                    print!("{line}");
                 }
-                let line = caught(|| {
-                    let p = chord_pose(t0, sweep, phi_b, theta_b, bz);
-                    OPS.iter()
-                        .zip(p.want)
-                        .map(|(op, want)| {
-                            format!("RVH {} {t0} {sweep} {phi_b} {theta_b} {op} => {}\n", bz.1,
-                                caught(|| outcome(run(&p, op), want, tol())))
-                        })
-                        .collect()
-                });
-                print!("{line}");
             }
         }
-      }
     }
 }
 
@@ -514,8 +617,10 @@ fn rv_curved_tall_battery() {
                         OPS.iter()
                             .zip(p.want)
                             .map(|(op, want)| {
-                                format!("RVKT {tilt} {rb} {theta_b} {phi_b} {op} => {}\n",
-                                    caught(|| outcome(run(&p, op), want, tol())))
+                                format!(
+                                    "RVKT {tilt} {rb} {theta_b} {phi_b} {op} => {}\n",
+                                    caught(|| outcome(run(&p, op), want, tol()))
+                                )
                             })
                             .collect()
                     });
