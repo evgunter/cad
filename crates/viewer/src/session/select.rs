@@ -9,7 +9,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{ParamName, RecipeNodeId};
+use pncad::document::{RecipeNodeId, VarName};
 use pncad::prelude::{StableName, attribute};
 use pncad::select::Resolution;
 
@@ -183,7 +183,7 @@ pub enum Selection {
     Node(RecipeNodeId),
     /// A document parameter, selected in the property panel — where
     /// the expression-driven refusal's affordance navigates to.
-    Param(ParamName),
+    Param(VarName),
     /// A face, picked in the viewport.
     Face(FaceSelection),
     /// An edge, picked in the viewport — what a blend is authored
@@ -291,7 +291,7 @@ pub enum Standing {
     /// it.
     Param {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
         /// Whether it is still declared.
         present: bool,
     },
@@ -435,7 +435,7 @@ impl Standing {
 
 #[cfg(test)]
 mod tests {
-    use pncad::document::{ParamName, RecipeNodeId};
+    use pncad::document::{RecipeNodeId, VarName};
 
     use super::Standing;
     use crate::frame::Tone;
@@ -453,7 +453,7 @@ mod tests {
             present,
         };
         let param = |present| Standing::Param {
-            name: ParamName::from_static("thickness"),
+            name: VarName::from_static("thickness"),
             present,
         };
         assert_eq!(node(false).tone(), Tone::Actionable);

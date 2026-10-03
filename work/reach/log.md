@@ -708,3 +708,62 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-03 — an ellipse edge meets a torus face (PR 3973)
+
+- The ellipse door's torus arm answers on the shared root core at degree
+  four (`geom_brep::ConicTorusHarmonics`), each root's slack charged
+  from the residual's running bound; no body is newly built (the
+  tilted-cut torus is filed).
+- Dual review: R1 APPROVE-WITH-FIXES (0/4/5), R2 NOT-MERGEABLE-AS-IS
+  (1/2/5); R2's MAJOR (the crossing row red at ε 1e-12) was R1's MINOR,
+  so it is bilateral and untallied (DR row on this commit).
+- Last fix pass: every slack-meter term pinned by a pose, the graze and
+  fuzz rows exact, the crossing row demands certificates only where the
+  band resolves them, and the circle door keeps main's clear reading
+  (the one moved verdict filed on HONE).
+- An independent verifier session re-ran the claimed mutants and the
+  three-ε rows: VERIFIED. Its note: at ε 1e-12 no row pins the door's
+  liveness.
+## 2026-10-03 — the split gate reads its boxes in the cut's frame (PR 3982)
+
+- The split gate reads every unarmed face's reach in the cut plane's own
+  frame (`boxes::BoxFrame`, `census::face_reach_in`), with closed-form
+  supports for a sphere zone and a ring torus's chart rectangle, so a
+  cut clear of a turned body no longer refuses by its pose.
+- Dual review: both APPROVE-WITH-FIXES, R1 0/1/4 and R2 0/1/3; no MAJOR,
+  so nothing enters the tally (DR row on this commit).
+- Last fix pass: partial-window torus and rim-grazing zone rows end to
+  end (they now kill the extent mutants R1 showed admitting meeting
+  cuts), an aimed spiric row, a per-coordinate row over the extents and
+  the frame's rounding measured; zone ends read from the rim pairs; one
+  window composition; the azimuth-window and spindle-fallback gaps
+  filed.
+- An independent verifier session re-ran the claimed mutants and the
+  three-ε rows: VERIFIED. Its notes: the per-coordinate row pins
+  coordinate 0 only, and no row sees the rim-pair reading in
+  `zone_extent`.
+— (REACH orchestrator)
+
+## 2026-10-03 — the probe sweep reads lily_leaf_b's bracket at ε 1e-12 (PR 3976)
+
+- **The red.** Since #3838 the nightly `k-lint (dev-probe)` row panicked at ε 1e-12. `lily_leaf_b`'s mass ran out of quadrature budget, and the sweep demanded a number.
+- **The change.** The sweep, the tour gate, the lily row and klein now read a volume through one type, `topo::VolumeReading`, which is a number or a certified bracket. Any other reading fails. The new rows check that every bracket encloses its leaf's Pappus volume. They also check that the bracket set is exactly the two swept leaves at 1e-12 and empty at 1e-9 and 1e-6.
+- **Review.** A single full review came back APPROVE-WITH-FIXES with no MAJOR. In the last fix pass the rows learned to catch a degenerate or displaced bracket. The pass also reverted an unrelated `k_report.rs` change and deleted wild's bracket arm, which never ran.
+- **Verification.** An independent verifier session found the pass VERIFIED. All five mutants are red, the rows are green at all three ε, and `k_probe_sweep.sh` exits 0 at all three, where main panics at 1e-12.
+## 2026-10-03 — a carrier tangency off the faces clears the extent scan (PR 3978)
+
+- **The change.** On the no-crossings path, the extent scan clears a carrier tangency whose touch point lies off every face, on a pair the reduction found no event for. A pair with an event still refuses as tangent. A ball deep in a wall, a rigid tilt, and a plate with a hole about the touch now build.
+- **Review.** It was a dual review, frozen at `65e53562cf`, and both reviews came back APPROVE-WITH-FIXES with no MAJOR. Both found rows forgiving enough that the bound mutants survived, and found the guard unpinned at body level.
+- **The fix pass.** It deleted the touch-ball guard (`boundary_clear_of`) and its bound rather than pinning them. The argument: on a silent pair, any loop inside both faces would put an edge within the margin of the other carrier, which the crossing layer records or refuses (premise S). The new row pins the touch at the centre of every loop its margin admits.
+- **Verification.** An independent verifier session found the pass VERIFIED: all five touch and event mutants are red, and the hole and tilt rows are red on the old head and green now. Its notes: S is shown by execution, not by proof, and no body-level row reaches an evented touch. After main's `decide_nonzero` rename, the lane merged main and re-ran the battery and mutants; all three ε are green.
+— (REACH orchestrator)
+
+## 2026-10-03 — a declared Rest mate answers ∩ and both differences (PR 3980)
+
+- **The change.** On the no-crossings path, a declared cylindrical, torus or ball-in-cavity `Rest` mate now answers ∩ and both differences in closed form, where it used to refuse `FallbackExtentUnsupported`. One `Exempt` type holds both the declared-pair and the verified-`Rest` rules. It reads only `rest_contacts`, so an undeclared or merely shared-recipe pair cannot enter.
+- **Review.** A dual review, frozen at `5a5c62365b`. Both reviews came back APPROVE-WITH-FIXES with no MAJOR. Bilaterally they found the exemption's per-pair key and the sphere arm's guards unpinned.
+- **The fix pass.** It narrowed the exemption to verified `Rest` pairs and made the sphere rule all-faces. It pinned both with an undeclared-sphere row and a buried-pebble row; five mutants turn red. Two older findings went to items: the undersized shaft, and the equator in the hole.
+- **Verification.** An independent verifier session found the pass VERIFIED. It could build no undeclared or shared-recipe pair that reaches the exemption, and the suites ran 6912/6912 at all three ε.
+- **Also in this sync.** The slow set's two stale `rigid_map_near_eps_plane_nurbs` entries now carry the names #3964 gave those rows.
+— (REACH orchestrator)

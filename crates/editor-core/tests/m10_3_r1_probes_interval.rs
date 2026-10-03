@@ -48,8 +48,8 @@ use editor_core::drive::{
     BudgetKind, DriveConfig, MeasureAccounting, ReasonClass, RefusalReason, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
-    NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node,
+    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -59,8 +59,8 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn config(max_leaves: usize) -> DriveConfig {
@@ -81,7 +81,7 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("q"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -112,7 +112,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("q"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -421,7 +421,7 @@ fn evidence_only_e2e_consumer_walk() {
         let mut r = Recorder::new();
         r.push(DocEdit::SetDocParam {
             name: name("hole_r"),
-            value: DocParam::Continuous {
+            value: FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.25,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -433,7 +433,7 @@ fn evidence_only_e2e_consumer_walk() {
         });
         r.push(DocEdit::SetDocParam {
             name: name("depth"),
-            value: DocParam::Continuous {
+            value: FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.5,
                 display_unit: UnitSym::canonical_for(Dimension::Length),

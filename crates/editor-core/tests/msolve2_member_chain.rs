@@ -26,9 +26,9 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
-    DocEdit, DocParam, DocParamValue, DocumentId, EvalOptions, Expr, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, MintRefusal, Node, ParamName, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, SitedFace, SplitHalf, StableName, groups,
+    DocEdit, DocumentId, EvalOptions, Expr, FreeValue, FreeVar, MateFault, MateFrame,
+    MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusedRef, SitedFace, SplitHalf, StableName, VarName, groups,
     member_of, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -1242,12 +1242,12 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
     let s = scene("msolve2-a4c");
     let (base, top) = (s.base, s.top);
     let (base_body, top_body) = (s.base_body, s.top_body);
-    let k = ParamName::from_static("k");
+    let k = VarName::from_static("k");
     let (doc, _) = step(
         s.doc,
         DocEdit::SetDocParam {
             name: k.clone(),
-            value: DocParam::Count { value: 1 },
+            value: FreeVar::Count { value: 1 },
         },
     );
     let (doc, pattern) = insert(doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
@@ -1282,7 +1282,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
         doc,
         DocEdit::SetDocParamValue {
             name: k,
-            value: DocParamValue::Count(2),
+            value: FreeValue::Count(2),
         },
     );
     let after = member_of(&doc, &r).expect("still a member at k = 2");

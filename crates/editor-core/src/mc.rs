@@ -50,7 +50,7 @@ use std::sync::Arc;
 use geom_core::Tol;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox, sample_offset};
-use crate::doc::{Doc, ParamName};
+use crate::doc::{Doc, VarName};
 use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, ProfileLift, ValuePayload, evaluate,
 };
@@ -667,7 +667,7 @@ impl Rng {
 /// derivations of this list are two streams as soon as either moves.
 fn laws_of(
     analyzed: &AnalyzedBox,
-) -> Result<Vec<(ParamName, crate::distribution::Distribution)>, McRefusal> {
+) -> Result<Vec<(VarName, crate::distribution::Distribution)>, McRefusal> {
     analyzed
         .varying()
         .map(|(name, p)| {
@@ -707,7 +707,7 @@ pub fn sample_offsets(
     analyzed: &AnalyzedBox,
     config: &McConfig,
     index: usize,
-) -> Result<std::collections::BTreeMap<ParamName, f64>, McRefusal> {
+) -> Result<std::collections::BTreeMap<VarName, f64>, McRefusal> {
     let laws = laws_of(analyzed)?;
     let mut rng = Rng::for_sample(config.seed, index);
     let mut out = std::collections::BTreeMap::new();

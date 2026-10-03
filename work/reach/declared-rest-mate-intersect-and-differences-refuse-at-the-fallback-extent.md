@@ -2,12 +2,13 @@
 id: declared-rest-mate-intersect-and-differences-refuse-at-the-fallback-extent
 kind: issue
 title: A declared cylindrical Rest mate's intersect and both differences refuse FallbackExtentUnsupported, arc-split bore and full-turn bore alike
-status: review
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
 branch: reach/rest-mate-intersect-diff
 pr: 3980
+closed: 2026-10-03
 ---
 
 
@@ -97,3 +98,7 @@ A shaft 1e-7° off the bore's seam escalates
 `Coincidence(Sectors, Moot)` under every op, the union included: the
 sector margin, 1.51e-9, lies inside the band `[1e-9, 1e-8]`, which is
 D4's in-band escalation and not this row's.
+
+## Closed
+
+PR 3980. A shaft seated in a bore under a declared, verified `Rest` now answers ∩ and both differences in closed form, arc-split and full-turn bores alike. So do the torus mate and the ball-in-cavity mate. The no-crossings exemption reads only the `Rest` declarations the declaration check verified. The sphere arm skips only when every face on the sphere is a verified `Rest` against its partner.

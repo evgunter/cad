@@ -76,7 +76,8 @@ pub struct MergedGroup {
     /// Vertices deleted by the dangling-seam pruning, in kill order:
     /// each the free end of a shared edge the glue left dangling inside
     /// the merged face (the argument that this changes no region is
-    /// stated once, at the pruning in `merge_group`). A contact record
+    /// stated once, at the pruning in `merge_group`), or the vertex of a
+    /// closed shared edge the glue killed. A contact record
     /// citing one is consumed and drops.
     ///
     /// Recorded rather than left implicit because this is the one
@@ -698,9 +699,9 @@ impl MergeCoplanarError {
                 diag,
             },
             // Unreachable with `declared: true`; refuse loudly anyway.
-            PlaneEqError::Undeclared { diag, .. } => Self::Escalated {
+            PlaneEqError::Undeclared { coincidence, .. } => Self::Escalated {
                 decision: MergeDecision::DeclaredOffset,
-                diag,
+                diag: coincidence.reported(),
             },
         }
     }
@@ -1507,6 +1508,11 @@ impl<T: Decide> Body<T> {
     /// deleted vertices are recorded in
     /// [`MergedGroup::killed_vertices`], whose docs say where the
     /// region argument lives.
+    ///
+    /// **A closed shared edge goes with its vertex.** Where the dying
+    /// face's whole outline is one closed edge (a disc in a hole of its
+    /// survivor), `kef` leaves the edge's vertex as a lone-vertex ring of
+    /// the survivor, which `mekr` then `kev` delete.
     ///
     /// **The kept faces' boundaries are re-described.** An absorbed
     /// face's boundary edges end on its survivor still described
@@ -2481,6 +2487,60 @@ impl<T: Decide> Body<T> {
         Ok(out)
     }
 
+    /// Deletes the lone-vertex ring `ring` of `rep` with its vertex:
+    /// `mekr` bridges it to `rep`'s outline and `kev` kills the bridge
+    /// and the vertex.
+    fn delete_lone_ring(
+        &mut self,
+        rep: FaceKey,
+        ring: crate::entity::LoopKey,
+        tol: Tol,
+    ) -> Result<(), MergeCoplanarError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let outline = self
+            .get_face(rep)
+            .ok_or(DanglingRef::Entity(EntityId::Face(rep)))?
+            .outer;
+        let target = match self
+            .get_loop(outline)
+            .ok_or(DanglingRef::Entity(EntityId::Loop(outline)))?
+            .boundary
+        {
+            crate::entity::LoopBoundary::Cycle { first } => first,
+            crate::entity::LoopBoundary::Empty { .. } => {
+                return Err(MergeCoplanarError::Op {
+                    error: EulerOpError::LoopNotCycle { r#loop: outline },
+                });
+            }
+        };
+        let bridge = self.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
+        self.kev(bridge.he_plus)?;
+        Ok(())
+    }
+
+    /// Refuses, before any write, a surgery that would leave `rep`'s
+    /// outline a lone vertex: `ring` is the loop the surgery is about
+    /// to reduce to one, and an outline bounds the face's area, so it
+    /// is never one ([`MergeCoplanarError::UnsupportedConfiguration`]
+    /// on `edge`, the edge whose kill would do it).
+    fn refuse_lone_outline(
+        &self,
+        rep: FaceKey,
+        ring: crate::entity::LoopKey,
+        edge: EdgeKey,
+    ) -> Result<(), MergeCoplanarError> {
+        let outline = self
+            .get_face(rep)
+            .ok_or(DanglingRef::Entity(EntityId::Face(rep)))?
+            .outer;
+        if ring == outline {
+            return Err(MergeCoplanarError::UnsupportedConfiguration { edge });
+        }
+        Ok(())
+    }
+
     /// Merges one group into `rep`, its survivor (see the
     /// public op's docs for order and refusals). Runs on the staged
     /// clone.
@@ -2599,11 +2659,35 @@ impl<T: Decide> Body<T> {
                 "merge_group: {}",
                 EstablishedFact::AbsorbedFaceIsRingFree.what()
             );
+            // The loop the kef leaves on the survivor: across a closed
+            // edge that is the whole of both its loops, a lone vertex,
+            // which `mekr` then `kev` delete with its ring.
+            let mate_key = self
+                .get_edge(edge_key)
+                .and_then(|e| e.claim(dying_he))
+                .ok_or(DanglingRef::Entity(EntityId::Edge(edge_key)))?
+                .mate;
+            let (dying, mate) = self
+                .get_half_edge(dying_he)
+                .zip(self.get_half_edge(mate_key))
+                .ok_or(DanglingRef::Entity(EntityId::Edge(edge_key)))?;
+            let kept_loop = mate.parent_loop;
+            if dying.next == dying_he && mate.next == mate_key {
+                self.refuse_lone_outline(rep, kept_loop, edge_key)?;
+            }
             #[cfg(test)]
             tear_before_kef(self, dying_he, edge_key, other);
             self.kef_minting(dying_he, tol)?;
             group.absorbed.push(other);
             group.killed_edges.push(edge_key);
+            if let crate::entity::LoopBoundary::Empty { vertex: lone } = self
+                .get_loop(kept_loop)
+                .ok_or(DanglingRef::Entity(EntityId::Loop(kept_loop)))?
+                .boundary
+            {
+                self.delete_lone_ring(rep, kept_loop, tol)?;
+                group.killed_vertices.push(lone);
+            }
         }
         // Intra-face duplicates: edges now occurring twice within the
         // survivor's loops. On a CURVED survivor (C12.5, M5 PR 9) a
@@ -2681,16 +2765,11 @@ impl<T: Decide> Body<T> {
                 // edge of a doubled cycle the pruning has taken the
                 // rest of. `kev` leaves that ring as a lone vertex, and
                 // `mekr` then `kev` delete the vertex with its ring.
-                // The ring is never the survivor's outline (an outline
-                // bounds the face's area); if the arena says it is,
-                // the shape is refused before any of the three calls.
+                // A ring that is the survivor's outline is refused
+                // before any of the three calls.
                 let other = self.strut_tip(toward_free)?.then_some(near);
-                let outline = self
-                    .get_face(rep)
-                    .ok_or(DanglingRef::Entity(EntityId::Face(rep)))?
-                    .outer;
-                if other.is_some() && ring == outline {
-                    return Err(MergeCoplanarError::UnsupportedConfiguration { edge: edge_key });
+                if other.is_some() {
+                    self.refuse_lone_outline(rep, ring, edge_key)?;
                 }
                 #[cfg(test)]
                 tear_before_kev(self, toward_free, edge_key);
@@ -2698,21 +2777,7 @@ impl<T: Decide> Body<T> {
                 group.killed_edges.push(edge_key);
                 group.killed_vertices.push(free);
                 if let Some(lone) = other {
-                    let target = match self
-                        .get_loop(outline)
-                        .ok_or(DanglingRef::Entity(EntityId::Loop(outline)))?
-                        .boundary
-                    {
-                        crate::entity::LoopBoundary::Cycle { first } => first,
-                        crate::entity::LoopBoundary::Empty { .. } => {
-                            return Err(MergeCoplanarError::Op {
-                                error: EulerOpError::LoopNotCycle { r#loop: outline },
-                            });
-                        }
-                    };
-                    let bridge =
-                        self.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
-                    self.kev(bridge.he_plus)?;
+                    self.delete_lone_ring(rep, ring, tol)?;
                     group.killed_vertices.push(lone);
                 }
                 continue;

@@ -5,7 +5,7 @@
 
 use eframe::egui;
 use pncad::document::{
-    Axis3, Dimension, Doc, Frame, ParamName, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker,
+    Axis3, Dimension, Doc, Frame, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker, VarName,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::Resolution;
@@ -285,7 +285,7 @@ impl ViewerBehavior<'_> {
         // a parameter name is; a refused text leaves the control
         // disabled, and the sentence the refusal carries is not yet
         // shown beside it.
-        let name = ParamName::new(self.drafts.new_param_name.trim()).ok();
+        let name = VarName::new(self.drafts.new_param_name.trim()).ok();
         // `create_param` asks `committed_doc()`, so the notice ahead of
         // the click asks it too: a notice drawn from the previewed
         // document would be answering about a document the door will
@@ -1038,7 +1038,7 @@ pub(crate) fn standing_verdict(
 /// edge and a sentence beside a sentence is drawn past the pane's.
 ///
 /// Answers whether the door was clicked.
-fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &ParamName, dimension: Dimension) -> bool {
+fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &VarName, dimension: Dimension) -> bool {
     // The same sentence the session's refusal would show, and the edit
     // door it offers instead — refuse-then-offer, ahead of the click.
     crate::widgets::message_toned(
@@ -1117,7 +1117,7 @@ pub(crate) fn param_showing(row: &ParamRow, notation: Notation) -> FieldShowing 
 /// and its notation through the one parser and refuses what is
 /// neither.
 pub(crate) fn param_doors(
-    name: &ParamName,
+    name: &VarName,
 ) -> FieldVocabulary<impl Fn(SlotValue) -> SessionOp, impl Fn(String) -> SessionOp> {
     let (by_number, by_text) = (name.clone(), name.clone());
     FieldVocabulary {
@@ -1173,7 +1173,7 @@ fn slot_notes(
     row: &SlotRow,
     reading: Option<&str>,
     notation: Notation,
-) -> Option<ParamName> {
+) -> Option<VarName> {
     if let Err(error) = &row.value {
         crate::widgets::message_toned(
             ui,
@@ -1344,7 +1344,7 @@ mod layout_tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{Dimension, ParamName, SlotId};
+    use pncad::document::{Dimension, SlotId, VarName};
 
     use super::{bounds_notes, exists_notice, slot_notes, slot_showing};
     use crate::pane::headless::{assert_inside, assert_own_lines, assert_under, drawn_in, find};
@@ -1356,8 +1356,8 @@ mod layout_tests {
     /// so these rows read the region and not the floor.
     const REGION: f32 = 260.0;
 
-    fn param(name: &'static str) -> ParamName {
-        ParamName::from_static(name)
+    fn param(name: &'static str) -> VarName {
+        VarName::from_static(name)
     }
 
     /// An extrude distance row with `driver` and `value`.
@@ -1539,14 +1539,14 @@ mod tests {
     use crate::session::{Refusal, SessionOp};
     use crate::theme::Theme;
     use eframe::egui;
-    use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
+    use pncad::document::{Dimension, RecipeNodeId, SlotId, VarName};
 
     use crate::test_support::spoken;
 
     const NODE: RecipeNodeId = RecipeNodeId(test_utils::refusal::tagged(4));
 
-    fn thickness() -> ParamName {
-        ParamName::from_static("thickness")
+    fn thickness() -> VarName {
+        VarName::from_static("thickness")
     }
 
     /// One extrude distance row, driven or not, with the value the
@@ -1850,7 +1850,7 @@ mod verdict_tests {
     #![allow(clippy::expect_used)]
 
     use editor_core::RecipeEditRef;
-    use pncad::document::{Doc, NodeStanding, ParamName, ProfileProgram, RecipeNodeId};
+    use pncad::document::{Doc, NodeStanding, ProfileProgram, RecipeNodeId, VarName};
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
     use pncad::select::{Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate};
 
@@ -2066,7 +2066,7 @@ mod verdict_tests {
     #[test]
     fn an_undeclared_parameters_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Param {
-            name: ParamName::from_static("width"),
+            name: VarName::from_static("width"),
             present: false,
         });
         assert_eq!(
@@ -2086,7 +2086,7 @@ mod verdict_tests {
                 present: true,
             },
             Standing::Param {
-                name: ParamName::from_static("width"),
+                name: VarName::from_static("width"),
                 present: true,
             },
         ] {

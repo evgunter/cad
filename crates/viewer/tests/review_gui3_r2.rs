@@ -34,8 +34,8 @@ use pncad::document::ExtrudeSide;
 use std::sync::Arc;
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, EvalOutcome, Expr, Node, ParamName, ProfileProgram,
-    RecipeNodeId, SlotId,
+    Dimension, Doc, DocEdit, EvalOutcome, Expr, FreeVar, Node, ProfileProgram, RecipeNodeId,
+    SlotId, VarName,
 };
 use pncad::geom_core::Tol;
 
@@ -51,8 +51,8 @@ use viewer::{docio, props, tree};
 
 // --- fixtures, authored here rather than borrowed -------------------
 
-fn width_param() -> ParamName {
-    ParamName::from_static("width")
+fn width_param() -> VarName {
+    VarName::from_static("width")
 }
 
 /// A slab whose extrude distance is a LITERAL and whose transform's
@@ -65,7 +65,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         DocEdit::SetDocParam {
             name: width_param(),
-            value: DocParam::continuous(Dimension::Length, 0.005),
+            value: FreeVar::continuous(Dimension::Length, 0.005),
         },
         tol,
     );

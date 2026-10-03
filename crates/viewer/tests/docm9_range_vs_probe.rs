@@ -16,8 +16,8 @@ use crate::common;
 use editor_core::drive::DriveConfig;
 use editor_core::range::{RangeField, RangeSeed, certified_range};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, DocParamValue, EvalOptions, Evaluation, Expr, Node,
-    NodeResult, ParamName, ProfileDoc, RecipeNodeId, evaluate,
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, FreeValue, FreeVar, Node,
+    NodeResult, ProfileDoc, RecipeNodeId, VarName, evaluate,
 };
 use geom_core::Tol;
 use viewer::bounds::{Bound, BoundsProbe, probe};
@@ -26,8 +26,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// A unit square extruded by a document parameter — the same branch
@@ -39,7 +39,7 @@ fn slab(depth: f64) -> ProfileDoc {
         &mut doc,
         DocEdit::SetDocParam {
             name: name("depth"),
-            value: DocParam::continuous(Dimension::Length, depth),
+            value: FreeVar::continuous(Dimension::Length, depth),
         },
         tol(),
     );
@@ -105,7 +105,7 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
             &doc,
             DocEdit::SetDocParamValue {
                 name: name("depth"),
-                value: DocParamValue::Continuous(v),
+                value: FreeValue::Continuous(v),
             },
             tol(),
         );

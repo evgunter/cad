@@ -10,9 +10,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CapEnd, DocumentId, EditError, EntityKind, InlineError, MateSide, ParamName, PersistError,
-    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode,
-    StableName, StepId, Unplaced,
+    CapEnd, DocumentId, EditError, EntityKind, InlineError, MateSide, PersistError, RecipeNodeId,
+    ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode, StableName, StepId,
+    Unplaced, VarName,
 };
 use test_utils::refusal::Admission;
 
@@ -37,8 +37,8 @@ fn name() -> SpokenName {
     )
 }
 
-fn param() -> ParamName {
-    ParamName::from_static("width")
+fn param() -> VarName {
+    VarName::from_static("width")
 }
 
 test_utils::f6_variants! {

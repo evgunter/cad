@@ -38,8 +38,8 @@
 //! values, so they cross under the node roles every other arm uses.
 
 use pncad::document::{
-    ContentPin, DocParamValue, EditError, FrameSite, HeldNodes, MateFault, ParamName, RecipeNodeId,
-    RootFault,
+    ContentPin, EditError, FrameSite, FreeValue, HeldNodes, MateFault, RecipeNodeId, RootFault,
+    VarName,
 };
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
@@ -68,7 +68,7 @@ pub struct EditPayload<'a> {
     /// ([`crate::tags::slot_id_tag`]).
     pub slot: Option<&'static str>,
     /// The DOCUMENT PARAMETER the refusal is about.
-    pub param: Option<&'a ParamName>,
+    pub param: Option<&'a VarName>,
     /// The STABLE NAME the refusal is about.
     pub name: Option<&'a StableName>,
     /// The appearance-metadata key.
@@ -100,7 +100,7 @@ pub struct EditPayload<'a> {
     /// tolerance's ε.
     pub value: Option<f64>,
     /// The doc-parameter value a kind-mismatching value edit offered.
-    pub offered: Option<DocParamValue>,
+    pub offered: Option<FreeValue>,
     /// A placement frame's linear determinant.
     pub determinant: Option<f64>,
     /// Which of a node's placement frames: a step of a transform's, a

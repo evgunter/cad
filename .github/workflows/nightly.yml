@@ -353,6 +353,9 @@ jobs:
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
         if: matrix.row == 'dev-probe'
         run: scripts/k_probe_sweep.sh target/k-fresh
+      - name: the demo sweep's bracketed bodies, per eps (demos/tour, feature = probe)
+        if: matrix.row == 'dev-probe'
+        run: cd demos/tour && cargo test --features probe --test k_probe_brackets
       - name: large-K lint (gate — a flagged margin fails this row)
         if: matrix.row == 'dev-probe'
         run: |

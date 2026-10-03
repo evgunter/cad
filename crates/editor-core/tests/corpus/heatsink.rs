@@ -30,7 +30,7 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, DocParam, Expr, Node, ParamName, PatternKind, SlotId,
+    BooleanOp, Dimension, DocEdit, Expr, FreeVar, Node, PatternKind, SlotId, VarName,
 };
 
 use crate::fixture::{ang, len, scl};
@@ -46,8 +46,8 @@ const PITCH: f64 = 0.3125;
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("fins"),
-        value: DocParam::Count { value: FINS },
+        name: VarName::from_static("fins"),
+        value: FreeVar::Count { value: FINS },
     });
     let base_p = r.profile(
         [0.0, 0.0, 0.0],
@@ -90,7 +90,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: pattern,
         slot: SlotId::Count,
-        expr: Expr::param(ParamName::from_static("fins"), Dimension::Count),
+        expr: Expr::param(VarName::from_static("fins"), Dimension::Count),
     });
 
     // The explicit one-solid chain. Fin i sits at x = i·PITCH; every
