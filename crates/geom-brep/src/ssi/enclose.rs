@@ -389,21 +389,20 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
             radius,
             ..
         } => {
-            // The derivative of [`implicit_enclosure`]'s own form
-            // `(|w|² − r²)/2r`, `w = q − â(q·â)`: `(w − â(â·w))/r`. The
-            // second term vanishes for an exactly unit `â`, and an `f64`
-            // unit axis is not exactly one, so it is kept: Krawczyk's
-            // uniqueness reads this as the Jacobian of that form.
+            // The exact derivative of [`implicit_enclosure`]'s own form
+            // `(|w|² − r²)/2r`, `w = q − â h`, `h = q·â`:
+            // `(q − â h (2 − |â|²))/r`. An `f64` unit axis is not exactly
+            // unit, and Krawczyk's uniqueness reads this as that form's
+            // Jacobian, so `|â|²` is kept; it is one thin constant, so
+            // the enclosure is as tight as the unit form's.
             let q = subp(b, origin);
             let a = constv(axis);
-            let h = dot3(q, a);
-            let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
-            let aw = dot3(a, w);
+            let h = dot3(q, a) * (Interval::from_bounds(2.0, 2.0) - norm_sq(&a));
             let r = Interval::from_certified(radius);
             [
-                (w[0] - a[0] * aw) / r,
-                (w[1] - a[1] * aw) / r,
-                (w[2] - a[2] * aw) / r,
+                (q[0] - a[0] * h) / r,
+                (q[1] - a[1] * h) / r,
+                (q[2] - a[2] * h) / r,
             ]
         }
         // As the residual enclosure above: no implicit form, no

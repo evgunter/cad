@@ -44,8 +44,14 @@ fn graph_wall(
 /// arcs: from `(0, 0)` and from `(0, L)` on the `v` sides, each to the low
 /// `u` side, with `φ > 0` between them. A cubic from `(0, 0)` to `(0, L)`
 /// stays within ε of the plane across that gap, and its one window — the
-/// whole wall — is a graph over `x`-lines; the true pairing must come
-/// back, with every zero of a dense grid beside a carrier.
+/// whole wall — is a graph over `x`-lines.
+///
+/// **A regression guard for the Hermite path, not this fix's test.** The
+/// march pairs the fold correctly whether or not limb 3 proves one arc;
+/// a candidate generator that proposes the cubic across the gap first
+/// (the Hermite-first order) answers the wrong pairing unless limb 3
+/// refuses it, and this row then goes red. The one-arc proof's own rows
+/// are `ssi::one_arc`'s; here the certificate reports that it ran.
 #[test]
 fn the_fold_answers_its_two_arcs_paired_as_the_locus_pairs_them() {
     let beta = eps();
@@ -97,6 +103,10 @@ fn the_fold_answers_its_two_arcs_paired_as_the_locus_pairs_them() {
     want.sort_by_key(key);
     assert_eq!(pairs, want, "the fold: branches paired across the gap");
 
+    assert!(
+        out.branches.iter().all(|b| b.certificate.tube_one_arc),
+        "the fold: a search's certificate reports its one-arc proof"
+    );
     let far = far_zeros(&|x, y| g(x) + h(y), xr, l, &out, 0.3 * w);
     assert_eq!(far, 0, "the fold: zeros 0.3w from every carrier");
 }
@@ -198,8 +208,15 @@ fn a_short_arc_in_a_long_arcs_end_box_is_traced() {
         })
     });
     assert!(
-        carried && out.branches.len() == 2,
-        "the clipped circle: {} branches, the short arc carried: {carried}",
-        out.branches.len()
+        carried
+            && out.branches.len() == 2
+            && out.branches.iter().all(|b| b.certificate.tube_one_arc),
+        "the clipped circle: {} branches, the short arc carried: {carried}, one-arc proofs \
+         {:?}",
+        out.branches.len(),
+        out.branches
+            .iter()
+            .map(|b| b.certificate.tube_one_arc)
+            .collect::<Vec<_>>()
     );
 }

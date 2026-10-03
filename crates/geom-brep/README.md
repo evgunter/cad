@@ -81,9 +81,11 @@ at two points. The solution set in the chain is one arc. Where limb 3
 runs that proof, each box, cut to the region its search covers (the
 wall's knot rectangle, the ℝ³ slab), holds exactly two simple solutions
 on its boundary, so one piece, and consecutive boxes share it (chart
-edges walked in monotone pieces, ℝ³ faces by Krawczyk). A rung whose
-chain is a graph but not one arc gives way to a narrower one, and with
-none left the certificate refuses (`SsiError::TubeNotOneArc`). For
+edges walked in runs of one sign or monotone, ℝ³ faces by Krawczyk). A
+rung whose chain is a graph but not one arc gives way to a narrower one.
+With none certified, the narrowest rung probed speaks: its band verdict
+where it straddled, `SsiError::TubeNotOneArc` with what it found where
+it was a graph but not one arc. For
 plane×NURBS the chain is the
 wall pcurve's per-span windows, padded along each chart axis by the
 radius over that axis's chart speed (minted once over the wall's domain,

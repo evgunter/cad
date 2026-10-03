@@ -395,11 +395,13 @@ impl<'a> Ends<'a> {
                 what: certify::NURBS_LIMBS_NEED_PCURVE,
             });
         };
-        let cert = certify::certify_chart_search(
+        let cert = certify::certify_branch(
             &carrier,
-            pcurve,
-            self.plane,
-            wall,
+            certify::Lane::Chart {
+                plane: self.plane,
+                wall: *wall,
+                pcurve,
+            },
             TubeScale::uniform(self.extent),
             self.band,
         )?;

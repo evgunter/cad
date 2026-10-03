@@ -2179,11 +2179,13 @@ fn finish_r3(
     let points = trace_points::<2, 3, _, _>(sys, trace);
     let (carrier, _, _) = fit_branch(&points, None)?;
     let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
-    let cert = certify::certify_r3_search(
+    let cert = certify::certify_branch(
         &carrier,
-        (a, b),
+        certify::Lane::Spatial {
+            pair: (a, b),
+            slab: domain.slab(),
+        },
         TubeScale::split(arm, domain.extent),
-        domain.slab(),
         band,
     )?;
     let params = carrier.domain();
@@ -2610,7 +2612,12 @@ pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::Certi
     scale: TubeScale<T>,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
-    certify::certify_branch(carrier, pcurve_b, a, b, scale, band)
+    certify::certify_branch(
+        carrier,
+        certify::Lane::AtRest { a, b, pcurve_b },
+        scale,
+        band,
+    )
 }
 
 /// The idealized stepper's trace of an analytic pair from an explicit
