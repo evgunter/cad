@@ -1200,40 +1200,46 @@ does. The kernel computes each space in the frame of its earliest
 member, chosen from the recipe and never from values or from the world,
 so an unrelated edit moves no bit (D9).
 
-**Structural coincidence.** Two cells coincide structurally when they
-are the same construction of the same variables. Each construction
-states which of its inputs each output carrier is a function of (an
-extrude's end cap is `plane(frame, direction, depth)`, independent of
-the profile; a side wall is independent of where along the direction it
-sits), and carriers compare in a canonical form per kind: the frame
-modulo the kind's own symmetry (a plane forgets in-plane motion and
-folds a shift along its normal into its offset; an axis forgets slide
-and spin along itself), with offsets summed as linear forms over the
-variables with exact rational coefficients and derived variables read
-as their formulas. So the plate and the through-hole extruded by one
-`t` from one frame share their caps, and a copy placed on a face by a
-mate shares that face's plane. Coaxiality is one `Axis` variable read
-twice; tangency is constructed (a sketch may read another surface's
-trace in its plane and continue tangent to it). Agreement that needs
-more than linear arithmetic, or that holds only because two free
-variables have equal values, is found by the symbolic tier (E12) and
-offered as the one edit that makes it one construction; it never glues
-on its own. Every coincidence decision goes through one door, so a
-later rung — such as the symbolic tier's identities consulted on an
-in-band margin — is one addition there: a rung may only turn a refusal
-into glue, never change a body that already builds.
+**Coincidence.** Whether two cells coincide is a margined verdict like
+any other (Q1): a margin decided Zero glues them, a definite one keeps
+them apart, and one in the sliver band between refuses. Structure
+decides something else: whether the coincidence holds across the
+family. Two cells are **structurally** one when they are the same
+construction of the same variables. Each construction states which of
+its inputs each output carrier is a function of (an extrude's end cap
+is `plane(frame, direction, depth)`, independent of the profile; a side
+wall is independent of where along the direction it sits), and carriers
+compare in a canonical form per kind: the frame modulo the kind's own
+symmetry (a plane forgets in-plane motion and folds a shift along its
+normal into its offset; an axis forgets slide and spin along itself),
+with offsets summed as linear forms over the variables with exact
+rational coefficients and derived variables read as their formulas.
+Equality of canonical forms is an equivalence relation, so a chain of
+blocks each built on its neighbour's floor closes into a loop, and a
+brick laid across two of them sits on both, with nothing more said.
+Coaxiality is one `Axis` variable read twice; tangency is constructed (a
+sketch may read another surface's trace in its plane and continue
+tangent to it).
 
-**Booleans.** A boolean's operands are already in one space. A
-structural coincidence glues; a definite verdict acts; an in-band
-coincidence that is not structural refuses, naming the two cells and
-the construction or variable that would make them one.
+A Zero coincidence that is not structural holds only at the current
+values of the variables. The f64 build glues it all the same — so no
+setting changes a built body — and the checks registry reports it as a
+lint, with the edit that would make it one construction; the analysis
+lanes, which run over a parameter box, see it as the point coincidence
+it is and escalate there. Every structural decision goes through one
+door, so a later rung — such as the symbolic tier's identities — is one
+addition there that may only make more coincidences structural.
+
+**Booleans.** A boolean's operands are already in one space. It glues
+what its verdicts decide Zero, keeping one fixed operand's description
+for a merged face, and refuses what falls in the sliver band.
 
 **Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`,
 the bound a variable) checks and never places. At rest, contact and
 interference between copies are findings of the checks registry, not
-refusals; a finding is quiet exactly when an assertion on the same
-measure at the same site has a bound the observation meets and that
-does not straddle zero.
+refusals, as is a coincidence that is not structural; a finding is
+quiet exactly when an assertion on the same measure at the same site has
+a bound the observation meets and that does not straddle zero.
 
 D10 governs where a companion clause disagrees: the declared-contact
 seats (CONTACT-DESIGN C4's `BooleanCoincidence` on booleans, a mate's
@@ -1452,20 +1458,20 @@ Cross-milestone commitments; each binds at the layer named.
   correctness proof; no dirty-flag invalidation. The key shape is
   shipped (mesh back-references, the content/naming keys); a
   finer-grained per-artifact transfer service remains future.
-- **Coincidence is structural, never declared and never inferred from
-  values.** Treating bit-equal descriptions as semantic coincidence
-  would make topology hinge on an UNMARGINED predicate — a razor-thin
+- **Coincidence is a margined verdict; structure decides whether it
+  holds across the family.** Bit-equality is never the test — it would
+  make topology hinge on an UNMARGINED predicate, a razor-thin
   equal-vs-one-ulp cliff with no escalation band, exactly what Q1
-  forbids — and value equality is not evidence of intent anyway. The
-  ladder: (a) **one construction** — the same construction of the
-  same variables, compared in D10's canonical form; (b) cells that agree but
-  are not one object do **not** glue — agreement detection, including
-  the symbolic tier's identities over the variables, is an offer of the
-  edit that makes them one object; (c) near-coincidence between
-  unrelated definitions is a typed sliver error whose resolution is an
-  explicit repair/adoption operation — D7's machinery applied natively.
-  Consequence: topology depends only on recipe structure and margined
-  verdicts, so predicate flips remain the *only* topology-change sites.
+  forbids. The ladder (D10): (a) a margin decided Zero glues, and the
+  coincidence is **structural** when the two cells are one construction
+  of the same variables, compared in canonical form — exact across the
+  whole parameter family; (b) a Zero coincidence that is not structural
+  glues too and is reported as a lint, since it holds only at the
+  current values; (c) a margin in the sliver band refuses typed, its
+  resolution an explicit construction or repair/adoption — D7's
+  machinery applied natively. Nothing is declared. Consequence: topology
+  depends only on recipe structure and margined verdicts, so predicate
+  flips remain the *only* topology-change sites.
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.
