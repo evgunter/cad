@@ -3441,9 +3441,9 @@ impl crate::mate::SolveScalar for geom_core::Interval {
     fn solve_atan2(y: Self, x: Self) -> Self {
         use geom_core::{Bounds, Real};
         if x.hi() < 0.0 && y.lo() <= 0.0 && 0.0 <= y.hi() {
-            Self::pi() + Real::atan2(-y, -x)
+            Self::pi() + (-y).atan2(-x)
         } else {
-            Real::atan2(y, x)
+            y.atan2(x)
         }
     }
 }
