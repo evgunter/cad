@@ -34,3 +34,13 @@ The two other rows take the orchestrator's read, or a single review if the sweep
 ## Exit shape
 
 Every row merged or re-homed with a reason, and the spec's P2-split section recording what was built. No exit criteria are set, so no walk is owed.
+
+## State (2026-10-03)
+
+P2 has merged in full: carry, split, retire and face. Ev ruled three more questions this sitting: #3888 (no hoist; a face side names no face), #3920 (the general mate frame) and #3939 (root order).
+
+The slate now:
+1. **`a-part-resting-on-a-gauge-cannot-follow-a-part-edit`**: build `MateFrame { base: Part | Face, offset: Placement }` (MSOLVE ground), then move the tour's crate onto the shelf's gauge with a placing mate. Dual review.
+2. **`a4-round-trip-moves-the-root-order-of-an-interleaved-cut`**: docs and tests only. Orchestrator's read.
+
+P3 is filed on OFFER.
