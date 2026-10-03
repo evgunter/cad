@@ -26,5 +26,9 @@ ordered structurally: either order mints the same one chord, a sliver
 no winding orients. The wall pierce rings' second chords no longer ask
 a window of an empty run, which moved TANG's ring door
 (`work/tang/pierce-ring-has-no-join-arm`, `## Measured (JOIN-3)`).
+The same straight closing made ZIP's engraved one-arc C refuse
+`SeamOrientation` past a sweep near 130°; it builds at every sweep, and
+the item is claimed and closed here
+(`an-engraved-annular-sector-refuses-seam-orientation`).
 The split lane keeps its per-chord computation
 (`work/cleave/split-lane-second-chord-recomputes-the-first-chords-arc`).
