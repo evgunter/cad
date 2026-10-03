@@ -1,13 +1,12 @@
 # JOIN-2 review — lane r2
 
-PR #3880 at frozen head `17c254c99d` (base main `66bbdaa6bd`). Lane isolation: I read no other
-review branch and no PR comments. I read the PR body through the API.
+PR #3880 at frozen head `17c254c99d` (base main `66bbdaa6bd`). Lane isolation: no other review
+branch and no PR comments were read; the PR body was read through the API.
 
 **Verdict: APPROVE-WITH-FIXES.** Counts: MAJOR 1 · MINOR 2 · NOTE 5.
 
-No wrong body was found anywhere: 0 BAD on either tree over my 2,088-line battery. The MAJOR is a
-SOUND→refusal regression that the PR does not disclose. The fix is to re-file it and pin it, not
-to change code, unless the orchestrator wants the residue decided now.
+No wrong body anywhere: 0 BAD on either tree over my 2,088-line battery. The MAJOR is an undisclosed
+SOUND→refusal regression; its fix is re-filing and pinning, not code, unless the residue is decided now.
 
 How I worked. The probes are in `crates/sweep/tests/join2_r2_probes.rs` (ignored rows registered
 in `all.rs`). Each prints one `common::differential::outcome` line per pose × order × op
@@ -102,10 +101,9 @@ whose loci move is the tangency row (304 diffs). On my battery, every line outsi
 - This is harmless as far as I can see, because paired patches are discarded whole. It is by
   inspection only: I built no pose with two curves there.
 
-**N5. Claim 7 (sweep).** My grep was shaped on `incident_faces|faces_at|fv.contains|half_edge_end(..)==|.start ==|null_site(`
-over `rest/sectors/join/insert/vtxfac`. It finds what the PR lists, plus the new face-by-vertex-pair
-searches below (S1). Two producers of `Locus` exist (`insert.rs:229`, `vtxfac.rs:552`); the rest
-are fixtures.
+**N5. Claim 7 (sweep).** My grep (`incident_faces|faces_at|fv.contains|half_edge_end(..)==|.start ==|null_site(`
+over `rest/sectors/join/insert/vtxfac`) finds what the PR lists plus the new face-by-vertex-pair
+searches (S1). `Locus` producers: `insert.rs:229`, `vtxfac.rs:552`; the rest are fixtures.
 
 ## Style
 
