@@ -109,12 +109,7 @@ pub(super) fn in_plane_frame<T: Decide>(
             Err(diag) => last = Some(diag),
         }
     }
-    Err(last.unwrap_or(Indeterminate {
-        margin: geom_core::MarginDiag::INVALID,
-        band,
-        predicate: Some("split_join_frame_arm"),
-        terminal_sliver: false,
-    }))
+    Err(last.unwrap_or(crate::invalid_margin::invalid(band, "split_join_frame_arm")))
 }
 
 /// Total lexicographic comparison of two on-plane points by their

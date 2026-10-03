@@ -192,6 +192,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        "bool_point_in_solid_beside" => "whether a face lies to one side of a ray along its plane",
+        "bool_point_in_solid_clearance" => {
+            "how far a point lies off the carrier of a face a ray runs along"
+        }
         // The coincidences these names decide.
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
@@ -1967,8 +1971,11 @@ pub enum BooleanError {
     },
     /// The F7 output stage (`merge_coplanar_faces`) refused.
     Merge(MergeCoplanarError),
-    /// The finished result failed a tier gate (kernel bug, loudly —
-    /// no invalid body is ever returned).
+    /// The finished result failed a tier gate, loudly — no invalid
+    /// body is ever returned. A kernel bug, unless an operand carried
+    /// the finding in: an operand edge still described as a scaffold
+    /// reaches every result that keeps it, and the gate refuses it
+    /// there ([`ValidationError::ScaffoldAtRest`]).
     ResultInvalid {
         /// The validator's findings.
         errors: Vec<ValidationError>,
@@ -2841,8 +2848,9 @@ impl core::fmt::Display for BooleanError {
             Self::Merge(e) => write!(f, "coplanar-merge output stage refused: {e}"),
             Self::ResultInvalid { errors } => write!(
                 f,
-                "finished result failed a tier gate ({} finding(s), first: {:?}) — \
-                 kernel bug, no invalid body is returned",
+                "finished result failed a tier gate ({} finding(s), first: {:?}), so no \
+                 body is returned — a kernel bug, unless an operand carried the finding in \
+                 (an edge still described as a scaffold)",
                 errors.len(),
                 errors.first()
             ),

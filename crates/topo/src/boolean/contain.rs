@@ -988,13 +988,10 @@ mod tests {
                 let LoopBoundary::Cycle { first } = body.loops.get(f.outer)?.boundary else {
                     return None;
                 };
-                let top = body.loop_cycle(first)?.into_iter().all(|he| {
-                    body.half_edges
-                        .get(he)
-                        .and_then(|h| body.vertices.get(h.start))
-                        .and_then(|v| body.points.get(v.point))
-                        .is_some_and(|p| p.z == 1.0)
-                });
+                let top = body
+                    .loop_cycle(first)?
+                    .into_iter()
+                    .all(|he| body.half_edge_start_point(he).is_some_and(|p| p.z == 1.0));
                 (top).then_some((k, ring))
             })
             .expect("the holed box has a ringed top face");

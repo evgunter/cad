@@ -7,7 +7,6 @@ priority: P1
 cost: M
 opened: 2026-09-24
 refs: [declared-flush-union-edge-and-vertex-names-follow-member-order]
-design: true
 ---
 
 
@@ -113,3 +112,24 @@ now says the merge never removes a vertex from a face's boundary. The
 question in the fix* has no site left; the question stands as a
 canonical-form ruling, and any boundary-vertex elision it chose would
 re-open the record-carriage class that clause names.
+
+## Ruled (Ev, PR 3881, 2026-10-03)
+
+Maximal edges everywhere, with contact records restructured as cell
+pairs that a join carries by substitution. A union's body is then the
+unique complex with maximal faces and maximal edges over its face
+partition, the same in every member order, and the form is checked at
+tier 2 on the result alone. The ratified text is `docs/DESIGN.md`'s
+merge-stage clause and DM4. The measured case for it: on the three
+edge-contact documents, tier 3′ accepts 13 of 13 orders, all V16 E24.
+
+Build order, each step its own unit:
+1. Contact records as cell pairs, including the vertex-on-edge record
+   `(vertex, edge)`. The census certifies vertex/edge and edge/edge
+   kinds. Substitution carriage goes through a join, and edge-split
+   lineage carries a `(vertex, E)` record onto the piece of a split `E`.
+2. The join op at every output stage (boolean and sweep), with sweeps
+   building one rim edge per run.
+3. The tier-2 check that no joinable vertex remains.
+4. Naming: a union edge spanning several member edges is named for the
+   set (EMIT's ground).

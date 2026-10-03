@@ -309,11 +309,11 @@ pub enum SplitJoinError {
     /// A run reaches it two ways: a below-side PINCH (pieces meeting
     /// at a tip line on the NEGATIVE side of the run's plane normal,
     /// where the ch. 14 insertion mints no vertex copies), and a
-    /// one-sided GRAZE of a curved face (the plane tangent to a
-    /// cylinder's wall, whose contact closes a polygon of its own). A
-    /// plane tangent along a convex edge does not reach it: rule (b)
-    /// classifies that edge with its material, and the contact mints
-    /// nothing. Since M3 PR 6a (D7) the public
+    /// concave GRAZE of a curved face (the plane tangent to a hole's
+    /// wall from inside, whose contact closes a polygon of its own). A
+    /// plane tangent along a convex edge or to a convex wall does not
+    /// reach it: rule (b) classifies that entry with its material, and
+    /// the contact mints nothing. Since M3 PR 6a (D7) the public
     /// [`crate::splitting::split`] consumes this refusal as the pinch
     /// trigger and reruns under the mirrored plane — where pinched
     /// fans are ABOVE runs and mint their copies — so a pinch's
@@ -331,7 +331,7 @@ pub enum SplitJoinError {
     },
     /// A completed section polygon of positive area carries a SPUR: its
     /// loop runs out along a straight edge the plane only touches and
-    /// straight back. The spur is a one-sided graze's contact joined
+    /// straight back. The spur is a concave graze's contact joined
     /// into a real section's polygon instead of closing one of its own;
     /// it would leave a zero-width slit in both halves, with two copies
     /// of every vertex along it on one side. Refused, as the graze
@@ -575,7 +575,7 @@ impl SplitJoinError {
             Self::DegenerateSection { .. } => write!(
                 f,
                 "a section is degenerate: it bounds zero area, where the plane only \
-                 grazes a face (a one-sided tangency) or pinches the solid. Recourse: \
+                 grazes a hole's wall from inside or pinches the solid. Recourse: \
                  {recourse}"
             ),
             Self::SectionSpur { .. } => write!(

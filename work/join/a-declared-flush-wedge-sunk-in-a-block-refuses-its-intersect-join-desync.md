@@ -42,3 +42,36 @@ The refusal is a `JoinDesync` (the kernel-defect class) on a legal
 declared input. Before #3795 the same pose built both ops at the old
 `5.5ε` tilt, which the door now contradicts. The `2ε` tilt was not
 measured before #3795.
+
+## Re-measured on JOIN-1's merge with main (reflex-corner lane, 2026-10-02)
+
+With JOIN-1 (PR 3790) merged in, `loop_roles` refuses this configuration
+typed: `A ∩ B` and `A ∖ B` refuse `Join(SectionLoopUndecided { face })`
+at both tilt signs and at ε 1e-9, 1e-6 and 1e-12. The text ends
+`NOT_YET_ENDING` and names CLEAVE's curved-face frontier. The pose is
+planar, so the frontier's wording does not fit it, and the build this
+row asks for is still owed. The row's `Join` arm pins the typed refusal.
+
+## Builds since CLEAVE far-plane (PR 3866)
+
+On PR 3866's head, both sunk `±2ε` poses read every op the way the
+`±1.2ε` rows do:
+
+- `+2ε`: `A ∩ B` builds at `sin 5° · 0.5` and `A ∖ B` builds at
+  `13.5 − sin 5° · 0.5`, each within the gap, at ε = 1e-9, 1e-6 and
+  1e-12.
+- `−2ε`: the cap and floor crossings refuse down to their ε, as at
+  `−1.2ε`.
+
+`door_backstop_settled_residue.rs` now pins both poses that way.
+
+Why it changed was not traced; the likely route is my inference, not
+measured. PR 3866 made the role ladder's `point_in_solid` witnesses
+stop refusing on readings that concern a ray rather than the point:
+
+- a carrier in band whose foot is outside the face;
+- a ray-level side or advance margin in the in-plane loop walk;
+- a hit in band of a far face's loop.
+
+The section loops' flanking witnesses probably decided through one of
+those. Close this row if a reader agrees.

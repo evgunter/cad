@@ -48,3 +48,30 @@ refusals.
 Trace which lane builds it; pin the pose as a row asserting the
 closed form; the backstop that refuses an implausible volume does not
 see a 0.13 % excess.
+
+## Traced (JOIN reflex-corner lane, 2026-10-02)
+
+The REST zip builds it. `ops::through_the_join`: the join refuses
+`JoinDesync` "B senses agree at a matched pair", and
+`rest::try_rest_union` answers the declared union from the saved
+reduction. The first step that goes wrong is upstream of both: the
+corner's vertex pair keeps four germs and `insert` runs one of B's null
+edges the long way round
+(`work/join/four-germ-vertex-pairs-run-b-in-a-order`). The second is
+the zip admitting a union that is not a pure REST contact: the 45° wall
+crosses `b`'s cap transversally at the same corner.
+
+With JOIN's run-order fix applied (that row), the join still refuses
+here, and the zip answers two more unions of the probe with the same
+shape of wrong volume, `va + vb` with the overlap ignored: `eBot` at
+`(sx, sy) = (−0.5, −0.25)` (16 against 15.880) and `(−0.25, −0.5)` (16
+against 15.768). So the JOIN fix waits on this row.
+
+## Wider than one pose (PR 3900's review, 2026-10-03)
+
+The review's widened battery (`join_rc_probes` `rc_wide_battery`:
+eleven shears per axis, the profiles turned as well) found the class
+wider. Unturned `sqQ1` ∪ gives `v = 16` at 10 poses: sx ∈ {−0.75, −0.5,
+−0.3, −0.25} with sy > 0. It is the same before and after PR 3900's
+strut-order change. The bar is that `rc_wide_battery` reports no
+wrong body.

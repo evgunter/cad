@@ -2,13 +2,13 @@
 id: two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted
 kind: issue
 title: A shell lying wholly on the other operand's boundary (two Parts of one body at one boolean, and three shapes sharing no Arc) refuses ShellWitnessExhausted, naming no coincidence
-status: open
+status: closed
 opened: 2026-09-04
 priority: P0
 cost: M
+closed: 2026-10-03
 pr: 3897
 branch: fuse/on-verdict
-design: true
 ---
 
 ## What
@@ -74,3 +74,23 @@ this line and is kept as the record of why the file was where it was.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (FUSE, PR 3897 and Ev's ruling on PR 3883, 2026-10-03)
+
+The whole-shell `On` verdict from PR 3897 answers every shell lying
+on the other operand through settled coincidence. That covers two
+`Part`s of one half, a master beside `Part(Instance(0))`,
+`(X ∪ Z) op X`, `(X ∪ Y_inside) op X` and the declared twin. Each
+answers by the coincidence keep table: `A ∪ A` and `A ∩ A` are `A`,
+and `A − A` is the typed empty result. An uncovered surface refuses
+`CoincidentShell` with a diagnosis. Every row is in
+`crates/editor-core/tests/on_verdict_rows.rs` and
+`crates/topo/tests/on_verdict.rs`.
+
+Ev ruled on PR 3883 (2026-10-03, "the recommendation sounds good!"):
+there is no slip check. Two distinct nodes evaluating to one body meet
+DM5, because distinctness is over node ids only, and the boolean
+answers them; DM5's sentence in `crates/editor-core/REFERENCES.md`
+says so. The designer pair crossed twice, a third designer broke the
+crossover, and all three converged on N. That is fork-log row 47.
+
