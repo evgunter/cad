@@ -7,7 +7,6 @@ opened: 2026-10-01
 priority: P2
 cost: M
 design: true
-needs_ev: true
 ---
 
 
@@ -30,3 +29,7 @@ The tree's practice splits by what the quantity is. A **length** an operation co
 - **Revolve.** `work/carve/revolve-angle-is-a-signed-size-beside-a-directed-axis` stays as the tree has it (signed, nonzero, within a turn) and can close against this; what is left there is whether its zero and full-range refusals name a recourse.
 
 Weighed by two designers in two rounds (fork-log row 55); their reports are in the PR.
+
+## Ruled (Ev, PR 3941, 2026-10-03)
+
+The circular step keeps its sign within a turn, as angles do elsewhere ("we allow angles between -2pi and 2pi like everywhere else"); the linear spacing is a positive length; the extrude stands. Ev on the revised answer: "sounds good!". Build as the section above says.
