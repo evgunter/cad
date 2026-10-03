@@ -2,11 +2,12 @@
 id: arc-side-rule-has-two-predicates
 kind: issue
 title: The chord's arc-side rule is the azimuth window on a monotone section and the run side on a tilted sphere section, where the chart-free one could serve every conic
-status: open
+status: review
 opened: 2026-10-02
 priority: P1
 cost: M
-design: true
+pr: 3985
+branch: reach/arc-from-pairing
 ---
 
 
@@ -56,3 +57,23 @@ at its reduce, and only tilted sphere sections take the run-side rule
 `a_tilted_split_of_a_sphere_body_refuses_before_either_arc_rule`).
 When the split lane admits sphere faces, the unification this item asks
 for could hand the walk's arc to `chord_spec` instead of re-deriving it.
+
+## Answered (PR 3985, `reach/arc-from-pairing`)
+
+Neither predicate: the arc is the pairing's datum. The designer pair
+(`analysis/design-fork/arc-side-rule-d1` and `-d2`) converged on it and
+the orchestrator adopted it. The join hands `chord_spec` the section's
+direction of departure at each site (`chord_join::Leave`): the boolean
+germ's `dir`, the split's `±(n_plane × n_out)` (`splitting::join`'s
+`split_leave`, which `conic_pairs` walks by too). The chord takes, of
+the conic's two arcs, the one leaving its start along it
+(`chord_arc_leave`). `select_arc`, `select_arc_by_run_side`,
+`SectionConic::azimuth_monotone`, the window handed to the planar side,
+`ArcWindowCase`'s chord cases, `ArcSideCase`, `SectionArcSide` and
+`SectionNotPolar` are gone; the cone apex's window case survives as
+`SplitJoinError::ApexUnlifted` for the window walk's other readers.
+
+Landed behind a cross-check: both selections side by side, refusing on
+any disagreement, over the full suite at three ε. The PR body has the
+counts and the one class where they disagreed (the run-side rule read
+the wrong run).

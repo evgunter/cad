@@ -2,8 +2,10 @@
 id: a-wedge-across-a-full-turn-collar-desyncs-its-chord-roles
 kind: issue
 title: A partial-revolve wedge crossing a full-turn collar's cap refuses JoinDesync: every chord arc separates a loose scaffolding pair
-status: open
+status: review
 opened: 2026-10-02
+pr: 3985
+branch: reach/arc-from-pairing
 ---
 
 
@@ -32,3 +34,13 @@ refuses under ∖, ∪ and ∩ alike. Measured on `tang/pierce-ring`
 
 The desync is the kernel's: a valid wedge cut through a valid collar.
 Its witness, the smallest: `ρ (0.3, 0.9)`, `y (0.5, 1.5)`, angle 1.
+
+## Evidence (2026-10-03, PR 3985, `reach/arc-from-pairing`)
+
+Re-measured the 48-pose matrix on `main` at `0770bfaa3`: the
+`JoinDesync` no longer reproduces; 12 poses build under ∖, ∪ and ∩, and
+36 refuse `Join(SectionArcWindow { BothContained })` under each op (the
+bore and outer wall are full-turn faces, whose window spans a period).
+On the branch, which reads no window, all 48 build under ∪, ∩,
+collar ∖ wedge and wedge ∖ collar, tiers 2 and 3 clean, to the
+annular-sector closed form (`crates/sweep/tests/wedge_through_a_full_turn_collar.rs`).

@@ -2,11 +2,13 @@
 id: planar-side-of-a-tilted-plane-sphere-cut-has-no-arc-cue
 kind: issue
 title: The boolean's planar side of a plane x sphere cut tilted against the sphere's chart has no arc cue: it selects by the wall face's azimuth window, which a tilted section lacks
-status: open
+status: review
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [sphere-seam-in-a-plane-face-loses-the-fallback-recut-to-the-tilted-section-refusal, arc-side-rule-has-two-predicates]
+pr: 3985
+branch: reach/arc-from-pairing
 ---
 
 
@@ -59,3 +61,22 @@ it — `boolean::join` would join the wall side first), with the
 between-arc test re-stated against the same cue and the window
 computed only where a monotone section reads it. The three poses
 above, under every op, against their cap closed forms, are its rows.
+
+## Answered (PR 3985, `reach/arc-from-pairing`)
+
+The planar side reads the germ's direction, as the wall side does, and
+the up-front `face_azimuth_window` read is gone. Measured against the
+quarter-cap closed forms (`c` the cap beyond `x = 0.5`), every op:
+
+- `brick((0.5, 3), (−2, 2), (0, 2))` against the `y`-poled unit ball:
+  builds, `20 + 4π/3 − c/2`, `c/2`, `20 − c/2`, `4π/3 − c/2`;
+- the same box mirrored to `z ∈ (−2, 0)`: builds, the same forms;
+- `brick((0.5, 3), (−2, 2), (−2, 2))` (the planar face holds the whole
+  circle, a pierce ring): builds, `40 + 4π/3 − c`, `c`, `40 − c`, `4π/3 − c`;
+- the cube against the `y`-poled ball(0.3) at `(0.5, 0.5, 1)`: the
+  chords build and the role read refuses `SectionLoopUndecided`
+  (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
+
+Rows: `crates/sweep/tests/tilted_sphere_pair.rs`,
+`a_plane_tilted_against_the_balls_chart_builds_under_every_boolean` and
+`a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read`.

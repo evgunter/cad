@@ -495,7 +495,8 @@ fn wall_graze<T: Decide>(
 /// wrong. It cannot also name the FACE: the variant carries a
 /// `VertexKey` only, and widening it to an `EntityId` is public API,
 /// filed as issue #695 (`splitting/neighborhood.rs`). Both outside
-/// callers (`chord_join.rs:1088`, `:1289`) then `map_err` this into
+/// callers (`chord_join`'s `wall_section` and `bool_planar_chord_spec`)
+/// then `map_err` this into
 /// their own corrupt-face / corrupt-vertex refusals, so at those two
 /// the distinction is flattened on arrival — loud, but reported as a
 /// body corruption for what is really unsupported inventory. Closing

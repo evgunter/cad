@@ -456,12 +456,11 @@ fn wall_contained_ellipse_spans(part: &Body<f64>, height: f64) -> Vec<f64> {
 /// landed outside the chord's own interval and the rule selected the
 /// COMPLEMENT arc (≈342.5°, ≈315.6°) every time.
 ///
-/// S9 replaced the premise with **containment in the divided face's own
-/// azimuth window** (`split_arc_window`), derived from the run through
-/// the same closed-form chart machinery PR 6 certifies pcurves with.
-/// This row now asserts what the repair produces: a two-sided split
-/// whose eight section arcs are the SHORT ones, each staying on the
-/// finite wall over its whole stored interval.
+/// The chord now takes the arc the split's conic walk entered the face
+/// along (`chord_join::Leave`), reading no sample and no window. This
+/// row asserts what that produces: a two-sided split whose eight
+/// section arcs are the SHORT ones, each staying on the finite wall over
+/// its whole stored interval.
 ///
 /// ---- The defect's evidence, kept as a history note ----
 ///

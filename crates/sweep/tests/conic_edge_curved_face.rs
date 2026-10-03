@@ -287,9 +287,8 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<topo::BooleanError> {
 /// (`work/join/cylinder-sphere-germ-pair-has-no-section-frame.md`), and
 /// a rod's parallel wall pair no join arm
 /// (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`) — the
-/// narrow rods too, since their pierce ring in the drum's wall joins
-/// (TANG, PR 3851; before it they stopped at the ring,
-/// `SectionArcWindow { NoChartedRun }`). On the base the balls
+/// narrow rods too, since their pierce ring in the drum's wall joins.
+/// On the base the balls
 /// refused `CurvedPierceUnsupported` on the rim, and the rods on their
 /// own rim circle, whose root on the drum wall the wall's chart trim
 /// (bounded by the rim's arcs) could not place.
@@ -345,43 +344,31 @@ fn a_rim_crossing_reaches_the_join() {
 }
 
 /// **A ball poking through the cut face, clear of the rim** — the row
-/// whose ball never comes within 0.2 of the rim. The rim clears, and the
-/// next door depends on the ball's chart: charted about `y`, the cut
-/// plane's section of it is not a latitude circle, and the join refuses
-/// `SectionNotPolar`
-/// (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`);
-/// charted about the cut's normal, the join passes and the
-/// classification's at-infinity probe cannot measure the cut wall in
-/// closed form
+/// whose ball never comes within 0.2 of the rim. The rim clears, the join
+/// passes whatever the ball's chart — charted about `y`, where the cut
+/// plane's section of it is not a latitude circle, as charted about the
+/// cut's normal — and the classification's at-infinity probe cannot
+/// measure the cut wall in closed form
 /// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
 #[test]
 fn a_ball_through_the_cut_face_clears_the_rim_and_stops_downstream() {
     let a = drum_lower();
     let c = [0.0, 0.0, 0.5];
-    for (label, b, polar) in [
-        ("ball charted about y", ball(0.3, c), false),
-        (
-            "ball charted about the cut normal",
-            polar_ball(0.3, c),
-            true,
-        ),
+    for (label, b) in [
+        ("ball charted about y", ball(0.3, c)),
+        ("ball charted about the cut normal", polar_ball(0.3, c)),
     ] {
         let (examined, accepted) = rim_pairs(label, &a, &b);
         assert!(examined > 0, "{label}: the rim is examined");
         assert_eq!(accepted, 0, "{label}: and cleared");
         for e in refusals(&a, &b) {
-            let at_the_door = if polar {
+            assert!(
                 matches!(
                     e,
                     topo::BooleanError::Containment(topo::PointInSolidError::VolumeUncertified)
-                )
-            } else {
-                matches!(
-                    e,
-                    topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
-                )
-            };
-            assert!(at_the_door, "{label}: got {e:?}");
+                ),
+                "{label}: got {e:?}"
+            );
         }
     }
 }

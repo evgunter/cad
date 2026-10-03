@@ -2085,8 +2085,8 @@ pub enum BooleanError {
     ///   window's blocker MOVED at M6-2: `Pcurve::Fitted` now exists
     ///   and certifies at rest (the SSI enclosure/certify stack is no
     ///   longer `f64`-only), so what is left is the JOIN LANE itself —
-    ///   `run_azimuth_window`/`chart_pcurve` have no cyl×sphere window
-    ///   analog, and building one is still banked. **The exact coaxial
+    ///   the C5 table has no cyl×sphere arm for the chord's carrier
+    ///   (`chord_join::section_case`), and building one is still banked. **The exact coaxial
     ///   classification does not retire this**, and the sentence is
     ///   re-verified rather than moved: the coaxial arm's locus is two
     ///   exact CIRCLES and needs no fitted chord at all, so it gives

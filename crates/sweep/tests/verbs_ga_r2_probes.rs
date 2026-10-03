@@ -289,9 +289,7 @@ fn r2_the_cone_fixture_door_is_measured_not_just_excluded() {
     // the ring lane gave a cone roots; any typed refusal that names the
     // cone's own absence is consistent with the fence.
     match &err {
-        BooleanError::Join(topo::SplitJoinError::SectionArcWindow { .. }) => {
-            panic!("the cone reached the ring lane's join door: {err:?}")
-        }
+        BooleanError::Join(_) => panic!("the cone reached the ring lane's join: {err:?}"),
         other => {
             eprintln!("cone fixture door, measured: {other:?}");
         }

@@ -2,11 +2,13 @@
 id: join-ranks-conic-facing-germs-by-chord
 kind: issue
 title: The join's find_match and loose_partners rank conic-facing germs by chord, and the rotational facing test accepts germs back to back across a gap
-status: open
+status: review
 opened: 2026-10-02
 priority: P2
 cost: M
 refs: [JOIN-1, rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity]
+pr: 3985
+branch: reach/arc-from-pairing
 ---
 
 
@@ -61,3 +63,28 @@ head. A second shape of the same ranking, unmeasured: sites on one
 conic where the true partner lies more than a half turn away along the
 arc, and another opposed-sense site past it, nearer by chord
 (`2r·sin(Δ/2)` falls past `Δ = π`).
+
+## Measured and fixed (2026-10-03, PR 3985, `reach/arc-from-pairing`)
+
+Reached on a whole body, in the suite:
+`crates/editor-core/tests/reach_slab_cut_sector_side.rs`,
+`a_slab_across_a_round_boss_builds_in_four_orders_and_stops_typed_in_two`,
+order `[1, 2, 0]`. The boss wall third carries a ring hole where the
+slab passes through it; the plate's top cuts the circle `z = 1` across
+it at `x = 1.4` and `x = 1.6` (`y ≈ 1.59`), whose germs point AWAY from
+each other into the face (the long way round), and `find_match` paired
+them by chord (0.2) with the true partners further along the walk. On
+`main` the window selector then took the short arc, across the hole,
+and the op stopped later at the ringed-wall door; reading the germs'
+arc instead, it refused `RingHomingAmbiguous`.
+
+The fix is not a re-ranking: `partners` rejects a conic pair when
+another site of the same locus lies strictly between them along the
+near germ's walk (`walk_passes`, `bool_join_walk_site` /
+`bool_join_walk_order`), the order `conic_pairs` pairs by. The chord
+ranking among valid pairs is untouched, so a match where chord-nearest
+already was walk-nearest keeps its surgery order — the hazard this item
+recorded (`axis_lap::a_blind_d_pocket_builds_from_below_and_refuses_from_above`)
+stays green. `loose_partners` shares `partners`, so it sees the same set. It also answers the second shape above: a site with
+another site of the locus between it and its partner along the walk is
+never matched, whatever the chord lengths.

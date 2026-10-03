@@ -674,10 +674,10 @@ fn every_node_refusal_renders_within_the_budget() {
         // The shared one is the escalated arm's: `Indeterminate::ending`
         // composed over the levers the door has, so the split's text
         // carries the margin payload beside it. An arm with a lever of
-        // its own — `SectionArcSide`'s "move the geometry", for a
-        // definite verdict no declaration would change — is NOT it, and
-        // the levers alone no longer tell the two apart now that
-        // `NO_DECLARATION_RECOURSE` is the lever and not a sentence.
+        // its own — "move the geometry", for a definite verdict no
+        // declaration would change — is NOT it, and the levers alone no
+        // longer tell the two apart now that `NO_DECLARATION_RECOURSE`
+        // is the lever and not a sentence.
         if let Some(arm) = name.strip_prefix("Boolean/Join/") {
             let split = rows
                 .iter()
@@ -1528,14 +1528,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::CircularAxes),
                 },
             ),
-            (
-                "SectionArcWindow",
-                J::SectionArcWindow {
-                    face,
-                    case: topo::ArcWindowCase::NeitherContained,
-                    band: band(),
-                },
-            ),
+            ("ApexUnlifted", J::ApexUnlifted { face }),
             (
                 "SectionInvariant",
                 J::SectionInvariant {
@@ -1548,15 +1541,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::RingOffCylinderChart {
                     face,
                     kind: geom::SurfaceKind::Sphere,
-                },
-            ),
-            ("SectionNotPolar", J::SectionNotPolar { face, band: band() }),
-            (
-                "SectionArcSide",
-                J::SectionArcSide {
-                    face,
-                    case: topo::ArcSideCase::EndsDisagree,
-                    band: band(),
                 },
             ),
             (

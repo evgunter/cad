@@ -1770,8 +1770,8 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// story.
 ///
 /// A successful wall pierce reaches the join with a ring in the
-/// pierced face, and the ring's chords take their arc from that face's
-/// own azimuth window (`chord_join`'s `cross_loop_window_cycle`).
+/// pierced face, and the ring's chords take the arc the pierce germs'
+/// directions name (`chord_join::Leave`).
 ///
 /// **This lane WIDENS what an undeclared pair reaches, and the widening
 /// is named here rather than left to be discovered.** Before it,
@@ -3371,10 +3371,9 @@ impl Placement {
     ///   ringed face) while every boundary edge is a line or a circle
     ///   (anything else answers `Unread` first), and the one such bore
     ///   tried — a full-turn collar less a partial-revolve wedge —
-    ///   refuses before any mate: `Join(SectionArcWindow{BothContained})`
-    ///   with the wedge inside the collar's height, `JoinDesync` where it
-    ///   crosses a cap
-    ///   (`work/tang/a-wedge-across-a-full-turn-collar-desyncs-its-chord-roles.md`);
+    ///   builds under every op
+    ///   (`sweep/tests/wedge_through_a_full_turn_collar.rs`); whether
+    ///   any of its poses passes through this arm is unmeasured;
     /// - **any `Recorded`** records;
     /// - **every on-carrier end `Elsewhere`** has placed nothing on this
     ///   face. That is no event only when `interior_clear` — the arm

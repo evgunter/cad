@@ -164,23 +164,61 @@ fn the_multi_spike_corner_meet_passes_tier_3() {
 /// (`insert::strut_facing`). Bound the other way, the join matches a
 /// meridian's segment with the half beside the other meridian and
 /// refuses `JoinDesync` ("every chord arc separates a loose scaffolding
-/// pair"). Bound right, every op in either order reaches the polar
-/// section frontier.
+/// pair"). Bound right, every op in either order builds: the shared
+/// volume is the half ball below `z = 0` less the half of its cap beyond
+/// `x = 0.25`, `π/12 − πh²(3r − h)/6` at `r = ½`, `h = ¼`. A result
+/// carrying a sphere face bounded by the tilted circle `x = 0.25` is no
+/// operand for the next boolean yet: point classification cannot read
+/// that face
+/// (`work/reach/carved-sphere-body-cannot-be-classified-or-reused-as-an-operand.md`).
 #[test]
 fn a_pole_struts_halves_face_their_own_meridians() {
+    use core::f64::consts::PI;
     let ball = sweep::test_support::ball_poled_y(0.5, geom_core::Vec3::new(0.0, 0.0, 0.0), tol());
     let b = brick((-1.0, 0.25), (-1.0, 1.0), (-1.0, 0.0), tol());
-    for (what, r) in [
-        ("ball ∪ box", topo::union(&ball, &b, tol())),
-        ("box ∪ ball", topo::union(&b, &ball, tol())),
-        ("ball ∖ box", topo::subtract(&ball, &b, tol())),
-        ("box ∖ ball", topo::subtract(&b, &ball, tol())),
-        ("ball ∩ box", topo::intersect(&ball, &b, tol())),
-        ("box ∩ ball", topo::intersect(&b, &ball, tol())),
+    let (r, h) = (0.5f64, 0.25f64);
+    let shared = PI / 12.0 - PI * h * h * (3.0 * r - h) / 6.0;
+    let (v_ball, v_box) = (4.0 / 3.0 * PI * r.powi(3), 1.25 * 2.0);
+    for (what, res, want) in [
+        (
+            "ball ∪ box",
+            topo::union(&ball, &b, tol()),
+            v_ball + v_box - shared,
+        ),
+        (
+            "box ∪ ball",
+            topo::union(&b, &ball, tol()),
+            v_ball + v_box - shared,
+        ),
+        (
+            "ball ∖ box",
+            topo::subtract(&ball, &b, tol()),
+            v_ball - shared,
+        ),
+        (
+            "box ∖ ball",
+            topo::subtract(&b, &ball, tol()),
+            v_box - shared,
+        ),
+        ("ball ∩ box", topo::intersect(&ball, &b, tol()), shared),
+        ("box ∩ ball", topo::intersect(&b, &ball, tol()), shared),
     ] {
-        match r {
-            Err(topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })) => {}
-            other => panic!("{what}: want Join(SectionNotPolar), got {:?}", other.err()),
+        let res = res.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let bb = res.body().unwrap_or_else(|| panic!("{what}: empty"));
+        topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+            .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
+        topo::validate_geometric_certificate(&bb.body, tol())
+            .unwrap_or_else(|e| panic!("{what}: certificate: {e:?}"));
+        let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
+        assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
+        let far = brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol());
+        match topo::union(&bb.body, &far, tol()) {
+            Ok(_)
+            | Err(topo::BooleanError::Containment(topo::PointInSolidError::PartialSphereFace {
+                ..
+            })) => {}
+            Err(e) => panic!("{what}: as an operand, {e:?}"),
         }
     }
 }
