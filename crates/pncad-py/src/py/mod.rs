@@ -53,7 +53,8 @@ pyo3::create_exception!(
      and the one it was offered), `kind`, `from_kind`, `to_kind`, \
      `count`, `first`, `again`, `value`, `offered`, `determinant`, \
      `index` (which of a node's placement frames: a transform's step \
-     or an explicit rule's listed placement), `path`, `value_path` and \
+     or an explicit rule's listed placement), `side` (the mate side \
+     whose frame offset holds that step), `path`, `value_path` and \
      `pin`.\n\n\
      ONE ATTRIBUTE PER CONCEPT. Where two arms name one concept \
      differently the concept's clearest word wins — `expected`/ \

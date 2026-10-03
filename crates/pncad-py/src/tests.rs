@@ -362,9 +362,9 @@ fn distribution_form_and_fault_tags_are_stable() {
 fn analysis_refusal_tags_are_stable() {
     use crate::tags::{analysis_policy_error_tag, measure_unavailable_tag};
     use pncad::analysis::{AnalysisPolicy, box_mass};
-    use pncad::document::{Distribution, ParamName};
+    use pncad::document::{Distribution, VarName};
 
-    let bore = ParamName::from_static("bore");
+    let bore = VarName::from_static("bore");
     let refusal = box_mass(
         &bore,
         &Distribution::Band { lo: -1.0, hi: 1.0 },
@@ -1811,10 +1811,10 @@ fn display_formatter_refusals_carry_the_shared_non_finite_tag() {
 #[test]
 fn expression_text_door_tags_are_stable() {
     use crate::tags::parse_error_tag as tag;
-    use pncad::document::{ParamName, parse_expr};
+    use pncad::document::{VarName, parse_expr};
 
     let mut declared = BTreeMap::new();
-    declared.insert(ParamName::from_static("width"), Dimension::Length);
+    declared.insert(VarName::from_static("width"), Dimension::Length);
     let refuse = |src: &str| {
         parse_expr(src, &declared).expect_err("this source is not a well-formed expression")
     };
@@ -1876,13 +1876,12 @@ fn expression_text_door_tags_are_stable() {
 fn expression_evaluation_tags_are_stable() {
     use crate::tags::eval_error_tag as tag;
     use pncad::document::{
-        DocEdit, DocParam, EvalError, Expr, ParamName, ProfileDoc, apply, eval, eval_count,
-        parse_expr,
+        DocEdit, EvalError, Expr, FreeVar, ProfileDoc, VarName, apply, eval, eval_count, parse_expr,
     };
 
     let tol = Tol::witness();
-    let width = ParamName::from_static("width");
-    let declare = |name: &ParamName, param: DocParam| {
+    let width = VarName::from_static("width");
+    let declare = |name: &VarName, param: FreeVar| {
         let doc: ProfileDoc = crate::identity::derived("expression-evaluation-probe", tol);
         apply(
             &doc,
@@ -1897,8 +1896,8 @@ fn expression_evaluation_tags_are_stable() {
         .doc
     };
 
-    let lengths = declare(&width, DocParam::continuous(Dimension::Length, 0.1));
-    let counts = declare(&width, DocParam::Count { value: 3 });
+    let lengths = declare(&width, FreeVar::continuous(Dimension::Length, 0.1));
+    let counts = declare(&width, FreeVar::Count { value: 3 });
     let empty: ProfileDoc = crate::identity::derived("expression-evaluation-empty", tol);
 
     let mut declared = BTreeMap::new();
@@ -2417,6 +2416,7 @@ fn node_error_tags_are_the_published_words() {
         MateOffsetDisagrees => "mate_offset_disagrees",
         MateOffsetUnchecked => "mate_offset_unchecked",
         MateFaceUnresolved => "mate_face_unresolved",
+        MateFrameUnevaluated => "mate_frame_unevaluated",
         CrossingUnverified => "crossing_unverified",
         Unplaced => "unplaced",
         PlacementRefused => "placement_refused",
@@ -2621,7 +2621,7 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
 fn edit_inner_variant_tags_are_stable() {
     use crate::tags::{edit_error_tag, edit_inner_variant_tag};
     use pncad::document::{
-        Distribution, EditError, MetaVersionError, ParamName, RecipeNodeId, RootFault,
+        Distribution, EditError, MetaVersionError, RecipeNodeId, RootFault, VarName,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
@@ -2633,7 +2633,7 @@ fn edit_inner_variant_tags_are_stable() {
         .expect_err("a zero sigma breaks an E2 invariant");
     assert_eq!(
         pair(&EditError::InvalidDistribution {
-            name: ParamName::from_static("bore"),
+            name: VarName::from_static("bore"),
             fault,
         }),
         ("invalid_distribution", Some("sigma_not_positive"))
@@ -2691,16 +2691,16 @@ fn edit_inner_variant_tags_are_stable() {
 fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
-        AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
-        DocumentId, EditError as E, Frame, MeasureNodeFault, MetaVersionError, ParamName,
-        RecipeNodeId, RootFault, SlotId, StepId, StepIdFault,
+        AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocumentId,
+        EditError as E, Frame, FreeValue, MeasureNodeFault, MetaVersionError, RecipeNodeId,
+        RootFault, SlotId, StepId, StepIdFault, VarName,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
 
     let id = |n: u64| RecipeNodeId(n);
     let sp = |n: u64| pncad::document::SpokenNode::absent(id(n));
-    let param = || ParamName::from_static("bore");
+    let param = || VarName::from_static("bore");
     let named = || {
         pncad::document::SpokenName::absent(StableName {
             kind: EntityKind::Face,
@@ -2977,7 +2977,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::DocParamValueKindMismatch {
             name: param(),
             declared: Dimension::Length,
-            offered: DocParamValue::Count(3),
+            offered: FreeValue::Count(3),
         },
         &["param", "expected", "offered"],
     );
@@ -4212,13 +4212,14 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                 *word,
                 "`{word}` reads back as a slot the forward map spells otherwise"
             ),
-            // The two words an address is not completed by: a profile
-            // program's expression is reached by a loop index, a step
-            // index and an argument role, and a later placement step's
-            // by a step index and a component, none of which the word
-            // carries.
+            // The three words an address is not completed by: a
+            // profile program's expression is reached by a loop index,
+            // a step index and an argument role, a later placement
+            // step's by a step index and a component, and a mate
+            // offset's by a side, a step index and a component, none
+            // of which the word carries.
             None => assert!(
-                matches!(*word, "profile" | "placement_step"),
+                matches!(*word, "profile" | "placement_step" | "mate_frame_step"),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
         }
@@ -4453,10 +4454,10 @@ fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
 #[test]
 fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
     use crate::tags::{edit_error_tag, snapshot_error_tag};
-    use pncad::document::{Dimension, EditError, ParamName, RecipeNodeId, SlotId, SnapshotError};
+    use pncad::document::{Dimension, EditError, RecipeNodeId, SlotId, SnapshotError, VarName};
 
     let spoken = pncad::document::SpokenNode::absent(RecipeNodeId(5));
-    let name = || ParamName::from_static("width");
+    let name = || VarName::from_static("width");
 
     let pairs: [(&str, &str, EditError, SnapshotError); 4] = [
         (
@@ -4722,6 +4723,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "escalated",
             "euler",
             "fallback_extent_unsupported",
+            "germ_edge_carrier_unsupported",
             "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
             "graft_recertify",
@@ -4738,6 +4740,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pcurves",
             "pieces",
             "point_split_carrier_unsupported",
+            "poisoned_carrier_datum",
             "rest_zip_unsupported",
             "result_invalid",
             "result_volume_implausible",
@@ -5314,6 +5317,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_dangling_head",
             "mate_face_unresolved",
             "mate_frame_degenerate",
+            "mate_frame_unevaluated",
             "mate_indeterminate",
             "mate_offset_disagrees",
             "mate_offset_unchecked",
@@ -5844,6 +5848,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "direction_z",
             "distance",
             "instance",
+            "mate_frame_step",
             "normal_x",
             "normal_y",
             "normal_z",

@@ -14,11 +14,11 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
-    Datum, Dimension, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Expr,
-    ExprPath, Frame, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
-    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, Placement, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SlotId, SplitHalf, Step, StepArg, TubeWindow, ValuePayload, evaluate,
+    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Expr, ExprPath, Frame,
+    FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
+    SplitHalf, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -245,8 +245,8 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::from_static("r"),
-                value: DocParam::continuous(Dimension::Length, 0.5),
+                name: VarName::from_static("r"),
+                value: FreeVar::continuous(Dimension::Length, 0.5),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -270,7 +270,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                     plane: doc.order()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
-                        radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
+                        radius: Expr::param(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
@@ -284,8 +284,8 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let broken = doc
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::from_static("r"),
-                value: DocParam::continuous(Dimension::Length, 0.0),
+                name: VarName::from_static("r"),
+                value: FreeVar::continuous(Dimension::Length, 0.0),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -787,8 +787,26 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-                b: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+                a: MateFrame::authored(
+                    [0.0; 3],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                    geom_core::Tol::witness(),
+                )
+                .expect("a definite frame"),
+                // A face base whose offset is a literal then a rigid
+                // step: the rigid step's slots carry the side and the
+                // step's own index.
+                b: MateFrame::on_face(
+                    Placement::literal(&Frame::translation([0.0, 0.0, 1.0])).compose(
+                        &Step::Rigid {
+                            translation: [len(0.5), len(0.0), len(0.0)],
+                            axis: [scl(0.0), scl(0.0), scl(1.0)],
+                            angle: ang(0.5),
+                        }
+                        .into(),
+                    ),
+                ),
                 primitive: MatePrimitive::Coaxial,
                 sense: AxisSense::Aligned,
                 clocking: None,

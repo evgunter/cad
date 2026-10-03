@@ -938,14 +938,14 @@ fn row(name: &str, kind: NodeErrorKind) -> (String, NodeErrorKind) {
 /// The arms whose sentence `NodeErrorKind` writes itself, each on a
 /// representative payload where it forwards.
 fn own_arms() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::{Dimension, EvalError, ParamName, SlotId};
+    use editor_core::{Dimension, EvalError, SlotId, VarName};
     use payloads::*;
     vec![
         row(
             "Expr",
             NodeErrorKind::Expr {
                 slot: SlotId::Distance,
-                source: EvalError::UnknownParam(ParamName::from_static("width")),
+                source: EvalError::UnknownParam(VarName::from_static("width")),
             },
         ),
         row(
@@ -1124,7 +1124,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "SeedPinnedSection",
             NodeErrorKind::SeedPinnedSection {
                 section: RecipeNodeId(tagged(3)),
-                param: ParamName::from_static("width"),
+                param: VarName::from_static("width"),
             },
         ),
         row(
@@ -2864,9 +2864,9 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
 /// analysis seeds, placement rules, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError, ParamName,
+        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError,
         PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
-        TieWitness,
+        TieWitness, VarName,
     };
     use geom_core::Sign;
     use payloads::*;
@@ -2878,12 +2878,12 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     let eval: Vec<(&str, EvalError)> = vec![
         (
             "UnknownParam",
-            EvalError::UnknownParam(ParamName::from_static("width")),
+            EvalError::UnknownParam(VarName::from_static("width")),
         ),
         (
             "ParamDimensionMismatch",
             EvalError::ParamDimensionMismatch {
-                name: ParamName::from_static("width"),
+                name: VarName::from_static("width"),
                 expected: Dimension::Length,
                 found: Dimension::Angle,
             },
@@ -2909,13 +2909,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "UnknownParam",
             ParamBoxError::UnknownParam {
-                param: ParamName::from_static("width"),
+                param: VarName::from_static("width"),
             },
         ),
         (
             "AxisUnrepresentable",
             ParamBoxError::AxisUnrepresentable {
-                param: ParamName::from_static("width"),
+                param: VarName::from_static("width"),
                 lo: 1.0,
                 hi: 0.0,
             },
@@ -2925,19 +2925,19 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "UnknownParam",
             SeedError::UnknownParam {
-                param: ParamName::from_static("width"),
+                param: VarName::from_static("width"),
             },
         ),
         (
             "CountParam",
             SeedError::CountParam {
-                param: ParamName::from_static("n"),
+                param: VarName::from_static("n"),
             },
         ),
         (
             "TangentUnrepresentable",
             SeedError::TangentUnrepresentable {
-                param: ParamName::from_static("width"),
+                param: VarName::from_static("width"),
             },
         ),
     ];
@@ -3722,6 +3722,19 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                     })
                     .expect("a face"),
                 }),
+            },
+        ),
+        (
+            "FrameUnevaluated",
+            M::FrameUnevaluated {
+                mate: n(9),
+                side: MateSide::B,
+                refusal: Box::new(
+                    NodeErrorKind::DegenerateDirection {
+                        role: "transform rotation axis",
+                    }
+                    .into(),
+                ),
             },
         ),
         (

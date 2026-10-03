@@ -10,7 +10,7 @@
 
 use pncad::analysis::{AnalysisPolicy, analyzed_box, box_mass, tail_mass};
 use pncad::document::{
-    Dimension, Distribution, DocEdit, DocParam, ParamName, ProfileDoc, apply, load, save,
+    Dimension, Distribution, DocEdit, FreeVar, ProfileDoc, VarName, apply, load, save,
 };
 use pncad::geom_core::Tol;
 
@@ -26,10 +26,10 @@ fn main() {
     // is toleranced symmetric-ish but clipped by inspection (truncated
     // normal), and the fit allowance is uniform by assumption.
     let mut doc = ProfileDoc::empty_derived("r1-tolerance-study", tol);
-    let declare: &[(&str, DocParam)] = &[
+    let declare: &[(&str, FreeVar)] = &[
         (
             "bore_r",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Length,
                 0.004,
                 Distribution::Normal { sigma: 5e-6 },
@@ -37,7 +37,7 @@ fn main() {
         ),
         (
             "plate_t",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Length,
                 0.012,
                 Distribution::Band {
@@ -48,7 +48,7 @@ fn main() {
         ),
         (
             "web_w",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Length,
                 0.003,
                 Distribution::TruncatedNormal {
@@ -60,7 +60,7 @@ fn main() {
         ),
         (
             "fit",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Scalar,
                 1.0,
                 Distribution::Uniform {
@@ -69,13 +69,13 @@ fn main() {
                 },
             ),
         ),
-        ("holes", DocParam::Count { value: 4 }),
+        ("holes", FreeVar::Count { value: 4 }),
     ];
     for (name, value) in declare {
         doc = apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::from_static(name),
+                name: VarName::from_static(name),
                 value: value.clone(),
             },
             tol,
@@ -125,10 +125,10 @@ fn main() {
     }
 
     // Price a driver-leaf-shaped sub-box on the measured bore.
-    let bore = b.get(&ParamName::from_static("bore_r")).expect("axis");
+    let bore = b.get(&VarName::from_static("bore_r")).expect("axis");
     let leaf = (0.0, bore.offsets.hi / 2.0);
     let m = box_mass(
-        &ParamName::from_static("bore_r"),
+        &VarName::from_static("bore_r"),
         &bore.distribution.expect("annotated"),
         leaf,
     )
@@ -137,9 +137,9 @@ fn main() {
 
     // And the refusal a first-time user WILL hit: pricing a leaf over
     // the vendor band.
-    let plate = b.get(&ParamName::from_static("plate_t")).expect("axis");
+    let plate = b.get(&VarName::from_static("plate_t")).expect("axis");
     match box_mass(
-        &ParamName::from_static("plate_t"),
+        &VarName::from_static("plate_t"),
         &plate.distribution.expect("annotated"),
         (0.0, 1e-4),
     ) {

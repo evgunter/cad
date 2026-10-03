@@ -11,8 +11,8 @@ use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
-    DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
-    PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, evaluate,
+    EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, FreeVar, Node, PatternKind,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
 use geom_core::Tol;
@@ -329,8 +329,8 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     let (doc2, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("pip_depth"),
-            value: DocParam::continuous(Dimension::Length, DEPTH * 1.5),
+            name: VarName::from_static("pip_depth"),
+            value: FreeVar::continuous(Dimension::Length, DEPTH * 1.5),
         },
     );
     let ev2 = rerun(&doc2, &ev1);

@@ -659,3 +659,72 @@ the above — land it as planned. Park each row the hold covers
 (`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
 so the row fires when the ruling closes). If that leaves your program
 with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — TINT's rigid-map row at ε 1e-12 (PR 3964)
+
+TINT has no orchestrator, and the row was red on main, so REACH took it.
+- **The fix.** The row now states limb 1 against a closed-form oracle and
+  limb 2 against its pinned floor. The kernel is unchanged.
+- **Review.** A single full review came back APPROVE-WITH-FIXES with no
+  MAJOR. Over 11 mutants, the new row catches every one the old row caught
+  at 1e-9 and 1e-6, plus three more. The last fix pass made limb 2 read the
+  pinned `FLOOR` and stated limb 1's 1e-12 resolution. It restricted the
+  row to rotations about the origin and filed the translation drift. The
+  orchestrator re-ran two mutants, both red.
+— (REACH orchestrator)
+
+## 2026-10-03 — the intent-refactor hold (Ev, #3990): eight rows parked
+
+REACH parked the eight open rows the hold covers. Each one rides declared
+contact, a declared continuation or tangent ruling, or the
+undeclared-coincidence refusals. They are parked with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`, the build row that
+the hold moved onto when Ev ratified D10. Each fires when that row closes:
+- `rounded-stack-subtract-and-intersect-refuse-fallback-extent`
+- `a-settled-declared-coincidence-crosses-a-tight-volume-bound`
+- `maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip`
+- `a-union-over-a-declared-continuation-keeps-its-walls-split`
+- `a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported`
+- `a-sharp-plate-offset-over-a-rounded-one-refuses-unpaired-loose-ends`
+- `an-uncovered-edge-tangent-to-a-fillet-at-the-curved-operands-vertex-refuses`
+- `covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only`
+
+Every PR in flight was started before the notice, so each one finishes as
+planned: #3976, #3973, #3978, #3980, #3982, #3977, #3984, #3985 and #3987.
+REACH still has startable rows outside the hold: the carved sphere body,
+the conic and quadric doors, the trimmed sphere group, and the hole-inside
+volume tie. So the program stays `active`, and each unit is checked against
+the hold before it is dispatched.
+— (REACH orchestrator)
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-03 — the split gate reads its boxes in the cut's frame (PR 3982)
+
+- The split gate reads every unarmed face's reach in the cut plane's own
+  frame (`boxes::BoxFrame`, `census::face_reach_in`), with closed-form
+  supports for a sphere zone and a ring torus's chart rectangle, so a
+  cut clear of a turned body no longer refuses by its pose.
+- Dual review: both APPROVE-WITH-FIXES, R1 0/1/4 and R2 0/1/3; no MAJOR,
+  so nothing enters the tally (DR row on this commit).
+- Last fix pass: partial-window torus and rim-grazing zone rows end to
+  end (they now kill the extent mutants R1 showed admitting meeting
+  cuts), an aimed spiric row, a per-coordinate row over the extents and
+  the frame's rounding measured; zone ends read from the rim pairs; one
+  window composition; the azimuth-window and spindle-fallback gaps
+  filed.
+- An independent verifier session re-ran the claimed mutants and the
+  three-ε rows: VERIFIED. Its notes: the per-coordinate row pins
+  coordinate 0 only, and no row sees the rim-pair reading in
+  `zone_extent`.
+— (REACH orchestrator)

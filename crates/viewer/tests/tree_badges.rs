@@ -1028,7 +1028,9 @@ fn child_band_refusal_rows() {
             path: Vec::new(),
         })
     };
-    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    // The part base with no step: no band forms to author vectors
+    // through.
+    let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
     // DOOR 2a — a mate cannot be INSERTED where no band exists: the
     // edit door refuses it with the solve's own `Band`. A snapshot
     // loaded under this tolerance can still hold one, and the solve
@@ -1238,14 +1240,14 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
     use std::collections::BTreeMap;
 
     use pncad::analysis::{BoxAxis, ParamBox};
-    use pncad::document::{Datum, Dimension, DocParam, Expr, Node, NodeErrorKind, ParamName};
+    use pncad::document::{Datum, Dimension, Expr, FreeVar, Node, NodeErrorKind, VarName};
 
     let tol = Tol::witness();
-    let span = ParamName::from_static("span");
+    let span = VarName::from_static("span");
     let doc = common::declared(
         "tree-frame-direction",
         &span,
-        DocParam::continuous(Dimension::Scalar, 0.0),
+        FreeVar::continuous(Dimension::Scalar, 0.0),
         tol,
     );
     let (doc, frame) = common::inserted(
@@ -1729,8 +1731,8 @@ const SNAPSHOT_END: &str = "BAND-SNAPSHOT-END";
 /// What the loading child prints once its last assertion has run.
 const SNAPSHOT_LOAD_DONE: &str = "BAND-SNAPSHOT-LOAD-COMPLETE";
 
-/// The mate both instances carry: frame coincidence on authored frames
-/// whose vectors clear the author's band by two orders.
+/// The mate both instances carry: frame coincidence on the two parts'
+/// own frames.
 fn snapshot_mate(
     a: pncad::document::RecipeNodeId,
     b: pncad::document::RecipeNodeId,
@@ -1745,7 +1747,10 @@ fn snapshot_mate(
             path: Vec::new(),
         })
     };
-    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1e4], [1e4, 0.0, 0.0]);
+    // The part base with no step: its frame is the part's own, which
+    // asks no direction of the band (an authored frame's literal is
+    // unit-length, and its re-minted axis does not clear a band of 16).
+    let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
     Node::Mate {
         a: face_of(a),
         b: face_of(b),

@@ -25,8 +25,8 @@ use crate::fixture;
 use editor_core::analysis::{BoxAxis, ParamBox};
 
 use editor_core::{
-    CancelToken, Datum, Dimension, DirectionRefusal, DocEdit, DocParam, EvalOptions, Expr,
-    FramePlacement, Node, ParamName, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
+    CancelToken, Datum, Dimension, DirectionRefusal, DocEdit, EvalOptions, Expr, FramePlacement,
+    FreeVar, Node, ProfileDoc, RecipeNodeId, ValuePayload, VarName, evaluate,
 };
 use geom_core::{OrthoFrame, Tol};
 
@@ -100,14 +100,14 @@ fn point_bits(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Vec<(u64
     out
 }
 
-fn p() -> ParamName {
-    ParamName::from_static("lift")
+fn p() -> VarName {
+    VarName::from_static("lift")
 }
 
 /// The parameter row 7 drives a frame's x axis LENGTH with — a
 /// `Scalar`, because a direction's components are not lengths.
-fn span() -> ParamName {
-    ParamName::from_static("span")
+fn span() -> VarName {
+    VarName::from_static("span")
 }
 
 /// A one-axis degenerate box `name ∈ nominal + [offset, offset]`:
@@ -115,7 +115,7 @@ fn span() -> ParamName {
 /// exact amount. `BoxAxis::Varying` need not contain zero — a leaf of
 /// the subdivision generally sits off the nominal — which is what
 /// makes "nominal" and "lane" two different points at one scalar.
-fn boxed_at(name: ParamName, offset: f64) -> Option<std::sync::Arc<ParamBox>> {
+fn boxed_at(name: VarName, offset: f64) -> Option<std::sync::Arc<ParamBox>> {
     let mut axes = BTreeMap::new();
     axes.insert(
         name,
@@ -136,7 +136,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
         .apply(
             &DocEdit::SetDocParam {
                 name: p(),
-                value: DocParam::continuous(Dimension::Length, lift),
+                value: FreeVar::continuous(Dimension::Length, lift),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -476,7 +476,7 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
         .apply(
             &DocEdit::SetDocParam {
                 name: span(),
-                value: DocParam::continuous(Dimension::Scalar, 0.0),
+                value: FreeVar::continuous(Dimension::Scalar, 0.0),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -596,7 +596,7 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
         .apply(
             &DocEdit::SetDocParam {
                 name: span(),
-                value: DocParam::continuous(Dimension::Scalar, 0.0),
+                value: FreeVar::continuous(Dimension::Scalar, 0.0),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

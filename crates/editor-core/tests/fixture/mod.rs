@@ -62,10 +62,10 @@ pub mod value_channel;
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
-    Entry, EvalOptions, Evaluation, Expr, LoopProgram, MateReach, NameTable, Node, ParamName,
-    ProfileDoc, ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId,
-    RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate, mate_reach,
+    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, EntityKey, EntityKind, Entry,
+    EvalOptions, Evaluation, Expr, FreeVar, LoopProgram, MateReach, NameTable, Node, ProfileDoc,
+    ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId, RefusingReach,
+    RoleSeg, SitedRef, SolvedPoses, StableName, VarName, assemble, evaluate, mate_reach,
     solve_document,
 };
 use geom_core::{Point3, Tol};
@@ -288,20 +288,50 @@ pub fn face(name: StableName) -> editor_core::FaceName {
     editor_core::FaceName::new(name).expect("the fixture names a face")
 }
 
-/// **The authored vectors of a frame a row authored** — the projection
-/// every row that forms a lever or reads a witness by hand takes, for
-/// a frame it knows is [`editor_core::MateFrame::Authored`].
-pub fn authored(frame: &editor_core::MateFrame) -> &editor_core::AuthoredFrame {
-    frame
-        .authored_vectors()
-        .expect("the row authored this frame's vectors")
+/// **A part-based frame of one literal step, as the solve reads it**:
+/// the step's map is the frame's placement, and its third column,
+/// re-minted under the band as the solve re-mints it, the axis.
+pub struct Authored(geom_core::Affine3<f64>);
+
+impl Authored {
+    /// The frame's placement: the literal step's map.
+    pub fn placement(&self) -> geom_core::Affine3<f64> {
+        self.0
+    }
+
+    /// The frame's axis: its third column, re-minted.
+    pub fn axis(&self, tol: Tol) -> Result<geom_core::UnitVec3<f64>, geom_core::UnitVec3Error> {
+        let band = geom_core::Band::linear(tol).expect("the witnessed band");
+        geom_core::UnitVec3::new(self.0.linear.c2, FIXTURE_MATE_AXIS, band)
+    }
+
+    /// The frame's origin.
+    pub fn origin(&self) -> [f64; 3] {
+        self.0.translation.to_array()
+    }
+}
+
+/// **The frame a row authored as vectors** — the projection every row
+/// that forms a lever or reads a witness by hand takes, for a part
+/// base holding the one literal step [`editor_core::MateFrame::authored`]
+/// builds.
+pub fn authored(frame: &editor_core::MateFrame) -> Authored {
+    match (frame.base, frame.offset.steps.as_slice()) {
+        (editor_core::FrameBase::Part, [editor_core::Step::Literal(f)]) => {
+            Authored(f.affine::<f64>())
+        }
+        _ => panic!("the row authored this frame's vectors"),
+    }
 }
 
 /// **The datum's own lever term** for an alignment whose two sides are
 /// authored vectors: `Alignment::lever_arm` over the frames the solve
 /// would resolve them to, which for an authored side are its own.
 pub fn datum_lever(alignment: &editor_core::Alignment) -> f64 {
-    alignment.lever_arm(authored(&alignment.a), authored(&alignment.b))
+    alignment.lever_arm(
+        authored(&alignment.a).origin(),
+        authored(&alignment.b).origin(),
+    )
 }
 
 /// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
@@ -503,7 +533,7 @@ pub fn union_over(
 
 /// **The insert door's verdict on a mate**, through `reach`: the door
 /// asks the solve's own per-mate admission — a frame with no definite
-/// direction, the table's gaps, a `FromFace` side resolved from the
+/// direction, the table's gaps, a face-based side resolved from the
 /// part's own face, a rider on a coincidence decided over the mated
 /// parts' extent — so a mate the solve refuses on its own datum comes
 /// out of the door as its fault. `Ok` is the document with the mate
@@ -997,8 +1027,8 @@ pub fn die() -> Die {
     let mut r = Recorder::new();
     // pip_depth: the mid-DAG continuous parameter.
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("pip_depth"),
-        value: DocParam::continuous(Dimension::Length, DEPTH),
+        name: VarName::from_static("pip_depth"),
+        value: FreeVar::continuous(Dimension::Length, DEPTH),
     });
     // The cube: profile on the xy plane, extruded +2.
     let cube_profile = r.profile(
@@ -1021,7 +1051,7 @@ pub fn die() -> Die {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+            distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
             side: ExtrudeSide::Against,
         });
         masters.push((ext, u, v, pips));
