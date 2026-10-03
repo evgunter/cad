@@ -483,7 +483,9 @@ fn an_island_of_ring_vertex_segments_refuses_at_the_zip_frontier() {
     ];
     let up = plate(&p, 1.0);
     for (order, x, y) in [("ab", &ch, &up), ("ba", &up, &ch)] {
-        let d = declared(x, y).unwrap_or_else(|e| panic!("{order}: declarations: {e}"));
+        let d = declared(x, y);
+        assert!(d.is_ok(), "{order}: declarations: {d:?}");
+        let d = d.unwrap_or_default();
         let got = topo::union_with(x, y, &d, tol());
         assert!(
             matches!(
