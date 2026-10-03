@@ -1142,15 +1142,11 @@ pub(crate) fn carrier_loop<T: Decide>(
             // placeholder from an honest whole-turn scaffold, so the loop
             // is not read; and a scaffold whose span is in the band is
             // not known to be either, so it escalates on that span.
-            Ok(Some(k))
-                if matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) =>
-            {
-                match k.span_turn {
-                    Ok(Sign::Positive) => edges.push(LoopEdge::Conic(k)),
-                    Ok(_) => return Err(corrupt()),
-                    Err(diag) => return Err(PointInLoopError::Escalated { r#loop, diag }),
-                }
-            }
+            Ok(Some(k)) if curve.description().is_scaffold() => match k.span_turn {
+                Ok(Sign::Positive) => edges.push(LoopEdge::Conic(k)),
+                Ok(_) => return Err(corrupt()),
+                Err(diag) => return Err(PointInLoopError::Escalated { r#loop, diag }),
+            },
             Ok(Some(k)) => edges.push(LoopEdge::Conic(k)),
             Ok(None) => edges.push(match (curve.carrier(), ball) {
                 (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, _) => {

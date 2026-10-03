@@ -1945,8 +1945,11 @@ pub enum BooleanError {
     },
     /// The F7 output stage (`merge_coplanar_faces`) refused.
     Merge(MergeCoplanarError),
-    /// The finished result failed a tier gate (kernel bug, loudly —
-    /// no invalid body is ever returned).
+    /// The finished result failed a tier gate, loudly — no invalid
+    /// body is ever returned. A kernel bug, unless an operand carried
+    /// the finding in: an operand edge still described as a scaffold
+    /// reaches every result that keeps it, and the gate refuses it
+    /// there ([`ValidationError::ScaffoldAtRest`]).
     ResultInvalid {
         /// The validator's findings.
         errors: Vec<ValidationError>,
@@ -2808,8 +2811,9 @@ impl core::fmt::Display for BooleanError {
             Self::Merge(e) => write!(f, "coplanar-merge output stage refused: {e}"),
             Self::ResultInvalid { errors } => write!(
                 f,
-                "finished result failed a tier gate ({} finding(s), first: {:?}) — \
-                 kernel bug, no invalid body is returned",
+                "finished result failed a tier gate ({} finding(s), first: {:?}), so no \
+                 body is returned — a kernel bug, unless an operand carried the finding in \
+                 (an edge still described as a scaffold)",
                 errors.len(),
                 errors.first()
             ),

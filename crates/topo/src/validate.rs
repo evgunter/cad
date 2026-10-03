@@ -4645,14 +4645,10 @@ pub(crate) fn scaffolds_at_rest<T: Real>(body: &Body<T>) -> Vec<ValidationError>
             body.curves
                 .get(edge.curve)
                 .and_then(CurveGeom::certified)
-                .is_some_and(is_scaffold)
+                .is_some_and(|curve| curve.description().is_scaffold())
         })
         .map(|(edge, _)| ValidationError::ScaffoldAtRest { edge })
         .collect()
-}
-
-fn is_scaffold<T: Real>(curve: &geom_brep::EdgeCurve<T>) -> bool {
-    matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_))
 }
 
 /// Tier 3's local check battery (checks 1–6 + the +V invariant, check
@@ -5615,7 +5611,7 @@ pub(crate) fn tier3_local_checks_marked<
         // yet. This edge has two faces — the lookup above answered —
         // so it has a chart, and a scaffold here is a construction
         // that stopped half-way.
-        if is_scaffold(curve) {
+        if curve.description().is_scaffold() {
             errors.push(ValidationError::ScaffoldAtRest { edge: edge_key });
         }
         let adjacent = match curve.description() {

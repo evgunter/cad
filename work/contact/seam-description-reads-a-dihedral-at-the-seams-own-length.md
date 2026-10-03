@@ -4,7 +4,7 @@ kind: issue
 title: The boolean's seam description reads a seam's dihedral at the seam's own length, so a short seam between faces that part far away is left a scaffold at rest
 status: open
 opened: 2026-09-28
-priority: P3
+priority: P1
 cost: M
 ---
 
@@ -35,5 +35,9 @@ The boolean's result gate refuses a scaffold at rest
 lever leaves a scaffold no longer answer: in `contact9_side_codes`,
 the tilted wedge's ∩ and − and the pierce row's `tool − block` refuse
 `ResultInvalid` with `ScaffoldAtRest` alone, and those rows now pin the
-refusal. Fixing the lever turns them back into answers; the corner and
-volume checks they lost are in the rows' history.
+refusal. They are valid ops, so this now costs answers (P1).
+
+When the lever lands, the three refusals turn back into answers, and
+the rows get back the assertions this change took out: the wedge's ∩
+corners and volume through `answers`, and the pierce row's
+`tool − block` corners, volume and the point above the top.

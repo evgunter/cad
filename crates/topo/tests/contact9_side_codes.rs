@@ -97,6 +97,20 @@ fn body_checked(r: Result<BooleanResult<f64>, BooleanError>, what: &str, tier3: 
     b
 }
 
+/// `r` is the result gate's refusal of exactly one scaffold at rest:
+/// the seam along the 1 mm edge, the one edge of these results whose
+/// faces that length cannot tell from tangent. The refusal withholds the
+/// body, so the edge is pinned by the count; a second scaffold, or a
+/// different finding, turns the row red.
+fn refuses_the_seam_alone(r: &Result<BooleanResult<f64>, BooleanError>, what: &str) {
+    assert!(
+        matches!(r, Err(BooleanError::ResultInvalid { errors })
+            if matches!(errors.as_slice(), [ValidationError::ScaffoldAtRest { .. }])),
+        "{what}: the 1 mm seam's scaffold, alone, is refused at rest, got {:?}",
+        r.as_ref().err()
+    );
+}
+
 fn contains(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
     let tol = Tol::witness();
     point_in_solid(body, q, Band::linear(tol).unwrap(), tol).unwrap()
@@ -279,13 +293,7 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
         ("∩", intersect(&block, &wedge, tol)),
         ("−", subtract(&block, &wedge, tol)),
     ] {
-        assert!(
-            matches!(&r, Err(BooleanError::ResultInvalid { errors })
-                if !errors.is_empty()
-                    && errors.iter().all(|e| matches!(e, ValidationError::ScaffoldAtRest { .. }))),
-            "tilted wedge {what}: the seam's scaffold is refused at rest, got {:?}",
-            r.as_ref().err()
-        );
+        refuses_the_seam_alone(&r, &format!("tilted wedge {what}"));
     }
     let joined = body_of(union(&block, &wedge, tol), "tilted wedge: ∪");
     assert_eq!(
@@ -547,13 +555,7 @@ fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
     // the germ line; its seam along the 1 mm edge is the wedge row's
     // scaffold, which the gate refuses at rest.
     let cut = subtract(&tool, &block, tol);
-    assert!(
-        matches!(&cut, Err(BooleanError::ResultInvalid { errors })
-            if !errors.is_empty()
-                && errors.iter().all(|e| matches!(e, ValidationError::ScaffoldAtRest { .. }))),
-        "tool − block: the seam's scaffold is refused at rest, got {:?}",
-        cut.as_ref().err()
-    );
+    refuses_the_seam_alone(&cut, "tool − block");
     let meet = body_of(intersect(&tool, &block, tol), "tool ∩ block");
     assert_eq!(contains(&meet, q), SolidContainment::Out, "q is not in ∩");
 }

@@ -161,6 +161,10 @@ pub enum BooleanResultKind {
 /// ordinary tier-3 currency (`validate_geometric`), and on such a
 /// body the two gates agree (3′ ≡ tier 3 plus the census actually
 /// run — pinned by the PR 6a acceptance suite).
+///
+/// The door checks tiers 1 and 2 and tier 3's transience fence on
+/// every result; the rest of that currency waits on
+/// `work/reach/boolean-door-tier-3-waits-on-the-description-gap.md`.
 #[derive(Debug)]
 pub struct BooleanBody<T: Real> {
     /// The result body: one solid, possibly multi-shell.
@@ -533,9 +537,9 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
-    // do not each re-derive the whole body, and `gate` below — tier 1
-    // AND tier 2 over the result, on every build — is what this door
-    // pays instead. The guard owns the borrow, so a refusal on the way
+    // do not each re-derive the whole body, and `gate` below — tiers 1
+    // and 2 and tier 3's transience fence over the result, on every
+    // build — is what this door pays instead. The guard owns the borrow, so a refusal on the way
     // closes the scope by dropping it.
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
@@ -3491,6 +3495,71 @@ mod tests {
             Ok(()),
             "the described box passes"
         );
+    }
+
+    /// An operand's own scaffold reaches the gate through the public
+    /// door: an undescribed box minus a brick it never meets is the
+    /// box itself, and the gate refuses its twelve chords; the same op
+    /// on the described box answers.
+    #[test]
+    fn an_operand_carried_scaffold_is_refused_at_the_door() {
+        let tol = Tol::witness();
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let far =
+            crate::test_support_fixtures::brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let raw = quad_prism(&square, 1.0, tol);
+        let refused = crate::boolean::subtract(&raw, &far, tol);
+        let Err(BooleanError::ResultInvalid { errors }) = &refused else {
+            panic!(
+                "the box's chords are scaffolds at rest, got {:?}",
+                refused.err()
+            );
+        };
+        assert_eq!(errors.len(), 12, "one finding per chord: {errors:?}");
+        assert!(
+            errors
+                .iter()
+                .all(|e| matches!(e, crate::ValidationError::ScaffoldAtRest { .. })),
+            "{errors:?}"
+        );
+        let described =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        assert!(
+            crate::boolean::subtract(&described, &far, tol).is_ok(),
+            "the described box answers"
+        );
+    }
+
+    /// The gate's fence is check 2's: on tier-2-valid bodies,
+    /// `scaffolds_at_rest` is exactly the `ScaffoldAtRest` findings of
+    /// `validate_geometric`, in the same order. An undescribed box has
+    /// a scaffold on every edge; a described prism with a collinear
+    /// profile run keeps one, on the smooth edge between its two
+    /// coplanar walls.
+    #[test]
+    fn the_fence_is_check_twos_scaffold_findings() {
+        let tol = Tol::witness();
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let run = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        for (what, body, count) in [
+            ("undescribed box", quad_prism(&square, 1.0, tol), 12),
+            (
+                "collinear prism",
+                crate::test_support_fixtures::prism_z::<f64>(&run, 0.0, 1.0, tol).body,
+                1,
+            ),
+        ] {
+            assert_eq!(crate::validate_closed(&body), Ok(()), "{what}: tier 2");
+            let fence = crate::validate::scaffolds_at_rest(&body);
+            let check_two: Vec<_> = crate::validate_geometric(&body, tol)
+                .err()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|e| matches!(e, crate::ValidationError::ScaffoldAtRest { .. }))
+                .collect();
+            assert_eq!(fence, check_two, "{what}: the fence is check 2's");
+            assert_eq!(fence.len(), count, "{what}: scaffolds at rest");
+        }
     }
 
     /// The backstop's refusal wiring, by construction: feed it a
