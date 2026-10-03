@@ -44,7 +44,9 @@ does not wrap its chart.
 
 The split's `join` computes the segment's curve once, as the boolean's
 does (`ChordJoiner::segment_curve` with `JoinLane::Split`), and both
-chords read it. The one thing to settle: the split mints its aux plane
-lazily at the first conic chord, so a curve computed before the
-adjacency skip would mint it for a join whose chords are both skipped
-(an orphan surface tier 1 refuses).
+chords read it. The split mints its aux plane lazily at the first conic
+chord; `segment_curve` already computes the curve only for a chord the
+joiner's plans (`first_chord`, `second_chord`) say is minted, so no aux
+surface is minted for a join whose chords are both skipped — the split's
+skip test is `between_edge_is_section`'s in-plane question rather than
+the boolean's locus edge.

@@ -5355,31 +5355,63 @@ mod winding_arm_tests {
             other => panic!("the disc winds: {other:?}"),
         };
         assert_eq!(run(first, second), whole, "the whole run is the disc");
-        let traversed = |he: crate::HalfEdgeKey| {
+        // The run `first` closed by a chord curve, as the ring lane reads
+        // it: a [`SegmentCurve`] between two halves standing for the
+        // match's, whose spec is the edge under `he`, computed running
+        // the way that edge's plus half runs; `with_traversal` says
+        // whether the closing (from the run's end back to its start) runs
+        // that way too.
+        let closed = |he: crate::HalfEdgeKey, with_traversal: bool| {
             let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
             let curve = body
                 .get_curve_geom(edge.curve)
                 .unwrap()
                 .certified()
                 .unwrap();
-            (
-                (curve.carrier(), curve.params()),
-                edge.claim(he).unwrap().plus,
-            )
-        };
-        let closed = |closing| match body.planar_run_winding_decided((first, first), closing, n, b)
-        {
-            Ok(Some(Ok(d))) => d,
-            other => panic!("the closed run winds: {other:?}"),
+            let (t0, t1) = curve.params();
+            let spec = EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: body
+                        .get_face(body.get_loop(disc).unwrap().face)
+                        .unwrap()
+                        .surface,
+                    s2: body
+                        .get_face(body.get_loop(disc).unwrap().face)
+                        .unwrap()
+                        .surface,
+                    witness: curve.carrier().mid_point(t0, t1),
+                },
+                carrier: curve.carrier().clone(),
+                param_start: t0,
+                param_end: t1,
+            };
+            let forward = with_traversal == edge.claim(he).unwrap().plus;
+            let halves = if forward {
+                (second, first)
+            } else {
+                (first, second)
+            };
+            let ends = (Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 0.0));
+            let segment = crate::chord_join::SegmentCurve::of(halves, ends, Some(spec));
+            let face = body.get_loop(disc).unwrap().face;
+            let closing = segment.run_closing(first, face).unwrap();
+            match body.planar_run_winding_decided(
+                (first, first),
+                RunClosing::of(closing.as_ref()),
+                n,
+                b,
+            ) {
+                Ok(Some(Ok(d))) => d,
+                other => panic!("the closed run winds: {other:?}"),
+            }
         };
         assert_eq!(
-            closed(RunClosing::Curve(traversed(second))),
+            closed(second, true),
             whole,
             "a semicircle closed by the other one is the disc"
         );
-        let (own, forward) = traversed(first);
         assert_eq!(
-            closed(RunClosing::Curve((own, !forward))).sign,
+            closed(first, false).sign,
             Sign::Zero,
             "a semicircle closed by itself run back encloses nothing"
         );

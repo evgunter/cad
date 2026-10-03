@@ -249,7 +249,7 @@ pub(crate) fn chord_bulge<T: Real>(span: T) -> T {
 
 /// A curve as one traversal reads it: its carrier and the interval it
 /// spans, and whether the traversal runs with the carrier's parameter.
-pub(crate) type Traversed<'a, T> = ((&'a Curve3<T>, (T, T)), bool);
+type Traversed<'a, T> = ((&'a Curve3<T>, (T, T)), bool);
 
 /// The curve that closes an open run from the run's end back to its
 /// start: the straight chord, or a curve the caller has (the boolean
@@ -260,8 +260,19 @@ pub(crate) type Traversed<'a, T> = ((&'a Curve3<T>, (T, T)), bool);
 pub(crate) enum RunClosing<'a, T: Real> {
     /// The straight chord.
     Straight,
-    /// The curve, traversed from the run's end to its start.
-    Curve(Traversed<'a, T>),
+    /// The carrier and its interval, already running from the run's end
+    /// to its start with increasing parameter.
+    Curve(&'a Curve3<T>, (T, T)),
+}
+
+impl<'a, T: Real> RunClosing<'a, T> {
+    /// The closing a chord spec states: `None` is the straight chord.
+    pub(crate) fn of(spec: Option<&'a geom_brep::EdgeCurveSpec<T>>) -> Self {
+        match spec {
+            None => RunClosing::Straight,
+            Some(s) => RunClosing::Curve(&s.carrier, (s.param_start, s.param_end)),
+        }
+    }
 }
 
 /// How a winding's traversed halves close into the region it is read
@@ -421,7 +432,7 @@ impl<T: Decide> Body<T> {
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
         };
         let closing_curve = match closing {
-            Closing::Run(RunClosing::Curve(c)) => Some(c),
+            Closing::Run(RunClosing::Curve(carrier, params)) => Some(((carrier, params), true)),
             Closing::Cycle | Closing::Run(RunClosing::Straight) => None,
         };
         if let Some(((carrier, _), _)) = closing_curve {

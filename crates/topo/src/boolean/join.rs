@@ -32,9 +32,11 @@
 //! ([`Chords::Segment`]).
 //!
 //! A matched segment's chord curve is computed once per solid, before
-//! its role order is chosen ([`SegmentCurve`]): the joiner mints both
-//! chords on it, and the ring lane winds the run the first chord closes
-//! with it ([`ring_run_ccw`]).
+//! any chord is minted ([`SegmentCurve`]): the joiner mints both chords
+//! on it, and the ring lane winds the run the first chord closes with
+//! it ([`ring_run_ccw`]). The mekr and outer lanes order the halves
+//! first, topologically, and the curve is computed in that order; the
+//! ring lane computes it first and orders the halves by it.
 //!
 //! Boolean runs mint copies of BOTH parities (In-runs mint
 //! `NewVertexSide::Below` copies — the PR 4 interface fact); nothing
@@ -135,7 +137,7 @@ use crate::chord_join::{ChordJoiner, Chords, CutOutcome, JoinLane, SegmentCurve,
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::face_outward_normal;
-use crate::loop_winding::TornLoop;
+use crate::loop_winding::{RunClosing, TornLoop};
 use crate::null::NullFacePair;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -1592,29 +1594,6 @@ fn choose_roles<T: Decide>(
             .map(RoleLane::Decided)
             .ok_or(desync("every chord arc separates a loose scaffolding pair"));
     }
-    // Halves either side of the segment's own edge: the joiner mints
-    // one chord, `mef(Chords { he1: x, he2: next(y) })` for `x → edge →
-    // y`, in either order — the first chord in this one, the second in
-    // the other, whose first the adjacency skip drops. Its run is the
-    // edge and the chord its copy, a sliver no winding orients, so the
-    // order is moot and is not asked of the run.
-    let follows_across_segment = |x: HalfEdgeKey, y: HalfEdgeKey| -> Result<bool, BooleanError> {
-        let half = |he: HalfEdgeKey| {
-            body.get_half_edge(he)
-                .ok_or(desync("role half no longer resolves"))
-        };
-        let between = half(x)?.next;
-        Ok(
-            segment.is_some_and(|e| half(between).is_ok_and(|b| b.edge == e))
-                && half(between)?.next == y,
-        )
-    };
-    if follows_across_segment(ea, ra)? {
-        return Ok(RoleLane::Decided((ea, ra)));
-    }
-    if follows_across_segment(ra, ea)? {
-        return Ok(RoleLane::Decided((ra, ea)));
-    }
     // Ring lane: decided by the run's winding once the segment's curve
     // is known ([`RoleLane::resolve`]). Planar-scoped like
     // [`super::solid_contain::point_in_solid`]'s F5 gate: a non-planar
@@ -1622,6 +1601,38 @@ fn choose_roles<T: Decide>(
     let normal = face_outward_normal(body, face)
         .ok_or(desync("ring-lane face has no planar carrier"))?
         .vec();
+    // Halves either side of the segment's own edge, `x → edge → y`: the
+    // joiner mints one chord in either order — the first in `(x, y)`,
+    // the second in `(y, x)`, whose first the adjacency skip drops — so
+    // the order moves nothing, and the run, the edge closed by its
+    // copy, is a sliver no winding orients. That is read off the
+    // joiner's own plans, not assumed: the two orders must mint the one
+    // same site, or the match is refused, and the order the minted
+    // chord's `mef` runs on keeps the loose-pair separation constraint
+    // every same-loop order does.
+    for (x, y) in [(ea, ra), (ra, ea)] {
+        let sites = |order| {
+            crate::chord_join::segment_chord_sites(body, order, segment).map_err(BooleanError::Join)
+        };
+        let across = match (sites((x, y))?, sites((y, x))?) {
+            ((Some(a), None), (None, Some(b))) if a == b => true,
+            ((Some(_), None), _) | (_, (None, Some(_))) => {
+                return Err(desync(
+                    "the two role orders of a match across its segment's edge mint different \
+                     chords",
+                ));
+            }
+            _ => false,
+        };
+        if across {
+            return match clean_dir(body, x, y, loose)? {
+                Some((c1, _)) if c1 == x => Ok(RoleLane::Decided((x, y))),
+                _ => Err(desync(
+                    "a match across its segment's edge separates a loose scaffolding pair",
+                )),
+            };
+        }
+    }
     Ok(RoleLane::Ring { face, normal })
 }
 
@@ -1716,8 +1727,9 @@ fn ring_run_ccw<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
+    let closing = curve.run_closing(h1, face).map_err(BooleanError::Join)?;
     let wound = body
-        .planar_run_winding_decided((h1, h2), curve.run_closing(h1), normal, band)
+        .planar_run_winding_decided((h1, h2), RunClosing::of(closing.as_ref()), normal, band)
         .map_err(|torn| match torn {
             TornLoop::Dangling(what) => {
                 BooleanError::Join(SplitJoinError::Euler(EulerOpError::from(what)))
