@@ -1445,13 +1445,12 @@ impl<T: Decide> Body<T> {
     /// destination that carries rows of its own is then INCOMPLETE,
     /// and tier 3 reports it (`MissingCache` per rowless half-edge). A
     /// CURVED one that stores none — never minted, its whole boundary
-    /// the moved loop or run, or emptied by the site mint — reads as a
-    /// face the minting pass has not run on, about which that pass says
-    /// nothing, where before the drop its moved rows were re-certified
-    /// against its chart and refused (`PcurveMintError::Certify`). That
-    /// trade buys a body that no longer HOLDS the wrong row for
-    /// `props`, the tessellator or `chart_boundary` to read
-    /// (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
+    /// the moved loop or run, or emptied by the site mint — is the
+    /// producer's closing mint's to re-derive; left at rest without it,
+    /// tier 3 re-derives the face and reports it unminted, or the
+    /// refusal its derivation meets. The drop buys a body that no
+    /// longer HOLDS the wrong row for `props`, the tessellator or
+    /// `chart_boundary` to read.
     ///
     /// A key with no row is a no-op, so a caller hands over every key
     /// it moved and none of them has to be checked first.

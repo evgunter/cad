@@ -180,7 +180,7 @@ use pncad::analysis::{
 use pncad::document::{ProfileDoc, RecipeNodeId};
 use pncad::geom_core::Tol;
 
-use crate::plate::{Plate, WEB, plate};
+use crate::plate::{Plate, WEB, WEB_BOUND, plate};
 
 /// The hull's padding below and above the true range over the
 /// certified leaves at stop 1's budget (512 leaves, 193 certified),
@@ -248,19 +248,18 @@ pub fn narration(tol: Tol) {
 /// **Stop 1 — the study a user actually has.** ±0.05 mm on the
 /// spacing, σ = 0.01 mm on each radius.
 fn real_study(tol: Tol) {
-    let bound = WEB - 1.0e-4;
     let Plate {
         doc,
         measure,
         assertion,
         ..
-    } = plate(5.0e-5, 1.0e-5, bound, tol);
+    } = crate::plate::real_study(tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     println!(
         "   the real study: web nominal {:.4} mm, asserted >= {:.4} mm, over ±0.05 mm of \
          spacing and σ = 0.01 mm on each radius",
         WEB * 1e3,
-        bound * 1e3
+        WEB_BOUND * 1e3
     );
 
     let verdict = drive(&doc, &analyzed, &starved(), tol).expect("the nominal builds");
@@ -312,8 +311,8 @@ fn real_study(tol: Tol) {
                 );
             }
             assert!(
-                report.worst_case.lo < bound && bound < report.worst_case.hi,
-                "the certified worst case straddles the floor: {:?} against {bound:e}",
+                report.worst_case.lo < WEB_BOUND && WEB_BOUND < report.worst_case.hi,
+                "the certified worst case straddles the floor: {:?} against {WEB_BOUND:e}",
                 report.worst_case
             );
             println!(
@@ -326,7 +325,7 @@ fn real_study(tol: Tol) {
                 describe(&decided),
                 masses.holds,
                 masses.violated,
-                bound * 1e3,
+                WEB_BOUND * 1e3,
                 masses.unevaluated,
                 1.0 - masses.holds - masses.violated - masses.unevaluated
             );
@@ -347,9 +346,9 @@ fn real_study(tol: Tol) {
                 "the hull is over every certified leaf"
             );
             assert!(
-                slack.true_lo < bound,
+                slack.true_lo < WEB_BOUND,
                 "the TRUE range over the certified leaves reaches under the floor — the \
-                 straddle is the study's, not the padding's: {slack:?} against {bound:e}"
+                 straddle is the study's, not the padding's: {slack:?} against {WEB_BOUND:e}"
             );
             let within = |got: f64, want: f64| {
                 if at_the_ci_row(tol) {
