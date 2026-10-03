@@ -315,6 +315,14 @@ pub mod test_support {
     }
     pub use crate::test_support_samples::validation_error_samples;
 
+    /// Runs `f` with every boolean on this thread taking its vertex
+    /// pairs in reverse order, and returns how many reductions held two
+    /// crossing pairs at one vertex: a row that asserts the same results
+    /// both ways round reads that count to know it was not vacuous.
+    pub fn with_vertex_pairs_reversed<R>(f: impl FnOnce() -> R) -> (R, usize) {
+        crate::boolean::insert::with_vertex_pairs_reversed(f)
+    }
+
     /// The boolean's volume backstop over `a`, `b` and a `result`, as the
     /// pipeline gates a finished body
     /// ([`crate::AtRestPolicy::gate_volume_backstop`]) — the door a
