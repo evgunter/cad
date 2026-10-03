@@ -28,7 +28,7 @@ The tree's practice splits by what the quantity is. A **length** an operation co
 - **The extrude stays as built.** Its sign had no other home (the sketch normal is the profile's, and flipping it mirrors the sketch), it is a length with no wraparound, and reversing it reopens the measured silent flip under a driven thickness.
 - **Revolve.** `work/carve/revolve-angle-is-a-signed-size-beside-a-directed-axis` stays as the tree has it (signed, nonzero, within a turn) and can close against this; what is left there is whether its zero and full-range refusals name a recourse.
 
-Weighed by two designers in two rounds (fork-log row 55); their reports are in the PR.
+Weighed by two designers in two rounds (fork-log row 56); their reports are in the PR.
 
 ## Ruled (Ev, PR 3941, 2026-10-03)
 
