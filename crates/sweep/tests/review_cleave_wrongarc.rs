@@ -496,3 +496,56 @@ fn axis_parallel_cuts_left_to_the_book_rule_still_answer() {
     }
     t.assert_clean("p7 axis-parallel");
 }
+
+/// PR 3981 review: the steep-tube pose that refused check 5 at
+/// ε = 1e-6, and its neighbours in turn, tilt, height, plane azimuth
+/// and bore radius. Every split must answer with halves at rest whose
+/// volumes are the closed form — what the clamp turned from a refusal
+/// into an answer is checked against the truth, not only admitted.
+#[test]
+fn steep_tube_neighbours_of_the_check_5_pose_answer_and_are_right() {
+    use core::f64::consts::PI;
+    let mut t = Tally::default();
+    for a in [0.4, 0.38] {
+        let base = bored_cylinder(a, 0.0, 0.0, tol());
+        let total = PI * (1.0 - a * a);
+        for turn in [1.0682, 1.0582, 1.0782, 1.1682, 0.9682, 1.3682] {
+            let body = turned(&base, turn);
+            for tilt in [1.15, 1.2, 1.25] {
+                for (o, phi) in [([0.0, 0.0, 0.5], 0.0), ([0.0, 0.0, 0.47], 0.3)] {
+                    for flip in [false, true] {
+                        let plane = plane_at(o, tilt, phi, flip);
+                        let want = disc_below(0.0, 0.0, 1.0, 1.0, &plane)
+                            - disc_below(0.0, 0.0, a, 1.0, &plane);
+                        judge(
+                            &mut t,
+                            format!(
+                                "tube a {a} turn {turn:.4} tilt {tilt} at {o:?} phi {phi} flip {flip}"
+                            ),
+                            &body,
+                            &plane,
+                            want,
+                            total,
+                            None,
+                        );
+                    }
+                }
+            }
+        }
+    }
+    // Tier 3's quadrature refusals (`props_quad_converged`, QUAD's
+    // `quadrature-convergence-test-escalates-instead-of-refining`) are
+    // printed, not failed; a pcurve-certificate refusal is this row's.
+    t.report("p2 steep-tube neighbours");
+    assert!(t.wrong.is_empty(), "{} wrong (above)", t.wrong.len());
+    let ours: Vec<_> = t
+        .refused
+        .iter()
+        .filter(|r| !r.contains("props_quad_converged"))
+        .collect();
+    assert!(
+        ours.is_empty(),
+        "refusals outside the quadrature lane: {ours:#?}"
+    );
+    assert!(t.ok > 100, "only {} splits answered", t.ok);
+}
