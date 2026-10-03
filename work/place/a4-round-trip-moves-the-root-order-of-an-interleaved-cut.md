@@ -2,8 +2,13 @@
 id: a4-round-trip-moves-the-root-order-of-an-interleaved-cut
 kind: issue
 title: A4's round trip moves the root order of a cut whose roots a kept root separates
-status: open
+status: closed
 opened: 2026-10-03
+cost: E
+priority: P1
+closed: 2026-10-03
+branch: place/root-order-docs
+pr: 3946
 ---
 
 
@@ -43,3 +48,23 @@ pins the disagreement as the comparator's only line.
   interleaving of the cut's roots with kept ones").
 
 This needs Ev's ruling on which A4 means.
+
+## RULED (2026-10-03, Ev on `[ev]` #3939)
+
+- **The regrouping stands and A4 states it.** Split brings the cut's roots together where the first of them was, and inline-of-split returns the document up to node ids and that one regrouping. No refusal.
+- **The anchor is A10's existing rule.** A node that replaces roots goes where the first of them was. Ev: either anchor works, so take "whichever rule is simpler or more elegant". The orchestrator took the existing rule, which needs no code change.
+
+## What remains (the build, cost E)
+
+- `refactor.rs`'s module docs state the rule in place of "rider (i) … adjudicated at review ordinal 40 … D-4's ratified identity".
+- `tests/fixture/round_trip.rs`'s module docs cite A10's replacement rule.
+- `p2_split::r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order` asserts the expected regrouped roots, and that a second round trip changes nothing.
+- `asm4_split_inline::root_interleaving_collapses_onto_the_instance_at_d4_identity` drops "D-4 identity" from its name.
+
+## Closed
+
+PR 3946 (`place/root-order-docs`), docs and tests only:
+- `refactor.rs`'s module docs state A10's replacement rule and A4's round trip up to node ids and the one regrouping.
+- `tests/fixture/round_trip.rs` cites the rule for its root-order check.
+- `p2_split::r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order` asserts the regrouped roots `[x', z', y]` exactly and that a second round trip changes nothing; the mutant "anchor at the LAST cut root" turns it red.
+- The asm4 row is now `asm4_split_inline::a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_product`.
