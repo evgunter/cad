@@ -536,10 +536,12 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   the cone section, the spline carrier, and the spiric and no-fitted
   classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
-  exists as `Pcurve::Fitted` and certifies at rest; what is missing is
-  the join window itself (`run_azimuth_window`/`chart_pcurve` have no
-  cyl×sphere analog). Sphere×sphere seams, cone and torus operands
-  refuse alongside it.
+  exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
+  its arc from the germs it joins, reading no window; what is missing
+  is the C5 table's cyl×sphere arm for the chord's carrier
+  (`chord_join::section_case` has no curved×curved arm) and a frame for
+  the germs' rotational-sense test (`boolean::join::pair_section_frame`).
+  Sphere×sphere seams, cone and torus operands refuse alongside it.
 - **(e) the NURBS extent test** — `NurbsExtentUnsupported`, above.
 - **(f) the canal-surface general blend** — an approximating surface
   for fillet chains whose rolling-ball spine is neither a line nor a

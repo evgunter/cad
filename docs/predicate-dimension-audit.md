@@ -433,6 +433,7 @@ which is what actually moves the number.
 | boolean/join.rs:603/817 | bool_join_nearest | a DIFFERENCE of two chord lengths (nearest-candidate selection) | m | OK |
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs:750/751 | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
+| boolean/join.rs (`walk_passes`) | bool_join_walk_site / bool_join_walk_order | a third site's distance to either end of a conic pair (m); the sweep angle about the conic's centre to the pair's far end less the one to the third site, in the near germ's sense (rad), levered by the near site's distance from the centre | m | OK (REACH) |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
 | boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Ev's #213 layering ruling — bare `T`, outside the length seam by design |
 | boolean/ops.rs (`bound_holds`, arm 2) | volume_backstop | ΔV over the summed area of the bodies the inequality compares — mean boundary displacement | m | FIXED (F3); INVARIANT LANE (see above) |
@@ -521,14 +522,9 @@ which is what actually moves the number.
 | splitting/finish.rs (`conics_clear`) | split_nest_conic_conic | in one conic's unit coordinates, `1 − |c′| − σ` or `|c′| − σ − 1` with `σ` the largest singular value of the other's semi-axis matrix, levered by the first's smaller semi-axis (m) | m | OK (CLEAVE) |
 | splitting/rules.rs:132/151/202 | split_sector_extent / coplanar / enters arm | extent; sin×extent | m | OK |
 | splitting/rules.rs:179 | tangent_sector_osculation | κ(1/m) × face-extent²/2 | m | FLAG F11 |
-| chord_join.rs (`select_arc_by_run_side`) | split_arc_run_end | the difference of a run end's distances to the chord's two ends (m) | m | OK |
-| chord_join.rs (`select_arc_by_run_side`) | split_arc_run_side / split_arc_run_along | the cosine of the candidate's departure against the run's left (resp. its travel), levered by the section radius | m | OK |
-| chord_join.rs (`run_corner_opens`) | split_arc_run_corner / split_arc_run_cusp | `n̂·(t̂_in × t̂_out)` and `t̂_in·t̂_out`, levered by the section radius | m | OK |
 | chord_join.rs (`run_is_section_arc`) | split_arc_run_on_section_plane / split_arc_run_on_section_conic | a run edge's midpoint offset from the section plane (m); its conic residual in unit coordinates, levered by the semi-major axis | m | OK |
-| chord_join.rs:710 | split_sphere_section_polar | sin(axes) × sphere radius | m | OK |
 | chord_join.rs:1114 | split_tangent_chord_forward | dimensionless param diff × ‖dir‖ | m | OK (metered door; a line's ‖dir‖ is its exact speed and so an `InfSpeed`) |
-| chord_join.rs:855 | split_arc_window (×5) | azimuth (rad) × chart radius | m | OK for cylinder; FLAG F8 for the sphere wall (arm R vs local R·cos lat) |
-| chord_join.rs:926 | split_arc_chart_orientation | cos × semi-major (= r for the plane×cyl ellipse) | m | OK |
+| chord_join.rs (`arc_leaving`) | chord_arc_leave | the departure datum's component along the conic's unit tangent at the chord's start, `leave·Ĉ′(θ₁)`, levered by the semi-major axis: a boolean germ's unit direction gives the cosine between it and the tangent, the split's `±(n_plane × n_out)` that sine times it | m | OK (REACH) |
 | chord_join.rs:1411 | split_conic_inplane_mid | plane residual at midpoint | m | OK |
 | chord_join.rs (`between_edge_is_section`, boolean planar side) | bool_between_line_on_wall | a line's midpoint offset from the wall, `geom_brep::implicit_residual` (cylinder: (ρ² − r²)/2r; sphere: (‖p − c‖² − r²)/2r), the signed distance to first order | m | OK |
 | chord_join.rs (`chart_v_du`) | split_chart_azimuth_linear | harmonic azimuth amplitude `\|pa.x\| + \|pb.x\|` (rad), levered at the radius | m | OK (a precondition: the cylinder chart writes the azimuth linear; TANG, PR 3851) |
