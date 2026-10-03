@@ -114,3 +114,5 @@ Part 2 (decision 2: rung (2) first, (3) as a later rung):
 `git show 3d70e5de72:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent-part-2.md`.
 Part 3 (non-structural Zero coincidences glue and are linted):
 `git show fae23dbc71:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent-part-3.md`.
+Part 4 (the `unproven-coincidence` lint):
+`git show c4158a079c:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent-part-4.md`.
