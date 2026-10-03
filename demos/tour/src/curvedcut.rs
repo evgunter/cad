@@ -469,9 +469,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "extrude(disc); per glyph: extrude(lines + arcs) -> subtract (blind \
               pocket); topo::split(tilted plane); exact Curve3::Ellipse section \
               carriers; pcurve trim loops + certified quadrature",
-        // The inner arcs (radius 0.1 to 0.15) want 2e-3, and the one
-        // scene-wide delta spends it on the whole cylinder too
-        // (`work/show/a-tour-scene-meshes-every-body-at-one-delta.md`).
+        // The glyphs' inner arcs (radius 0.1 to 0.15) want 2e-3, and
+        // both halves take it so they render alike: one body's delta
+        // covers every face of it
+        // (`work/tess/a-body-meshes-every-face-at-its-smallest-features-delta.md`).
         delta: 2e-3,
         note: Some(format!(
             "cutting a cylinder at an angle produces an ellipse, and this kernel \
