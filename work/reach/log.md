@@ -677,8 +677,9 @@ TINT has no orchestrator, and the row was red on main, so REACH took it.
 
 REACH parked the eight open rows the hold covers. Each one rides declared
 contact, a declared continuation or tangent ruling, or the
-undeclared-coincidence refusals. They are parked with `blocked_on: [3990]`,
-which matches JOIN:
+undeclared-coincidence refusals. They are parked with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`, the build row that
+the hold moved onto when Ev ratified D10. Each fires when that row closes:
 - `rounded-stack-subtract-and-intersect-refuse-fallback-extent`
 - `a-settled-declared-coincidence-crosses-a-tight-volume-bound`
 - `maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip`

@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-01
 priority: P3
 cost: M
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by the review of PR 3657, measured on `d2d5b09076`.

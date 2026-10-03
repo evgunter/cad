@@ -8,7 +8,7 @@ priority: P2
 cost: M
 design: true
 refs: [cosurface-disjoint-curved-walls-refuse, a-union-glues-same-sense-cosurface-walls-without-merging-them]
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by the unit that built the continuation ruling

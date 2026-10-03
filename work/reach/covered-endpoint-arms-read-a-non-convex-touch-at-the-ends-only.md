@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by the dual review of PR 3846 (r1 NOTE 3); analysis on that PR's
