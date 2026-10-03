@@ -916,7 +916,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     let log = vec![logged];
     let (snapshot, _) = step_with(doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("a FromFace insert replays with no store");
+    let loaded = load(&text, Tol::witness()).expect("a face-based insert replays with no store");
     let replayed = *loaded.doc.order().last().expect("the replayed mate");
     assert_eq!(
         loaded.doc.node(replayed),

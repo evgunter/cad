@@ -49,3 +49,16 @@ beside the name — a number the author owns, unlike the removed
 coincidence row the table decides rather than refuses. A design
 question on MSOLVE's ground (`mate.rs`, `mate/solve.rs`) with CHROME's
 affordance on top.
+
+## The kernel half (2026-10-03, PLACE mate-frame-offset)
+
+A mate frame is a base composed with an offset (`[ev]` #3920): a face
+side turns about its own axis by an offset step,
+`MateFrame::on_face(Step::Rigid { axis: z, angle, .. })`
+(`crates/editor-core/src/mate.rs`), the offset written in the face's
+frame. So the kernel has the in-face roll this row asked for, as a
+parametric angle. What remains is the tool's affordance: the viewer's
+mate tool still authors `MateFrame::from_face()` only
+(`crates/viewer/src/matetool.rs`, `proposal`), and the story suite's
+clocked sail still falls back to authored vectors. That half is
+CHROME's (`mate-clocking-has-no-gui-path`).

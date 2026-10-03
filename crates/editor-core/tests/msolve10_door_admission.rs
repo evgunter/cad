@@ -425,9 +425,9 @@ fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
     assert_eq!(admitted, named, "the refusal named the id the mate mints");
 }
 
-// ---- A `FromFace` side at the door, and on replay ----
+// ---- A face-based side at the door, and on replay ----
 
-/// **A `FromFace` side asks `face_pose` once per such side at the
+/// **A face-based side asks `face_pose` once per such side at the
 /// door, an `Authored` side asks nothing, and a rider still asks the
 /// reach once per part**: the door asks each read exactly where the
 /// solve asks it — the face before the table reads the frame, the
@@ -462,7 +462,7 @@ fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
     assert_eq!(counting.0.get(), 2, "a rider asks the reach once per part");
 }
 
-/// **A logged `FromFace` insert replays with no store and loads**:
+/// **A logged face-based insert replays with no store and loads**:
 /// replay declines the face as it declines the rider — the datum
 /// alone is decided, the face is not read, the next solve decides it
 /// — so a file the door admitted loads without the parts it was
@@ -482,7 +482,7 @@ fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
     let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
     let log = vec![edit.clone()];
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("a FromFace insert replays with no store");
+    let loaded = load(&text, Tol::witness()).expect("a face-based insert replays with no store");
     assert_eq!(loaded.doc.order(), applied.doc.order());
     assert_eq!(loaded.edits, log);
     // And the same entry through the door with no reach at all —

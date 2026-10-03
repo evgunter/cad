@@ -187,7 +187,7 @@ pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
 }
 
 /// **The face a proposal's side takes its frame from**: the frame the
-/// mate tool authors is the bare `FromFace`, whose face is its head's
+/// mate tool authors is the bare face base (`MateFrame::from_face()`), whose face is its head's
 /// in the member's part (`head_face`, the kernel's one strip) —
 /// `None` for an authored frame or a head outside the member
 /// vocabulary. What every tool row compares a proposal's side

@@ -161,7 +161,7 @@ is a program that does not compile; `class` is the kernel
 `topo::ContactClass`; `Alignment` is two `MateFrame`s, each a base
 composed with an offset, a `Placement` written in the base's frame (the
 empty chain by default): the base is the side's part frame, or
-`FromFace`, which names no face and is its side's own head face; a
+the face base (`FrameBase::Face`), which names no face and is its side's own head face; a
 `MatePrimitive` (`FrameCoincidence`, `Coaxial`,
 `PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
 primitive), an authored `AxisSense` (so no π-flip is inferred) and an
@@ -465,10 +465,11 @@ cache, so a mated part is evaluated once). Two answers cross that
 door. The part's EXTENT — an upper bound taken from its evaluated
 body — enters only as the lever a parallelism verdict is decided
 over: `(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored
-lengths|`, no floor and no constant. A side framed
-`FromFace` takes its head face's canonical pose, read off its surface
+lengths|`, no floor and no constant. A side on a face
+base takes its head face's canonical pose, read off its surface
 parameters exactly (`topo::readback::face_pose`, no tolerance) in the
-part's own coordinates, composed with the side's offset, as the side's
+part's own coordinates, composed with the side's offset (an offset
+that does not evaluate faults `MateFault::FrameOffset`), as the side's
 frame, so a side set on a face follows that face through any edit of
 the part. The offset is any rigid motion; which offsets a mate admits
 is its contact class's to say (a `Rest` side set back from its face
@@ -481,7 +482,7 @@ frame is derived. A mated part that does not resolve faults its
 mate in the resolver's own voice, carrying the part fault unaltered —
 `MateFault::FaceUnresolved` (`FacePoseRefusal::PartUnresolved`, in
 `FaceRefusal::Reach`) where a
-`FromFace` side stands on it, since a side's frame is read before the
+face-based side stands on it, since a side's frame is read before the
 lever, else `MateFault::Unleverable` — and that fault poisons the
 group as any mate fault does. The two questions that DO need a number are
 asked once per reference, where the solve reads it — for every

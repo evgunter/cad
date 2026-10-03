@@ -2126,7 +2126,7 @@ fn remap_node(
             },
             class: *class,
             // The datum crosses verbatim: its vectors are numbers, and
-            // a `FromFace` side holds nothing, its face being the
+            // a face-based side holds nothing, its face being the
             // head's, remapped above.
             alignment: alignment.clone(),
         },
@@ -2501,7 +2501,7 @@ pub fn split(
     // no instance, would start); and its cut side's coordinates must
     // not change, which is the frame rule (`frame_survives`): an
     // authored side's instance must be, in the part, its group's root
-    // at the empty chain on the part's world; a `FromFace` side's
+    // at the empty chain on the part's world; a face-based side's
     // member must be placed in the part's world, and its head carries
     // its face across.
     //
@@ -3243,7 +3243,7 @@ pub fn inline(
     // that reads the instance — its name wrapped at it, which the
     // rebind below re-anchors onto the inner name. The inner instance
     // must be its part group's root at the empty chain on the part's
-    // world, so the frame means what it meant — or, for a `FromFace`
+    // world, so the frame means what it meant — or, for a face-based
     // side, its inner member must be placed in the part's world, its
     // head carrying its face across (`frame_survives`); and the placing
     // mates of one pair must still read one pair.

@@ -71,3 +71,20 @@ a lane that moved what it was decided over — and the refusal this row
 proposes covers it when it also intersects the bound names with the
 names a parametric gauge or root offset reads. With no placer on either
 path the frame cancels and is not read, so the check is lane-exact.
+
+## Widened (2026-10-03, PLACE mate-frame-offset)
+
+A mate frame is now a base composed with an offset `Placement`
+(`[ev]` #3920), and a rigid step of that offset may read a document
+parameter (its slots are `SlotId::MateOffset`). The solve evaluates
+the offset where it resolves the side's frame
+(`crates/editor-core/src/mate/solve.rs`, `compose_offset`), at the
+solve's own environment — `doc.param_env::<f64>()`, the nominal, in
+every lane (`eval/mod.rs`, `solve_with_env`'s `nominal_env`; the edit
+door's `admit_mate`; `solve_document`). So a box or seed run that binds
+a parameter a mate-frame offset reads solves the pair at the nominal
+while the mate's own slot values widen in the lane: the same class,
+with the offset's parameters as a third set of names the proposed
+refusal must intersect with the run's bound names. Pinned at the
+nominal by `place_mate_frame_offset::a_parameter_drives_an_offset_and_the_solved_pose_moves`
+(f64 only); no box or seed row reads it yet.

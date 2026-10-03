@@ -534,7 +534,7 @@ pub fn union_over(
 
 /// **The insert door's verdict on a mate**, through `reach`: the door
 /// asks the solve's own per-mate admission — a frame with no definite
-/// direction, the table's gaps, a `FromFace` side resolved from the
+/// direction, the table's gaps, a face-based side resolved from the
 /// part's own face, a rider on a coincidence decided over the mated
 /// parts' extent — so a mate the solve refuses on its own datum comes
 /// out of the door as its fault. `Ok` is the document with the mate

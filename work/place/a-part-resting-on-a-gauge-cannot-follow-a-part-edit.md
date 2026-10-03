@@ -2,10 +2,11 @@
 id: a-part-resting-on-a-gauge-cannot-follow-a-part-edit
 kind: issue
 title: a part set on another part's gauge cannot follow that part's edit: a mate across gauges only declares, and a nested gauge restates the solved face by hand
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P3
 cost: H
+branch: place/mate-frame-offset
 ---
 
 

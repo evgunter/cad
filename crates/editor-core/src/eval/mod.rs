@@ -3592,7 +3592,7 @@ where
     // instance and every mate below. Running it here rather than per
     // node is not an optimization — a per-node solve would be a second
     // answer to "where does this group sit". Its two geometric
-    // reads — each mated part's extent (the lever) and a `FromFace`
+    // reads — each mated part's extent (the lever) and a face-based
     // side's face pose — come off THIS run's part cache: at the top a
     // mated part is evaluated on its first ask, once, under the cache's
     // shielding bracket, and below the top the descent has already
@@ -4720,7 +4720,7 @@ struct SolveAnswer<T: geom_core::Real> {
     role: Option<crate::mate::MateRole>,
     /// Whether the solve recorded a fault against the node.
     faulted: bool,
-    /// **The part each `FromFace` side of a mate resolves through**,
+    /// **The part each face-based side of a mate resolves through**,
     /// by reference — `None` for an authored side, for a side whose
     /// walk reaches no member, and for every node that is not a mate.
     /// A face frame's value is the part's product, so the part's
@@ -4768,7 +4768,7 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
         }
     }
 
-    /// The `FromFace` sides' parts, each as its content pin behind a
+    /// The face-based sides' parts, each as its content pin behind a
     /// presence word — read after the alignment, so a face frame's key
     /// carries the product it resolves against.
     fn feed_face_parts(self, h: &mut KeyHasher) {
@@ -5941,7 +5941,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
 
 /// Feeds a document reference: the id's two words, then the content
 /// pin's four — what an instantiate node keys its part by, and what a
-/// mate's `FromFace` side keys the part it resolves against by.
+/// mate's face-based side keys the part it resolves against by.
 fn feed_doc_ref(h: &mut KeyHasher, doc_ref: &crate::ident::DocRef) {
     h.write_u64((doc_ref.id.0 >> 64) as u64);
     h.write_u64(doc_ref.id.0 as u64);

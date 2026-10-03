@@ -3657,6 +3657,24 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "FrameOffset",
+            M::FrameOffset {
+                mate: n(9),
+                side: MateSide::B,
+                refusal: Box::new(
+                    NodeErrorKind::Expr {
+                        slot: editor_core::SlotId::MateOffset {
+                            side: MateSide::B,
+                            step: 0,
+                            arg: editor_core::RigidArg::RotationAngle,
+                        },
+                        source: editor_core::EvalError::NonFiniteResult,
+                    }
+                    .into(),
+                ),
+            },
+        ),
+        (
             "Unleverable",
             M::Unleverable {
                 mate: n(9),

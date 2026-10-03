@@ -1,7 +1,7 @@
-//! **A `FromFace` mate side across the seam, and under `Rebind`**
+//! **A face-based mate side across the seam, and under `Rebind`**
 //! (ASSEMBLY.md A3, A4, A11 (5); the spec's `## P2-split` face rows).
 //!
-//! A `FromFace` side names no face: its frame is its own head's face,
+//! A face-based side names no face: its frame is its own head's face,
 //! the head with the member walk's qualifiers stripped
 //! (`head_face`), read in the member's part. So whatever carries the
 //! head carries the frame. Split and inline re-anchor the head, and

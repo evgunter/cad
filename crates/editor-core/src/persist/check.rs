@@ -1476,7 +1476,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // predicate must be able to decide on. Asked in THIS walk, of
         // the same `Node::has_non_finite_alignment` the edit door asks
         // — a second pass over the nodes would be a second place to
-        // forget the question. A `FromFace` side authors nothing: its
+        // forget the question. A face-based side authors nothing: its
         // numbers are the face its head names in the part, and whether
         // the part has that face is the solve's at evaluation
         // (`MateFault::FaceUnresolved`), never this door's.

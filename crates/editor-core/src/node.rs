@@ -3822,7 +3822,7 @@ impl<P> Node<P> {
             // A12: a mate's two heads are the instance-qualified
             // names its reading edges are recomputed from. The
             // operands they are read at are node ids, not names, and
-            // are listed by [`Node::payload_read_sites`]. A `FromFace`
+            // are listed by [`Node::payload_read_sites`]. A face-based
             // frame holds no name: its face is the head's.
             Node::Mate { a, b, .. } => vec![a.name.as_ref(), b.name.as_ref()],
             // A measure's references are argument-ORDERED, so they are

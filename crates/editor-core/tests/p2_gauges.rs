@@ -1221,7 +1221,7 @@ fn a_declaring_mate_crossing_a_cut_fills_the_interface_record() {
     );
 }
 
-/// **A `FromFace` side crosses the seam with its head**: a kept
+/// **A face-based side crosses the seam with its head**: a kept
 /// declaring mate whose side reading the cut is framed on its head
 /// face crosses split exactly as its authored twin does — the head
 /// re-anchors through the instance qualifier, and the face it names
