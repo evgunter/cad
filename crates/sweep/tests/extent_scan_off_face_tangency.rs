@@ -355,3 +355,81 @@ fn the_same_tangencies_on_both_faces_refuse() {
     let along_z = rod_z(0.5, (0.0, 1.0), (-1.0, 3.0));
     assert_every_op_refuses("rod x, rod z", &along_x, &along_z, tangent);
 }
+
+/// **A hole about the touch.** A 4 × 4 × 1 plate on `z ∈ [1, 2]`,
+/// bored through by a rod of radius 0.5 about the z axis: its bottom
+/// plane touches the unit ball at `(0, 0, 1)`, in the hole. The touch
+/// is out of the plate's face however close the hole's rim stands, and
+/// every op builds.
+#[test]
+fn a_plate_whose_hole_holds_the_touch_builds() {
+    let unit = ball(1.0, Vec3::new(0.0, 0.0, 0.0));
+    let plate: Body<f64> =
+        sweep::test_support::brick((-2.0, 2.0), (-2.0, 2.0), (1.0, 2.0), Tol::witness());
+    let holed = built(
+        BooleanOp::Subtract,
+        &plate,
+        &rod_z(0.5, (0.0, 0.0), (0.5, 2.5)),
+    )
+    .expect("the holed plate");
+    assert_every_op(
+        "ball, holed plate",
+        &unit,
+        &holed,
+        (ball_volume(1.0), 16.0 - PI * 0.25),
+        Pose::Apart,
+    );
+}
+
+/// **The same off-face touches in a tilted frame.** Every pose above,
+/// both operands turned 0.7 rad about `(1, 2, 3)` through the origin,
+/// builds as it does axis-aligned: whether a touch clears does not
+/// depend on the frame.
+#[test]
+fn the_off_face_touches_build_in_a_tilted_frame() {
+    let turn = Affine3::rotation_about_axis(Point3::origin(), dir(1.0, 2.0, 3.0), 0.7);
+    let tilt = |b: &Body<f64>| topo::transform_rigid(b, &turn, Tol::witness()).unwrap();
+    let v_snowman = ball_volume(R1) + ball_volume(R2) - lens_volume(R1, R2, D);
+    let snowman = tilt(&snowman());
+    let brick: Body<f64> =
+        sweep::test_support::brick((1.5, 3.0), (1.0, 2.0), (-1.0, 1.0), Tol::witness());
+    for (label, a, b, volumes, pose) in [
+        (
+            "snowman ⊃ ball(0.4)",
+            snowman.clone(),
+            tilt(&ball(0.4, dir(0.0, 0.7, 0.3) * 0.6)),
+            (v_snowman, ball_volume(0.4)),
+            Pose::Inside,
+        ),
+        (
+            "snowman, brick",
+            snowman.clone(),
+            tilt(&brick),
+            (v_snowman, 3.0),
+            Pose::Apart,
+        ),
+        (
+            "lens, ball(0.3)",
+            tilt(&lens()),
+            tilt(&ball(0.3, dir(0.3, 0.8, 0.5) * -1.3)),
+            (lens_volume(R1, R2, D), ball_volume(0.3)),
+            Pose::Apart,
+        ),
+        (
+            "ball, rod",
+            tilt(&ball(1.0, Vec3::new(0.0, 0.0, 0.0))),
+            tilt(&rod_x(0.5, (0.0, 1.5), (0.5, 2.0), true)),
+            (ball_volume(1.0), PI * 0.25 * 1.5),
+            Pose::Apart,
+        ),
+        (
+            "rod x, rod z",
+            tilt(&rod_x(0.5, (0.0, 0.0), (-2.0, 2.0), false)),
+            tilt(&rod_z(0.5, (0.0, 1.0), (0.2, 3.0))),
+            (PI * 0.25 * 4.0, PI * 0.25 * 2.8),
+            Pose::Apart,
+        ),
+    ] {
+        assert_every_op(&format!("tilted {label}"), &a, &b, volumes, pose);
+    }
+}

@@ -38,9 +38,9 @@ parallel-axis wall arms) return `Section::Tangent` on any `Zero` margin.
 Two kinds of torus tangency are not pinches:
 
 - a partner tangent to the tube at an ELLIPTIC point (the outer half of
-  the tube) touches at one point, where a bound on the section like the
-  sphere arms' `Touch` holds — the touch clears when certified out of a
-  face (`section_cert`'s "A touch" docs, `ops::boundary_clear_of`);
+  the tube) touches at one point, the centre of the small loop of any
+  crossing pose, as the sphere arms' `Touch` does — it clears out of a
+  face on a pair with no event (`section_cert`'s "A touch" docs);
 - a coaxial wall or a plane normal to the axis tangent along a whole
   parallel touches in a circle whose neighbouring sections are
   parallels, essential on both carriers, so W2 can clear them as it

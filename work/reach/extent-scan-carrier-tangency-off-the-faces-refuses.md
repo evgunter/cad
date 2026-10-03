@@ -82,25 +82,27 @@ tangency refusal.
 The section certificate now gives a **touch** where a reach margin
 decides `Zero` on an arm whose tangent pose meets in one point
 (sphere × plane, sphere × sphere outside or inside, sphere × cylinder,
-skew cylinders outside one another). Each arm bounds the section
-there: every point the carriers share lies in a ball about the touch,
-in every pose the decided margin admits. The pair clears when the touch
-places `Out` of one face and no edge box of that face reaches the ball.
-One point would not do: a face holed within the ball could hold the
-section's small loop while missing its centre. The extent scan asks
-the faces (`sphere_faces_apart`) at a decided zero or in-band margin
-of `bool_sphere_extent_gap`, `bool_sphere_sphere_gap` and
-`bool_sphere_sphere_nested`, and refuses as before only where they are
-not certified apart. Pinches stay R-tan: the sphere × cylinder girdle,
-the inner skew cylinder tangency, coincident walls, undecided margins
-and every torus arm.
+skew cylinders outside one another): the point `at` at the centre of
+the small loop the carriers share in any crossing pose the margin
+admits. On a pair with no event the touch clears when `at` places `Out`
+of either face: a loop inside both faces would put an edge of one face,
+over the other, within the margin of its carrier between the loop and
+`at`, and the sweep records or refuses that contact (premise S). A pair
+with an event refuses R-tan at a touch. The extent scan asks the faces
+(`sphere_faces_apart`) at a decided zero of `bool_sphere_extent_gap`,
+`bool_sphere_sphere_gap` and `bool_sphere_sphere_nested`, and refuses
+as before only where they are not certified apart; an in-band margin
+asks too and refuses, the certificate reading it undecided. Pinches
+stay R-tan: the sphere × cylinder girdle, the inner skew cylinder
+tangency, coincident walls, undecided margins and every torus arm.
 
-Pinned by `crates/sweep/tests/extent_scan_off_face_tangency.rs` (five
-poses build in both operand orders under every op against closed
-forms, at ε 1e-9, 1e-6 and 1e-12; the same tangencies on both faces
-keep their refusals), `section_cert_rows`
-`a_touch_holds_the_section_of_every_pose_its_margin_admits`,
-`a_touch_clears_only_out_of_a_face_its_boundary_does_not_reach` and
+Pinned by `crates/sweep/tests/extent_scan_off_face_tangency.rs`: five
+poses, a plate whose hole holds the touch, and the five again in a
+tilted frame build in both operand orders under every op against closed
+forms, at ε 1e-9, 1e-6 and 1e-12, and the same tangencies on both
+faces keep their refusals. Also `section_cert_rows`
+`a_touch_is_the_centre_of_every_loop_its_margin_admits`,
+`a_touch_clears_only_out_of_a_face_on_a_silent_pair` and
 `pinches_and_undecided_tangencies_are_not_touches`, and the filleted
 die's `x4` row, which now builds.
 

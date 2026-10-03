@@ -856,15 +856,19 @@ pub(crate) const CORNER_EDGES: &str = corner_edges!();
 pub enum SphereQuestion {
     /// Whether the sphere crosses a plane face's carrier or clears it
     /// (`bool_sphere_extent_gap`, `r − |s|`): either definite side
-    /// passes. A decided zero, a tangency, or an in-band margin passes
-    /// where the section certificate certifies the faces apart (the
-    /// touch off one of them), and refuses with its margin otherwise.
+    /// passes. A decided zero, a tangency, passes where the section
+    /// certificate places the touch off one of the faces, and refuses
+    /// with its margin otherwise. An in-band margin refuses with its
+    /// margin: the certificate reads the same margin as undecided
+    /// (R-tan).
     AgainstPlane,
     /// Whether two spheres stand apart (`bool_sphere_sphere_gap`): a
     /// positive gap passes, and a negative one goes on to
-    /// [`SphereQuestion::Nested`]. A gap within the band of zero, spheres
-    /// touching from outside, passes where the section certificate
-    /// certifies the faces apart and refuses with its margin otherwise.
+    /// [`SphereQuestion::Nested`]. A decided zero, spheres touching
+    /// from outside, passes where the section certificate places the
+    /// touch off one of the faces, and refuses with its margin
+    /// otherwise; an in-band gap refuses with its margin, as at
+    /// [`SphereQuestion::AgainstPlane`].
     Apart,
     /// Whether the smaller of two overlapping spheres lies strictly
     /// inside the larger (`bool_sphere_sphere_nested`): a positive

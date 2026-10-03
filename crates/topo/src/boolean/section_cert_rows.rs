@@ -577,14 +577,18 @@ fn sphere_pairs_every_class() {
 // Touches
 // -------------------------------------------------------------------
 
-/// The touch `classify` gives `f` against `g` and `g` against `f` —
-/// one and the same — after checking `at` lies on both carriers within
-/// the bound on the decided margin.
+/// The touch `classify` gives `f` against `g`, and `g` against `f`:
+/// one and the same point, on both carriers within the band.
 fn touch_both_ways(f: &Surface<f64>, g: &Surface<f64>, name: &str) -> Touch<f64> {
     let t = touch(&classify(f, g));
     let u = touch(&classify(g, f));
     assert_eq!((t.name, u.name), (name, name), "{f:?} against {g:?}");
-    assert!((t.at - u.at).norm() < 1e-12 && (t.spread - u.spread).abs() < 1e-15);
+    assert!(
+        (t.at - u.at).norm() < 1e-12,
+        "{:?} against {:?}",
+        t.at,
+        u.at
+    );
     for s in [f, g] {
         let r = geom_brep::implicit_residual(s, t.at);
         assert!(
@@ -596,18 +600,30 @@ fn touch_both_ways(f: &Surface<f64>, g: &Surface<f64>, name: &str) -> Touch<f64>
     t
 }
 
-/// Every point of `section` lies within the touch's ball; `section` is
-/// the pose's true section, sampled, and holds at least one point.
-fn holds(label: &str, t: &Touch<f64>, section: &[Point3<f64>]) {
-    assert!(!section.is_empty(), "{label}: the sampled section is empty");
-    for q in section {
-        let d = (*q - t.at).norm();
-        assert!(
-            d <= t.spread,
-            "{label}: {q:?} lies {d} from the touch, past {}",
-            t.spread
-        );
-    }
+/// `at` lies at the centre of the sampled loop `section`: the loop's
+/// centroid (each loop here is symmetric about its centre, and sampled
+/// symmetrically) stands within a hundredth of the loop's reach from
+/// `at`, so `at` is inside it.
+fn centres(label: &str, t: &Touch<f64>, section: &[Point3<f64>]) {
+    assert!(
+        section.len() > 8,
+        "{label}: the sampled loop is {} points",
+        section.len()
+    );
+    let n = section.len() as f64;
+    let centroid = section
+        .iter()
+        .fold(Vec3::new(0.0, 0.0, 0.0), |acc, q| acc + (*q - t.at))
+        / n;
+    let reach = section
+        .iter()
+        .map(|q| (*q - t.at).norm())
+        .fold(0.0, f64::max);
+    assert!(
+        centroid.norm() <= 0.01 * reach,
+        "{label}: the loop's centroid is {} from the touch, against a loop reach of {reach}",
+        centroid.norm()
+    );
 }
 
 /// The angles `0, 2π/n, …`.
@@ -623,86 +639,146 @@ fn circle_points(c: Point3<f64>, k: Vec3<f64>, rad: f64) -> Vec<Point3<f64>> {
         .collect()
 }
 
-/// **A touch bounds the section of every pose its decided margin
-/// admits.** Each touching pose is pushed into a crossing by `μ` short
-/// of the band's zero threshold, where the margin still decides `Zero`,
-/// and its true section — a small loop, closed form or solved per
-/// ruling — lies in the ball. Mutant: a spread linear in the margin
-/// (missing its square root) is a thousand times too small.
+/// `n + 1` angles evenly across `[−max, max]`.
+fn span(max: f64, n: usize) -> impl Iterator<Item = f64> {
+    (0..=n).map(move |i| max * (2.0 * i as f64 / n as f64 - 1.0))
+}
+
+/// The section of a ball `(e, 0, 0)`, radius `rho`, with the wall of
+/// radius `rc` about z: per ruling `θ`, `t² = ρ² − |c − foot(θ)|²`,
+/// over the rulings it reaches.
+fn ball_wall_loop(rc: f64, e: f64, rho: f64) -> Vec<Point3<f64>> {
+    let reach = (1.0 - (rho * rho - (e - rc).powi(2)) / (2.0 * e * rc)).acos();
+    span(reach, 512)
+        .flat_map(|th| {
+            let t2 = rho * rho - (e * e + rc * rc - 2.0 * e * rc * th.cos());
+            let h = t2.max(0.0).sqrt();
+            [h, -h]
+                .into_iter()
+                .filter(move |_| t2 >= 0.0)
+                .map(move |h| p(rc * th.cos(), rc * th.sin(), h))
+        })
+        .collect()
+}
+
+/// The section of wall 1 (radius 1 about z) with wall 2 (radius 0.5
+/// along `u` through `(0, δ, 0)`), per ruling of wall 2 that reaches
+/// wall 1.
+fn walls_loop(u: Vec3<f64>, delta: f64) -> Vec<Point3<f64>> {
+    let w = u.cross(Vec3::unit_y());
+    span((1.0 - 2.0 * (1.5 - delta)).acos(), 512)
+        .flat_map(|ph| {
+            let q = p(0.0, delta, 0.0) + (w * ph.sin() - Vec3::unit_y() * ph.cos()) * 0.5;
+            let reach = 1.0 - q.y * q.y;
+            let root = reach.max(0.0).sqrt();
+            [root, -root]
+                .into_iter()
+                .filter(move |_| reach >= 0.0)
+                .map(move |x| q + u * ((x - q.x) / u.x))
+        })
+        .collect()
+}
+
+/// **A touch reads the point the clearance argument needs**: on both
+/// carriers, and at the centre of the loop the carriers share in a pose
+/// the decided margin admits where they cross — here pushed `0.9·zero`
+/// deep, with each loop solved in closed form or per ruling. In the
+/// exact pose it is the tangent point. The poses include a ball deep in
+/// a wall (`ρc/e = 50`) and walls 5.7° apart. Mutants: the far ruling,
+/// a point on the partner's axis, the wrong foot all leave the loop or
+/// the carriers.
 #[test]
-fn a_touch_holds_the_section_of_every_pose_its_margin_admits() {
-    let mu = 0.9 * band().zero();
+fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
+    let push = 0.9 * band().zero();
     let k = v(0.3, -0.4, 0.5).normalize();
     let origin = p(0.0, 0.0, 0.0);
-    for push in [0.0, mu] {
-        // Sphere × plane: the circle at depth `push`.
-        let ball = sphere(origin, 1.0);
-        let pl = plane(origin + k * (1.0 - push), k);
-        let t = touch_both_ways(&ball, &pl, "section_sphere_plane_reach");
-        let rad = (1.0 - (1.0 - push).powi(2)).max(0.0).sqrt();
-        holds(
-            "sphere × plane",
-            &t,
-            &circle_points(origin + k * (1.0 - push), k, rad),
+    let ball = sphere(origin, 1.0);
+    // Sphere × plane.
+    let t = touch_both_ways(&ball, &plane(origin + k, k), "section_sphere_plane_reach");
+    assert!(
+        (t.at - (origin + k)).norm() < 1e-12,
+        "tangent at {:?}",
+        t.at
+    );
+    let t = touch_both_ways(
+        &ball,
+        &plane(origin + k * (1.0 - push), k),
+        "section_sphere_plane_reach",
+    );
+    let rad = (1.0 - (1.0 - push).powi(2)).sqrt();
+    centres(
+        "sphere × plane",
+        &t,
+        &circle_points(origin + k * (1.0 - push), k, rad),
+    );
+    // Sphere × sphere, outside and inside, the ball as F and as the
+    // larger or the smaller.
+    for (label, r2, d, name) in [
+        ("outside", 0.3, 1.3, "section_sphere_pair_reach"),
+        ("inside", 0.4, 0.6, "section_sphere_pair_nest"),
+    ] {
+        let t = touch_both_ways(&ball, &sphere(origin + k * d, r2), name);
+        assert!(
+            (t.at - (origin + k)).norm() < 1e-12,
+            "{label}: tangent at {:?}",
+            t.at
         );
-        // Sphere × sphere, outside and inside.
-        for (label, r2, d, name) in [
-            ("outside", 0.3, 1.3 - push, "section_sphere_pair_reach"),
-            ("inside", 0.4, 0.6 + push, "section_sphere_pair_nest"),
-        ] {
-            let other = sphere(origin + k * d, r2);
-            let t = touch_both_ways(&ball, &other, name);
-            let x = (d * d + 1.0 - r2 * r2) / (2.0 * d);
-            let rad = (1.0 - x * x).max(0.0).sqrt();
-            holds(label, &t, &circle_points(origin + k * x, k, rad));
-        }
-        // Sphere × cylinder (axis z, radius `rc`), centre `(e, 0, 0)`,
-        // outside and inside: per ruling θ, `t² = ρ² − |c − foot(θ)|²`.
-        for (label, rc, e, rho) in [
-            ("ball beside a wall", 0.5, 1.5, 1.0 + push),
-            ("ball in a wall", 1.0, 0.3, 0.7 + push),
-        ] {
-            let wall = cylinder(origin, Vec3::unit_z(), rc);
-            let ball = sphere(p(e, 0.0, 0.0), rho);
-            let t = touch_both_ways(&ball, &wall, "section_sphere_cylinder_reach");
-            let section: Vec<_> = turns(4096)
-                .flat_map(|th| {
-                    let t2 = rho * rho - (e * e + rc * rc - 2.0 * e * rc * th.cos());
-                    let h = t2.max(0.0).sqrt();
-                    let ok = t2 >= -1e-12;
-                    [h, -h]
-                        .into_iter()
-                        .filter(move |_| ok)
-                        .map(move |h| p(rc * th.cos(), rc * th.sin(), h))
-                })
-                .collect();
-            holds(label, &t, &section);
-        }
-        // Skew cylinders outside one another: wall 1 about z (radius
-        // 1), wall 2 along `u` through `(0, δ, 0)` (radius 0.5), solved
-        // per ruling of wall 2 for `x² + y² = 1`.
-        for tilt in [0.0, 0.5_f64] {
-            let u = v(tilt.cos(), 0.0, tilt.sin());
-            let delta = 1.5 - push;
-            let w = u.cross(Vec3::unit_y());
-            let (one, two) = (
-                cylinder(origin, Vec3::unit_z(), 1.0),
-                cylinder(p(0.0, delta, 0.0), u, 0.5),
-            );
-            let t = touch_both_ways(&one, &two, "section_cylinder_pair_reach");
-            let section: Vec<_> = turns(4096)
-                .flat_map(|ph| {
-                    let q = p(0.0, delta, 0.0) + (w * ph.sin() - Vec3::unit_y() * ph.cos()) * 0.5;
-                    let reach = 1.0 - q.y * q.y;
-                    let root = reach.max(0.0).sqrt();
-                    [root, -root]
-                        .into_iter()
-                        .filter(move |_| reach >= -1e-12)
-                        .map(move |x| q + u * ((x - q.x) / u.x))
-                })
-                .collect();
-            holds(&format!("walls tilted {tilt}"), &t, &section);
-        }
+        let d = if name.ends_with("reach") {
+            d - push
+        } else {
+            d + push
+        };
+        let t = touch_both_ways(&ball, &sphere(origin + k * d, r2), name);
+        let x = (d * d + 1.0 - r2 * r2) / (2.0 * d);
+        centres(
+            label,
+            &t,
+            &circle_points(origin + k * x, k, (1.0 - x * x).sqrt()),
+        );
+    }
+    // Sphere × cylinder, beside, inside, and deep inside the wall.
+    for (label, rc, e, rho) in [
+        ("ball beside a wall", 0.5, 1.5, 1.0),
+        ("ball in a wall", 1.0, 0.3, 0.7),
+        ("ball deep in a wall", 1.0, 0.02, 0.98),
+    ] {
+        let wall = cylinder(origin, Vec3::unit_z(), rc);
+        let t = touch_both_ways(
+            &sphere(p(e, 0.0, 0.0), rho),
+            &wall,
+            "section_sphere_cylinder_reach",
+        );
+        assert!(
+            (t.at - p(rc, 0.0, 0.0)).norm() < 1e-12,
+            "{label}: tangent at {:?}",
+            t.at
+        );
+        let t = touch_both_ways(
+            &sphere(p(e, 0.0, 0.0), rho + push),
+            &wall,
+            "section_sphere_cylinder_reach",
+        );
+        centres(label, &t, &ball_wall_loop(rc, e, rho + push));
+    }
+    // Skew walls outside one another, square and 5.7° apart.
+    for tilt in [0.0, 0.1_f64.acos()] {
+        let u = v(tilt.cos(), 0.0, tilt.sin());
+        let one = cylinder(origin, Vec3::unit_z(), 1.0);
+        let pair = |delta: f64| (one.clone(), cylinder(p(0.0, delta, 0.0), u, 0.5));
+        let (a, b) = pair(1.5);
+        let t = touch_both_ways(&a, &b, "section_cylinder_pair_reach");
+        assert!(
+            (t.at - p(0.0, 1.0, 0.0)).norm() < 1e-12,
+            "walls {tilt}: tangent at {:?}",
+            t.at
+        );
+        let (a, b) = pair(1.5 - push);
+        let t = touch_both_ways(&a, &b, "section_cylinder_pair_reach");
+        centres(
+            &format!("walls tilted {tilt}"),
+            &t,
+            &walls_loop(u, 1.5 - push),
+        );
     }
 }
 
@@ -733,45 +809,28 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     );
 }
 
-/// **A touch clears on a face only when its point is `Out` of that face
-/// AND no edge of that face reaches its ball.** Out of one face with
-/// that face's boundary clear clears, on either side; `Out` with the
-/// boundary reaching the ball refuses R-tan — the face could be holed
-/// within the ball about a loop the point misses (mutant: dropping the
-/// boundary test) — and so does a touch on both faces, or `Out` of one
-/// face while only the other's boundary is clear.
+/// **A touch clears only on a pair with no event, and only out of a
+/// face.** `Out` of either face clears on that side; a touch on both
+/// faces, or one no face places, refuses R-tan; and an event on the
+/// pair refuses whatever the placement — the clearance argument needs
+/// the pair's own silence (mutant: reading the placement on an evented
+/// pair).
 #[test]
-fn a_touch_clears_only_out_of_a_face_its_boundary_does_not_reach() {
+fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     let s = Section::Touch(Touch {
         name: "section_sphere_plane_reach",
         at: p(0.0, 0.0, 1.0),
-        spread: 1e-4,
     });
     let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
-    let rule = |place: [Option<FaceContainment>; 2], clear: [bool; 2]| {
-        certify(
-            &s,
-            false,
-            |_| false,
-            |_| place,
-            |side| match side {
-                Side::F => clear[0],
-                Side::G => clear[1],
-            },
-        )
+    let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
+        certify(&s, evented, |_| false, |_| place)
     };
-    assert_eq!(
-        rule([OUT, IN], [true, false]),
-        Ok(vec![Cleared::TouchOut(Side::F)])
-    );
-    assert_eq!(
-        rule([IN, OUT], [false, true]),
-        Ok(vec![Cleared::TouchOut(Side::G)])
-    );
-    assert_eq!(rule([OUT, IN], [false, true]), tan);
-    assert_eq!(rule([OUT, OUT], [false, false]), tan);
-    assert_eq!(rule([IN, IN], [true, true]), tan);
-    assert_eq!(rule([None, None], [true, true]), tan);
+    assert_eq!(rule(false, [OUT, IN]), Ok(vec![Cleared::TouchOut(Side::F)]));
+    assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
+    assert_eq!(rule(false, [IN, IN]), tan);
+    assert_eq!(rule(false, [None, None]), tan);
+    assert_eq!(rule(true, [OUT, OUT]), tan);
+    assert_eq!(rule(true, [OUT, IN]), tan);
 }
 
 // -------------------------------------------------------------------
@@ -806,7 +865,7 @@ const OUT: Option<FaceContainment> = Some(FaceContainment::Out);
 #[test]
 fn the_no_event_decision_reads_one_point() {
     let s = lone_at(p(0.0, 0.0, 0.0));
-    let ok = |r| certify(&s, false, |_| false, r, |_| false);
+    let ok = |r| certify(&s, false, |_| false, r);
     assert_eq!(ok(at(OUT, IN)), Ok(vec![Cleared::Out(Side::F)]));
     assert_eq!(ok(at(IN, OUT)), Ok(vec![Cleared::Out(Side::G)]));
     assert_eq!(ok(at(IN, IN)), Err(Refusal::Loop));
@@ -830,7 +889,7 @@ fn the_no_event_decision_reads_one_point() {
 fn w4_clears_only_a_certified_single_component() {
     let s = lone_at(p(0.0, 0.0, 0.0));
     assert_eq!(
-        certify(&s, true, |_| false, at(IN, IN), |_| false),
+        certify(&s, true, |_| false, at(IN, IN)),
         Ok(vec![Cleared::LoneEvented])
     );
     let c = Component {
@@ -844,7 +903,7 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&two, true, |_| false, at(IN, IN), |_| false),
+        certify(&two, true, |_| false, at(IN, IN)),
         Err(Refusal::Undecided)
     );
     let uncounted = Section::Components {
@@ -852,7 +911,7 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&uncounted, true, |_| false, at(IN, IN), |_| false),
+        certify(&uncounted, true, |_| false, at(IN, IN)),
         Err(Refusal::Undecided)
     );
 }
@@ -866,11 +925,11 @@ fn w2_clears_only_where_the_face_describes() {
         &plane(p(0.0, 0.0, 0.5), v(0.2, 0.0, 1.0)),
     );
     assert_eq!(
-        certify(&s, false, |side| side == Side::F, at(None, None), |_| false),
+        certify(&s, false, |side| side == Side::F, at(None, None)),
         Ok(vec![Cleared::Essential(Side::F)])
     );
     assert_eq!(
-        certify(&s, false, |side| side == Side::G, at(None, None), |_| false),
+        certify(&s, false, |side| side == Side::G, at(None, None)),
         Err(Refusal::Undecided)
     );
 }

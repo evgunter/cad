@@ -86,19 +86,23 @@
 //!
 //! Sphere × plane, sphere × sphere (outside or inside one another),
 //! sphere × cylinder at its nearest ruling, and skew cylinders outside
-//! one another touch at one point when their reach margin decides
-//! `Zero`. The arm does not count the section there; it bounds it:
-//! every point the carriers share lies within `spread` of `at`, in the
-//! exact pose and in every pose the decided margin admits (each arm
-//! states its bound, the margin bounded by the band's escalation
-//! threshold). The touch clears on a face `X` when `at` places `Out` of
-//! `X` and no edge box of `X` reaches the ball's box: the ball meets the
-//! carrier of `X` in one connected patch (a cap, a disc, a patch of a
-//! wall), which no boundary of `X` crosses, so the patch lies out of `X`
-//! with its centre and the section inside it misses `X`. No event is
-//! read, so the clearance holds on either path. One point would not do:
-//! a face holed within the ball could hold the section's small loop
-//! while missing its centre. Any other tangency is a pinch — the
+//! one another touch at one point `at` when their reach margin decides
+//! `Zero`. The arm does not count the section there. In the exact pose
+//! the carriers share `at` alone. In a pose the decided margin admits
+//! where they cross, they share one small loop `γ` about `at`, inside
+//! which they stand within the margin of each other. On a pair with no
+//! event, the touch clears when `at` places `Out` of either face. With
+//! no event, `γ ∩ F ∩ G` is empty or `γ ⊂ int F ∩ int G` (L1). In the
+//! second case, a path on `F`'s carrier from `γ` inward to `at` leaves
+//! `F`, or leaves what lies over `G`, at some first point. That point
+//! is on an edge of one face, over the other face, within the margin of
+//! the other carrier: an edge × face contact the sweep records or
+//! refuses (S), so the pair would carry an event. Where the loop is
+//! smaller than `at`'s rounding, the path runs outside it by no more
+//! than that rounding, where the carriers still stand within the band.
+//!
+//! A pair with an event refuses R-tan at a touch, since the argument
+//! needs the pair's own silence. Any other tangency is a pinch — the
 //! components meet, or one becomes two — and refuses R-tan.
 //!
 //! # Premises, each at its site
@@ -269,17 +273,17 @@ pub(crate) enum Section<T: Real> {
 }
 
 /// **A touch of two carriers**: a margin decided `Zero` on an arm whose
-/// tangent pose meets in one point, so every point the carriers share
-/// lies within `spread` of `at` — in the exact pose, the touch, and in
-/// any pose the decided margin admits, a small loop about it.
+/// tangent pose meets in one point. The carriers share that point in
+/// the exact pose and, in a pose the decided margin admits where they
+/// cross, one small loop about it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Touch<T: Real> {
     /// The margin decided `Zero`.
     pub name: &'static str,
-    /// The ball's centre, the touch point within the margin's bound.
+    /// The touch: inside the loop of a crossing pose, where the carriers
+    /// stand deepest in each other, and on both carriers within the
+    /// margin. Each arm says which point it reads.
     pub at: Point3<T>,
-    /// Its radius.
-    pub spread: T,
 }
 
 /// Why a component was cleared.
@@ -293,8 +297,8 @@ pub(crate) enum Cleared {
     Out(Side),
     /// W4.
     LoneEvented,
-    /// A touch whose ball is certified out of the named face: the touch
-    /// point placed `Out` and no edge of the face reaching the ball.
+    /// A touch on a pair with no event, its centre placed `Out` of the
+    /// named face.
     TouchOut(Side),
 }
 
@@ -372,31 +376,19 @@ impl<T: Real> From<Pinch> for Section<T> {
 }
 
 impl Pinch {
-    /// A [`Touch`] about `at_spread()` when the pinch is one of `names`
-    /// decided `Zero`, the one reading under which the arm's bound on
-    /// the section holds; R-tan otherwise.
-    fn touch<T: Real>(
-        self,
-        names: &[&'static str],
-        at_spread: impl FnOnce() -> (Point3<T>, T),
-    ) -> Section<T> {
+    /// A [`Touch`] at `at()` when the pinch is one of `names` decided
+    /// `Zero`, the one reading under which the carriers share at most a
+    /// small loop about it; R-tan otherwise.
+    fn touch<T: Real>(self, names: &[&'static str], at: impl FnOnce() -> Point3<T>) -> Section<T> {
         if self.zero && names.contains(&self.name) {
-            let (at, spread) = at_spread();
             Section::Touch(Touch {
                 name: self.name,
-                at,
-                spread,
+                at: at(),
             })
         } else {
             self.into()
         }
     }
-}
-
-/// The most a margin decided `Zero` can be: the band's zero threshold
-/// and the margin's own rounding, which the escalation threshold bounds.
-fn zero_bound<T: Real>(band: Band) -> T {
-    T::from_f64(band.escalate())
 }
 
 /// Decides every margin in `ms`; the first `Zero` or undecided one is
@@ -925,33 +917,27 @@ fn cylinder_cylinder<T: Decide>(
     }
     let m = cross / sin;
     let delta = (o2 - o1).dot(m);
+    const REACH: &str = "section_cylinder_pair_reach";
     let [reach, nest] = match signs(
         [
-            ("section_cylinder_pair_reach", r1 + r2 - delta.abs()),
+            (REACH, r1 + r2 - delta.abs()),
             ("section_cylinder_pair_nest", delta.abs() - (r1 - r2).abs()),
         ],
         band,
     ) {
         Ok(x) => x,
-        // Touching outside, at `p₁ + n r₁` on the common perpendicular
-        // from axis 1's foot `p₁` (`n` toward axis 2). A point of the
-        // section lies within `√(2 rᵢ μ)` of each wall's touching ruling
-        // (its radial part has `· n ≥ rᵢ − μ`), within `μ` of their
-        // common plane, and so within `(√(2 r₁ μ) + √(2 r₂ μ)) / sin`
-        // of where the two rulings cross. Touching inside (the nest
-        // margin) is a pinch: the thinner wall leaves the fatter one
-        // on both sides of the touch.
+        // Touching outside, on the common perpendicular from axis 1's
+        // foot, `r₁ / (r₁ + r₂)` of the way to axis 2: the walls' deepest
+        // point when they cross, which the half-turn about that line (it
+        // maps each wall to itself) fixes inside the loop. Touching
+        // inside (the nest margin) is a pinch: the thinner wall leaves
+        // the fatter one on both sides of the touch.
         Err(tan) => {
-            return tan.touch(&["section_cylinder_pair_reach"], || {
+            return tan.touch(&[REACH], || {
                 let w = o1 - o2;
                 let b = d1.dot(d2);
                 let foot = o1 + d1 * ((b * d2.dot(w) - d1.dot(w)) / sin.powi(2));
-                let mu = zero_bound(band);
-                let two = T::from_f64(2.0);
-                (
-                    foot + m * (delta * r1 / (r1 + r2)),
-                    ((two * r1 * mu).sqrt() + (two * r2 * mu).sqrt()) / sin + mu + mu,
-                )
+                foot + m * (delta * r1 / (r1 + r2))
             });
         }
     };
@@ -1006,31 +992,25 @@ fn sphere_plane<T: Decide>(
     band: Band,
 ) -> Section<T> {
     let d = (cs - p0).dot(n);
-    match signs([("section_sphere_plane_reach", rho - d.abs())], band) {
+    const REACH: &str = "section_sphere_plane_reach";
+    match signs([(REACH, rho - d.abs())], band) {
         Ok([true]) => {
             let rad = ((rho - d.abs()) * (rho + d.abs())).sqrt();
             let (b1, _) = n.orthonormal_basis();
             lone(cs - n * d + b1 * rad)
         }
         Ok([false]) => none(),
-        // The circle about the foot has radius² (ρ − |d|)(ρ + |d|).
-        Err(tan) => tan.touch(&["section_sphere_plane_reach"], || {
-            let m = zero_bound(band);
-            (cs - n * d, (m * (rho + rho + m)).sqrt() + m)
-        }),
+        // The foot of the centre: the circle's centre.
+        Err(tan) => tan.touch(&[REACH], || cs - n * d),
     }
 }
 
 /// **Sphere × sphere**: one circle.
 fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Band) -> Section<T> {
     let dd = (c2 - c1).norm();
-    match signs(
-        [
-            ("section_sphere_pair_reach", r1 + r2 - dd),
-            ("section_sphere_pair_nest", dd - (r1 - r2).abs()),
-        ],
-        band,
-    ) {
+    const REACH: &str = "section_sphere_pair_reach";
+    const NEST: &str = "section_sphere_pair_nest";
+    match signs([(REACH, r1 + r2 - dd), (NEST, dd - (r1 - r2).abs())], band) {
         Ok([true, true]) => {
             let k = (c2 - c1) / dd;
             let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
@@ -1039,20 +1019,12 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
             lone(c1 + k * x + b1 * rad)
         }
         Ok(_) => none(),
-        // Touching outside or inside, the circle is centred on the line
-        // of centres at `x`, and a point `q` of it lies at
-        // `|q − p|² = 2 r₁ (r₁ − x) ≤ 2 r₁ r₂ μ / |c₂ − c₁|` from the
-        // touch point `p` for the decided margin `μ`; its centre is the
-        // foot of `p` on the circle's plane, so the radius is no more.
-        Err(tan) => tan.touch(
-            &["section_sphere_pair_reach", "section_sphere_pair_nest"],
-            || {
-                let k = (c2 - c1) / dd;
-                let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
-                let m = zero_bound(band);
-                (c1 + k * x, (r1 * r2 * m * T::from_f64(2.0) / dd).sqrt() + m)
-            },
-        ),
+        // Touching outside or inside, the circle's centre on the line of
+        // centres.
+        Err(tan) => tan.touch(&[REACH, NEST], || {
+            let k = (c2 - c1) / dd;
+            c1 + k * ((dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd))
+        }),
     }
 }
 
@@ -1070,25 +1042,21 @@ fn sphere_cylinder<T: Decide>(
     let perp = cs - foot;
     let e = perp.norm();
     let q_min = (e - rc).abs();
+    const REACH: &str = "section_sphere_cylinder_reach";
     let [reach, girdle] = match signs(
         [
-            ("section_sphere_cylinder_reach", rho - q_min),
+            (REACH, rho - q_min),
             ("section_sphere_cylinder_girdle", e + rc - rho),
         ],
         band,
     ) {
         Ok(x) => x,
-        // The touch is on the nearest ruling, at the foot's height. A
-        // point of the section at height `t` and angle `θ` from that
-        // ruling has `t² + 2 e ρc (1 − cos θ) = ρ² − (e − ρc)² ≤ S` with
-        // `S = μ (2ρ + μ)`, and lies `t² + 2ρc² (1 − cos θ) ≤ S (1 + ρc/e)`
-        // from the touch. A girdle pinch is not a touch.
+        // The touch is on the nearest ruling, at the foot's height: the
+        // loop's centre, which the reflections through the plane of the
+        // axis and the centre and across the foot fix. A girdle pinch is
+        // not a touch.
         Err(tan) => {
-            return tan.touch(&["section_sphere_cylinder_reach"], || {
-                let m = zero_bound(band);
-                let s = m * (rho + rho + m);
-                (foot + perp / e * rc, (s * (T::one() + rc / e)).sqrt() + m)
-            });
+            return tan.touch(&[REACH], || foot + perp / e * rc);
         }
     };
     match (reach, girdle) {
@@ -1108,9 +1076,7 @@ fn sphere_cylinder<T: Decide>(
 ///
 /// `evented` says whether the reduction recorded an event on this pair;
 /// `describes` asks `chart_boundary` of a face (cached by the caller);
-/// `place` places a witness point in `[F, G]`, `None` for no verdict;
-/// `clear` says whether no edge of a face reaches the section's touch
-/// ball (read only for a [`Section::Touch`]).
+/// `place` places a witness point in `[F, G]`, `None` for no verdict.
 ///
 /// # Errors
 ///
@@ -1120,20 +1086,20 @@ pub(crate) fn certify<T: Decide>(
     evented: bool,
     mut describes: impl FnMut(Side) -> bool,
     mut place: impl FnMut(Point3<T>) -> [Option<FaceContainment>; 2],
-    mut clear: impl FnMut(Side) -> bool,
 ) -> Result<Vec<Cleared>, Refusal> {
     let (parts, single) = match section {
         Section::Components { parts, single } => (parts, *single),
         Section::Tangent(name) => return Err(Refusal::Tangent(name)),
-        Section::Touch(t) => {
+        Section::Touch(t) if !evented => {
             let placed = place(t.at);
             return [Side::F, Side::G]
                 .into_iter()
                 .zip(placed)
-                .find(|&(side, at)| at == Some(FaceContainment::Out) && clear(side))
+                .find(|&(_, at)| at == Some(FaceContainment::Out))
                 .map(|(side, _)| vec![Cleared::TouchOut(side)])
                 .ok_or(Refusal::Tangent(t.name));
         }
+        Section::Touch(t) => return Err(Refusal::Tangent(t.name)),
         Section::Intractable => return Err(Refusal::Reach),
     };
     let mut out = Vec::with_capacity(parts.len());
