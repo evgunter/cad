@@ -928,11 +928,10 @@ type BooleanOutcome = Result<BooleanResult<f64>, BooleanError>;
 /// operand orders, builds at the volume a polygon clip of the prism's
 /// rectangle against each brick's square gives (the prism is that
 /// rectangle at every height of the pinch), and the result passes 3′
-/// with the pinch's records carried, except `pinch ∖ prism`: the
-/// pinch's top end lies inside the prism's face, and that result keeps
-/// both pieces there with no v-v row
-/// (`work/fuse/a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped.md`),
-/// pinned as it stands. Red as the first row: each dangling null edge
+/// with the pinch's records carried. Red in `pinch ∖ prism` when a
+/// carried row's ends do not reach their null-edge copies: the pinch's
+/// top end lies inside the prism's face, and the result keeps both
+/// pieces there with no v-v row. Red as the first row: each dangling null edge
 /// read the other's cut along the line as held, and all six refused
 /// `SharedVertexCrossings`. Red with the notch from −20° to 220° if a
 /// dangling null edge splices by the germ its run leaves from rather
@@ -989,42 +988,36 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
     ab.carried_a.vv.clone_from(&carried);
     let mut ba = flush_declarations(&prism, &pinch.body, tol);
     ba.carried_b.vv = carried;
-    for (op, got, want, drops) in [
+    for (op, got, want) in [
         (
             "pinch ∪ prism",
             union_with(&pinch.body, &prism, &ab, tol),
             2.0 + prism_volume - common,
-            false,
         ),
         (
             "pinch ∖ prism",
             subtract_with(&pinch.body, &prism, &ab, tol),
             2.0 - common,
-            true,
         ),
         (
             "pinch ∩ prism",
             intersect_with(&pinch.body, &prism, &ab, tol),
             common,
-            false,
         ),
         (
             "prism ∪ pinch",
             union_with(&prism, &pinch.body, &ba, tol),
             2.0 + prism_volume - common,
-            false,
         ),
         (
             "prism ∖ pinch",
             subtract_with(&prism, &pinch.body, &ba, tol),
             prism_volume - common,
-            false,
         ),
         (
             "prism ∩ pinch",
             intersect_with(&prism, &pinch.body, &ba, tol),
             common,
-            false,
         ),
     ] {
         let op = format!("{op} (notch {notch:?})");
@@ -1036,17 +1029,8 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
             (volume - want).abs() < 1e-9,
             "{op}: volume {volume}, want {want}"
         );
-        match validate_pseudomanifold(&out.body, &out.contacts, tol) {
-            Ok(_) => assert!(!drops, "{op}: passes 3′; the row's pin flips"),
-            Err(errors) => {
-                assert!(drops, "{op}: 3′ refused {errors:?}");
-                let text = format!("{errors:?}");
-                assert!(
-                    text.contains("VertexVertex") && text.contains("(0.0, 0.0, 1.5)"),
-                    "{op}: the undeclared pair at the pinch's top end: {errors:?}"
-                );
-            }
-        }
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
     }
 }
 
@@ -1308,15 +1292,14 @@ fn lens_prisms(
 /// that hangs at its tip. `y` is built in both orders of its union, and
 /// every op, in both operand orders, builds at
 /// the volume clipping each prism to each box gives, and passes 3′
-/// with `y`'s records carried except in the ops `drops` names.
-fn lens_in_a_lens(outer: [[[f64; 3]; 3]; 2], inner: [[[f64; 3]; 3]; 2], drops: &[&str], tol: Tol) {
+/// with `y`'s records carried.
+fn lens_in_a_lens(outer: [[[f64; 3]; 3]; 2], inner: [[[f64; 3]; 3]; 2], tol: Tol) {
     for (order, y) in lens_ys(outer, inner, tol) {
         lens_against_the_cube(
             &y,
             (outer, LENS_SCALES.0),
             (inner, LENS_SCALES.1),
             order,
-            drops,
             tol,
         );
     }
@@ -1382,7 +1365,6 @@ fn lens_against_the_cube(
     (outer, outer_scale): ([[[f64; 3]; 3]; 2], f64),
     (inner, inner_scale): ([[[f64; 3]; 3]; 2], f64),
     order: &str,
-    drops: &[&str],
     tol: Tol,
 ) {
     let (cube, block) = (box_planes(0.0, 1.0), box_planes(-1.0, 1.0));
@@ -1404,7 +1386,6 @@ fn lens_against_the_cube(
         "each piece's corner at the origin"
     );
     for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
-        let dropped = drops.contains(&op);
         let want = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
@@ -1420,16 +1401,8 @@ fn lens_against_the_cube(
             (volume - want).abs() < 1e-9,
             "{op}: volume {volume}, want {want}"
         );
-        match validate_pseudomanifold(&out.body, &out.contacts, tol) {
-            Ok(_) => assert!(!dropped, "{op}: passes 3′; the row's pin flips"),
-            Err(errors) => {
-                assert!(dropped, "{op}: 3′ refused {errors:?}");
-                assert!(
-                    format!("{errors:?}").contains("VertexVertex"),
-                    "{op}: the undeclared pair at a pinch line's far end: {errors:?}"
-                );
-            }
-        }
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
     }
 }
 
@@ -1559,17 +1532,17 @@ fn notched_filled(y: &BooleanBody<f64>, tol: Tol) -> BooleanBody<f64> {
 /// **A strut inside another's segment, sharing one end's direction**
 /// ([`lens_in_a_lens`]): the inner lens's rays in the cube's face are
 /// the outer's `D1` and a ray strictly between, so the pieces touch
-/// along one pinch line. `y ∖ cube` drops the carried row at its far
-/// end (`work/fuse/a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped.md`):
-/// pinned as it stands. Red as the first row: the cut strictly
+/// along one pinch line. Red as the first row: the cut strictly
 /// inside the Out run's segment held it, and every op refused
-/// `SharedVertexCrossings`.
+/// `SharedVertexCrossings`. Red in `y ∖ cube` when a carried row's ends
+/// do not reach their null-edge copies: the pinch line's far end lies
+/// inside the cube's face, and the copies the result keeps there are
+/// undeclared.
 #[test]
 fn a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op() {
     lens_in_a_lens(
         lens_prisms((D1, D2), ([0.8, 0.8, 0.3], [0.8, 0.8, -0.3])),
         lens_prisms((D1, [0.6, 1.0, 0.0]), ([0.8, 0.8, 0.15], [0.8, 0.8, -0.15])),
-        &["y ∖ cube"],
         Tol::witness(),
     );
 }

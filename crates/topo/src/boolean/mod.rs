@@ -85,6 +85,7 @@ mod contain;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
 mod door_meter;
+mod edge_join;
 mod ellipse_roots;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
@@ -143,6 +144,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // classification this module's own walk dispatches on.
 pub(crate) use contain::loop_circle;
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
+pub use edge_join::joinable_vertices;
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -408,6 +410,23 @@ pub struct VeContact {
     pub vertex: VertexKey,
     /// The edge whose interior holds it.
     pub edge: crate::entity::EdgeKey,
+}
+
+/// One edge split a boolean's reduction made in an operand clone:
+/// `parent` keeps its key and its leading span, from its start to the
+/// new `vertex`, and `child` runs from `vertex` to the parent's old
+/// end. In split order, these rows are the lineage a carried
+/// `(vertex, edge)` record follows onto the piece it rests on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct EdgeSplit {
+    /// The operand whose clone was split.
+    pub(crate) operand: Operand,
+    /// The split edge, which keeps the leading piece.
+    pub(crate) parent: crate::entity::EdgeKey,
+    /// The vertex the split minted.
+    pub(crate) vertex: VertexKey,
+    /// The trailing piece.
+    pub(crate) child: crate::entity::EdgeKey,
 }
 
 /// One cell of a body: what a contact record names, two at a time.
@@ -1542,6 +1561,8 @@ pub struct BooleanReduction<T: Real> {
     /// pair here was inferred from values. The whole-shell `On` verdict
     /// reads these (`shell_witness::on_verdict`).
     pub(crate) coincident: Vec<SettledPair>,
+    /// Every edge split the reduction made, both clones, split order.
+    pub(crate) edge_splits: Vec<EdgeSplit>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -3694,6 +3715,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         [None, None],
         tol,
     )?;
+    let edge_splits = core::mem::take(&mut acc.splits);
     let contacts = acc.finish();
 
     let mut null_edges = Vec::new();
@@ -3858,6 +3880,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         held,
         rest_contacts,
         coincident,
+        edge_splits,
     })
 }
 

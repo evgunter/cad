@@ -13235,7 +13235,7 @@ mod review_census_display_keys {
             }
         }
         assert_eq!(
-            checked, 12,
+            checked, 13,
             "every CensusContact and StaleDeclaration sample"
         );
     }

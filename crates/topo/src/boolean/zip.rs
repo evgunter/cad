@@ -159,6 +159,9 @@ pub(super) struct ZipReport {
     /// interior to the contact region). Empty for a plain
     /// [`zip_seam`].
     pub interior_edges: Vec<crate::entity::EdgeKey>,
+    /// Edge fusions, `(dead, kept)`: each ring edge the zip kills and
+    /// the seam edge it lay on, which keeps its key.
+    pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
 }
 
 /// Zips one section-face pair (module docs).
@@ -249,6 +252,17 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
                 .and_then(|vd| body.get_point(vd.point).copied())
                 .ok_or_else(|| corr("seam vertex has no point"))
         };
+    let edge_of =
+        |body: &Body<T>, he: HalfEdgeKey| -> Result<crate::entity::EdgeKey, BooleanError> {
+            Ok(body
+                .get_half_edge(he)
+                .ok_or_else(|| corr("seam half-edge no longer resolves"))?
+                .edge)
+        };
+    let ring_edges = rs
+        .iter()
+        .map(|&r| edge_of(body, r))
+        .collect::<Result<Vec<_>, _>>()?;
     let p0 = point_of(body, ob[0])?;
     let joint = Joint::Loops {
         target: ob[0],
@@ -274,5 +288,9 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
             .edge;
         report.seam_edges.push(edge);
     }
+    report.edge_merges = ring_edges
+        .into_iter()
+        .zip(report.seam_edges.iter().copied())
+        .collect();
     Ok(report)
 }

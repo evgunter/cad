@@ -90,8 +90,8 @@ use super::arcs::{ArcStep, arcs_along};
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
 use super::ops::{
-    Descendants, KeyView, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
-    merge_rows, remap_carried, remap_contacts,
+    Descendants, KeyView, carry, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
+    merge_rows, split_lineage,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
@@ -168,6 +168,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     if decls.coincident_faces.is_empty() || red.null_pairs.is_empty() {
         return Ok(None);
     }
+    // Read before the lane's surgery on the clones.
+    let carried = split_lineage(&red, decls, band)?;
 
     // ---- 1. The REST-contact (opposite-oriented) surface sets. ----
     let (a_rest, b_rest) = rest_surfaces(a_pristine, b_pristine, &red.rest_contacts)?;
@@ -377,19 +379,11 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .map_err(BooleanError::Merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
-    let mut contacts = remap_contacts(
+    let contacts = carry(
         &body,
         &contacts,
-        KeyView::Direct,
-        KeyView::Graft(&graft),
-        &desc,
-    )?;
-    remap_carried(
-        &mut contacts,
-        &body,
-        decls,
-        &KeyView::Direct,
-        &KeyView::Graft(&graft),
+        [&carried[0], &carried[1]],
+        [&KeyView::Direct, &KeyView::Graft(&graft)],
         &desc,
     )?;
     body.sweep_and_close();
