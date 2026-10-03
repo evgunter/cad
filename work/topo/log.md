@@ -6374,3 +6374,12 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## Hold re-pointed to D10 build (2026-10-03)
+
+Ev ratified D10 on PR #3990, and the hold now waits on
+`d10-one-way-to-say-intent-is-unbuilt`. TOPO's nine parked rows are
+re-pointed there. PR 3974 and PR 3992 were started before the hold, so
+they still finish. Per D10, coincidence is a margined verdict with no
+declarations, checked by the `unproven-coincidence` lint. Read it before
+any future unit on this ground.

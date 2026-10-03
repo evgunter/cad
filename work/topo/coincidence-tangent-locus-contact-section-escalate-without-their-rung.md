@@ -4,7 +4,7 @@ kind: issue
 title: topo: the tangent-locus, contact and section coincidences escalate without their rung, so none can offer the tolerance a length rung gives
 status: parked
 opened: 2026-09-30
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

@@ -4,7 +4,7 @@ kind: issue
 title: topo: declared_pair_verdict answers the declared rung's unreachable Distinct verdict as 'do not merge'
 status: parked
 opened: 2026-09-30
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 (TOPO, the receipt of the D262 unit, PR 3532: its sweep of every

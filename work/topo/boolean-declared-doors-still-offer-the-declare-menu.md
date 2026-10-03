@@ -4,7 +4,7 @@ kind: issue
 title: topo: the Boolean's escalations at doors whose pair is already declared still offer 'declare the coincidence'
 status: parked
 opened: 2026-09-30
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

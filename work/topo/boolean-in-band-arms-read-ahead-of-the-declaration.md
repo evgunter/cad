@@ -4,7 +4,7 @@ kind: issue
 title: topo: in-band arms read ahead of the declaration — the Boolean's sweep and sector primitives escalate before any face-pair declaration is read, so a declared pair refuses exactly as an undeclared one
 status: parked
 opened: 2026-09-30
-blocked_on: [3990]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
