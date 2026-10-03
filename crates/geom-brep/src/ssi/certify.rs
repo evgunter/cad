@@ -2347,3 +2347,129 @@ mod probe_side_arm {
         }
     }
 }
+
+#[cfg(test)]
+mod probe_section_rails {
+    //! Scratch probe (design fork, lane b, round 2): the axis-aligned
+    //! section theorem — slices along the chart axis across the carrier,
+    //! existence from opposite certified signs on the two rails (or a rail
+    //! on a wall side within its cover), uniqueness from a one-signed
+    //! derivative across — on the m7_8 fixture and on the fold at rest.
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    fn graph_wall(
+        (x0, x1): (f64, f64),
+        l: f64,
+        (g, dg0): (&dyn Fn(f64) -> f64, f64),
+        (h, dh0): (&dyn Fn(f64) -> f64, f64),
+    ) -> NurbsSurface<f64> {
+        let k = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let gb = [g(x0), g(x0) + 0.5 * (x1 - x0) * dg0, g(x1)];
+        let hb = [h(0.0), h(0.0) + 0.5 * l * dh0, h(l)];
+        let (xs, ys) = ([x0, 0.5 * (x0 + x1), x1], [0.0, 0.5 * l, l]);
+        let control = (0..9)
+            .map(|k| Point3::new(xs[k / 3], ys[k % 3], gb[k / 3] + hb[k % 3]))
+            .collect();
+        NurbsSurface::new(k(), k(), control, vec![1.0; 9]).unwrap()
+    }
+
+    /// One window's verdict under the section theorem, slices along `u`.
+    #[allow(clippy::print_stdout)]
+    fn section(boxes: &NurbsBoxes<'_, f64>, plane: ([Interval; 3], [Interval; 3]), r: UvRect, domain: UvRect, eps: f64) -> &'static str {
+        let n = plane.0;
+        let d = boxes.deriv_box(r.u.0, r.u.1, r.v.0, r.v.1, true);
+        let across = n[0] * d.x + n[1] * d.y + n[2] * d.z;
+        let Some(pos) = sign_of(across) else { return "across straddles" };
+        let inf = if pos { across.lo() } else { -across.hi() };
+        let rail = |u: f64| phi_over(boxes, plane, (u, u, r.v.0, r.v.1));
+        let (lo, hi) = (rail(r.u.0), rail(r.u.1));
+        let cover = |phi: Interval, on_side: bool| -> bool {
+            if !on_side { return false; }
+            let sup = phi.lo().abs().max(phi.hi().abs());
+            let speed = boxes.speed_sup(r.u.0, r.u.1, r.v.0, r.v.1, true);
+            let depth = sup / inf;
+            let reach = sup * speed / inf;
+            depth < (r.u.1 - r.u.0) && reach <= eps
+        };
+        match (sign_of(lo), sign_of(hi)) {
+            (Some(a), Some(b)) if a != b => "crossing: rails of opposite sign",
+            (Some(_), Some(_)) => "empty: rails of one sign",
+            (None, Some(_)) if cover(lo, r.u.0 == domain.u.0) => "cover: low rail on the side",
+            (Some(_), None) if cover(hi, r.u.1 == domain.u.1) => "cover: high rail on the side",
+            _ => "undecided: a rail straddles",
+        }
+    }
+
+    #[allow(clippy::print_stdout, clippy::unwrap_used, clippy::panic)]
+    fn run(name: &str, wall: &NurbsSurface<f64>, plane: &Surface<f64>, carrier: &NurbsCurve3<f64>, extent: f64) {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let pcurve = crate::edge_nurbs::chart_image(carrier, wall, |_, _| Ok(())).unwrap();
+        let op = super::super::ChartedNurbs::mint(wall).unwrap();
+        let boxes = NurbsBoxes::new(wall);
+        let Surface::Plane { origin, normal, .. } = *plane else { unreachable!() };
+        let n = [normal.x, normal.y, normal.z].map(Interval::from_certified);
+        let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
+        let domain = UvRect { u: wall.knots_u().domain(), v: wall.knots_v().domain() };
+        for radius in tube_ladder(extent, band) {
+            let pad = op.speeds().pad(radius);
+            let Some(windows) = chart_tube_windows(&pcurve, pad) else { continue };
+            let mut tally = std::collections::BTreeMap::new();
+            for w in &windows {
+                let Some(r) = meet(w.rect, domain) else { continue };
+                *tally.entry(section(&boxes, (n, p0), r, domain, band.zero())).or_insert(0) += 1;
+            }
+            println!("{name}: rung {radius:e} windows {} -> {tally:?}", windows.len());
+            if tally.len() == 1 && tally.keys().next().map_or(false, |k| k.starts_with("crossing") || k.starts_with("cover")) {
+                println!("{name}: CERTIFIES at rung {radius:e}");
+                break;
+            }
+        }
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn probe_section_rails() {
+        // m7_8
+        let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let wall = NurbsSurface::new(
+            kv2, kv1.clone(),
+            vec![
+                Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0),
+                Point3::new(1.0, 1.0, 0.0), Point3::new(1.0, 1.0, 1.0),
+                Point3::new(0.0, 1.0, 0.0), Point3::new(0.0, 1.0, 1.0),
+            ],
+            vec![1.0, 1.0, w, w, 1.0, 1.0],
+        ).unwrap();
+        let plane = Surface::Plane { origin: Point3::new(0.0, 0.0, 0.0), normal: Vec3::new(0.0, 1.0, 0.0), u_ref: Vec3::new(1.0, 0.0, 0.0) };
+        for (z0, z1) in [(0.0, 1.0), (0.2, 0.9)] {
+            let carrier = NurbsCurve3::new(kv1.clone(), vec![Point3::new(1.0, 0.0, z0), Point3::new(1.0, 0.0, z1)], vec![1.0, 1.0]).unwrap();
+            run(&format!("m7_8 z {z0}..{z1}"), &wall, &plane, &carrier, 1.0);
+        }
+        // a plane through the ruling tilted alpha (r1_pxn near-tangential)
+        for k in [1, 3, 6] {
+            let alpha = 10f64.powi(-k);
+            let tilted = Surface::Plane { origin: Point3::new(1.0, 0.0, 0.0), normal: Vec3::new(alpha.cos(), alpha.sin(), 0.0), u_ref: Vec3::new(0.0, 0.0, 1.0) };
+            let carrier = NurbsCurve3::new(kv1.clone(), vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)], vec![1.0, 1.0]).unwrap();
+            run(&format!("tilted alpha 1e-{k}"), &wall, &tilted, &carrier, 1.0);
+        }
+        // the fold at rest, c = 800 eps
+        let eps = 1e-9;
+        for frac in [1.0, 0.5, 0.25] {
+            let beta = frac * eps;
+            let c = 800.0 * eps;
+            let a = 0.28 * c * c / beta;
+            let wd = beta / c;
+            let l = 1.2 * wd;
+            let xr = (-1.5 * wd, 1.8 * wd);
+            let g = move |x: f64| c * x + a * x * x;
+            let h = move |y: f64| 4.0 * beta * y * (l - y) / (l * l);
+            let fold = graph_wall(xr, l, (&g, c + 2.0 * a * xr.0), (&h, 4.0 * beta / l));
+            let ground = Surface::Plane { origin: Point3::new(0.0, 0.0, 0.0), normal: Vec3::new(0.0, 0.0, 1.0), u_ref: Vec3::new(1.0, 0.0, 0.0) };
+            let carrier = NurbsCurve3::new(kv1.clone(), vec![Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, l, 0.0)], vec![1.0, 1.0]).unwrap();
+            run(&format!("fold beta {frac}eps"), &fold, &ground, &carrier, 1.0);
+        }
+    }
+}
