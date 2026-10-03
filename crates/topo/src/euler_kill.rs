@@ -2835,7 +2835,7 @@ mod tests {
         body.get_half_edge_mut(strut.he_minus).unwrap().next = seg.he_plus;
         body.get_half_edge_mut(seg.he_minus).unwrap().next = seg.he_minus;
         assert_eq!(
-            body.vertex_orbit_reading_no_start(seg.he_minus),
+            crate::validate::vertex_orbit_reading_no_start(&body, seg.he_minus),
             Some(vec![seg.he_minus, strut.he_plus, seg.he_plus])
         );
         let torn = EulerOpError::OrbitBroken { he: seg.he_minus };
@@ -2868,7 +2868,7 @@ mod tests {
         let m = body.mate(he).unwrap();
         let torn = EulerOpError::OrbitBroken { he: m };
         let killed = body.get_half_edge(he).unwrap().edge;
-        let orbit = body.vertex_orbit_reading_no_start(m).unwrap();
+        let orbit = crate::validate::vertex_orbit_reading_no_start(&body, m).unwrap();
         assert!(
             orbit[1..]
                 .iter()

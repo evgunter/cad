@@ -6507,7 +6507,7 @@ mod tests {
         body.get_half_edge_mut(strut.he_minus).unwrap().next = seg.he_plus;
         body.get_half_edge_mut(seg.he_minus).unwrap().next = seg.he_minus;
         assert_eq!(
-            body.vertex_orbit_reading_no_start(strut.he_plus),
+            crate::validate::vertex_orbit_reading_no_start(&body, strut.he_plus),
             Some(vec![strut.he_plus, seg.he_plus, seg.he_minus])
         );
         (body, seg, strut)
@@ -6566,7 +6566,7 @@ mod tests {
         body.get_half_edge_mut(halves[4]).unwrap().next = halves[11];
         for (from, to) in [(halves[5], halves[6]), (halves[6], halves[5])] {
             let v = body.get_half_edge(from).unwrap().start;
-            let orbit = body.vertex_orbit_reading_no_start(from).unwrap();
+            let orbit = crate::validate::vertex_orbit_reading_no_start(&body, from).unwrap();
             assert!(orbit.contains(&to), "the walk from {from:?} reaches {to:?}");
             assert!(
                 orbit

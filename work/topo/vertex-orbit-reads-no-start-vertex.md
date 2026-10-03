@@ -35,7 +35,7 @@ panics on it.
 | `corner_arms` (`offset_axial.rs`, `offset_together.rs`) | arm lengths along another vertex's edges |
 | `valence` (`shell.rs`) | a wrong valence |
 | `crates/sweep/src/blend/admit.rs` (`faces_of_vertex`, the admission's face fan) | another vertex's faces among the corner's |
-| `crates/sweep/src/blend/battery.rs` (two `edges_of_vertex` reads) | another vertex's edges among the corner's |
+| `crates/sweep/src/blend/battery.rs` (three `edges_of_vertex` reads: `cap_incidence`, `corner_at`, `joint_verdict`) | another vertex's edges among the corner's |
 | `crates/sweep/src/blend/surgery.rs` (five `edges_of_vertex` reads: the chain-end corners, three corner and rim fans, and the cap's meridian split) | the same; the last picks the meridian edge the surgery then splits, so it plans a write |
 
 The first sweep, for the symbols `vertex_orbit(` and `orbit_walk(`,

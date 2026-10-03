@@ -2127,14 +2127,10 @@ fn split_cycle<T: Real>(
     }
 }
 
-/// How many edges emanate from a vertex: `None` where the vertex is
-/// stale or its orbit does not walk ([`Body::vertex_orbit`]), which is
-/// not a valence.
+/// How many edges emanate from a vertex: `None` where its orbit does
+/// not read ([`Body::vertex_orbit_of`]), which is not a valence.
 fn valence<T: Real>(body: &Body<T>, vertex: crate::entity::VertexKey) -> Option<usize> {
-    match body.get_vertex(vertex)?.emanating {
-        None => Some(0),
-        Some(he) => body.vertex_orbit(he).map(|orbit| orbit.len()),
-    }
+    body.vertex_orbit_of(vertex).map(|orbit| orbit.len())
 }
 
 /// Sampled points along a run of half-edges — each edge at the

@@ -152,12 +152,9 @@ pub(super) fn build_sectors<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
-    let anchor = body
-        .get_vertex(vertex)
-        .and_then(|v| v.emanating)
-        .ok_or_else(|| corrupt(operand, vertex))?;
     let orbit = body
-        .vertex_orbit(anchor)
+        .vertex_orbit_of(vertex)
+        .filter(|orbit| !orbit.is_empty())
         .ok_or_else(|| corrupt(operand, vertex))?;
     // The outgoing direction of an orbit half-edge, scaled to the
     // edge's honest extent — the M3 chord for `Line` carriers

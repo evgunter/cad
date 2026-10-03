@@ -645,15 +645,8 @@ fn corner_arms<T: Real>(
     vertex: VertexKey,
     here: Point3<T>,
 ) -> Result<Vec<T>, ReplaceFaceError<T>> {
-    let Some(emanating) = body
-        .get_vertex(vertex)
-        .ok_or(ReplaceFaceError::Corrupt)?
-        .emanating
-    else {
-        return Ok(Vec::new());
-    };
     let orbit = body
-        .vertex_orbit(emanating)
+        .vertex_orbit_of(vertex)
         .ok_or(ReplaceFaceError::Corrupt)?;
     let mut out = Vec::new();
     for he in orbit {

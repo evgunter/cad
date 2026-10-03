@@ -407,6 +407,25 @@ use crate::entity::{
     VertexKey,
 };
 
+/// The key to [`Body::orbit_walk_reading_no_start`]. Its field is
+/// private to this module, so only the validator (and this module's
+/// tests) can take the walk that does not prove its members' start.
+#[derive(Clone, Copy)]
+pub(crate) struct ValidatorSeal(());
+
+/// [`Body::vertex_orbit`] over [`Body::orbit_walk_reading_no_start`]:
+/// for a torn fixture that shows the walk its tear closes.
+#[cfg(test)]
+pub(crate) fn vertex_orbit_reading_no_start<T: Real>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+) -> Option<Vec<HalfEdgeKey>> {
+    match body.orbit_walk_reading_no_start(he, ValidatorSeal(())) {
+        Walk::Closed(members) => Some(members),
+        Walk::Broken | Walk::Overrun => None,
+    }
+}
+
 /// The one classification funnel of this crate (the `geom-brep`
 /// pattern): delegates to the unified recorder funnel
 /// [`geom_core::k_stats::decide`] (M2 PR 7), which names the predicate
@@ -8505,7 +8524,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         }
         // The walk that reads no start, so a foreign member is named
         // rather than collapsed into `Broken`.
-        match body.orbit_walk_reading_no_start(emanating) {
+        match body.orbit_walk_reading_no_start(emanating, ValidatorSeal(())) {
             // Broken: a stale link or broken mate — passes 1/3 reported
             // the cause.
             Walk::Broken => {}
