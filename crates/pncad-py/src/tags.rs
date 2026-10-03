@@ -374,7 +374,7 @@ pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
 /// [`BoundaryEdit`] its raise takes.
 ///
 /// Exhaustive over that enum, so the boundary's set of refusals is
-/// closed: a fourth needs a variant there and an arm here before it can
+/// closed: another needs a variant there and an arm here before it can
 /// be raised. Two arms FORWARD the kernel value whole rather than
 /// restating its word, so the delegation is the real one the inventory
 /// reads — the whole of each delegate's vocabulary is reachable
@@ -561,6 +561,9 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::RepeatedDesignation { .. } => "repeated_designation",
         EditError::SelectionNotCanonical { .. } => "selection_not_canonical",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::SetDeclareOnNonDeclaring { .. } => "set_declare_on_non_declaring",
+        EditError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
+        EditError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
         EditError::NodeIdCollides { .. } => "node_id_collides",
@@ -578,7 +581,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PayloadDocParamDimension { .. } => "payload_doc_param_dimension",
         EditError::MeasureMalformed { .. } => "measure_malformed",
         EditError::AssertionTarget { .. } => "assertion_target",
-        EditError::DeclareInputNotDeclare { .. } => "declare_input_not_declare",
         EditError::AssertionDimension { .. } => "assertion_dimension",
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
         EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
@@ -1230,6 +1232,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::RepeatedDesignation { .. } => None,
         EditError::SelectionNotCanonical { .. } => None,
         EditError::SetMembersOnNonList { .. } => None,
+        EditError::SetDeclareOnNonDeclaring { .. } => None,
+        EditError::DeclaredSiteNotAnOperand { .. } => None,
+        EditError::DeclaredNameNotUpstream { .. } => None,
         EditError::SetProgramOnNonProfile { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
@@ -1244,7 +1249,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::PayloadUnknownDocParam { .. } => None,
         EditError::PayloadDocParamDimension { .. } => None,
         EditError::AssertionTarget { .. } => None,
-        EditError::DeclareInputNotDeclare { .. } => None,
         EditError::AssertionDimension { .. } => None,
         EditError::SlotDocParamDimension { .. } => None,
         EditError::ContinuousParamCannotBeCount { .. } => None,
@@ -1861,7 +1865,6 @@ pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
     match err {
         E::NoFindings => "no_findings",
         E::Edit(inner) => edit_error_tag(inner),
-        E::NoMintedId => "no_minted_id",
     }
 }
 
@@ -1912,9 +1915,10 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
+        SnapshotError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
+        SnapshotError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         SnapshotError::DanglingInput { .. } => "dangling_input",
         SnapshotError::ForwardInput { .. } => "forward_input",
-        SnapshotError::DeclareInput { .. } => "declare_input",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
         SnapshotError::LabelOnMissingNode { .. } => "label_on_missing_node",
@@ -3190,16 +3194,12 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 /// on the second's — and carries that offset, a `strand` the
 /// surviving node and the name whose minting node the edit deleted,
 /// and a `stranded_appearance` that same name with no carrying node,
-/// because the appearance store is what carries it. An
-/// `orphaned_declare` names the declaration the delete left with no
-/// consumer, on `node`, and carries no name at all: nothing is
-/// dangling there, the node is simply no longer read.
+/// because the appearance store is what carries it.
 pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
         Maintenance::OffsetCleared { .. } => "offset_cleared",
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
-        Maintenance::OrphanedDeclare { .. } => "orphaned_declare",
     }
 }
 

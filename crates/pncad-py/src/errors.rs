@@ -775,13 +775,15 @@ impl ValidationRefusal {
 /// closed set: another is a variant here, an arm in
 /// `crate::tags::boundary_edit_tag`, and a word the tag inventory sees.
 ///
-/// Every variant but one carries the KERNEL VALUE whose word it
-/// publishes rather than a word of its own, and that is the rule
-/// `crate::py::doc`'s boundary raise states: where a kernel enum arm
-/// stands behind the refusal, the word is that enum's to spell, so a
-/// refusal a caller can reach through either door stays one word.
-/// Only [`Self::NameSerialize`] mints, because a `serde_json` failure
-/// has no arm anywhere.
+/// Every variant but [`Self::NameSerialize`] carries the KERNEL VALUE
+/// behind it, and that is the rule `crate::py::doc`'s boundary raise
+/// states: where the value is a kernel enum ([`Self::PlacementRule`],
+/// [`Self::Label`]), the word is that enum's own map's, so a refusal a
+/// caller can reach through either door stays one word. The other three
+/// are one word each, minted in `crate::tags`: [`Self::NameSerialize`]
+/// because a `serde_json` failure has no arm anywhere, and
+/// [`Self::MateHead`] and [`Self::ParamName`] because each is one
+/// constructor's one refusal, with no enum arm to spell it.
 #[derive(Debug, Clone, Copy)]
 pub enum BoundaryEdit<'a> {
     /// A stable name that would not serialize. The one arm with no

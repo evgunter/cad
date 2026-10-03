@@ -2882,7 +2882,7 @@ const ROWS: ParityRows = ParityRows {
 /// Ray-parity containment of `q` in the (CCW, metred) `poly`.
 ///
 /// The walk is [`crate::ray_parity`]'s, shared with the 3-D
-/// `point_in_loop`; what this function owns is the 2-D frame, which
+/// `point_in_vertex_polygon`; what this function owns is the 2-D frame, which
 /// needs no arm gate (see [`SCHEDULE_2D`]).
 ///
 /// # Rows (margins re-derived for chart space; all metres because the

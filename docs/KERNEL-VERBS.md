@@ -456,7 +456,7 @@ the table.
   the ring and the ring vertex the walk placed outside). That is the
   statement an inverted host/guest pick at the rim glue falsifies. The
   instrument is the in-plane parity walk that reads each outer edge on
-  its own carrier (`splitting::containment::point_in_carrier_loop`: a
+  its own carrier (`splitting::containment::point_in_loop`: a
   line as its segment, a circle or ellipse arc on its conic inside its
   window) over the ring's vertices, so its region is the loop's region
   on every outer loop of lines and arcs — a polygon, one circle's disc

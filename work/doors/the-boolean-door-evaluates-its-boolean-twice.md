@@ -2,11 +2,10 @@
 id: the-boolean-door-evaluates-its-boolean-twice
 kind: issue
 title: The boolean door evaluates the boolean it commits twice, once on the frame's thread
-status: parked
+status: open
 opened: 2026-09-30
 priority: P2
 cost: M
-blocked_on: [declared-pairs-are-a-booleans-own-payload]
 ---
 
 Filed by AUTH-9 as the residue of its own design call. Re-priced at

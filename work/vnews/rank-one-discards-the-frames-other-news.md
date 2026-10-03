@@ -201,6 +201,7 @@ no row ever fails on the strand; a poisoned carrier's row names the
 ancestor. The maintenance door cannot know the carrier's fate, so a
 strand answers `Never` whatever its carrier
 (`edit_maintenance.rs`, `a_strand_on_a_declaration_rides_beside_a_refusal`).
+That test was deleted by PR 3902: declared pairs became a boolean's own payload, so the orphaned-declaration state it exercised no longer exists.
 
 `app::perform_batch` did not change. The sites that turn a tool event
 into a notice (`ViewerApp::sync_scene`, `ViewerApp::ui`,

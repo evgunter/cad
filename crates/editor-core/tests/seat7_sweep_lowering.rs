@@ -289,11 +289,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xadb5_6e86_28b9_f043),
-        ("corner_table", 0x54e0_5669_4ce6_2958),
+        ("die", 0xe35a_3144_bad2_96ca),
+        ("corner_table", 0xac66_617c_0e53_d4f0),
         ("cut_cylinder", 0x799c_caf4_ccb8_33de),
-        ("boss_union", 0xacaa_d7f0_70f1_f801),
-        ("kitchen_sink", 0xe0ec_0943_9fe3_6b4c),
+        ("boss_union", 0x23a9_86ad_2ab0_dc9a),
+        ("kitchen_sink", 0xf0c8_760c_ff31_b7ba),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -1321,7 +1321,7 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
             op: editor_core::BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = eval::<f64>(&doc);

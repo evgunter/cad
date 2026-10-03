@@ -71,13 +71,13 @@ fn plate_with_tube(r: &mut Recorder) -> RecipeNodeId {
         op: BooleanOp::Subtract,
         a: outer,
         b: hole,
-        declare: None,
+        declare: Vec::new(),
     });
     r.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: plate,
         b: tube,
-        declare: None,
+        declare: Vec::new(),
     })
 }
 
@@ -90,7 +90,7 @@ pub fn document_105() -> CorpusDoc {
         op: BooleanOp::Union,
         a: u1,
         b: pillar,
-        declare: None,
+        declare: Vec::new(),
     });
     CorpusDoc {
         name: "nested_islands_105",
@@ -121,7 +121,7 @@ pub fn document_106_depth1() -> CorpusDoc {
         op: BooleanOp::Intersect,
         a: u1,
         b: slab,
-        declare: None,
+        declare: Vec::new(),
     });
     CorpusDoc {
         name: "nested_islands_106_depth1",
@@ -153,14 +153,14 @@ pub fn document_106_depth2() -> CorpusDoc {
         op: BooleanOp::Union,
         a: u1,
         b: pillar,
-        declare: None,
+        declare: Vec::new(),
     });
     let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.375, 1.0);
     let cut = r.insert(Node::Boolean {
         op: BooleanOp::Intersect,
         a: u2,
         b: slab,
-        declare: None,
+        declare: Vec::new(),
     });
     CorpusDoc {
         name: "nested_islands_106_depth2",
