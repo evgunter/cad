@@ -543,7 +543,7 @@ impl AtRestFinding {
     /// it**: this document's mate as `doc` holds it now; a carried
     /// declaration's mate is a part's id, so it keeps its tag.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -635,10 +635,9 @@ impl crate::spoken::Say for MintRefusal {
                 why,
             } => write!(
                 f,
-                "{}'s {} reference ({} {}) does not name a face of the product: {}",
+                "{}'s {} reference ({}) does not name a face of the product: {}",
                 by.node_as(*mate, "mate"),
                 side.name(),
-                name.kind.article(),
                 by.name(name),
                 crate::spoken::Said(why, by)
             ),
@@ -665,7 +664,7 @@ impl MintRefusal {
     /// `doc` holds it now ([`crate::Doc::spoken`]). A row is memoized with
     /// the part that minted it, so it holds ids, never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -894,7 +893,7 @@ impl AssemblyError {
     /// ([`crate::Doc::spoken`]). A row carried up from a document below is
     /// spelled in that document's ids, so it keeps its tags.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }

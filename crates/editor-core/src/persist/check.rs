@@ -100,7 +100,7 @@ impl core::fmt::Display for NonFiniteSite {
                 write!(f, "document parameter {name}, {field}")
             }
             Self::Metadata { name, key, path } => {
-                write!(f, "metadata {key:?} on the {name}, at {path}")
+                write!(f, "metadata {key:?} on {name}, at {path}")
             }
             Self::Edit { index, inner } => write!(f, "edit {index}, {inner}"),
         }
@@ -1121,18 +1121,18 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::NameStepNotMinted { name, step } => write!(
                 f,
-                "the {name} spells the profile step id {step}, which the document's mint log \
+                "{name} spells the profile step id {step}, which the document's mint log \
                  does not hold — the document never minted it",
             ),
             Self::DeclaredSiteNotAnOperand { node, name, site } => write!(
                 f,
-                "the declared {name} is read at {site}, which is not an operand of {node} — no \
+                "the declaration names {name}, read at {site}, which is not an operand of {node} — no \
                  edit writes such a pair. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::DeclaredNameNotUpstream { node, name } => write!(
                 f,
-                "the declared {name} is not minted before {node} in `order` — no edit writes \
+                "the declaration names {name}, which is not minted before {node} in `order` — no edit writes \
                  such a pair. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
@@ -1274,7 +1274,7 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
-                "metadata {key:?} on the {name} does not carry an integer \
+                "metadata {key:?} on {name} does not carry an integer \
                  \"v\" version field: {error}"
             ),
         }
@@ -2297,7 +2297,7 @@ mod tests {
                 let said = e.to_string();
                 assert!(
                     said.contains(&format!(
-                        "metadata \"swatch\" on the face name minted by Profile \"outline\" \
+                        "metadata \"swatch\" on the face of Profile \"outline\" \
                          ({profile})"
                     )),
                     "{said}"

@@ -281,11 +281,15 @@ impl core::fmt::Display for ToolNotice {
 }
 
 impl ToolNotice {
-    /// **The sentence the line shows**: each bare id said from
-    /// `landed`, the landed document the tool's picks and loads were
-    /// read off, and by its tag with nothing landed.
-    pub fn said(&self, landed: Option<&Doc<ProfileProgram>>) -> String {
-        Said(self, landed.map_or(Speaker::TAG, Speaker::of)).to_string()
+    /// **The sentence the line shows**: each bare id said from the
+    /// landed document the tool's picks and loads were read off, each
+    /// name within its table in that document's evaluation
+    /// ([`Speaker::within`]); by its tag, in full, with nothing landed.
+    pub fn said(&self, landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>) -> String {
+        let by = landed.map_or(Speaker::TAG, |(doc, evaluation)| {
+            Speaker::of(doc).within(evaluation)
+        });
+        Said(self, by).to_string()
     }
 }
 

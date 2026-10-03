@@ -744,9 +744,9 @@ impl Refusal {
     /// side's operand through the chrome's one spelling of a node, and
     /// the class the declaration asserts: a contact's class, or a
     /// continuation (one surface carried on, which is not a contact).
-    /// The face within each operand has no prose name
-    /// (`work/doors/face-pick-cannot-name-which-face.md`), so the line
-    /// says "a face of" rather than inventing one.
+    /// The line says "a face of" each operand, not which face: saying
+    /// the face in its words is
+    /// `work/doors/face-pick-cannot-name-which-face.md`'s to wire.
     pub fn declare_pair_wording(doc: &Doc<ProfileProgram>, finding: &FlushFinding) -> String {
         let (one, other) = &finding.pair;
         let what = match finding.class.contact() {

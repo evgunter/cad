@@ -407,8 +407,8 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             // is a `Debug` derivation the prose must not carry.
             vec![
                 "tied between 2 faces",
-                "(1) face",
-                "(2) face",
+                "(1) the start cap",
+                "(2) the end cap",
                 "node 000000000007",
             ],
         ),

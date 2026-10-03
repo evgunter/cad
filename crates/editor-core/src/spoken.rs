@@ -34,15 +34,21 @@
 //!   print alike.
 //!
 //! A [`StableName`] is a stored reference with no document behind it,
-//! so its own `Display` says its minting node by tag; a sentence made
-//! where the document is at hand says it as a [`SpokenName`].
+//! so its own `Display` says its nodes and its profile steps by tag; a
+//! sentence made where the document is at hand says it as a
+//! [`SpokenName`], each step where the profile pane shows it. Both are
+//! [`Speaker::name`]'s one sentence, in full; a speaker holding the
+//! name's table says it at a detail that tells it apart there
+//! ([`Speaker::within`]).
 
 use core::fmt;
 
 use crate::doc::Doc;
 use crate::label::Label;
-use crate::names::StableName;
-use crate::node::{Datum, Node, RecipeNodeId, StepId};
+use crate::names::words::{Detail, unique_detail};
+use crate::names::{NameTable, StableName};
+use crate::node::{BooleanOp, Datum, Node, RecipeNodeId, StepId};
+use crate::program::ProfilePayload;
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
 /// mirrors it, so the refusal-shape oracle does not read a tag as a
@@ -237,9 +243,10 @@ impl fmt::Display for SpokenNode {
     }
 }
 
-/// **A stable name as a person reads it**: its entity noun and its
-/// minting node spoken ([`SpokenNode`]), `face name minted by Extrude
-/// "base plate" (3fa9c1d2a0b1)`.
+/// **A stable name as a person reads it**: its words
+/// ([`crate::LeafRole`]) with every node and profile step said as the
+/// document held them, `the end cap of Extrude "base plate"
+/// (3fa9c1d2a0b1)` — [`Speaker::name`]'s sentence, kept.
 ///
 /// Built by [`Doc::spoken_name`] from the document a sentence speaks
 /// from, under [`SpokenNode`]'s rule. Boxed, so that a refusal carrying
@@ -247,11 +254,35 @@ impl fmt::Display for SpokenNode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpokenName(Box<SpokenNameParts>);
 
-/// [`SpokenName`]'s two halves, behind its box.
+/// [`SpokenName`]'s parts, behind its box: the name, the node that
+/// holds it, and every other node and profile step its sentence says.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SpokenNameParts {
     name: StableName,
     minter: SpokenNode,
+    held: HeldNodes,
+}
+
+impl HoldsNodes for SpokenNameParts {
+    fn speak(&self, id: RecipeNodeId) -> SpokenNode {
+        if id == self.minter.id() {
+            self.minter.clone()
+        } else {
+            self.held.speak(id)
+        }
+    }
+
+    fn step(&self, id: StepId) -> Option<StepAt> {
+        self.held.step(id)
+    }
+
+    fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
+        self.held.sole_profile(feature)
+    }
+
+    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
+        self.held.boolean_op(id)
+    }
 }
 
 impl SpokenName {
@@ -259,19 +290,19 @@ impl SpokenName {
     /// builds by hand what a document would say.
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) fn forged(name: StableName, minter: SpokenNode) -> Self {
-        Self::new(name, minter)
+        Self::new(name, minter, HeldNodes::default())
     }
 
-    fn new(name: StableName, minter: SpokenNode) -> Self {
-        Self(Box::new(SpokenNameParts { name, minter }))
+    fn new(name: StableName, minter: SpokenNode, held: HeldNodes) -> Self {
+        Self(Box::new(SpokenNameParts { name, minter, held }))
     }
 
-    /// A name whose minting node no document at hand holds: `node
-    /// <tag>`, as [`StableName`]'s own `Display` says it.
+    /// A name none of whose nodes a document at hand holds: each said
+    /// `node <tag>`, as [`StableName`]'s own `Display` says it.
     #[must_use]
     pub fn absent(name: StableName) -> Self {
         let minter = SpokenNode::absent(name.node);
-        Self::new(name, minter)
+        Self::new(name, minter, HeldNodes::default())
     }
 
     /// The name, as the document stores it.
@@ -280,35 +311,93 @@ impl SpokenName {
         &self.0.name
     }
 
-    /// The node that minted it, spoken.
+    /// The node whose output holds it ([`StableName::node`]), spoken.
     #[must_use]
     pub fn minter(&self) -> &SpokenNode {
         &self.0.minter
     }
 
-    /// This name with its minter spoken again from `doc`, a later
-    /// version of the document it was spoken from
-    /// ([`SpokenNode::respoken`]).
+    /// **This name with each profile step `doc` still draws said where
+    /// `doc` draws it**, and each step `doc` no longer draws where it
+    /// sat when this was spoken: for a row about the edit that made
+    /// `doc`, which says a step it dropped where the step was, and a
+    /// step it kept where the step is now — its old row may be another
+    /// step's. Its nodes are kept as spoken.
     #[must_use]
-    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
-        Self::new(self.name().clone(), self.minter().respoken(doc))
+    pub fn steps_respoken<P: ProfilePayload>(&self, doc: &Doc<P>) -> Self {
+        let held = &self.0.held;
+        Self::new(
+            self.name().clone(),
+            self.minter().clone(),
+            HeldNodes {
+                steps: held
+                    .steps
+                    .iter()
+                    .map(|&(id, at)| (id, doc.step(id).unwrap_or(at)))
+                    .collect(),
+                ..held.clone()
+            },
+        )
+    }
+
+    /// This name with its nodes and steps spoken again from `doc`, a
+    /// later version of the document it was spoken from
+    /// ([`HeldNodes::respoken`]).
+    #[must_use]
+    pub fn respoken<P: ProfilePayload>(&self, doc: &Doc<P>) -> Self {
+        Self::new(
+            self.name().clone(),
+            self.minter().respoken(doc),
+            self.0.held.respoken(doc),
+        )
     }
 }
 
 impl fmt::Display for SpokenName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", SaidName(self.name(), self.minter()))
+        let by = Speaker {
+            doc: Some(&*self.0),
+            subject: None,
+            scope: None,
+        };
+        write!(f, "{}", by.name(self.name()))
+    }
+}
+
+impl<P: ProfilePayload> Doc<P> {
+    /// The name `name` as a sentence speaks it ([`SpokenName`]): every
+    /// node and step its words say, read off this document now.
+    #[must_use]
+    pub fn spoken_name(&self, name: &StableName) -> SpokenName {
+        let recording = Recording {
+            doc: self,
+            said: core::cell::RefCell::default(),
+        };
+        let by = Speaker {
+            doc: Some(&recording),
+            subject: None,
+            scope: None,
+        };
+        // Said only to be heard: the sentence is the one authority on
+        // which nodes and steps it says, so what is kept is what it
+        // named.
+        let _ = by.name(name).to_string();
+        let mut held = recording.held();
+        // The minter is held apart, and a node the document does not
+        // hold is said by its tag whether held or not: kept out, so a
+        // name spoken from a document that holds none of its nodes is
+        // the name [`SpokenName::absent`] builds.
+        held.nodes = held
+            .nodes
+            .iter()
+            .filter(|node| node.id() != name.node && node.kind().is_some())
+            .cloned()
+            .collect();
+        SpokenName::new(name.clone(), self.spoken(name.node), held)
     }
 }
 
 impl<P> Doc<P> {
-    /// The name `name` as a sentence speaks it ([`SpokenName`]), its
-    /// minting node read off this document now.
-    #[must_use]
-    pub fn spoken_name(&self, name: &StableName) -> SpokenName {
-        SpokenName::new(name.clone(), self.spoken(name.node))
-    }
-
     /// The node `id` as a sentence speaks it ([`SpokenNode`]), read off
     /// this document now.
     #[must_use]
@@ -337,16 +426,104 @@ pub struct Speaker<'a> {
     doc: Option<&'a dyn HoldsNodes>,
     /// The node the enclosing sentence is about ([`Speaker::about`]).
     subject: Option<RecipeNodeId>,
+    /// The name tables a name is said within ([`Speaker::within`]),
+    /// `None` for the full form.
+    scope: Option<&'a dyn NameTables>,
 }
 
-/// A document a [`Speaker`] reads nodes off, whatever its program.
+/// **The name tables a [`Speaker`] says names within**: the table of
+/// the node whose output holds a name, as an evaluation answers it.
+pub trait NameTables {
+    /// The name table of `node`'s output, `None` where there is none.
+    fn table(&self, node: RecipeNodeId) -> Option<&NameTable>;
+}
+
+impl<T: geom_core::Decide> NameTables for crate::Evaluation<T> {
+    fn table(&self, node: RecipeNodeId) -> Option<&NameTable> {
+        self.value(node).map(|value| &*value.name_table)
+    }
+}
+
+/// A document a [`Speaker`] reads nodes and profile steps off.
 trait HoldsNodes {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode;
+    /// Where the profile step `id` sits, `None` where no profile held
+    /// here draws it.
+    fn step(&self, id: StepId) -> Option<StepAt>;
+    /// The one profile `feature` reads, `None` where it reads none or
+    /// several, or is not held here.
+    fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId>;
+    /// The operation of the Boolean `id`, `None` where `id` is no
+    /// Boolean, or is not held here.
+    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp>;
 }
 
-impl<P> HoldsNodes for Doc<P> {
+impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         self.spoken(id)
+    }
+
+    fn step(&self, id: StepId) -> Option<StepAt> {
+        self.order().iter().find_map(|node| {
+            let Some(Node::Profile(payload)) = self.node(*node) else {
+                return None;
+            };
+            payload
+                .step_ids()?
+                .iter()
+                .enumerate()
+                .find_map(|(loop_, ids)| {
+                    ids.iter().position(|step| *step == id).map(|row| StepAt {
+                        profile: *node,
+                        loop_,
+                        row,
+                    })
+                })
+        })
+    }
+
+    fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
+        let inputs = self.node(feature)?.inputs();
+        let mut profiles = inputs
+            .iter()
+            .filter(|input| matches!(self.node(**input), Some(Node::Profile(_))));
+        match (profiles.next(), profiles.next()) {
+            (Some(one), None) => Some(*one),
+            _ => None,
+        }
+    }
+
+    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
+        match self.node(id)? {
+            Node::Boolean { op, .. } => Some(*op),
+            _ => None,
+        }
+    }
+}
+
+/// **Where a profile step sits, as the profile pane numbers it**: its
+/// profile, its loop and its row, both from zero — `loop 0 step 2`, the
+/// address the pane's rows and every program refusal read. The step's
+/// id is shown on no screen, so a sentence says this wherever a
+/// document holds the step, and says the profile wherever the feature
+/// does not fix it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct StepAt {
+    profile: RecipeNodeId,
+    loop_: usize,
+    row: usize,
+}
+
+impl StepAt {
+    /// The profile node whose program draws the step.
+    pub(crate) fn profile(self) -> RecipeNodeId {
+        self.profile
+    }
+}
+
+impl fmt::Display for StepAt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "loop {} step {}", self.loop_, self.row)
     }
 }
 
@@ -355,41 +532,162 @@ impl<P> HoldsNodes for Doc<P> {
 /// carries whole, so the door's refusal speaks them ([`Speaker::held`])
 /// with no document at hand. Empty, every node is said by its tag.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct HeldNodes(Box<[SpokenNode]>);
+pub struct HeldNodes {
+    nodes: Box<[SpokenNode]>,
+    /// The profile steps the words name, where the document held them.
+    steps: Box<[(StepId, StepAt)]>,
+    /// What the words read off a node beyond its name: one slice, so a
+    /// refusal carrying these stays three pointers wide.
+    facts: Box<[NodeFact]>,
+}
+
+/// One thing a sentence's words read off a node ([`HeldNodes::facts`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NodeFact {
+    /// A feature, with the one profile it read.
+    SoleProfile(RecipeNodeId, RecipeNodeId),
+    /// A Boolean, with its operation.
+    Op(RecipeNodeId, BooleanOp),
+}
+
+impl NodeFact {
+    fn node(self) -> RecipeNodeId {
+        match self {
+            Self::SoleProfile(node, _) | Self::Op(node, _) => node,
+        }
+    }
+
+    /// This fact read again from `doc`: as `doc` holds the node now, or
+    /// as it was where `doc` does not hold it; let go where `doc` holds
+    /// the node and no longer answers it.
+    fn respoken<P: ProfilePayload>(self, doc: &Doc<P>) -> Option<Self> {
+        if doc.node(self.node()).is_none() {
+            return Some(self);
+        }
+        match self {
+            Self::SoleProfile(feature, _) => {
+                Some(Self::SoleProfile(feature, doc.sole_profile(feature)?))
+            }
+            Self::Op(boolean, _) => Some(Self::Op(boolean, doc.boolean_op(boolean)?)),
+        }
+    }
+}
+
+impl HeldNodes {
+    /// Keeps `fact`, once per node and kind of fact.
+    fn keep(&mut self, fact: NodeFact) {
+        let same = |held: &NodeFact| {
+            core::mem::discriminant(held) == core::mem::discriminant(&fact)
+                && held.node() == fact.node()
+        };
+        if !self.facts.iter().any(same) {
+            self.facts = self.facts.iter().copied().chain([fact]).collect();
+        }
+    }
+}
 
 impl HeldNodes {
     /// These nodes spoken again from `doc`, a later version of the
-    /// document they were held from ([`SpokenNode::respoken`]).
+    /// document they were held from ([`SpokenNode::respoken`]); a step
+    /// `doc` still draws, where it sits there now. A step `doc` no
+    /// longer draws is let go, and said by its tag: the row it sat at
+    /// may now be another step's.
     #[must_use]
-    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
-        Self(self.0.iter().map(|node| node.respoken(doc)).collect())
+    pub fn respoken<P: ProfilePayload>(&self, doc: &Doc<P>) -> Self {
+        Self {
+            nodes: self.nodes.iter().map(|node| node.respoken(doc)).collect(),
+            steps: self
+                .steps
+                .iter()
+                .filter_map(|&(id, _)| Some((id, doc.step(id)?)))
+                .collect(),
+            facts: self
+                .facts
+                .iter()
+                .filter_map(|fact| fact.respoken(doc))
+                .collect(),
+        }
     }
 }
 
 impl HoldsNodes for HeldNodes {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
-        self.0
+        self.nodes
             .iter()
             .find(|node| node.id() == id)
             .cloned()
             .unwrap_or_else(|| SpokenNode::absent(id))
     }
+
+    fn step(&self, id: StepId) -> Option<StepAt> {
+        self.steps
+            .iter()
+            .find_map(|&(step, at)| (step == id).then_some(at))
+    }
+
+    fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
+        self.facts.iter().find_map(|fact| match *fact {
+            NodeFact::SoleProfile(held, profile) if held == feature => Some(profile),
+            _ => None,
+        })
+    }
+
+    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
+        self.facts.iter().find_map(|fact| match *fact {
+            NodeFact::Op(held, op) if held == id => Some(op),
+            _ => None,
+        })
+    }
 }
 
-/// A document that keeps each node it is asked to speak ([`held_by`]).
+/// A document that keeps each node and step it is asked to speak
+/// ([`held_by`]).
 struct Recording<'d, P> {
     doc: &'d Doc<P>,
-    said: core::cell::RefCell<Vec<SpokenNode>>,
+    said: core::cell::RefCell<HeldNodes>,
 }
 
-impl<P> HoldsNodes for Recording<'_, P> {
+impl<P> Recording<'_, P> {
+    fn held(self) -> HeldNodes {
+        self.said.into_inner()
+    }
+}
+
+impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         let node = self.doc.spoken(id);
         let mut said = self.said.borrow_mut();
-        if said.iter().all(|held| held.id() != id) {
-            said.push(node.clone());
+        if said.nodes.iter().all(|held| held.id() != id) {
+            said.nodes = said.nodes.iter().cloned().chain([node.clone()]).collect();
         }
         node
+    }
+
+    fn step(&self, id: StepId) -> Option<StepAt> {
+        let at = self.doc.step(id)?;
+        let mut said = self.said.borrow_mut();
+        if said.steps.iter().all(|(held, _)| *held != id) {
+            said.steps = said.steps.iter().copied().chain([(id, at)]).collect();
+        }
+        drop(said);
+        // The step's profile is said where the feature does not fix
+        // it, so it is kept as a node the words may name.
+        let _ = self.speak(at.profile);
+        Some(at)
+    }
+
+    fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
+        let profile = self.doc.sole_profile(feature)?;
+        self.said
+            .borrow_mut()
+            .keep(NodeFact::SoleProfile(feature, profile));
+        Some(profile)
+    }
+
+    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
+        let op = self.doc.boolean_op(id)?;
+        self.said.borrow_mut().keep(NodeFact::Op(id, op));
+        Some(op)
     }
 }
 
@@ -397,19 +695,20 @@ impl<P> HoldsNodes for Recording<'_, P> {
 /// ([`HeldNodes`]). The door's refusal is never memoized, so what it
 /// keeps is as of the moment it refused.
 #[must_use]
-pub fn held_by<T: Say + ?Sized, P>(value: &T, doc: &Doc<P>) -> HeldNodes {
+pub fn held_by<T: Say + ?Sized, P: ProfilePayload>(value: &T, doc: &Doc<P>) -> HeldNodes {
     let recording = Recording {
         doc,
-        said: core::cell::RefCell::new(Vec::new()),
+        said: core::cell::RefCell::default(),
     };
     let speaker = Speaker {
         doc: Some(&recording),
         subject: None,
+        scope: None,
     };
     // The sentence is written only to be heard: the nodes it names are
     // what is kept.
     let _ = Said(value, speaker).to_string();
-    HeldNodes(recording.said.into_inner().into_boxed_slice())
+    recording.held()
 }
 
 impl<'a> Speaker<'a> {
@@ -417,14 +716,16 @@ impl<'a> Speaker<'a> {
     pub const TAG: Speaker<'static> = Speaker {
         doc: None,
         subject: None,
+        scope: None,
     };
 
     /// Each node as `doc` holds it now ([`Doc::spoken`]).
     #[must_use]
-    pub fn of<P>(doc: &'a Doc<P>) -> Self {
+    pub fn of<P: ProfilePayload>(doc: &'a Doc<P>) -> Self {
         Self {
             doc: Some(doc),
             subject: None,
+            scope: None,
         }
     }
 
@@ -435,7 +736,63 @@ impl<'a> Speaker<'a> {
         Self {
             doc: Some(nodes),
             subject: None,
+            scope: None,
         }
+    }
+
+    /// **This speaker, saying each name within its table**: a name
+    /// `tables` holds, in the table of the node whose output holds it,
+    /// is said at a detail no other name of that table reads alike at
+    /// (found greedily, not the fewest openings); any other name, in
+    /// full.
+    #[must_use]
+    pub fn within(self, tables: &'a dyn NameTables) -> Self {
+        Self {
+            scope: Some(tables),
+            ..self
+        }
+    }
+
+    /// Whether the enclosing sentence is about `id` ([`Speaker::about`]).
+    pub(crate) fn is_about(self, id: RecipeNodeId) -> bool {
+        self.subject == Some(id)
+    }
+
+    /// The detail this speaker says `name` at ([`Speaker::within`]).
+    pub(crate) fn detail_of(self, name: &StableName) -> Detail {
+        let Some(table) = self.scope.and_then(|tables| tables.table(name.node)) else {
+            return Detail::Full;
+        };
+        if table.lookup(name).is_none() {
+            return Detail::Full;
+        }
+        unique_detail(name, self, table)
+    }
+
+    /// The operation of the Boolean `id` in this speaker's document,
+    /// `None` by tag or where it holds no such Boolean.
+    pub(crate) fn boolean_op(self, id: RecipeNodeId) -> Option<BooleanOp> {
+        self.doc?.boolean_op(id)
+    }
+
+    /// The node `id` as this speaker's document holds it, `noun` said
+    /// for its kind (`Subtract 1669` for a Boolean): `this node` when it
+    /// is the node the enclosing sentence is about ([`Speaker::about`]),
+    /// `node <tag>` where the document does not hold it.
+    pub(crate) fn node_as_kind(self, id: RecipeNodeId, noun: &'static str) -> impl fmt::Display {
+        let said = (self.subject != Some(id)).then(|| {
+            let held = self.spoken(id);
+            SpokenNode {
+                kind: held.kind.map(|_| noun),
+                ..held
+            }
+        });
+        NodeAs("node", said)
+    }
+
+    /// The one profile `feature` reads in this speaker's document.
+    pub(crate) fn sole_profile(self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
+        self.doc?.sole_profile(feature)
     }
 
     /// **The speaker inside a sentence that has already named `id`**
@@ -466,11 +823,22 @@ impl<'a> Speaker<'a> {
         }
     }
 
-    /// The name `name`, its minting node said: `face name minted by
-    /// <node>`.
+    /// The name `name` in words ([`crate::LeafRole`]): `the end cap of
+    /// Extrude e548, cut in at Subtract 1669`. The one spelling of a name
+    /// in a sentence, article-led; [`StableName`]'s own `Display` is
+    /// this, said by tag.
     #[must_use]
-    pub fn name(self, name: &StableName) -> impl fmt::Display + '_ {
-        SaidName(name, self.node(name.node))
+    pub fn name<'n>(self, name: &'n StableName) -> impl fmt::Display + 'n
+    where
+        'a: 'n,
+    {
+        SaidName(name, self)
+    }
+
+    /// Where the profile step `id` sits in this speaker's document,
+    /// `None` by tag or where the document draws no such step.
+    pub(crate) fn step(self, id: StepId) -> Option<StepAt> {
+        self.doc?.step(id)
     }
 
     /// The node `id` where the sentence knows what it is: `<noun>
@@ -484,13 +852,15 @@ impl<'a> Speaker<'a> {
     }
 }
 
-/// A name and its minting node said: the one spelling of `<kind> name
-/// minted by <node>` ([`SpokenName`]'s too).
-struct SaidName<'a, N>(&'a StableName, N);
+/// A name said ([`Speaker::name`]): the one spelling of a name in
+/// words ([`crate::LeafRole`]), [`SpokenName`]'s and [`StableName`]'s
+/// `Display` too.
+struct SaidName<'a>(&'a StableName, Speaker<'a>);
 
-impl<N: fmt::Display> fmt::Display for SaidName<'_, N> {
+impl fmt::Display for SaidName<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} name minted by {}", self.0.kind.noun(), self.1)
+        let Self(name, by) = *self;
+        Said(&crate::names::LeafRole(name), by).fmt(f)
     }
 }
 
@@ -529,8 +899,20 @@ impl<T: Say + ?Sized> fmt::Display for Said<'_, T> {
 
 /// `value`'s sentence as `doc` speaks its nodes now.
 #[must_use]
-pub fn spoken_by<T: Say + ?Sized, P>(value: &T, doc: &Doc<P>) -> String {
+pub fn spoken_by<T: Say + ?Sized, P: ProfilePayload>(value: &T, doc: &Doc<P>) -> String {
     Said(value, Speaker::of(doc)).to_string()
+}
+
+/// `value`'s sentence as `doc` speaks its nodes now, each name it
+/// forwards said within the table `tables` holds it in
+/// ([`Speaker::within`]): what a frame holding the evaluation says.
+#[must_use]
+pub fn spoken_within<T: Say + ?Sized, P: ProfilePayload>(
+    value: &T,
+    doc: &Doc<P>,
+    tables: &dyn NameTables,
+) -> String {
+    Said(value, Speaker::of(doc).within(tables)).to_string()
 }
 
 /// **A report renders only from the document it was taken of.** A

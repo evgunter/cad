@@ -281,7 +281,8 @@ class TestAFailedVerdict(unittest.TestCase):
                 # there is nothing to refine here, so the rebind is
                 # onto a different feature entirely.
                 self.assertEqual(verdict.variant, "node_gone")
-                self.assertIn("its minting node was deleted", verdict.detail)
+                self.assertIn("is stranded: node ", verdict.detail)
+                self.assertIn(" was deleted", verdict.detail)
                 # Nothing structural offers itself for a node that is
                 # simply gone, and the empty list is the answer — not
                 # an absence.

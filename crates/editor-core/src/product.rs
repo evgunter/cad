@@ -379,7 +379,7 @@ impl ProductError {
     /// **The refusal as the frame holding the gathered document says
     /// it**: each node as `doc` holds it now ([`crate::Doc::spoken`]).
     #[must_use]
-    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 
@@ -463,15 +463,13 @@ impl ProductError {
             // its own root's mint, and would be described correctly.
             Self::Naming { node, name } if *node != name.node => write!(
                 f,
-                "{}'s {} collides in the product's name table",
+                "in {}, {} collides in the product's name table",
                 root(*node),
                 by.name(name)
             ),
-            Self::Naming { name, .. } => write!(
-                f,
-                "the {} collides in the product's name table",
-                by.name(name)
-            ),
+            Self::Naming { name, .. } => {
+                write!(f, "{} collides in the product's name table", by.name(name))
+            }
             Self::Graft { node, source } => write!(
                 f,
                 "the kernel could not graft {}'s body: {source}",

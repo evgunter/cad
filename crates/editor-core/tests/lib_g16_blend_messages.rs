@@ -136,19 +136,27 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
         ),
         (
             "kind",
-            "the fillet selection name minted by node {cube} denotes a face, not an edge",
+            "the fillet selection names the side wall over the leg of the profile step {wall} of \
+             node {cube}, which is a face, not an edge",
         ),
         (
             "resolve",
-            "a fillet selection name failed to resolve: the edge name minted by node {cube} no \
-             longer resolves in this evaluation: the recorded reference disagrees with the \
-             recipe as it stands on the derivation path (node {cube}'s payload differs)",
+            "a fillet selection name failed to resolve: the side wall over piece 7 of the profile \
+             step {ghost} of node {cube} no longer resolves in this evaluation: the recorded \
+             reference disagrees with the recipe as it stands on the derivation path (node \
+             {cube}'s payload differs)",
         ),
     ];
-    let cube = test_utils::refusal::tag(cube_doc().1.0);
+    let (doc, cube) = cube_doc();
+    let wall = fixture::step_of(&fixture::piece(&doc, cube, 0, 0)).to_string();
+    let ghost = fixture::step_of(&fixture::no_piece_of(&doc)).to_string();
+    let cube = test_utils::refusal::tag(cube.0);
     for ((label, actual), (wl, expected)) in got.iter().zip(want.iter()) {
         assert_eq!(label, wl);
-        let expected = expected.replace("{cube}", &cube);
+        let expected = expected
+            .replace("{cube}", &cube)
+            .replace("{wall}", &wall)
+            .replace("{ghost}", &ghost);
         assert_eq!(actual, &expected, "the fillet's {label} refusal text moved");
     }
     // The op row is pinned by PREFIX, not whole. Its tail is the

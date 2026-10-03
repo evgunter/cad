@@ -2110,28 +2110,25 @@ pub fn containing_dir(path: &Path) -> Option<&Path> {
 /// subject is for a message ABOUT what lies under the pointer, which
 /// is [`crate::idpass::Disagreement`]'s.
 ///
-/// # The certified tie is re-rendered here, and only here
+/// # The certified tie is re-worded here
 ///
-/// The kernel's own [`HitTestError::Ambiguous`] numbers its faces by
-/// name — `StableName`'s `Display`, which omits the role path on
-/// purpose, so two faces minted by one node render as the SAME phrase
-/// and the ordinal is all that tells them apart. That is right for
-/// the kernel, whose prose contract forbids a `Debug` derivation in a
-/// message and whose typed payload carries the path anyway.
+/// The kernel's own [`HitTestError::Ambiguous`] points its reader at
+/// the tied faces its typed payload lists in full. A status line has no
+/// payload to open, so this door says the tie itself, each face in its
+/// words, which tell the faces of one table apart. Every other arm is
+/// the typed refusal's own words, unaltered.
 ///
-/// It is not enough on a status line. The reader has no payload to
-/// open, and a sentence whose whole subject is that two answers
-/// cannot be told apart cannot render them identically. So this door
-/// writes the tie itself, rendering each face the way
-/// [`crate::idpass::Disagreement`] renders a name — kind and minting
-/// node, then the role path — for the same reason and with the same
-/// shape. Every other arm is the typed refusal's own words,
-/// unaltered. Each node is said from `doc`, the landed document the
-/// index was built against.
+/// `landed` is the landed document the index was built against and its
+/// evaluation: each node is said as that document holds it, each name
+/// within the table that evaluation holds it in ([`Speaker::within`]).
 ///
 /// [`Retold::Again`]: the same click says it again.
-pub fn pick_refusal(error: &PickError, doc: &Doc<ProfileProgram>) -> Message {
-    let by = Speaker::of(doc);
+pub fn pick_refusal(
+    error: &PickError,
+    landed: (&Doc<ProfileProgram>, &Evaluation<f64>),
+) -> Message {
+    let (doc, evaluation) = landed;
+    let by = Speaker::of(doc).within(evaluation);
     let PickError::HitTest(HitTestError::Ambiguous { hits }) = error else {
         return Message::new(
             Subject::Document,
@@ -2141,7 +2138,7 @@ pub fn pick_refusal(error: &PickError, doc: &Doc<ProfileProgram>) -> Message {
     };
     let tied: Vec<String> = hits
         .iter()
-        .map(|hit| crate::idpass::NameAndPath(&hit.name, by).to_string())
+        .map(|hit| by.name(&hit.name).to_string())
         .collect();
     Message::new(
         Subject::Document,
@@ -2170,7 +2167,10 @@ pub fn pick_refusal(error: &PickError, doc: &Doc<ProfileProgram>) -> Message {
 /// and rides beside a refusal ([`frame_status`]). A **declined pick**
 /// took nothing: the held picks are untouched and the same pick says
 /// the same sentence again, so it is [`Retold::Again`].
-pub fn tool_notice(notice: &ToolNotice, landed: Option<&Doc<ProfileProgram>>) -> Message {
+pub fn tool_notice(
+    notice: &ToolNotice,
+    landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
+) -> Message {
     let retold = match notice {
         ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
         ToolNotice::Seated {
@@ -2577,7 +2577,7 @@ pub fn index_badge(
             "pick index: {}",
             Said(
                 &index_refusal_as_drawn(error, evaluation),
-                Speaker::of(landed)
+                Speaker::of(landed).within(evaluation)
             )
         ),
         None => format!("pick index: {error}"),

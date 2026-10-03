@@ -127,8 +127,7 @@ fn as_strs(words: &[String]) -> Vec<&str> {
     words.iter().map(String::as_str).collect()
 }
 
-/// A face name minted by node 7 — enough for the kind + minting-node
-/// spelling every user-facing message uses.
+/// A name of node 7's output: the end cap of an extrude.
 fn face_name() -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -143,16 +142,56 @@ fn spoken_face_name() -> SpokenName {
     editor_core::test_support::spoken_name(face_name(), held(7, "Extrude"))
 }
 
-/// A stable name renders as its kind plus its minting node — the half
-/// a user can act on — and never its role path: a derivation is not
-/// something a person reads mid-sentence.
+/// A stable name renders as its role and the feature that made it, in
+/// words: the path as a structure is the machine channel; a person
+/// reads it in words. The structure itself — the variant, the brackets
+/// of the path — never reaches the sentence.
 #[test]
-fn stable_name_display_is_kind_plus_minting_node() {
+fn stable_name_display_is_its_role_of_its_feature() {
     let shown = face_name().to_string();
-    assert_eq!(shown, "face name minted by node 000000000007");
+    assert_eq!(shown, "the end cap of node 000000000007");
     assert!(
         !shown.contains("Cap") && !shown.contains('['),
-        "the role path leaked into prose: {shown:?}"
+        "the role path's structure leaked into prose: {shown:?}"
+    );
+}
+
+/// **A flush pair one boolean carried says two different faces**, each
+/// by its role and its feature, and the one the boolean's B brought in
+/// by its join; the sentence meets the refusal standard.
+#[test]
+fn a_pair_in_band_says_two_faces_of_one_node_apart() {
+    use editor_core::NameRef;
+    let operand = |node: u64, end| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(tagged(node)),
+        path: vec![RoleSeg::Cap(end)],
+    };
+    let carried = |seg: fn(NameRef) -> RoleSeg, inner| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(tagged(9)),
+        path: vec![seg(NameRef::new(inner))],
+    };
+    let refusal = SelectRefusal::PairInBand {
+        pair: Box::new((
+            carried(RoleSeg::FromA, operand(2, CapEnd::End)),
+            carried(RoleSeg::FromB, operand(5, CapEnd::Start)),
+        )),
+        predicate: "bool_plane_offset",
+        source: in_band("bool_plane_offset"),
+    };
+    let shown = refusal.to_string();
+    assert!(
+        shown.starts_with(
+            "select: the end cap of node 000000000002, on node 000000000009 and the start cap \
+             of node 000000000005, joined at node 000000000009 are too nearly flush to call"
+        ),
+        "{shown}"
+    );
+    assert_eq!(
+        test_utils::refusal::problems("PairInBand", &shown, &["select"], false),
+        Vec::<String>::new(),
+        "{shown}"
     );
 }
 
@@ -547,7 +586,7 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 source: in_band(editor_core::SEL_DATUM_DISTANCE),
             },
             vec![
-                "face",
+                "the end cap",
                 "node 000000000007",
                 "neither certified in nor out",
                 "ambiguity band",
@@ -560,14 +599,19 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 matched: 1,
                 candidates: 3,
             },
-            vec!["face", "node 000000000007", "3 candidates", "1 match"],
+            vec![
+                "the end cap",
+                "node 000000000007",
+                "3 candidates",
+                "1 match",
+            ],
         ),
         (
             SelectRefusal::Unreadable {
                 name: Box::new(face_name()),
                 error: InterrogateError::WholeBody,
             },
-            vec!["face", "node 000000000007", "whole body"],
+            vec!["the end cap", "node 000000000007", "whole body"],
         ),
         (
             SelectRefusal::NotADatum {
@@ -601,7 +645,7 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec!["distance is a distance", "dimension angle"],
         ),
         // The detector's pair-shaped sibling of `InBand`: it names the
-        // PAIR, and says that detection reports only definite findings.
+        // PAIR, and says that detection reports neither.
         (
             SelectRefusal::PairInBand {
                 pair: Box::new((face_name(), face_name())),
@@ -609,11 +653,10 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 source: in_band("bool_plane_side_of"),
             },
             vec![
-                "the pair (",
-                "face",
+                "the end cap",
                 "node 000000000007",
-                "neither certified in nor out",
-                "only definite findings",
+                "too nearly flush to call",
+                "flush detection reports neither",
             ],
         ),
         (
@@ -1364,7 +1407,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 error: MetaVersionError::MissingVersion,
             },
             vec![
-                "metadata \"swatch\" on the face name minted by Extrude \"base plate\" (000000000005)",
+                "metadata \"swatch\" on the start cap of Extrude \"base plate\" (000000000005)",
                 "\"v\" version field",
             ],
         ),
@@ -1409,7 +1452,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 step: StepId(tagged(8)),
             },
             vec![
-                "minted by Extrude \"base plate\" (000000000005)",
+                "of Extrude \"base plate\" (000000000005) spells",
                 "profile step id 000000000008",
                 "mint log does not hold",
             ],
@@ -1446,7 +1489,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 ),
             },
             vec![
-                "minted by Extrude \"base plate\" (000000000005)",
+                "the output body of Extrude \"base plate\" (000000000005)",
                 "is not minted before Boolean 000000000006",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ],
@@ -1653,7 +1696,7 @@ fn a_border_delta_names_the_walls_that_moved() {
         },
         &[
             "at node 000000000007",
-            &format!("no longer borders the {} and the {}", wall(3), wall(4)),
+            &format!("no longer borders {} and {}", wall(3), wall(4)),
             "borders no wall it did not",
         ],
         &["BorderDelta", "gone", "new"],
@@ -1666,7 +1709,7 @@ fn a_border_delta_names_the_walls_that_moved() {
         },
         &[
             "no longer borders no wall",
-            &format!("borders the {} it did not", wall(5)),
+            &format!("borders {} it did not", wall(5)),
         ],
         &["BorderDelta"],
     );
@@ -1722,27 +1765,27 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 gone: vec![vertex.clone()],
                 new: vec![],
             },
-            "the parent's seams with the vertex name minted by node 000000000005 (the end cap vertex \
-             over the start of the leg of the profile step 000000000001) are gone",
+            "the parent's seams with the end cap vertex over the start of the leg of the profile \
+             step 000000000001 of node 000000000005 are gone",
         ),
         (
             GroupCutters::Read {
                 gone: vec![],
                 new: vec![member_wall],
             },
-            "the parent has new seams with the face name minted by node 000000000008 (the side wall \
-             over the leg of the profile step 000000000002, minted by node 000000000006)",
+            "the parent has new seams with the side wall over the leg of the profile step \
+             000000000002 of node 000000000006, joined at node 000000000008 from node \
+             000000000007",
         ),
         (
             GroupCutters::Read {
                 gone: vec![wall(1), wall(3)],
                 new: vec![wall(0)],
             },
-            "the parent's seams with 2 cutters (the face name minted by node 000000000006 (the side \
-             wall over the leg of the profile step 000000000001); the face name minted by node 000000000006 (the \
-             side wall over the leg of the profile step 000000000003)) are gone, and the parent \
-             has new seams with the face name minted by node 000000000006 (the side wall over the leg \
-             of the profile step 000000000000)",
+            "the parent's seams with 2 cutters (the side wall over the leg of the profile step \
+             000000000001 of node 000000000006; the side wall over the leg of the profile step \
+             000000000003 of node 000000000006) are gone, and the parent has new seams with the \
+             side wall over the leg of the profile step 000000000000 of node 000000000006",
         ),
         (
             GroupCutters::Read {
@@ -1950,7 +1993,7 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
     });
     let shown = reference.to_string();
     assert!(
-        shown.contains(&format!("(a {phrase})")),
+        shown.contains(&format!("({phrase})")),
         "the mate reference re-spells the name instead of forwarding it: {shown:?}"
     );
     assert!(
@@ -2009,15 +2052,10 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
 /// "a" and `Edge` takes "an", so a sentence that hard-codes one is
 /// wrong for every edge-kind refusal it can reach.
 ///
-/// Two sentences read it, and they differ in how an edge reaches them.
 /// [`editor_core::NotAFaceName`] — what the mate head's one
 /// constructor answers — is RAISED with an edge wherever a boundary
-/// turns data into a head, so its article is live.
-/// `MintRefusal::Reference` renders the NAME's own kind: the gate
-/// raises it only over a face name, because a head is a `SitedFace`,
-/// but the row is public data with public fields and its article is
-/// therefore read off the value a consumer hands it rather than fixed
-/// at the raise.
+/// turns data into a head, so its article is live. (A name in words is
+/// article-led by its role, so a sentence forwarding one supplies none.)
 #[test]
 fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     let edge_name = StableName {
@@ -2042,30 +2080,6 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     .to_string();
     assert!(
         shown.contains("a vertex"),
-        "the consonant kinds must keep \"a\": {shown:?}"
-    );
-
-    let reference = mint(MintRefusal::Reference {
-        mate: RecipeNodeId(tagged(2)),
-        side: MateSide::A,
-        name: Box::new(edge_name.clone()),
-        why: RefusedRef::Vanished,
-    });
-    let shown = reference.to_string();
-    assert!(
-        shown.contains(&format!("(an {edge_name})")),
-        "an edge-kind mate reference reads as \"a edge\": {shown:?}"
-    );
-
-    let face = mint(MintRefusal::Reference {
-        mate: RecipeNodeId(tagged(2)),
-        side: MateSide::A,
-        name: Box::new(face_name()),
-        why: RefusedRef::Vanished,
-    });
-    let shown = face.to_string();
-    assert!(
-        shown.contains(&format!("(a {})", face_name())),
         "the consonant kinds must keep \"a\": {shown:?}"
     );
 }
@@ -2636,8 +2650,8 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec![
                 "seam vertex",
                 "2 differently named vertices",
-                "vertex name minted by node 000000000003",
-                "vertex name minted by node 000000000004",
+                "of the profile step 000000000000 of node 000000000003",
+                "of the profile step 000000000000 of node 000000000004",
             ],
         ),
         (
@@ -2878,13 +2892,13 @@ fn maintenance_display_says_what_the_edit_did() {
                 name: spoken_face_name(),
             },
             vec![
-                "Datum frame (on face) 000000000005 carries a face name minted by Extrude \
+                "Datum frame (on face) 000000000005 carries a name for the end cap of Extrude \
                  000000000007",
                 // The row is made by two edits — a delete and a
-                // reshaping — and the sentence names what either
-                // removed without claiming which.
-                "this edit removed what it denoted",
-                "its minting node, or the profile segment it named",
+                // reshaping — and the sentence names what either took
+                // without claiming which, nor that a kept step went.
+                "this edit took what it denoted",
+                "a node or profile step it names, or a piece a kept step no longer draws",
                 "resolves to nothing until it is rebound",
             ],
         ),
@@ -2893,9 +2907,9 @@ fn maintenance_display_says_what_the_edit_did() {
                 name: spoken_face_name(),
             },
             vec![
-                "the appearance store holds an attachment under a face name minted by Extrude \
-                 000000000007",
-                "this edit removed what it denoted",
+                "the appearance store holds an attachment under a name for the end cap of \
+                 Extrude 000000000007",
+                "this edit took what it denoted",
                 "rebound or cleared",
             ],
         ),
@@ -3084,7 +3098,8 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             step: StepId(tagged(9)),
         },
         &[
-            "edge name minted by Extrude 000000000003",
+            "the end rim edge over the leg of the profile step 000000000009 of Extrude \
+             000000000003",
             "profile step id 000000000009",
             "never minted",
             "mint log does not hold it",

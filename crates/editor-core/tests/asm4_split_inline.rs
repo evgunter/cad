@@ -1081,11 +1081,11 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
             assert_eq!(name.name(), &body_name);
             let msg = format!("{}", SplitError::BodyNameCrossesCut { name });
             assert!(
-                msg.contains(&format!("minted by {}", doc.spoken(ids[1]))),
+                msg.contains(&format!("the output body of {}", doc.spoken(ids[1]))),
                 "the message names the name: {msg}"
             );
             assert!(
-                msg.contains("body name"),
+                msg.contains("the output body of"),
                 "the message states the class: {msg}"
             );
         }

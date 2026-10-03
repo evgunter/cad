@@ -465,6 +465,8 @@ mod meta_nesting_bound;
 mod name_depth;
 #[path = "name_tables_by_position.rs"]
 mod name_tables_by_position;
+#[path = "name_words_corpus.rs"]
+mod name_words_corpus;
 #[path = "names_verbatim_edge_evaluator.rs"]
 mod names_verbatim_edge_evaluator;
 #[path = "node_labels.rs"]

@@ -775,12 +775,13 @@ fn fill(fields: &mut [(&'static str, Py<PyAny>)], attribute: &str, payload: Py<P
 /// `name_text` — the `StableName` alphabet Python speaks — where the
 /// kernel spells it kind-plus-minting-node. The arms this binding does
 /// not mirror fall back to that kernel prose, spoken from the evaluated
-/// document. The fields are the
+/// document and its evaluation. The fields are the
 /// contract; the message is prose.
 pub(crate) fn select_refusal(
     py: Python<'_>,
     err: &s::SelectRefusal,
     doc: &pncad::document::ProfileDoc,
+    evaluation: &dyn pncad::document::NameTables,
 ) -> PyErr {
     use s::SelectRefusal as R;
     let text = |v: &str| PyString::new(py, v).unbind().into_any();
@@ -906,7 +907,7 @@ pub(crate) fn select_refusal(
         // possible here, and the tag pin in `src/tests.rs` enumerates
         // the arms this binding speaks without being able to fail on a
         // new one.
-        other => other.spoken(doc),
+        other => other.spoken(doc, evaluation),
     };
     typed_err(py, ErrorClass::Select, message, &fields)
 }

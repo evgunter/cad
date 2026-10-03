@@ -2271,10 +2271,14 @@ NOT_BOUND = {
     "FullId": SHAPE,
     "HeldNodes": SHAPE,
     "held_by": SHAPE,
+    # The name tables a speaker says names within: the binding speaks
+    # each door's message itself, so the table it scopes by is its own.
+    "NameTables": SHAPE,
     "Said": SHAPE,
     "Say": SHAPE,
     "Speaker": SHAPE,
     "spoken_by": SHAPE,
+    "spoken_within": SHAPE,
     "SpokenName": SHAPE,
     "SpokenNode": SHAPE,
     "node_kind_noun": SHAPE,
@@ -2548,6 +2552,13 @@ NOT_BOUND = {
     "Step": SHAPE,
     "VertexKey": SHAPE,
     "attribute": SHAPE,
+    # A name's leaf role in words. Python holds a name as its opaque
+    # text, and the words ride inside every sentence that names one —
+    # each door's refusal, spoken from the document it evaluated — so
+    # no value of the renderer's crosses.
+    "LeafRole": SHAPE,
+    "leaf_role": SHAPE,
+    "role_leaf": SHAPE,
     "bulge_from_center": SHAPE,
     "bulge_from_via": SHAPE,
     # A cone-delete is composed caller-side in Python: the bound door

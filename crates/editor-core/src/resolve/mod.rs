@@ -86,7 +86,8 @@ use crate::diff::NodeChange;
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeStanding};
 use crate::names::{
-    EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName, name_free_seg,
+    EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName, fragment_tail_start,
+    name_free_seg,
 };
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
@@ -139,8 +140,8 @@ pub enum ResolveError {
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM in prose — the name with its minting node said by the
 // speaker (the half a user can act on), the WHY forwarded from the
-// payload's own rendering. `NodeGone` says the minting node once, in
-// the name, and words its edit itself. Composing layers
+// payload's own rendering. `NodeGone` names the node the name is on,
+// and words its edit itself. Composing layers
 // (`NodeErrorKind`'s resolve arms) FORWARD this rather than
 // re-stating it.
 impl crate::spoken::Say for ResolveError {
@@ -154,20 +155,20 @@ impl crate::spoken::Say for ResolveError {
                 name, diagnosis, ..
             } => write!(
                 f,
-                "the {} no longer resolves in this evaluation: {}",
+                "{} no longer resolves in this evaluation: {}",
                 by.name(name),
                 Said(diagnosis, by)
             ),
             Self::Ambiguous { name, tie, .. } => write!(
                 f,
-                "the {} is tie-marked: {} equally-admissible \
+                "{} is tie-marked: {} equally-admissible \
                  candidates at its recorded site — a tie is never broken by picking; \
                  refine the reference until one candidate remains",
                 by.name(name),
                 tie.width
             ),
             Self::NodeGone { name, edit } => {
-                write!(f, "the {} is stranded: its minting node ", by.name(name))?;
+                write!(f, "{} is stranded: {} ", by.name(name), by.node(name.node))?;
                 match edit {
                     RecipeEditRef::NodeDeleted { .. } => f.write_str("was deleted")?,
                     RecipeEditRef::ForeignNode { .. } => {
@@ -191,11 +192,17 @@ impl core::fmt::Display for ResolveError {
 impl ResolveError {
     /// **The refusal as the frame holding the resolved document says it**:
     /// each node as `doc` holds it now ([`crate::Doc::spoken`]), a node it
-    /// does not hold (a deleted one) by its tag. Speak it from the document
-    /// of the run the resolution is about, never the prior run's.
+    /// does not hold (a deleted one) by its tag, and each name within
+    /// the table `evaluation` holds it in ([`crate::Speaker::within`]).
+    /// Speak it from the document and evaluation of the run the
+    /// resolution is about, never the prior run's.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
-        crate::spoken::spoken_by(self, doc)
+    pub fn spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &crate::doc::Doc<P>,
+        evaluation: &dyn crate::NameTables,
+    ) -> String {
+        crate::spoken::spoken_within(self, doc, evaluation)
     }
 }
 
@@ -490,162 +497,6 @@ pub enum GroupCutters {
     SeamUnread,
 }
 
-/// One cutter as [`GroupCutters`]' sentence names it: its name, and the
-/// role it has in the entity it denotes, in words — so two walls of one
-/// extrude read as two walls rather than as one name twice.
-struct Cutter<'a>(&'a StableName, Speaker<'a>);
-
-impl core::fmt::Display for Cutter<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let leaf = descent_leaf(self.0);
-        write!(f, "the {} (", self.1.name(self.0))?;
-        match leaf.path.first() {
-            Some(seg) => role_words(f, seg)?,
-            None => write!(f, "no role")?,
-        }
-        if leaf.node != self.0.node {
-            write!(f, ", minted by {}", self.1.node(leaf.node))?;
-        }
-        write!(f, ")")
-    }
-}
-
-/// The name a descent chain ends at: `name` with every `FromA`,
-/// `FromB`, `FromMember` and `FromTarget` wrapper looked through and
-/// every trailing `Fragment` dropped — the entity whose role the
-/// cutter's sentence spells.
-fn descent_leaf(name: &StableName) -> &StableName {
-    let mut n = name;
-    loop {
-        let head = &n.path[..fragment_tail_start(&n.path)];
-        n = match head {
-            [RoleSeg::FromA(i) | RoleSeg::FromB(i) | RoleSeg::FromTarget(i)]
-            | [RoleSeg::FromMember { of: i, .. }] => i,
-            _ => return n,
-        };
-    }
-}
-
-/// A profile piece in words: its role (the role's own `Display`) and
-/// the step that drew it, by the id it was minted with — spelled as an
-/// id (`#7`), never as a position, since a name holds no position — or,
-/// on a kernel-built section, which circle.
-fn piece_words(e: &crate::names::ProfileEdgeRef) -> String {
-    use crate::names::{ProfileEdgeRef, SectionCircle};
-    match e {
-        ProfileEdgeRef::Piece { step, role } => {
-            format!("the {role} of the profile step {}", step)
-        }
-        ProfileEdgeRef::Section { circle, role } => format!(
-            "the {role} of the {} circle",
-            match circle {
-                SectionCircle::Outer => "outer",
-                SectionCircle::Bore => "bore",
-            }
-        ),
-    }
-}
-
-/// A role segment in words. Exhaustive, so a new segment is given words
-/// here or the compile breaks.
-fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Result {
-    use crate::names::{CapEnd, MeridianEnd};
-    let cap = |e: &CapEnd| match e {
-        CapEnd::Start => "start",
-        CapEnd::End => "end",
-    };
-    let meridian = |e: &MeridianEnd| match e {
-        MeridianEnd::Start => "start",
-        MeridianEnd::End => "end",
-        MeridianEnd::Seam => "seam",
-        MeridianEnd::Pi => "half-turn",
-    };
-    let seg_of = |e: &crate::names::ProfileEdgeRef| piece_words(e);
-    let run_of = |r: &crate::names::PieceRun| {
-        r.pieces()
-            .iter()
-            .map(piece_words)
-            .collect::<Vec<_>>()
-            .join(", then ")
-    };
-    let vert_of = |v: &crate::names::ProfileVertexRef| {
-        use crate::names::{ProfileEdgeRef, ProfileVertexRef};
-        let piece = match *v {
-            ProfileVertexRef::Piece { step, role } => ProfileEdgeRef::Piece { step, role },
-            ProfileVertexRef::Section { circle, role } => ProfileEdgeRef::Section { circle, role },
-        };
-        format!("the start of {}", piece_words(&piece))
-    };
-    match seg {
-        RoleSeg::OutputBody => write!(f, "the output body"),
-        RoleSeg::Cap(e) => write!(f, "the {} cap", cap(e)),
-        RoleSeg::Lateral(r) => write!(f, "the side wall over {}", run_of(r)),
-        RoleSeg::RimEdge(c, e) => write!(f, "the {} rim edge over {}", cap(c), seg_of(e)),
-        RoleSeg::LateralEdge(v) => write!(f, "the lateral edge over {}", vert_of(v)),
-        RoleSeg::CapVertex(c, v) => write!(f, "the {} cap vertex over {}", cap(c), vert_of(v)),
-        RoleSeg::LoftWall(pieces) => write!(
-            f,
-            "the loft wall over {}",
-            pieces
-                .iter()
-                .map(seg_of)
-                .collect::<Vec<_>>()
-                .join(", then ")
-        ),
-        RoleSeg::LoftSeam(vertices) => write!(
-            f,
-            "the loft seam over {}",
-            vertices
-                .iter()
-                .map(vert_of)
-                .collect::<Vec<_>>()
-                .join(", then ")
-        ),
-        RoleSeg::Band(r) => write!(f, "the band face over {}", run_of(r)),
-        RoleSeg::BandRim(v) => write!(f, "the band rim over {}", vert_of(v)),
-        RoleSeg::BandRimPi(v) => write!(f, "the second band rim over {}", vert_of(v)),
-        RoleSeg::BandPi(r) => write!(f, "the second band face over {}", run_of(r)),
-        RoleSeg::Meridian(m, r) => {
-            write!(f, "the {} meridian edge over {}", meridian(m), run_of(r))
-        }
-        RoleSeg::MeridianVertex(m, v) => {
-            write!(f, "the {} meridian vertex over {}", meridian(m), vert_of(v))
-        }
-        RoleSeg::RevolveCap(m) => write!(f, "the {} wedge cap", meridian(m)),
-        RoleSeg::Pole(v) => write!(f, "the pole over {}", vert_of(v)),
-        RoleSeg::AxisEdge(e) => write!(f, "the axis edge over {}", seg_of(e)),
-        RoleSeg::FromA(_) | RoleSeg::FromB(_) | RoleSeg::FromTarget(_) => {
-            write!(f, "a carried entity")
-        }
-        RoleSeg::FromMember { .. } => write!(f, "a union member's entity"),
-        RoleSeg::Seam { .. } => write!(f, "a boolean seam"),
-        RoleSeg::Merged(_) => write!(f, "a merged face"),
-        RoleSeg::Fragment(_) => write!(f, "a fragment"),
-        RoleSeg::SplitBody(_) => write!(f, "a split body"),
-        RoleSeg::SectionFace { .. } => write!(f, "a split's section face"),
-        RoleSeg::SectionEdge { .. } => write!(f, "a split's section edge"),
-        RoleSeg::SplitFragment { .. } => write!(f, "a split face"),
-        RoleSeg::CrossingVertex { .. } => write!(f, "a split's crossing vertex"),
-        RoleSeg::OnToolVertex { .. } => write!(f, "a vertex on a split's tool"),
-        RoleSeg::BlendFace(_) => write!(f, "a blend face"),
-        RoleSeg::CornerFace(_) => write!(f, "a blend corner face"),
-        RoleSeg::TrimEdge { .. } => write!(f, "a blend trim edge"),
-        RoleSeg::FootVertex { .. } => write!(f, "a blend foot vertex"),
-        RoleSeg::EndArc { .. } => write!(f, "a blend end arc"),
-        RoleSeg::BandFace(_) => write!(f, "a band face"),
-        RoleSeg::BandTrim { .. } => write!(f, "a band trim edge"),
-        RoleSeg::BandFoot(_) => write!(f, "a band foot"),
-        RoleSeg::BandCross { .. } => write!(f, "a band crossing"),
-        RoleSeg::BandCut(_) => write!(f, "a band cut"),
-        RoleSeg::BandSlit { .. } => write!(f, "a band slit"),
-        RoleSeg::Inner(_) => write!(f, "an inner entity"),
-        RoleSeg::Rim(_) => write!(f, "a rim"),
-        RoleSeg::HoleRim { hole, .. } => write!(f, "the rim of hole {hole}"),
-        RoleSeg::InPart { .. } => write!(f, "an entity of a part"),
-        RoleSeg::Instance { i, .. } => write!(f, "an entity of instance {i}"),
-    }
-}
-
 // The cutter clause of [`Diagnosis::GroupResized`]'s sentence.
 impl crate::spoken::Say for GroupCutters {
     fn say(
@@ -659,14 +510,14 @@ impl crate::spoken::Say for GroupCutters {
             by: Speaker<'_>,
         ) -> core::fmt::Result {
             match names {
-                [one] => write!(f, "{}", Cutter(one, by)),
+                [one] => write!(f, "{}", by.name(one)),
                 many => {
                     write!(f, "{} cutters (", many.len())?;
                     for (i, n) in many.iter().enumerate() {
                         if i > 0 {
                             write!(f, "; ")?;
                         }
-                        write!(f, "{}", Cutter(n, by))?;
+                        write!(f, "{}", by.name(n))?;
                     }
                     write!(f, ")")
                 }
@@ -889,7 +740,7 @@ impl crate::spoken::Say for Diagnosis {
             ),
             Self::Cascade { through } => write!(
                 f,
-                "the upstream {} vanished first; its own resolution failure carries the root \
+                "{} vanished upstream first; its own resolution failure carries the root \
                  cause",
                 by.name(through)
             ),
@@ -922,7 +773,7 @@ impl Diagnosis {
     /// **The clause as the frame holding the resolved document says it**:
     /// each node as `doc` holds it now ([`crate::Doc::spoken`]).
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -935,13 +786,13 @@ impl core::fmt::Display for Walls<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.0 {
             [] => write!(f, "no wall"),
-            [one] => write!(f, "the {}", self.1.name(one)),
+            [one] => write!(f, "{}", self.1.name(one)),
             many => {
                 for (i, w) in many.iter().enumerate() {
                     match i {
-                        0 => write!(f, "the {}", self.1.name(w))?,
-                        _ if i + 1 == many.len() => write!(f, " and the {}", self.1.name(w))?,
-                        _ => write!(f, ", the {}", self.1.name(w))?,
+                        0 => write!(f, "{}", self.1.name(w))?,
+                        _ if i + 1 == many.len() => write!(f, " and {}", self.1.name(w))?,
+                        _ => write!(f, ", {}", self.1.name(w))?,
                     }
                 }
                 Ok(())
@@ -1114,7 +965,7 @@ impl ResolveIndeterminate {
     /// **The clause as the frame holding the resolved document says it**:
     /// each node as `doc` holds it now ([`crate::Doc::spoken`]).
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -2048,16 +1899,6 @@ impl<'a> SeamParent<'a> {
         }
         Some(out)
     }
-}
-
-/// Where the trailing run of `Fragment` segments of `path` starts: the
-/// length of what they qualify. The one reading of "a name with only
-/// fragments after it", for the parent side, the cutter side and a seam
-/// row alike ([`group_cutters`]).
-fn fragment_tail_start(path: &[RoleSeg]) -> usize {
-    path.iter()
-        .rposition(|s| !matches!(s, RoleSeg::Fragment(_)))
-        .map_or(0, |i| i + 1)
 }
 
 /// Every Ok table of an evaluation, with its node, in EVALUATION

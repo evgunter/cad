@@ -260,8 +260,10 @@ fn in_band_gap_refuses_pair_in_band() {
     );
     let (doc, top) = box_at(doc, 1.0 + gap, (0.25, 0.25), (0.75, 0.75), 0.5);
     let ev = eval(&doc);
-    match find_flush_candidates(&ev, base, top, Tol::witness()) {
-        Err(SelectRefusal::PairInBand {
+    let refusal = find_flush_candidates(&ev, base, top, Tol::witness()).err();
+    let text = refusal.as_ref().map(ToString::to_string);
+    match refusal {
+        Some(SelectRefusal::PairInBand {
             pair, predicate, ..
         }) => {
             assert_eq!(pair.0.node, base);
@@ -270,6 +272,15 @@ fn in_band_gap_refuses_pair_in_band() {
         }
         other => panic!("expected PairInBand, got {other:?}"),
     }
+    // The sentence tells the two faces apart by what they are and the
+    // feature that made each.
+    let text = text.unwrap_or_default();
+    assert!(
+        text.contains(&format!(
+            "the end cap of node {base} and the start cap of node {top}"
+        )),
+        "the pair is said as the base's end cap and the top's start cap: {text}"
+    );
 }
 
 // ------------------------------------------------------------------

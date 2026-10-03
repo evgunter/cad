@@ -422,7 +422,7 @@ impl NodeStanding {
     /// standing is answered by an evaluation and carried inside values
     /// the evaluation memo reuses, so it holds ids, never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -2222,7 +2222,7 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "a member's face rests on the {}, which no member carries ({})",
+            "a member's face rests on {}, which no member carries ({})",
             self.by.name(self.row),
             self.diag.payload()
         )
@@ -2334,15 +2334,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 name,
             } => write!(
                 f,
-                "{}'s seam declaration crosses at the remainder's {} and claims \
-                 {} {} of the part (minted by its node {}), which the pinned part's \
-                 product does not name — the crossing does not re-verify against this \
-                 version of the part",
+                "{}'s seam declaration crosses at {} on the remainder and claims {name} in \
+                 the part, which the pinned part's product does not name — the crossing does \
+                 not re-verify against this version of the part",
                 by.node_as(*instance, "instance"),
                 by.name(outer),
-                name.kind.article(),
-                name.kind.noun(),
-                name.node
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
@@ -2623,8 +2619,8 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
-                "the {verb} selection name minted by {} denotes {} {}, not an edge",
-                by.node(name.node),
+                "the {verb} selection names {}, which is {} {}, not an edge",
+                by.name(name),
                 found.article(),
                 found.noun()
             ),
@@ -2642,8 +2638,8 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::ShellOpenKind { name, found } => write!(
                 f,
-                "the shell open-face name minted by {} denotes {} {}, not a face",
-                by.node(name.node),
+                "the shell's open face names {}, which is {} {}, not a face",
+                by.name(name),
                 found.article(),
                 found.noun()
             ),
@@ -2662,8 +2658,8 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::FaceFrameKind { name, found } => write!(
                 f,
-                "the derived frame's name minted by {} denotes {} {}, not a face",
-                by.node(name.node),
+                "the derived frame's face names {}, which is {} {}, not a face",
+                by.name(name),
                 found.article(),
                 found.noun()
             ),
@@ -2711,8 +2707,8 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::MeasureRefUnreadable { name, error } => write!(
                 f,
-                "the measure reference minted by {} could not be read back: {error}",
-                by.node(name.node)
+                "the measure reference to {} could not be read back: {error}",
+                by.name(name)
             ),
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
             Self::MeasureNotParallel {
@@ -2839,7 +2835,7 @@ impl CarriedLevel<'_> {
     /// not hold the part, and ids are not document-scoped, so `here`
     /// may hold the same id as another node.
     #[must_use]
-    pub fn line_in<P>(&self, here: &Doc<P>) -> String {
+    pub fn line_in<P: crate::ProfilePayload>(&self, here: &Doc<P>) -> String {
         let by = match self.document {
             CarriedIn::ThisDocument => crate::spoken::Speaker::of(here),
             CarriedIn::Part(_) => crate::spoken::Speaker::TAG,
@@ -2934,12 +2930,23 @@ impl<'a> Iterator for CarriedChain<'a> {
 impl NodeError {
     /// **The failure as the frame that owns the node's document speaks
     /// it**: the node as `doc` holds it now ([`Doc::spoken`]), then its
-    /// kind's prose. The error lives in the [`Evaluation`], which a
-    /// frame holds across edits (and a label edit recomputes nothing),
-    /// so it holds the id and never a label a rename could leave stale.
+    /// kind's prose, each name it forwards within the table
+    /// `evaluation`, the evaluation that raised it, holds it in
+    /// ([`crate::Speaker::within`]). The error lives in the
+    /// [`Evaluation`], which a frame holds across edits (and a label edit
+    /// recomputes nothing), so it holds the id and never a label a rename
+    /// could leave stale.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
-        failed_line(self.node, &self.kind, crate::spoken::Speaker::of(doc))
+    pub fn spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        evaluation: &dyn crate::NameTables,
+    ) -> String {
+        failed_line(
+            self.node,
+            &self.kind,
+            crate::spoken::Speaker::of(doc).within(evaluation),
+        )
     }
 }
 

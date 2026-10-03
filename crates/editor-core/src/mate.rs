@@ -823,7 +823,7 @@ impl crate::spoken::Say for FaceRefusal {
                 ..
             } => write!(
                 f,
-                "{}'s part answers none for the {face}: {refusal}",
+                "{}'s part answers none for {face}: {refusal}",
                 by.node_as(*instance, "instance")
             ),
             Self::NotAnInstance { node } => write!(
@@ -1737,7 +1737,7 @@ impl MateFault {
     /// is memoized with the solve and the evaluation, so it holds ids,
     /// never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }

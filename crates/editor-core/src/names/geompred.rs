@@ -328,14 +328,8 @@ impl crate::spoken::Say for SelectRefusal {
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
-        let named = |f: &mut core::fmt::Formatter<'_>, name: &StableName| {
-            write!(
-                f,
-                "the {} minted by {}",
-                name.kind.noun(),
-                by.node(name.node)
-            )
-        };
+        let named =
+            |f: &mut core::fmt::Formatter<'_>, name: &StableName| write!(f, "{}", by.name(name));
         match self {
             Self::InBand {
                 name,
@@ -404,14 +398,13 @@ impl crate::spoken::Say for SelectRefusal {
                 predicate,
                 source,
             } => {
-                f.write_str("select: the pair (")?;
-                named(f, &pair.0)?;
-                f.write_str(", ")?;
-                named(f, &pair.1)?;
                 write!(
                     f,
-                    ") is neither certified in nor out — '{predicate}' left its margin inside \
-                     the ambiguity band, and detection reports only definite findings: {source}"
+                    "select: {} and {} are too nearly flush to call, so flush detection \
+                     reports neither — '{predicate}' could not decide whether their gap is \
+                     zero: {source}",
+                    by.name(&pair.0),
+                    by.name(&pair.1)
                 )
             }
             Self::BadValue(error) => {
@@ -444,11 +437,17 @@ impl core::fmt::Display for SelectRefusal {
 
 impl SelectRefusal {
     /// **The refusal as the frame holding the evaluated document says it**:
-    /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
-    /// reads an evaluation alone, so the refusal holds ids, never a label.
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]), each
+    /// name within the table `evaluation` holds it in
+    /// ([`crate::Speaker::within`]). The door reads an evaluation alone,
+    /// so the refusal holds ids, never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
-        crate::spoken::spoken_by(self, doc)
+    pub fn spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &crate::doc::Doc<P>,
+        evaluation: &dyn crate::NameTables,
+    ) -> String {
+        crate::spoken::spoken_within(self, doc, evaluation)
     }
 }
 

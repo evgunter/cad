@@ -211,12 +211,13 @@ fn every_maintenance_row_rides_beside_a_refusal() {
     };
     assert_eq!(
         line.text(),
-        "nothing to undo \u{2022} node 000000000003 carries a face name minted by node 000000000007; this edit removed \
-         what it denoted (its minting node, or the profile segment it named), so the name \
-         resolves to nothing until it is rebound \u{2022} the appearance store holds an \
-         attachment under a face name minted by node 000000000008; this edit removed what it denoted (its \
-         minting node, or the profile segment it named), so the name resolves to nothing until \
-         it is rebound or cleared"
+        "nothing to undo \u{2022} node 000000000003 carries a name for the face of node \
+         000000000007; this edit took what it denoted (a node or profile step it names, or a \
+         piece a kept step no longer draws), so the name resolves to nothing until it is \
+         rebound \u{2022} the appearance store holds an attachment under a name for the face \
+         of node 000000000008; this edit took what it denoted (a node or profile step it \
+         names, or a piece a kept step no longer draws), so the name resolves to nothing \
+         until it is rebound or cleared"
     );
 }
 
@@ -422,7 +423,8 @@ fn corner(filleted: bool) -> LoopProgram {
 /// takes that wall's segment, so the kept leg the frame names is no
 /// longer drawn. The door's own pre-click report — what the Apply
 /// button counts — names the frame's strand, and the landed edit
-/// reports the same row to the line.
+/// reports the same row to the line, the kept leg said at its row in
+/// the program the edit made.
 #[test]
 fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-profile-shadow", Tol::witness());
@@ -435,18 +437,11 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
     let mut ids = base.kept_in_place();
     ids[0].insert(3, None);
     ids[0].insert(5, None);
-    let expected = vec![Maintenance::Strand {
-        node: doc.spoken(carrier),
-        name: doc.spoken_name(&right),
-    }];
+    let before = doc.clone();
     let mut session = DocSession::inline(doc, Tol::witness());
-    assert_eq!(
-        session
-            .edit_profile_report(profile, &base, vec![corner(true)], ids.clone())
-            .expect("the reshaping is legal"),
-        expected,
-        "the count Apply shows before the click"
-    );
+    let counted = session
+        .edit_profile_report(profile, &base, vec![corner(true)], ids.clone())
+        .expect("the reshaping is legal");
     let op = SessionOp::EditProfile {
         node: profile,
         base,
@@ -454,6 +449,13 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
         ids,
     };
     let outcome = session.perform(op.clone());
+    let expected = vec![Maintenance::Strand {
+        node: before.spoken(carrier),
+        name: before
+            .spoken_name(&right)
+            .steps_respoken(session.committed_doc()),
+    }];
+    assert_eq!(counted, expected, "the count Apply shows before the click");
     assert_eq!(outcome.maintenance, expected);
     assert_line_words(&line_after(&outcome, op), &expected);
 }

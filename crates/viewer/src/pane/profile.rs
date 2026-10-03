@@ -1304,11 +1304,11 @@ mod tests {
         let committed = session.committed_doc();
         assert!(
             hovered.contains(&format!(
-                "{} carries a {}",
+                "{} carries a name for {}",
                 committed.spoken(carrier),
                 committed.spoken_name(&wall)
             )),
-            "the hover speaks the carrier and the name's minting node: {hovered}"
+            "the hover speaks the carrier and the name's words: {hovered}"
         );
         // Dropping another step instead leaves the named leg drawn and
         // strands nothing — what Apply says is asked again of every

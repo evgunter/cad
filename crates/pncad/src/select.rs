@@ -52,6 +52,14 @@
 //! [`StableName`](editor_core::StableName) with the
 //! [`EntityKind`] its role denotes already fixed.
 //!
+//! **A name is read in words.** [`leaf_role`] says which entity a
+//! name denotes as a person tells it from its neighbours: its role, the
+//! feature that made it, and each secondary operand it was joined
+//! through (`the end cap of Extrude e548, cut in at Subtract 1669`,
+//! `the part above the split of the side wall over the leg of loop 0
+//! step 2 of Extrude e548, on Split 2fec`). [`role_leaf`] is the name
+//! the role is read off; a name's own `Display` is these words.
+//!
 //! **A name also says which node MADE the entity.** [`attribute`]
 //! walks a name's carry-through segments — `FromTarget`, `FromA`,
 //! `Instance` and their siblings — down to the role that minted it,
@@ -91,14 +99,14 @@ pub use editor_core::{
     BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal,
     ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation,
     DuplicateName, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
-    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup,
-    PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare, RimSupport,
-    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector,
-    Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, band, band_pi, band_rim, carried, declare, declare_all,
-    declared_pairs, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,
-    face_frame, face_name, find_flush_candidates, meridian_vertex, select, select_where,
-    vertex_position,
+    InterrogateError, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
+    OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare,
+    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag,
+    SelectRefusal, Selector, Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies,
+    all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim, carried, declare,
+    declare_all, declared_pairs, denotation, edge_carrier_kind, edge_frame, edge_name,
+    face_carrier_kind, face_frame, face_name, find_flush_candidates, leaf_role, meridian_vertex,
+    role_leaf, select, select_where, vertex_position,
 };
 /// The kernel contact FINDING — "this face pair would verify as this
 /// class, on this evidence" — the fourth quarter of a vocabulary this

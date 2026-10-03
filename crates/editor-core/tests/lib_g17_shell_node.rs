@@ -390,25 +390,27 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![ghost(blank)]));
     let e = refusal(&doc, n);
     let blank = test_utils::refusal::tag(blank_of(&doc).0);
+    let step = fixture::step_of(&piece);
     assert!(matches!(e, NodeErrorKind::ShellOpenResolve { .. }), "{e:?}");
     assert_eq!(
         e.to_string(),
         format!(
-            "a shell open-face name failed to resolve: the face name minted by node {blank} no \
-             longer resolves in this evaluation: the recorded reference disagrees with the recipe \
-             as it stands on the derivation path (node {blank}'s payload differs)"
+            "a shell open-face name failed to resolve: the side wall over piece 7 of the profile \
+             step {step} of node {blank} no longer resolves in this evaluation: the recorded \
+             reference disagrees with the recipe as it stands on the derivation path (node \
+             {blank}'s payload differs)"
         )
     );
 
     // (b) a name of the wrong KIND: an edge that really is there, so
     // it resolves and then fails the door's faces-only check.
+    let mut edge = None;
     let (doc, n) = cup_with(|blank| {
-        Node::shell(
-            blank,
-            fixture::len(cup::T),
-            vec![fixture::prism_edges(&doc, blank, 4)[0].clone()],
-        )
+        let open = fixture::prism_edges(&doc, blank, 4)[0].clone();
+        edge = Some(open.clone());
+        Node::shell(blank, fixture::len(cup::T), vec![open])
     });
+    let edge = edge.expect("the shell was built");
     let e = refusal(&doc, n);
     assert!(
         matches!(
@@ -419,10 +421,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     );
     assert_eq!(
         e.to_string(),
-        format!(
-            "the shell open-face name minted by node {} denotes an edge, not a face",
-            test_utils::refusal::tag(blank_of(&doc).0)
-        )
+        format!("the shell's open face names {edge}, which is an edge, not a face")
     );
 
     // (c) a non-positive thickness: the kernel's gate, carried WITH its

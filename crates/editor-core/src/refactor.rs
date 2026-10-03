@@ -878,7 +878,7 @@ impl core::fmt::Display for SplitError {
                 missing,
             } => write!(
                 f,
-                "split: {node} is cut, but its reference (the {name}) derives from {missing}, \
+                "split: {node} is cut, but its reference ({name}) derives from {missing}, \
                  which is outside the cut, so the new document could not express it. {}",
                 Recourse(&format!(
                     "add {missing} to the cut, or rebind that name to an entity inside the cut \
@@ -888,7 +888,7 @@ impl core::fmt::Display for SplitError {
             Self::NameStraddlesCut { name, missing } => {
                 write!(
                     f,
-                    "split: the {name} derives from both sides of the cut and can re-anchor to \
+                    "split: {name} derives from both sides of the cut and can re-anchor to \
                      neither document"
                 )?;
                 // The rewrite stopped at ONE node, which for a nested
@@ -907,13 +907,13 @@ impl core::fmt::Display for SplitError {
             }
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "split: the {name} spells a piece of the profile step {step}, which no profile \
+                "split: {name} spells a piece of the profile step {step}, which no profile \
                  of this document draws any more. {}",
                 Recourse("rebind that name to a live entity (Rebind), then split")
             ),
             Self::BodyNameCrossesCut { name } => write!(
                 f,
-                "split: the {name} crosses the cut, and a product's name table carries no \
+                "split: {name} crosses the cut, and a product's name table carries no \
                  root body rows, so the instance-qualified rewrite could never resolve. {}",
                 Recourse(
                     "clear what this document sets on that name (ClearAppearance), or rebind it \
@@ -1372,7 +1372,7 @@ impl core::fmt::Display for InlineError {
             ),
             Self::InstanceBodyNameReferenced { name } => write!(
                 f,
-                "inline: the {name} names the instance's own output body, which no single \
+                "inline: {name} names the instance's own output body, which no single \
                  spliced node corresponds to. {}",
                 Recourse(
                     "clear what this document sets on that name (ClearAppearance), or rebind it \
@@ -1381,7 +1381,7 @@ impl core::fmt::Display for InlineError {
             ),
             Self::ForeignInstanceName { name } => write!(
                 f,
-                "inline: the {name} derives from the instance but is not an instance-qualified \
+                "inline: {name} derives from the instance but is not an instance-qualified \
                  (`InPart`) name, so it cannot re-anchor. {}",
                 Recourse(
                     "rebind that name to an `InPart` name of the instance, or to an entity that \
@@ -1390,13 +1390,13 @@ impl core::fmt::Display for InlineError {
             ),
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "inline: the {name} spells a piece of the profile step {step}, which no profile \
+                "inline: {name} spells a piece of the profile step {step}, which no profile \
                  of the referenced document draws any more. {}",
                 Recourse(STRANDED_IN_THE_PART)
             ),
             Self::StrandedPartName { name, missing } => write!(
                 f,
-                "inline: the {name} derives from {missing}, which the referenced document no \
+                "inline: {name} derives from {missing}, which the referenced document no \
                  longer has. {}",
                 Recourse(STRANDED_IN_THE_PART)
             ),

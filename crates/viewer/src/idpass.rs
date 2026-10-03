@@ -29,7 +29,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, ProfileProgram, Said, Say, Speaker};
+use pncad::document::{Doc, Evaluation, ProfileProgram, Said, Say, Speaker};
 use pncad::prelude::StableName;
 use pncad::select::UnnamedEntity;
 
@@ -213,11 +213,11 @@ impl core::fmt::Display for IdAnswer {
     }
 }
 
-/// **A name as a sentence that must tell two names apart says it**:
-/// kind and minting node ([`Speaker::name`]), then the role path
-/// ([`Disagreement`]'s sentence says why both halves). The one spelling
-/// of a name that two answers could otherwise share; the tie
-/// `crate::frame::pick_refusal` reports says its faces this way too.
+/// **A name as a bug report says it**: the name's own words
+/// ([`Speaker::name`]), then the whole role path as `Debug` — the one
+/// operator diagnostic that prints the path's structure, said only by
+/// [`IdAnswer`] and [`Disagreement`], the picking paths' bug report
+/// ([`Disagreement`]'s sentence says why).
 pub struct NameAndPath<'a>(pub &'a StableName, pub Speaker<'a>);
 
 impl core::fmt::Display for NameAndPath<'_> {
@@ -259,26 +259,18 @@ pub struct Disagreement {
 
 impl Say for Disagreement {
     /// The id side is [`IdAnswer`]'s own sentence. Every NAME on
-    /// either side is said by kind and minting node, the half a user
-    /// can act on, followed by the role path ([`NameAndPath`]).
+    /// either side is said as a sentence says it, followed by the role
+    /// path ([`NameAndPath`]).
     ///
-    /// BOTH halves of a name are load-bearing here, which is what makes this
-    /// message different from every other one in this crate. The name's
-    /// `Display` omits the path deliberately, so two names differing
-    /// only in their derivation would render identically; the path
-    /// alone drops kind and node, so two names on different nodes
-    /// sharing a role path would. A message whose entire subject is
-    /// that two answers DIFFER cannot afford either collapse.
+    /// The words tell two names of one table apart; the path rides
+    /// beside them because a disagreement is a bug report, and the path
+    /// is what its reader replays. It rides as `Debug`: it is the
+    /// machine channel, printed here as the operator's diagnostic
+    /// rather than as prose.
     ///
-    /// The path rides as `Debug` because `RoleSeg` has no `Display` in
-    /// this workspace — the one rendering here that is not prose, and
-    /// it is a derivation, not a sentence.
-    ///
-    /// Destructured rather than field-read, which is what holds the
-    /// paragraph above to the value: the argument is that BOTH halves
-    /// are load-bearing, and a third field added to
-    /// [`Disagreement`] and left out of this sentence would falsify it
-    /// silently. In the pattern it is E0027 instead.
+    /// Destructured rather than field-read, so a third field added to
+    /// [`Disagreement`] and left out of this sentence is E0027 rather
+    /// than silently unsaid.
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let Self { from_gpu, from_ray } = self;
         write!(
@@ -318,15 +310,18 @@ impl Disagreement {
     /// retires it on
     /// the id log's own judgement that the question has moved on.
     ///
-    /// Its names are said from `doc`, the landed document the index
-    /// that drew the picture was built against.
+    /// Its nodes are said from the landed document the index that drew
+    /// the picture was built against, and its names within the tables
+    /// of that document's evaluation ([`Speaker::within`]), both in
+    /// `landed`.
     ///
     /// [`Retold::Again`]: the same hover says it again while the
     /// paths still disagree.
-    pub fn notice(&self, doc: &Doc<ProfileProgram>) -> Message {
+    pub fn notice(&self, landed: (&Doc<ProfileProgram>, &Evaluation<f64>)) -> Message {
+        let (doc, evaluation) = landed;
         Message::new(
             Subject::Cursor,
-            Said(self, Speaker::of(doc)).to_string(),
+            Said(self, Speaker::of(doc).within(evaluation)).to_string(),
             Retold::Again,
         )
     }
@@ -460,7 +455,7 @@ mod tests {
         assert_eq!(shown.matches("FromA").count(), 2 * DEEP, "both paths whole");
         assert_eq!(
             shown
-                .matches("face name minted by node 000000000002")
+                .matches("the end cap of node 000000000001, on node 000000000002")
                 .count(),
             2
         );
