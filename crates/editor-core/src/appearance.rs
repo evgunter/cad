@@ -54,7 +54,7 @@ use std::collections::BTreeMap;
 
 use crate::eval::NodeStanding;
 use crate::meta::MetaValue;
-use crate::names::{Entry, NameTable, RoleSeg, StableName};
+use crate::names::{Entry, NameTable, StableName};
 use crate::node::RecipeNodeId;
 
 pub use crate::names::EntityRef;
@@ -126,8 +126,9 @@ impl AttrKind {
 pub enum Attr {
     /// Display color.
     Color(Rgba8),
-    /// User-facing display label.
-    Label(String),
+    /// User-facing display label: the same [`crate::Label`] text a
+    /// node's label is.
+    Label(crate::Label),
     /// Display visibility (`false` = hidden).
     Visibility(bool),
 }
@@ -210,7 +211,7 @@ pub enum AppearanceLossCause {
     /// refused loudly until the recipe records a disambiguation.
     /// Reported ONCE per name even when pass-through tables carry the
     /// tie several times (review A2); `at` is the first carrying node
-    /// in id order, and the full candidate set is recoverable by
+    /// in evaluation order, and the full candidate set is recoverable by
     /// table lookup at `at` (PR 4's `Ambiguous{candidates}` builds on
     /// exactly that).
     Ambiguous {
@@ -305,11 +306,15 @@ pub(crate) type NodeState<'a> = Result<&'a NameTable, NodeStanding>;
 /// `states` holds every live node of the document — a canceled run's
 /// unevaluated suffix with its standing like any other — so a name
 /// whose node it does not hold names a node the document no longer
-/// has.
+/// has. `order` is the evaluation's order over those nodes, the one the
+/// tables are read in: a node's inputs come before it, so the table
+/// that first carries a name is the one that defined it.
 pub(crate) fn resolve(
     appearance: &AppearanceMap,
+    order: &[RecipeNodeId],
     states: &BTreeMap<RecipeNodeId, NodeState<'_>>,
 ) -> AppearanceResolution {
+    let in_order = || order.iter().filter_map(|id| Some((*id, states.get(id)?)));
     let mut resolution = AppearanceResolution::default();
     for (name, rec) in appearance {
         let Some(target) = states.get(&name.node) else {
@@ -328,10 +333,10 @@ pub(crate) fn resolve(
         let mut hit = false;
         // Losses are per NAME, one row per cause (review A2): a tied
         // name carried by several tables (pass-through) reports ONE
-        // Ambiguous loss, at the first table in node-id order — the
+        // Ambiguous loss, at the first table in evaluation order — the
         // defining site; the others are derivable by lookup.
         let mut tie: Option<(RecipeNodeId, usize)> = None;
-        for (&id, state) in states {
+        for (id, state) in in_order() {
             let Ok(table) = state else {
                 continue;
             };
@@ -371,7 +376,7 @@ pub(crate) fn resolve(
         let cause = match target {
             Err(standing) => AppearanceLossCause::Indeterminate(*standing),
             Ok(_) => AppearanceLossCause::Vanished {
-                candidates: vanished_candidates(name, states),
+                candidates: vanished_candidates(name, in_order()),
             },
         };
         resolution.losses.push(AppearanceLoss {
@@ -385,40 +390,23 @@ pub(crate) fn resolve(
 }
 
 /// N3 candidate offers for a vanished name (structural, no
-/// heuristics): if the name IS a merged name, its constituents (the
-/// symmetric unmerge case — `Merged{a,b}` vanishes with candidates
-/// {a, b}); otherwise, any live merged name whose constituent set
-/// COVERS it (`names::merged::covers`: the retire-into-merge case —
-/// the reference fails "with the merged face as the offered
-/// candidate" — and, since the set is flat, a merged face consumed
-/// by a wider merge is covered by the row that lists its faces).
-///
-/// Scope of "structurally detectable" (review A5): the unmerge
-/// direction fires only when `Merged` is the path's LAST segment —
-/// names wrapping a merge deeper in (`Instance{of: Merged}`) get
-/// empty offers; PR 4's resolution ladder owns anything beyond this.
-fn vanished_candidates(
+/// heuristics; `names::merged::offers`, the one reading of a
+/// set-holding row): a merged name's constituents (the symmetric
+/// unmerge case — `Merged{a,b}` vanishes with candidates {a, b}), a
+/// broken run wall's pieces' live walls, and any live row whose set
+/// COVERS the name (`names::merged::row_covers`: the retire-into-merge
+/// case — the reference fails "with the merged face as the offered
+/// candidate" — a merged face consumed by a wider merge, covered by the
+/// row that lists its faces, and a wall a station joined into a run).
+fn vanished_candidates<'s, 'a: 's>(
     name: &StableName,
-    states: &BTreeMap<RecipeNodeId, NodeState<'_>>,
+    states: impl Iterator<Item = (RecipeNodeId, &'s NodeState<'a>)>,
 ) -> Vec<StableName> {
-    if let Some(RoleSeg::Merged(constituents)) = name.path.last() {
-        return constituents.clone();
-    }
-    let mut out = Vec::new();
-    for state in states.values() {
-        let Ok(table) = state else {
-            continue;
-        };
-        for (candidate, _) in table.iter() {
-            if let Some(RoleSeg::Merged(constituents)) = candidate.path.last()
-                && crate::names::merged::covers(constituents, name)
-                && !out.contains(candidate)
-            {
-                out.push(candidate.clone());
-            }
-        }
-    }
-    out
+    let rows: Vec<&StableName> = states
+        .filter_map(|(_, state)| state.as_ref().ok())
+        .flat_map(|table| table.iter().map(|(candidate, _)| candidate))
+        .collect();
+    crate::names::merged::offers(name, rows.iter().copied())
 }
 
 #[cfg(test)]
@@ -430,7 +418,7 @@ mod tests {
     //! record) and the tie refusal, over hand-built tables.
 
     use super::*;
-    use crate::names::{EntityKey, EntityKind};
+    use crate::names::{EntityKey, EntityKind, RoleSeg};
 
     fn body_name(node: u64, path: Vec<RoleSeg>) -> StableName {
         StableName {
@@ -474,7 +462,11 @@ mod tests {
         // absorbed downstream).
         let empty = NameTable::new();
         states.insert(RecipeNodeId(7), Ok(&empty));
-        let r = resolve(&appearance, &states);
+        let r = resolve(
+            &appearance,
+            &states.keys().copied().collect::<Vec<_>>(),
+            &states,
+        );
         assert!(r.resolved.is_empty());
         assert_eq!(r.losses.len(), 1);
         let loss = &r.losses[0];
@@ -500,7 +492,11 @@ mod tests {
         states.insert(RecipeNodeId(9), Ok(&empty));
         let mut appearance = AppearanceMap::new();
         appearance.insert(merged.clone(), color());
-        let r = resolve(&appearance, &states);
+        let r = resolve(
+            &appearance,
+            &states.keys().copied().collect::<Vec<_>>(),
+            &states,
+        );
         assert_eq!(r.losses.len(), 1);
         assert_eq!(
             r.losses[0].cause,
@@ -519,7 +515,11 @@ mod tests {
         states.insert(RecipeNodeId(3), Ok(&t));
         let mut appearance = AppearanceMap::new();
         appearance.insert(tied.clone(), color());
-        let r = resolve(&appearance, &states);
+        let r = resolve(
+            &appearance,
+            &states.keys().copied().collect::<Vec<_>>(),
+            &states,
+        );
         assert!(r.resolved.is_empty(), "a tie must never be painted");
         assert_eq!(r.losses.len(), 1);
         assert_eq!(

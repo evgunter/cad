@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -37,7 +38,7 @@ use editor_core::range::{
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
     LoopProgram, Node, NodeResult, ParamName, PatternKind, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SlotId, StableName, evaluate,
+    RecipeNodeId, SlotId, SpokenNode, StableName, evaluate,
 };
 
 use fixture::{Recorder, len, scl, tol, xy_frame};
@@ -76,14 +77,9 @@ fn unit_square() -> LoopProgram {
         .expect("finite square corners")
 }
 
-/// **The branch fixture**: a unit square extruded by a document
-/// parameter.
-///
-/// Through zero the extrusion runs the other way: every node still
-/// builds and the body is a perfectly good solid, on a branch the
-/// witness's recorded decisions do not describe. That is the
-/// difference between "nothing new fails", which the probe asks, and
-/// "nothing decides differently", which a certificate asserts.
+/// **The slab**: a unit square extruded by a document parameter. A
+/// depth is a size, so below zero the extrude refuses: the slab's
+/// field has one boundary, a half-line floor at depth zero.
 fn slab(depth: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     declare(&mut r, "depth", depth);
@@ -96,9 +92,54 @@ fn slab(depth: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: param("depth"),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
+
+/// **The branch fixture**: a unit square whose bottom side has a
+/// vertex at its midpoint, the vertex's height a document parameter,
+/// extruded.
+///
+/// Below zero the vertex is a convex point; past zero ([`THROUGH`]) it
+/// is a notch, and the walls either side of it turn the other way:
+/// every node still builds and the body is a perfectly good solid, on
+/// a branch the witness's recorded decisions do not describe. That is
+/// the difference between "nothing new fails", which the probe asks,
+/// and "nothing decides differently", which a certificate asserts.
+fn notch(height: f64) -> ProfileDoc {
+    let mut r = Recorder::new();
+    declare(&mut r, "height", height);
+    let f = frame(&mut r);
+    let p = r.insert(Node::Profile(ProfileProgram {
+        plane: f,
+        loops: vec![LoopProgram::polygon_expr([
+            [len(0.0), len(0.0)],
+            [len(0.5), param("height")],
+            [len(1.0), len(0.0)],
+            [len(1.0), len(1.0)],
+            [len(0.0), len(1.0)],
+        ])],
+        ids: Vec::new(),
+    }));
+    r.insert(Node::Extrude {
+        profile: p,
+        distance: len(1.0),
+        side: ExtrudeSide::Along,
+    });
+    r.doc
+}
+
+/// The height at which [`notch`]'s vertex is collinear with its
+/// neighbours.
+const THROUGH: f64 = 0.0;
+
+/// The notch's nominal height, a convex point below the square.
+const NOMINAL: f64 = -0.25;
+
+/// The notch's seed: from a deeper point to just past the crossing,
+/// at offset `THROUGH − NOMINAL`.
+const NOTCH_SEED: RangeSeed = RangeSeed { lo: -0.25, hi: 0.3 };
 
 /// The same document with the extrusion distance left as a bare
 /// LITERAL — a field with no name at all until the query derives one.
@@ -113,6 +154,7 @@ fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
     let e = r.insert(Node::Extrude {
         profile: p,
         distance: len(depth),
+        side: ExtrudeSide::Along,
     });
     (r.doc, e)
 }
@@ -144,6 +186,7 @@ fn two_param_slab() -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: param("depth"),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -160,6 +203,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let e = r.insert(Node::Extrude {
         profile: p,
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
     let pat = r.insert(Node::Pattern {
         input: e,
@@ -265,6 +309,108 @@ fn a_certified_side_stops_at_the_seeds_edge() {
     assert_eq!(r.nominal(), 1.0);
 }
 
+/// **A pattern's step stays inside its turn**: the certificate over a
+/// driven step stops short of zero, where the copies would mirror and
+/// every reference to a copy silently change sides, and short of a
+/// full turn either way, from seeds that reach past both. The claim is
+/// where the certificate cannot reach, not how near it gets, so a
+/// small budget makes it.
+#[test]
+fn a_driven_step_certifies_within_its_turn() {
+    use std::f64::consts::TAU;
+    for (step, seed) in [
+        (1.0, RangeSeed { lo: -3.0, hi: 7.0 }),
+        (3.0, RangeSeed { lo: -5.0, hi: 5.0 }),
+        (-1.0, RangeSeed { lo: -7.0, hi: 3.0 }),
+    ] {
+        let mut r = Recorder::new();
+        let axis = r.insert(Node::Datum(editor_core::Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(0.0), scl(1.0)],
+        }));
+        let f = frame(&mut r);
+        let p = r.insert(Node::Profile(ProfileProgram {
+            plane: f,
+            loops: vec![unit_square()],
+            ids: Vec::new(),
+        }));
+        let e = r.insert(Node::Extrude {
+            profile: p,
+            distance: len(0.5),
+            side: ExtrudeSide::Along,
+        });
+        let pattern = r.insert(Node::Pattern {
+            input: e,
+            count: Expr::count(3),
+            kind: PatternKind::Circular {
+                axis,
+                step: fixture::ang(step),
+            },
+        });
+        let range = certified_range(
+            &r.doc,
+            &RangeField::Slot {
+                node: pattern,
+                slot: SlotId::Step,
+            },
+            seed,
+            &budget(8, 64),
+            tol(),
+        )
+        .expect("the step boxes");
+        let (lo, hi) = range.certified_interval();
+        let inside = if step > 0.0 {
+            0.0 < lo && hi < TAU
+        } else {
+            -TAU < lo && hi < 0.0
+        };
+        assert!(
+            inside && lo < step && step < hi,
+            "step {step}: the certificate stays inside its turn: [{lo}, {hi}], sides {:?} {:?}",
+            range.lo(),
+            range.hi()
+        );
+        for side in [range.lo(), range.hi()] {
+            assert!(
+                !matches!(side, RangeSide::Certified { .. }),
+                "step {step}: each side meets a boundary before the seed's edge: {side:?}"
+            );
+        }
+    }
+}
+
+/// **A pattern's spacing has the slab's floor**: a spacing is a size,
+/// so the certificate over a driven spacing stops above zero instead
+/// of certifying through it into the mirrored pattern, where every
+/// reference to a copy would silently change sides.
+#[test]
+fn a_driven_spacing_does_not_certify_through_zero() {
+    let (doc, pattern) = patterned();
+    let r = certified_range(
+        &doc,
+        &RangeField::Slot {
+            node: pattern,
+            slot: SlotId::Spacing,
+        },
+        RangeSeed { lo: -3.0, hi: 0.5 },
+        &budget(24, 2048),
+        tol(),
+    )
+    .expect("the spacing boxes");
+    let (lo, hi) = r.certified_interval();
+    assert!(
+        0.0 < lo && lo < hi,
+        "the certificate stops above a zero spacing: [{lo}, {hi}], low side {:?}",
+        r.lo()
+    );
+    assert!(
+        !matches!(r.lo(), RangeSide::Certified { .. }),
+        "the low side meets a boundary before the seed's edge: {:?}",
+        r.lo()
+    );
+    assert_eq!(*r.hi(), RangeSide::Certified { to: 0.5 });
+}
+
 // ------------------------------------------------ the four-arm contract
 
 /// **A2.** A branch change whose flipped leaf still builds every node
@@ -281,35 +427,31 @@ fn a_certified_side_stops_at_the_seeds_edge() {
 /// (`work/props/coincidence-zone-priced-budget-at-the-floor`).
 #[test]
 fn a_branch_change_is_a_decision_flip_and_names_the_predicate() {
-    let doc = slab(1.0);
-    let r = range_of(
-        &doc,
-        "depth",
-        RangeSeed { lo: -1.05, hi: 0.5 },
-        &budget(24, 2048),
-    );
-    assert_eq!(*r.hi(), RangeSide::Certified { to: 0.5 });
+    let doc = notch(NOMINAL);
+    let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
+    assert_eq!(*r.lo(), RangeSide::Certified { to: NOTCH_SEED.lo });
     let RangeSide::DecisionFlip {
         certified_to,
         within,
         evidence,
-    } = r.lo()
+    } = r.hi()
     else {
-        panic!("the branch change is a decision flip, got {:?}", r.lo());
+        panic!("the branch change is a decision flip, got {:?}", r.hi());
     };
-    // The certificate stops short of the crossing at depth zero, and
-    // the bracket holds it.
+    // The certificate stops short of the crossing, and the bracket
+    // holds it.
+    let crossing = THROUGH - NOMINAL;
     assert!(
-        -1.0 < *certified_to && *certified_to < 0.0,
+        0.0 < *certified_to && *certified_to < crossing,
         "certified to {certified_to}"
     );
     assert!(
-        within.0 <= -1.0 && -1.0 <= within.1,
-        "the crossing at offset -1 is inside {within:?}"
+        within.0 <= crossing && crossing <= within.1,
+        "the crossing at offset {crossing} is inside {within:?}"
     );
-    assert_eq!(within.1, *certified_to);
-    // NAMED, by the driver's own engine: the extrusion's normal
-    // component decided the other way.
+    assert_eq!(within.0, *certified_to);
+    // NAMED, by the driver's own engine: the vertex's turn decided
+    // the other way.
     let named: Vec<_> = evidence
         .verdicts
         .nodes
@@ -318,11 +460,9 @@ fn a_branch_change_is_a_decision_flip_and_names_the_predicate() {
         .map(|f| (f.predicate, f.from, f.to))
         .collect();
     assert!(
-        named
-            .iter()
-            .any(|(p, from, to)| *p == "extrusion_normal_component"
-                && *from == geom_core::Sign::Positive
-                && *to == geom_core::Sign::Negative),
+        named.iter().any(|(p, from, to)| *p == "path_junction_turn"
+            && *from == geom_core::Sign::Positive
+            && *to == geom_core::Sign::Negative),
         "the flip was not named: {named:?}"
     );
     // And it is a decision flip BECAUSE no standing moved — the
@@ -342,16 +482,15 @@ fn a_branch_change_is_a_decision_flip_and_names_the_predicate() {
 /// document with the budget raised answers the boundary.
 #[test]
 fn a_budget_too_small_is_indeterminate_and_never_a_bound() {
-    let doc = slab(1.0);
-    let seed = RangeSeed { lo: -1.05, hi: 0.5 };
-    let starved = range_of(&doc, "depth", seed, &budget(1, 2048));
+    let doc = notch(NOMINAL);
+    let starved = range_of(&doc, "height", NOTCH_SEED, &budget(1, 2048));
     let RangeSide::Indeterminate {
         certified_to,
         reason,
         ..
-    } = starved.lo()
+    } = starved.hi()
     else {
-        panic!("a starved drive is indeterminate, got {:?}", starved.lo());
+        panic!("a starved drive is indeterminate, got {:?}", starved.hi());
     };
     assert!(matches!(
         **reason,
@@ -360,15 +499,15 @@ fn a_budget_too_small_is_indeterminate_and_never_a_bound() {
     // Proven ground, short of the seed's edge and short of the
     // crossing: an indeterminate side still carries what it proved.
     assert!(
-        seed.lo < *certified_to && *certified_to < 0.0,
+        0.0 < *certified_to && *certified_to < THROUGH - NOMINAL,
         "certified to {certified_to}"
     );
-    assert!(!starved.lo().is_bound(), "indeterminate is not a bound");
+    assert!(!starved.hi().is_bound(), "indeterminate is not a bound");
 
-    let funded = range_of(&doc, "depth", seed, &budget(24, 2048));
-    assert!(funded.lo().is_bound(), "got {:?}", funded.lo());
+    let funded = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
+    assert!(funded.hi().is_bound(), "got {:?}", funded.hi());
     assert!(
-        funded.lo().certified_to() < starved.lo().certified_to(),
+        funded.hi().certified_to() > starved.hi().certified_to(),
         "more budget proves more ground"
     );
 }
@@ -388,17 +527,12 @@ fn a_budget_too_small_is_indeterminate_and_never_a_bound() {
 /// is the one that will turn over and say so.
 #[test]
 fn a_decision_flips_within_contains_a_value_that_does_not_build() {
-    let doc = slab(1.0);
-    let r = range_of(
-        &doc,
-        "depth",
-        RangeSeed { lo: -1.05, hi: 0.5 },
-        &budget(24, 2048),
-    );
-    let RangeSide::DecisionFlip { within, .. } = r.lo() else {
+    let doc = notch(NOMINAL);
+    let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
+    let RangeSide::DecisionFlip { within, .. } = r.hi() else {
         panic!(
-            "the A2 fixture's lo side is a decision flip, got {:?}",
-            r.lo()
+            "the A2 fixture's hi side is a decision flip, got {:?}",
+            r.hi()
         );
     };
     // The crossing itself is one of the sampled offsets, by
@@ -406,10 +540,11 @@ fn a_decision_flips_within_contains_a_value_that_does_not_build() {
     // window that refuses is narrower than any ten-way split of the
     // bracket, and a row that relied on the split would be a row about
     // the eps the gate happened to run.
+    let crossing = THROUGH - NOMINAL;
     let broken: Vec<f64> = (0..=10)
         .map(|k| within.0 + (within.1 - within.0) * f64::from(k) / 10.0)
-        .chain(std::iter::once(-1.0))
-        .filter(|&off| !no_new_failure(&doc, "depth", r.absolute(off)))
+        .chain(std::iter::once(crossing))
+        .filter(|&off| !no_new_failure(&doc, "height", r.absolute(off)))
         .collect();
     assert!(
         !broken.is_empty(),
@@ -417,14 +552,14 @@ fn a_decision_flips_within_contains_a_value_that_does_not_build() {
          eleven sampled offsets did — if the driver now names such a leaf, this arm can say \
          more than it does and the docs must be re-cut"
     );
-    // And the crossing itself, the value the extrude refuses, is one
-    // of them: named rather than left to a sweep's luck.
+    // And the crossing itself is one of them: named rather than left
+    // to a sweep's luck.
     assert!(
-        !no_new_failure(&doc, "depth", 0.0),
-        "depth zero is a degenerate extrusion"
+        !no_new_failure(&doc, "height", THROUGH),
+        "at the crossing the vertex is collinear with its neighbours, which does not build"
     );
     assert!(
-        within.0 <= -1.0 && -1.0 <= within.1,
+        within.0 <= crossing && crossing <= within.1,
         "and it is inside the bracket: {within:?}"
     );
 }
@@ -444,37 +579,32 @@ fn a_decision_flips_within_contains_a_value_that_does_not_build() {
 /// below the viewer can do.
 #[test]
 fn the_certificate_is_inside_the_locally_valid_range() {
-    let doc = slab(1.0);
-    let r = range_of(
-        &doc,
-        "depth",
-        RangeSeed { lo: -1.05, hi: 0.5 },
-        &budget(24, 2048),
-    );
+    let doc = notch(NOMINAL);
+    let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
     let (lo, hi) = r.certified_interval();
     assert!(lo < hi);
     for i in 0..=32 {
         let v = lo + (hi - lo) * f64::from(i) / 32.0;
         assert!(
-            no_new_failure(&doc, "depth", v),
+            no_new_failure(&doc, "height", v),
             "the certificate covers {v}, which the probe's test calls invalid"
         );
     }
-    // The crossing is at depth zero and the proof stops above it, at
-    // the DRIVER's own floor rather than at the boundary. The bound is
+    // The crossing is at THROUGH and the proof stops below it, at the
+    // DRIVER's own floor rather than at the boundary. The bound is
     // DERIVED from the two mechanisms that set that floor — the run's
     // ambiguity band and the drive's resolution over this seed —
     // because a constant here is a claim about one eps row and the
     // gate runs three. It caught exactly that: a literal `1e-6` passed
     // at the shipped eps and red at 1e-6 and 1e-12.
-    let resolution = (1.05 + 0.5) / 2f64.powi(24);
+    let resolution = (NOTCH_SEED.hi - NOTCH_SEED.lo) / 2f64.powi(24);
     assert!(
-        lo > 0.0,
-        "the certificate must not reach the crossing: {lo}"
+        hi < THROUGH,
+        "the certificate must not reach the crossing: {hi}"
     );
     assert!(
-        lo < 100.0 * resolution.max(tol().eps()),
-        "the frontier is the driver's stopping point, not the boundary: {lo}"
+        THROUGH - hi < 100.0 * resolution.max(tol().eps()),
+        "the frontier is the driver's stopping point, not the boundary: {hi}"
     );
 }
 
@@ -483,32 +613,32 @@ fn the_certificate_is_inside_the_locally_valid_range() {
 /// certificate. A seed placed on that branch certifies it.
 #[test]
 fn the_first_boundary_stops_the_walk_and_a_seed_on_the_island_certifies_it() {
-    let doc = slab(1.0);
+    let doc = notch(NOMINAL);
     let r = range_of(
         &doc,
-        "depth",
-        RangeSeed { lo: -2.0, hi: 0.5 },
+        "height",
+        RangeSeed { lo: -0.25, hi: 0.5 },
         &budget(24, 2048),
     );
-    assert!(r.lo().is_bound(), "got {:?}", r.lo());
+    assert!(r.hi().is_bound(), "got {:?}", r.hi());
     assert!(
-        r.certified_interval().0 > 0.0,
+        r.certified_interval().1 < THROUGH,
         "the certificate must stop at the crossing, not leap it"
     );
     assert!(
-        no_new_failure(&doc, "depth", -1.0),
+        no_new_failure(&doc, "height", 0.2),
         "the far branch is valid to the probe"
     );
 
-    let island = slab(-1.0);
+    let island = notch(0.2);
     let on_it = range_of(
         &island,
-        "depth",
-        RangeSeed::symmetric(0.25),
+        "height",
+        RangeSeed::symmetric(0.1),
         &budget(24, 2048),
     );
-    assert_eq!(*on_it.lo(), RangeSide::Certified { to: -0.25 });
-    assert_eq!(*on_it.hi(), RangeSide::Certified { to: 0.25 });
+    assert_eq!(*on_it.lo(), RangeSide::Certified { to: -0.1 });
+    assert_eq!(*on_it.hi(), RangeSide::Certified { to: 0.1 });
 }
 
 // ------------------------------------------------- purity and identity
@@ -637,7 +767,7 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             tol()
         ),
         Err(RangeRefusal::StructuralSlot {
-            node: pattern,
+            node: doc.spoken(pattern),
             slot: SlotId::Count
         })
     );
@@ -656,7 +786,7 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             tol()
         ),
         Err(RangeRefusal::SlotIsNotALiteral {
-            node: extrude,
+            node: driven.spoken(extrude),
             slot: SlotId::Distance
         })
     );
@@ -673,7 +803,7 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             tol()
         ),
         Err(RangeRefusal::UnknownSlot {
-            node: extrude,
+            node: driven.spoken(extrude),
             slot: SlotId::Radius
         })
     );
@@ -688,7 +818,9 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             seed,
             tol()
         ),
-        Err(RangeRefusal::UnknownNode { node: ghost })
+        Err(RangeRefusal::UnknownNode {
+            node: SpokenNode::absent(ghost)
+        })
     );
     assert_eq!(
         derive(&driven, &RangeField::Param(name("nope")), seed, tol()),
@@ -723,7 +855,7 @@ fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
             tol()
         ),
         Err(RangeRefusal::UnknownSlot {
-            node,
+            node: doc.spoken(node),
             slot: SlotId::Count
         })
     );
@@ -747,7 +879,7 @@ fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
             tol()
         ),
         Err(RangeRefusal::StructuralSlot {
-            node: pattern,
+            node: patterned_doc.spoken(pattern),
             slot: SlotId::Count
         })
     );
@@ -769,6 +901,7 @@ fn a_profile_step_argument_widens() {
     r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let doc = r.doc;
     let profile = doc.node(p).expect("the profile");
@@ -806,7 +939,7 @@ fn a_profile_step_argument_widens() {
 #[test]
 fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
     let (mut doc, node) = slab_slot(1.0);
-    let base = format!("query_certified_range_{}", node.0);
+    let base = format!("query_certified_range_{:016x}", node.0);
     let declared = [
         base.clone(),
         format!("{base}_1"),

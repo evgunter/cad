@@ -532,7 +532,7 @@ fn the_rectangle_template_is_the_centred_polygon() {
             .flatten()
             .copied()
             .collect::<std::collections::BTreeSet<_>>(),
-        doc.step_mint().log().iter().copied().collect(),
+        doc.mint().steps().collect(),
         "the profile's steps are the document's only mints"
     );
     assert_eq!(minted.ids.iter().flatten().count(), 5, "five steps");
@@ -726,9 +726,9 @@ fn extrude_and_revolve_require_their_node_kinds() {
         });
         assert!(
             matches!(
-                refused.refusal,
+                &refused.refusal,
                 Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Profile })
-                    if node == wrong
+                    if node.id() == wrong
             ),
             "{:?}",
             refused.refusal
@@ -744,9 +744,9 @@ fn extrude_and_revolve_require_their_node_kinds() {
     });
     assert!(
         matches!(
-            refused.refusal,
+            &refused.refusal,
             Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Profile })
-                if node == axis
+                if node.id() == axis
         ),
         "{:?}",
         refused.refusal
@@ -768,9 +768,9 @@ fn extrude_and_revolve_require_their_node_kinds() {
         });
         assert!(
             matches!(
-                refused.refusal,
+                &refused.refusal,
                 Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::SketchAxis })
-                    if node == wrong
+                    if node.id() == wrong
             ),
             "{:?}",
             refused.refusal
@@ -791,9 +791,9 @@ fn extrude_and_revolve_require_their_node_kinds() {
         });
         assert!(
             matches!(
-                refused.refusal,
+                &refused.refusal,
                 Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Frame })
-                    if node == wrong
+                    if node.id() == wrong
             ),
             "{:?}",
             refused.refusal
@@ -893,7 +893,7 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
             Some(SeatEvent::PickLost {
                 seat: Seat::RevolveAxis,
                 node
-            }) if *node == axis
+            }) if node.id() == axis
         ),
         "the event names the emptied seat and the vanished node: {events:?}"
     );
@@ -961,7 +961,7 @@ fn a_dropped_profile_does_not_promote_the_axis() {
             Some(SeatEvent::PickLost {
                 seat: Seat::RevolveProfile,
                 node
-            }) if *node == profile
+            }) if node.id() == profile
         ),
         "{events:?}"
     );
@@ -1207,7 +1207,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 ///
 /// It is still a TWO-FORM trip for a person — add the datum, then draw
 /// on it — which is the residue
-/// `work/author/add-profile-mints-no-frame.md` carries.
+/// `work/authtail/drawing-on-a-picked-face-is-a-two-form-trip.md` carries.
 #[test]
 fn a_boss_is_authored_on_a_picked_face() {
     let tol = Tol::witness();
@@ -1274,19 +1274,19 @@ fn a_boss_is_authored_on_a_picked_face() {
     };
     let origin = placed.origin();
     close(
-        [origin.x, origin.y, origin.z],
+        origin.to_array(),
         [0.0, 0.0, 0.01],
         "the frame's origin is the cap's centre, 10 mm up",
     );
     let n = placed.normal();
     close(
-        [n.x, n.y, n.z],
+        n.to_array(),
         [0.0, 0.0, 1.0],
         "and its normal is the cap's outward normal, not the base's",
     );
     let u = placed.u();
     close(
-        [u.x, u.y, u.z],
+        u.to_array(),
         [1.0, 0.0, 0.0],
         "and a zero spin leaves sketch +x on the carrier's u-reference",
     );
@@ -1397,7 +1397,7 @@ fn a_new_xy_frame_lands_where_its_preview_drew() {
     let previewed = ProfilePlane::xy_placement();
     let (o, po) = (landed.origin(), previewed.origin());
     let triples = [
-        ([o.x, o.y, o.z], [po.x, po.y, po.z], "origin"),
+        (o.to_array(), po.to_array(), "origin"),
         (xyz(landed.u()), xyz(previewed.u()), "sketch +x"),
         (xyz(landed.v()), xyz(previewed.v()), "sketch +y"),
         (xyz(landed.normal()), xyz(previewed.normal()), "normal"),
@@ -1415,7 +1415,7 @@ fn a_new_xy_frame_lands_where_its_preview_drew() {
 
 /// A direction's components, for the comparison above.
 fn xyz(v: pncad::geom_core::Vec3<f64>) -> [f64; 3] {
-    [v.x, v.y, v.z]
+    v.to_array()
 }
 
 /// **The frame is minted BEFORE the profile that names it**, and the

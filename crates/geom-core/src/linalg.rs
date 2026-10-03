@@ -41,11 +41,20 @@
 //! - **No array storage, no indexing, no `Index` impls.** Indexing has a
 //!   panic path on out-of-range input, and D9 forbids panic paths; named
 //!   fields (`x`, `y`, `z`, `c0`, …) make every component access total
-//!   and readable.
+//!   and readable. The array form a persisted struct stores is reached
+//!   through conversions that destructure rather than index —
+//!   `from_array`/`to_array` on the four vector and point types,
+//!   `from_cols_array`/`to_cols_array`/`cols` on [`Mat3`], `cols` and
+//!   `components` on [`Affine3`] — and each reader binds its type's
+//!   fields by pattern, so a new field fails to compile at the door.
 //! - **No `PartialEq` / `PartialOrd` / `Hash` derives.** Comparison is
 //!   the predicate layer's job (M0 PR 3): geometric equality is a
 //!   tolerance decision, never a bit pattern — and the scalar `T` carries
-//!   no comparison surface anyway (see `real.rs` on why).
+//!   no comparison surface anyway (see `real.rs` on why). A point set
+//!   has no canonical order in this kernel. Two clouds are compared by
+//!   matching under a tolerance (0 for exact), never by sorting and
+//!   zipping. Representation identity, where a site needs it, is
+//!   per-coordinate `to_bits` at that site with its reason.
 //! - **No left scalar multiplication `s * v`.** That impl must live on
 //!   the *scalar* type (`impl Mul<Vec3<T>> for T`), which coherence
 //!   forbids for a generic scalar and which we decline to special-case
@@ -67,6 +76,21 @@
 //! **fixed, documented association order** (D9: deterministic evaluation;
 //! reassociating floating-point sums changes results). The order is stated
 //! in each operation's doc comment and is part of its contract.
+//!
+//! **What a fixed order buys is bit-identity for non-NaN outputs only.**
+//! Where an output is NaN, Rust leaves its sign and payload unspecified
+//! (a NaN produced by arithmetic may come from the hardware's default
+//! NaN, from constant folding, or from either operand), so they are not
+//! stable under code motion. One concrete route: the compiler may commute
+//! an addition (`a + b` → `b + a`, exact for every non-NaN pair), and
+//! when both summands are NaN, which one's sign and payload survive
+//! follows the operand order it chose. Two inlined call sites of one
+//! [`Mat3`] product in a single release build have been seen to disagree
+//! in a NaN's sign bit that way. Every bit-level claim in this
+//! layer that cites D9 is a claim about non-NaN values; the kernel's
+//! geometry meets it because its gates refuse non-finite coordinates.
+//! `affine.rs`'s `two_spellings_of_a_product_agree_bitwise_off_nan` pins
+//! it over finite operands, both zeros, subnormals and overflow.
 //!
 //! The [`svd`] submodule (M5 PR 7) is the second C12.8 addition: the
 //! fixed-shape 2×3/3×4 decomposition of the SSI marcher's underdetermined
@@ -114,5 +138,7 @@ pub use mat::Mat3;
 pub use ortho_frame::{OrthoAxis, OrthoFrame, OrthoFrameError};
 pub use point::{Point2, Point3};
 pub use svd::{Svd, Svd2x3, Svd3x4};
-pub use unit_vec::{UnitVec3, UnitVec3Error, decide_unit_direction};
+pub use unit_vec::{
+    LeveredUnitError, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, decide_unit_direction,
+};
 pub use vec::{Vec2, Vec3};

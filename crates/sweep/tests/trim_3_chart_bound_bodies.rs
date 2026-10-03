@@ -33,6 +33,7 @@
 )]
 
 use std::f64::consts::{PI, TAU};
+use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
 use crate::common::interval::{iv, p2, v2};
@@ -260,8 +261,12 @@ fn face_surface(body: &Body<Interval>, face: FaceKey) -> Surface<Interval> {
         .clone()
 }
 
-/// The consumer's plane re-chart (`clearance.rs` `in_plane_axis` /
-/// `chart_frame`), replicated.
+/// The plane re-chart `clearance.rs` carried while a wall's stored
+/// `u_ref` was sign-hulled at the interval scalar, replicated: the
+/// normal crossed with the widest world axis under `total_cmp`,
+/// normalized. It is kept as a SECOND chart to describe through, not
+/// as a workaround — the stored chart is the claim, and a difference
+/// between the two is what a regression would look like.
 fn rechart(s: &Surface<Interval>) -> Option<Surface<Interval>> {
     let Surface::Plane { origin, normal, .. } = s else {
         return None;
@@ -310,17 +315,6 @@ fn edge_mids(body: &Body<Interval>, face: FaceKey) -> Vec<Point3<f64>> {
         }
     }
     out
-}
-
-fn kind(s: &Surface<Interval>) -> &'static str {
-    match s {
-        Surface::Plane { .. } => "plane",
-        Surface::Cylinder { .. } => "cylinder",
-        Surface::Cone { .. } => "cone",
-        Surface::Sphere { .. } => "sphere",
-        Surface::Torus { .. } => "torus",
-        _ => "other",
-    }
 }
 
 fn arms(s: &Surface<Interval>) -> Option<(Interval, Interval)> {
@@ -475,11 +469,11 @@ fn probe_face(
 ) -> (Option<ChartBound<Interval>>, Option<GridStats>) {
     match chart_boundary(body, face, chart, band()) {
         Err(e) => {
-            eprintln!("{label} [{}]: REFUSED: {e}", kind(chart));
+            eprintln!("{label} [{}]: REFUSED: {e}", chart.kind().name());
             (None, None)
         }
         Ok(b) => {
-            eprintln!("{label} [{}]: {}", kind(chart), describe_line(&b));
+            eprintln!("{label} [{}]: {}", chart.kind().name(), describe_line(&b));
             let stats = match (arms(chart), oracle) {
                 (Some(a), Some(o)) => Some(grid(&b, chart, a, window_of(&b, 0.3), 32, o, label)),
                 _ => None,
@@ -526,7 +520,7 @@ fn extrude_oracles(
         ));
     }
     let all_segs: Vec<Seg> = loops.iter().flat_map(|l| segs_of(l)).collect();
-    for faces in &t.side_faces {
+    for faces in &t.side_faces() {
         for &face in faces {
             let mids = edge_mids(body, face);
             let seg = all_segs
@@ -587,7 +581,7 @@ fn revolve_oracles(
     let all_segs: Vec<Seg> = loops.iter().flat_map(|l| segs_of(l)).collect();
     let mut out: Vec<(FaceKey, Oracle, &'static str)> = Vec::new();
     let mut walls = std::collections::HashSet::new();
-    let _ = &t.walls;
+    let _ = &t.walls();
     for (face, _) in body.faces() {
         let mids = edge_mids(body, face);
         let seg = all_segs.iter().copied().find(|s| {
@@ -640,7 +634,15 @@ fn revolve_oracles(
 fn run_extrude(name: &str, loops: &[Vec<((f64, f64), f64)>], h: f64) -> Vec<GridStats> {
     eprintln!("=== extrude fixture: {name} (h = {h}) ===");
     let vp = profile_of(loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(h)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(h),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let mut all = Vec::new();
     for (face, oracle, fname) in extrude_oracles(&t.body, &t, loops, h) {
         let s = face_surface(&t.body, face);
@@ -922,7 +924,15 @@ fn p12_wide_slab_with_hole_is_sound() {
     // The pointed version: the hole's centre lifted by τ in u is material.
     let loops = wide_slab_with_hole();
     let vp = profile_of(&loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let s = face_surface(&t.body, t.bottom);
     let b = chart_boundary(&t.body, t.bottom, &s, band()).unwrap();
     eprintln!(
@@ -938,11 +948,17 @@ fn p12_wide_slab_with_hole_is_sound() {
         cv += mid(e.a().y) / ring.edges.len() as f64;
     }
     let m = b.metred((Interval::one(), Interval::one()));
-    let lifted = MetredRect::new(cu + TAU - 0.05, cu + TAU + 0.05, cv - 0.05, cv + 0.05);
+    // Lift by one period TOWARDS the middle of the slab. Which way that
+    // is depends on the carrier's stored `u_ref`, which is a chart
+    // convention and not a fact about the part; a fixed sign would make
+    // this row a statement about the frame rather than about a plane
+    // having no period at all.
+    let lift = if cu > 0.0 { -TAU } else { TAU };
+    let lifted = MetredRect::new(cu + lift - 0.05, cu + lift + 0.05, cv - 0.05, cv + 0.05);
     let sf = surface_f64(&s);
-    let p = sf.eval(cu + TAU, cv);
+    let p = sf.eval(cu + lift, cv);
     eprintln!(
-        "hole centre ({cu:.3},{cv:.3}); lifted cell centre maps to {:?}",
+        "hole centre ({cu:.3},{cv:.3}); lifted by {lift:+.3} in u, cell centre maps to {:?}",
         (p.x, p.y, p.z)
     );
     assert!(
@@ -1043,7 +1059,15 @@ fn widen(b: &ChartBound<Interval>, w: f64) -> ChartBound<Interval> {
 fn p14_fat_intervals_only_lose_cells() {
     let loops = bumped_block();
     let vp = profile_of(&loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let b = band();
     let mut lost_total = 0usize;
     let mut gained_total = 0usize;
@@ -1088,7 +1112,7 @@ fn p14_fat_intervals_only_lose_cells() {
             }
             eprintln!(
                 "{face:?} [{}] widen {w}: lost={lost} gained={gained}",
-                kind(&s)
+                s.kind().name()
             );
             lost_total += lost;
             gained_total += gained;
@@ -1134,7 +1158,7 @@ fn singular_probe(name: &str, loops: &[Vec<((f64, f64), f64)>], theta: f64) -> (
     let (mut singular_refusals, mut violations) = (0usize, 0usize);
     for (face, oracle, fname) in revolve_oracles(&t.body, &t, loops, Some(theta)) {
         let s = face_surface(&t.body, face);
-        let label = format!("{name}/{fname}/{face:?} [{}]", kind(&s));
+        let label = format!("{name}/{fname}/{face:?} [{}]", s.kind().name());
         match chart_boundary(&t.body, face, &s, band()) {
             Err(topo::PcurveMintError::SingularChartJoint { .. }) => {
                 singular_refusals += 1;
@@ -1195,8 +1219,12 @@ fn p18_a_sphere_face_touching_the_pole_refuses_at_the_singularity() {
 
 /// Counts the described faces and the `Envelope` edges among them, on
 /// both the stored chart and the consumer's re-chart.
-fn describe_census(body: &Body<Interval>, faces: &[FaceKey]) -> (usize, usize, usize, usize) {
+fn describe_census(
+    body: &Body<Interval>,
+    faces: &[FaceKey],
+) -> (usize, usize, usize, usize, usize) {
     let (mut described, mut envelopes, mut rechart_planes, mut vertical_planes) = (0, 0, 0, 0);
+    let mut stored_planes = 0;
     for &face in faces {
         let s = face_surface(body, face);
         if let Ok(b) = chart_boundary(body, face, &s, band()) {
@@ -1208,14 +1236,17 @@ fn describe_census(body: &Body<Interval>, faces: &[FaceKey]) -> (usize, usize, u
                 .filter(|e| matches!(e, ChartEdge::Envelope { .. }))
                 .count();
         }
-        // A VERTICAL plane: its normal is horizontal, which is exactly
-        // the family whose stored `u_ref` is sign-hulled at the
-        // interval scalar (the spec's refutation 2).
+        // A VERTICAL plane: its normal is horizontal — the family the
+        // consumer's re-chart existed for, back when the stored `u_ref`
+        // was sign-hulled there at the interval scalar.
         if let Surface::Plane { normal, .. } = &s
             && normal.z.hi().abs() < 1e-9
             && normal.z.lo().abs() < 1e-9
         {
             vertical_planes += 1;
+            if chart_boundary(body, face, &s, band()).is_ok() {
+                stored_planes += 1;
+            }
             if let Some(rc) = rechart(&s)
                 && chart_boundary(body, face, &rc, band()).is_ok()
             {
@@ -1223,7 +1254,13 @@ fn describe_census(body: &Body<Interval>, faces: &[FaceKey]) -> (usize, usize, u
             }
         }
     }
-    (described, envelopes, vertical_planes, rechart_planes)
+    (
+        described,
+        envelopes,
+        vertical_planes,
+        rechart_planes,
+        stored_planes,
+    )
 }
 
 /// **The envelope arm is reached on a real body.** `chart_edge`'s
@@ -1238,9 +1275,17 @@ fn describe_census(body: &Body<Interval>, faces: &[FaceKey]) -> (usize, usize, u
 fn r2_the_envelope_arm_is_reached_and_sound_on_an_arc_bounded_cap() {
     for (name, loops) in [("bumped", bumped_block()), ("notched", notched_block())] {
         let vp = profile_of(&loops);
-        let t = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness()).unwrap();
+        let t = extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: iv(1.0),
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
         let faces: Vec<FaceKey> = t.body.faces().map(|(k, _)| k).collect();
-        let (described, envelopes, _, _) = describe_census(&t.body, &faces);
+        let (described, envelopes, _, _, _) = describe_census(&t.body, &faces);
         eprintln!("{name}: described={described} envelope edges={envelopes}");
         assert!(
             envelopes > 0,
@@ -1252,26 +1297,47 @@ fn r2_the_envelope_arm_is_reached_and_sound_on_an_arc_bounded_cap() {
     }
 }
 
-/// **A vertical planar wall describes through the consumer's
-/// re-chart.** Review lane trim3-r2 measured `chart_boundary` refusing
-/// 3 of 6 planar side walls of an extruded L on their STORED chart —
-/// `Escalated{pcurve_loop_continuity}`, the sign-hulled `u_ref` the
-/// spec's refutation 2 names — and no row in the unit describing one
-/// through a re-chart, which is exactly what `clearance.rs`'s
-/// `window_of` will pass. The re-chart is replicated here from that
-/// function (`in_plane_axis` / `chart_frame`).
+/// **A vertical planar wall describes on its STORED chart.** Review
+/// lane trim3-r2 measured `chart_boundary` refusing 3 of 6 planar side
+/// walls of an extruded L on their stored chart —
+/// `Escalated{pcurve_loop_continuity}` — because the frame the carrier
+/// stored was sign-hulled at the interval scalar on the whole equator,
+/// and the row pinned the consumer's re-chart as the way through.
+/// `Vec3::orthonormal_basis` chooses its world axis by
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` now and transfers no sign, so a
+/// wall's
+/// stored `u_ref` is exact and the re-chart it needed is gone from
+/// `clearance.rs`. The row keeps the re-chart replicated beside the
+/// stored chart and requires BOTH to describe every wall: the stored
+/// one is the claim, and the replicated one is what would show a
+/// regression as a difference between them rather than as a silence.
 #[test]
-fn r2_a_vertical_planar_wall_describes_through_the_rechart() {
+fn r2_a_vertical_planar_wall_describes_on_its_stored_chart() {
     let loops = l_profile();
     let vp = profile_of(&loops);
-    let t = extrude(&vp, Extrusion::Distance(iv(1.5)), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.5),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let faces: Vec<FaceKey> = t.body.faces().map(|(k, _)| k).collect();
-    let (_, _, vertical, via_rechart) = describe_census(&t.body, &faces);
-    eprintln!("L extrude: vertical planar walls={vertical} described via re-chart={via_rechart}");
+    let (_, _, vertical, via_rechart, via_stored) = describe_census(&t.body, &faces);
+    eprintln!(
+        "L extrude: vertical planar walls={vertical} described on the stored chart={via_stored} \
+         via the replicated re-chart={via_rechart}"
+    );
     assert!(vertical >= 6, "an extruded L has six vertical walls");
     assert_eq!(
+        vertical, via_stored,
+        "EVERY vertical planar wall must describe on its own stored chart"
+    );
+    assert_eq!(
         vertical, via_rechart,
-        "EVERY vertical planar wall must describe through the consumer's re-chart"
+        "EVERY vertical planar wall must describe through the replicated re-chart too"
     );
     // Sound on every face, stored chart and re-chart alike.
     assert_sound(&run_extrude("L-rechart", &loops, 1.5));

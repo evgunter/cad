@@ -314,7 +314,7 @@ pyo3::create_exception!(
     "The mate solve could not place an instance. Carries `variant`, \
      the stable tag of the refusing arm, and `fault` — the \
      `MateFault` VALUE, which carries the arm's payload.\n\n\
-     The solve itself is TOTAL and never raises: a refusing cluster \
+     The solve itself is TOTAL and never raises: a refusing group \
      must not fail an unrelated one, so `solve_document` records the \
      fault per node and `SolvedPoses.fault` hands back the same value \
      this exception carries. This class is raised only where an \
@@ -350,6 +350,9 @@ pyo3::create_exception!(
     "The whole-document gather refused. Carries `variant`, the stable \
      tag of the refusing arm, plus `node`, `through` and `name` \
      (`None` where the arm does not carry them).\n\n\
+     Its message names each node as the evaluation's own document \
+     holds it (kind, label and tag): the document the gather was taken \
+     of. `node` and `through` carry the full ids.\n\n\
      A product is all of the roots or none of them — there are no \
      partial products."
 );
@@ -359,8 +362,8 @@ pyo3::create_exception!(
     PncadError,
     "The `split` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
-     (`node`, `consumer`, `input`, `gauge`, `instance`, `param`, \
-     `name`, `id`), `None` where inapplicable."
+     (`node`, `consumer`, `input`, `root`, `instance`, `param`, \
+     `name`, `id`, `gauge`), `None` where inapplicable."
 );
 pyo3::create_exception!(
     pncad,
@@ -369,7 +372,8 @@ pyo3::create_exception!(
     "The `inline` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
      (`node`, `by`, `name`, `param`, `key`, `root`, `host_epsilon`, \
-     `part_epsilon`), `None` where inapplicable.\n\n\
+     `part_epsilon`, `host_root`, `part_root`, `part_gauges`), `None` \
+     where inapplicable.\n\n\
      Inline crosses the SAME document seam evaluation does, so a \
      reference that will not resolve refuses under the seam's own \
      tags — `part_pin_mismatch`, `part_epsilon_seam`, \
@@ -481,7 +485,8 @@ pyo3::create_exception!(
     "The advisory-check registry could not RUN. Carries `variant`, the \
      stable tag of the refusing arm (`root_without_value`, `band`, \
      `product_unavailable`), and `node` — the root without a value, \
-     `None` on the other arms.\n\n\
+     `None` on the other arms. Its message names each node as the \
+     evaluation's own document holds it, the gather's included.\n\n\
      NOT a finding. A check that ran and disagreed is a value in the \
      report; this class means nothing was checked."
 );

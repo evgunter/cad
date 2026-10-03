@@ -1,19 +1,19 @@
 //! Corpus document **kitchen_sink** — every v1 node kind and every
 //! REQUIRED `DocEdit` kind in ONE document (M4 PR 8a spec D1's
 //! "touching everything at once"); "required" is `EDIT_KINDS`, which
-//! is every arm but four and says at its own definition which four
-//! stand outside it and why. It grew out of the M4 PR 6 round-trip
+//! is a subset of the arms and says at its own definition which stand
+//! outside it and why. It grew out of the M4 PR 6 round-trip
 //! fixture, which now consumes it from here so the persistence rows
 //! and the corpus rows can never drift apart.
 //!
 //! Node kinds: Datum (Point/Axis/Plane), Profile (plain, arc-bearing
 //! by fillet construction, hand-declared tangent), Extrude, Revolve,
-//! Split, Boolean (Union, with a Declare operand), Transform, Pattern
-//! (Linear and Circular), Declare.
+//! Split, Boolean (Union, declared), Transform, Pattern (Linear and
+//! Circular).
 //!
 //! Edit kinds — the `EDIT_KINDS` names, which is every arm the corpus
 //! is required to cover and NOT every arm `DocEdit` has (that list's
-//! own doc says which four stand outside it and what guards a new
+//! own doc says which stand outside it and what guards a new
 //! one):
 //! `InsertNode`, `DeleteNode`, `SetParam`,
 //! `SetStructuralParam`, `SetExpression`, `SetDocParam`,
@@ -33,6 +33,7 @@
 //! one — the golden fixture in `m4_pr6_golden.rs` is where a pinned ε
 //! belongs, deliberately.
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
@@ -119,9 +120,10 @@ pub fn document() -> CorpusDoc {
     let block_a = r.insert(Node::Extrude {
         profile,
         distance: dist,
+        side: ExtrudeSide::Along,
     });
 
-    // A flush neighbour + Declare + the consuming union (F5). The
+    // A flush neighbour and the union declaring its contacts (F5). The
     // offset is HALF the width, so the blocks OVERLAP along x while
     // their y-walls and both caps stay flush — the sliding-overlap
     // shape `declare_x_offset_flush` declares. (A pure face-to-face
@@ -136,18 +138,14 @@ pub fn document() -> CorpusDoc {
     let block_b = r.insert(Node::Extrude {
         profile: profile_b,
         distance: len(1.25),
+        side: ExtrudeSide::Along,
     });
-    let (with_declare, declare) = declare_x_offset_flush(r.doc.clone(), block_a, block_b);
-    let declare_node = with_declare
-        .node(declare)
-        .expect("declare inserted")
-        .clone();
-    r.insert(declare_node);
+    let declare = declare_x_offset_flush(&r.doc, block_a, block_b);
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: block_a,
         b: block_b,
-        declare: Some(declare),
+        declare,
     });
 
     // Split the union with a plane tool.
@@ -181,6 +179,7 @@ pub fn document() -> CorpusDoc {
     let lone = r.insert(Node::Extrude {
         profile,
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
     r.insert(Node::Pattern {
         input: lone,
@@ -231,6 +230,11 @@ pub fn document() -> CorpusDoc {
         slot: SlotId::Distance,
         expr: len(0.375),
     });
+    // The extrude's structural side: the same block, below its plane.
+    r.push(DocEdit::SetExtrudeSide {
+        node: lone,
+        side: ExtrudeSide::Against,
+    });
     // The inert datum has no dependents: delete it (ids never reused).
     r.push(DocEdit::DeleteNode { id: inert });
     // Witnesses: one explicit, one certified bulk adoption.
@@ -263,6 +267,11 @@ pub fn document() -> CorpusDoc {
             bytes: vec![0xc0, 0xde],
         },
     });
+    // A node label on the union (document data beside the node).
+    r.push(DocEdit::SetLabel {
+        node: union,
+        label: Some(editor_core::Label::new("kitchen sink").unwrap()),
+    });
     // Appearance + D7 metadata on the union's output body.
     let body = StableName {
         kind: EntityKind::Body,
@@ -275,7 +284,7 @@ pub fn document() -> CorpusDoc {
     });
     r.push(DocEdit::SetAppearance {
         name: body.clone(),
-        attr: Attr::Label("kitchen sink".into()),
+        attr: Attr::Label(editor_core::Label::new("kitchen sink").unwrap()),
     });
     r.push(DocEdit::SetAppearanceMeta {
         name: body.clone(),
@@ -285,7 +294,8 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetAppearanceMeta {
         name: body.clone(),
         key: "tool.example/scratch".into(),
-        value: MetaValue::Map(BTreeMap::from([("v".into(), MetaValue::Int(1))])),
+        value: MetaValue::map(BTreeMap::from([("v".into(), MetaValue::Int(1))]))
+            .expect("a shallow value"),
     });
     r.push(DocEdit::ClearAppearanceMeta {
         name: body.clone(),
@@ -346,7 +356,7 @@ pub fn meta_tree() -> MetaValue {
     m.insert("blob".into(), MetaValue::Bytes(vec![0xde, 0xad, 0x00]));
     m.insert(
         "list".into(),
-        MetaValue::List(vec![MetaValue::Int(-7), MetaValue::Float(0.1)]),
+        MetaValue::list(vec![MetaValue::Int(-7), MetaValue::Float(0.1)]).expect("a shallow value"),
     );
-    MetaValue::Map(m)
+    MetaValue::map(m).expect("a shallow value")
 }

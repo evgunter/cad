@@ -10,7 +10,7 @@ cost: D
 
 **The long form of M10-7's census** — the full table, one row per name,
 which `geom_core::sym`'s module docs summarize and cite. It lives here
-rather than in the module because 107 rows of evidence is a reference
+rather than in the module because 106 rows of evidence is a reference
 and the module needs to stay readable; the module carries the counts,
 the argument and the two families that matter, and points here for the
 rest.
@@ -29,7 +29,7 @@ B: grep -rhoE '"[a-z0-9_]*(coincid|cosurface|identity|endpoint|on_surface|
 then the union, minus the bare filter words themselves (`carrier`,
 `parallel`, `matches`, `identity`, `circles`, `coincide`, `coincident`,
 `coincidence`, `no_carrier`) and minus test-harness names matching
-`matches_loopbuilder`. **107 names.**
+`matches_loopbuilder`. **106 names.**
 
 **Its blind spots, which are the previous sweep's and are still real.**
 A misses a predicate named through a wrapper or a table — and that miss
@@ -41,7 +41,7 @@ from any other string literal of that shape, which is why the
 Neither sees a name using none of the filtered words — see *Outside the
 filter* below, which is the class that costs.
 
-**107, not the 66 the previous sweep reported.** The earlier number is
+**106, not the 66 the previous sweep reported.** The earlier number is
 not reproducible from a rule written down anywhere, so this file states
 its own rule rather than quoting a count it cannot re-derive. The
 difference is filter width, not new predicates: the buckets' SHAPE is
@@ -54,8 +54,8 @@ exactly S-CERT's four names and no more — holds at either width.
 | --- | --- |
 | IMPLICIT (S-CERT's frontier) | 4 |
 | NOT A PREDICATE | 8 |
-| EXPLICIT | 95 |
-| **total** | **107** |
+| EXPLICIT | 94 |
+| **total** | **106** |
 
 `EXPLICIT` means the margin is a closed form in the parameters over
 analytic carriers — a distance, a dot, a cross, a radius difference, a
@@ -193,8 +193,7 @@ CSV rather than a name filter.
 | `ss_carrier_external` | EXPLICIT | closed form at the site | `crates/geom-brep/src/intersect.rs` | not in the M10-8 documents |
 | `ss_carrier_identity` | EXPLICIT | closed form at the site | `crates/geom-brep/src/intersect.rs` | not in the M10-8 documents |
 | `ss_carrier_internal` | EXPLICIT | closed form at the site | `crates/geom-brep/src/intersect.rs` | not in the M10-8 documents |
-| `tangent_locus_axis_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/rest.rs` | not in the M10-8 documents |
-| `tangent_locus_gap` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/rest.rs` | not in the M10-8 documents |
+| `tangent_locus_internal_gap` | EXPLICIT | closed form at the site | `crates/geom-brep/src/locus.rs` | not in the M10-8 documents |
 | `tangent_normal_parallel` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` | — |
 | `tangent_on_surface_1` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` | A0 |
 | `tangent_on_surface_2` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` | — |
@@ -389,8 +388,8 @@ boss at bulge 2 stood at `carrier_matches_mapped_source` 6 of 54 and
 SYM-5's rule E; it is 0 of 54 and 9 of 90 now and the ceiling has moved
 `8.2611e2 → 9.3559e2 · ε`), and
 a PARAMETER bulge was outside the mechanism until the carrier's span was
-spelled from the arc's decided turn, `4·atan(σ·b)` (`sweep`'s
-`turned_span`): it now meets the pushforward's `4·atan b`, and what
+spelled as the stored sweep signed by the arc's decided turn (`sweep`'s
+`arc_span`): it now shares the pushforward's `atan b` atom, and what
 stands at such a bulge is the coefficient ring (R2's D-tab at
 `fl(0.4)`: `3.52e2 · ε` either way), the term budget and the sign of
 the apothem — `work/decide/rule-d-reaches-the-unit-bulge-only`.
@@ -453,7 +452,7 @@ way in — and not to the real-margin class.
 
 ## Re-homed at M10's exit sweep (2026-09-13)
 
-Here because it is the tier's own reference: 107 rows of evidence that
+Here because it is the tier's own reference: 106 rows of evidence that
 `geom_core::sym`'s module docs summarize and cite by name.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

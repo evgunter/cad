@@ -30,46 +30,76 @@
 
 use crate::doc::Doc;
 use crate::node::RecipeNodeId;
+use crate::spoken::SpokenNode;
 
-/// A product-root invariant violation. One type, two doors: the edit
-/// layer wraps it in [`crate::EditError`], the persistence validator
-/// in [`crate::SnapshotError`] — a single implementation of the
-/// invariant, so the two doors cannot drift.
+/// A product-root invariant violation. One type, three doors: the edit
+/// layer wraps it in [`crate::EditError`], the load and save doors'
+/// shared validator in [`crate::SnapshotError`] — a single
+/// implementation of the invariant, so the doors cannot drift. Every
+/// door speaks the nodes it names from the document it holds; the edit
+/// door's is the one it was handed, and the validator's the one it
+/// judges.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RootFault {
     /// A root entry does not name a live node.
     NotLive {
         /// The offending entry.
-        root: RecipeNodeId,
+        root: SpokenNode,
     },
     /// A node appears twice in the root list.
     Duplicate {
         /// The repeated entry.
-        root: RecipeNodeId,
+        root: SpokenNode,
     },
     /// One root is a strict ancestor of another: the product would
     /// gather the same material twice. Both are named.
     Ancestor {
         /// The root upstream (its material also reaches `descendant`).
-        ancestor: RecipeNodeId,
+        ancestor: SpokenNode,
         /// The root downstream of it.
-        descendant: RecipeNodeId,
+        descendant: SpokenNode,
     },
     /// A live node reaches no root — a silently dead subgraph.
     Uncovered {
         /// The first uncovered node, in document order.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
+}
+
+impl RootFault {
+    /// This fault with its roots spoken again from `doc`, a later
+    /// version of the document it was raised in
+    /// ([`SpokenNode::respoken`]). [`Self::NotLive`] stays as raised:
+    /// its sentence is that the root is not there.
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        match self {
+            Self::NotLive { .. } => self.clone(),
+            Self::Duplicate { root } => Self::Duplicate {
+                root: root.respoken(doc),
+            },
+            Self::Ancestor {
+                ancestor,
+                descendant,
+            } => Self::Ancestor {
+                ancestor: ancestor.respoken(doc),
+                descendant: descendant.respoken(doc),
+            },
+            Self::Uncovered { node } => Self::Uncovered {
+                node: node.respoken(doc),
+            },
+        }
+    }
 }
 
 impl core::fmt::Display for RootFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NotLive { root } => {
-                write!(f, "product root {} is not a live node", root.0)
+                write!(f, "the product root list names {root}, which is not live")
             }
             Self::Duplicate { root } => {
-                write!(f, "product root {} is listed twice", root.0)
+                write!(f, "the product root list names {root} twice")
             }
             Self::Ancestor {
                 ancestor,
@@ -78,13 +108,13 @@ impl core::fmt::Display for RootFault {
                 f,
                 "product root {} is an ancestor of product root {} — \
                  the product would gather its material twice",
-                ancestor.0, descendant.0
+                ancestor, descendant
             ),
             Self::Uncovered { node } => write!(
                 f,
-                "node {} reaches no product root — it would contribute \
+                "{} reaches no product root — it would contribute \
                  to nothing",
-                node.0
+                node
             ),
         }
     }
@@ -135,15 +165,18 @@ pub(crate) fn strict_ancestors<P: crate::ProfilePayload>(
 ///
 /// # Errors
 ///
-/// The first [`RootFault`] found.
-pub(crate) fn check<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), RootFault> {
+/// The first [`RootFault`] found, its nodes spoken by `speak`.
+pub(crate) fn check<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    speak: impl Fn(RecipeNodeId) -> SpokenNode,
+) -> Result<(), RootFault> {
     let mut listed = std::collections::BTreeSet::new();
     for &root in &doc.roots {
         if doc.node(root).is_none() {
-            return Err(RootFault::NotLive { root });
+            return Err(RootFault::NotLive { root: speak(root) });
         }
         if !listed.insert(root) {
-            return Err(RootFault::Duplicate { root });
+            return Err(RootFault::Duplicate { root: speak(root) });
         }
     }
     // Ancestor-freedom, per root, over its own strict-ancestor cone.
@@ -155,8 +188,8 @@ pub(crate) fn check<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), RootFa
         walk_strict_ancestors(doc, root, &mut seen, |id| {
             if listed.contains(&id) {
                 Err(RootFault::Ancestor {
-                    ancestor: id,
-                    descendant: root,
+                    ancestor: speak(id),
+                    descendant: speak(root),
                 })
             } else {
                 Ok(())
@@ -171,7 +204,7 @@ pub(crate) fn check<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), RootFa
         covered.extend(seen);
     }
     if let Some(&node) = doc.order.iter().find(|id| !covered.contains(id)) {
-        return Err(RootFault::Uncovered { node });
+        return Err(RootFault::Uncovered { node: speak(node) });
     }
     Ok(())
 }
@@ -291,12 +324,9 @@ pub(crate) fn consumer<P: crate::ProfilePayload>(
 ///
 /// A sink of ANY kind is a root, and that is A10's meaning rather
 /// than a gap in it: a mate is an isolated sink under consuming
-/// edges, and a `Declare` whose last consumer a delete removed is a
-/// sink from that delete on — both are listed, and both contribute
-/// nothing to the gather, which reads only body-denoting roots. The
-/// kind question is the gather's, never this predicate's
-/// (`work/edit/an-orphaned-declare-joins-the-product-root-set`, ruled
-/// a non-issue on exactly that ground).
+/// edges, and is listed, and contributes nothing to the gather, which
+/// reads only body-denoting roots. The kind question is the gather's,
+/// never this predicate's.
 pub(crate) fn is_sink<P: crate::ProfilePayload>(doc: &Doc<P>, id: RecipeNodeId) -> bool {
     consumer(doc, id).is_none()
 }

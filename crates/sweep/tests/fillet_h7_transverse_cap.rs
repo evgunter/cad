@@ -32,6 +32,7 @@ use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::blend::battery::{BlendRequest, RULED_END_NOT_TRANSVERSE, cap_transverse, run_battery};
 use sweep::blend::{BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
 use sweep::test_support::{
@@ -40,7 +41,7 @@ use sweep::test_support::{
 };
 use sweep::{Extrusion, extrude};
 use topo::query;
-use topo::splitting::{SplitPart, SplitPlane, split};
+use topo::splitting::{SplitPart, split};
 use topo::{Body, EdgeKey, FaceKey, VertexKey, mass_properties, validate_geometric};
 
 const R: f64 = ROD_FILLET;
@@ -366,10 +367,11 @@ fn the_d_profile_rod_carves_through_a_cap_arc_past_pi() {
 fn an_oblique_cap_refuses_typed_as_the_reserved_run_out() {
     let rod = rod_d_profile_at::<f64>(tol());
     let phi = 0.3f64;
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 0.7),
-        normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.7),
+        Vec3::new(phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = split(&rod, &plane, tol()).expect("the tilted cut splits");
     let SplitPart::Body(below) = &result.below else {
         panic!("the lower part carries material");
@@ -531,8 +533,10 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
 
 /// **Phase-1 ground, kept as pins.** The `CylinderCylinderCylinder`
 /// consumer — two parallel cylinders of one height, overlapping,
-/// unioned — has no body: the union refuses at the boolean's
-/// curved-pierce door, so the concave ruled band has no fixture. And a
+/// unioned — has no body: the rims' crossings of the walls are
+/// certified, but the two pairs of cap discs overlap in their planes,
+/// an undeclared coincidence the boolean never infers, so the concave
+/// ruled band has no fixture. And a
 /// box's single edge is NOT a ruled link, so it still refuses as the
 /// run-out it always was: the cut-off is not widened to plane–plane.
 #[test]
@@ -542,14 +546,21 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out()
         let profile = Profile::new(SketchPlane::xy(), vec![lp.into()])
             .validate(tol())
             .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), tol())
-            .unwrap()
-            .body
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            tol(),
+        )
+        .unwrap()
+        .body
     };
     let err = topo::union(&cyl(0.0), &cyl(0.6), tol()).expect_err("the parallel pair refuses");
     assert!(
-        matches!(err, topo::BooleanError::CurvedPierceUnsupported { .. }),
-        "the boolean's curved-pierce door, got {err:?}"
+        matches!(err, topo::BooleanError::UndeclaredCoincidence { .. }),
+        "the boolean's undeclared-coincidence door on the cap discs, got {err:?}"
     );
 
     let body = cube(1.0, tol());
@@ -590,10 +601,11 @@ fn the_cap_lever_is_the_links_extent() {
     let band = Band::new(1.2e-3, 1.2e-2).expect("the row's own band, ten wide");
     for (len, in_band) in [(0.3, true), (2.5, false)] {
         let rod = rod_d_profile_of_length_at::<f64>(len, tol());
-        let plane = SplitPlane {
-            origin: Point3::new(0.0, 0.0, 0.6 * len),
-            normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-        };
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.6 * len),
+            Vec3::new(phi.sin(), 0.0, phi.cos()),
+            geom_core::Tol::witness(),
+        );
         let result = split(&rod, &plane, tol()).expect("a 1e-2 tilt splits");
         let SplitPart::Body(below) = &result.below else {
             panic!("the lower part carries material");

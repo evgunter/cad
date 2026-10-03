@@ -9,7 +9,7 @@ pr: 3639
 priority: P3
 cost: M
 branch: chrome/working-notation
-refs: [a-driven-slots-field-draws-its-expression-source-at-any-width, the-gui-shows-no-measure-value-and-no-clearance]
+refs: [a-driven-slots-field-draws-its-expression-source-at-any-width]
 ---
 
 ## Question (answered by Ev, 2026-10-01)

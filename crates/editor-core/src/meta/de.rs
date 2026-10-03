@@ -7,7 +7,7 @@
 
 use serde::de::{self, Deserializer, IntoDeserializer, Visitor};
 
-use super::{MetaError, MetaValue};
+use super::{MAX_PRODUCER_NESTING, MetaError, MetaValue};
 
 /// Rebuilds a typed producer view from a [`MetaValue`] tree (spec
 /// D7's `from_value` boundary).
@@ -15,13 +15,48 @@ use super::{MetaError, MetaValue};
 /// # Errors
 ///
 /// [`MetaError::Message`] carrying the producer `Deserialize` impl's
-/// refusal (wrong shape, unknown variant, missing field, …).
+/// refusal (wrong shape, unknown variant, missing field, …), or
+/// [`MetaError::ProducerTooDeep`] when the producer reads deeper than
+/// [`MAX_PRODUCER_NESTING`], refused before it reads any deeper.
 pub fn from_value<'de, T: serde::Deserialize<'de>>(value: &'de MetaValue) -> Result<T, MetaError> {
-    T::deserialize(ValueDe(value))
+    T::deserialize(ValueDe { value, read: 1 })
 }
 
+/// The deserializer for `value`, reached through `read` nested
+/// `deserialize` calls, the root's included. An option or a newtype is
+/// read through `value` itself, so it counts a call without a level.
 #[derive(Clone, Copy)]
-struct ValueDe<'de>(&'de MetaValue);
+struct ValueDe<'de> {
+    value: &'de MetaValue,
+    read: usize,
+}
+
+impl<'de> ValueDe<'de> {
+    /// This deserializer, refused past [`MAX_PRODUCER_NESTING`] before
+    /// the producer reads it.
+    fn checked(self) -> Result<Self, MetaError> {
+        if self.read > MAX_PRODUCER_NESTING {
+            return Err(MetaError::ProducerTooDeep {
+                bound: MAX_PRODUCER_NESTING,
+            });
+        }
+        Ok(self)
+    }
+
+    /// The deserializer for `value`, a child of this one's.
+    fn child(self, value: &'de MetaValue) -> Self {
+        Self {
+            value,
+            read: self.read + 1,
+        }
+    }
+
+    /// The deserializer for this one's value, read through an option or
+    /// a newtype.
+    fn through(self) -> Self {
+        self.child(self.value)
+    }
+}
 
 impl<'de> IntoDeserializer<'de, MetaError> for ValueDe<'de> {
     type Deserializer = Self;
@@ -34,7 +69,8 @@ impl<'de> Deserializer<'de> for ValueDe<'de> {
     type Error = MetaError;
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, MetaError> {
-        match self.0 {
+        let this = self.checked()?;
+        match this.value {
             MetaValue::Null => visitor.visit_unit(),
             MetaValue::Bool(b) => visitor.visit_bool(*b),
             MetaValue::Int(i) => visitor.visit_i64(*i),
@@ -42,14 +78,15 @@ impl<'de> Deserializer<'de> for ValueDe<'de> {
             MetaValue::Str(s) => visitor.visit_borrowed_str(s),
             MetaValue::Bytes(b) => visitor.visit_borrowed_bytes(b),
             MetaValue::List(items) => {
-                let mut seq = de::value::SeqDeserializer::new(items.iter().map(ValueDe));
+                let mut seq =
+                    de::value::SeqDeserializer::new(items.iter().map(|item| this.child(item)));
                 let out = visitor.visit_seq(&mut seq)?;
                 seq.end()?;
                 Ok(out)
             }
             MetaValue::Map(entries) => {
                 let mut map = de::value::MapDeserializer::new(
-                    entries.iter().map(|(k, v)| (k.as_str(), ValueDe(v))),
+                    entries.iter().map(|(k, v)| (k.as_str(), this.child(v))),
                 );
                 let out = visitor.visit_map(&mut map)?;
                 map.end()?;
@@ -61,9 +98,10 @@ impl<'de> Deserializer<'de> for ValueDe<'de> {
     fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, MetaError> {
         // `Null` is absence (the ser side maps `None` to `Null`);
         // anything else is a present value.
-        match self.0 {
+        let this = self.checked()?;
+        match this.value {
             MetaValue::Null => visitor.visit_none(),
-            _ => visitor.visit_some(self),
+            _ => visitor.visit_some(this.through()),
         }
     }
 
@@ -76,7 +114,8 @@ impl<'de> Deserializer<'de> for ValueDe<'de> {
         // External tagging, mirroring the ser side: `Str(variant)` for
         // unit variants, one-entry `Map { variant: payload }` for the
         // rest.
-        match self.0 {
+        let this = self.checked()?;
+        match this.value {
             MetaValue::Str(s) => visitor.visit_enum(s.as_str().into_deserializer()),
             MetaValue::Map(entries) if entries.len() == 1 => {
                 // len == 1 guarantees the entry exists; avoid indexing.
@@ -85,7 +124,7 @@ impl<'de> Deserializer<'de> for ValueDe<'de> {
                 };
                 visitor.visit_enum(EnumDe {
                     tag,
-                    payload: ValueDe(payload),
+                    payload: this.child(payload),
                 })
             }
             _ => Err(MetaError::Message(
@@ -99,7 +138,7 @@ impl<'de> Deserializer<'de> for ValueDe<'de> {
         _name: &'static str,
         visitor: V,
     ) -> Result<V::Value, MetaError> {
-        visitor.visit_newtype_struct(self)
+        visitor.visit_newtype_struct(self.checked()?.through())
     }
 
     serde::forward_to_deserialize_any! {
@@ -129,7 +168,7 @@ impl<'de> de::EnumAccess<'de> for EnumDe<'de> {
 impl<'de> de::VariantAccess<'de> for ValueDe<'de> {
     type Error = MetaError;
     fn unit_variant(self) -> Result<(), MetaError> {
-        match self.0 {
+        match self.value {
             MetaValue::Null => Ok(()),
             _ => Err(MetaError::Message("expected no variant payload".into())),
         }

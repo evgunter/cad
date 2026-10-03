@@ -2,7 +2,7 @@
 //!
 //! These rows exist to attack the claims, not to re-state them. The
 //! headline probe is the one the committed suite has no analogue of: a
-//! cluster whose recorded frame `F` is NOT the identity, which is the
+//! group whose recorded frame `F` is NOT the identity, which is the
 //! only condition under which the solve's `F⁻¹ · O_c⁻¹ · O_p · F`
 //! conjugation is distinguishable from the bare `O_c⁻¹ · O_p` middle.
 //! Every row in `mate1_member_vocab.rs` leaves every placement unset,
@@ -11,10 +11,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Expr, Frame, MateFrame,
-    MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, clusters,
+    MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, groups,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step};
@@ -42,6 +43,7 @@ fn block_part(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -84,11 +86,11 @@ fn near(a: Frame, b: Frame, tol: f64) -> bool {
 }
 
 // ---------------------------------------------------------------
-// PROBE 1 — the conjugation, on a cluster frame that is not the
+// PROBE 1 — the conjugation, on a group frame that is not the
 // identity. Hand-derived end to end; nothing read back from the solve.
 // ---------------------------------------------------------------
 
-/// The gauge (the leg) carries a recorded cluster frame `F` = rotate
+/// The root (the leg) carries a recorded group frame `F` = rotate
 /// +90° about z, then translate `(5, 7, 11)`. The leg is patterned
 /// linearly along the master's own +x at spacing 2; the top seats onto
 /// copy 2, ALIGNED, with the a-frame at the master's `[0, 0, 1]` and
@@ -96,21 +98,24 @@ fn near(a: Frame, b: Frame, tol: f64) -> bool {
 /// coincidence's representative is the bare translation `(0, 0, 1)`
 /// and every rotation in the answer comes from `F` alone.
 ///
-/// By hand, with `d = (2·spacing, 0, 0) = (4, 0, 0)` the copy's derived
-/// offset and `R` the +90° z-rotation:
+/// The copy's derived offset `O₂ = translate(d)`, `d = (2·spacing, 0,
+/// 0) = (4, 0, 0)`, acts in document coordinates, OUTSIDE the group's
+/// frame, so the top sits at `O₂ ∘ F ∘ translate(0, 0, 1)`: the solve
+/// keeps `O₂` as the pose's left factor and the evaluation composes `F`
+/// between. By hand, with `R` the +90° z-rotation:
 ///
 /// ```text
-/// F⁻¹ ∘ O₂ ∘ F (x) = R⁻¹((R x + t) + d − t) = x + R⁻¹d
-/// R⁻¹d = R_z(−90°)·(4, 0, 0) = (0, −4, 0)
-/// rel_top = translate(0, −4, 0) ∘ translate(0, 0, 1) = translate(0, −4, 1)
+/// own space:  O₂ ∘ translate(0, 0, 1) = translate(4, 0, 1)
+/// world:      O₂ ∘ F ∘ translate(0, 0, 1) (0) = (4, 0, 0) + (5, 7, 11) + R·(0, 0, 1)
+///                                              = (9, 7, 12)
 /// ```
 ///
-/// If the conjugation were dropped — `left = O_c⁻¹ ∘ O_p` bare — the
-/// answer would be `translate(4, 0, 1)` instead. On the committed
-/// suite's fixtures `F = I`, so those two are the SAME frame and no
-/// committed row can tell them apart.
+/// If `F` were composed on the wrong side of `O₂` — `F ∘ O₂ ∘
+/// translate(0, 0, 1)` — the world origin would be `(5, 11, 12)`
+/// instead. On the committed suite's fixtures `F = I`, so those two are
+/// the SAME frame and no committed row can tell them apart.
 #[test]
-fn r1_conjugation_through_a_non_identity_cluster_frame() {
+fn r1_conjugation_through_a_non_identity_group_frame() {
     let spacing = 2.0;
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r1-conj-leg"), Tol::witness());
@@ -128,69 +133,60 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");
 
-    // The cluster frame: rotate +90° about z, then translate.
+    // The group frame: rotate +90° about z, then translate.
     let f = Frame {
         columns: [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [5.0, 7.0, 11.0],
     };
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: leg,
-            frame: f,
+        DocEdit::SetOffset {
+            instance: leg,
+            offset: Some(editor_core::Placement::literal(&f)),
         },
     );
 
     assert_eq!(
-        clusters(&doc),
+        groups(&doc),
         vec![vec![leg, top]],
-        "the top joins the pattern's cluster; the leg is the gauge"
+        "the top joins the pattern's group; the leg is the root"
     );
 
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the mate solves — no fault");
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
-    assert_eq!(poses.gauge(top), Some(leg));
+    assert_eq!(poses.root(top), Some(leg));
 
     let got = poses.relative(top).expect("the top has a pose");
 
-    // Hand-derived above; the bare-middle answer is the falsifier.
+    // Hand-derived above: the pose in the group's own space.
     let expected = Frame {
-        columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        translation: [0.0, -4.0, 1.0],
-    };
-    let unconjugated = Frame {
         columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [4.0, 0.0, 1.0],
     };
     assert!(
-        !near(expected, unconjugated, 1e-9),
-        "the probe is only meaningful if the two candidate answers differ"
-    );
-    assert!(
         near(got, expected, 1e-12),
-        "the derived offset must conjugate through the cluster frame:\n\
-         got          {got:?}\n expected     {expected:?}\n \
-         (unconjugated would be {unconjugated:?})"
+        "the derived offset stays outside the group frame:\n\
+         got          {got:?}\n expected     {expected:?}"
     );
 
-    // And the world placement: F ∘ rel_top = (9, 7, 12), which is also
-    // O₂ ∘ F ∘ translate(0,0,1) computed the other way round.
+    // And the world placement: O₂ ∘ F ∘ translate(0,0,1) = (9, 7, 12);
+    // F ∘ O₂ ∘ translate(0,0,1) would be (5, 11, 12).
     let world = poses.placement(&doc, top).expect("the top places");
     assert!(
         (world.translation[0] - 9.0).abs() < 1e-12
@@ -210,7 +206,7 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
 
 // ---------------------------------------------------------------
 // PROBE 2 — an OBLIQUE circular datum axis, off the origin, with a
-// non-identity cluster frame. The expected offset is recomputed in the
+// non-identity group frame. The expected offset is recomputed in the
 // test by Rodrigues, independently of `derived_offset`.
 // ---------------------------------------------------------------
 
@@ -252,7 +248,7 @@ fn apply(f: Frame, p: [f64; 3]) -> [f64; 3] {
 /// origin. This is the composition-order attack: `O_i ∘ F` and
 /// `F ∘ O_i` differ badly for this pair, as the row asserts.
 #[test]
-fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
+fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r1-obl-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(leg_part("r1-obl-top"), Tol::witness());
@@ -284,16 +280,16 @@ fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -304,9 +300,9 @@ fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
     };
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: leg,
-            frame: f,
+        DocEdit::SetOffset {
+            instance: leg,
+            offset: Some(editor_core::Placement::literal(&f)),
         },
     );
 
@@ -352,7 +348,7 @@ fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
 
 /// Claim 4's last clause: NO mate can give one pattern copy a pose
 /// apart from its siblings. The attack: mate a plain top to copy 1,
-/// then read the whole cluster's poses — the pattern's copies have no
+/// then read the whole group's poses — the pattern's copies have no
 /// entry of their own anywhere in the solve, and the only instance
 /// that moved is the top. A pattern copy is not a keyed vertex, so
 /// there is no representation in which one copy could hold a pose.
@@ -374,16 +370,16 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -391,20 +387,22 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None);
 
-    // The pattern node holds no pose and no gauge: copies are not
+    // The pattern node holds no pose and no root: copies are not
     // vertices, so per-instance freedom is unrepresentable.
     assert_eq!(poses.relative(pattern), None, "a pattern holds no pose");
-    assert_eq!(poses.gauge(pattern), None, "a pattern has no gauge");
-    // The master stays the gauge at the identity — the mate moved the
+    assert_eq!(poses.root(pattern), None, "a pattern has no root");
+    // The master stays the root at the identity — the mate moved the
     // OTHER member, exactly as rule 2 says.
     assert_eq!(poses.relative(leg), Some(Frame::IDENTITY));
 
     // And the edit door refuses to place a pattern directly.
     let bad = editor_core::apply(
         &doc,
-        &DocEdit::SetPlacement {
-            node: pattern,
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        &DocEdit::SetOffset {
+            instance: pattern,
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -434,7 +432,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
     let mut lines: Vec<String> = Vec::new();
 
     // Three shapes: a plain seat, an OPPOSED seat, and a three-instance
-    // chain — each with a non-identity cluster frame so `F` is live.
+    // chain — each with a non-identity group frame so `F` is live.
     for (tag, sense, chain, fr) in [
         ("seat-aligned", AxisSense::Aligned, false, Frame::IDENTITY),
         (
@@ -468,36 +466,50 @@ fn r1_pattern_free_solves_are_bit_identical() {
             Tol::witness(),
         );
         let (doc, a) = insert(doc, Node::instantiate_part(a_ref));
-        let (doc, b) = insert(doc, Node::instantiate_part(b_ref));
-        let (doc, c) = insert(doc, Node::instantiate_part(c_ref));
+        let (doc, b) = insert(doc, fixture::mated_instance(b_ref));
+        // `c` sits where its mate puts it only when the chain mates it.
+        let (doc, c) = insert(
+            doc,
+            if chain {
+                fixture::mated_instance(c_ref)
+            } else {
+                Node::instantiate_part(c_ref)
+            },
+        );
         let (doc, _m0) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat_mate(
+                node: Box::new(seat_mate(
                     in_part(a, a_body, CapEnd::End),
                     in_part(b, b_body, CapEnd::Start),
                     [0.0, 0.0, 1.0],
                     sense,
-                ),
+                )),
             },
         );
         let doc = if chain {
             let (doc, _m1) = step(
                 doc,
                 DocEdit::InsertNode {
-                    node: seat_mate(
+                    node: Box::new(seat_mate(
                         in_part(b, b_body, CapEnd::End),
                         in_part(c, c_body, CapEnd::Start),
                         [0.25, 0.0, 1.0],
                         AxisSense::Aligned,
-                    ),
+                    )),
                 },
             );
             doc
         } else {
             doc
         };
-        let (doc, _) = step(doc, DocEdit::SetPlacement { node: a, frame: fr });
+        let (doc, _) = step(
+            doc,
+            DocEdit::SetOffset {
+                instance: a,
+                offset: Some(editor_core::Placement::literal(&fr)),
+            },
+        );
 
         let o = with_resolver(store);
         let poses = solve(&doc, &o, Tol::witness());
@@ -568,27 +580,27 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, _m0) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let (doc, _m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -655,19 +667,19 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // A head that resolves to no member is a fact about the mate
     // alone: the edit door refuses it where it is authored, with the
     // walk's own fault.
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: seat_mate(
+                node: Box::new(seat_mate(
                     in_copy(outer, 1, in_part(leg, leg_body, CapEnd::End)),
                     in_part(top, top_body, CapEnd::Start),
                     [0.0, 0.0, 1.0],
                     AxisSense::Aligned,
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -722,12 +734,12 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
     let (doc2, m2) = step(
         doc2,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pat, 1, in_part(li, leg2_body, CapEnd::End)),
                 in_part(ti, top2_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let m2 = m2.expect("the mate mints");
@@ -762,7 +774,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
 /// refuses in either position.
 ///
 /// It used to live in `derived_offset`, which is reached only from
-/// `pair_left_factor`, which `solve_cluster` calls only on TREE
+/// `pair_left_factor`, which `solve_group` calls only on TREE
 /// edges: the same malformed head that refused `DanglingHead` as a
 /// document's only mate went unrefused when a well-formed sibling
 /// took the tree edge first. The committed row
@@ -789,17 +801,17 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // A WELL-FORMED seat first: it takes the tree edge.
     let (doc, good) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     // Then a second seat on copy 1 — well formed at insert, since the
@@ -808,12 +820,12 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
     let (doc, bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let good = good.expect("the good mate mints");
@@ -886,16 +898,16 @@ fn r1_reproduce_the_quoted_red_first_fault() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Opposed,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");

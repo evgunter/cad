@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{Node, PersistError, ProfileDoc, REGENERATE_RECOURSE, load, save};
 use fixture::{insert, len, on_frame};
@@ -47,6 +48,7 @@ fn small() -> String {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     save(&doc, &[], Tol::witness()).expect("saves")
@@ -165,30 +167,35 @@ fn a_missing_required_field_refuses_naming_it() {
 /// Re-frozen again when a profile's steps gained minted ids (the
 /// program's `ids` and the document's step counter), the same kind of
 /// break, and again when the counter became the step mint's chain and
-/// log.
+/// log, again when node ids moved onto that mint, and again when an
+/// extrude's side became a required field.
 const OLDER_SHAPED: &str = concat!(
-    "id: 12c74470374c7c76269f22a931efab85\n",
-    "{\"snapshot\":{\"id\":\"12c74470374c7c76269f22a931efab85\",\"next_id\":3,",
-    "\"step_mint\":{\"chain\":\"98758e3e7b3f173efd085e7b81a83f61319b60646c238a909cac90c0c3dd4bfd\",\"log\":[4546703346243476841,4990306042536128628,6747313831402317760,10985843265047041854,16639099113663446862]},",
-    "\"nodes\":{\"0",
-    "\":{\"Datum\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"un",
-    "it\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal",
-    "\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0",
-    ",\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"uni",
-    "t\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}}],\"v\":[{\"Lit",
-    "eral\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":1.0,\"d",
-    "im\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":",
-    "\"\"}}]}}},\"1\":{\"Profile\":{\"plane\":0,\"loops\":[{\"Chain\":[{\"At\":[{\"Literal\":",
-    "{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":",
-    "\"Length\",\"unit\":\"m\"}}]},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\"",
-    ":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m",
-    "\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":",
-    "\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{",
-    "\"Point\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":",
-    "{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[6747313831402317760,4546703346243476841,4990306042536128628,16639099113663446862,10985843265047041854]]}},\"2\":",
-    "{\"Extrude\":{\"profile\":1,\"distance\":{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",",
-    "\"unit\":\"m\"}}}}},\"order\":[0,1,2],\"roots\":[2],\"placements\":{},\"params\":{},\"ep",
-    "silon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "id: 5705d8de0c4b9f14e73725e6a1030c11\n",
+    "{\"snapshot\":{\"id\":\"5705d8de0c4b9f14e73725e6a1030c11\",\"mint\":{\"chain\":\"cc6dde98e4",
+    "3cf05e54e95e58154e9db51456fc7826937bf8e98225949f7f68c4\",\"log\":[{\"step\":543127547",
+    "1832655693},{\"step\":6158057670549142566},{\"node\":11240919837605776152},{\"step\":1",
+    "2112871840740167342},{\"node\":14730674704444354654},{\"node\":16481222604345390933}",
+    ",{\"step\":17213631338936430399},{\"step\":17841264794356394216}]},\"nodes\":{\"1124091",
+    "9837605776152\":{\"Profile\":{\"plane\":16481222604345390933,\"loops\":[{\"Chain\":[{\"At\"",
+    ":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"d",
+    "im\":\"Length\",\"unit\":\"m\"}}]},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"L",
+    "ength\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"Lin",
+    "eTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"",
+    "value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value",
+    "\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":",
+    "\"m\"}}]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[17841264794356394216,12112871840740167342",
+    ",5431275471832655693,17213631338936430399,6158057670549142566]]}},\"1473067470444",
+    "4354654\":{\"Extrude\":{\"profile\":11240919837605776152,\"distance\":{\"Literal\":{\"valu",
+    "e\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},\"side\":\"along\"}},\"16481222604345390933\":{\"Dat",
+    "um\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Li",
+    "teral\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"L",
+    "ength\",\"unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"L",
+    "iteral\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"S",
+    "calar\",\"unit\":\"\"}}],\"v\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Li",
+    "teral\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Sc",
+    "alar\",\"unit\":\"\"}}]}}}},\"order\":[16481222604345390933,11240919837605776152,147306",
+    "74704444354654],\"roots\":[14730674704444354654],\"params\":{},\"epsilon\":1e-09,\"witne",
+    "sses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );
 
@@ -244,4 +251,29 @@ fn bytes_that_are_not_json_stay_parse() {
             other => panic!("{body:?} must refuse Parse, got {other:?}"),
         }
     }
+}
+
+/// **A document saved before an extrude carried its side refuses
+/// typed, naming `side`.** The bytes are `crates/pncad/tests/
+/// plate_param.pncad` exactly as main held it before the side became
+/// structural (Ev, #3551), frozen here so the row reads real history
+/// rather than a mutation of today's save: the field is required, so
+/// the refusal names it and carries the regenerate recourse once. It
+/// is kept as `.cad`, as `bool13_goldens/`' older bytes are: refusal
+/// evidence, not a member of the `*.pncad` corpus the load rows walk.
+#[test]
+fn a_document_from_before_the_extrude_side_refuses_naming_side() {
+    let text = include_str!("before_extrude_side/plate_param.cad");
+    assert!(
+        !text.contains("\"side\""),
+        "the frozen bytes predate the field"
+    );
+    let err = load(text, Tol::witness()).unwrap_err();
+    assert!(
+        matches!(err, PersistError::Unreadable { .. }),
+        "a missing required field is Unreadable: {err:?}"
+    );
+    let msg = err.to_string();
+    assert!(msg.contains("`side`"), "the refusal names the field: {msg}");
+    assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
 }

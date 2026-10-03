@@ -47,17 +47,17 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
     for p in fixtures {
         let f = p.validate(tol()).expect("f64 validates");
         let q = lift::<Probe>(&p).validate(tol()).expect("probe validates");
-        let fb: Vec<(u64, u64, u64)> = f
+        let fb: Vec<(u64, u64)> = f
             .loops()
             .iter()
-            .flat_map(|l| l.vertices().iter().zip(l.segments()))
-            .map(|(v, s)| (v.x.to_bits(), v.y.to_bits(), s.bulge.to_bits()))
+            .flat_map(|l| l.vertices())
+            .map(|v| (v.x.to_bits(), v.y.to_bits()))
             .collect();
-        let qb: Vec<(u64, u64, u64)> = q
+        let qb: Vec<(u64, u64)> = q
             .loops()
             .iter()
-            .flat_map(|l| l.vertices().iter().zip(l.segments()))
-            .map(|(v, s)| (v.x.0.to_bits(), v.y.0.to_bits(), s.bulge.0.to_bits()))
+            .flat_map(|l| l.vertices())
+            .map(|v| (v.x.0.to_bits(), v.y.0.to_bits()))
             .collect();
         assert_eq!(fb, qb);
         // And identical arc geometry down to carrier bits.

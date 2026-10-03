@@ -24,15 +24,16 @@ from them:
 - **A DAG edge**: a `RecipeNodeId` in a node's inputs, structural,
   liveness- and cycle-checked at the edit door (`edit.rs`,
   `InsertNode`: `UnresolvedInput`, `WouldCycle`), enumerated by
-  `Node::inputs`. Ids are minted by the document's monotone counter
-  and never reused (D3; `doc.rs`).
+  `Node::inputs`. Ids are minted from the document's mint chain and
+  never reused (D3, N1; `mint.rs`).
 - **A frozen `StableName`**: `{ kind, node, path }` (N1,
   `names/role.rs`) stored at authoring and resolved at evaluation
   through a name table under the N5 ladder — `NodeGone`, then
   `Ambiguous`, then `Vanished` — never silently shrunk
   (`eval/wire.rs`, `ladder` and `resolve_selection`). Carriers:
   `Fillet`/`Chamfer` selections, `Shell` open lists, a
-  `Datum::FaceFrame`'s face, `Declare` pairs, `Mate` heads,
+  `Datum::FaceFrame`'s face, a `Boolean`'s or `Union`'s declared
+  pairs, `Mate` heads,
   `Measure` refs, an `InstantiatePart`'s interface crossings' `outer`s
   (`Node::payload_names`; a crossing's `inner` is not a name of THIS
   document, and that list's arm is the one home for why). This clause
@@ -42,7 +43,7 @@ from them:
   not a DAG edge, and TWO doors refuse on one: `InsertNode`'s liveness
   check, and `split`'s `PartNameReachesRemainder` precondition, which
   refuses a cut whose taken node carries a name reaching the kept
-  remainder — a `Declare` pair's, a `Mate` head's, an instance's
+  remainder — a declared pair's, a `Mate` head's, an instance's
   crossing `outer`. A later delete strands a name (N5) and says so
   (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
@@ -191,7 +192,9 @@ So the chain goes, not the link:
   fold of the kernel's pair verb in member order (D9: the order is the
   list's, and the list is data). The fold builds the body. Contact is
   not judged by the fold: it is judged pairwise before the fold (the
-  contact rule below). It sits beside `Boolean(Union)`,
+  contact rule below). The fold's body is the same in every member order: each step's output
+  has maximal faces and maximal edges (`docs/DESIGN.md`, the merge
+  stage), a form unique to the region and its face partition. It sits beside `Boolean(Union)`,
   which stays for a pair, and beside `PlacedUnion`, which fuses
   instances of one prototype and is a different sentence (`node.rs`).
 - **Naming keys by member, not by depth.** The emitter wraps a
@@ -258,14 +261,23 @@ So the chain goes, not the link:
   mints no contact verdict of its own.
 - **A declaration channel, sited at the members.** The union carries
   the pair boolean's recourse: `Node::Union { members,
-  declare: Option<RecipeNodeId> }`, the `Declare` node's pairs naming
-  SITED entities — `SitedRef { at, name }`, the entity `name` as it
+  declare: Vec<DeclaredPair> }` and `Node::Boolean { op, a, b,
+  declare: Vec<DeclaredPair> }`, the declared pairs the node's own
+  payload (empty is undeclared), each naming SITED entities — `SitedRef { at, name }`, the entity `name` as it
   stands at node `at`, where `at` is the member (for a pair boolean,
   the operand) — so a declaration says "this face of member `m` meets
   that face of member `n`" by naming the face IN the member with the
-  member beside it, and never names the union. A declaration therefore
-  names only what exists before the union does, and is authored in one
-  pass: the `Declare` is inserted before the union that carries it.
+  member beside it, and never names the union. Every door that writes
+  a pair (the insert door, `SetDeclare`, `Rebind`, the load door)
+  refuses, typed, a name not minted before the node in document order
+  and a site that is not one of the node's operands, so a declaration
+  names only what exists before the node does; the load door asks the
+  site of a pair boolean only, since a union's site can be stranded
+  afterwards (below). A declaration is a
+  parameter, not an operand: it carries no material and mints no
+  names, so `SetDeclare { node, pairs }` replaces a live boolean's or
+  union's whole list, `SetMembers`' shape with nothing inferred, and
+  moves no DAG edge.
   Each certified pair is fed to the fold step at which both its sites
   are in the accumulation. That is the later member's step in list
   order, with the earlier side as the accumulator's operand and the
@@ -335,7 +347,9 @@ So the chain goes, not the link:
 the member-space declaration channel is DOCM-7 (PR 2028), re-sited at
 the members by Ev on EDIT's fourth `[ev]` PR (#2795, 2026-09-17;
 `a-declared-union-has-no-one-pass-authoring-path`), built by the unit
-that row names; the flat
+that row names, and made the node's own payload, settable on a live
+node, by Ev on #3587 (2026-10-01, shape A2;
+`declared-pairs-are-a-booleans-own-payload`); the flat
 `Merged` mint and the look-through are DOCM-8 (PR 2073); the typed
 refusal past the merges applies Ev's ruling on PR 2677
 (`does-n3-retire-loudly-generalise-to-the-folds-other-compositions`).
@@ -361,6 +375,13 @@ a hand-written snapshot never passes an edit door. Refusal:
 `EditError::DuplicateInput { node, input }` at the edit doors, the
 validator's own `SnapshotError` arm at load.
 
+Distinctness is over node ids, and only node ids. Two distinct nodes
+that evaluate to one body — two `Part`s selecting one half of a split,
+or `Part(Instance(0))` beside its master — meet DM5, and the boolean
+answers them as it answers any operands whose shells coincide by
+structure or by declaration: `A ∪ A` and `A ∩ A` are `A`, and `A − A`
+is the typed empty result.
+
 *Record: built by DOCM-3 (PR 1803) with DM4.*
 
 ## DM6 — Splice is not added
@@ -379,7 +400,8 @@ the die's chain unnecessary.*
 ## DM7 — A stranded name is reported at the edit that removes its referent, never refused
 
 The edit that removes a name's referent — `DeleteNode`, and
-`SetProgram` for the steps it drops — stays legal when a
+`SetProgram` for the steps it drops and the kept pieces it stops
+drawing — stays legal when a
 payload name (`Node::payload_names`) names what is being removed: a
 name is not a DAG edge, and the carve-out in §0 stands. What the door
 owes is a report: every `(node, name)` pair whose referent the edit
@@ -392,17 +414,25 @@ the diagnosis and the repair. A reshaping's strands are the names on
 the steps it drops: a profile piece's name spells its step's minted id
 (`names/README.md`, "N1, the profile pieces"), so a name on a step the
 reshaping keeps still denotes that step's piece wherever the new
-program draws it and is neither rewritten nor reported, while a dropped
-step's id is never minted again and every name on it keeps its
-spelling, resolves `Vanished` and is reported stranded. For the same
-reason a value edit reports nothing: it can move which loop is outer,
-which way a loop runs or how many segments a step draws, and none of
-those moves a name.
+program draws it and is not rewritten, while a dropped step's id is
+never minted again and every name on it keeps its spelling, resolves
+`Vanished` and is reported stranded. A kept step's piece the new
+program does not draw — another piece took its segment, as a fillet
+inserted or moved before a leg takes the leg's (`names/README.md`,
+"Undrawn pieces vanish rather than alias") — is the reshaping's
+removal too, and its names are reported the same way: the door
+compares which pieces the old and the new program draw under the
+current parameters, as the program's own piece door answers, and
+reports a name whose piece the new one does not draw and the old one
+drew — or every such name, where the old program does not replay under
+the current parameters and so cannot say what it drew. A value edit
+reports nothing: it can move which loop is outer, which way a loop runs
+or how many segments a step draws, and none of those moves a name.
 
 The report covers every reference the document holds under N5
 semantics, not only the node payloads: an appearance attachment is
 keyed by a `StableName` in the document's appearance store
-(`DocEdit::SetAppearance` gives it Declare's semantics, `Rebind`
+(`DocEdit::SetAppearance` gives it a declared pair's semantics, `Rebind`
 repairs it, evaluation reports its loss as `AppearanceLoss`), so a
 delete that strands one reports it too, as its own `Maintenance` arm
 (`StrandedAppearance { name }`) rather than a `Strand` with no

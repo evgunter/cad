@@ -142,7 +142,8 @@ pub struct Retired {
     /// output. `surgery::retire_fragment` is that rule's one home.
     pub edges: Vec<EdgeKey>,
     /// Source vertices that no longer exist: the sharp corners fused
-    /// under their octants, and the rim vertices.
+    /// under their octants, the joints a band was fused across, and the
+    /// rim vertices.
     pub vertices: Vec<VertexKey>,
 }
 
@@ -151,8 +152,9 @@ pub struct Retired {
 /// `(minted key, the source entity it was minted for, …)`, in the
 /// deterministic order the constructor visited them (D9).
 ///
-/// A request whose chains are all open fills `blends`, `corners`,
-/// `trims`, `feet`, `arcs` and `dead`, leaving every rim field empty;
+/// A request whose chains are all open fills `blends` (or
+/// `joined_blends`), `corners`, `trims`, `feet`, `arcs` and `dead`,
+/// leaving every rim field empty;
 /// a closed (rim) chain fills the rim phase as well.
 #[derive(Clone, Debug, Default)]
 pub struct BlendNaming {
@@ -162,6 +164,12 @@ pub struct BlendNaming {
     /// band — about a corner-terminated or a cap-terminated spine — or
     /// the chamfer's ruled strip).
     pub blends: Vec<(FaceKey, EdgeKey)>,
+    /// Blend face ← the source edges of the open chain it spans, in
+    /// chain order, where that chain is SEVERAL links joined at joints
+    /// (consecutive links on the same two supports, carved as one band
+    /// face). A one-link band is a [`BlendNaming::blends`] row instead,
+    /// so every open band face has exactly one row between the two.
+    pub joined_blends: Vec<(FaceKey, Vec<EdgeKey>)>,
     /// Corner face ← the source (trivalent, sharp) vertex it
     /// replaces: the fillet's sphere octant, or the chamfer's flat
     /// triangular patch.
@@ -169,7 +177,7 @@ pub struct BlendNaming {
     /// Trimline edge ← (the source edge it parallels, the support
     /// face it lies in).
     pub trims: Vec<(EdgeKey, EdgeKey, FaceKey)>,
-    /// Foot vertex ← (the source corner or cap vertex it retracts from,
+    /// Foot vertex ← (the source corner, joint or cap vertex it retracts from,
     /// the support face it lies in). At a transverse cap the foot sits
     /// on the cap's rim edge, where the support's trimline meets the
     /// cap plane.
@@ -198,10 +206,10 @@ pub struct BlendNaming {
     /// the band discriminates.
     pub meridian_splits: Vec<(VertexKey, EdgeKey, Vec<EdgeKey>)>,
     /// The SURVIVING piece of a source edge the band's carve split ←
-    /// that source edge: a seam meridian at a ladder rim's crossing, or
-    /// a cap rim at a ruled band's transverse cap. (Present even when
-    /// the surviving piece kept the source key — the piece is a
-    /// fragment, so it is named as one.)
+    /// that source edge: a seam meridian at a ladder rim's or an
+    /// annulus rim's crossing, or a cap rim at a ruled band's transverse
+    /// cap. (Present even when the surviving piece kept the source key —
+    /// the piece is a fragment, so it is named as one.)
     pub meridian_remnants: Vec<(EdgeKey, EdgeKey)>,
     /// A band's SLIT ← (the source meridian whose upper piece became
     /// it, the slitting band's identity). One per band; the band
@@ -209,12 +217,10 @@ pub struct BlendNaming {
     ///
     /// `meridian_remnants` carries no band, and needs none: a band that
     /// splits a piece an earlier band recorded retires that row before
-    /// recording its own — `surgery::split_fragment` on the ladder and
-    /// ruled arms, the hand-kept `retain`s in `rim_phase_annulus` on the
-    /// annulus arm (the second spelling
-    /// `work/band/annulus-rim-phase-keeps-a-second-spelling-of-the-split-provenance.md`
-    /// files) — so one source meridian's surviving pieces are recorded
-    /// once each, and their names are unique by that alone.
+    /// recording its own — `surgery::split_fragment`, the one home of
+    /// that split for the ladder, annulus and ruled arms alike — so one
+    /// source meridian's surviving pieces are recorded once each, and
+    /// their names are unique by that alone.
     pub slits: Vec<(EdgeKey, EdgeKey, Vec<EdgeKey>)>,
 
     /// What the blend retired from the source.

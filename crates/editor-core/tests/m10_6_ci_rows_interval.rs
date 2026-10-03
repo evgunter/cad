@@ -51,6 +51,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
@@ -255,6 +256,7 @@ fn distributed_plate() -> ProfileDoc {
     let _plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
     let hs = Expr::param(name("half_spacing"), Dimension::Length);
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
@@ -268,6 +270,7 @@ fn distributed_plate() -> ProfileDoc {
     let hole_a = r.insert(Node::Extrude {
         profile: hole_a_p,
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
     let hole_b_p = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -280,6 +283,7 @@ fn distributed_plate() -> ProfileDoc {
     let hole_b = r.insert(Node::Extrude {
         profile: hole_b_p,
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
     let ev = evaluate::<f64>(
         &r.doc,
@@ -299,7 +303,7 @@ fn distributed_plate() -> ProfileDoc {
                 editor_core::EntityKind::Face,
             )),
             &[editor_core::GeomPred::SurfaceKind(
-                editor_core::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
+                editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
             )],
             &r.doc.param_env::<f64>(),
             Tol::witness(),
@@ -414,6 +418,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(2.0),
+        side: ExtrudeSide::Along,
     });
     let placed = r.insert(Node::transform(
         solid,
@@ -739,8 +744,7 @@ fn accounting_text() -> String {
 /// so there is one home and a change to either reds this golden, which
 /// is exactly what a golden about someone else's fixture is for.
 fn planted_flip() -> ProfileDoc {
-    let eps = Tol::witness().eps();
-    crate::m10_3_driver_interval::slab(20.0 * eps, 40.0 * eps)
+    crate::m10_3_driver_interval::notch(-0.25, 0.3)
 }
 
 fn terminal_sliver() -> ProfileDoc {
@@ -870,6 +874,7 @@ fn plain_distance_doc() -> ProfileDoc {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let measure = r.insert(
         Node::measure(

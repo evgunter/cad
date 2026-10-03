@@ -33,10 +33,15 @@ use topo::{
 /// plane of its mapped corners. Exact-volume oracle:
 /// area(profile) * (z1 - z0) * det(m).
 ///
-/// **No description step**, unlike `prism_z`: these operands reach the
-/// boolean ops with their conventional chords, which is the state this
-/// suite's falsification targets were written against.
-fn tprism<T: Decide>(profile: &[(f64, f64)], z0: f64, z1: f64, m: [[f64; 3]; 3]) -> Body<T> {
+/// Described like `prism_z`: an operand still carrying its
+/// conventional chords hands them to every result it keeps them in,
+/// and the result gate refuses a scaffold at rest.
+fn tprism<T: Decide + topo::AtRestPolicy>(
+    profile: &[(f64, f64)],
+    z0: f64,
+    z1: f64,
+    m: [[f64; 3]; 3],
+) -> Body<T> {
     let mut body = Body::<T>::new();
     common::prism_ops(
         &mut body,
@@ -48,11 +53,12 @@ fn tprism<T: Decide>(profile: &[(f64, f64)], z0: f64, z1: f64, m: [[f64; 3]; 3])
                 m[1][0] * x + m[1][1] * y + m[1][2] * z,
                 m[2][0] * x + m[2][1] * y + m[2][2] * z,
             ];
-            Point3::new(w[0], w[1], w[2]).map(T::from_f64)
+            Point3::from_array(w).map(T::from_f64)
         },
         common::FaceGeometry::Certified,
         Tol::witness(),
     );
+    common::describe_as_intersections(&mut body, Tol::witness());
     body
 }
 
@@ -380,14 +386,11 @@ fn a_multi_spike_shared_corner_vertex() {
         Tol::witness(),
     )
     .body;
-    // REVIEW VERDICT: for z-parallel prisms a shared corner VERTEX
-    // forces AB's vertical corner edge to lie IN C's vertical side
-    // plane (any vertical plane through the vertex contains it) — the
-    // documented boundary-on-boundary class. Refusal is typed,
-    // deterministic, operand-preserving, with the on-edge count 4;
-    // multi-spike vv sites AWAY from pre-existing corners are the
-    // half-plane-sector class where the dot order is forced (see the
-    // fig151 variants above). If this ever succeeds it must be exact.
+    // A shared corner VERTEX of z-parallel prisms puts AB's vertical
+    // corner edge along C's: the section segment up that edge names the
+    // edge at both ends in both solids, and each solid folds the edge
+    // into its In run by its own membership at both ends, so the joint
+    // builds.
     match topo::intersect_with(
         &ab,
         &c,
@@ -396,25 +399,30 @@ fn a_multi_spike_shared_corner_vertex() {
     ) {
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));
+            assert_eq!(
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+                Ok(()),
+                "tier 3′"
+            );
+            assert!(
+                topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
+                "the at-rest certificate"
+            );
             assert_eq!(vol(&bb.body), 0.5, "corner-vertex meet EXACT");
         }
         Ok(BooleanResult::Empty) => panic!("nonempty overlap"),
-        Err(_) => {
-            let e = assert_typed_refusal(topo::intersect_with, &ab, &c);
-            assert!(e.contains("UnpairedLooseEnds { count: 4 }"), "got {e}");
-        }
+        Err(e) => panic!("the corner-vertex meet builds: {e:?}"),
     }
 }
 
-/// The REFLEX-SECTOR attack on `bool_strut_order` (the derivation's
-/// unforced class): A has a 315-degree reflex corner at the origin
-/// (material = everything but the 45-degree wedge between +x and
-/// (1,1)); B is a z-sheared brick whose TILTED bottom cap passes
-/// exactly through A's reflex top-cap corner vertex (0,0,1), its germ
-/// line through the vertex at an angle > 90 degrees from one sector
-/// bound — the window where the convex-sector dot comparison
-/// misorders. Both germ-line orientations probed (whichever bound the
-/// code anchors on, one variant lands in the window). Oracle:
+/// The reflex corner under a tilted cap: A has a 315-degree reflex
+/// corner at the origin (material = everything but the 45-degree
+/// wedge between +x and (1,1)); B is a z-sheared brick whose TILTED
+/// bottom cap passes through A's reflex top-cap corner vertex (0,0,1)
+/// in the cap's interior. That is a vertex-on-face site, so
+/// `bool_strut_order` (the vertex–vertex lane) is not consulted: the
+/// corner's three edges read Out and its reflex bisector In, a pierce
+/// run holding the whole orbit. Two tilts. Oracle:
 /// vol(A meet B) = 13/24 (rational, non-dyadic — asserted to 1e-12;
 /// a mis-nested chord would be off by O(0.1)).
 #[test]
@@ -459,22 +467,12 @@ fn a_reflex_315_corner_tilted_cap() {
                 );
             }
             Ok(BooleanResult::Empty) => panic!("variant {k}: nonempty overlap"),
-            Err(_) => {
-                // Typed refusal is acceptable (honest envelope);
-                // record its shape. REVIEW FINDING: both variants
-                // refuse SeamOrientation — the zip witness catches the
-                // reflex-sector misordering the derivation predicts;
-                // never a wrong body. Undocumented envelope gap
-                // (reflex-corner vertex under a tilted cap).
-                let e = assert_typed_refusal(topo::intersect_with, &a, &b);
-                assert!(e.contains("SeamOrientation"), "variant {k}: {e}");
-            }
+            Err(e) => panic!("variant {k}: refused {e:?}"),
         }
     }
     // CONTROL: the same tilted cap crossing a PLAIN brick's top face
     // with the germ line through face INTERIOR (no reflex corner, no
-    // vertex contact) must succeed with the same 13/24 volume — this
-    // isolates the refusal to the reflex-corner vertex class.
+    // vertex contact) succeeds with the same 13/24 volume.
     let a = brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), Tol::witness());
     let b = tprism::<f64>(&sq, 1.0, 3.0, shears[0]);
     let r = run(topo::intersect_with, &a, &b);

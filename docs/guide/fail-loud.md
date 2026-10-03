@@ -148,7 +148,7 @@ let tol = Tol::witness();
 #         .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
 #         .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 let lower = slab((0.0, 1.0))?;   // z from 0 to 1
 let upper = slab((1.0, 2.0))?;   // z from 1 to 2 — they meet exactly at z = 1
@@ -182,7 +182,7 @@ Working examples of the declared path, in increasing order of realism:
 undeclared version still refuses, with a "retire this if it ever
 stops refusing" panic), and the `table` corpus document, which
 declares every leg contact by name through the detect/declare
-protocol (`find_flush_candidates` → `declare_node`).
+protocol (`find_flush_candidates` → `declared_pairs`).
 
 Notice the shape of that protocol: detection *proposes*, a human or a
 recipe *declares*. Value equality never classifies on its own — there
@@ -206,26 +206,25 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
     .expect("finite corners");
 
 let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
-// `apply`'s last argument is the mated parts' REACH — what an edit
-// that moves an assembly cluster's gauge levers its re-keying solve
-// through. This document has no instance and no mate, so no edit here
-// can move a gauge and the refusing reach is never asked.
+// `apply`'s last argument is the mated parts' REACH — what inserting
+// a mate with a clocking rider levers the rider's admission through.
+// This document inserts no mate, so the refusing reach is never asked.
 // The frame the square is drawn on — a dependency of the profile
 // exactly as the profile is a dependency of the extrude.
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Datum(Datum::Frame {
+    node: Box::new(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],
         v: [scl(0.0), scl(1.0), scl(0.0)],
-    }),
+    })),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    node: Box::new(Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() })),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let doc = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Extrude { profile, distance: len(1.0) },
+    node: Box::new(Node::Extrude { profile, distance: len(1.0), side: ExtrudeSide::Along }),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol, &pncad::document::RefusingReach);
@@ -293,8 +292,8 @@ author the undeclared boolean, read the typed menu, declare, succeed:
 
 ```python
 from pncad import (
+    BooleanCoincidence,
     BooleanOp,
-    ContactClass,
     Doc,
     EvaluationError,
     Expr,
@@ -331,10 +330,14 @@ try:
     ev.value(naive)
     raise AssertionError("the undeclared union must refuse")
 except EvaluationError as err:
-    assert err.kind == "undeclared_contact"
+    assert err.kind == "undeclared_coincidence"
     menu = err.finding                      # the candidate declaration
-    assert menu.relation == PlaneRelation.SameOpposite  # resting contact
-    assert menu.class_ == ContactClass.Rest
+    # The slabs share a footprint, so besides the resting contact at
+    # z = 10 mm their four walls carry on across it, one surface each:
+    # continuations. The menu names the first undeclared pair the
+    # boolean meets, which here is a wall.
+    assert menu.relation == PlaneRelation.SameOriented
+    assert menu.class_ == BooleanCoincidence.Continuation
 
 # 2. The declare arm: detect, INSPECT, declare. The detector is the
 #    boolean's own verifier run in candidate-generation mode, so a
@@ -342,11 +345,10 @@ except EvaluationError as err:
 #    finding is drawn from the same inventory.
 findings = ev.find_flush_candidates(lower, upper)
 assert menu in findings
-decl = doc.declare_all(findings)            # or doc.declare(menu)
+doc.declare_all(naive, findings)            # or doc.declare(naive, menu)
 
 # 3. The SAME union, with the contact declared: verified and glued.
-glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper, declare=decl))
-body = evaluate(doc).value(glued).body()
+body = evaluate(doc).value(naive).body()
 body.validate()
 # 10 × 10 × 20 mm³ — one block, watertight.
 assert abs(body.mass_properties().volume - 2e-6) < 1e-15
@@ -463,7 +465,7 @@ let tol = Tol::witness();
 # let rect: ClosedLoop<f64> = Open
 #     .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
 #     .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
-# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?, Extrusion::Distance(real(1.0)), tol)?.body;
+# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?, Extrusion::Distance { depth: real(1.0), side: ExtrudeSide::Along }, tol)?.body;
 match validate_geometric(&body, tol) {
     Ok(()) => { /* the body is sound at tier 3 */ }
     Err(failures) => {

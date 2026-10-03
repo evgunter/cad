@@ -372,8 +372,17 @@ impl core::fmt::Display for RimShare {
 // op variants unaltered (`NodeErrorKind`'s Display note, D2), this is
 // editor-core's OWN error: rendering it IS the op's vocabulary, and
 // there is no other path by which it reaches a human.
-impl core::fmt::Display for NamingError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+//
+// It is raised only inside evaluation and memoized with the node's
+// refusal, so it holds ids: each node and each name's minting node is
+// said by the speaker of the frame that hands the refusal out.
+impl crate::spoken::Say for NamingError {
+    #[allow(clippy::too_many_lines)] // one arm per variant, each short
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             // The role path rides along here, alone among the crate's
             // name renderings: a duplicate mint is a kernel bug report,
@@ -381,8 +390,9 @@ impl core::fmt::Display for NamingError {
             // from every other name the node minted.
             Self::Duplicate { name } => write!(
                 f,
-                "{EMISSION_FRAMING}: the {name} (role path {:?}) was minted twice — names \
+                "{EMISSION_FRAMING}: the {} (role path {:?}) was minted twice — names \
                  alias silently only over the kernel's dead body",
+                by.name(name),
                 name.path
             ),
             Self::Unnamed { kind, body } => write!(
@@ -392,9 +402,9 @@ impl core::fmt::Display for NamingError {
             ),
             Self::MissingUpstream { node } => write!(
                 f,
-                "{EMISSION_FRAMING}: the name table of upstream node {} lacks an entity the \
+                "{EMISSION_FRAMING}: the name table of upstream {} lacks an entity the \
                  emission needed",
-                node.0
+                by.node(*node)
             ),
             Self::Emission { what } => write!(f, "{EMISSION_FRAMING}: {what}"),
             // The category IS an emission inconsistency, so the framing
@@ -428,10 +438,10 @@ impl core::fmt::Display for NamingError {
                 found,
             } => write!(
                 f,
-                "{UNRULED_FRAMING}: faces {face:?} and {other:?} of operand node {}'s body \
+                "{UNRULED_FRAMING}: faces {face:?} and {other:?} of operand {}'s body \
                  share {found} where a seam chord's rim, derived from adjacency alone, needs \
                  exactly one",
-                node.0
+                by.node(*node)
             ),
             Self::SeamVertexPartners { vertex, candidates } => write!(
                 f,
@@ -441,7 +451,7 @@ impl core::fmt::Display for NamingError {
                 candidates.len(),
                 candidates
                     .iter()
-                    .map(ToString::to_string)
+                    .map(|name| by.name(name).to_string())
                     .collect::<Vec<_>>()
                     .join("; ")
             ),
@@ -463,16 +473,17 @@ impl core::fmt::Display for NamingError {
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces, and \
-                 does not lie within the rim {rim:?} of operand node {}'s body its key reads \
+                 does not lie within the rim {rim:?} of operand {}'s body its key reads \
                  through to",
-                node.0
+                by.node(*node)
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
-                "{UNRULED_FRAMING}: the crossings of member node {}'s edge (the {edge}) cannot \
+                "{UNRULED_FRAMING}: the crossings of member {}'s edge (the {}) cannot \
                  be ranked along it, because a tie stands where one edge is needed (the member \
                  ties that name to several edges, or two of its crossings were tied)",
-                member.0
+                by.node(*member),
+                by.name(edge)
             ),
             Self::Band(error) => write!(
                 f,
@@ -487,6 +498,13 @@ impl core::fmt::Display for NamingError {
                 )
             }
         }
+    }
+}
+
+/// The refusal where no document is at hand: each node by its tag.
+impl core::fmt::Display for NamingError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -1057,13 +1075,20 @@ mod pattern_tests {
         let prof = profile::Profile::new(plane, vec![square])
             .validate(geom_core::Tol::witness())
             .unwrap();
-        let built =
-            sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
+        let built = sweep::extrude(
+            &prof,
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
         let table = name_extrude(
             node,
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .unwrap();
@@ -1079,14 +1104,14 @@ mod pattern_tests {
     /// to these rows (they pin the wrapping); minting a faithful key
     /// bridge across a graft is the consumer's job, not this door's.
     fn two_solid_master() -> (Body<f64>, NameTable) {
-        let (mut body, a) = cube(RecipeNodeId(1), 0.0);
-        let (second, b) = cube(RecipeNodeId(2), 10.0);
+        let (mut body, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
+        let (second, b) = cube(RecipeNodeId(test_utils::refusal::tagged(2)), 10.0);
         let was: (BTreeSet<_>, BTreeSet<_>, BTreeSet<_>) = (
             body.faces().map(|(k, _)| k).collect(),
             body.edges().map(|(k, _)| k).collect(),
             body.vertices().map(|(k, _)| k).collect(),
         );
-        topo::graft_disjoint(&mut body, &second, Tol::witness()).expect("a two-solid master");
+        topo::graft_disjoint(&mut body, &second).expect("a two-solid master");
         let fresh_f: Vec<_> = body
             .faces()
             .map(|(k, _)| k)
@@ -1171,7 +1196,7 @@ mod pattern_tests {
         assert_eq!(master_body.solids().count(), 2, "a two-solid master");
         let n = 3_i64;
         let bodies = instances(&master_body, n, 5.0);
-        let node = RecipeNodeId(9);
+        let node = RecipeNodeId(test_utils::refusal::tagged(9));
         let t =
             name_pattern(node, &master, n, 1, &bodies).expect("a multi-solid master is admitted");
 
@@ -1213,7 +1238,7 @@ mod pattern_tests {
         let (master_body, master) = two_solid_master();
         let (n, step) = (3_i64, 5.0);
         let bodies = instances(&master_body, n, step);
-        let node = RecipeNodeId(9);
+        let node = RecipeNodeId(test_utils::refusal::tagged(9));
         let t = name_pattern(node, &master, n, 1, &bodies).expect("admitted");
 
         let mut checked = 0;
@@ -1265,10 +1290,16 @@ mod pattern_tests {
     /// another placement's range.
     #[test]
     fn a_master_row_past_the_masters_body_count_refuses_typed() {
-        let (body, a) = cube(RecipeNodeId(1), 0.0);
+        let (body, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
         let master = at_body(&a, 1);
-        let err = name_pattern(RecipeNodeId(9), &master, 2, 1, &[Arc::new(body)])
-            .expect_err("a row past the master's body count must refuse");
+        let err = name_pattern(
+            RecipeNodeId(test_utils::refusal::tagged(9)),
+            &master,
+            2,
+            1,
+            &[Arc::new(body)],
+        )
+        .expect_err("a row past the master's body count must refuse");
         assert!(
             format!("{err:?}").contains("does not have"),
             "typed, and about the body: {err:?}"
@@ -1282,8 +1313,8 @@ mod pattern_tests {
     /// holds over all six.
     #[test]
     fn a_multi_output_body_master_lays_out_placement_major() {
-        let (b0, a) = cube(RecipeNodeId(1), 0.0);
-        let (b1, b) = cube(RecipeNodeId(2), 10.0);
+        let (b0, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
+        let (b1, b) = cube(RecipeNodeId(test_utils::refusal::tagged(2)), 10.0);
         let mut master = at_body(&a, 0);
         for (name, entry) in at_body(&b, 1).iter() {
             let Entry::Unique(e) = entry else {
@@ -1307,7 +1338,7 @@ mod pattern_tests {
                 }));
             }
         }
-        let node = RecipeNodeId(9);
+        let node = RecipeNodeId(test_utils::refusal::tagged(9));
         let t = name_pattern(node, &master, n, per, &bodies).expect("admitted");
         assert_eq!(t.len(), master.len() * 3, "census: N × the master's");
         for j in 0..n {
@@ -1535,7 +1566,7 @@ mod display_tests {
     fn every_variant_names_its_subject() {
         let name = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(7),
+            node: RecipeNodeId(test_utils::refusal::tagged(7)),
             path: vec![RoleSeg::Cap(super::super::role::CapEnd::End)],
         };
         // Locators the rows below sample by value, so a refusal that
@@ -1546,11 +1577,11 @@ mod display_tests {
         // them: the same cap vertex of two different operands' sweeps.
         let partner = |node| StableName {
             kind: EntityKind::Vertex,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId(test_utils::refusal::tagged(node)),
             path: vec![RoleSeg::CapVertex(
                 super::super::role::CapEnd::End,
                 super::super::role::ProfileVertexRef::Piece {
-                    step: crate::node::StepId(0),
+                    step: crate::node::StepId(test_utils::refusal::tagged(0)),
                     role: crate::names::PieceRole::Leg,
                 },
             )],
@@ -1577,9 +1608,9 @@ mod display_tests {
             ),
             (
                 NamingError::MissingUpstream {
-                    node: RecipeNodeId(11),
+                    node: RecipeNodeId(test_utils::refusal::tagged(11)),
                 },
-                vec!["11"],
+                vec!["00000000000b"],
             ),
             (
                 // A refusal that still EXISTS (ties propagate, so there
@@ -1618,12 +1649,17 @@ mod display_tests {
                 // ONE arena: two `two_faces()` calls hand out keys from
                 // two bodies, which are not guaranteed distinct.
                 NamingError::SharedRim {
-                    node: RecipeNodeId(23),
+                    node: RecipeNodeId(test_utils::refusal::tagged(23)),
                     face: pair.0,
                     other: pair.1,
                     found: RimShare::Several,
                 },
-                vec![face0.as_str(), face1.as_str(), "23", "more than one edge"],
+                vec![
+                    face0.as_str(),
+                    face1.as_str(),
+                    "000000000017",
+                    "more than one edge",
+                ],
             ),
             (
                 NamingError::SeamVertexPartners {
@@ -1633,8 +1669,8 @@ mod display_tests {
                 vec![
                     vtx_shown.as_str(),
                     "2 differently named vertices",
-                    "vertex name minted by node 3",
-                    "vertex name minted by node 4",
+                    "vertex name minted by node 000000000003",
+                    "vertex name minted by node 000000000004",
                 ],
             ),
             (
@@ -1646,10 +1682,10 @@ mod display_tests {
             (
                 NamingError::MergedChordOffRim {
                     edge: two_edges().0,
-                    node: RecipeNodeId(29),
+                    node: RecipeNodeId(test_utils::refusal::tagged(29)),
                     rim: two_edges().1,
                 },
-                vec!["merged faces", "29", "does not lie within"],
+                vec!["merged faces", "00000000001d", "does not lie within"],
             ),
             (
                 NamingError::MergedChordConstituents {
@@ -1661,21 +1697,21 @@ mod display_tests {
             ),
             (
                 NamingError::MemberEdgeTied {
-                    member: RecipeNodeId(37),
+                    member: RecipeNodeId(test_utils::refusal::tagged(37)),
                     edge: Box::new(StableName {
                         kind: EntityKind::Edge,
-                        node: RecipeNodeId(37),
+                        node: RecipeNodeId(test_utils::refusal::tagged(37)),
                         path: vec![RoleSeg::LateralEdge(
                             super::super::role::ProfileVertexRef::Piece {
-                                step: crate::node::StepId(2),
+                                step: crate::node::StepId(test_utils::refusal::tagged(2)),
                                 role: crate::names::PieceRole::Leg,
                             },
                         )],
                     }),
                 },
                 vec![
-                    "member node 37",
-                    "edge name minted by node 37",
+                    "member node 000000000025",
+                    "edge name minted by node 000000000025",
                     "a tie stands",
                 ],
             ),
@@ -1850,7 +1886,7 @@ mod display_tests {
     fn the_rim_walk_reports_cardinality_as_a_fact() {
         let cube = super::walk_tests::cube();
 
-        let wall = cube.side_faces[0][0];
+        let wall = cube.side_faces()[0][0];
         let Rim::One(rim) = rim_between(&cube.body, cube.top, wall)
             .expect("a sound body raises no emission refusal")
         else {
@@ -1954,7 +1990,10 @@ mod walk_tests {
             .expect("a unit square validates");
         let cube = sweep::extrude(
             &prof,
-            sweep::Extrusion::Distance(1.0_f64),
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
             geom_core::Tol::witness(),
         )
         .expect("a unit cube extrudes");
@@ -1974,7 +2013,7 @@ mod walk_tests {
 
     fn rim1() -> Rim1 {
         let cube = cube();
-        let (top, wall) = (cube.top, cube.side_faces[0][0]);
+        let (top, wall) = (cube.top, cube.side_faces()[0][0]);
         let body = &cube.body;
         let (he, mate) = face_half_edges(body, top)
             .unwrap()

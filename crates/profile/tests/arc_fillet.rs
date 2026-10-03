@@ -24,7 +24,7 @@
 
 use crate::common;
 
-use common::{profile, tol};
+use common::{profile, segment_bits, tol};
 use geom_core::Tol;
 use geom_core::{Arc2, Point2};
 use profile::path::{CornerReason, CornerWindow, PathNoCornerReason};
@@ -90,7 +90,7 @@ fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
             },
             Tol::witness(),
         )
-        .map(|closed| closed.loop_)
+        .map(|closed| closed.loop_.into_loop())
 }
 
 /// **line×arc, external tangency** (the fillet curves the other way
@@ -113,7 +113,7 @@ fn line_arc_external(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
             },
             Tol::witness(),
         )
-        .map(|closed| closed.loop_)
+        .map(|closed| closed.loop_.into_loop())
 }
 
 /// **arc×line**: the incoming side is the circular one (a concave notch
@@ -137,7 +137,7 @@ fn arc_line(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     .line_to(Point2::new(4.0, 3.0), Tol::witness())?
     .line_to(Point2::new(-1.0, 3.0), Tol::witness())?
     .line_to(Start, Tol::witness())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 /// **arc×arc, both tangencies internal**: the vesica of the two
@@ -165,7 +165,7 @@ fn arc_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         Tol::witness(),
     )?
     .line_to(Start, Tol::witness())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 /// **arc×arc, one internal + one external**: the same crossing circles,
@@ -187,7 +187,7 @@ fn arc_arc_mixed(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         Tol::witness(),
     )?
     .line_to(Start, Tol::witness())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 /// The line×arc corner at the radius that consumes BOTH sides exactly
@@ -356,7 +356,7 @@ fn bracket_with_an_arc_leg_validates_and_declares() {
     // T1 sits on the incoming side's carrier.
     let t1 = lp.vertices()[1];
     assert!(((t1.x - 2.0).powi(2) + (t1.y + 2.0).powi(2) - 10.0).abs() < 1e-14);
-    validates_with_declared_joints(lp, &[1, 2]);
+    validates_with_declared_joints(lp.into_loop(), &[1, 2]);
 }
 
 // ------------------------------------------------- the refusal taxonomy
@@ -613,14 +613,9 @@ fn picked_fillet_circle(lp: ProfileLoop<f64>, r: f64) -> (Point2<f64>, f64) {
         .iter()
         .find_map(|s| match s.kind {
             profile::SegmentKind::Arc {
-                arc:
-                    Arc2 {
-                        centre: center,
-                        radius,
-                        ..
-                    },
+                arc: Arc2 { centre, radius, .. },
                 ..
-            } if (radius - r).abs() < 1e-12 => Some((center, radius)),
+            } if (radius - r).abs() < 1e-12 => Some((centre, radius)),
             _ => None,
         })
         .expect("the fillet arc classifies at its authored radius")
@@ -655,6 +650,7 @@ fn vesica_lens(
     )
     .expect("the lens constructs")
     .loop_
+    .into_loop()
 }
 
 /// The S8 ruling flips the M5 S2 refusal: with both sides long enough
@@ -744,8 +740,8 @@ fn symmetric_lens_pick_is_bit_deterministic_across_runs() {
         assert_eq!(va.x.to_bits(), vb.x.to_bits());
         assert_eq!(va.y.to_bits(), vb.y.to_bits());
     }
-    for (ba, bb) in a.bulges().iter().zip(b.bulges()) {
-        assert_eq!(ba.to_bits(), bb.to_bits());
+    for (sa, sb) in a.segments().iter().zip(b.segments()) {
+        assert_eq!(segment_bits(sa), segment_bits(sb));
     }
 }
 
@@ -783,8 +779,8 @@ fn ulp_perturbed_lens_pick_is_deterministic_within_the_lane() {
         assert_eq!(va.x.to_bits(), vb.x.to_bits());
         assert_eq!(va.y.to_bits(), vb.y.to_bits());
     }
-    for (ba, bb) in a.bulges().iter().zip(b.bulges()) {
-        assert_eq!(ba.to_bits(), bb.to_bits());
+    for (sa, sb) in a.segments().iter().zip(b.segments()) {
+        assert_eq!(segment_bits(sa), segment_bits(sb));
     }
     // One pocket was definitely committed to (which one is the lane's
     // own business).
@@ -1236,8 +1232,9 @@ fn a_zero_radius_fillet_is_refused_at_the_verb() {
 /// 1.2e-2 off its own carrier and a fillet radius 4.1e-3 wrong, and now
 /// emits 2.2e-16 and 1.2e-9. Re-pinning a handful of ulps to remove that
 /// is the trade; re-pinning for any smaller reason is not.
-/// A vertex's `(x, y, bulge)` raw f64 bits — the channel the pin below
-/// compares on, because "bit-identical" is the actual claim.
+/// A vertex's `(x, y, sweep)` raw f64 bits, the sweep its leaving
+/// segment stores (`0` for a line, which stores none) — the channel the
+/// pin below compares on, because "bit-identical" is the actual claim.
 type VertexBits = (u64, u64, u64);
 
 /// One pinned corner class: its name, the loop it builds, and the bits
@@ -1249,8 +1246,14 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
     let dump = |lp: &ProfileLoop<f64>| -> Vec<VertexBits> {
         lp.vertices()
             .iter()
-            .zip(lp.bulges())
-            .map(|(v, b)| (v.x.to_bits(), v.y.to_bits(), b.to_bits()))
+            .zip(lp.segments())
+            .map(|(v, s)| {
+                let sweep = match s {
+                    profile::Segment::Line => 0,
+                    profile::Segment::Arc(arc) => arc.sweep.to_bits(),
+                };
+                (v.x.to_bits(), v.y.to_bits(), sweep)
+            })
             .collect()
     };
     let cases: [PinnedCase; 5] = [
@@ -1260,11 +1263,11 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             &[
                 (0, 4611686018427387904, 0),
                 (0, 0, 0),
-                (4609047870845172685, 0, 4602837688965596815),
+                (4609047870845172685, 0, 4611283546303459675),
                 (
                     4611170888069347941,
                     4604180019048437076,
-                    4599397266714018680,
+                    4608222567545891028,
                 ),
             ],
         ),
@@ -1276,11 +1279,11 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
                 (4613937818241073152, 13835058055282163712, 0),
                 (0, 13835058055282163712, 0),
                 (0, 0, 0),
-                (4609820566382232627, 0, 13822769303568794489),
+                (4609820566382232627, 0, 13831594604400666837),
                 (
                     4611814801016897895,
                     13823048456275842388,
-                    4599397266714018680,
+                    4608222567545891028,
                 ),
             ],
         ),
@@ -1288,11 +1291,11 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             "arc_line",
             arc_line(0.5).expect("fits"),
             &[
-                (0, 4611686018427387904, 13823463879570942096),
+                (0, 4611686018427387904, 13832218258322411728),
                 (
                     4611504036046923850,
                     4600877379321698714,
-                    4600091842716166289,
+                    4608846221467635921,
                 ),
                 (4612698179346440494, 0, 0),
                 (4616189618054758400, 0, 0),
@@ -1304,16 +1307,16 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             "arc_arc_internal",
             arc_arc_internal(0.25).expect("fits"),
             &[
-                (4607182418800017408, 0, 4598009223490746920),
+                (4607182418800017408, 0, 4606845105924273753),
                 (
                     4594314991293244560,
                     4610070593513891235,
-                    4599325607115144255,
+                    4608157408297706455,
                 ),
                 (
                     13817687028148020368,
                     4610070593513891235,
-                    4598009223490746919,
+                    4606845105924273752,
                 ),
                 (13830554455654793216, 0, 0),
             ],
@@ -1322,16 +1325,16 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             "arc_arc_mixed",
             arc_arc_mixed(0.25).expect("fits"),
             &[
-                (4607182418800017408, 0, 4596857349751359594),
+                (4607182418800017408, 0, 4605750892648001873),
                 (
                     4599676419421066584,
                     4609392389112809011,
-                    13826831122041030757,
+                    13835333029979180127,
                 ),
                 (
                     4601392076421969630,
                     4611310551952855327,
-                    13826067637668438915,
+                    13834430019434068513,
                 ),
                 (4613937818241073152, 0, 0),
             ],

@@ -8,6 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, DocParam,
@@ -32,6 +33,7 @@ fn small() -> (ProfileDoc, String) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
@@ -280,60 +282,62 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let f0 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: frame_at(0.0),
+            node: Box::new(frame_at(0.0)),
         },
     )
     .unwrap();
     let p0 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Profile(quad(f0)),
+            node: Box::new(Node::Profile(quad(f0))),
         },
     )
     .unwrap();
     let e0 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p0,
                 distance: Expr::param(ParamName::from_static("d"), Dimension::Length),
-            },
+                side: ExtrudeSide::Along,
+            }),
         },
     )
     .unwrap();
     let f1 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: frame_at(1.0),
+            node: Box::new(frame_at(1.0)),
         },
     )
     .unwrap();
     let p1 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Profile(quad(f1)),
+            node: Box::new(Node::Profile(quad(f1))),
         },
     )
     .unwrap();
     let e1 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p1,
                 distance: len(1.5),
-            },
+                side: ExtrudeSide::Along,
+            }),
         },
     )
     .unwrap();
     let boole = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 op: BooleanOp::Union,
                 a: e0,
                 b: e1,
-                declare: None,
-            },
+                declare: Vec::new(),
+            }),
         },
     )
     .unwrap();
@@ -341,14 +345,14 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let f_doomed = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: frame_at(5.0),
+            node: Box::new(frame_at(5.0)),
         },
     )
     .unwrap();
     let doomed = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Profile(quad(f_doomed)),
+            node: Box::new(Node::Profile(quad(f_doomed))),
         },
     )
     .unwrap();
@@ -379,14 +383,14 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let pat = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Pattern {
+            node: Box::new(Node::Pattern {
                 input: boole,
                 count: Expr::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [scl(1.0), scl(0.0), scl(0.0)],
                     spacing: len(4.0),
                 },
-            },
+            }),
         },
     )
     .unwrap();
@@ -456,7 +460,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::SetAppearanceMeta {
             name: body.clone(),
             key: "adv/probe".into(),
-            value: MetaValue::Map(m.clone()),
+            value: MetaValue::map(m.clone()).expect("a shallow value"),
         },
     );
     push(
@@ -464,7 +468,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::SetAppearanceMeta {
             name: body.clone(),
             key: "adv/probe2".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
     );
     // 11 ClearAppearanceMeta
@@ -503,16 +507,12 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     // Round-trip as a FULL LOG from an empty snapshot.
     let text = save(
         &ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness()),
-        &editor_core::LoggedEdit::bare_all(&edits),
+        &edits.to_vec(),
         Tol::witness(),
     )
     .expect("save log");
     let loaded = load(&text, Tol::witness()).expect("load log");
-    assert_eq!(
-        loaded.edits,
-        editor_core::LoggedEdit::bare_all(&edits),
-        "edit log round-trip"
-    );
+    assert_eq!(loaded.edits, edits.to_vec(), "edit log round-trip");
     assert!(loaded.doc.bit_eq(&doc), "replayed doc bit-identical");
     // AND as a snapshot.
     let text2 = save(&doc, &[], Tol::witness()).expect("save snapshot");
@@ -613,7 +613,7 @@ fn attack_header_spellings() {
     assert!(load(&format!("id: {hex}\n{body}"), Tol::witness()).is_ok());
 }
 
-/// ATTACK 10: appearance key referencing a DELETED node (< next_id,
+/// ATTACK 10: appearance key referencing a DELETED node (minted,
 /// not live) in a crafted snapshot — and metadata insertion-order
 /// canonicalization.
 #[test]
@@ -633,7 +633,7 @@ fn attack_meta_order_canonical() {
             m.insert("a".to_owned(), MetaValue::Int(2));
             m.insert("v".to_owned(), MetaValue::Int(1));
         }
-        MetaValue::Map(m)
+        MetaValue::map(m).expect("a shallow value")
     };
     let mk = |order: bool| {
         let d = apply(
@@ -701,7 +701,7 @@ fn duplicate_keys_refuse_in_every_map() {
         &DocEdit::SetAppearanceMeta {
             name: body,
             key: "k".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

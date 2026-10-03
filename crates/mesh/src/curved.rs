@@ -1129,6 +1129,7 @@ mod tests {
     use profile::{
         Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
     };
+    use sweep::ExtrudeSide;
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
     fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
@@ -1410,7 +1411,10 @@ mod tests {
         lp = lp.with_tangent_joints((0..n).collect());
         extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -1430,7 +1434,10 @@ mod tests {
         ]);
         let slab = extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -1731,7 +1738,7 @@ mod tests {
     /// The #653 row's totals, measured. They are asserted so that a
     /// change in the fixture list is VISIBLE rather than silent — the
     /// row's actual guarantee is its per-fixture floor, not these.
-    const TOTAL_MESHED: usize = 254;
+    const TOTAL_MESHED: usize = 250;
     /// Typed refusals in the same sweep: four `CertificateExceeded` on
     /// the mirror nappe, whose split geometry exceeds the chord
     /// certificate at δ = 0.1. The donut contributes none — a split
@@ -2607,7 +2614,7 @@ mod tests {
             lens.as_ref().map(|_| ()),
             Err(&TessellateError::MeridianFreeCurvedFace {
                 face,
-                surface: geom_brep::SurfaceKind::Sphere,
+                surface: geom::SurfaceKind::Sphere,
             }),
             "two Rim-classified oblique arcs and nothing else"
         );

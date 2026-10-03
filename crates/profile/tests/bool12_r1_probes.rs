@@ -10,7 +10,7 @@ use profile::{Bulge, ClosedLoop, Open, PathError, Profile, ProfileError, SketchP
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, FRAC_PI_8, PI};
 
 fn validate(l: &ClosedLoop<f64>) -> Result<(), ProfileError> {
-    Profile::new(SketchPlane::xy(), vec![l.loop_.clone()])
+    Profile::new(SketchPlane::xy(), vec![l.loop_.clone().into_loop()])
         .validate(Tol::witness())
         .map(|_| ())
 }

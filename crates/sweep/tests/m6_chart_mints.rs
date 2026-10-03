@@ -11,6 +11,7 @@ use geom_core::Tol;
 use geom_core::{Point2, Vec2};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
@@ -50,15 +51,9 @@ fn assert_curved_faces_fully_minted(name: &str, body: &Body<f64>) {
                 curved_hes += 1;
                 assert!(
                     body.pcurve(he).is_some(),
-                    "{name}: half-edge {he:?} of a {:?}-chart face carries no stored \
+                    "{name}: half-edge {he:?} of a {}-chart face carries no stored \
                      cache at rest",
-                    match surface {
-                        Surface::Cylinder { .. } => "cylinder",
-                        Surface::Cone { .. } => "cone",
-                        Surface::Sphere { .. } => "sphere",
-                        Surface::Torus { .. } => "torus",
-                        _ => "other",
-                    }
+                    surface.kind().name()
                 );
             }
         }
@@ -114,9 +109,16 @@ fn the_die_octants_carry_stored_sphere_pcurves_at_rest() {
         Point2::new(1.0, 1.0),
         Point2::new(0.0, 1.0),
     ]);
-    let blank = extrude(&validated(lp), Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let blank = extrude(
+        &validated(lp),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let rims: Vec<topo::EdgeKey> = blank.edges().map(|(k, _)| k).collect();
     let filleted = sweep::blend::fillet_edges(&blank, &rims, 0.12, Tol::witness())
         .expect("the die blank fillets")

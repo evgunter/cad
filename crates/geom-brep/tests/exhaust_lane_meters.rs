@@ -70,6 +70,7 @@ fn receipt(lane: ExhaustLane, floor: f64) -> Exhaustiveness {
         examined: 7,
         excluded: 3,
         accounted: 2,
+        contact: 0,
         refined: 2,
         max_depth: 4,
         floor,
@@ -168,14 +169,14 @@ fn both_texts_name_the_lane_and_the_unit() {
 
     let r3e = format!("{}", refusal_error(ExhaustLane::R3, 0.125, 0.25));
     assert!(r3e.contains("on the ℝ³ lane"), "{r3e}");
-    assert!(r3e.contains("width 1.25e-1 m"), "{r3e}");
+    assert!(r3e.contains("a cell 1.25e-1 m wide"), "{r3e}");
     assert!(r3e.contains("floor 2.5e-1 m"), "{r3e}");
     assert!(!r3e.contains("chart"), "{r3e}");
 
     let che = format!("{}", refusal_error(chart, 0.125, 0.25));
     assert!(che.contains("on the chart lane"), "{che}");
     assert!(
-        che.contains("width 1.25e-1 chart units (2.5e-1 m)"),
+        che.contains("a cell 1.25e-1 chart units (2.5e-1 m) wide"),
         "{che}"
     );
     // The refusal names the rate too, once, on its floor — the reading

@@ -507,9 +507,9 @@ pub struct ParamWitness {
 pub struct GeometryWitness {
     /// The first face.
     pub a: FaceKey,
-    /// Its carrier parameters, IN THE CHART `a_chart_axis` names —
-    /// which for a planar face is the engine's own re-chart, not the
-    /// stored one.
+    /// Its carrier parameters, in the face's STORED chart — the one
+    /// the carrier's own `u_ref` names, which a consumer rebuilds by
+    /// reading the face's surface.
     ///
     /// On a periodic carrier `u` is an azimuth **on the walk's own
     /// branch**, a real number and never folded into `[0, τ)`: a face
@@ -517,19 +517,12 @@ pub struct GeometryWitness {
     /// negative, and a witness there reports a negative `u`. Fold it
     /// and it names a different point of the same surface.
     pub a_uv: (f64, f64),
-    /// Which world axis the planar re-chart crossed the normal with, so
-    /// a consumer can rebuild the same chart
-    /// ([`chart_frame`]) and evaluate at `a_uv`. `None` for a carrier
-    /// that kept its stored chart.
-    pub a_chart_axis: Option<usize>,
     /// The point there.
     pub a_point: Point3<f64>,
     /// The second face.
     pub b: FaceKey,
-    /// Its carrier parameters, in `b_chart_axis`'s chart.
+    /// Its carrier parameters, in the second face's stored chart.
     pub b_uv: (f64, f64),
-    /// The second face's chart axis, as `a_chart_axis`.
-    pub b_chart_axis: Option<usize>,
     /// The point there.
     pub b_point: Point3<f64>,
     /// The distance between the two points, at `f64`.
@@ -653,18 +646,28 @@ pub enum ClearanceRefusal {
 impl ClearanceRefusal {
     /// The refusal's own payload, rendered for the goldening form — the
     /// half `name` drops, so two runs that refuse for the same CLASS on
-    /// different evidence do not serialize alike.
+    /// different evidence do not serialize alike. A machine channel: a
+    /// node id prints in full ([`SelectionRefusal::payload`]).
     pub fn payload(&self) -> String {
         match self {
             Self::Sliver { predicate } => (*predicate).to_owned(),
             Self::Budget(k) => format!("{k:?}"),
             Self::Unsupported { carrier, face } => format!("{carrier} {face:?}"),
-            Self::Selection(r) => format!("{r}"),
+            Self::Selection(r) => r.payload(),
             Self::WitnessUnverified { what } => what.clone(),
             Self::PoisonEnclosure { a, b } => format!("{a:?}/{b:?}"),
             Self::NothingCertified { refused_leaves } => format!("refused_leaves={refused_leaves}"),
             Self::NotADistance { c } => format!("{:016x}", c.to_bits()),
             Self::EmptyScope | Self::ToleranceHasNoBand | Self::NoAdmittedPair => String::new(),
+        }
+    }
+
+    /// The payload a sentence quotes: [`Self::payload`], but a
+    /// selection's refusal in words, its nodes said by `by`.
+    pub(crate) fn said_payload(&self, by: crate::spoken::Speaker<'_>) -> String {
+        match self {
+            Self::Selection(r) => crate::spoken::Said(r, by).to_string(),
+            _ => self.payload(),
         }
     }
 
@@ -736,27 +739,97 @@ pub enum SelectionRefusal {
         /// The name, rendered.
         name: String,
     },
+    /// The two selections live in different spaces (A9, A11 (2)): one
+    /// is in an unplaced group's own space, and nothing outside an
+    /// unplaced group is compared with it.
+    AcrossSpaces {
+        /// The unplaced group, by its root.
+        group: RecipeNodeId,
+        /// Why nothing places it.
+        cause: crate::mate::Unplaced,
+    },
 }
 
-impl core::fmt::Display for SelectionRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+// Memoized inside `NodeErrorKind::MeasureClearanceRefused`, so it holds
+// ids, said by the speaker of the frame that hands it out.
+impl crate::spoken::Say for SelectionRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::NodeDidNotBuild(standing) => write!(
                 f,
                 "the selection has no faces to measure a clearance between in this leaf's \
-                 replay: {standing}"
+                 replay: {}",
+                crate::spoken::Said(standing, by)
             ),
-            Self::NoSuchBody { node, index } => write!(
-                f,
-                "node {}'s value carries no body at index {index}",
-                node.0
-            ),
+            Self::NoSuchBody { node, index } => {
+                write!(
+                    f,
+                    "{}'s value carries no body at index {index}",
+                    by.node(*node)
+                )
+            }
             Self::Unresolved { name } => write!(
                 f,
                 "{name} does not resolve to a unique entity in the selected node's name table"
             ),
             Self::NotAFace { name } => {
                 write!(f, "{name} resolves, but not to a face of the selected body")
+            }
+            Self::AcrossSpaces { group, cause } => write!(
+                f,
+                "the two selections live in different spaces — one is in the own space of the \
+                 group rooted at {}, unplaced because {cause}, and nothing outside an \
+                 unplaced group is compared with it. {}",
+                by.node(*group),
+                crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
+            ),
+        }
+    }
+}
+
+/// The refusal where no document is at hand: each node by its tag.
+impl core::fmt::Display for SelectionRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl SelectionRefusal {
+    /// **The refusal for the goldening form**: its class word and its
+    /// fields, each node id in full ([`RecipeNodeId::full`]) — a machine
+    /// channel, where two ids must never print alike.
+    pub fn payload(&self) -> String {
+        match self {
+            Self::NodeDidNotBuild(standing) => {
+                let (word, node, through) = match *standing {
+                    NodeStanding::NotEvaluated { node } => ("not_evaluated", node, None),
+                    NodeStanding::NotInDocument { node } => ("not_in_document", node, None),
+                    NodeStanding::Failed { node } => ("failed", node, None),
+                    NodeStanding::Poisoned { node, through } => ("poisoned", node, Some(through)),
+                };
+                let mut out = format!("node_did_not_build {word} node={}", node.full());
+                if let Some(through) = through {
+                    out.push_str(&format!(" through={}", through.full()));
+                }
+                out
+            }
+            Self::NoSuchBody { node, index } => {
+                format!("no_such_body node={} index={index}", node.full())
+            }
+            Self::Unresolved { name } => format!("unresolved {name}"),
+            Self::NotAFace { name } => format!("not_a_face {name}"),
+            Self::AcrossSpaces { group, cause } => {
+                let cause = match cause {
+                    crate::mate::Unplaced::NoOffset => cause.word().to_owned(),
+                    crate::mate::Unplaced::DeadGauge { gauge } => {
+                        format!("{}={}", cause.word(), gauge.full())
+                    }
+                };
+                format!("across_spaces group={} {cause}", group.full())
             }
         }
     }
@@ -1003,20 +1076,8 @@ impl ClearanceReport {
                         p.z.to_bits()
                     )
                 };
-                let _ = writeln!(
-                    s,
-                    "witness a uv={} chart={:?} at={}",
-                    uv(g.a_uv),
-                    g.a_chart_axis,
-                    pt(g.a_point)
-                );
-                let _ = writeln!(
-                    s,
-                    "witness b uv={} chart={:?} at={}",
-                    uv(g.b_uv),
-                    g.b_chart_axis,
-                    pt(g.b_point)
-                );
+                let _ = writeln!(s, "witness a uv={} at={}", uv(g.a_uv), pt(g.a_point));
+                let _ = writeln!(s, "witness b uv={} at={}", uv(g.b_uv), pt(g.b_point));
                 for (name, offset) in &v.param.offsets {
                     let _ = writeln!(
                         s,
@@ -1040,11 +1101,8 @@ impl ClearanceReport {
             render(self.widths.narrowest),
             self.widths.deepest
         );
-        let _ = writeln!(
-            s,
-            "windows tightened={} loose={}",
-            self.windows.0, self.windows.1
-        );
+        let (tightened, loose) = self.windows;
+        let _ = writeln!(s, "windows tightened={tightened} loose={loose}");
         s
     }
 
@@ -1082,7 +1140,12 @@ impl ClearanceReport {
                 }
             }
             ClearanceVerdict::Refused(r) => {
-                let _ = writeln!(s, "REFUSED ({}): {}", r.name(), r.payload());
+                let _ = writeln!(
+                    s,
+                    "REFUSED ({}): {}",
+                    r.name(),
+                    r.said_payload(crate::spoken::Speaker::TAG)
+                );
             }
         }
         let r = self.receipt;
@@ -1092,11 +1155,11 @@ impl ClearanceReport {
              {} violated, {} refused, {} split, {} abandoned",
             r.candidates, r.discharged, r.outside, r.violated, r.refused, r.splits, r.abandoned
         );
+        let (tightened, loose) = self.windows;
         let _ = writeln!(
             s,
-            "  {} of {} carrier window(s) tightened to the face's chart boundary",
-            self.windows.0,
-            self.windows.0 + self.windows.1
+            "  {tightened} of {} carrier window(s) tightened to the face's chart boundary",
+            tightened + loose
         );
         let w = self.widths;
         let _ = writeln!(
@@ -1206,6 +1269,11 @@ pub fn clearance_with(
     };
     let ev: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, query.tol);
 
+    if let Some((group, cause)) = ev.across_spaces(a.at, b.at) {
+        return ClearanceReport::refused(ClearanceRefusal::Selection(
+            SelectionRefusal::AcrossSpaces { group, cause },
+        ));
+    }
     let windows_a = match windows_of(&ev, a, Some(band)) {
         Ok(w) => w,
         Err(r) => return ClearanceReport::refused(r),
@@ -2104,11 +2172,6 @@ struct Window {
     at: RecipeNodeId,
     body: u32,
     face: FaceKey,
-    /// Which world axis the planar re-chart crossed the normal with
-    /// ([`in_plane_axis`]), so the `f64` witness rebuild can name the
-    /// same chart. `None` for every non-planar carrier, which keeps its
-    /// stored chart.
-    chart_axis: Option<usize>,
     surface: Surface<Interval>,
     u: (f64, f64),
     v: (f64, f64),
@@ -2368,20 +2431,12 @@ fn window_of(
         let d = (extent - origin).dot(dir);
         (d.lo(), d.hi())
     };
-    let mut chart_axis = None;
+    // The STORED chart, for every carrier kind. A plane's stored
+    // `u_ref` comes from the axis-order orthonormal basis, which
+    // refines at the equator, so there is nothing here to re-chart
+    // around; `refines` below is still the door that refuses a chart
+    // subdivision cannot narrow, whatever made it wide.
     let charted = match surface {
-        Surface::Plane { origin, normal, .. } => {
-            let axis = in_plane_axis(*normal);
-            let Some(u_ref) = chart_frame(*normal, axis) else {
-                return unsupported("a plane whose interval normal admits no certified frame");
-            };
-            chart_axis = Some(axis);
-            Surface::Plane {
-                origin: *origin,
-                normal: *normal,
-                u_ref,
-            }
-        }
         Surface::Nurbs(_) => return unsupported("a free-form face"),
         Surface::Approx(_) => return unsupported("an approximated face"),
         other => other.clone(),
@@ -2466,7 +2521,6 @@ fn window_of(
         at,
         body: index,
         face,
-        chart_axis,
         surface: charted,
         u,
         v,
@@ -2548,65 +2602,6 @@ fn cut_root(
     };
     Some((u, v))
 }
-
-/// **A certified in-plane direction, minted here rather than read off
-/// the stored chart.**
-///
-/// The stored `u_ref` of a plane comes from the branchless orthonormal
-/// basis, whose first step is `copysign(1, n.z)` — and at the interval
-/// scalar a normal with `n.z` enclosing zero (every vertical wall of an
-/// extruded prism) takes that function's zero-containing arm, so
-/// `u_ref` comes back as a SIGN-HULLED enclosure. A chart on such a
-/// frame does not refine: halving its `u` leaves the evaluated
-/// enclosure exactly where it was, because the frame vector itself
-/// spans both signs. Filed as
-/// `work/issues/interval-orthonormal-basis-sign-hull.md`.
-///
-/// Re-charting is sound and is not a repair of the stored surface: a
-/// plane's LOCUS does not depend on which orthonormal in-plane frame
-/// names its points, and this module's window and enclosure are both
-/// computed in whichever frame it returns. The stored surface is not
-/// touched.
-///
-/// The axis is chosen by the widest cross product under `total_cmp` —
-/// a chart choice, never a semantic one, in the same spirit as the
-/// spatial index's split-axis rule: every choice yields a sound
-/// superset, and the choice is a function of the enclosure's own bits,
-/// so it is deterministic (D9). `None` when no candidate normalizes to
-/// a certified direction.
-pub fn in_plane_axis<T: Bounds>(normal: Vec3<T>) -> usize {
-    let mut best = (f64::NEG_INFINITY, 0usize);
-    for k in 0..3 {
-        let lo = normal.cross(unit_axis::<T>(k)).norm().lo();
-        if lo.total_cmp(&best.0) == core::cmp::Ordering::Greater {
-            best = (lo, k);
-        }
-    }
-    best.1
-}
-
-/// The `k`-th world axis at the caller's scalar.
-///
-/// The bound is SOLE `Bounds` at both callers (`Bounds: Real` carries
-/// the arithmetic), which is the form the bounds gate is written for.
-fn unit_axis<T: Real>(k: usize) -> Vec3<T> {
-    let (zero, one) = (T::zero(), T::one());
-    match k {
-        0 => Vec3::new(one, zero, zero),
-        1 => Vec3::new(zero, one, zero),
-        _ => Vec3::new(zero, zero, one),
-    }
-}
-
-/// The re-chart's `u_ref`: the normal crossed with [`in_plane_axis`]'s
-/// choice, normalized. `None` when that does not come out finite, which
-/// is the honest answer for a normal nothing can frame.
-pub fn chart_frame<T: Bounds>(normal: Vec3<T>, axis: usize) -> Option<Vec3<T>> {
-    let u = normal.cross(unit_axis::<T>(axis)).normalize();
-    let finite = |x: T| x.lo().is_finite() && x.hi().is_finite();
-    (finite(u.x) && finite(u.y) && finite(u.z)).then_some(u)
-}
-
 /// Whether halving the window on either axis actually narrows the
 /// carrier's enclosure — the door that turns a chart the subdivision
 /// could not refine into a typed refusal rather than a budget burn.
@@ -3240,10 +3235,10 @@ fn verify_witness(
         ..lane_opts()
     };
     let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
-    // The SAME chart the interval pass subdivided in, rebuilt at `f64`
-    // from the axis that pass chose: a witness's `(u, v)` are
-    // coordinates in that chart, and reading them in the stored one
-    // would name a different point.
+    // The SAME chart the interval pass subdivided in: the stored one.
+    // A witness's `(u, v)` are coordinates in that chart, and the `f64`
+    // replay of the same node mints the same frame, so reading them
+    // needs nothing carried across from the interval pass.
     for w in [x, y] {
         if let Err(standing) = ev.usable(w.at) {
             return Err(format!(
@@ -3255,15 +3250,7 @@ fn verify_witness(
         let value = ev.value(w.at)?;
         let body = crate::names::interrogate::output_body(&value.payload, w.body).ok()?;
         let f = body.get_face(w.face)?;
-        let stored = body.get_surface(f.surface)?;
-        match (stored, w.chart_axis) {
-            (Surface::Plane { origin, normal, .. }, Some(axis)) => Some(Surface::Plane {
-                origin: *origin,
-                normal: *normal,
-                u_ref: chart_frame(*normal, axis)?,
-            }),
-            _ => Some(stored.clone()),
-        }
+        Some(body.get_surface(f.surface)?.clone())
     };
     let (Some(sa), Some(sb)) = (surface_at(x), surface_at(y)) else {
         return Err(
@@ -3360,11 +3347,9 @@ fn verify_witness(
     Ok(GeometryWitness {
         a: x.face,
         a_uv,
-        a_chart_axis: x.chart_axis,
         a_point: pa,
         b: y.face,
         b_uv,
-        b_chart_axis: y.chart_axis,
         b_point: pb,
         distance: d,
     })

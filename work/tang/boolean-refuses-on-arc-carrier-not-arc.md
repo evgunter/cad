@@ -2,12 +2,15 @@
 id: boolean-refuses-on-arc-carrier-not-arc
 kind: issue
 title: Boolean refuses when a cutter plane crosses an arc's CARRIER (not the arc); circle-derived cylinder unions refuse
-status: open
+status: closed
 opened: 2026-08-10
 github: 347
 refs: [346, 1044, 1068]
 priority: P0
 cost: H
+closed: 2026-10-02
+pr: 3752
+branch: tang/circle-cylinder-crossing
 ---
 
 ## From GitHub issue 347
@@ -81,3 +84,65 @@ VERBS: `work/verbs/plan.md` records that VERBS CLAIMS #347's remaining half (the
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## Evidence (2026-10-01, `reach-snowman`): circle × sphere landed, circle × cylinder did not
+
+The crossing layer now has a circle × sphere root lane
+(`topo::boolean::circle_sphere`, a closed form: the residual along a
+circle against a sphere is a first harmonic) beside circle × torus. The
+cylinder cell is still `Unsettled` in `reduce::wall_crossing`, and it is
+the one this row's parallel-cylinder pose needs. Its residual is a
+degree-2 trigonometric polynomial
+(`geom_brep::implicit`'s `circle_residual_harmonics` already computes
+its `(c₀, A₁, A₂)`), so `circle_torus::half_angle_roots`, which is
+surface-generic over degree-2 harmonics, is the root door it would
+call; only the harmonics' phases, a noise meter and a
+`f_per_metre` floor are owed.
+
+## Outcome (2026-10-01, TANG: the circle × cylinder crossing cell)
+
+The cell is settled: `topo::boolean::circle_cylinder` certifies a
+circle's crossings with a cylinder wall, reading the wall's harmonics
+from their one home (`geom_brep::circle_cylinder_harmonics`) and
+solving them in the shared root cores (`topo::boolean::circle_roots`),
+which the sphere and torus doors call too. The evidence above held,
+with one addition. A circle SQUARE to the wall's axis (every
+parallel-axes pose, this row's included) takes the first-harmonic door,
+not the ladder. That is required, for two poses the ladder cannot
+answer truthfully: a coaxial circle, whose residual is constant, and a
+tangency, which the ladder can certify as a miss
+(`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`)
+where the first-harmonic door escalates it. Tilted circles take the
+ladder.
+
+Where #347's cylinder poses stand now:
+
+| pose | door now |
+|---|---|
+| parallel, equal r, one height (this row's pose) | `UndeclaredCoincidence` on the coplanar cap discs — a declaration's |
+| parallel, equal r, staggered heights, `d` 0.3 to 1.6 | `CurvedSectorSideUnsupported { Negative }` (`work/reach/slab-cut-cylinder-refuses-sector-side.md`) |
+| parallel, equal r, staggered, `d` 1.9 | `Join(SectionArcWindow { NoChartedRun })`, the pierce ring (`pierce-ring-has-no-join-arm`) |
+| parallel, equal r, staggered, `d` 2 (rims tangent to the walls) | `CurvedPierceUnsupported` on a rim circle: a tangency escalates |
+| coaxial, equal r | `CurvedPierceUnsupported`, the rim lying on the wall: a declaration's |
+| Steinmetz | `CurvedPierceUnsupported` at the seam tangency, the pinch family, unchanged |
+| Ev's engraving pose slid across the rim | the pierce passes the crossing layer, the sector side and the join, and stops at the volume backstop: `VolumeUnmeasured`, the notched wall (`work/props/a-notched-cylinder-wall-has-no-volume-measurement.md`) |
+| a D-prism beside a cylinder, square and tilted 10°/30°/45° | builds under ∪, ∖, ∩, tier 3 clean, volume at the closed form |
+
+So a genuine circle pierce of a wall gets through the whole boolean on
+the engraving pose and stops only at measuring the result; on the
+parallel pairs it stops at the arc's sector side, then the pierce ring.
+
+## Closed (2026-10-02, PR 3752)
+
+The circle × cylinder cell is settled, so #347's parallel-cylinder
+half no longer refuses for want of a root lane. What each pose meets
+now is another row's ground:
+- the coplanar cap discs refuse `UndeclaredCoincidence`, which is
+  correct and needs a declaration;
+- staggered poses stop at the arc's sector side (REACH's
+  `slab-cut-cylinder-refuses-sector-side`, with this lane's evidence);
+- the wall pierce stops at `pierce-ring-has-no-join-arm`;
+- equal radii with crossing axes stay the valence-4 pinch family.
+
+The shared ladder's in-band answers are GERM's
+`the-half-angle-ladder-certifies-in-band-configurations`.

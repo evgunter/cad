@@ -80,6 +80,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -241,6 +242,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(THICK),
+            side: ExtrudeSide::Along,
         },
     );
     let at = &doc;

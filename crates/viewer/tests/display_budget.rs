@@ -1282,7 +1282,7 @@ fn extent_of(body: &pncad::topo::Body<f64>, delta: f64, tol: Tol) -> f64 {
     let mesh = pncad::mesh::tessellate(body, delta, tol).expect("a body tessellates");
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
     for p in &mesh.positions {
-        for (axis, value) in [p.x, p.y, p.z].into_iter().enumerate() {
+        for (axis, value) in p.to_array().into_iter().enumerate() {
             lo[axis] = lo[axis].min(value);
             hi[axis] = hi[axis].max(value);
         }

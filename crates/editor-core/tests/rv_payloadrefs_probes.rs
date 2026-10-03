@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
@@ -55,6 +56,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
@@ -178,6 +180,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
@@ -195,10 +198,10 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Measure {
+            node: Box::new(Node::Measure {
                 expr: leaf,
                 refs: Vec::new(),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -237,7 +240,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let rendered = format!(
         "{}",
         SnapshotError::PayloadUnknownDocParam {
-            node: RecipeNodeId(7),
+            node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
             name: ParamName::from_static("depth"),
         }
     );
@@ -256,7 +259,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
         "{}",
         EditError::PayloadUnknownDocParam {
             name: ParamName::from_static("depth"),
-            node: RecipeNodeId(7),
+            node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
         }
     );
     assert!(

@@ -3,7 +3,7 @@
 //!
 //! A reviewer probe, adopted. In-crate because the corruption route needs
 //! `Body::surfaces` (`pub(crate)`): the wall is replaced UNDER its own key
-//! after its four edges were attached through the lane door, so the stored
+//! after its four edges were attached through the lane, so the stored
 //! certificates no longer hold and nothing else about the body moves.
 //! `set_face_surface` cannot do it — `FaceSurface::New` mints a fresh key
 //! and the description keeps the old surface alive.
@@ -28,7 +28,7 @@
 )]
 
 use crate::boolean::ContactRecords;
-use crate::test_support_fixtures::{describe_as_intersections, face_surface_of_he, geometric_cube};
+use crate::test_support_fixtures::{describe_as_intersections, geometric_cube};
 use crate::validate::{self, ValidationError};
 use crate::{Body, FaceSurface};
 use geom::{NurbsSurface, Surface};
@@ -58,7 +58,7 @@ fn nurbs_wall(bow: f64) -> Surface<f64> {
 
 /// The unit cube with its front wall restated as a described NURBS and
 /// the wall's four edges re-described as plane × NURBS `Intersection`s
-/// through the lane door (M7-8). Returns the wall's surface key and the
+/// through the lane (M7-8). Returns the wall's surface key and the
 /// four edge keys.
 fn m7_8_cube() -> (
     Body<f64>,
@@ -101,8 +101,9 @@ fn m7_8_cube() -> (
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = Vec::new();
     for (edge_key, edge) in edges {
-        let s1 = face_surface_of_he(&body, edge.he_plus);
-        let s2 = face_surface_of_he(&body, edge.he_minus);
+        let (s1, s2) = crate::readback::edge_sides(&body, edge_key)
+            .unwrap()
+            .surfaces();
         if s1 != wall && s2 != wall {
             continue;
         }
@@ -123,7 +124,7 @@ fn m7_8_cube() -> (
             param_start: 0.0,
             param_end: 1.0,
         };
-        body.set_edge_curve_nurbs_lane(edge_key, spec, Tol::witness())
+        body.set_edge_curve(edge_key, spec, Tol::witness())
             .unwrap_or_else(|e| {
                 panic!("the plane x flat-NURBS edge attaches through the lane: {e:?}")
             });
@@ -180,7 +181,7 @@ fn six_doors(body: &Body<f64>) -> [String; 6] {
 }
 
 /// **A corrupt plane × NURBS wall at `f64`: which at-rest door catches
-/// it.** The wall's four edges certified through the lane door at attach
+/// it.** The wall's four edges certified through the lane at attach
 /// time; the wall then bows 0.05 under its own key, so every one of those
 /// certificates is false. Check 2 is the check that re-derives them.
 ///
@@ -206,13 +207,20 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() 
             "the certified body must raise no EdgeCertification anywhere: {d}"
         );
     }
-    // `needs_nurbs_lane` answers YES on exactly the four wall edges.
+    // The lane-free re-derivation names the lane's absence on exactly
+    // the four wall edges.
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let mut needs = 0;
     for (k, e) in body.edges() {
         let Some(crate::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
             continue;
         };
-        if c.needs_nurbs_lane(|s| body.surfaces.get(s).cloned()) {
+        let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let start = point(body.get_half_edge(e.he_plus).unwrap().start);
+        let end = point(body.half_edge_end(e.he_plus).unwrap());
+        if let Err(geom_brep::CertifyError::NurbsLaneNotSupplied) =
+            c.recertify_via(start, end, |s| body.surfaces.get(s).cloned(), band, None)
+        {
             needs += 1;
             assert!(
                 lane_edges.contains(&k),
@@ -257,7 +265,8 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() 
 /// falls on, but what each says on the corrupt wall and what it no
 /// longer says. `validate_pseudomanifold`, `validate_pseudomanifold_certificate`
 /// and `contact_marks` each report ONE
-/// `EdgeCertification` per lane edge and nothing else: check 2
+/// `EdgeCertification` per lane edge and nothing else but the pcurve
+/// pass's refusal of the rowless corrupt wall's boundary: check 2
 /// re-derives the four certificates through the plane × NURBS lane and
 /// every one is false, so the pass stops there and check 7 — gated on
 /// checks 1–6 — is never made. The lane-keeping bodies that used to
@@ -293,12 +302,33 @@ fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else
     ];
     let mut expect = lane_edges.clone();
     expect.sort();
+    let on_wall = |he: crate::entity::HalfEdgeKey| {
+        body.face_of_half_edge(he)
+            .is_some_and(|f| body.get_face(f).unwrap().surface == wall)
+    };
     for (door, verdict) in verdicts {
         let errors = verdict.expect_err("the corrupt wall is refused at every plain name");
+        let wall_rows = errors
+            .iter()
+            .filter(|e| matches!(e, ValidationError::Pcurve { .. }))
+            .count();
+        assert_eq!(
+            wall_rows, 1,
+            "{door}: the rowless corrupt wall's derivation refusal is reported, once"
+        );
         let mut edges: Vec<_> = errors
             .iter()
-            .map(|e| match e {
-                ValidationError::EdgeCertification { edge, .. } => *edge,
+            .filter_map(|e| match e {
+                ValidationError::EdgeCertification { edge, .. } => Some(*edge),
+                // The rowless wall is re-derived at tier 3, and the
+                // corrupt surface refuses its own boundary.
+                ValidationError::Pcurve {
+                    finding:
+                        crate::pcurves::PcurveMintError::Certify {
+                            half_edge,
+                            error: geom_brep::PcurveCertifyError::ResidualExceeded { .. },
+                        },
+                } if on_wall(*half_edge) => None,
                 other => panic!(
                     "{door}: reports {other:?} beside the edge findings — a `VolumeUncomputable` \
                      here is the lane-keeping body's answer, which this name no longer gives"

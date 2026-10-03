@@ -19,7 +19,9 @@ use std::sync::Arc;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2};
 use geom_brep::{Pcurve, PcurveCache};
-use geom_core::{Band, Point2, Point3, Real, Vec3};
+use geom_core::{Band, Point3, Real, Vec3};
+
+use crate::fixture::arc_chain;
 
 /// The tight band the reviewed row only reaches at
 /// `CAD_TOLERANCE_EPS=1e-12` — here it is a value, so every probe
@@ -61,52 +63,23 @@ fn general_circle<T: Real>(radius: f64) -> Curve3<T> {
     }
 }
 
-/// The chart image, fitted at `f64` structure on the carrier's own
-/// angle parameter — the reviewed fixture's own routine, parameterized
-/// by the arc and the sphere radius so the probes can vary the span.
-fn fit_image(radius: f64, t0: f64, t1: f64) -> NurbsCurve2<f64> {
-    let carrier = general_circle::<f64>(radius);
-    let n = 33usize;
-    let mut params = Vec::with_capacity(n);
-    let mut pts = Vec::with_capacity(n);
-    let mut prev_u: Option<f64> = None;
-    for i in 0..n {
-        #[allow(clippy::cast_precision_loss)]
-        let t = t0 + (t1 - t0) * (i as f64 / (n - 1) as f64);
-        let p = carrier.eval(t);
-        let mut u = p.y.atan2(p.x);
-        if let Some(pu) = prev_u {
-            while u - pu > core::f64::consts::PI {
-                u -= core::f64::consts::TAU;
-            }
-            while pu - u > core::f64::consts::PI {
-                u += core::f64::consts::TAU;
-            }
-        }
-        prev_u = Some(u);
-        let v = (p.z / radius).asin();
-        params.push((t - t0) / (t1 - t0));
-        pts.push(Point2::new(u, v));
-    }
-    let fit = NurbsCurve2::interpolate_with_params(&pts, 3, &params).expect("the chart image fits");
-    let knots: Vec<f64> = fit
-        .knots()
-        .knots()
-        .iter()
-        .map(|k| t0 + (t1 - t0) * k)
-        .collect();
-    let kv = geom_core::spline::KnotVector::clamped(knots, fit.knots().degree())
-        .expect("affine knot rescale");
-    NurbsCurve2::new(kv, fit.control().to_vec(), fit.weights().to_vec()).expect("rescaled image")
-}
-
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
     let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
-/// One call at the fitted door, at an explicit band — the whole route
-/// the reviewed row drives, with the tolerance a parameter.
+/// The arc as a RUNG-3 carrier at `T` (`fixture::arc_chain`), with its
+/// chart image: these probes are about the SSI certificate's payloads,
+/// which only a fitted carrier runs.
+fn rung3<T: Real>(radius: f64, (f0, f1): (f64, f64)) -> (Curve3<T>, Arc<NurbsCurve2<T>>) {
+    let at_f64 = arc_chain::chain(&general_circle::<f64>(radius), f0, f1);
+    let image = Arc::new(lift2::<T>(&arc_chain::image(&at_f64, radius, f0, f1)));
+    let chain = arc_chain::chain(&general_circle::<T>(radius), f0, f1);
+    (Curve3::Nurbs(Arc::new(chain)), image)
+}
+
+/// One call at the fitted door, at an explicit band — the whole route,
+/// with the tolerance a parameter.
 fn certify_at<T>(
     radius: f64,
     arc: (f64, f64),
@@ -115,9 +88,8 @@ fn certify_at<T>(
 where
     T: topo::AtRestPolicy,
 {
-    let carrier = general_circle::<T>(radius);
+    let (carrier, image) = rung3::<T>(radius, arc);
     let (t0, t1) = (T::from_f64(arc.0), T::from_f64(arc.1));
-    let image = Arc::new(lift2::<T>(&fit_image(radius, arc.0, arc.1)));
     let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
     PcurveCache::<T>::certify_fitted(
         image,
@@ -210,12 +182,36 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
 /// own doc (`ssi/certify.rs:164-167`) reads "More spans ⇒ tighter hulls
 /// and a tighter tube".
 ///
-/// This probe MEASURES that. It reports the bound at four span lengths
-/// and asserts it is strictly span-dependent — i.e. that something IS
-/// tightenable. The measurement also shows how weakly: the bound falls
-/// far slower than the span, because at `T = Interval` it is dominated
-/// by the width the ring data carries rather than by the span, which is
-/// the honest version of the PR's claim.
+/// This probe MEASURES that, over eight span lengths from a full turn
+/// (`div = 0.25`) down to 1/64 of a quarter (`div = 64`), and asserts
+/// the escalation is a property of THIS SPAN rather than a floor:
+///
+/// - the quarter turn escalates, at about 1.02e-12;
+/// - a SHORTER arc certifies — so there is something to subdivide;
+/// - a LONGER arc certifies too — so the escalation is not a monotone
+///   floor the bound is pressed against, it is where this one span
+///   happens to sit.
+///
+/// Either of the last two alone falsifies "there is nothing to tighten
+/// and nothing to subdivide"; together they say the quarter turn is
+/// singular among its neighbours in both directions, which is a
+/// stronger and more useful statement than a monotone trend would be.
+///
+/// **This row was re-pointed when `insert_once_ring` took the convex
+/// insertion form, because its previous claim went vacuous.** Under the
+/// lerp form the bound was dominated by the width the ring data carried
+/// rather than by the span, so four spans sat within 1.6x of each other
+/// (1.80e-12, 1.30e-12, 1.14e-12, 1.14e-12) and NONE certified; the row
+/// asserted a strict decrease across them. The convex form took that
+/// floor away, every arc but the quarter turn now certifies, and a
+/// "strictly smaller bound" loop over them compares nothing — every
+/// iteration passes on `None`. A row named for span dependence that
+/// measures no span dependence is the defect, not the re-baseline.
+///
+/// The full turn is not in the list: over a rung-3 chain carrier its
+/// map residual at the interval scalar reaches the 1e-12 band (sample
+/// 6, `pcurve_map_residual`) before the hull limb is read, so it
+/// measures that check rather than this one.
 #[test]
 fn the_interval_hull_bound_is_span_dependent() {
     /// The `ssi_hull_sup` bound this route certifies at the interval
@@ -238,17 +234,26 @@ fn the_interval_hull_bound_is_span_dependent() {
             Err(e) => panic!("unexpected refusal at div={div}: {e:?}"),
         }
     }
-    let bounds: Vec<(f64, Option<f64>)> = [1.0, 2.0, 8.0, 64.0]
+    let bounds: Vec<(f64, Option<f64>)> = [0.5, 0.75, 1.0, 1.5, 2.0, 8.0, 64.0]
         .into_iter()
         .map(|d| (d, hull_sup_at_interval(d)))
         .collect();
     println!("ssi_hull_sup vs span divisor: {bounds:?}");
-    let full = bounds[0].1.expect("the quarter turn escalates");
-    let eighth = bounds[2].1.expect("an eighth of it still escalates");
+    let quarter = bounds
+        .iter()
+        .find(|(d, _)| *d == 1.0)
+        .and_then(|(_, b)| *b)
+        .unwrap_or_else(|| panic!("the quarter turn no longer escalates: {bounds:?}"));
     assert!(
-        eighth < full,
-        "the bound must move with the span — 'nothing to tighten' claims it cannot: \
-         {bounds:?}"
+        bounds.iter().any(|(d, b)| *d > 1.0 && b.is_none()),
+        "no arc SHORTER than the quarter turn certifies, so there is nothing to subdivide \
+         after all — the quarter turn escalates at {quarter:e}: {bounds:?}"
+    );
+    assert!(
+        bounds.iter().any(|(d, b)| *d < 1.0 && b.is_none()),
+        "no arc LONGER than the quarter turn certifies, so the escalation reads as a floor \
+         the bound is pressed against rather than as this span's own — the quarter turn \
+         escalates at {quarter:e}: {bounds:?}"
     );
 }
 
@@ -317,14 +322,13 @@ fn the_margin_is_legible_through_the_public_topo_door() {
     use topo::Body;
 
     let radius = 1.0;
-    let carrier = general_circle::<Interval>(radius);
+    let (carrier, image) = rung3::<Interval>(radius, ARC);
     let (f0, f1) = ARC;
     let (t0, t1) = (
         <Interval as Real>::from_f64(f0),
         <Interval as Real>::from_f64(f1),
     );
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
-    let image = Arc::new(lift2::<Interval>(&fit_image(radius, f0, f1)));
 
     let mut body = Body::<Interval>::new();
     let seed = body.mvfs(p0, true).unwrap();

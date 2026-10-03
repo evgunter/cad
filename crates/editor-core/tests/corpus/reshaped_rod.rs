@@ -30,6 +30,7 @@
 //! D2 bump: the extrude's `Distance` (mid-DAG — its cone is the extrude
 //! and the fillet; the frame and the profile are reused).
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RoleSeg, SlotId, StableName, StepId,
@@ -88,13 +89,16 @@ pub fn rod_loop(bump: bool) -> LoopProgram {
     LoopProgram::Chain(steps)
 }
 
-/// The step ids of the bumped loop over the plain one's (`old`, the
-/// seven the plain program was minted): every step keeps its own id
-/// except the two the bump inserted, which the door mints.
-pub fn bump_ids(old: &[StepId]) -> Vec<Vec<Option<StepId>>> {
-    let mut ids: Vec<Option<StepId>> = old.iter().copied().map(Some).collect();
-    ids.splice(2..2, [None, None]);
-    vec![ids]
+/// The step ids of the bumped loop over the plain one `doc` holds for
+/// `profile`: every step keeps its own id except the two the bump
+/// inserted, which the door mints.
+pub fn bump_ids(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> Vec<Vec<Option<StepId>>> {
+    let mut ids = match doc.node(profile) {
+        Some(Node::Profile(p)) => p.kept_in_place(),
+        other => panic!("node {} is the rod's profile: {other:?}", profile.0),
+    };
+    ids[0].splice(2..2, [None, None]);
+    ids
 }
 
 /// The plain rod's step ids, as `doc` holds them for `profile`.
@@ -126,13 +130,14 @@ pub fn document() -> CorpusDoc {
     let rod = r.insert(Node::Extrude {
         profile,
         distance: len(ROD_L),
+        side: ExtrudeSide::Along,
     });
     // The fillet is authored against the PLAIN program's crease, and
     // the reshaping below keeps the step whose piece the name spells,
     // so the name the recipe records is the name it keeps.
     let crease = lateral_edge(&r.doc, rod, CREASE);
     let fillet = r.insert(Node::fillet(rod, len(ROD_FILLET), vec![crease]));
-    let ids = bump_ids(&rod_ids(&r.doc, profile));
+    let ids = bump_ids(&r.doc, profile);
     r.push(DocEdit::SetProgram {
         node: profile,
         loops: vec![rod_loop(true)],

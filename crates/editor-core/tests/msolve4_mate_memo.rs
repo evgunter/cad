@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::sync::Arc;
 
@@ -49,6 +50,7 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -106,9 +108,9 @@ fn seat(
 /// resolver — the document every row below edits, and the ids it
 /// edits by.
 ///
-/// Three blocks, because the per-mate row needs TWO clusters that do
+/// Three blocks, because the per-mate row needs TWO groups that do
 /// not touch: `base` and one block on one side, two blocks on the
-/// other. A block no mate reaches is a singleton cluster and changes
+/// other. A block no mate reaches is a singleton group and changes
 /// no other row's answer.
 struct Scene {
     doc: ProfileDoc,
@@ -134,9 +136,9 @@ fn scene(label: &str) -> Scene {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top_a) = insert(doc, Node::instantiate_part(block_ref));
-    let (doc, top_b) = insert(doc, Node::instantiate_part(block_ref));
-    let (doc, top_c) = insert(doc, Node::instantiate_part(block_ref));
+    let (doc, top_a) = insert(doc, crate::fixture::mated_instance(block_ref));
+    let (doc, top_b) = insert(doc, crate::fixture::mated_instance(block_ref));
+    let (doc, top_c) = insert(doc, crate::fixture::mated_instance(block_ref));
     Scene {
         doc,
         opts,
@@ -308,17 +310,17 @@ fn a_contradiction_faults_the_mate_that_evaluated_before_it() {
     );
 }
 
-/// **A refusal elsewhere in the cluster faults the unedited mate that
+/// **A refusal elsewhere in the group faults the unedited mate that
 /// is nowhere in the fault's words.**
 ///
 /// The finding's first observed shape: a sound mate evaluates, a
-/// second mate then breaks the cluster around it, and the sound
+/// second mate then breaks the group around it, and the sound
 /// mate's row read `Ok` in the evaluation whose fault every instance
-/// of its cluster reports. The fault here names only the offender —
+/// of its group reports. The fault here names only the offender —
 /// [`MateFault::Under`] names one mate — so nothing about the sound
 /// mate's own words changed; only the solve's answer for it did.
 #[test]
-fn a_cluster_refusal_faults_the_sound_mate_that_evaluated_before_it() {
+fn a_group_refusal_faults_the_sound_mate_that_evaluated_before_it() {
     let mut s = scene("msolve4-cluster");
     let sound = s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
     let first = s.eval(None);
@@ -328,7 +330,7 @@ fn a_cluster_refusal_faults_the_sound_mate_that_evaluated_before_it() {
     );
 
     // A second block, mated `Coaxial`: the residual is cylindrical, so
-    // the tree edge does not determine and the whole cluster refuses.
+    // the tree edge does not determine and the whole group refuses.
     let offender = s.seat_on_base(s.top_b, 3.0, 1.0, MatePrimitive::Coaxial);
     let second = s.eval(Some(&first));
 
@@ -354,7 +356,7 @@ fn a_cluster_refusal_faults_the_sound_mate_that_evaluated_before_it() {
     for instance in [s.base, s.top_a, s.top_b] {
         assert!(
             matches!(second.result(instance), Some(NodeResult::Failed(_))),
-            "every instance in the refused cluster reports it: {:?}",
+            "every instance in the refused group reports it: {:?}",
             second.result(instance)
         );
     }
@@ -394,9 +396,9 @@ fn deleting_the_contradiction_returns_the_faulted_mate_to_ok() {
 /// **A role change on an unedited mate reaches its value through the
 /// memo, and moves its content key.**
 ///
-/// The stack mate is a tree edge while its two blocks are a cluster of
+/// The stack mate is a tree edge while its two blocks are a group of
 /// their own; seating both blocks on the base makes the base the
-/// gauge, both base mates tree edges, and the stack mate a non-tree
+/// root, both base mates tree edges, and the stack mate a non-tree
 /// edge that declares. Its references, class and alignment never
 /// change.
 #[test]
@@ -405,12 +407,12 @@ fn a_role_change_on_an_unedited_mate_reaches_its_value() {
     let stacked = s.stack(s.top_a, s.top_b);
     let first = s.eval(None);
     assert_eq!(
-        row_role(&first, stacked, "the stack mate, alone in its cluster"),
+        row_role(&first, stacked, "the stack mate, alone in its group"),
         MateRole::Determining,
         "the pair's only mate is the tree edge that places the upper block"
     );
 
-    // Both blocks now hang off the base, which becomes the gauge: the
+    // Both blocks now hang off the base, which becomes the root: the
     // tree reaches each of them directly and the stack mate is the
     // cycle's non-tree edge.
     s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
@@ -461,20 +463,20 @@ fn an_unchanged_mate_is_reused() {
 }
 
 /// **A mate's key is per mate, not per document**: when one mate's
-/// answer changes, a mate in ANOTHER cluster — untouched, and with
+/// answer changes, a mate in ANOTHER group — untouched, and with
 /// the same answer as before — is still served from the memo.
 ///
-/// The two clusters are disjoint on purpose. A refusal reaches every
-/// node of ITS cluster and stops there (GQ2), so `far`'s answer is
+/// The two groups are disjoint on purpose. A refusal reaches every
+/// node of ITS group and stops there (GQ2), so `far`'s answer is
 /// genuinely unchanged while `near`'s is not; a key that carried
 /// anything document-global would re-run `far` too, and no row that
 /// only counts recomputations would notice.
 #[test]
-fn a_mate_in_another_cluster_is_untouched_by_a_refusal() {
+fn a_mate_in_another_group_is_untouched_by_a_refusal() {
     let mut s = scene("msolve4-per-mate");
-    // Cluster one: two blocks stacked, nowhere near the base.
+    // Group one: two blocks stacked, nowhere near the base.
     let far = s.stack(s.top_b, s.top_c);
-    // Cluster two: a block seated on the base.
+    // Group two: a block seated on the base.
     let near = s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
     let first = s.eval(None);
     for (mate, what) in [(far, "the far mate"), (near, "the near mate")] {
@@ -494,7 +496,7 @@ fn a_mate_in_another_cluster_is_untouched_by_a_refusal() {
     assert_eq!(
         row_role(&second, far, "the far mate after the break"),
         MateRole::Determining,
-        "a refusal in another cluster does not reach this mate"
+        "a refusal in another group does not reach this mate"
     );
     assert_eq!(
         key(&first, far, "before"),
@@ -505,15 +507,15 @@ fn a_mate_in_another_cluster_is_untouched_by_a_refusal() {
         reused_value(&first, &second, far),
         "the far mate was rebuilt rather than served from the memo"
     );
-    // The far cluster's instances are served too: nothing about them
+    // The far group's instances are served too: nothing about them
     // moved either.
     for (id, what) in [(s.top_b, "the lower block"), (s.top_c, "the upper block")] {
         assert!(
             reused_value(&first, &second, id),
-            "{what} of the untouched cluster must come off the memo"
+            "{what} of the untouched group must come off the memo"
         );
     }
-    // And the near cluster's nodes did NOT: the mate whose answer
+    // And the near group's nodes did NOT: the mate whose answer
     // changed, and the instance the refusal left without a pose.
     for (id, what) in [
         (near, "the mate whose answer changed"),

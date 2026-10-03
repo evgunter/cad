@@ -28,6 +28,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -151,7 +152,7 @@ fn two_param_web() -> ProfileDoc {
     doc = push(
         &doc,
         DocEdit::InsertNode {
-            node: Node::measure(with_depth, refs).expect("indices in range"),
+            node: Box::new(Node::measure(with_depth, refs).expect("indices in range")),
         },
     );
     doc
@@ -185,6 +186,7 @@ fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     let slab = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall (chain
     // order: bottom, right, top, left).

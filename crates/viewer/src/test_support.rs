@@ -20,6 +20,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use pncad::document::{
     BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocParam, DocRef,
     DocumentId, EditError, EvalOptions, Evaluation, Expr, LoopProgram, Node, NodeErrorKind,
@@ -72,7 +73,7 @@ pub fn scl2(v: [f64; 2]) -> [Expr; 2] {
 //
 // Authored through `apply`, in the order a user would: a fixture that
 // reached past it would be testing a document the edit vocabulary
-// cannot produce. The fixtures are part-less — no mate, no cluster — so
+// cannot produce. The fixtures are part-less — no mate, no group — so
 // the reach is the refusing one and is never asked.
 
 /// Apply one edit, answering the new document and any minted id.
@@ -134,7 +135,13 @@ pub fn try_inserted(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), EditError> {
-    let (doc, minted) = try_edited(doc, DocEdit::InsertNode { node }, tol)?;
+    let (doc, minted) = try_edited(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+        tol,
+    )?;
     Ok((doc, minted.expect("an insert mints an id")))
 }
 
@@ -143,6 +150,10 @@ pub fn try_inserted(
 /// A sketch frame node, and the world xy frame these fixtures sketch
 /// on — `editor_core::test_support`'s, as the literals above.
 pub use editor_core::test_support::{frame, xy_frame};
+
+/// A spoken node built by hand, for a row a test builds without a
+/// document — `editor_core::test_support`'s.
+pub use editor_core::test_support::spoken;
 
 /// An axis-aligned rectangular loop, `w` by `h`, its lower-left
 /// corner at `origin` in the plane's own coordinates, counter-clockwise
@@ -269,6 +280,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Extrude {
             profile: section,
             distance: len(depth),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -299,6 +311,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Extrude {
             profile: disc,
             distance: len(BOSS_HEIGHT),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -320,6 +333,17 @@ pub fn evaluated_insert(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> (Evaluation<f64>, RecipeNodeId) {
+    let (_, eval, id) = inserted_and_evaluated(doc, node, tol);
+    (eval, id)
+}
+
+/// [`evaluated_insert`] with the document the evaluation was taken of,
+/// for a row that speaks the evaluation's ids.
+pub fn inserted_and_evaluated(
+    doc: &Doc<ProfileProgram>,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, Evaluation<f64>, RecipeNodeId) {
     let (doc, id) = inserted(doc, node, tol);
     let eval = evaluate(
         &doc,
@@ -328,7 +352,7 @@ pub fn evaluated_insert(
         &EvalOptions::default(),
         tol,
     );
-    (eval, id)
+    (doc, eval, id)
 }
 
 /// **The volume of `node`'s single body in `eval`** — an extrude's, a

@@ -157,7 +157,9 @@ impl<T: Decide> Body<T> {
     /// (above); both child specs certify
     /// ([`EulerOpError::Certification`] — endpoints
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
-    /// forward order on each child).
+    /// forward order on each child; the plane × NURBS lane is the
+    /// scalar's policy, and a scalar holding none refuses that class
+    /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge`).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): a parent half-edge's
     /// stored chart row is CARRIED to both children — a
@@ -166,15 +168,15 @@ impl<T: Decide> Body<T> {
     /// parent's restricted to its sub-interval, exactly as each
     /// child's carrier is. A restriction DERIVES nothing, which is why
     /// it re-certifies through `PcurveCache::certify` — `geom-brep`
-    /// declares that door `impl<T: Decide>` — and why this op keeps
-    /// the `Decide` bound and no caller of it moves. Both restrictions
+    /// declares that door `impl<T: Decide>` — and why the rows add no
+    /// bound to this op's own. Both restrictions
     /// are certified in the plan phase
     /// ([`crate::pcurves::split_cache`]), so a face this op touches is
     /// never left half-minted and a refusal
     /// ([`EulerOpError::PcurveSplit`]) arrives with the body
-    /// untouched. A half-edge with no row keeps none: absence is never
-    /// a claim, and the op does not start caching a body whose
-    /// producer chose not to.
+    /// untouched. A half-edge with no row keeps none: the op carries
+    /// what is there, and minting what is missing is the producer's
+    /// closing mint.
     ///
     /// Two frontiers, both stated at `split_cache`. A
     /// `Fitted`/`General` row is left exactly as found, because its
@@ -209,7 +211,10 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         t: T,
         tol: Tol,
-    ) -> Result<SplitEdgeCreated, EulerOpError> {
+    ) -> Result<SplitEdgeCreated, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -245,11 +250,15 @@ impl<T: Decide> Body<T> {
         let scale = match *curve.carrier() {
             geom::Curve3::Line { .. } => InfSpeed::new(T::one()),
             geom::Curve3::Circle { radius, .. } => InfSpeed::new(radius),
-            // The conic lane (M5 PR 5, C12.3): metered at the MINOR
-            // semi-axis — the conservative meter (|dP/dθ| ≥ minor), so
-            // a sub-span this gate accepts as definitely interior is
-            // truly clear of the endpoints in meters.
-            geom::Curve3::Ellipse { minor, .. } => InfSpeed::new(minor),
+            // The conic lane (M5 PR 5, C12.3): metered at the SMALLER
+            // semi-axis magnitude — the conservative meter
+            // (|dP/dθ| ≥ min(|a|, |b|)), so a sub-span this gate accepts
+            // as definitely interior is truly clear of the endpoints in
+            // meters. The stored semi-axes carry no order
+            // (`geom_brep::Conic`); it is `minor` in the ordinary order.
+            geom::Curve3::Ellipse { major, minor, .. } => {
+                InfSpeed::new(major.abs().min(minor.abs()))
+            }
             // The general rung (M5 PR 7, C12.3): a fitted SSI carrier
             // is metered at the CERTIFIED LOWER BOUND on ‖C′(t)‖ —
             // the same conservative posture as the conic lane's minor
@@ -293,8 +302,8 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
         let (spec1, spec2) = curve.split_specs(t);
-        let cert1 = self.certify_edge_spec(spec1, p_u, p_new, tol)?;
-        let cert2 = self.certify_edge_spec(spec2, p_new, p_v, tol)?;
+        let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, tol)?;
+        let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, tol)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's
         // stored chart row, restricted to the two children's
         // sub-intervals and re-certified. Read-only, so a refusal

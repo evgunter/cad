@@ -156,12 +156,21 @@ fn container_kind_title(kind: ContainerKind) -> &'static str {
 /// The status line for a referent the resolution machinery cannot
 /// place right now.
 ///
-/// The cause is rendered through its OWN `Display`: the layer that
-/// raised the indeterminacy names it, and this one contributes only
-/// the noun it is talking about. Named rather than composed inside the
-/// render pass so the wording has one home and can be asserted on.
-pub fn indeterminate_wording(noun: &str, cause: &editor_core::ResolveIndeterminate) -> String {
-    format!("this {noun} cannot be resolved right now: {cause}")
+/// The cause is said in its OWN words: the layer that raised the
+/// indeterminacy names it, and this one contributes only the noun it
+/// is talking about. Its node is said by `by`, which speaks for the
+/// document the cause's ids are spelled in. Named rather than composed
+/// inside the render pass so the wording has one home and can be
+/// asserted on.
+pub fn indeterminate_wording(
+    noun: &str,
+    cause: &editor_core::ResolveIndeterminate,
+    by: pncad::document::Speaker<'_>,
+) -> String {
+    format!(
+        "this {noun} cannot be resolved right now: {}",
+        pncad::document::Said(cause, by)
+    )
 }
 
 /// The most of the Features/Properties stack the feature tree is
@@ -404,7 +413,7 @@ pub struct ViewerApp {
     /// held_refused`), read by [`crate::frame::held_edges_badge`].
     /// Zeroed and assigned back every frame as
     /// [`Self::datums_vanished`] is.
-    held_edges_refused: Option<EdgeNamesRefused>,
+    held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
     ///
@@ -942,7 +951,12 @@ impl ViewerApp {
         // it did not survive, so the act that accepts the next one is
         // what retires it; `frame::tool_notice` reads from the event
         // whether the pick is lost for good.
-        self.notices.extend(dropped.iter().map(frame::tool_notice));
+        let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        self.notices.extend(
+            dropped
+                .iter()
+                .map(|notice| frame::tool_notice(notice, landed)),
+        );
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
         // build is never paid for, only avoided. `scene::fit_delta`
@@ -1202,12 +1216,19 @@ impl ViewerApp {
                 None if tool_edit => {
                     self.tools.close();
                     self.drafts.accepted(&accepted_op, &minted);
+                    self.drafts
+                        .creation_landed(self.session.committed_doc(), &minted);
                 }
                 // A form whose op committed comes to rest, for the
                 // tool's reason: a refusal leaves it holding its draft.
-                None => self.drafts.accepted(&accepted_op, &minted),
+                None => {
+                    self.drafts.accepted(&accepted_op, &minted);
+                    self.drafts
+                        .creation_landed(self.session.committed_doc(), &minted);
+                }
             }
         }
+        let refusal = frame::batch_refusal(refusal, &performed, self.session.committed_doc());
         let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
@@ -1417,45 +1438,47 @@ impl ViewerApp {
         egui::Window::new("Checks")
             .open(&mut open)
             .default_width(420.0)
-            .show(ctx, |ui| match self.session.checks() {
-                None => {
-                    ui.label("nothing has been checked yet");
-                }
-                Some(report) => {
-                    if report.findings.is_empty() {
-                        ui.label("checks: no findings");
+            .show(ctx, |ui| {
+                match self.session.checks().zip(self.session.landed_pair()) {
+                    None => {
+                        ui.label("nothing has been checked yet");
                     }
-                    for finding in &report.findings {
-                        ui.horizontal_top(|ui| {
-                            if ui
-                                .button(crate::tree::node_number(finding.root))
-                                .on_hover_text("select the root this finding is about")
-                                .clicked()
-                            {
-                                ops.push(SessionOp::Select(Selection::Node(finding.root)));
-                            }
-                            // A sentence, so `widgets::message`.
-                            crate::widgets::message(ui, finding.to_string());
-                        });
-                    }
-                    if !report.skipped.is_empty() {
-                        ui.separator();
-                        // A sentence too, and one whose length grows
-                        // with the number of checks turned off.
-                        crate::widgets::message_toned(
-                            ui,
-                            format!(
-                                "not run (severity Off): {}",
-                                report
-                                    .skipped
-                                    .iter()
-                                    .map(ToString::to_string)
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            ),
-                            &self.theme,
-                            frame::Tone::Advisory,
-                        );
+                    Some((report, (landed, _))) => {
+                        if report.findings.is_empty() {
+                            ui.label("checks: no findings");
+                        }
+                        for row in frame::check_rows(report, landed) {
+                            ui.horizontal_top(|ui| {
+                                if ui
+                                    .button(row.button)
+                                    .on_hover_text("select the root this finding is about")
+                                    .clicked()
+                                {
+                                    ops.push(SessionOp::Select(Selection::Node(row.root)));
+                                }
+                                // A sentence, so `widgets::message`.
+                                crate::widgets::message(ui, row.sentence);
+                            });
+                        }
+                        if !report.skipped.is_empty() {
+                            ui.separator();
+                            // A sentence too, and one whose length grows
+                            // with the number of checks turned off.
+                            crate::widgets::message_toned(
+                                ui,
+                                format!(
+                                    "not run (severity Off): {}",
+                                    report
+                                        .skipped
+                                        .iter()
+                                        .map(ToString::to_string)
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                ),
+                                &self.theme,
+                                frame::Tone::Advisory,
+                            );
+                        }
                     }
                 }
             });
@@ -1720,7 +1743,9 @@ impl ViewerApp {
             // gather" is true until another pair lands.
             //
             // Which faults reach it is `frame::badge_site`'s.
-            if let Some(badge) = frame::product_badge(self.session.product_fault()) {
+            if let Some((landed, _)) = self.session.landed_pair()
+                && let Some(badge) = frame::product_badge(self.session.product_fault(), landed)
+            {
                 draw_badge(ui, &self.theme, &badge);
             }
             // The display budget's: shown while the δ on screen is
@@ -1742,7 +1767,11 @@ impl ViewerApp {
             // (`frame::unindexed_refusal`).
             for badge in [
                 frame::scene_badge(self.scene_fault.as_ref()),
-                frame::index_badge(self.picks.error(), self.session.evaluation()),
+                frame::index_badge(
+                    self.picks.error(),
+                    self.session.doc(),
+                    self.session.landed_pair(),
+                ),
                 frame::projection_badge(self.projection_fault.as_ref()),
             ]
             .into_iter()
@@ -1768,7 +1797,10 @@ impl ViewerApp {
                 draw_badge(ui, &self.theme, &badge);
             }
             // And the held edges the mark could not tell held or not.
-            if let Some(badge) = frame::held_edges_badge(self.held_edges_refused.as_ref()) {
+            if let Some(badge) = frame::held_edges_badge(
+                self.held_edges_refused.as_ref(),
+                self.session.landed_pair().map(|(doc, _)| doc),
+            ) {
                 draw_badge(ui, &self.theme, &badge);
             }
             ui.separator();
@@ -1886,7 +1918,7 @@ impl eframe::App for ViewerApp {
         // the field last held.
         let mut datums_vanished = 0_usize;
         let mut profiles_undrawn = 0_usize;
-        let mut held_edges_refused: Option<EdgeNamesRefused> = None;
+        let mut held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>> = None;
         let mut delta_request: Option<DisplayTolerance> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -2001,7 +2033,12 @@ impl eframe::App for ViewerApp {
         // A declined pick answers an act the user aimed at the
         // document, like every other rank-2 notice this frame.
         let declined = self.tools.feed(self.session.doc(), &ops);
-        self.notices.extend(declined.iter().map(frame::tool_notice));
+        let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        self.notices.extend(
+            declined
+                .iter()
+                .map(|notice| frame::tool_notice(notice, landed)),
+        );
 
         self.perform_batch(ops);
     }
@@ -2109,7 +2146,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// What the index could not name on the held edge set's body
     /// ([`ViewerApp::held_edges_refused`]); zeroed by the frame entry
     /// point and written by the viewport, as `datums_vanished` is.
-    pub(crate) held_edges_refused: &'a mut Option<EdgeNamesRefused>,
+    pub(crate) held_edges_refused: &'a mut Option<frame::Spelled<EdgeNamesRefused>>,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
     /// produced. A pane that assigned `status` instead had no way to
@@ -3612,9 +3649,10 @@ mod properties_pane_tests {
         let (body, painted) = painted_with_tool(crate::tools::ToolKind::Boolean, |body| {
             vec![Selection::Node(body)]
         });
+        // The startup body is an extrude, spoken by its kind and tag.
         let line = format!(
-            "first operand: {}; second operand: —",
-            crate::tree::node_number(body)
+            "first operand: Extrude {}; second operand: —",
+            test_utils::refusal::tag(body.0)
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
@@ -3628,8 +3666,8 @@ mod properties_pane_tests {
             vec![Selection::Face(cap_of(body, pncad::prelude::CapEnd::End))]
         });
         let line = format!(
-            "pick a: face of {}; pick b: —",
-            crate::tree::node_number(body)
+            "pick a: face of Extrude {}; pick b: —",
+            test_utils::refusal::tag(body.0)
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
@@ -3852,10 +3890,24 @@ mod properties_pane_tests {
         }
     }
 
+    /// The startup plate's node at `at` in document order, read off the
+    /// startup document itself (`scene::plate_with_hole`): its frame,
+    /// its profile, its extrude.
+    fn startup_node(at: usize) -> RecipeNodeId {
+        let (doc, _) = crate::scene::plate_with_hole(pncad::tolerance::witness())
+            .expect("the startup document");
+        doc.order()[at]
+    }
+
     /// The startup plate's extrude, and its one slot.
-    const EXTRUDE: RecipeNodeId = RecipeNodeId(2);
+    fn extrude() -> RecipeNodeId {
+        startup_node(2)
+    }
+
     /// The startup plate's frame datum, whose origin is a vector.
-    const FRAME: RecipeNodeId = RecipeNodeId(0);
+    fn frame_datum() -> RecipeNodeId {
+        startup_node(0)
+    }
 
     /// An expression with no parameter in it: computed all the same,
     /// so the slot it drives has no written unit.
@@ -3891,18 +3943,18 @@ mod properties_pane_tests {
     fn a_driven_slots_unit_picker_is_disabled_with_the_refusal_it_would_get() {
         let mut pane = Driven::with(vec![
             SessionOp::SetSlotExpression {
-                node: EXTRUDE,
+                node: extrude(),
                 slot: SlotId::Distance,
                 text: COMPUTED.to_owned(),
             },
-            SessionOp::Select(Selection::Node(EXTRUDE)),
+            SessionOp::Select(Selection::Node(extrude())),
         ]);
-        let before = pane.row(EXTRUDE, SlotId::Distance);
+        let before = pane.row(extrude(), SlotId::Distance);
         assert!(before.driver.is_driven(), "the setup drove the slot");
         // No writable component, so no unit: the picker says what the
         // slot is instead.
         let gained = pane.gained_hovering("computed");
-        let said = refusal_for(&pane, EXTRUDE, SlotId::Distance);
+        let said = refusal_for(&pane, extrude(), SlotId::Distance);
         assert_eq!(
             gained,
             vec![said.clone()],
@@ -3912,8 +3964,11 @@ mod properties_pane_tests {
         // reader gets for this row.
         assert_eq!(
             said,
-            "the distance slot on node 2 is computed, so it has no written unit to change — \
-             set an expression to change what it says"
+            format!(
+                "the distance slot on Extrude {} is computed, so it has no written unit to change \
+                 — set an expression to change what it says",
+                extrude()
+            )
         );
         pane.click("computed");
         let after = pane.quiet();
@@ -3921,7 +3976,7 @@ mod properties_pane_tests {
             !after.iter().any(|(run, _)| run == "mm"),
             "a refused picker does not open: {after:?}"
         );
-        assert_eq!(pane.row(EXTRUDE, SlotId::Distance), before);
+        assert_eq!(pane.row(extrude(), SlotId::Distance), before);
     }
 
     /// A seam that answers a request only on the poll after
@@ -4004,7 +4059,7 @@ mod properties_pane_tests {
     #[test]
     fn a_hover_diff_waits_for_a_run_that_lands_between_its_frames() {
         let mut pane =
-            Driven::with_seams(vec![SessionOp::Select(Selection::Node(EXTRUDE))], |app| {
+            Driven::with_seams(vec![SessionOp::Select(Selection::Node(extrude()))], |app| {
                 let tol = pncad::tolerance::witness();
                 app.session = crate::session::DocSession::new(
                     app.session.doc().clone(),
@@ -4034,12 +4089,12 @@ mod properties_pane_tests {
     /// owed where the op would accept.
     #[test]
     fn a_literal_slots_unit_picker_opens_and_says_nothing() {
-        let mut pane = Driven::with(vec![SessionOp::Select(Selection::Node(EXTRUDE))]);
+        let mut pane = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
         assert!(pane.gained_hovering("m").is_empty());
         pane.click("m");
         pane.click("mm");
         assert_eq!(
-            pane.row(EXTRUDE, SlotId::Distance).unit,
+            pane.row(extrude(), SlotId::Distance).unit,
             Some(pncad::prelude::MM.def())
         );
     }
@@ -4059,28 +4114,34 @@ mod properties_pane_tests {
         let mm = pncad::prelude::MM.def();
         let mut pane = Driven::with(vec![
             SessionOp::SetSlotUnit {
-                node: FRAME,
+                node: frame_datum(),
                 slot: SlotId::Origin(Axis3::X),
                 unit: mm,
             },
             SessionOp::SetSlotUnit {
-                node: FRAME,
+                node: frame_datum(),
                 slot: SlotId::Origin(Axis3::Y),
                 unit: mm,
             },
             SessionOp::SetSlotExpression {
-                node: FRAME,
+                node: frame_datum(),
                 slot: SlotId::Origin(Axis3::Z),
                 text: COMPUTED.to_owned(),
             },
-            SessionOp::Select(Selection::Node(FRAME)),
+            SessionOp::Select(Selection::Node(frame_datum())),
         ]);
-        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::X)).unit, Some(mm));
-        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::Y)).unit, Some(mm));
-        let z = pane.row(FRAME, SlotId::Origin(Axis3::Z));
+        assert_eq!(
+            pane.row(frame_datum(), SlotId::Origin(Axis3::X)).unit,
+            Some(mm)
+        );
+        assert_eq!(
+            pane.row(frame_datum(), SlotId::Origin(Axis3::Y)).unit,
+            Some(mm)
+        );
+        let z = pane.row(frame_datum(), SlotId::Origin(Axis3::Z));
         assert!(z.driver.is_driven(), "the setup drove z");
         let gained = pane.gained_hovering("mm");
-        let said = refusal_for(&pane, FRAME, SlotId::Origin(Axis3::Z));
+        let said = refusal_for(&pane, frame_datum(), SlotId::Origin(Axis3::Z));
         assert_eq!(
             gained,
             vec![format!(
@@ -4090,16 +4151,25 @@ mod properties_pane_tests {
         );
         assert_eq!(
             said,
-            "the origin z slot on node 0 is computed, so it has no written unit to change — \
-             set an expression to change what it says"
+            format!(
+                "the origin z slot on Datum frame {} is computed, so it has no written unit to \
+                 change — set an expression to change what it says",
+                frame_datum()
+            )
         );
         pane.click("mm");
         pane.click("cm");
         let cm = pncad::prelude::CM.def();
-        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::X)).unit, Some(cm));
-        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::Y)).unit, Some(cm));
         assert_eq!(
-            pane.row(FRAME, SlotId::Origin(Axis3::Z)),
+            pane.row(frame_datum(), SlotId::Origin(Axis3::X)).unit,
+            Some(cm)
+        );
+        assert_eq!(
+            pane.row(frame_datum(), SlotId::Origin(Axis3::Y)).unit,
+            Some(cm)
+        );
+        assert_eq!(
+            pane.row(frame_datum(), SlotId::Origin(Axis3::Z)),
             z,
             "z is not the pick's"
         );
@@ -4120,13 +4190,13 @@ mod properties_pane_tests {
         let source = vec!["1 mm"; 40].join(" + ");
         let mut pane = Driven::with(vec![
             SessionOp::SetSlotExpression {
-                node: EXTRUDE,
+                node: extrude(),
                 slot: SlotId::Distance,
                 text: source.clone(),
             },
-            SessionOp::Select(Selection::Node(EXTRUDE)),
+            SessionOp::Select(Selection::Node(extrude())),
         ]);
-        let row = pane.row(EXTRUDE, SlotId::Distance);
+        let row = pane.row(extrude(), SlotId::Distance);
         assert_eq!(row.source.as_deref(), Some(source.as_str()));
         let field = crate::props::field_text(&row, pane.app.session.notation());
         assert_eq!(field, "= 0.04 m");
@@ -4161,17 +4231,17 @@ mod properties_pane_tests {
             .iter()
             .zip(sources)
             .map(|(axis, source)| SessionOp::SetSlotExpression {
-                node: FRAME,
+                node: frame_datum(),
                 slot: SlotId::Origin(*axis),
                 text: source.to_owned(),
             })
             .collect();
-        ops.push(SessionOp::Select(Selection::Node(FRAME)));
+        ops.push(SessionOp::Select(Selection::Node(frame_datum())));
         let mut pane = Driven::with(ops);
         let history = pane.app.session.history().len();
         for (axis, source) in axes.iter().zip(sources) {
             let shown = crate::props::field_text(
-                &pane.row(FRAME, SlotId::Origin(*axis)),
+                &pane.row(frame_datum(), SlotId::Origin(*axis)),
                 pane.app.session.notation(),
             );
             pane.click(&shown);
@@ -4211,29 +4281,34 @@ mod properties_pane_tests {
         let mut ops: Vec<SessionOp> = axes
             .iter()
             .map(|axis| SessionOp::SetSlotExpression {
-                node: FRAME,
+                node: frame_datum(),
                 slot: SlotId::Origin(*axis),
                 text: COMPUTED.to_owned(),
             })
             .collect();
-        ops.push(SessionOp::Select(Selection::Node(FRAME)));
+        ops.push(SessionOp::Select(Selection::Node(frame_datum())));
         let mut pane = Driven::with(ops);
         let before: Vec<_> = axes
             .iter()
-            .map(|axis| pane.row(FRAME, SlotId::Origin(*axis)))
+            .map(|axis| pane.row(frame_datum(), SlotId::Origin(*axis)))
             .collect();
         assert!(before.iter().all(|row| row.driver.is_driven()));
         let gained = pane.gained_hovering("computed");
         let said: Vec<String> = axes
             .iter()
-            .map(|axis| refusal_for(&pane, FRAME, SlotId::Origin(*axis)))
+            .map(|axis| refusal_for(&pane, frame_datum(), SlotId::Origin(*axis)))
             .collect();
         assert_eq!(gained, vec![said.join("\n")]);
+        let node = frame_datum();
         assert!(
-            gained[0].starts_with(
-                "the origin x slot on node 0 is computed, so it has no written unit to change"
-            ) && gained[0].contains("\nthe origin y slot on node 0 is computed")
-                && gained[0].contains("\nthe origin z slot on node 0 is computed"),
+            gained[0].starts_with(&format!(
+                "the origin x slot on Datum frame {node} is computed, so it has no written unit \
+                 to change"
+            )) && gained[0].contains(&format!(
+                "\nthe origin y slot on Datum frame {node} is computed"
+            )) && gained[0].contains(&format!(
+                "\nthe origin z slot on Datum frame {node} is computed"
+            )),
             "{gained:?}"
         );
         pane.click("computed");
@@ -4244,7 +4319,7 @@ mod properties_pane_tests {
         );
         let now: Vec<_> = axes
             .iter()
-            .map(|axis| pane.row(FRAME, SlotId::Origin(*axis)))
+            .map(|axis| pane.row(frame_datum(), SlotId::Origin(*axis)))
             .collect();
         assert_eq!(now, before);
     }
@@ -4512,7 +4587,7 @@ mod properties_pane_tests {
             });
             driven.settle();
             driven.click(crate::pane::create::ADD_FEATURE);
-            let top = cap_of(EXTRUDE, pncad::prelude::CapEnd::End);
+            let top = cap_of(extrude(), pncad::prelude::CapEnd::End);
             driven.select(Selection::Face(top.clone()));
             assert_eq!(
                 driven.app.drafts.datum_face.as_ref(),
@@ -4536,7 +4611,7 @@ mod properties_pane_tests {
         use pncad::prelude::CapEnd;
         const NONE: u32 = IdMap::NOTHING;
         let (mut driven, top) = Driven::holding_the_top_cap();
-        let bottom = cap_of(EXTRUDE, CapEnd::Start);
+        let bottom = cap_of(extrude(), CapEnd::Start);
         let (top_id, bottom_id) = (driven.patch_of(&top), driven.patch_of(&bottom));
         let marked = driven.marks();
         assert_eq!(
@@ -4595,7 +4670,7 @@ mod properties_pane_tests {
         };
         assert!(!said(&mut driven), "a drawn held face is not refused");
         driven.perform(SessionOp::AddTransform {
-            input: EXTRUDE,
+            input: extrude(),
             translation: [len(0.05), len(0.0), len(0.0)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
             rotation_angle: ang(0.0),
@@ -4650,8 +4725,8 @@ mod properties_pane_tests {
         const NONE: u32 = IdMap::NOTHING;
         let mut driven = Driven::with(Vec::new());
         driven.settle();
-        let a = cap_of(EXTRUDE, CapEnd::End);
-        let b = cap_of(EXTRUDE, CapEnd::Start);
+        let a = cap_of(extrude(), CapEnd::End);
+        let b = cap_of(extrude(), CapEnd::Start);
         let (a_id, b_id) = (driven.patch_of(&a), driven.patch_of(&b));
         driven.app.tools.open(crate::tools::ToolKind::Mate);
         driven.click_through(vec![
@@ -4679,7 +4754,7 @@ mod properties_pane_tests {
         let edge = {
             let index = driven.on_screen();
             let id = *index
-                .edges_in(EXTRUDE, 0)
+                .edges_in(extrude(), 0)
                 .first()
                 .expect("the extrude draws edges");
             crate::session::EdgeSelection {
@@ -4687,7 +4762,7 @@ mod properties_pane_tests {
                     .edge_name_of(id)
                     .expect("a drawn edge is named")
                     .clone(),
-                node: EXTRUDE,
+                node: extrude(),
                 body: 0,
             }
         };
@@ -4715,13 +4790,13 @@ mod properties_pane_tests {
         driven.settle();
         let (edge, drawn) = {
             let index = driven.on_screen();
-            let drawn = index.edges_in(EXTRUDE, 0).to_vec();
+            let drawn = index.edges_in(extrude(), 0).to_vec();
             let edge = crate::session::EdgeSelection {
                 name: index
                     .edge_name_of(drawn[0])
                     .expect("a drawn edge is named")
                     .clone(),
-                node: EXTRUDE,
+                node: extrude(),
                 body: 0,
             };
             (edge, drawn)
@@ -4741,13 +4816,22 @@ mod properties_pane_tests {
             .expect("the settled app holds an index")
             .unname_edge(drawn[1]);
         let refused = crate::pickindex::EdgeNamesRefused {
-            node: EXTRUDE,
+            node: extrude(),
             body: 0,
             first,
             named: drawn.len() - 1,
             refused: 1,
         };
-        let badge = crate::frame::held_edges_badge(Some(&refused)).expect("a refusal badges");
+        let (landed, _) = driven.app.session.landed_pair().expect("the plate lands");
+        let refused_said =
+            pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
+        assert!(
+            refused_said.contains("of Extrude"),
+            "the refusal's node is said as the landed document holds it: {refused_said}"
+        );
+        let spelled = crate::frame::Spelled::in_landed(refused.clone(), Some(landed));
+        let badge =
+            crate::frame::held_edges_badge(Some(&spelled), Some(landed)).expect("a refusal badges");
         let badged = driven.quiet();
         assert!(
             badged.iter().any(|(run, _)| run == badge.label()),
@@ -4782,7 +4866,7 @@ mod properties_pane_tests {
             .map(|(run, _)| run)
             .find(|run| run.contains("the tool loaded no edges:"))
             .unwrap_or_else(|| panic!("the refused load is on the line: {said:?}"));
-        assert!(line.contains(&refused.to_string()), "{line}");
+        assert!(line.contains(&refused_said), "{line}");
         assert!(!line.contains("has no edges to select"), "{line}");
         assert_eq!(
             driven.app.tools.blend().map(crate::blend::BlendTool::count),
@@ -4805,6 +4889,180 @@ mod properties_pane_tests {
                 .iter()
                 .any(|(run, _)| run.starts_with("held edges:")),
             "a badge with nothing held is gone: {cleared:?}"
+        );
+    }
+
+    /// A seam that lands a request only while `open` is set: a run held
+    /// back for as long as a row wants the landed document behind the
+    /// shown one.
+    struct Gated {
+        inner: crate::evalseam::InlineEvaluator,
+        open: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl crate::evalseam::EvalService for Gated {
+        fn submit(&mut self, request: crate::evalseam::EvalRequest) {
+            self.inner.submit(request);
+        }
+
+        fn cancel(&mut self) {
+            self.inner.cancel();
+        }
+
+        fn poll(&mut self) -> Option<crate::evalseam::EvalDone> {
+            if self.open.load(std::sync::atomic::Ordering::SeqCst) {
+                self.inner.poll()
+            } else {
+                None
+            }
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    /// The startup app over a [`Gated`] seam, open, and the gate.
+    fn gated() -> (Driven, std::sync::Arc<std::sync::atomic::AtomicBool>) {
+        let open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let gate = std::sync::Arc::clone(&open);
+        let driven = Driven::with_seams(Vec::new(), |app| {
+            app.session = crate::session::DocSession::new(
+                app.session.doc().clone(),
+                pncad::tolerance::witness(),
+                Box::new(Gated {
+                    inner: crate::evalseam::InlineEvaluator::new(),
+                    open: gate,
+                }),
+            );
+        });
+        (driven, open)
+    }
+
+    /// `text` as a node's label.
+    fn label(text: &str) -> Option<pncad::document::Label> {
+        Some(pncad::document::Label::new(text).expect("a label"))
+    }
+
+    /// **The rename `shown plate` committed and held behind `gate`**,
+    /// two frames drawn after it: what they painted, and the extrude
+    /// as the landed document still says it.
+    fn renamed_behind(
+        driven: &mut Driven,
+        gate: &std::sync::atomic::AtomicBool,
+    ) -> (Vec<(String, egui::Rect)>, String) {
+        gate.store(false, std::sync::atomic::Ordering::SeqCst);
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("shown plate"),
+        }]);
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let drawn = driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven
+                .app
+                .session
+                .doc()
+                .spoken(extrude())
+                .to_string()
+                .contains("shown plate"),
+            "the shown document is ahead of the landed one"
+        );
+        let landed = driven
+            .app
+            .session
+            .landed_pair()
+            .expect("the earlier run stays landed")
+            .0
+            .spoken(extrude())
+            .to_string();
+        assert!(landed.contains("landed plate"), "{landed}");
+        (drawn, landed)
+    }
+
+    /// **The pick path speaks from the landed document, not the shown
+    /// one.** A rename committed while its run is held leaves the shown
+    /// document ahead of the landed one; the blend panel's target line
+    /// and the held mark's badge say the label the landed run's ids
+    /// were read in, which is the label the picture they describe was
+    /// drawn under.
+    #[test]
+    fn the_pick_path_says_the_landed_label_while_a_rename_has_not_landed() {
+        let (mut driven, open) = gated();
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("landed plate"),
+        }]);
+        driven.settle();
+        let (edge, unnamed) = {
+            let index = driven.on_screen();
+            let drawn = index.edges_in(extrude(), 0).to_vec();
+            let edge = crate::session::EdgeSelection {
+                name: index
+                    .edge_name_of(drawn[0])
+                    .expect("a drawn edge is named")
+                    .clone(),
+                node: extrude(),
+                body: 0,
+            };
+            (edge, drawn[1])
+        };
+        driven.app.tools.open(crate::tools::ToolKind::Blend);
+        driven.click_through(vec![Selection::Edge(edge)]);
+        driven
+            .app
+            .picks
+            .index_mut()
+            .expect("the settled app holds an index")
+            .unname_edge(unnamed);
+        driven.quiet();
+        driven.click(crate::pane::create::BLEND_EDGES);
+        driven.quiet();
+
+        let (drawn, landed) = renamed_behind(&mut driven, &open);
+        for prefix in ["1 edges picked on ", "held edges:"] {
+            let line = drawn
+                .iter()
+                .map(|(run, _)| run)
+                .find(|run| run.starts_with(prefix))
+                .unwrap_or_else(|| panic!("{prefix:?} is drawn: {drawn:?}"));
+            assert!(
+                line.contains(&landed) && !line.contains("shown plate"),
+                "{prefix:?} says the landed label: {line}"
+            );
+        }
+    }
+
+    /// **The selection's verdict speaks from the landed document, not
+    /// the shown one**: the standing is asked of the landed run, so a
+    /// picked face that no longer resolves names its minting node by
+    /// the label that run's ids were read in while a rename is held.
+    #[test]
+    fn the_selections_verdict_says_the_landed_label_while_a_rename_has_not_landed() {
+        let (mut driven, open) = gated();
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("landed plate"),
+        }]);
+        driven.settle();
+        let mut gone = cap_of(extrude(), pncad::prelude::CapEnd::End);
+        gone.name
+            .path
+            .push(pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Select(Selection::Face(gone))]);
+        driven.quiet();
+
+        let (drawn, landed) = renamed_behind(&mut driven, &open);
+        let line = drawn
+            .iter()
+            .map(|(run, _)| run)
+            .find(|run| run.starts_with("this face is gone: "))
+            .unwrap_or_else(|| panic!("the verdict is drawn: {drawn:?}"));
+        assert!(
+            line.contains(&landed) && !line.contains("shown plate"),
+            "the verdict says the landed label: {line}"
         );
     }
 }

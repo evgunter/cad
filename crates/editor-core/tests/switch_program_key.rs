@@ -54,11 +54,11 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
     with_frame(doc)
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane: plane(),
                     loops,
                     ids: Vec::new(),
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -72,7 +72,9 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
 /// two of these documents can only have come from their programs.
 fn with_frame(doc: ProfileDoc) -> ProfileDoc {
     doc.apply(
-        &DocEdit::InsertNode { node: xy_frame() },
+        &DocEdit::InsertNode {
+            node: Box::new(xy_frame()),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -177,14 +179,14 @@ fn resolved_values_feed_the_key() {
         with_frame(doc)
             .apply(
                 &DocEdit::InsertNode {
-                    node: Node::Profile(ProfileProgram {
+                    node: Box::new(Node::Profile(ProfileProgram {
                         plane: plane(),
                         loops: vec![LoopProgram::Circle {
                             centre: [len(0.0), len(0.0)],
                             radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
                         }],
                         ids: Vec::new(),
-                    }),
+                    })),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
@@ -229,7 +231,7 @@ fn a_carrier_centre_respelled_keys_identically() {
     let parameterized = with_frame(doc)
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane: plane(),
                     loops: vec![LoopProgram::Circle {
                         centre: [
@@ -239,7 +241,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                         radius: len(0.5),
                     }],
                     ids: Vec::new(),
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -292,11 +294,11 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
     with_frame(doc)
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane: plane(),
                     loops,
                     ids: Vec::new(),
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

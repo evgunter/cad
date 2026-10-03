@@ -10,6 +10,7 @@
 )]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
@@ -58,6 +59,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -69,14 +71,14 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl) = declare_x_offset_flush(doc, a, b);
+    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -124,7 +126,7 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         let inner = minted(
             EntityKind::Face,
             node,
-            RoleSeg::Lateral(crate::fixture::piece(&doc, node, 0, seg as usize)),
+            RoleSeg::Lateral(crate::fixture::piece(&doc, node, 0, seg as usize).into()),
         );
         let seg = if wrap_a {
             RoleSeg::FromA(inner.into())
@@ -179,7 +181,7 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -252,6 +254,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
@@ -260,7 +263,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -286,6 +289,19 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
 
 // ---- Flip localization (D5), node-granular and counted. ----
 
+/// `node`'s translation along x, value-edited to `to`: every id stays.
+fn slide(doc: ProfileDoc, node: RecipeNodeId, to: f64) -> ProfileDoc {
+    fixture::step(
+        doc,
+        editor_core::DocEdit::SetParam {
+            node,
+            slot: editor_core::SlotId::Translation(editor_core::Axis3::X),
+            expr: len(to),
+        },
+    )
+    .0
+}
+
 #[test]
 fn no_flip_translation_edit_leaves_every_table_identical() {
     // B placed by a Transform whose translation is the edited knob.
@@ -305,23 +321,22 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
             ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.
-        let (doc, decl) = declare_x_offset_flush_at(doc, (a, a), (tb, b0));
+        let decl = declare_x_offset_flush_at(&doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
                 a,
                 b: tb,
-                declare: Some(decl),
+                declare: decl,
             },
         );
-        (doc, u)
+        (doc, u, tb)
     };
-    // 0.5 → 0.25: still overlapping, same verdict vector ⇒ N4 demands
-    // IDENTICAL tables everywhere (names AND keys).
-    let (doc1, u1) = build(0.5);
-    let (doc2, u2) = build(0.25);
-    assert_eq!(u1, u2);
+    // 0.5 → 0.25, a value edit: still overlapping, same verdict vector
+    // ⇒ N4 demands IDENTICAL tables everywhere (names AND keys).
+    let (doc1, _, tb) = build(0.5);
+    let doc2 = slide(doc1.clone(), tb, 0.25);
     let ev1 = run(&doc1);
     let ev2 = run(&doc2);
     let mut changed = 0usize;
@@ -351,23 +366,23 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
             ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.
-        let (doc, decl) = declare_x_offset_flush_at(doc, (a, a), (tb, b0));
+        let decl = declare_x_offset_flush_at(&doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
                 a,
                 b: tb,
-                declare: Some(decl),
+                declare: decl,
             },
         );
-        (doc, u)
+        (doc, u, tb)
     };
     // 0.5 (overlapping, Seamed) → 2.5 (disjoint, Assembly): verdicts
     // flip AT THE BOOLEAN; every upstream derivation is untouched, so
     // exactly one node's table may change (counted, not vibes).
-    let (doc1, u1) = build(0.5);
-    let (doc2, u2) = build(2.5);
+    let (doc1, u1, tb) = build(0.5);
+    let (doc2, u2) = (slide(doc1.clone(), tb, 2.5), u1);
     let ev1 = run(&doc1);
     let ev2 = run(&doc2);
     let changed: Vec<RecipeNodeId> = ev1
@@ -377,7 +392,6 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
         .filter(|id| table(&ev1, *id) != table(&ev2, *id))
         .collect();
     assert_eq!(changed, vec![u1], "flip cone wider than the boolean");
-    assert_eq!(u1, u2);
     // And the flipped table's names differ in SHAPE: the disjoint
     // union has no fragments at all.
     assert!(

@@ -38,6 +38,7 @@
 
 use crate::common::operands::pellet;
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
@@ -186,9 +187,16 @@ fn assembly_flip_is_wrong_but_nonzero() {
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cuboid = extrude(&vp, Extrusion::Distance(3.0), Tol::witness())
-        .unwrap()
-        .body;
+    let cuboid = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 3.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let r = topo::boolean::union(&ball, &cuboid, Tol::witness()).unwrap();
     let body = &r.body().expect("a disjoint assembly is a body").body;
     let honest = topo::mass_properties(body, Tol::witness()).unwrap();
@@ -233,9 +241,16 @@ fn tier_three_refusal_is_surgical() {
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let body = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     assert_eq!(
         topo::validate::validate_geometric(&body, Tol::witness()),
         Ok(())
@@ -279,7 +294,15 @@ fn mixed_turn_arcs() -> sweep::Extruded<f64> {
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap()
+    extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// **Construction row (M5 S11, flipped from S10's finding).**
@@ -307,7 +330,7 @@ fn fixed_concave_arc_wall_sense_is_false() {
     // (1) The concave wall's material is OUTSIDE its cylinder, and
     // exactly that wall carries the reversed bit.
     let mut saw_concave = false;
-    for &fk in &t.side_faces[0] {
+    for &fk in &t.side_faces()[0] {
         let sk = t.body.get_face(fk).unwrap().surface;
         let Surface::Cylinder { origin, radius, .. } = *t.body.get_surface(sk).unwrap() else {
             // Planar walls stay `true` (Newell-outward by
@@ -639,9 +662,16 @@ fn washer() -> Body<f64> {
     let prof = Profile::new(SketchPlane::xy(), vec![circle(1.0), circle(0.5)])
         .validate(Tol::witness())
         .expect("the washer profile validates");
-    extrude(&prof, Extrusion::Distance(1.0), Tol::witness())
-        .expect("the washer extrudes")
-        .body
+    extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the washer extrudes")
+    .body
 }
 
 /// **A ring carrying an arc refuses too.** Each cap of the extruded
@@ -708,9 +738,16 @@ fn notched_slab() -> Body<f64> {
     let prof = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the notched profile validates");
-    extrude(&prof, Extrusion::Distance(0.1), Tol::witness())
-        .expect("the notched slab extrudes")
-        .body
+    extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: 0.1,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the notched slab extrudes")
+    .body
 }
 
 /// **The arc term's magnitude is pinned, not only its sign.** The
@@ -896,9 +933,16 @@ fn a_convex_arc_c_shape_cap_is_minted_inside_out_and_check_6_refuses_it() {
     let prof = Profile::new(SketchPlane::xy(), c_shape(0.0))
         .validate(tol)
         .expect("the C-shape is a valid counterclockwise profile");
-    let extruded = extrude(&prof, Extrusion::Distance(1.0), tol)
-        .expect("extrude builds the C-shape")
-        .body;
+    let extruded = extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("extrude builds the C-shape")
+    .body;
     let lofted = sweep::loft_body::<f64>(
         &[c_shape(0.0), c_shape(0.0)],
         &crate::common::stacked(&[0.0, 1.0], 1.0),

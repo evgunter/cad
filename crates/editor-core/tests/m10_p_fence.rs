@@ -54,6 +54,10 @@
 //! off the hosted `interval` lane, which is the only place this
 //! workspace builds that backend.
 //!
+//! **The stream hashes each node's id and walks the nodes in id
+//! order**, so a change to how the mint draws ids moves all three
+//! numbers with no point moving.
+//!
 //! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
 //! the `f64` one did not. Point parameter recovery on a periodic
 //! carrier used to be spelled three times, two of them SELECTING a `2π`
@@ -151,6 +155,14 @@
 //! re-checked: the exact mass pins, the realized-vs-idealized bit
 //! equality, the curved and cert corpora, and the persistence round
 //! trip all hold.
+//!
+//! RE-BLESSED FOR DECLARED PAIRS AS A BOOLEAN'S OWN PAYLOAD, a
+//! structural move: a boolean's or union's declared pairs stopped
+//! being a separate node, so every declaring document lost its
+//! declaration nodes' outcomes from the stream and every node minted
+//! after one was renumbered. The geometric evidence the paragraph below
+//! names (`exact_mass_pins_hold`, the corpus transform digests, which
+//! held bit for bit on every transform that kept its id) is unchanged.
 //!
 //! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
 //! measured by the removal procedure below — which is why it is written
@@ -409,6 +421,13 @@
 //! change, differs in those four documents' arena order and nowhere
 //! else. The `interval` row moved for the same reason and was read off
 //! the hosted `interval` lane.
+//!
+//! RE-BLESSED, ALL THREE ROWS, WHEN AN OP'S COPIES OF ONE VERTEX CAME
+//! TO SHARE ITS POINT (D1 tier 3′). `mev_null` no longer mints a point
+//! for the copy, so later points land in other arena slots and the
+//! ARENA-order stream moved. The POINT SETS did not: a scratch dump of
+//! every corpus body's sorted vertex positions and its vertex, edge,
+//! face and point counts is identical before and after the change.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -463,7 +482,8 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
         j: usize,
         x: T,
         y: T,
-        bulge: T,
+        /// The leaving segment's stored sweep; zero for a line.
+        sweep: T,
     },
     /// Fixture program `i` refused at this scalar.
     FixtureRefused(usize),
@@ -572,10 +592,10 @@ where
             d.text("ok");
             d.u64(vertices as u64);
         }
-        Seen::FixtureVertex { x, y, bulge, .. } => {
+        Seen::FixtureVertex { x, y, sweep, .. } => {
             scalar(&mut d, x);
             scalar(&mut d, y);
-            scalar(&mut d, bulge);
+            scalar(&mut d, sweep);
         }
         Seen::FixtureRefused(_) => d.text("refused"),
         Seen::Document(name) => d.text(name),
@@ -661,17 +681,22 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)
             .collect();
         match profile::replay(&steps, Tol::witness()) {
             Ok(lp) => {
+                let lp = lp.as_loop();
                 seen(Seen::FixtureLoop {
                     i,
                     vertices: lp.vertices().len(),
                 });
-                for (j, (v, &bulge)) in lp.vertices().iter().zip(lp.bulges()).enumerate() {
+                for (j, (v, s)) in lp.vertices().iter().zip(lp.segments()).enumerate() {
+                    let sweep = match s {
+                        profile::Segment::Line => T::zero(),
+                        profile::Segment::Arc(arc) => arc.sweep,
+                    };
                     seen(Seen::FixtureVertex {
                         i,
                         j,
                         x: v.x,
                         y: v.y,
-                        bulge,
+                        sweep,
                     });
                 }
             }
@@ -683,7 +708,7 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)
 }
 
 fn f64_bits(d: &mut Digest, p: &geom_core::Point3<f64>) {
-    for c in [p.x, p.y, p.z] {
+    for c in p.to_array() {
         d.u64(c.to_bits());
     }
 }
@@ -696,7 +721,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x1d88_8859_88d9_dd79, 0x2657_da95_5bf0_b3b5),
+        (0x458d_97fb_11a1_d19a, 0xc786_dfaf_c59b_ca6e),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -709,7 +734,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
     let got = corpus_digest::<Interval, _, _>(
         |d, p| {
-            for c in [p.x, p.y, p.z] {
+            for c in p.to_array() {
                 d.u64(c.lo().to_bits());
                 d.u64(c.hi().to_bits());
             }
@@ -722,7 +747,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x74fc_91e2_8365_51d5, 0xa1ee_304e_4eba_df89),
+        (0x9502_c488_ae26_81a8, 0x09a9_49e7_a4a7_2704),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -734,7 +759,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     use geom_core::Probe;
     let got = corpus_digest::<Probe, _, _>(
         |d, p| {
-            for c in [p.x, p.y, p.z] {
+            for c in p.to_array() {
                 d.u64(c.0.to_bits());
             }
         },
@@ -746,7 +771,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x1d88_8859_88d9_dd79, 0x2657_da95_5bf0_b3b5),
+        (0x458d_97fb_11a1_d19a, 0xc786_dfaf_c59b_ca6e),
         "the corpus's Probe evaluation moved"
     );
 }

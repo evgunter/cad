@@ -24,6 +24,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use std::sync::Arc;
 
@@ -266,6 +267,7 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
         Node::Extrude {
             profile,
             distance: common::len(0.02),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -310,7 +312,7 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
         "the registry has no subject and says so by reporting nothing"
     );
     assert!(
-        viewer::frame::product_badge(session.product_fault()).is_some(),
+        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_some(),
         "this IS the fault channel's own case"
     );
     assert!(session.at_rest().is_none(), "a part has no A5 badge");
@@ -336,7 +338,7 @@ fn a_document_with_no_body_lands_a_clean_report() {
         session.product_fault()
     );
     assert!(
-        viewer::frame::product_badge(session.product_fault()).is_none(),
+        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_none(),
         "which the badge channel deliberately stays quiet about"
     );
     let report = session.checks().expect("the registry still reports");
@@ -425,6 +427,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
             profile,
             distance: Expr::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

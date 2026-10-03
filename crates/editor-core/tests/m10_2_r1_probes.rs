@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -45,7 +46,9 @@ fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Profil
 fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -60,7 +63,7 @@ fn no_params() -> editor_core::ParamEnv<f64> {
 fn faces_of_kind(
     ev: &Evaluation<f64>,
     body: RecipeNodeId,
-    kind: geom_brep::SurfaceKind,
+    kind: geom::SurfaceKind,
 ) -> Vec<StableName> {
     let mut faces = select_where(
         ev,
@@ -142,6 +145,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, slab)
@@ -151,14 +155,13 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
 /// door: the faces whose carrier axis is ±ẑ. Returned bottom (z≈0)
 /// first.
 fn caps(ev: &Evaluation<f64>, slab: RecipeNodeId) -> [StableName; 2] {
-    let mut z_faces: Vec<(f64, StableName)> =
-        faces_of_kind(ev, slab, geom_brep::SurfaceKind::Plane)
-            .into_iter()
-            .filter_map(|name| {
-                let pose = face_frame(ev, slab, &name).expect("a plane face has a frame");
-                (pose.axis.z.abs() > 0.99).then_some((pose.origin.z, name))
-            })
-            .collect();
+    let mut z_faces: Vec<(f64, StableName)> = faces_of_kind(ev, slab, geom::SurfaceKind::Plane)
+        .into_iter()
+        .filter_map(|name| {
+            let pose = face_frame(ev, slab, &name).expect("a plane face has a frame");
+            (pose.axis.z.abs() > 0.99).then_some((pose.origin.z, name))
+        })
+        .collect();
     z_faces.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     assert_eq!(z_faces.len(), 2, "a slab has two z-normal caps");
     let mut it = z_faces.into_iter().map(|(_, n)| n);
@@ -290,7 +293,7 @@ fn r1_plane_angles_have_the_authored_values() {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let all_planes = faces_of_kind(&ev, slab, geom_brep::SurfaceKind::Plane);
+    let all_planes = faces_of_kind(&ev, slab, geom::SurfaceKind::Plane);
     let x_wall = all_planes
         .iter()
         .find(|n| {
@@ -457,11 +460,11 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
         let (doc, socket) = ball(&doc, 1.0, 0.0);
         let (doc, pin) = ball(&doc, 0.25, c);
         let ev = eval(&doc);
-        let socket_face = faces_of_kind(&ev, socket, geom_brep::SurfaceKind::Sphere)
+        let socket_face = faces_of_kind(&ev, socket, geom::SurfaceKind::Sphere)
             .first()
             .expect("the socket revolve mints a sphere face")
             .clone();
-        let ball_face = faces_of_kind(&ev, pin, geom_brep::SurfaceKind::Sphere)
+        let ball_face = faces_of_kind(&ev, pin, geom::SurfaceKind::Sphere)
             .first()
             .expect("the ball revolve mints a sphere face")
             .clone();
@@ -505,6 +508,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
         Node::Extrude {
             profile: p1,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, p2) = insert(&doc, circle(off, pin_r));
@@ -513,6 +517,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
         Node::Extrude {
             profile: p2,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let _ = p2;
@@ -530,7 +535,7 @@ fn at_mint<const N: usize>(names: [StableName; N]) -> Vec<SitedRef> {
 }
 
 fn wall(ev: &Evaluation<f64>, node: RecipeNodeId) -> StableName {
-    faces_of_kind(ev, node, geom_brep::SurfaceKind::Cylinder)
+    faces_of_kind(ev, node, geom::SurfaceKind::Cylinder)
         .first()
         .expect("a circular extrude mints a cylinder wall")
         .clone()
@@ -632,6 +637,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         Node::Extrude {
             profile: p1,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, p2) = insert(
@@ -650,6 +656,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         Node::Extrude {
             profile: p2,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = eval(&doc);
@@ -879,7 +886,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
             op: editor_core::BooleanOp::Subtract,
             a: slab,
             b: a,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Transform of the MEASURE's id.
@@ -936,7 +943,7 @@ fn r1_a_wall_selected_from_a_transform_measures_the_unmoved_carrier() {
     );
     let ev = eval(&doc);
     let bore_wall = wall(&ev, bore);
-    let transform_walls = faces_of_kind(&ev, moved, geom_brep::SurfaceKind::Cylinder);
+    let transform_walls = faces_of_kind(&ev, moved, geom::SurfaceKind::Cylinder);
     assert!(
         !transform_walls.is_empty(),
         "the moved body still has its wall"
@@ -1071,11 +1078,11 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     assert!(n >= 1, "the measure's refs name the extrude");
     let corrupt = text.replacen(&target, "\"node\": 77,", 1);
     match load(&corrupt, Tol::witness()) {
-        // Two typed gates can own this corruption: the id-counter
+        // Two typed gates can own this corruption: the mint-log
         // check (77 was never minted) or the dangling-input walk.
         // Either is a loud load-door refusal, which is the claim.
         Err(PersistError::Snapshot(
-            SnapshotError::DanglingInput { .. } | SnapshotError::IdBeyondCounter { .. },
+            SnapshotError::DanglingInput { .. } | SnapshotError::NodeNotMinted { .. },
         )) => {}
         other => panic!("a dangling minting node must refuse typed at load, got {other:?}"),
     }
@@ -1101,7 +1108,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(expr, at_mint([bottom, top])).expect("indices in range"),
+            node: Box::new(Node::measure(expr, at_mint([bottom, top])).expect("indices in range")),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1150,6 +1157,7 @@ fn r1_own_document_web_and_flip() {
         Node::Extrude {
             profile: p1,
             distance: len(0.05),
+            side: ExtrudeSide::Along,
         },
     );
     let (d4, p2) = insert(&d3, circle(0.25));
@@ -1158,6 +1166,7 @@ fn r1_own_document_web_and_flip() {
         Node::Extrude {
             profile: p2,
             distance: len(0.05),
+            side: ExtrudeSide::Along,
         },
     );
     let _ = p2;

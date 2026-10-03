@@ -28,6 +28,7 @@ use geom::Surface;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::fillet_edges;
 use sweep::test_support::{cube, loft_prism};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -56,7 +57,7 @@ fn scaffold_descriptions(body: &Body<f64>) -> Vec<EdgeKey> {
         .filter(|(_, e)| {
             body.get_curve_geom(e.curve)
                 .and_then(topo::CurveGeom::certified)
-                .is_some_and(|c| matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)))
+                .is_some_and(|c| c.description().is_scaffold())
         })
         .map(|(k, _)| k)
         .collect()
@@ -80,9 +81,16 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
     let validated = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&validated, Extrusion::Distance(height), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &validated,
+        Extrusion::Distance {
+            depth: height,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// A profile with an ARC segment, extruded — the arc scaffolding door
@@ -98,9 +106,16 @@ fn arc_prism() -> Body<f64> {
     let validated = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&validated, Extrusion::Distance(0.7), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &validated,
+        Extrusion::Distance {
+            depth: 0.7,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Revolves the closed `(r, y)` polygon about the `y` axis.

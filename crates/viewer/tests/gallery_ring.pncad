@@ -2,16 +2,70 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
 {
   "snapshot": {
     "id": "1c20a55875fd2760f4d43eb67ee0d135",
-    "next_id": 4,
-    "step_mint": {
-      "chain": "d541a2d6b46e4c94412e7a41d48d4212fc403d25bc71bde7a68395441174529e",
+    "mint": {
+      "chain": "fac3e14e20912977eba7041fe055b2f3611b5f4b026690f63f1221e064965f96",
       "log": [
-        12794379479057444153,
-        15366742446598671508
+        {
+          "step": 833916641093927717
+        },
+        {
+          "step": 3173453712732343952
+        },
+        {
+          "node": 3190658467070647254
+        },
+        {
+          "node": 16481222604345390933
+        },
+        {
+          "node": 18069533855610644855
+        },
+        {
+          "node": 18103597484650391489
+        }
       ]
     },
     "nodes": {
-      "0": {
+      "3190658467070647254": {
+        "Datum": {
+          "AxisInPlane": {
+            "plane": 16481222604345390933,
+            "origin": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "direction": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ]
+          }
+        }
+      },
+      "16481222604345390933": {
         "Datum": {
           "Frame": {
             "origin": [
@@ -86,9 +140,22 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           }
         }
       },
-      "1": {
+      "18069533855610644855": {
+        "Revolve": {
+          "profile": 18103597484650391489,
+          "axis": 3190658467070647254,
+          "angle": {
+            "Literal": {
+              "value": 6.283185307179586,
+              "dim": "Angle",
+              "unit": "pi rad"
+            }
+          }
+        }
+      },
+      "18103597484650391489": {
         "Profile": {
-          "plane": 0,
+          "plane": 16481222604345390933,
           "loops": [
             {
               "Circle": {
@@ -147,77 +214,24 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           ],
           "ids": [
             [
-              12794379479057444153
+              833916641093927717
             ],
             [
-              15366742446598671508
+              3173453712732343952
             ]
           ]
-        }
-      },
-      "2": {
-        "Datum": {
-          "AxisInPlane": {
-            "plane": 0,
-            "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "mm"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "mm"
-                }
-              }
-            ],
-            "direction": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ]
-          }
-        }
-      },
-      "3": {
-        "Revolve": {
-          "profile": 1,
-          "axis": 2,
-          "angle": {
-            "Literal": {
-              "value": 6.283185307179586,
-              "dim": "Angle",
-              "unit": "pi rad"
-            }
-          }
         }
       }
     },
     "order": [
-      0,
-      1,
-      2,
-      3
+      16481222604345390933,
+      18103597484650391489,
+      3190658467070647254,
+      18069533855610644855
     ],
     "roots": [
-      3
+      18069533855610644855
     ],
-    "placements": {},
     "params": {},
     "epsilon": 1e-9,
     "witnesses": {},

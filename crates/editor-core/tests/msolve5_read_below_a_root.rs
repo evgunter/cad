@@ -37,6 +37,7 @@
 #![allow(clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
@@ -66,6 +67,7 @@ fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -112,6 +114,7 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = insert(
@@ -120,7 +123,7 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: body,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, body)
@@ -227,7 +230,12 @@ fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
 
 /// Insert `mate` and answer its id.
 fn mated(doc: ProfileDoc, mate: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = step(doc, DocEdit::InsertNode { node: mate });
+    let (doc, id) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(mate),
+        },
+    );
     (doc, id.expect("the mate mints"))
 }
 
@@ -440,6 +448,7 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
         Node::Extrude {
             profile: far_profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, empty) = insert(
@@ -448,7 +457,7 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
             op: BooleanOp::Intersect,
             a: s.xf,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert!(
@@ -512,7 +521,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     let b = crate::fixture::head_at(xf, in_part(top, top_body, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
     // The mate has no lever without its part: it faults in the
-    // resolver's own voice, and the fault reaches its cluster.
+    // resolver's own voice, and the fault reaches its group.
     let poses = solve(&doc, &opts, Tol::witness());
     assert_eq!(poses.role(mate), Some(MateRole::Refused));
     let fault = poses
@@ -522,10 +531,14 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     assert!(
         matches!(
             &fault,
-            MateFault::Unleverable {
-                refusal: LeverRefusal::PartUnresolved { instance, .. },
-                ..
-            } if *instance == top
+            MateFault::Unleverable { refusal, .. } if matches!(
+                refusal.as_ref(),
+                LeverRefusal::Reach {
+                    instance,
+                    refusal: editor_core::ReachRefusal::PartUnresolved { .. },
+                    ..
+                } if *instance == top
+            )
         ),
         "{fault:?}"
     );
@@ -545,7 +558,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         "the mate carries the same fault: {:?}",
         ev.result(mate)
     );
-    // The mate fault reached the base instance — the cluster's other
+    // The mate fault reached the base instance — the group's other
     // member, and the document's first root — so the gather refuses
     // at THAT failed root, before the poisoned pattern root and before
     // any reference is read.

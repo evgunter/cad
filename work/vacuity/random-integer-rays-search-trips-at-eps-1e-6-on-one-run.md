@@ -99,3 +99,10 @@ distinction above, which is the only reason this row is separately useful.
 archived log; if it is gone, keep the row open as the record that a red was
 observed in this shard whose cause is unidentified, and re-examine it if
 the sibling's fix does not end the reds.
+
+**A seed that reproduces it** (PATHS 5a fix pass, 2026-09-30): the local
+1e-6 run drew `CAD_FUZZ_SEED=0x47471a5e48e72b4c CAD_FUZZ_EFFORT=1`, and
+the row fails "no draw hit the cube — generator shape broke" at that
+seed at ε 1e-6 AND at the default ε, deterministically. So it is the
+anti-vacuity floor bolted onto a varying seed (the shape-1/shape-3 mix
+`test_utils::fuzz` warns against), not an ε effect.

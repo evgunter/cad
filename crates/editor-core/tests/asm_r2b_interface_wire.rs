@@ -41,7 +41,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     // rides a LAST instance, behind the two mate ends and the mate
     // itself. That is the shape a split leaves behind.
     let mut host = ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness());
-    // Inserts alone — a Join at most, never a moved gauge — so the
+    // Inserts alone — a Join at most, never a moved root — so the
     // reach is never asked and the refusing one serves.
     let push = |doc: &ProfileDoc, node| {
         apply(
@@ -53,8 +53,8 @@ fn doc_with_a_crossing() -> ProfileDoc {
         .expect("the fixture's nodes insert")
         .doc
     };
-    host = push(&host, Node::instantiate_part(doc_ref));
-    host = push(&host, Node::instantiate_part(doc_ref));
+    host = push(&host, Box::new(Node::instantiate_part(doc_ref)));
+    host = push(&host, Box::new(Node::instantiate_part(doc_ref)));
     let (first, second) = (host.order()[0], host.order()[1]);
     let sited = |node, cap| SitedFace {
         at: node,
@@ -63,7 +63,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     host = push(
         &host,
-        Node::Mate {
+        Box::new(Node::Mate {
             a: sited(first, CapEnd::End),
             b: sited(second, CapEnd::Start),
             class: ContactClass::Rest,
@@ -74,7 +74,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
                 sense: AxisSense::Aligned,
                 clocking: None,
             },
-        },
+        }),
     );
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
@@ -89,7 +89,15 @@ fn doc_with_a_crossing() -> ProfileDoc {
             inner: face(RecipeNodeId(7), CapEnd::Start),
         }],
     };
-    push(&host, Node::instantiate_part_with(doc_ref, record))
+    push(
+        &host,
+        Box::new(Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        )),
+    )
 }
 
 /// The record is ON THE WIRE (it was unspellable while the enum was
@@ -123,7 +131,7 @@ fn an_empty_record_stays_absent_from_the_wire() {
     let doc = apply(
         &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema-empty"), Tol::witness()),
         &DocEdit::InsertNode {
-            node: Node::instantiate_part(doc_ref),
+            node: Box::new(Node::instantiate_part(doc_ref)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

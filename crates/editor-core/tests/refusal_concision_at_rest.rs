@@ -40,6 +40,7 @@ use editor_core::{
     ProductError, RecipeNodeId, Relation, RoleSeg, Route, SourceFinding, StableName,
 };
 use test_utils::refusal::Admission;
+use test_utils::refusal::tagged;
 use topo::{ContactClass, FaceKey, ValidationError};
 
 /// The labels a finding legitimately opens with, each on the routes
@@ -54,8 +55,8 @@ const LABELS: &[(&str, &str)] = &[
     ("at rest, product", "at rest"),
     ("product", "product"),
     ("at rest, product", "product"),
-    ("product", "root 5 output 0"),
-    ("at rest, product", "root 5 output 0"),
+    ("product", "root 000000000005 output 0"),
+    ("at rest, product", "root 000000000005 output 0"),
     ("refuted, carried", "refuted"),
     ("declined, carried", "declined"),
     // A sentence whose clause carries no word the shape check reads as
@@ -122,7 +123,7 @@ fn minted() -> MintedDeclaration {
         path: vec![RoleSeg::OutputBody],
     };
     MintedDeclaration {
-        mate: RecipeNodeId(7),
+        mate: RecipeNodeId(tagged(7)),
         a: name(1),
         b: name(2),
         class: ContactClass::Rest,
@@ -134,7 +135,7 @@ fn minted() -> MintedDeclaration {
 fn carried(relation: Relation) -> Attribution {
     Attribution::Carried {
         route: Route {
-            through: RecipeNodeId(4),
+            through: RecipeNodeId(tagged(4)),
             of: DocumentId::derive("the bracket part"),
             via: Vec::new(),
         },
@@ -156,7 +157,7 @@ fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
     };
     let product = ProductError::RootInvalid {
         findings: vec![SourceFinding {
-            node: RecipeNodeId(5),
+            node: RecipeNodeId(tagged(5)),
             output: 0,
             errors: vec![error.clone()],
         }],
@@ -227,7 +228,7 @@ fn every_at_rest_finding_renders_to_the_standard() {
             let admitted = CARRIED_ROUTES.contains(&route).then(|| Admission {
                 row: &name,
                 span: CARRIED_FROM,
-                filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+                filed: "work/doctail/part-refusals-name-documents-by-hex-id.md",
             });
             problems.extend(test_utils::refusal::problems_admitting(
                 &name,

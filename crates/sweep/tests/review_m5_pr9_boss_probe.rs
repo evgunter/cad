@@ -11,9 +11,10 @@ use crate::common::operands::{m5_boss, n_arc_boss};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::Body;
-use topo::splitting::{SplitPlane, split};
+use topo::splitting::split;
 
 fn rect(w: f64, h: f64) -> ProfileLoop<f64> {
     bulge_loop(
@@ -29,9 +30,16 @@ fn plate() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![rect(3.0, 3.0)])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(0.8), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.8,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Tier-3 + closed-form volume + seam inventory + pcurve coverage.
@@ -168,9 +176,16 @@ fn a_second_curved_boolean_chains_on_the_first_result() {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let slab = extrude(&profile, Extrusion::Distance(0.15), Tol::witness())
-        .unwrap()
-        .body;
+    let slab = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.15,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     match topo::union(&first, &slab, Tol::witness()) {
         Ok(out) => {
             let body = &out.body().expect("body").body;
@@ -210,13 +225,21 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let parts = split(&body, &plane, Tol::witness()).expect("split at x=0");
     let mut below = parts.below.body().expect("below").clone();
     let out = below
@@ -251,13 +274,21 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
-    let plane = SplitPlane {
-        origin: Point3::new(0.2, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.2, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let parts = split(&body, &plane, Tol::witness()).expect("split");
     let below = parts.below.body().expect("below").clone(); // NOT merged
     let vol_below = topo::mass_properties(&below, Tol::witness())
@@ -274,9 +305,16 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     let profile2 = Profile::new(plane2, vec![lp2])
         .validate(Tol::witness())
         .unwrap();
-    let slab = extrude(&profile2, Extrusion::Distance(0.2), Tol::witness())
-        .unwrap()
-        .body;
+    let slab = extrude(
+        &profile2,
+        Extrusion::Distance {
+            depth: 0.2,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     match topo::union(&below, &slab, Tol::witness()) {
         Ok(out) => {
             let b = &out.body().expect("body").body;
@@ -305,7 +343,7 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
     // door (CurvedPierceUnsupported), never a wrong body.
     let boss_over = n_arc_boss(Point2::new(0.0, 1.5), 3, 0.3, 1.0);
     match topo::union(&plate(), &boss_over, Tol::witness()) {
-        // This fixture reaches `CurvedSectorSideUnsupported` today, so
+        // This fixture reaches the pierce ring's join door today, so
         // no text is asserted here; the pierce refusal's sentence is
         // pinned where it executes, by
         // `verbs_germarms_r1_probes::r1_the_grazing_red_refuses_on_a_line_carrier`.

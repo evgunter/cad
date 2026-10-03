@@ -268,14 +268,14 @@ const HOLDERS: &[&str] = &[
 const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/offset_fit.rs",
-        8,
-        8,
+        7,
+        7,
         "every read is in `cell_bound`, which refuses to `f64::INFINITY`",
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
-        12,
-        12,
+        11,
+        11,
         "the mignitude, the norm assemblies and the curvature join all refuse by name",
     ),
     (
@@ -292,8 +292,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/props/quad.rs",
-        17,
         12,
+        7,
         "the remaining 5 are safe by construction: `cos_step`/`sin_step` and the two \
          half-angle clamps build from `pt` of a finite f64 with nonzero exact divisors, \
          so no operand can leave a domain (argued at each). Every other read goes \
@@ -301,11 +301,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi.rs",
-        8,
-        2,
-        "the 2 that ask are the pcurve window (`pcurve_windows` refuses both hulls by \
-         name before padding them). The other 6 are the two march contexts' slab \
-         corners, safe by construction: `SsiDomain::slab` is `Box3::around` of a \
+        6,
+        0,
+        "all 6 are the two march contexts' slab corners, safe by construction: `SsiDomain::slab` is `Box3::around` of a \
          `Point3<f64>` and an `f64` half-extent, and an `f64`'s refusal IS its NaN — \
          the crossing has no decoration channel to carry a refusal in, so a refused \
          slab reads NaN at both ends",
@@ -313,47 +311,61 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/ssi/certify.rs",
         11,
-        4,
-        "the 4 that ask are the transversality span-hull window (2: \
-         `probe_tube_chart` refuses either window \
-         hull by name before reading it — a refused hull is NaI, and a NaN window end \
-         would land on the first span), and two `T: Bounds` reads of the pcurve's \
-         tangent that share that function and count only by blind spot 2. The other \
-         7 are `T: Bounds` reads on the evaluation scalar and not certification \
-         endpoints at all — blind spot 1",
+        2,
+        "the 2 that ask are the chart tube's span-hull window (`chart_tube_windows` \
+         refuses either window hull by name before padding it — a refused hull is NaI, \
+         and its NaN ends name no window). The other 9 are `T: Bounds` reads on the \
+         evaluation scalar and not certification endpoints at all — blind spot 1: two \
+         of them are `probe_tube_chart`'s reads of the pcurve's tangent, which select \
+         a direction (structure, not a bound) and whose norm the probe refuses unless \
+         positive finite",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        10,
-        10,
-        "`Box3`'s disjointness, containment, centre and split all refuse by name, and \
-         so does the mignitude (`zero_free_lower_bound`, 4)",
+        16,
+        14,
+        "`Box3`'s disjointness, containment, centre, split and reach meet all refuse by name, and \
+         so does the mignitude (`zero_free_lower_bound`, 4). `weight_floor` refuses the weight \
+         hull by name before reading its lower end, `s_offsets` asks it of each weight step it \
+         reads, and `transverse_readings` of the `φ` range whose ends it reads. The 2 that do \
+         not ask are `Centred::of`'s centre and radius, whose one caller, `pair_norm_sup`, \
+         refuses every term and offset by name before any is centred",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
+    ("crates/geom-brep/src/ssi/section.rs", 2, 2, ""),
     (
         "crates/geom-core/src/interval.rs",
-        18,
-        4,
-        "the type's own body. The 4 that ask are the two refusal doors \
-         (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup` \
-         and `div_down`. The other 14 are not certification \
+        23,
+        5,
+        "the type's own body. The 5 that ask are the two refusal doors \
+         (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup`, \
+         `div_down` and `div_up`. The other 18 are not certification \
          reads at all — blind spot 1: they are the evaluation scalar's own \
          implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
-         `repr_bits`, `copysign` and the kink selectors), which test NaI and empty \
-         themselves and carry the decoration forward rather than certifying",
+         `repr_bits`, `copysign`, the kink selectors and the two `select_le_zero` \
+         arms), which test NaI and empty themselves and carry the decoration forward \
+         rather than certifying",
     ),
     (
         "crates/geom-core/src/interval/certification.rs",
         3,
         3,
-        "the doors that read an endpoint (`clamped_to`, `width`, `mag`), each refusing first",
+        "the reads that serve a door, each refusing first: `narrowed_to` (the one body of \
+         `clamped_to` and `meet`), `width` and `mag`",
     ),
-    ("crates/geom-core/src/spline/compose/tensor.rs", 3, 3, ""),
-    ("crates/geom-core/src/sym/signed.rs", 2, 2, ""),
+    ("crates/geom-core/src/spline/compose/tensor.rs", 6, 6, ""),
+    (
+        "crates/geom-core/src/sym/signed.rs",
+        13,
+        7,
+        "the 6 that do not ask read a bracket `enclose_deep` returned (the decision \
+         read's halves, 4, and the profiling instrument's denominator, 2), and \
+         `enclose_deep` hands back `None` for a refused bracket \
+         (`is_certified().then_some`), so every bracket read there certifies by \
+         construction",
+    ),
     ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
-    ("crates/mesh/src/chords.rs", 1, 1, ""),
-    ("crates/mesh/src/nurbs_cert.rs", 1, 1, ""),
     ("crates/topo/src/props/quad_lane.rs", 5, 5, ""),
 ];
 

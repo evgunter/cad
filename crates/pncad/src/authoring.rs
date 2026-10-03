@@ -11,7 +11,7 @@
 //! — an *exact* embedding for every implementor, so nothing here can
 //! change a number. Five of the seven are one kernel constructor
 //! call; the other two are the seam's fallible pair — [`validated`]
-//! is `Profile::new` + `Profile::validate`, and [`polygon`] is the
+//! is `ConstructedProfile::new` + its `validate`, and [`polygon`] is the
 //! lattice chain a coordinate table lowers to. There is no
 //! arithmetic, no defaulting, and no panicking: both return the
 //! kernel's own `Result` with the kernel's own error.
@@ -37,7 +37,8 @@
 //! telemetry or interval scalar for a certified one.
 
 use ::profile::{
-    Open, PathError, Profile, ProfileError, ProfileLoop, SketchPlane, Start, ValidatedProfile,
+    ConstructedLoop, ConstructedProfile, Open, PathError, ProfileError, SketchPlane, Start,
+    ValidatedProfile,
 };
 use geom_core::Tol;
 use geom_core::{Decide, Point2, Point3, Real, Vec2, Vec3};
@@ -52,8 +53,8 @@ use geom_core::{Decide, Point2, Point3, Real, Vec2, Vec3};
 ///
 /// let d: f64 = real(0.75);
 /// assert_eq!(d, 0.75);
-/// let body = Extrusion::Distance(real::<f64>(0.75));
-/// assert!(matches!(body, Extrusion::Distance(_)));
+/// let body = Extrusion::Distance { depth: real::<f64>(0.75), side: ExtrudeSide::Along };
+/// assert!(matches!(body, Extrusion::Distance { .. }));
 /// ```
 #[inline]
 pub fn real<T: Real>(x: f64) -> T {
@@ -130,16 +131,17 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 ///   including at the seam, whose two junction checks run with both
 ///   directions known. A raw table cannot refuse: it carries no
 ///   junction, so the same geometry reaches
-///   [`validate`](Profile::validate) as a loop that has
+///   [`validate`](::profile::Profile::validate) as a loop that has
 ///   already been minted, and the refusal arrives a tier later and
 ///   further from the coordinates that caused it.
 /// - Fewer than three vertices refuses
 ///   ([`PathError::PolygonTooFewVertices`]): a closed chain of
 ///   straight legs bounds nothing with fewer corners.
 ///
-/// The emitted [`ProfileLoop`] is the authored table verbatim —
-/// every point in order, bulge 0, no declared joints. The lattice
-/// changes what is CHECKED, not what is minted.
+/// The emitted loop is the authored table verbatim — every point in
+/// order, every segment a line, no declared joints — and a
+/// [`ConstructedLoop`], since the lattice built it. The lattice changes
+/// what is CHECKED, not what is minted.
 ///
 /// Fails loud: the typed [`PathError`] is returned unchanged. A
 /// demo may `.expect()` it — a library must not.
@@ -149,7 +151,7 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 /// use pncad::prelude::*;
 ///
 /// let tol = Tol::witness();
-/// let square: ProfileLoop<f64> =
+/// let square: ConstructedLoop<f64> =
 ///     polygon(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], tol)?;
 /// assert_eq!(square.vertices().len(), 4);
 /// assert!(square.tangent_joints().is_empty());
@@ -163,7 +165,10 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 /// ));
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-pub fn polygon<T: Decide>(points: &[(f64, f64)], tol: Tol) -> Result<ProfileLoop<T>, PathError<T>> {
+pub fn polygon<T: Decide>(
+    points: &[(f64, f64)],
+    tol: Tol,
+) -> Result<ConstructedLoop<T>, PathError<T>> {
     let too_few = || PathError::PolygonTooFewVertices {
         given: points.len(),
     };
@@ -181,15 +186,14 @@ pub fn polygon<T: Decide>(points: &[(f64, f64)], tol: Tol) -> Result<ProfileLoop
     Ok(tip.line_to(Start, tol)?.into())
 }
 
-/// Validates a profile at the ambient tolerance — the authoring
-/// ladder's first rung.
+/// Validates a profile of loops the path lattice constructed — the
+/// authoring ladder's first rung.
 ///
-/// Equivalent to `Profile::new(plane, loops).validate(tol)`,
-/// which is the form every scene wrote by hand. The tolerance comes
-/// from the environment ([`Tol::witness`]) so that a corpus can be
-/// replayed at a different ε without editing a line; pass a tolerance
-/// explicitly through [`Profile::validate`] when a call site needs to
-/// pin one.
+/// Equivalent to `ConstructedProfile::new(plane, loops).validate(tol)`:
+/// each arc was verified at its construction, at this scalar (D1), so
+/// its consistency with its vertices is not decided again. A loop the
+/// lattice did not construct — a table, a copy at another scalar — is
+/// validated as a table through [`::profile::Profile::validate`].
 ///
 /// Fails loud: the typed [`ProfileError`] is returned unchanged. A
 /// demo may `.expect()` it — a library must not.
@@ -220,8 +224,8 @@ pub fn polygon<T: Decide>(points: &[(f64, f64)], tol: Tol) -> Result<ProfileLoop
 /// ```
 pub fn validated<T: Decide>(
     plane: SketchPlane<T>,
-    loops: Vec<ProfileLoop<T>>,
+    loops: Vec<ConstructedLoop<T>>,
     tol: Tol,
 ) -> Result<ValidatedProfile<T>, ProfileError> {
-    Profile::new(plane, loops).validate(tol)
+    ConstructedProfile::new(plane, loops).validate(tol)
 }

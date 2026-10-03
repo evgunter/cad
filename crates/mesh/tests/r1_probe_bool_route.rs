@@ -17,6 +17,7 @@
 
 use geom_core::Tol;
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Revolution, revolve};
 
 fn validated(loops: Vec<ProfileLoop<f64>>) -> Result<profile::ValidatedProfile<f64>, String> {
@@ -68,7 +69,10 @@ fn slab(d: f64, l: f64) -> Result<topo::Body<f64>, sweep::ExtrudeError> {
         .unwrap();
     sweep::extrude(
         &profile,
-        sweep::Extrusion::Distance(2.0 * l),
+        sweep::Extrusion::Distance {
+            depth: 2.0 * l,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .map(|r| r.body)
