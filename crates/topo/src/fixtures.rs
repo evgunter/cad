@@ -1625,6 +1625,40 @@ pub(crate) fn approx_faced_body<T: geom_core::Decide>() -> (Body<T>, FaceKey) {
     (body, created.face)
 }
 
+/// The declined cube torn by two `next` writes, by position in its
+/// half-edge arena, with the arena's keys and the vertex `v` whose
+/// emanating walk the tear closes through two half-edges of another
+/// vertex `u`. The walk is stepped here by hand, reading no start,
+/// so the fixture proves the tear lands without the walk under test.
+pub(crate) fn torn_cube_closing_through_another_vertex() -> (Body<f64>, Vec<HalfEdgeKey>, VertexKey)
+{
+    let mut body = declined_cube::<f64>(Tol::witness()).body;
+    let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+    body.get_half_edge_mut(halves[19]).unwrap().next = halves[6];
+    body.get_half_edge_mut(halves[4]).unwrap().next = halves[11];
+    let start = |h: HalfEdgeKey| body.get_half_edge(h).unwrap().start;
+    let v = start(halves[11]);
+    let first = body.get_vertex(v).unwrap().emanating.unwrap();
+    let mut walk = vec![first];
+    loop {
+        let mate = body.mate(*walk.last().unwrap()).unwrap();
+        let next = body.get_half_edge(mate).unwrap().next;
+        if next == first {
+            break;
+        }
+        assert!(walk.len() < 24, "the hand walk closes");
+        walk.push(next);
+    }
+    let u = start(halves[5]);
+    assert_ne!(u, v);
+    assert_eq!(
+        walk.iter().map(|&h| start(h)).collect::<Vec<_>>(),
+        vec![v, v, v, u, u],
+        "the walk from v's emanating closes through two of u's half-edges"
+    );
+    (body, halves, v)
+}
+
 mod tests {
     use super::*;
 
