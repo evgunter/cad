@@ -168,8 +168,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         return Ok(None); // no opposite-oriented contact declared
     }
 
-    // ---- 2. Segments from the germ records (A-side geometry — the
-    // site points are bitwise-shared between the solids). ----
+    // ---- 2. Segments: the join's matching of the germ records. ----
     let Some(segments) = read_segments(&mut red, band)? else {
         return Ok(None);
     };
@@ -939,7 +938,9 @@ fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
         let (u, v) = span.ends;
         per_segment[i] = Some(match span.cell {
             Locus::OnEdge(e) => {
-                let ends = edge_ends(body, e)?;
+                let ends = body
+                    .edge_vertices(e)
+                    .ok_or_else(|| desync("REST lane: a seam edge no longer resolves"))?;
                 if ends != (u, v) && ends != (v, u) {
                     return Err(desync("REST lane: a segment's edge does not join its ends"));
                 }
@@ -964,14 +965,6 @@ fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
     }))
 }
 
-/// An edge's two vertices.
-fn edge_ends<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Result<VertexPair, BooleanError> {
-    let gone = || desync("REST lane: a seam edge no longer resolves");
-    let e = body.get_edge(edge).ok_or_else(gone)?;
-    let start = |h| body.get_half_edge(h).map(|d| d.start).ok_or_else(gone);
-    Ok((start(e.he_plus)?, start(e.he_minus)?))
-}
-
 /// The face holding both `u` and `v` among `face` and the fragments
 /// chords already minted split off it: a segment's cell names the face
 /// as the reduction left it, and an earlier chord may have divided it.
@@ -990,16 +983,14 @@ fn fragment_holding<T: Decide>(
             lineage.push(new);
         }
     }
-    let fu = incident_faces(body, u, rings)?;
-    let fv = incident_faces(body, v, rings)?;
-    let holding: Vec<FaceKey> = lineage
+    let at_u: Vec<FaceKey> = incident_faces(body, u, rings)?
         .into_iter()
-        .filter(|f| fu.contains(f) && fv.contains(f))
+        .filter(|f| lineage.contains(f))
         .collect();
-    Ok(match holding[..] {
-        [f] => Some(f),
-        _ => None,
-    })
+    Ok(super::sectors::sole_common_face(
+        &at_u,
+        &incident_faces(body, v, rings)?,
+    ))
 }
 
 /// The edges of `body` interior to its contact patch, with their
@@ -1019,12 +1010,10 @@ fn interior_edges<T: Decide>(
         if seam.set.contains_key(key) || !in_patch(edge.he_plus) || !in_patch(edge.he_minus) {
             continue;
         }
-        let start = |he| {
-            body.get_half_edge(he)
-                .map(|h| h.start)
-                .ok_or_else(|| desync("REST lane: interior edge half no longer resolves"))
-        };
-        out.push((key, start(edge.he_plus)?, start(edge.he_minus)?));
+        let (u, v) = body
+            .edge_vertices(key)
+            .ok_or_else(|| desync("REST lane: interior edge half no longer resolves"))?;
+        out.push((key, u, v));
     }
     Ok(out)
 }
@@ -1065,10 +1054,10 @@ fn mirror_edges<T: Decide + crate::props::AtRestPolicy>(
         if joined(body, u, v)? {
             continue;
         }
-        let fu = incident_faces(body, u, rings)?;
-        let fv = incident_faces(body, v, rings)?;
-        let host: Vec<FaceKey> = fu.iter().filter(|f| fv.contains(f)).copied().collect();
-        let [host] = host[..] else {
+        let Some(host) = super::sectors::sole_common_face(
+            &incident_faces(body, u, rings)?,
+            &incident_faces(body, v, rings)?,
+        ) else {
             return Ok(None);
         };
         if !patch.contains(&host) {
@@ -1120,24 +1109,26 @@ impl<T: Decide> Twin<T> {
     /// first, or from an oblique planar cut, whose body the containment
     /// door refuses `VolumeUncertified` first (an obliquely capped rod
     /// resting on a plate, declared `Rest`, in both operand orders); an
-    /// uncertified edge is turned away at the operand gate.
+    /// uncertified edge is turned away at the operand gate. An edge that
+    /// does not join `ou` to `ov` is a kernel bug.
     fn of(
         other: &Body<T>,
         edge: EdgeKey,
-        (ou, _): (VertexKey, VertexKey),
+        (ou, ov): (VertexKey, VertexKey),
         (u, v): (VertexKey, VertexKey),
     ) -> Result<Option<Self>, BooleanError> {
         let ed = other
             .get_edge(edge)
             .ok_or_else(|| desync("REST lane: twin edge no longer resolves"))?;
+        let start = match other.edge_vertices(edge) {
+            Some(ends) if ends == (ou, ov) => u,
+            Some(ends) if ends == (ov, ou) => v,
+            _ => return Err(desync("REST lane: a chord's twin does not join its ends")),
+        };
         let curve = other
             .get_curve_geom(ed.curve)
             .and_then(CurveGeom::certified)
             .ok_or_else(|| unsupported(RestZipFrontier::TwinCarrierUnsupported))?;
-        let first = other
-            .get_half_edge(ed.he_plus)
-            .ok_or_else(|| desync("REST lane: twin half no longer resolves"))?
-            .start;
         let (t0, t1) = curve.params();
         match curve.carrier() {
             geom::Curve3::Line { .. } => Ok(Some(Self::Line)),
@@ -1145,7 +1136,7 @@ impl<T: Decide> Twin<T> {
                 carrier: carrier.clone(),
                 t0,
                 t1,
-                start: if first == ou { u } else { v },
+                start,
             })),
             _ => Err(unsupported(RestZipFrontier::TwinCarrierUnsupported)),
         }
@@ -1281,34 +1272,19 @@ fn mint_chord<T: Decide + crate::props::AtRestPolicy>(
     Ok(created)
 }
 
-/// The faces incident to `u`, deterministic orbit order (a pierce-ring
-/// vertex contributes its host face).
+/// The faces incident to `u` ([`super::sectors::faces_at`]); a
+/// pierce-ring vertex joined to nothing contributes its host face.
 fn incident_faces<T: Decide>(
     body: &Body<T>,
     u: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
 ) -> Result<Vec<FaceKey>, BooleanError> {
-    let Some(anchor) = body.get_vertex(u).and_then(|vd| vd.emanating) else {
-        return Ok(rings.get(u).copied().into_iter().collect());
-    };
-    let orbit = body
-        .vertex_orbit(anchor)
-        .ok_or_else(|| desync("REST lane: site vertex orbit not walkable"))?;
-    let mut faces = Vec::new();
-    for he in orbit {
-        let l = body
-            .get_half_edge(he)
-            .ok_or_else(|| desync("REST lane: orbit half no longer resolves"))?
-            .parent_loop;
-        let f = body
-            .get_loop(l)
-            .ok_or_else(|| desync("REST lane: orbit loop no longer resolves"))?
-            .face;
-        if !faces.contains(&f) {
-            faces.push(f);
-        }
-    }
-    Ok(faces)
+    let faces = super::sectors::faces_at(body, u)?;
+    Ok(if faces.is_empty() {
+        rings.get(u).copied().into_iter().collect()
+    } else {
+        faces
+    })
 }
 
 /// The face-boundary halves of `face` starting at `u` (outer + rings).

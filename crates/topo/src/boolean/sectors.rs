@@ -1128,23 +1128,11 @@ fn tangent_face<T: Decide>(
     contacts: &super::ContactRecords,
 ) -> Result<Option<FaceKey>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
-    let start = |h| {
-        partner
-            .body
-            .get_half_edge(h)
-            .map(|d| d.start)
-            .ok_or(invariant(
-                "a tangent germ's partner edge no longer resolves",
-            ))
-    };
-    let e = partner.body.get_edge(along).ok_or(invariant(
+    let (u, v) = partner.body.edge_vertices(along).ok_or(invariant(
         "a tangent germ's partner edge no longer resolves",
     ))?;
     let near = crate::chord_join::null_site(partner.body, &[partner.site]);
-    let Some(far) = [start(e.he_plus)?, start(e.he_minus)?]
-        .into_iter()
-        .find(|w| !near.contains(w))
-    else {
+    let Some(far) = [u, v].into_iter().find(|w| !near.contains(w)) else {
         return Ok(None);
     };
     let far_site = crate::chord_join::null_site(partner.body, &[far]);
@@ -1166,19 +1154,27 @@ fn tangent_face<T: Decide>(
             far_faces.extend(faces_at(side.body, mine)?);
         }
     }
-    let common: Vec<FaceKey> = faces_at(side.body, side.site)?
-        .into_iter()
-        .filter(|f| far_faces.contains(f))
-        .collect();
-    Ok(match common[..] {
-        [f] => Some(f),
+    Ok(sole_common_face(
+        &faces_at(side.body, side.site)?,
+        &far_faces,
+    ))
+}
+
+/// The one face in both `xs` and `ys`; `None` when not exactly one is.
+pub(super) fn sole_common_face(xs: &[FaceKey], ys: &[FaceKey]) -> Option<FaceKey> {
+    match xs.iter().filter(|f| ys.contains(f)).collect::<Vec<_>>()[..] {
+        [&f] => Some(f),
         _ => None,
-    })
+    }
 }
 
 /// The faces around a site of `body` (every copy null edges tie
-/// `vertex` to), deduplicated, null faces skipped.
-fn faces_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Vec<FaceKey>, BooleanError> {
+/// `vertex` to), deduplicated, null faces skipped. With no null edges
+/// at the site, the faces around `vertex` itself.
+pub(super) fn faces_at<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+) -> Result<Vec<FaceKey>, BooleanError> {
     let mut out = Vec::new();
     for v in crate::chord_join::null_site(body, &[vertex]) {
         let Some(anchor) = body.get_vertex(v).and_then(|d| d.emanating) else {

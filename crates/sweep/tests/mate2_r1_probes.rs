@@ -45,7 +45,12 @@ fn probe_misaligned_azimuth_split_unions() {
         Tol::witness(),
     );
     assert!(
-        matches!(join, Ok(Some(_))),
+        matches!(
+            join,
+            Ok(Some(topo::BooleanError::Join(
+                topo::SplitJoinError::RingHomingAmbiguous { .. }
+            )))
+        ),
         "the declared-REST zip builds the mate: the join refuses it, got {join:?}"
     );
     let bb = boolean_body(

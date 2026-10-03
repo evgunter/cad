@@ -92,6 +92,15 @@ decides, and the run winding to take a conic closing chord's bulge —
 `Body::planar_run_winding_decided`'s `Closing::Chord` is the place.
 Both sit in shared join ground (`chord_join.rs` is REACH/TANG's too).
 
+## Another pose with the same payload
+
+`contact8_dangling_seam`'s exactly plugged hole (a holed block and the
+plug filling it, declared flush) reaches the same
+`JoinDesync { what: "ring-run winding is degenerate (zero enclosed
+area)" }` from the join on a union; the declared-REST zip then builds
+it. `an_exactly_plugged_hole_merges_to_whole_caps` pins that refusal
+(JOIN-2, PR 3880).
+
 ## Why it matters
 
 A D-shaped blind pocket is an ordinary feature, and the ruled fillet

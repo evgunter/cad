@@ -275,7 +275,12 @@ fn r2_full_period_peg_unions() {
         Tol::witness(),
     );
     assert!(
-        matches!(join, Ok(Some(_))),
+        matches!(
+            join,
+            Ok(Some(topo::BooleanError::Join(
+                topo::SplitJoinError::RingHomingAmbiguous { .. }
+            )))
+        ),
         "the declared-REST zip builds the mate: the join refuses it, got {join:?}"
     );
     let e = never_silent("3-arc collar x full-period peg", &c, &p, &decls);

@@ -1400,6 +1400,14 @@ impl<T: Real> Body<T> {
         Some(next.start)
     }
 
+    /// The two vertices of `edge`: the starts of its `he_plus` and
+    /// `he_minus` halves. `None` if the edge or either half is stale.
+    pub(crate) fn edge_vertices(&self, edge: EdgeKey) -> Option<(VertexKey, VertexKey)> {
+        let e = self.edges.get(edge)?;
+        let start = |he| self.half_edges.get(he).map(|h| h.start);
+        Some((start(e.he_plus)?, start(e.he_minus)?))
+    }
+
     /// The position of `he`'s start vertex. `None` if `he`, its vertex
     /// or the vertex's point is stale.
     pub fn half_edge_start_point(&self, he: HalfEdgeKey) -> Option<Point3<T>> {

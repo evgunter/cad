@@ -1011,10 +1011,10 @@ fn locus_at_site<T: Decide>(
                 .ok_or(desync("germ half no longer resolves"))?,
         ],
     );
-    let e = body
-        .get_edge(edge)
+    let (u, v) = body
+        .edge_vertices(edge)
         .ok_or(desync("an OnEdge germ's edge no longer resolves"))?;
-    if site.contains(&start(e.he_plus)?) || site.contains(&start(e.he_minus)?) {
+    if site.contains(&u) || site.contains(&v) {
         Ok(())
     } else {
         Err(desync("an OnEdge germ's edge is not incident to its site"))

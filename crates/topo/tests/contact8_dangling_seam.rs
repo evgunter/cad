@@ -301,7 +301,7 @@ fn an_exactly_plugged_hole_merges_to_whole_caps() {
         Tol::witness(),
     );
     assert!(
-        matches!(join, Ok(Some(_))),
+        matches!(join, Ok(Some(topo::BooleanError::JoinDesync { .. }))),
         "the declared-REST zip builds the exact plug: the join refuses it, got {join:?}"
     );
     assert_plug_merges(plug, 12.0, "exact plug");

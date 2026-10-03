@@ -2434,6 +2434,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
+    ("sectors.rs", "coincide", "Coincide::EdgeOnEdge", 1),
     (
         "sectors.rs",
         "direction_sense",
@@ -2449,6 +2450,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "invalid_escalation", "SelfCheck::Normals", 1),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
+    ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     (
         "sectors.rs",
         "side_code",

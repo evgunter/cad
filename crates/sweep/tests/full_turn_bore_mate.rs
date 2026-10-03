@@ -179,7 +179,12 @@ fn a_shaft_off_the_bores_seam_is_built_by_the_zip() {
     let join =
         topo::test_support::boolean_join_refusal(BooleanOp::Union, &c, &p, &decls, Tol::witness());
     assert!(
-        matches!(join, Ok(Some(_))),
+        matches!(
+            join,
+            Ok(Some(topo::BooleanError::Join(
+                topo::SplitJoinError::RingHomingAmbiguous { .. }
+            )))
+        ),
         "the join refuses the mate, got {join:?}"
     );
     unions_both_ways(&c, &p, h, "the zip's row");
