@@ -160,7 +160,8 @@ is made) plus the operand node it is read at, so a mate naming an edge
 is a program that does not compile; `class` is the kernel
 `topo::ContactClass`; `Alignment` is two `MateFrame`s, each either authored vectors in its
 side's part coordinates or `FromFace`, which names no face: its frame
-is its side's own head face, a `MatePrimitive` (`FrameCoincidence`, `Coaxial`,
+is its side's own head face composed with an offset, a `Placement`
+written in that face's frame (the empty chain by default), a `MatePrimitive` (`FrameCoincidence`, `Coaxial`,
 `PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
 primitive), an authored `AxisSense` (so no π-flip is inferred) and an
 optional clocking rider. `Node::Pattern` replicates an instance by
@@ -459,7 +460,9 @@ over: `(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored
 lengths|`, no floor and no constant. A side framed
 `FromFace` takes its head face's canonical pose, read off its surface
 parameters exactly (`topo::readback::face_pose`, no tolerance) in the
-part's own coordinates, as the side's frame; a face with no canonical
+part's own coordinates, composed with the side's offset, as the side's
+frame, so a side set on a face follows that face through any edit of
+the part; a face with no canonical
 frame refuses typed and keeps taking authored vectors. Neither read
 changes the solve's algorithm — coset intersection over decided
 predicates, no numeric fitting, no geometry inspected inside the
