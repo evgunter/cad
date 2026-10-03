@@ -52,6 +52,15 @@
 //! volume the old one did, and `loft_prism`'s midpoint now lands on
 //! the exact 9e9 rather than 8e-6 mm³ off it. The censuses and the
 //! closed-form fixtures' volumes are unchanged.
+//!
+//! **Re-pinned at `cut_cylinder` when check 4 of the pcurve certificate
+//! became incidence plus fidelity** (PCERT, PR 3812). The quadrature's
+//! map-residual honesty pad reads each edge's certificate envelope,
+//! and on the cut cylinder's wall the restated envelope is smaller, so
+//! its pad falls `1186.3602675058853 → 1186.360263657112` mm³ (by
+//! 3.2e-9 of itself) and the midpoint moves `1.3e-6` mm³ with it,
+//! inside both pads. The other sixteen fixtures, and every census, are
+//! unchanged.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;

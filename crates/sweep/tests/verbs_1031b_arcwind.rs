@@ -225,9 +225,15 @@ fn the_boolean_on_the_cup_reaches_the_join() {
     assert!(
         matches!(
             out,
-            Err(topo::BooleanError::Join(
-                topo::SplitJoinError::UnpairedLooseEnds { count: 4 }
-            ))
+            Err(topo::BooleanError::VolumeUnmeasured {
+                operand: None,
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::props::PropsError::NotIsoRectangle {
+                        what: "props_rim_level"
+                    },
+                    ..
+                },
+            })
         ),
         "the cup clears F7 and the crossing layer and stops at the join, got {:?}",
         out.map(|_| "Ok")

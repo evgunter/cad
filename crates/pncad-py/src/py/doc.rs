@@ -1103,9 +1103,12 @@ impl Doc {
     /// **A document a refactoring minted reads that refactoring's own
     /// record.** `SplitOutcome.remainder`, `SplitOutcome.part` and
     /// `InlineOutcome.doc` are values produced by applying a whole
-    /// edit LIST, so each reports what ITS list did — the offset a
-    /// re-anchored mate cleared, the names a reshaping stranded. The
-    /// document and that record cross
+    /// edit LIST, so each reports what ITS list did, net of what a
+    /// later edit in the same list took back: the names a departing
+    /// node stranded and the remainder still carries. An offset a
+    /// carried mate's insert cleared is re-stated by a later edit in
+    /// the list, so it is not reported. The document and that record
+    /// cross
     /// together, so a caller reading here after either door reads the
     /// record the kernel has rather than an empty list.
     ///
