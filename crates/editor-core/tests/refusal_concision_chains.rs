@@ -669,15 +669,27 @@ fn every_node_refusal_renders_within_the_budget() {
         if name.starts_with("Split/") && !FILED_DECLARE.contains(&name.as_str()) {
             assert!(!text.contains("declare"), "{name}: {text}");
         }
-        // Every arm whose split rendering offers the join's recourse
-        // offers the declaration under the Boolean instead.
+        // Every arm whose split rendering offers the join's SHARED
+        // recourse offers the declaration under the Boolean instead.
+        //
+        // The shared one is the escalated arm's: `Indeterminate::ending`
+        // composed over the levers the door has, so the split's text
+        // carries the margin payload beside it. An arm with a lever of
+        // its own — `SectionArcSide`'s "move the geometry", for a
+        // definite verdict no declaration would change — is NOT it, and
+        // the levers alone no longer tell the two apart now that
+        // `NO_DECLARATION_RECOURSE` is the lever and not a sentence.
         if let Some(arm) = name.strip_prefix("Boolean/Join/") {
             let split = rows
                 .iter()
                 .find(|(n, _)| *n == format!("Split/Join/{arm}"))
                 .map(|(_, t)| t)
                 .expect("every Boolean join row has its split twin");
-            if split.contains(geom_core::NO_DECLARATION_RECOURSE) {
+            let escalated = ["lies inside the ambiguity band", "lies within the zero band",
+                             "cannot be classified against", "margin is invalid"]
+                .iter()
+                .any(|p| split.contains(p));
+            if escalated && split.contains(geom_core::NO_DECLARATION_RECOURSE) {
                 assert!(
                     text.contains(geom_core::COINCIDENCE_RECOURSE),
                     "{name}: {text}"
