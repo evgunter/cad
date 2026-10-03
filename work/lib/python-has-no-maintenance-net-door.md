@@ -32,3 +32,12 @@ document it produced (a `MaintenanceNet` class, or an `apply_all` that
 answers the net), the stub paragraph pointing at it, and one Python
 row cascading a declared union's `Declare` away and asserting an empty
 net.
+
+**The kernel door to bind is now `Recording`** (RECIPE's
+`three-loops-apply-several-edits-and-net-their-maintenance`, 2026-10-03):
+`editor_core::Recording` applies an action's edits in order, nets their
+rows, and collects the ids they minted, answering a `Recorded`; the
+viewer, refactor, `regauge_then_mate` and pncad-py's labelled
+`Doc.insert` all record through it, and `pncad::document` carries both
+names (the census lists them under this gap). An `apply_all` over it
+is the natural Python spelling.
