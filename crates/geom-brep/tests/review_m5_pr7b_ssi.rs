@@ -136,8 +136,9 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
     // This row is about the MARCH ε, which it hands to `trace_deviation`
     // explicitly (1e-9 below) — the ambient band is not an input to it,
     // so it asserts on every ε row. Measured: 4.503e-9 m at u = 0.4868
-    // on all three ambient bands, bit for bit, with the step rungs read
-    // on the carrier in metres.
+    // on all three ambient bands, bit for bit. The window is ±7% of it:
+    // step rungs read on the ℝ⁴ state curve rather than the carrier
+    // sample this wall more densely and read 3.805e-9 m, outside it.
     //
     // The budget refusal is handled where it can actually happen rather
     // than pre-empted by a guard: if a future ambient band ever does
@@ -157,7 +158,7 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
     };
     eprintln!("[review] inflected-wall fit deviation: {max:.3e} m at u = {u_at_max:.4}");
     assert!(
-        (3.6e-9..=5.4e-9).contains(&max),
+        (4.2e-9..=4.8e-9).contains(&max),
         "reported ~4.5e-9 m not reproduced: {max:e}"
     );
     // And it sits at the section's curvature-zero crossing, where the

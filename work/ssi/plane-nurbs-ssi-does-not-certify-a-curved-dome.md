@@ -257,3 +257,17 @@ the oblique and zcut, and d = 4 on the tilt, refuse
   d = 2 and ε 1e-6, and the zcut at d = 2 and ε 1e-9. The old rung's
   over-count was slack that hid cause 4 there; this is further evidence
   for cause 4, not a cause of its own.
+
+**Where cause 4 bites** (PR 3968's review, measured on those two
+cuts): the worst fit-pair deviation sits at the branch end, at a
+parameter fraction of 0.001–0.009, not mid-branch. There `‖C⁗‖/κ³`,
+which the fit rung takes to be about 1, is far from it:
+- zcut d = 2, a parabola in closed form: 4 at the centre, 23 at the
+  ends;
+- tilt d = 2: about 57 at the maximum deviation, and about 400 near
+  t ≈ 0.04–0.08.
+
+`a_curved_domes_open_arc_meets_the_hull_limb_at_its_ends`
+(`crates/geom-brep/tests/m5_pr7_ssi.rs`) pins the zcut at ε 1e-9:
+certified at d = 1, limb 2 in band at d = 2. The tilt at d = 2 and
+1e-6 is pinned by `a_seed_settled_off_the_walls_chart_is_no_branch`.

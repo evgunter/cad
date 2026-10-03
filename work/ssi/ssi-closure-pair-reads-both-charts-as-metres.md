@@ -28,13 +28,20 @@ the state:
   tangents, which hold the wall pcurve's direction too, not between the
   carrier's tangents.
 
+- **The closure pop** (~:1091) drops the last marched state when it is
+  "essentially the seed": the raw state distance `‖last − seed‖`, in
+  mixed state units (parameter units on ℝ⁴, both charts), against
+  `1e-12·max(h_meters, 1)`, a length in metres with a unitless floor.
+  (Found by PR 3968's review.)
+
 Nothing wrong has been measured: a lap's nearest sample lies within
 about `h/2` of the seed, which still closes at √2 over, and the tangent
 test reads `O(1)` angles. The margins are mis-stated, not yet wrong.
 
 ## Fix
 
-Read `back` as `(point(next) − point(seed)).norm()`, and the angle
+Read `back`, and the pop's distance, as the carrier's
+`(point(a) − point(b)).norm()` against a length in metres, and the angle
 between the carrier's tangents (`carrier_jet`'s `C′`, the chart-A
 velocity `tangent_speed` measures). On the ℝ³ lane the state is the
 point and the scales are 1, so both are the same numbers there. Pin a

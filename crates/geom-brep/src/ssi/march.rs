@@ -37,7 +37,7 @@
 //!    keeps the approximant's quadratic and cubic terms within
 //!    [`SSI_STEP_RELATIVE`] of its linear one (Hoffmann's
 //!    small-contribution heuristic, p. 215: `H ≤ 2ρ/κ`, and the cubic
-//!    rung on `‖C‴‖`), and the eventual cubic fit's between-sample
+//!    rung on `‖C‴⊥‖`), and the eventual cubic fit's between-sample
 //!    error within [`SSI_STEP_DEVIATION`]·ε (`H ≤ (24δε/κ³)^¼`). The
 //!    smallest binds, capped by the caller's `step_cap` and the domain's
 //!    diagonal. **`ssi_step_progress`** refuses if the step collapses
@@ -390,11 +390,14 @@ pub const SSI_STEP_RELATIVE: f64 = 0.1;
 /// Hoffmann's relative heuristic alone is not enough here, and saying
 /// why matters: it keeps the *approximant* honest, but our samples are
 /// then handed to a cubic fitting stack whose product must be within ε
-/// of the locus **between** them (C2.2). The standard interpolation
-/// bound `‖C − fit‖ ≲ h⁴·‖C⁗‖/384` with `‖C⁗‖ ≈ κ³` for a curve of
-/// slowly-varying curvature turns that into a cap on `h`, which is the
-/// one that actually binds on a small tight loop. Both caps are
-/// applied; the step is the smaller.
+/// of the locus **between** them (C2.2). The rung holds a step of `h`
+/// metres to `h⁴·‖C⁗‖/4! ≤ δ·ε`, with `‖C⁗‖ ≈ κ³` for a curve of
+/// slowly-varying curvature: `h ≤ (24·δ·ε/κ³)^¼`. That is the remainder
+/// of a cubic Taylor step over one spacing, sixteen times the standard
+/// interpolation bound `‖C − fit‖ ≲ h⁴·‖C⁗‖/384`, so the step is half
+/// what the interpolation bound alone would allow. It is the rung that
+/// binds on a small tight loop. Both caps are applied; the step is the
+/// smaller.
 ///
 /// Two caveats keep this a *design target* rather than a bound, and
 /// the certificate — never this constant — is what refuses when the
@@ -935,14 +938,18 @@ where
                 // the wall pcurve's, which moves no 3-D point.
                 let [c1, c2, c3] = sys.carrier_jet(&x, &d1, &d2, &d3);
                 let bend = across(c1, c2, speed);
-                let n3 = c3.norm();
+                let n3 = across(c1, c3, speed);
                 // (a) Hoffmann's relative heuristic on the carrier: the
                 //     quadratic and cubic terms within ρ of the linear
                 //     one, `h²·‖C″⊥‖/2 ≤ ρ·h·speed` and
-                //     `h³·‖C‴‖/6 ≤ ρ·h·speed`. Each is unbounded only at
+                //     `h³·‖C‴⊥‖/6 ≤ ρ·h·speed`. Both read the part across
+                //     the tangent: the part along it re-times the step
+                //     along the line the linear term already carries, and
+                //     on the ℝ⁴ lane it holds the state's Frenet `−κ²·d₁`,
+                //     the wall pcurve's bending. Each is unbounded only at
                 //     an exact zero, and a poisoned one carries through
                 //     `h` to the step guard. An overflowed κ² is not
-                //     poison but makes ‖C‴‖ NaN through ∞·0 in the
+                //     poison but makes `C‴` NaN through ∞·0 in the
                 //     correction above; `h_quad` already binds there, so
                 //     the cubic rung stands aside.
                 let h_quad = if bend != 0.0 {
@@ -1186,16 +1193,16 @@ fn norm<const N: usize>(a: &[f64; N]) -> f64 {
     dot(a, a).sqrt()
 }
 
-/// `‖C″⊥‖`: the part of the acceleration `c2` across the velocity `c1`,
-/// whose length is `speed`. Read as `‖C″‖·√(1 − cos²)`, so an
-/// acceleration already square to the tangent keeps its own norm's bits.
-fn across(c1: Vec3<f64>, c2: Vec3<f64>, speed: f64) -> f64 {
-    let accel = c2.norm();
-    if !(accel.is_finite() && accel > 0.0) {
-        return accel;
+/// `‖v⊥‖`: the length of the part of `v` across the velocity `c1`, whose
+/// length is `speed`. Read as `‖v‖·√(1 − cos²)`, so a `v` already square
+/// to the tangent keeps its own norm's bits.
+fn across(c1: Vec3<f64>, v: Vec3<f64>, speed: f64) -> f64 {
+    let len = v.norm();
+    if !(len.is_finite() && len > 0.0) {
+        return len;
     }
-    let cos = (c1 / speed).dot(c2) / accel;
-    accel * Real::max(1.0 - cos * cos, 0.0).sqrt()
+    let cos = (c1 / speed).dot(v) / len;
+    len * Real::max(1.0 - cos * cos, 0.0).sqrt()
 }
 
 fn neg<const N: usize>(a: &[f64; N]) -> [f64; N] {
@@ -2023,9 +2030,9 @@ mod tests {
     /// holds every step, so each chord is `(24·δ·ε/κ³)^¼` at the
     /// carrier's own curvature κ, read here off the circle through three
     /// consecutive marched points rather than off the stepper. Every
-    /// chord lies within 5% of it, and the loop takes 1029 steps, where
-    /// the state curve's curvature took 2^(3/8) ≈ 1.30 times as many,
-    /// each chord 2^(−3/8) ≈ 0.77 of this one.
+    /// chord lies within 5% of it, and the loop takes about 1030 steps.
+    /// A rung read on the state curve makes every chord 2^(−3/8) ≈ 0.77
+    /// of it.
     #[test]
     fn the_fit_rung_reads_the_carriers_curvature_on_a_curved_wall() {
         use super::{RectEnd, RectExit, SSI_STEP_DEVIATION};

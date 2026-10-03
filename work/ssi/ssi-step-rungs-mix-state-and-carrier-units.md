@@ -41,8 +41,11 @@ returns the carrier's `[C′, C″, C‴]` along the approximant, read
 through the chart `point` reads (`J_A·d₂_A + D²P_A(d₁_A, d₁_A)`, and
 the matching third derivative). Every rung is stated on it in metres:
 `κ = ‖C″⊥‖/speed²` for the fit rung, `H ≤ 2ρ/κ` and
-`H ≤ √(6ρ·speed³/‖C‴‖)` for the relative ones. On the ℝ³ lane the
-state is the point, so the rungs are the same numbers.
+`H ≤ √(6ρ·speed³/‖C‴⊥‖)` for the relative ones. Both relative rungs
+read the part across the tangent: the part along it only re-times the
+step, and on the ℝ⁴ lane `C‴`'s holds the state's Frenet `−κ²·d₁`,
+the wall pcurve's bending. On the ℝ³ lane the state is the point, so
+the rungs are the same numbers.
 
 ## Closed
 

@@ -4691,9 +4691,9 @@ fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
 /// 1.4–4.7/m, and the wall's pcurve bends in its chart as much as the
 /// plane's. Its fit rung reads the carrier's curvature, so the loop
 /// takes about 1030 samples, inside `SSI_MAX_FIT_SAMPLES`, and
-/// certifies as one closed branch. Read off the ℝ⁴ state curve, whose
-/// curvature over speed² is √2 the carrier's here, it took 1335 and
-/// refused the budget.
+/// certifies as one closed branch. The ℝ⁴ state curve's curvature over
+/// speed² is √2 the carrier's here; a rung read on it needs about 1335,
+/// over the budget.
 #[test]
 fn a_curved_domes_level_loop_fits_the_sample_budget() {
     let b = band_at(1e-9);
@@ -4715,6 +4715,39 @@ fn a_curved_domes_level_loop_fits_the_sample_budget() {
             (1000..1100).contains(&samples),
             "d = {d}: {samples} samples, against about 1030 at the carrier's curvature"
         );
+    }
+}
+
+/// **The `z = 0.2` arc across a dome of curvature 4/m meets the hull
+/// limb at ε 1e-9.** The arc certifies at d = 1. At d = 2 limb 2 reads
+/// it in band: the fit rung prices the gap between samples by
+/// `‖C⁗‖ ≈ κ³`, and along this parabola `‖C⁗‖/κ³` runs from 4 at the
+/// centre to 23 at the branch ends, where the worst deviation sits.
+/// Cause 4 of `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`;
+/// this row is the refusal that cause owes an answer to.
+#[test]
+fn a_curved_domes_open_arc_meets_the_hull_limb_at_its_ends() {
+    let b = band_at(1e-9);
+    for d in [1.0, 2.0] {
+        let (_, dom) = dome_tilt(d);
+        let zcut = Surface::Plane {
+            origin: Point3::new(0.5, -d / 8.0, 0.2),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, b);
+        let pinned = if d < 1.5 {
+            matches!(r, Ok(ref o) if o.branches.len() == 1)
+        } else {
+            matches!(
+                r,
+                Err(SsiError::CertificateEscalated {
+                    limb: SsiLimb::HullSup,
+                    ..
+                })
+            )
+        };
+        assert!(pinned, "d = {d}: the arc's outcome moved: {r:?}");
     }
 }
 
