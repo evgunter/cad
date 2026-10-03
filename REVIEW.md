@@ -9,3 +9,7 @@ Notes so far:
   common ray as `start`, fl[1] as `end`; wedge = CW sweep r̂₀→r̂₁ seen down the axis; n̂₀·r̂₁ = −sin α.
   Holds for planar flanks. Suspect: curved flank reps are chords, not tangents (probing).
 - Probes: crates/sweep/tests/join_reflex_wedge_review_probes.rs (running).
+- Own battery main(56345807) vs head: 22 194 lines, 0 BAD both; 2 508 ClassificationInvariant→SOUND,
+  24 ClassificationInvariant→ResultInvalid(ScaffoldAtRest), 0 SOUND→refusal. θa=180 operand refuses
+  CoplanarNeighbours (π unreachable). Curved flank: CurvedPierceUnsupported first, both trees.
+- Mutants running.

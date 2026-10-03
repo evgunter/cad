@@ -102,6 +102,9 @@ fn outline(t: &[[(f64, f64); 3]]) -> Vec<(f64, f64)> {
 
 const AZ: (f64, f64) = (0.0, 1.0);
 const BZ: (f64, f64) = (-0.4, 0.7);
+/// The tall `b` z-range: `a`'s whole edge inside `b`'s, so no vertex of
+/// `b` sits on `a`'s curved face.
+const BZT: (f64, f64) = (-0.4, 1.4);
 const OPS: [&str; 6] = ["I_ab", "I_ba", "U_ab", "U_ba", "S_ab", "S_ba"];
 
 struct Pose {
@@ -297,6 +300,10 @@ fn keyhole() -> Vec<(Point2<f64>, f64)> {
 }
 
 fn curved_pose(theta_b: f64, phi_b: f64, rb: f64, tilt: bool, declare: bool) -> Pose {
+    curved_pose_z(theta_b, phi_b, rb, tilt, declare, BZ)
+}
+
+fn curved_pose_z(theta_b: f64, phi_b: f64, rb: f64, tilt: bool, declare: bool, bz: (f64, f64)) -> Pose {
     let (o, u, v) = if tilt {
         (Vec3::new(0.2, 0.1, -0.3), Vec3::new(0.8, 0.5, 0.2), Vec3::new(-0.3, 0.6, 0.7))
     } else {
@@ -312,7 +319,7 @@ fn curved_pose(theta_b: f64, phi_b: f64, rb: f64, tilt: bool, declare: bool) -> 
     let bv: Vec<(Point2<f64>, f64)> =
         outline(&tb).iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect();
     let a = sweep::test_support::prism_on(plane_at(AZ.0), keyhole(), AZ.1 - AZ.0, tol());
-    let b = sweep::test_support::prism_on(plane_at(BZ.0), bv, BZ.1 - BZ.0, tol());
+    let b = sweep::test_support::prism_on(plane_at(bz.0), bv, bz.1 - bz.0, tol());
     let half_disc = std::f64::consts::PI * KR * KR / 2.0;
     let area_a = 8.0 + half_disc;
     let area_b: f64 = tb.iter().map(|t| area(t)).sum();
@@ -326,8 +333,8 @@ fn curved_pose(theta_b: f64, phi_b: f64, rb: f64, tilt: bool, declare: bool) -> 
             low + up
         })
         .sum();
-    let (ha, hb) = (AZ.1 - AZ.0, BZ.1 - BZ.0);
-    let hc = AZ.1.min(BZ.1) - AZ.0.max(BZ.0);
+    let (ha, hb) = (AZ.1 - AZ.0, bz.1 - bz.0);
+    let hc = AZ.1.min(bz.1) - AZ.0.max(bz.0);
     let (va, vb, vi) = (area_a * ha, area_b * hb, common * hc);
     let d = if declare {
         (flush_declarations(&a, &b, tol()), flush_declarations(&b, &a, tol()))
@@ -438,13 +445,13 @@ fn chord_a(t0: f64, sweep: f64) -> (Vec<(Point2<f64>, f64)>, f64) {
 /// `b` a small fan at the origin, wholly in `y > 0` and inside radius
 /// 0.3, where `a`'s arc stays above `y = 0`; its overlap with `a` is
 /// the fan less the arc's disc (concave) or the fan within it (convex).
-fn chord_pose(t0: f64, sweep: f64, phi_b: f64, theta_b: f64) -> Pose {
+fn chord_pose(t0: f64, sweep: f64, phi_b: f64, theta_b: f64, bz: (f64, f64)) -> Pose {
     let (av, area_a) = chord_a(t0, sweep);
     let tb = star(phi_b, theta_b, 0.3, 0.3);
     let bv: Vec<(Point2<f64>, f64)> =
         outline(&tb).iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect();
     let a = sweep::test_support::prism_at(av, AZ.0, AZ.1 - AZ.0, tol());
-    let b = sweep::test_support::prism_at(bv, BZ.0, BZ.1 - BZ.0, tol());
+    let b = sweep::test_support::prism_at(bv, bz.0, bz.1 - bz.0, tol());
     // The disc: centre one unit from the origin, left of the tangent
     // for a convex arc, right for a concave one.
     let side = if sweep > 0.0 { 90.0 } else { -90.0 };
@@ -458,8 +465,8 @@ fn chord_pose(t0: f64, sweep: f64, phi_b: f64, theta_b: f64) -> Pose {
     } else {
         area_b - in_disc
     };
-    let hc = AZ.1.min(BZ.1) - AZ.0.max(BZ.0);
-    let (va, vb, vi) = (area_a * (AZ.1 - AZ.0), area_b * (BZ.1 - BZ.0), common * hc);
+    let hc = AZ.1.min(bz.1) - AZ.0.max(bz.0);
+    let (va, vb, vi) = (area_a * (AZ.1 - AZ.0), area_b * (bz.1 - bz.0), common * hc);
     let va_k = topo::mass_properties(&a, tol()).unwrap().volume;
     assert!((va - va_k).abs() < 1e-9, "a's closed form {va} vs {va_k}");
     Pose { a, b, d: Default::default(), want: [vi, vi, va + vb - vi, va + vb - vi, va - vi, vb - vi] }
@@ -470,23 +477,50 @@ fn chord_pose(t0: f64, sweep: f64, phi_b: f64, theta_b: f64) -> Pose {
 fn rv_chord_battery() {
     // Concave flank at a convex wedge (160°, 170°, 175°), chord reading
     // reflex; and convex flank at a reflex wedge (200°), chord convex.
-    for (t0, sweep) in [(20.0, -60.0), (10.0, -60.0), (5.0, -40.0), (20.0, -20.0), (-20.0, 60.0)] {
+    for (t0, sweep) in [(20.0, -60.0), (10.0, -60.0), (5.0, -40.0), (20.0, -30.0), (-20.0, 60.0)] {
+      for bz in [BZ, BZT] {
         for phi_b in [2.0, 5.0, 10.0, 15.0, 25.0, 40.0] {
             for theta_b in [20.0, 60.0, 120.0] {
                 if phi_b + theta_b > 175.0 {
                     continue;
                 }
                 let line = caught(|| {
-                    let p = chord_pose(t0, sweep, phi_b, theta_b);
+                    let p = chord_pose(t0, sweep, phi_b, theta_b, bz);
                     OPS.iter()
                         .zip(p.want)
                         .map(|(op, want)| {
-                            format!("RVH {t0} {sweep} {phi_b} {theta_b} {op} => {}\n",
+                            format!("RVH {} {t0} {sweep} {phi_b} {theta_b} {op} => {}\n", bz.1,
                                 caught(|| outcome(run(&p, op), want, tol())))
                         })
                         .collect()
                 });
                 print!("{line}");
+            }
+        }
+      }
+    }
+}
+
+#[test]
+#[ignore = "review battery; --ignored --nocapture"]
+fn rv_curved_tall_battery() {
+    for tilt in [false, true] {
+        for rb in [0.4, 1.0] {
+            for theta_b in [25.0, 80.0, 170.0, 200.0, 290.0] {
+                for k in 0..24 {
+                    let phi_b = 15.0 * f64::from(k) + 3.0;
+                    let line = caught(|| {
+                        let p = curved_pose_z(theta_b, phi_b, rb, tilt, false, BZT);
+                        OPS.iter()
+                            .zip(p.want)
+                            .map(|(op, want)| {
+                                format!("RVKT {tilt} {rb} {theta_b} {phi_b} {op} => {}\n",
+                                    caught(|| outcome(run(&p, op), want, tol())))
+                            })
+                            .collect()
+                    });
+                    print!("{line}");
+                }
             }
         }
     }
