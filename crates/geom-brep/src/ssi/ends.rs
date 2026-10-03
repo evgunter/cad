@@ -14,13 +14,14 @@
 //!   side where two are (branches converging on a side). A march that
 //!   leaves where no crossing matches refuses as the march's limit
 //!   ([`SsiError::CrossingUnmatched`]).
-//! - Where `|AB|` is below [`SSI_SHORT_CLIP`]`·Kε`, no step of it can
-//!   clear the band, so the candidate is not marched: it is the Hermite
-//!   cubic through the two certified ends and their tangents, in both
+//! - Where the march cannot progress, its step falling in the band
+//!   ([`SsiError::StepCollapsed`], or undecided there), the candidate is
+//!   the Hermite cubic from `A` to `B` through their tangents, in both
 //!   charts and in space. The march and the Hermite are two candidate
 //!   generators, each trusted for nothing; C2's three limbs decide
-//!   either, and a short candidate they refuse is a sized refusal in its
-//!   length ([`SsiError::ShortBranchUncertified`]).
+//!   either, and a Hermite candidate they refuse on a branch too short
+//!   for a step of it to clear the band is a sized refusal in its length
+//!   ([`SsiError::ShortBranchUncertified`]).
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_core::linalg::svd::Svd;
@@ -39,15 +40,6 @@ use super::{
 };
 use crate::dihedral::decide_reported;
 use crate::recourse::Refused;
-
-/// **The short-clip rule** (D9): a branch whose two certified ends are
-/// less than this many `Kε` apart takes the Hermite cubic through them
-/// as its candidate instead of a march. It is [`SHORT_BRANCH_STEPS`]:
-/// below it, a step of `|AB|/SHORT_BRANCH_STEPS` cannot clear the band
-/// the march's step progress is decided in.
-pub const SSI_SHORT_CLIP: f64 = 5.0;
-
-const _: () = assert!(SSI_SHORT_CLIP == SHORT_BRANCH_STEPS as f64);
 
 /// What the branches between known ends read, minted once per call.
 pub(crate) struct Ends<'a> {
@@ -94,6 +86,19 @@ fn close_at(sys: &ParametricPairR4<'_>, states: &mut Vec<[f64; 4]>, end: [f64; 4
         states.pop();
     }
     states.push(end);
+}
+
+/// Whether a march refused because its step fell in the band: decided
+/// there, or undecided on a valid margin.
+fn step_in_band(e: &SsiError) -> bool {
+    match e {
+        SsiError::StepCollapsed { .. } => true,
+        SsiError::Escalated {
+            decision: super::TraceDecision::StepProgress,
+            cause,
+        } => !cause.margin.is_invalid(),
+        _ => false,
+    }
 }
 
 /// The 3-D distance between two states.
@@ -162,7 +167,7 @@ impl<'a> Ends<'a> {
     /// [`SsiError::CrossingUnmatched`] for a crossing with no partner,
     /// or a march whose exit matches none; any refusal of the
     /// march, the fit or the certificate; and
-    /// [`SsiError::ShortBranchUncertified`] for a short candidate the
+    /// [`SsiError::ShortBranchUncertified`] for a Hermite candidate the
     /// certificate refuses.
     pub(crate) fn branches(&self, crossings: &[Crossing]) -> Result<Vec<SsiBranch>, SsiError> {
         let n = crossings.len();
@@ -181,17 +186,26 @@ impl<'a> Ends<'a> {
             let Some((j, near)) = nearest else {
                 return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
             };
-            let branch = if near < SSI_SHORT_CLIP * self.band.escalate() {
-                used[j] = true;
-                self.hermite(a, crossings[j], near)?
-            } else {
-                let (b, states, min_t) = self.march_from(a, near, crossings, &used)?;
-                used[b] = true;
-                let end = BranchEnd::Crossings {
-                    from: a.at,
-                    to: crossings[b].at,
-                };
-                self.finish(&states, end, min_t)?
+            let branch = match self.march_from(a, near, crossings, &used) {
+                Ok((b, states, min_t)) => {
+                    used[b] = true;
+                    let end = BranchEnd::Crossings {
+                        from: a.at,
+                        to: crossings[b].at,
+                    };
+                    self.finish(&states, end, min_t)?
+                }
+                // The march cannot progress: the Hermite candidate. Where
+                // a step of the branch clears the band, it was the
+                // march's to trace, and the march's refusal stands.
+                Err(march) if step_in_band(&march) => {
+                    used[j] = true;
+                    self.hermite(a, crossings[j], near).map_err(|e| match e {
+                        SsiError::ShortBranchUncertified { .. } => e,
+                        _ => march,
+                    })?
+                }
+                Err(e) => return Err(e),
             };
             out.push(branch);
         }
@@ -408,7 +422,7 @@ impl<'a> Ends<'a> {
         Margin::levered(sin_theta, arm).value()
     }
 
-    /// **The short clip's candidate**: the Hermite cubic from `a` to `b`
+    /// **The Hermite candidate**: the cubic from `a` to `b`
     /// through their tangents, each scaled to the ends' distance, as one
     /// cubic Bézier per chart on a shared parameter. The plane's chart
     /// is affine, so the carrier is that chart's image of its own
@@ -455,7 +469,7 @@ impl<'a> Ends<'a> {
             return Err(self.short_refusal(
                 length,
                 SsiError::UnsupportedCertificate {
-                    what: "the short clip's Hermite candidate is not a finite cubic",
+                    what: "the Hermite candidate is not a finite cubic",
                 },
             ));
         };
@@ -468,11 +482,11 @@ impl<'a> Ends<'a> {
             .map_err(|e| self.short_refusal(length, e))
     }
 
-    /// The sized refusal of a short candidate of `length`: the length
-    /// over [`SSI_SHORT_CLIP`] is the step it would be marched at, and a
-    /// tolerance whose band that step clears marches it instead.
+    /// The sized refusal of a Hermite candidate of `length`: the length
+    /// over [`SHORT_BRANCH_STEPS`] is the step it would be marched at,
+    /// and a tolerance whose band that step clears marches it instead.
     fn short_refusal(&self, length: f64, limb: SsiError) -> SsiError {
-        let step = Margin::of(length / SSI_SHORT_CLIP);
+        let step = Margin::of(length / SHORT_BRANCH_STEPS as f64);
         let verdict = match decide_reported("ssi_short_branch", step, self.band) {
             Ok(decided) => match Refused::of(decided, self.band) {
                 Some(r) => BandVerdict::Refused(r),
