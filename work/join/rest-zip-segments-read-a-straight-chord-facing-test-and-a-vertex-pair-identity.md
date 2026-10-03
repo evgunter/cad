@@ -51,3 +51,17 @@ with unchanged outcomes. Ignoring `bool_arc_ahead` turns 15 rows red at
 the PR's fix-pass head, those among them. The straight-chord test matches every pair no arc does. JOIN-2's plan (the zip reads the join's
 segments) would replace both; whether this row closes on that branch or
 on JOIN-2 is the owner's call.
+
+## Built (JOIN-2, PR 3880)
+
+`rest.rs` reads `join::section_segments`. A segment's `OnEdge` cell is
+its seam edge, its `InFace` cell is the chord's host face (or the
+fragment of it an earlier chord split off), and the other solid's edge
+along it is the chord's twin, all by key. `enumerate_segments`, its
+straight-chord facing test, the arc pass and `arc_along` are gone.
+`fan_edge_between` is gone too: `mirror_edges`, the one remaining lookup
+by vertex pair, asks only whether some edge already joins the two
+vertices, and `pair_patches` verifies the result by cycle congruence.
+`RestZipFrontier::ParallelSeamEdges` is deleted. No declared-REST pose
+with two arcs between one vertex pair reaches the zip: the dumbbell and
+the aligned half-rod stack build in the join.
