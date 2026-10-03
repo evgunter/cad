@@ -4326,13 +4326,10 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             }
         }
         // A placement's literal steps — a transform's, a gauge's, an
-        // instance's offset — meet the same bar, by the same predicate.
-        if let Some((index, fault)) = n.placement_frame_fault(tol) {
-            return Err(EditError::placement_frame(
-                written(doc, node, n),
-                FrameSite::Step { index },
-                fault,
-            ));
+        // instance's offset, a mate's frame offsets — meet the same
+        // bar, by the same predicate.
+        if let Some((at, fault)) = n.placement_frame_fault(tol) {
+            return Err(EditError::placement_frame(written(doc, node, n), at, fault));
         }
     }
     Ok((new, wrote, reported))
@@ -4400,6 +4397,16 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
         return Err(EditError::NonFiniteAlignment {
             node: SpokenNode::entering(id, node),
         });
+    }
+    // A mate's admission below composes its frame offsets, so their
+    // literal steps meet the frame rule first, by the predicate the
+    // whole-document pass asks of every placement.
+    if let (Node::Mate { .. }, Some((at, fault))) = (node, node.placement_frame_fault(tol)) {
+        return Err(EditError::placement_frame(
+            SpokenNode::entering(id, node),
+            at,
+            fault,
+        ));
     }
     check_node_slots(new, doc, id, node)?;
     // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
@@ -5625,7 +5632,7 @@ mod tests {
             node,
             path: vec![],
         };
-        let frame = crate::mate::MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+        let frame = crate::mate::MateFrame::from_face();
         let mate: DocEdit<ProfileProgram> = DocEdit::InsertNode {
             node: Box::new(crate::node::Node::Mate {
                 a: crate::node::SitedFace::at_mint(

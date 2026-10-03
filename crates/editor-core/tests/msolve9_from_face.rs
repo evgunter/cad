@@ -2,7 +2,7 @@
 //! and resolves at evaluation** through the reach road (`ASSEMBLY.md`
 //! A11 rule 5 is the ratified sentence).
 //!
-//! `MateFrame::FromFace` names no face: the side's frame is its own
+//! `MateFrame::from_face()` names no face: the side's frame is its own
 //! head's face, the head with the member walk's qualifiers stripped
 //! (`head_face`); the solve asks the mated part's own evaluation for
 //! that face's canonical pose (`MateReach::face_pose`, off the cached
@@ -36,12 +36,12 @@ use std::sync::Arc;
 
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    Alignment, AuthoredFrame, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId,
-    EditError, EntityKind, EvalOptions, Evaluation, Expr, FaceName, FacePoseRefusal, FaceRefusal,
-    Frame, LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node, NodeErrorKind,
-    PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId,
-    RefusingReach, RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind,
-    face_frame, load, mate_reach, save,
+    Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EditError,
+    EntityKind, EvalOptions, Evaluation, Expr, FaceName, FacePoseRefusal, FaceRefusal, Frame,
+    LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node, NodeErrorKind, PartFault,
+    PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RefusingReach,
+    RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind, face_frame, load,
+    mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -85,7 +85,13 @@ fn cap(body: RecipeNodeId, end: CapEnd) -> StableName {
 
 /// The identity frame, authored: origin at the part's origin, +z, +x.
 fn identity() -> MateFrame {
-    MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+    MateFrame::authored(
+        [0.0; 3],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A frame coincidence of `a` and `b`, axes aligned, no rider.
@@ -169,7 +175,7 @@ fn seat(label: &str, post_height: f64) -> Seat {
             node: Box::new(mate(
                 (post_i, post_body),
                 (block_i, block_body),
-                coincide(MateFrame::FromFace, identity()),
+                coincide(MateFrame::from_face(), identity()),
             )),
         },
         &reach,
@@ -203,17 +209,15 @@ fn cap_pose(post: &ProfileDoc, body: RecipeNodeId, end: CapEnd) -> topo::readbac
 /// bit.
 fn resolved(pose: &topo::readback::Pose<f64>) -> Frame {
     let u_ref = pose.u_ref.expect("the carrier fixes a reference");
-    let authored = AuthoredFrame {
-        origin: pose.origin.to_array(),
-        axis: pose.axis.to_array(),
-        reference: u_ref.to_array(),
-    };
-    let fa = authored
-        .placement(Tol::witness())
-        .expect("a definite frame");
-    let fb = identity()
-        .authored_vectors()
-        .expect("authored")
+    let fa = geom_core::linalg::frame::point_at_frame(
+        pose.origin,
+        pose.origin + pose.axis,
+        u_ref,
+        Tol::witness(),
+    )
+    .expect("a definite frame")
+    .to_affine();
+    let fb = fixture::authored(&identity())
         .placement(Tol::witness())
         .expect("a definite frame");
     Frame::from_affine(fa * fb.inverse())
@@ -342,32 +346,20 @@ fn a1_the_mate_follows_the_edited_face() {
         gate(&s.doc, &ev).err()
     );
 
-    // Nothing stored twice: the face side is its tag alone — the head
-    // is the face.
+    // Nothing stored twice: the face side is its base and its offset
+    // alone — the head is the face.
     let text = save(&s.doc, &[], Tol::witness()).expect("saves");
     let body = wire::wire_body(&text);
     let node = &body["snapshot"]["nodes"][s.mate.0.to_string()];
-    let a = &node["Mate"]["alignment"]["a"];
     assert_eq!(
-        *a,
-        serde_json::json!("FromFace"),
-        "the face side's bare tag"
+        node["Mate"]["alignment"]["a"],
+        serde_json::json!({ "base": "Face", "offset": { "steps": [] } }),
+        "the face side names no face"
     );
-    let side = |s: &str| {
-        node["Mate"]["alignment"][s]
-            .as_object()
-            .unwrap_or_else(|| panic!("side {s} is a tagged object"))
-            .clone()
-    };
-    let b = side("b");
     assert_eq!(
-        b.keys().collect::<Vec<_>>(),
-        ["Authored"],
-        "the authored side's one tag: {b:?}"
-    );
-    assert!(
-        b["Authored"].get("origin").is_some() && b["Authored"].get("face").is_none(),
-        "the authored side: {b:?}"
+        node["Mate"]["alignment"]["b"]["base"],
+        serde_json::json!("Part"),
+        "the authored side is the part base"
     );
 }
 
@@ -556,9 +548,14 @@ fn a2_every_analytic_carrier_resolves_to_face_pose_bit_for_bit() {
             pose.u_ref.is_some(),
             "{kind:?}: the carrier fixes its own reference"
         );
-        let got =
-            resolve_through_the_solve(label, part, &name, MateFrame::FromFace, AxisSense::Aligned)
-                .unwrap_or_else(|fault| panic!("{kind:?} resolves: {fault}"));
+        let got = resolve_through_the_solve(
+            label,
+            part,
+            &name,
+            MateFrame::from_face(),
+            AxisSense::Aligned,
+        )
+        .unwrap_or_else(|fault| panic!("{kind:?} resolves: {fault}"));
         assert_eq!(
             bits(&got),
             bits(&resolved(&pose)),
@@ -594,7 +591,7 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         "msolve9-a2-sense-aligned",
         part.clone(),
         &name,
-        MateFrame::FromFace,
+        MateFrame::from_face(),
         AxisSense::Aligned,
     )
     .expect("resolves");
@@ -609,7 +606,7 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         "msolve9-a2-sense-opposed",
         part,
         &name,
-        MateFrame::FromFace,
+        MateFrame::from_face(),
         AxisSense::Opposed,
     )
     .expect("resolves");
@@ -658,7 +655,7 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
         "msolve9-a2-nurbs-asm",
         part.clone(),
         &flank,
-        MateFrame::FromFace,
+        MateFrame::from_face(),
         AxisSense::Aligned,
     )
     .expect_err("a NURBS face has no canonical frame");
@@ -687,7 +684,13 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
         "msolve9-a2-nurbs-authored",
         part,
         &flank,
-        MateFrame::authored([0.0, 0.0, 0.5], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        MateFrame::authored(
+            [0.0, 0.0, 0.5],
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            geom_core::Tol::witness(),
+        )
+        .expect("a definite frame"),
         AxisSense::Aligned,
     )
     .expect("authored vectors keep working");
@@ -720,7 +723,7 @@ fn a_tied_face_refuses_ambiguous_at_the_door() {
         "msolve9-tie",
         part,
         &tied,
-        MateFrame::FromFace,
+        MateFrame::from_face(),
         AxisSense::Aligned,
     )
     .expect_err("a tied face has no one pose");
@@ -816,7 +819,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
             s.post_i,
             &bogus,
             (s.block_i, s.block_body),
-            coincide(MateFrame::FromFace, identity()),
+            coincide(MateFrame::from_face(), identity()),
         ),
     )
     .expect_err("the part has no such face");
@@ -955,7 +958,7 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
         mate(
             (s.post_i, s.post_body),
             (s.block_i, s.block_body),
-            coincide(MateFrame::FromFace, identity()),
+            coincide(MateFrame::from_face(), identity()),
         ),
     )
     .expect_err("no resolver, no face");
@@ -1120,11 +1123,12 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
 
 // ---- The wire ----
 
-/// **Both arms round-trip, and anything beside the tags refuses at
-/// load**: a document carrying a `FromFace` side and an `Authored`
-/// side saves and loads as itself, a face side is the bare string
-/// `"FromFace"`, a stray key inside the authored arm refuses, and a
-/// stray key beside either tag refuses as malformed.
+/// **Both bases round-trip, and anything beside a frame's two keys
+/// refuses at load**: a document carrying a face-based side and a
+/// part-based side saves and loads as itself, byte for byte; a face
+/// side with no offset is its base and the empty chain; a stray key
+/// beside `base` and `offset`, or inside a literal step's frame,
+/// refuses.
 #[test]
 fn both_arms_round_trip_and_a_stray_key_on_either_refuses() {
     let s = seat("msolve9-wire", 1.0);
@@ -1133,66 +1137,92 @@ fn both_arms_round_trip_and_a_stray_key_on_either_refuses() {
     assert_eq!(
         loaded.doc.node(s.mate),
         s.doc.node(s.mate),
-        "both arms as themselves"
+        "both bases as themselves"
     );
     let again = save(&loaded.doc, &[], Tol::witness()).expect("re-saves");
     assert_eq!(again, text, "byte for byte");
     let body = wire::wire_body(&text);
+    let alignment = &body["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"];
     assert_eq!(
-        body["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["a"],
-        serde_json::json!("FromFace"),
-        "a face side is its tag and nothing else"
+        alignment["a"],
+        serde_json::json!({ "base": "Face", "offset": { "steps": [] } }),
+        "a face side is its base and the empty chain"
     );
-    let inside = wire::doctored(&text, |wire| {
-        wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["b"]["Authored"]["stray"] =
-            serde_json::json!(1);
-    });
-    let err = load(&inside, Tol::witness()).expect_err("a stray key inside refuses");
-    assert!(
-        matches!(err, PersistError::Unreadable { .. }),
-        "inside the authored arm: this build's types refuse the bytes, got {err:?}"
-    );
-    let beside = wire::doctored(&text, |wire| {
-        wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["b"]["stray"] =
-            serde_json::json!(1);
-    });
-    let err = load(&beside, Tol::witness()).expect_err("a stray key beside refuses");
-    assert!(
-        matches!(err, PersistError::Unreadable { .. }),
-        "beside the authored tag: a tagged frame is one key, got {err:?}"
-    );
+    assert_eq!(alignment["b"]["base"], serde_json::json!("Part"));
+    for (what, doctor) in [
+        (
+            "beside the two keys",
+            (|frame: &mut serde_json::Value| frame["stray"] = serde_json::json!(1))
+                as fn(&mut serde_json::Value),
+        ),
+        ("inside a literal step's frame", |frame| {
+            frame["offset"]["steps"][0]["Literal"]["stray"] = serde_json::json!(1);
+        }),
+    ] {
+        let doctored = wire::doctored(&text, |wire| {
+            doctor(&mut wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["b"]);
+        });
+        let err = load(&doctored, Tol::witness()).expect_err("a stray key refuses");
+        assert!(
+            matches!(err, PersistError::Unreadable { .. }),
+            "{what}: this build's types refuse the bytes, got {err:?}"
+        );
+    }
 }
 
-/// **A file from before the face arm named no face refuses typed, and
-/// never loads with another meaning**: the face side spelled as an
-/// older build wrote it — `{"FromFace": {"face": <name>}}`, the name
-/// that build read the frame off — is a payload the bare tag does not
-/// take, so the file is `Unreadable` with the regenerate recourse,
-/// whether its face named the head's own face or another. Loading it
-/// as the head's face would silently re-mean the second. The tag as an
-/// object refuses whatever it holds: `null`, `{}` and `[]` alike.
+/// **A file from before a mate frame was a base and an offset refuses
+/// typed, and never loads with another meaning**: every spelling an
+/// older build wrote — the bare string `"FromFace"`, the face tag over
+/// a payload (`{"FromFace": {"face": <name>}}`, `null`, `{}`, `[]`),
+/// and the authored vectors under their tag
+/// (`{"Authored": {"origin", "axis", "reference"}}`) — is
+/// `Unreadable`, with the regenerate recourse.
 #[test]
 fn an_older_file_naming_its_face_refuses_unreadable_with_the_recourse() {
     let s = seat("msolve9-older", 1.0);
     let text = save(&s.doc, &[], Tol::witness()).expect("saves");
-    for (what, payload) in [
+    for (what, side, frame) in [
+        ("the bare face tag", "a", serde_json::json!("FromFace")),
         (
-            "the head's own face",
-            serde_json::json!({ "face": cap(s.post_body, CapEnd::End) }),
+            "a face tag naming the head's own face",
+            "a",
+            serde_json::json!({ "FromFace": { "face": cap(s.post_body, CapEnd::End) } }),
         ),
         (
-            "another face",
-            serde_json::json!({ "face": cap(s.post_body, CapEnd::Start) }),
+            "a face tag naming another face",
+            "a",
+            serde_json::json!({ "FromFace": { "face": cap(s.post_body, CapEnd::Start) } }),
         ),
-        ("null", serde_json::Value::Null),
-        ("an empty object", serde_json::json!({})),
-        ("an empty array", serde_json::json!([])),
+        (
+            "a face tag over null",
+            "a",
+            serde_json::json!({ "FromFace": null }),
+        ),
+        (
+            "a face tag over an empty object",
+            "a",
+            serde_json::json!({ "FromFace": {} }),
+        ),
+        (
+            "a face tag over an empty array",
+            "a",
+            serde_json::json!({ "FromFace": [] }),
+        ),
+        (
+            "the authored vectors under their tag",
+            "b",
+            serde_json::json!({ "Authored": {
+                "origin": [0.0, 0.0, 0.0],
+                "axis": [0.0, 0.0, 1.0],
+                "reference": [1.0, 0.0, 0.0],
+            } }),
+        ),
     ] {
         let older = wire::doctored(&text, |wire| {
-            wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["a"] =
-                serde_json::json!({ "FromFace": payload });
+            wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"][side] =
+                frame.clone();
         });
-        let err = load(&older, Tol::witness()).expect_err("an older face side refuses");
+        let err = load(&older, Tol::witness()).expect_err("an older frame refuses");
         assert!(
             matches!(err, PersistError::Unreadable { .. }),
             "{what}: refused as vocabulary this build lacks, got {err:?}"
@@ -1204,42 +1234,54 @@ fn an_older_file_naming_its_face_refuses_unreadable_with_the_recourse() {
     }
 }
 
-/// **A frame with no tag refuses**: the arm's own keys written bare
-/// where the tag belongs — the authored vectors, or the `face` key an
-/// older face side carried — are not a frame on this wire, and no
-/// reader tries the arms in turn to find one they fit.
+/// **A frame missing either key refuses**: a base with no offset, an
+/// offset with no base, and the older arms' own keys written bare —
+/// the authored vectors, or the `face` key an older face side carried
+/// — are not a frame on this wire.
 #[test]
 fn an_untagged_frame_refuses_whichever_arms_keys_it_carries() {
     let s = seat("msolve9-untagged", 1.0);
     let text = save(&s.doc, &[], Tol::witness()).expect("saves");
-    let authored_keys = wire::doctored(&text, |wire| {
-        let frame = &mut wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["b"];
-        let inner = frame["Authored"].take();
-        assert!(inner.is_object(), "side b carries the authored arm");
-        *frame = inner;
-    });
-    let face_key = wire::doctored(&text, |wire| {
-        wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["a"] =
-            serde_json::json!({ "face": cap(s.post_body, CapEnd::End) });
-    });
-    for (what, doctored) in [
-        ("the authored keys", authored_keys),
-        ("a face key", face_key),
+    for (what, side, frame) in [
+        ("a base alone", "a", serde_json::json!({ "base": "Face" })),
+        (
+            "an offset alone",
+            "a",
+            serde_json::json!({ "offset": { "steps": [] } }),
+        ),
+        (
+            "the authored keys",
+            "b",
+            serde_json::json!({
+                "origin": [0.0, 0.0, 0.0],
+                "axis": [0.0, 0.0, 1.0],
+                "reference": [1.0, 0.0, 0.0],
+            }),
+        ),
+        (
+            "a face key",
+            "a",
+            serde_json::json!({ "face": cap(s.post_body, CapEnd::End) }),
+        ),
     ] {
-        let err = load(&doctored, Tol::witness()).expect_err("an untagged frame refuses");
+        let doctored = wire::doctored(&text, |wire| {
+            wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"][side] =
+                frame.clone();
+        });
+        let err = load(&doctored, Tol::witness()).expect_err("an incomplete frame refuses");
         assert!(
             matches!(err, PersistError::Unreadable { .. }),
-            "{what} untagged: got {err:?}"
+            "{what}: got {err:?}"
         );
     }
 }
 
 /// **Every tracked document loads and re-saves byte for byte, and
-/// every mate frame it carries is spelled with its tag**: the corpus
-/// is on this wire, not the one before the arm, so no reader has an
-/// older shape to accept.
+/// every mate frame it carries is a base and an offset**: the corpus
+/// is on this wire, not an older one, so no reader has an older shape
+/// to accept.
 ///
-/// **The tag half cannot fail today**: no tracked document holds a
+/// **The frame half cannot fail today**: no tracked document holds a
 /// mate, so the walk meets no alignment and the half is vacuous until
 /// one does. It is kept for that day — a mated document checked in
 /// on an older wire would load-fail here, and one on this wire is
@@ -1297,13 +1339,13 @@ fn c5_every_tracked_document_loads_on_the_tagged_wire_and_re_saves_identically()
         every_alignment(&wire::wire_body(&text), &mut |alignment| {
             for side in ["a", "b"] {
                 let frame = &alignment[side];
-                let tags: Vec<_> = frame
+                let keys: Vec<_> = frame
                     .as_object()
                     .map(|o| o.keys().cloned().collect())
                     .unwrap_or_default();
                 assert!(
-                    tags == ["Authored"] || *frame == serde_json::json!("FromFace"),
-                    "{}: side {side} is spelled with its tag: {frame}",
+                    keys == ["base", "offset"],
+                    "{}: side {side} is a base and an offset: {frame}",
                     path.display()
                 );
                 frames += 1;
@@ -1343,16 +1385,17 @@ fn every_alignment(value: &serde_json::Value, f: &mut dyn FnMut(&serde_json::Val
     }
 }
 
-/// The two edit doors' shared finiteness rule reaches the authored
-/// side of a mate and nothing of a face side, which authors no number:
-/// a non-finite authored side beside a face side refuses
-/// `NonFiniteAlignment` at the door before any face is read, and a
-/// face side beside a finite one is finite whatever its face resolves
-/// to.
+/// The edit door's frame rule reaches a face side's offset as it does
+/// a part side's: a non-finite literal step on a face side refuses
+/// `NonFinitePlacement` at the door, named by its side and step,
+/// before any face is read; a face side with no offset beside a finite
+/// one is finite whatever its face resolves to.
 #[test]
 fn a_face_side_authors_no_number_the_finiteness_door_sees() {
     let s = seat("msolve9-finite", 1.0);
-    let poisoned = MateFrame::authored([f64::NAN, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    let poisoned = MateFrame::on_face(editor_core::Placement::literal(
+        &editor_core::Frame::translation([f64::NAN, 0.0, 0.0]),
+    ));
     let err = s
         .doc
         .apply(
@@ -1360,18 +1403,27 @@ fn a_face_side_authors_no_number_the_finiteness_door_sees() {
                 node: Box::new(mate(
                     (s.post_i, s.post_body),
                     (s.block_i, s.block_body),
-                    coincide(MateFrame::FromFace, poisoned),
+                    coincide(poisoned, identity()),
                 )),
             },
             Tol::witness(),
             &RefusingReach,
         )
-        .expect_err("a non-finite authored side refuses");
+        .expect_err("a non-finite face offset refuses");
     assert!(
-        matches!(err, EditError::NonFiniteAlignment { .. }),
-        "the finiteness door, before the refusing reach is asked: {err:?}"
+        matches!(
+            err,
+            EditError::NonFinitePlacement {
+                at: editor_core::FrameSite::MateStep {
+                    side: editor_core::MateSide::A,
+                    index: 0
+                },
+                ..
+            }
+        ),
+        "the frame rule, before the refusing reach is asked: {err:?}"
     );
-    assert!(coincide(MateFrame::FromFace, identity()).is_finite());
+    assert!(coincide(MateFrame::from_face(), identity()).is_finite());
 }
 
 /// **A face side reads its head's face, in the part's own spelling**:
@@ -1384,7 +1436,7 @@ fn a_face_sides_face_is_its_heads_row_in_the_part() {
     let Some(Node::Mate { a, alignment, .. }) = s.doc.node(s.mate) else {
         panic!("the mate");
     };
-    assert_eq!(alignment.a, MateFrame::FromFace);
+    assert_eq!(alignment.a, MateFrame::from_face());
     let head: &SitedFace = a;
     assert_eq!(head.name.node, s.post_i, "a head is the instance's wrapper");
     assert_eq!(

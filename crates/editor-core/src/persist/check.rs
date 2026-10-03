@@ -1412,12 +1412,8 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // instance's offset — held by the predicate the edit door asks,
         // for the rule's reason: the snapshot is the one road
         // to a document that does not pass `apply`.
-        if let Some((index, fault)) = node.placement_frame_fault(tol) {
-            return Err(SnapshotError::placement_frame(
-                doc.spoken(id),
-                FrameSite::Step { index },
-                fault,
-            ));
+        if let Some((at, fault)) = node.placement_frame_fault(tol) {
+            return Err(SnapshotError::placement_frame(doc.spoken(id), at, fault));
         }
         // DM5's third caller, for the reason the placement rule above
         // has one: a saved file is DATA, and a SNAPSHOT is the one way
@@ -2137,8 +2133,8 @@ mod tests {
             b: face_head(name(ids[1])),
             class: topo::ContactClass::Rest,
             alignment: crate::mate::Alignment {
-                a: crate::mate::MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-                b: crate::mate::MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+                a: crate::mate::MateFrame::on_part(crate::placement::Placement::IDENTITY),
+                b: crate::mate::MateFrame::on_part(crate::placement::Placement::IDENTITY),
                 primitive: crate::mate::MatePrimitive::FrameCoincidence,
                 sense: crate::mate::AxisSense::Aligned,
                 clocking: None,
@@ -2155,24 +2151,44 @@ mod tests {
         .expect("a finite alignment inserts");
         let mate_id = applied.record.minted.expect("the insert minted an id");
         doc = applied.doc;
-        // Finite, the document saves — so the refusal below is the
-        // poked coordinate's.
+        // Finite, the document saves — so the refusals below are the
+        // poked coordinates'.
         save(&doc, &[], Tol::witness()).expect("the mated assembly saves");
-        match doc.nodes.get_mut(&mate_id) {
-            Some(Node::Mate { alignment, .. }) => {
-                alignment.a = crate::mate::MateFrame::authored(
-                    [f64::NAN, 0.0, 0.0],
-                    [0.0, 0.0, 1.0],
-                    [1.0, 0.0, 0.0],
+        let poked = |alignment: fn(&mut crate::mate::Alignment)| {
+            let mut doc = doc.clone();
+            match doc.nodes.get_mut(&mate_id) {
+                Some(Node::Mate { alignment: a, .. }) => alignment(a),
+                other => panic!("the fixture's mate is a mate, got {other:?}"),
+            }
+            let refused = save(&doc, &[], Tol::witness());
+            (doc, refused)
+        };
+        let (doc_rider, rider) = poked(|a| a.clocking = Some(f64::NAN));
+        match rider {
+            Err(PersistError::Snapshot(SnapshotError::MateAlignment { node })) => {
+                assert_eq!(node, doc_rider.spoken(mate_id));
+            }
+            other => panic!("a non-finite rider must refuse at save, got {other:?}"),
+        }
+        // A frame offset's literal step is a placement's, held by the
+        // frame rule as a gauge's is, and named by its side.
+        let (doc_frame, frame) = poked(|a| {
+            a.b = crate::mate::MateFrame::on_part(crate::placement::Placement::literal(
+                &crate::placement::Frame::translation([f64::NAN, 0.0, 0.0]),
+            ));
+        });
+        match frame {
+            Err(PersistError::Snapshot(SnapshotError::PlacementNonFinite { node, at })) => {
+                assert_eq!(node, doc_frame.spoken(mate_id));
+                assert_eq!(
+                    at,
+                    FrameSite::MateStep {
+                        side: crate::mate::MateSide::B,
+                        index: 0
+                    }
                 );
             }
-            other => panic!("the fixture's mate is a mate, got {other:?}"),
-        }
-        match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::MateAlignment { node })) => {
-                assert_eq!(node, doc.spoken(mate_id));
-            }
-            other => panic!("a non-finite alignment must refuse at save, got {other:?}"),
+            other => panic!("a non-finite frame offset must refuse at save, got {other:?}"),
         }
 
         let (mut doc, ids) = instances_of_an_unresolved_reference("check-place", 1);

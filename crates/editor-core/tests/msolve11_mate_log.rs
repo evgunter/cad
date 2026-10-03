@@ -202,8 +202,20 @@ fn seat(
         b,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([x, y, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(
+                [x, y, BASE_HEIGHT],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, -1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
             primitive,
             sense: AxisSense::Opposed,
             clocking,
@@ -219,14 +231,10 @@ fn log(ev: &Evaluation<f64>, mate: RecipeNodeId) -> Vec<geom_core::k_stats::Verd
     }
 }
 
-/// The frame ladder's decisions over one mate's two authored sides —
-/// the first thing the solve decides about a mate's own datum.
-const OWN_FRAMES: [&str; 4] = [
-    "frame_point_at_aim",
-    "frame_point_at_roll_offset",
-    "frame_point_at_aim",
-    "frame_point_at_roll_offset",
-];
+/// The decisions over one mate's two authored sides — each a part base
+/// with one literal step, whose composed axis the solve re-mints — the
+/// first thing the solve decides about a mate's own datum.
+const OWN_FRAMES: [&str; 2] = ["mate_frame_offset_axis", "mate_frame_offset_axis"];
 
 // ---- one home per decision ----
 
@@ -433,8 +441,20 @@ fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
         b: s.other_bottom(),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([1e200, 0.0, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(
+                [1e200, 0.0, BASE_HEIGHT],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, -1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: Some(0.0),
@@ -889,8 +909,20 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
             b: s.other_bottom(),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: MateFrame::authored([2.0, 2.0, BASE_HEIGHT], axis, [0.0, 1.0, 0.0]),
-                b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+                a: MateFrame::authored(
+                    [2.0, 2.0, BASE_HEIGHT],
+                    axis,
+                    [0.0, 1.0, 0.0],
+                    geom_core::Tol::witness(),
+                )
+                .expect("a definite frame"),
+                b: MateFrame::authored(
+                    [0.0, 0.0, 0.0],
+                    [0.0, 0.0, -1.0],
+                    [0.0, 1.0, 0.0],
+                    geom_core::Tol::witness(),
+                )
+                .expect("a definite frame"),
                 primitive: MatePrimitive::PlanarRest { offset: 0.0 },
                 sense: AxisSense::Opposed,
                 clocking: None,

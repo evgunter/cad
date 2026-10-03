@@ -37,7 +37,7 @@ use editor_core::{
     load, mate_reach, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
+use fixture::{ang, at_the_door, insert, len, on_frame, scl, solve, step, step_with};
 use geom_core::Tol;
 use topo::readback::Pose;
 
@@ -88,7 +88,13 @@ fn instances(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptio
 }
 
 fn frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// `a`'s top cap on `b`'s bottom cap, at `alignment`, both instances
@@ -342,21 +348,34 @@ fn a4_the_static_gaps_refuse_table_lacks_with_no_reach_asked() {
     assert_eq!(counting.0.get(), 0, "a static gap asks no lever");
 }
 
-/// **A frame with no definite direction refuses `Frame` at insert**,
-/// with no reach asked: the frame is read before any decision is
-/// levered.
+/// **A frame with no definite direction refuses at its authoring, and
+/// an offset step with none refuses `FrameOffset` at insert**, with
+/// no reach asked: the frame is read before any decision is levered.
 #[test]
 fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
+    assert!(matches!(
+        MateFrame::authored(
+            [0.0; 3],
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            geom_core::Tol::witness()
+        ),
+        Err(geom_core::FrameError::Degenerate { .. })
+    ));
     let (doc, ids, _, body) = instances("msolve10-a4-frame", 2);
     let counting = Counting::over(&RefusingReach);
     let mut alignment = seat(Some(0.3));
-    alignment.b = MateFrame::authored([0.0; 3], [0.0; 3], [1.0, 0.0, 0.0]);
+    alignment.b = MateFrame::on_part(editor_core::Step::Rigid {
+        translation: [len(0.0), len(0.0), len(0.0)],
+        axis: [scl(0.0), scl(0.0), scl(0.0)],
+        angle: ang(0.5),
+    });
     let (_, fault) =
         at_the_door(&doc, &counting, mate(body, ids[0], ids[1], alignment)).expect_err("refused");
     assert!(
         matches!(
             fault,
-            MateFault::Frame {
+            MateFault::FrameOffset {
                 side: MateSide::B,
                 ..
             }
@@ -421,7 +440,7 @@ fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
     // One face side, one authored side, no rider: one face ask, no
     // reach ask.
     let one_side = Alignment {
-        a: MateFrame::FromFace,
+        a: MateFrame::from_face(),
         ..seat(None)
     };
     at_the_door(&doc, &counting, mate(body, ids[0], ids[1], one_side)).expect("admitted");
@@ -429,8 +448,8 @@ fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
     assert_eq!(counting.0.get(), 0, "no rider, no reach");
     // Two face sides, no rider: two face asks, still no reach ask.
     let both = Alignment {
-        a: MateFrame::FromFace,
-        b: MateFrame::FromFace,
+        a: MateFrame::from_face(),
+        b: MateFrame::from_face(),
         ..seat(None)
     };
     at_the_door(&doc, &counting, mate(body, ids[0], ids[1], both)).expect("admitted");
@@ -454,7 +473,7 @@ fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let snapshot = doc.clone();
     let alignment = Alignment {
-        a: MateFrame::FromFace,
+        a: MateFrame::from_face(),
         ..seat(Some(0.0))
     };
     let edit = DocEdit::InsertNode {
@@ -814,7 +833,8 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::SelfMate { mate, .. }
         | MateFault::Unleverable { mate, .. }
-        | MateFault::FaceUnresolved { mate, .. } => Some(*mate),
+        | MateFault::FaceUnresolved { mate, .. }
+        | MateFault::FrameOffset { mate, .. } => Some(*mate),
         MateFault::Contradictory {
             held,
             added,
@@ -849,6 +869,15 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             mate: r(mate),
             side,
             error,
+        },
+        MateFault::FrameOffset {
+            mate,
+            side,
+            refusal,
+        } => MateFault::FrameOffset {
+            mate: r(mate),
+            side,
+            refusal,
         },
         MateFault::ClassNotAdmitted { mate } => MateFault::ClassNotAdmitted { mate: r(mate) },
         MateFault::TableLacks { mate, what } => MateFault::TableLacks {

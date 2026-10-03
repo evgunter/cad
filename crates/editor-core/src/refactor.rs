@@ -961,10 +961,11 @@ impl core::error::Error for SplitError {}
 /// answers `groups` and `root_at_empty` from the part it holds or
 /// builds.
 ///
-/// An authored side is held to all three: its vectors are coordinates
-/// of the instance it reads, and only there do they not change. A
-/// `FromFace` side is held to (b) alone: its frame is its head's face
-/// in the member's part, the head crosses with it, and the face moves
+/// A part-based side is held to all three: its frame is in coordinates
+/// of the instance it reads, and only there does it not change. A
+/// face-based side is held to (b) alone: its frame is its head's face
+/// in the member's part, the head crosses with it, its offset rides
+/// the face, and the face moves
 /// only if the member's place in the world does. A copy or a placer
 /// between is admitted on purpose: the head names the copy's face
 /// through the placer, and it crosses as it is.
@@ -977,9 +978,9 @@ fn frame_survives<M: AsRef<[RecipeNodeId]>>(
     let placed = groups
         .iter()
         .any(|(members, _, cause)| cause.is_none() && members.as_ref().contains(&read.instance));
-    match frame {
-        crate::mate::MateFrame::FromFace => placed,
-        crate::mate::MateFrame::Authored(_) => {
+    match frame.base {
+        crate::mate::FrameBase::Face => placed,
+        crate::mate::FrameBase::Part => {
             read.copy.is_empty()
                 && read.at == read.instance
                 && placed

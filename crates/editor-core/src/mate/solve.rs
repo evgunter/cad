@@ -4,7 +4,7 @@
 //! Everything here is recipe data plus decided predicates over the
 //! sides' RESOLVED frames — the two reads `ASSEMBLY.md` A11 rule 5
 //! states cross through one door, [`MateReach`]: each mated part's
-//! extent, the lever, and a `FromFace` frame's pose, resolved before
+//! extent, the lever, and a face base's pose, resolved before
 //! the frame is read ([`resolve_side`]) — and nothing derived is
 //! stored beside the DAG. The entry points, in the order the layers
 //! use them:
@@ -37,21 +37,21 @@ use std::sync::Mutex;
 use geom_core::Tol;
 use geom_core::k_stats::{Detached, detached, splice};
 use geom_core::linalg::frame::{FrameError, FrameInput, FrameVector};
-use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::Band;
 
 use super::coset::{Arm, Coset, FoldStop, Measured, Subgroup};
 use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
 use super::reach::MateReach;
 use super::{
-    Alignment, AuthoredFrame, AxisSense, Clash, FaceRefusal, Lever, MateFault, MateFrame,
+    Alignment, AxisSense, Clash, FaceRefusal, FrameBase, Lever, MateFault, MateFrame,
     MatePrimitive, MateSide, OffsetCheck, Refuted,
 };
 use crate::doc::Doc;
 use crate::eval::NodeRefusal;
 use crate::expr::ParamEnv;
 use crate::node::{Node, RecipeNodeId};
-use crate::placement::Frame;
+use crate::placement::{Frame, Motion};
 
 /// What a mate did in the solve (A11 rule 4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -919,20 +919,6 @@ fn opposed() -> Affine3<f64> {
     )
 }
 
-/// **One side's frame through the witness ladder**, refused at the
-/// mate and the side — the one wrap both readers of a frame use
-/// ([`mate_coset`], and [`admit_mate`]'s replay arm).
-fn side_frame(
-    mate: RecipeNodeId,
-    side: MateSide,
-    frame: &AuthoredFrame,
-    tol: Tol,
-) -> Result<geom_core::linalg::OrthoFrame<f64>, Box<MateFault>> {
-    frame
-        .frame(tol)
-        .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
-}
-
 /// One mate's coset: the relative poses (b's part coordinates into a's)
 /// its primitive admits.
 ///
@@ -943,9 +929,7 @@ fn side_frame(
 /// alone: it modifies its carrier's target frame and cuts its residual.
 ///
 /// Each side's frame arrives RESOLVED (`a`, `b`: [`resolve_side`] —
-/// the authored vectors, or the face's pose read through the reach)
-/// and is read ONCE ([`AuthoredFrame::frame`], the witness ladder
-/// both arms meet): its affine is the placement and its `w` the axis
+/// its base composed with its offset): its placement, and its axis
 /// witness, negated exactly for an opposed sense. Every primitive's
 /// target keeps that axis — a standoff translates along it and the
 /// rider spins about it — so no direction here is read back off a
@@ -965,21 +949,19 @@ fn side_frame(
 fn mate_coset(
     mate: RecipeNodeId,
     alignment: &Alignment,
-    a: &AuthoredFrame,
-    b: &AuthoredFrame,
+    a: &SideFrame,
+    b: &SideFrame,
     lever: impl FnOnce() -> Result<Arm, Box<MateFault>>,
     band: Band,
-    tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
-    // THE DATUM'S OWN ORDER, which `admit_mate`'s replay arm restates
-    // over the sides it holds: `a`'s frame, then `b`'s, then the
-    // table's static gap at the arm it falls in — so a frame refusal
-    // precedes a gap, and both precede any lever.
-    let fa = side_frame(mate, MateSide::A, a, tol)?;
-    let fb = side_frame(mate, MateSide::B, b, tol)?.to_affine();
+    // The table's static gap is asked at the arm it falls in, after
+    // both frames resolved — so a frame refusal precedes a gap, and
+    // both precede any lever. `admit_mate`'s replay arm keeps that
+    // order over the sides it holds.
+    let fb = b.placement;
     let (fa, axis) = match alignment.sense {
-        AxisSense::Aligned => (fa.to_affine(), fa.w()),
-        AxisSense::Opposed => (fa.to_affine() * opposed(), -fa.w()),
+        AxisSense::Aligned => (a.placement, a.axis),
+        AxisSense::Opposed => (a.placement * opposed(), -a.axis),
     };
     let local_z = Vec3::new(0.0, 0.0, 1.0);
     let spin = |theta: f64| {
@@ -1167,22 +1149,29 @@ pub(crate) fn part_of<P>(
     crate::eval::parts::instantiated(doc, member.instance).ok_or(member.instance)
 }
 
-/// **One side's frame as the solve reads it** — the two arms of
-/// [`MateFrame`] meeting at one [`AuthoredFrame`], which the coset
-/// table then reads through the frame witness ([`mate_coset`]).
-///
-/// An `Authored` frame is its own vectors. A `FromFace` frame is the
-/// canonical pose of the face the side's own HEAD names in the
-/// member's part (the walk's [`Walk::part_face`]: the head with the
-/// walk's qualifiers stripped), asked of that part through the reach
-/// ([`MateReach::face_pose`]) in the part's own coordinates
-/// — the same coordinates the authored vectors are written in, so no
-/// placement enters — with the pose's origin and CHART axis (the
-/// orientation sense is not folded in; the mate's own
-/// [`AxisSense`] says which way the sides point) and, for the roll,
-/// the carrier's own in-frame reference direction (`Pose::u_ref`). A
-/// face frame authors no reference of its own, so its roll is the
-/// carrier's and nothing else ([`MateFrame`]).
+/// **One side's frame as the solve reads it**: the placement its base
+/// composed with its offset denotes, in the side's part coordinates,
+/// and its local +Z as a witness the coset table reads.
+#[derive(Debug, Clone, Copy)]
+struct SideFrame {
+    /// The frame's placement.
+    placement: Affine3<f64>,
+    /// Its axis, local +Z.
+    axis: UnitVec3<f64>,
+}
+
+impl SideFrame {
+    /// The frame's origin — its term of the lever
+    /// ([`Alignment::lever_arm`]).
+    fn origin(&self) -> [f64; 3] {
+        self.placement.translation.to_array()
+    }
+}
+
+/// **One side's frame**, resolved: its base ([`side_base`]) composed
+/// with its offset ([`compose_offset`]). `reach` absent is replay's,
+/// and a face base is then DECLINED (`Ok(None)`), on the rule
+/// [`admit_mate`] states.
 ///
 /// Asked before the coset table reads the frame and before the lever
 /// is formed (the datum's `‖origin‖` terms are the RESOLVED origins),
@@ -1191,22 +1180,51 @@ pub(crate) fn part_of<P>(
 ///
 /// # Errors
 ///
+/// [`side_base`]'s and [`compose_offset`]'s.
+#[allow(clippy::too_many_arguments)]
+fn resolve_side<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    reach: Option<&dyn MateReach>,
+    env: &ParamEnv<f64>,
+    band: Band,
+    tol: Tol,
+    mate: RecipeNodeId,
+    side: MateSide,
+    read: &Walk<'_>,
+    frame: &MateFrame,
+) -> Result<Option<SideFrame>, Box<MateFault>> {
+    let base = match (frame.base, reach) {
+        (FrameBase::Part, _) => None,
+        (FrameBase::Face, Some(reach)) => Some(face_base(doc, reach, mate, side, read, tol)?),
+        (FrameBase::Face, None) => return Ok(None),
+    };
+    compose_offset(mate, side, base, &frame.offset, env, band).map(Some)
+}
+
+/// **A side's face base**: the canonical pose of the face the side's
+/// own HEAD names in the member's part (the walk's
+/// [`Walk::part_face`]: the head with the walk's qualifiers stripped),
+/// asked of that part through the reach ([`MateReach::face_pose`]) in
+/// the part's own coordinates, with the pose's origin and CHART axis
+/// (the orientation sense is not folded in; the mate's own
+/// [`AxisSense`] says which way the sides point) and, for the roll,
+/// the carrier's own in-frame reference direction (`Pose::u_ref`),
+/// through the witness ladder.
+///
+/// # Errors
+///
 /// [`MateFault::FaceUnresolved`] naming the mate, the side, the
 /// instance and the part, carrying the reach's refusal in its own
-/// voice.
-fn resolve_side<P: crate::ProfilePayload>(
+/// voice; [`MateFault::Frame`] where the ladder refuses the pose.
+fn face_base<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     reach: &dyn MateReach,
     mate: RecipeNodeId,
     side: MateSide,
     read: &Walk<'_>,
-    frame: &MateFrame,
-) -> Result<AuthoredFrame, Box<MateFault>> {
+    tol: Tol,
+) -> Result<OrthoFrame<f64>, Box<MateFault>> {
     let member = &read.member;
-    match frame {
-        MateFrame::Authored(authored) => return Ok(*authored),
-        MateFrame::FromFace => {}
-    }
     let unresolved = |refusal| {
         Box::new(MateFault::FaceUnresolved {
             mate,
@@ -1237,11 +1255,57 @@ fn resolve_side<P: crate::ProfilePayload>(
     let Some(u_ref) = pose.u_ref else {
         unreachable!("readback::face_pose fixes u_ref for every carrier it answers")
     };
-    Ok(AuthoredFrame {
-        origin: pose.origin.to_array(),
-        axis: pose.axis.to_array(),
-        reference: u_ref.to_array(),
-    })
+    geom_core::linalg::frame::point_at_frame(pose.origin, pose.origin + pose.axis, u_ref, tol)
+        .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
+}
+
+/// **A side's base composed with its offset** — `base` the face's
+/// frame, `None` for the part frame — through the one fold every
+/// placement chain takes ([`crate::placement::Placement::motion_after`]),
+/// at `env`, the document's own parameters as the solve reads them.
+///
+/// An offset that evaluates to the bit-exact identity leaves the base
+/// as it is, its axis included. Any other offset composes, and the
+/// frame's axis is its third column re-minted under the band
+/// ([`derived_direction`]): a rigid map keeps a witness's length one
+/// within rounding, so the mint refuses on no frame the doors admit.
+///
+/// # Errors
+///
+/// [`MateFault::FrameOffset`] carrying the evaluation layer's refusal;
+/// [`MateFault::Frame`] where the composed axis is no direction.
+fn compose_offset(
+    mate: RecipeNodeId,
+    side: MateSide,
+    base: Option<OrthoFrame<f64>>,
+    offset: &crate::placement::Placement,
+    env: &ParamEnv<f64>,
+    band: Band,
+) -> Result<SideFrame, Box<MateFault>> {
+    let (before, base) = match base {
+        None => (Motion::Identity, OrthoFrame::axes_xy(Point3::origin())),
+        Some(face) => (Motion::Map(face.to_affine()), face),
+    };
+    let refused = |error: crate::eval::NodeErrorKind| {
+        Box::new(MateFault::FrameOffset {
+            mate,
+            side,
+            refusal: Box::new(NodeRefusal::from(error)),
+        })
+    };
+    if let Motion::Identity = offset.motion_at(env, band).map_err(refused)? {
+        return Ok(SideFrame {
+            placement: base.to_affine(),
+            axis: base.w(),
+        });
+    }
+    let placement = offset
+        .motion_after(before, env, band)
+        .map_err(refused)?
+        .affine();
+    let axis = derived_direction(placement.linear.c2, "mate_frame_offset_axis", band)
+        .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))?;
+    Ok(SideFrame { placement, axis })
 }
 
 /// **The per-reference prefix of a mate's admission**, after its two
@@ -1290,7 +1354,7 @@ fn admit_class(mate: RecipeNodeId, class: super::ContactClass) -> Result<(), Box
 /// ([`check_references`]), the class door ([`admit_class`]), each
 /// side's frame resolved ([`resolve_side`]) and the coset table
 /// ([`mate_coset`]), in the order the solve meets them, with the
-/// reach asked exactly where the solve asks it: a `FromFace` side's
+/// reach asked exactly where the solve asks it: a face-based side's
 /// pose, once per such side, and the lever where the table levers a
 /// decision (the rider on a coincidence) and nowhere else.
 /// It is the per-mate prefix of the solve: [`solve_with_env`]'s first
@@ -1321,13 +1385,13 @@ fn admit_class(mate: RecipeNodeId, class: super::ContactClass) -> Result<(), Box
 ///
 /// `reach` absent is replay's, and what needs the parts is then
 /// DECLINED — the rider on a coincidence, decided over a lever, and a
-/// `FromFace` side's frame, resolved from the part's own face
+/// face-based side's frame, resolved from the part's own face
 /// ([`resolve_side`]): the door that recorded the edit decided them
 /// over the parts it had in hand, and re-deciding them would need a
 /// store replay never holds. Everything decided on the datum alone is
-/// decided again (each authored side's frame ladder, the table's
+/// decided again (each part-based side's offset, the table's
 /// static gaps). A declined decision leaves nothing false in the
-/// document: the datum is what it was — a `FromFace` side's head is
+/// document: the datum is what it was — a face-based side's head is
 /// the datum — and the next solve decides it again.
 ///
 /// # Errors
@@ -1335,7 +1399,7 @@ fn admit_class(mate: RecipeNodeId, class: super::ContactClass) -> Result<(), Box
 /// The fault the solve records against the mate for its own datum,
 /// unaltered: [`MateFault::Band`] when no band forms; the walk's
 /// [`MateFault::DanglingHead`]; [`check_references`]'s; the class
-/// door's; [`resolve_side`]'s [`MateFault::FaceUnresolved`]; and
+/// door's; [`resolve_side`]'s [`MateFault::FaceUnresolved`], [`MateFault::FrameOffset`] and [`MateFault::Frame`]; and
 /// [`mate_coset`]'s — `Frame`, `TableLacks`, the decided
 /// contradictory rider or its escalation, and
 /// [`MateFault::Unleverable`] where the rider needs a lever the reach
@@ -1380,27 +1444,39 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
     } else {
         (&wb.member, &wa.member)
     };
-    let Some(reach) = reach else {
-        // Replay: a `FromFace` side is DECLINED, not resolved (the
-        // rule this function states), so the coset cannot be read.
-        // What the datum alone decides is decided again, in the order
-        // `mate_coset` meets it (stated there): each authored side's
-        // frame, `a` before `b`, then the table's static gaps. Not one
-        // shared function because the table asks the gap at the arm it
-        // falls in, inside the construction a declined side cannot
-        // reach; the order is the invariant both keep.
-        for (side, frame) in [(MateSide::A, &alignment.a), (MateSide::B, &alignment.b)] {
-            if let Some(authored) = frame.authored_vectors() {
-                side_frame(mate, side, authored, tol)?;
-            }
-        }
+    // Each side's frame, `a` before `b`. Replay holds no reach, and
+    // a face base is then DECLINED (the rule this function states), so
+    // the coset cannot be read; what the datum alone decides — each
+    // part-based side's offset, then the table's static gaps — is
+    // decided again, in the order `mate_coset` meets it.
+    let a = resolve_side(
+        doc,
+        reach,
+        env,
+        band,
+        tol,
+        mate,
+        MateSide::A,
+        &wa,
+        &alignment.a,
+    )?;
+    let b = resolve_side(
+        doc,
+        reach,
+        env,
+        band,
+        tol,
+        mate,
+        MateSide::B,
+        &wb,
+        &alignment.b,
+    )?;
+    let (Some(reach), Some(a), Some(b)) = (reach, a, b) else {
         if let Some(what) = super::table_gap(alignment.primitive, alignment.clocking) {
             return Err(Box::new(MateFault::TableLacks { mate, what }));
         }
         return Ok(());
     };
-    let a = resolve_side(doc, reach, mate, MateSide::A, &wa, &alignment.a)?;
-    let b = resolve_side(doc, reach, mate, MateSide::B, &wb, &alignment.b)?;
     let form = || {
         let parts = pair_reach(doc, reach, first, second).map_err(|refusal| {
             Box::new(MateFault::Unleverable {
@@ -1410,7 +1486,7 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
         })?;
         lever(mate, parts, alignment, &a, &b)
     };
-    mate_coset(mate, alignment, &a, &b, form, band, tol).map(|_| ())
+    mate_coset(mate, alignment, &a, &b, form, band).map(|_| ())
 }
 
 /// **The per-pair fold** (A11 rule 1): every mate on the ordered
@@ -1441,6 +1517,7 @@ fn fold_pair<P: crate::ProfilePayload>(
 ) -> Result<Coset, Box<MateFault>> {
     let Solve {
         doc,
+        env,
         reach,
         band,
         tol,
@@ -1473,8 +1550,12 @@ fn fold_pair<P: crate::ProfilePayload>(
         s.record.unit(mate, || {
             admit_class(mate, *class)?;
             // The sides' frames, resolved before the lever they enter.
-            let a = resolve_side(doc, reach, mate, MateSide::A, &pm.a, &alignment.a)?;
-            let b = resolve_side(doc, reach, mate, MateSide::B, &pm.b, &alignment.b)?;
+            let side = |side, walk, frame| {
+                resolve_side(doc, Some(reach), env, band, tol, mate, side, walk, frame)
+                    .map(|frame| frame.unwrap_or_else(|| unreachable!("a reach declines nothing")))
+            };
+            let a = side(MateSide::A, &pm.a, &alignment.a)?;
+            let b = side(MateSide::B, &pm.b, &alignment.b)?;
             let parts = match parts_reach {
                 Some(parts) => parts,
                 None => {
@@ -1493,7 +1574,7 @@ fn fold_pair<P: crate::ProfilePayload>(
             let mate_arm = lever(mate, parts, alignment, &a, &b)?;
             let fold_arm = arm.map_or(mate_arm, |held| held.max(mate_arm));
             arm = Some(fold_arm);
-            let mut coset = mate_coset(mate, alignment, &a, &b, || Ok(mate_arm), band, tol)?;
+            let mut coset = mate_coset(mate, alignment, &a, &b, || Ok(mate_arm), band)?;
             // The authored order is `a`'s coordinates from `b`'s; the
             // tree may need the other direction. The transported
             // direction is `a`'s axis carried into `b`'s coordinates,
@@ -1549,10 +1630,10 @@ fn lever(
     mate: RecipeNodeId,
     parts: f64,
     alignment: &Alignment,
-    a: &AuthoredFrame,
-    b: &AuthoredFrame,
+    a: &SideFrame,
+    b: &SideFrame,
 ) -> Result<Arm, Box<MateFault>> {
-    Arm::of(parts, alignment.lever_arm(a, b)).map_err(|refusal| {
+    Arm::of(parts, alignment.lever_arm(a.origin(), b.origin())).map_err(|refusal| {
         Box::new(MateFault::Unleverable {
             mate,
             refusal: Box::new(refusal),
@@ -1650,7 +1731,7 @@ fn pair_left_factor<P: crate::ProfilePayload>(
 /// `reach` is the door the solve's two geometric reads cross: each
 /// mated part's own extent, asked lazily per pair and entering only as
 /// the lever a parallelism verdict is decided over, and each
-/// `FromFace` side's pose, asked once per side where the frame is
+/// face-based side's pose, asked once per side where the frame is
 /// read. The evaluation hands its own part cache (`eval::mate_reach`
 /// is the door every other caller builds one through), so a mated
 /// part is evaluated exactly once and the instantiate node hits the

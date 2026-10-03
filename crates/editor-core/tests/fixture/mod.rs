@@ -288,20 +288,51 @@ pub fn face(name: StableName) -> editor_core::FaceName {
     editor_core::FaceName::new(name).expect("the fixture names a face")
 }
 
-/// **The authored vectors of a frame a row authored** — the projection
-/// every row that forms a lever or reads a witness by hand takes, for
-/// a frame it knows is [`editor_core::MateFrame::Authored`].
-pub fn authored(frame: &editor_core::MateFrame) -> &editor_core::AuthoredFrame {
-    frame
-        .authored_vectors()
-        .expect("the row authored this frame's vectors")
+/// **A part-based frame of one literal step, as the solve reads it**:
+/// the step's map is the frame's placement, and its third column,
+/// re-minted under the band as the solve re-mints it, the axis.
+pub struct Authored(geom_core::Affine3<f64>);
+
+impl Authored {
+    /// The frame's placement.
+    #[allow(clippy::unnecessary_wraps)]
+    pub fn placement(&self, _tol: Tol) -> Result<geom_core::Affine3<f64>, geom_core::FrameError> {
+        Ok(self.0)
+    }
+
+    /// The frame's axis: its third column, re-minted.
+    pub fn axis(&self, tol: Tol) -> Result<geom_core::UnitVec3<f64>, geom_core::UnitVec3Error> {
+        let band = geom_core::Band::linear(tol).expect("the witnessed band");
+        geom_core::UnitVec3::new(self.0.linear.c2, FIXTURE_MATE_AXIS, band)
+    }
+
+    /// The frame's origin.
+    pub fn origin(&self) -> [f64; 3] {
+        self.0.translation.to_array()
+    }
+}
+
+/// **The frame a row authored as vectors** — the projection every row
+/// that forms a lever or reads a witness by hand takes, for a part
+/// base holding the one literal step [`editor_core::MateFrame::authored`]
+/// builds.
+pub fn authored(frame: &editor_core::MateFrame) -> Authored {
+    match (frame.base, frame.offset.steps.as_slice()) {
+        (editor_core::FrameBase::Part, [editor_core::Step::Literal(f)]) => {
+            Authored(f.affine::<f64>())
+        }
+        _ => panic!("the row authored this frame's vectors"),
+    }
 }
 
 /// **The datum's own lever term** for an alignment whose two sides are
 /// authored vectors: `Alignment::lever_arm` over the frames the solve
 /// would resolve them to, which for an authored side are its own.
 pub fn datum_lever(alignment: &editor_core::Alignment) -> f64 {
-    alignment.lever_arm(authored(&alignment.a), authored(&alignment.b))
+    alignment.lever_arm(
+        authored(&alignment.a).origin(),
+        authored(&alignment.b).origin(),
+    )
 }
 
 /// **A name worn as copy `i` of `pattern`** — one `Instance(i)`

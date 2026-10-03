@@ -4438,12 +4438,10 @@ mod tag {
             ALIGNED = 1,
             OPPOSED = 2,
         }
-        /// A mate frame's arm, read before that side's payload: an
-        /// authored frame's nine coordinates, or a face frame's
-        /// part-local name.
-        mate_frame {
-            AUTHORED = 1,
-            FROM_FACE = 2,
+        /// A mate frame's base, read before that side's offset shape.
+        mate_frame_base {
+            PART = 1,
+            FACE = 2,
         }
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
@@ -4750,9 +4748,9 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
                 // The solve's own derivation of the part a face side
                 // resolves against (`mate::solve::part_of`), so the key
                 // and the solve name one part for one side.
-                let part_of = |reference, frame: &crate::mate::MateFrame| match frame {
-                    crate::mate::MateFrame::Authored(_) => None,
-                    crate::mate::MateFrame::FromFace => {
+                let part_of = |reference, frame: &crate::mate::MateFrame| match frame.base {
+                    crate::mate::FrameBase::Part => None,
+                    crate::mate::FrameBase::Face => {
                         let member = crate::mate::member_of(doc, reference)?;
                         crate::mate::solve::part_of(doc, &member).ok()
                     }
@@ -5995,26 +5993,18 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
         }
         None => h.write_tag(tag::presence::ABSENT),
     }
-    // Each side's arm as a word, then its payload: an authored frame's
-    // nine coordinates; a face frame authors none. Its face is the
-    // head's, which the mate's key feeds beside this, and the part the
-    // face resolves against is the mate's other channel
-    // (`SolveAnswer::feed_face_parts`), read after this.
-    for frame in [&a.a, &a.b] {
-        match frame {
-            crate::mate::MateFrame::Authored(frame) => {
-                h.write_tag(tag::mate_frame::AUTHORED);
-                for x in frame
-                    .origin
-                    .iter()
-                    .chain(frame.axis.iter())
-                    .chain(frame.reference.iter())
-                {
-                    h.write_f64_bits(*x);
-                }
-            }
-            crate::mate::MateFrame::FromFace => h.write_tag(tag::mate_frame::FROM_FACE),
-        }
+    // Each side's base as a word, then its offset's shape: the step
+    // kinds and every literal frame's coordinates. A rigid step's
+    // components are the mate's slots, fed with every slot. A face
+    // base's face is the head's, which the mate's key feeds beside
+    // this, and the part the face resolves against is the mate's other
+    // channel (`SolveAnswer::feed_face_parts`), read after this.
+    for crate::mate::MateFrame { base, offset } in [&a.a, &a.b] {
+        h.write_tag(match base {
+            crate::mate::FrameBase::Part => tag::mate_frame_base::PART,
+            crate::mate::FrameBase::Face => tag::mate_frame_base::FACE,
+        });
+        feed_placement_shape(h, offset);
     }
 }
 
@@ -7089,7 +7079,7 @@ mod alignment_key {
     use crate::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
 
     fn datum(primitive: MatePrimitive) -> Alignment {
-        let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+        let frame = MateFrame::on_part(crate::Placement::IDENTITY);
         Alignment {
             a: frame.clone(),
             b: frame,

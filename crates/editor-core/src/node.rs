@@ -407,6 +407,18 @@ pub enum SlotId {
         /// Which of the rigid step's components.
         arg: RigidArg,
     },
+    /// A component of a rigid step of a mate side's frame offset
+    /// ([`crate::MateFrame`]): `arg` of step `step` of side `side`'s
+    /// offset. A mate holds two placements, so its addresses carry
+    /// the side, and step 0 is addressed by its index like any other.
+    MateOffset {
+        /// Which side's frame.
+        side: crate::mate::MateSide,
+        /// The step's index in the offset's chain.
+        step: usize,
+        /// Which of the rigid step's components.
+        arg: RigidArg,
+    },
     /// A linear pattern's instance spacing (Length).
     Spacing,
     /// A circular pattern's angular step (Angle).
@@ -479,6 +491,13 @@ fn rigid_label(step: usize, noun: &str) -> String {
     }
 }
 
+/// **The prose of a mate side's offset component**, `noun`, at chain
+/// index `step` of side `side`'s offset — counted from one, as
+/// [`rigid_label`] counts.
+fn mate_offset_label(side: crate::mate::MateSide, step: usize, noun: &str) -> String {
+    format!("side {} offset step {} {noun}", side.name(), step + 1)
+}
+
 /// A slot family whose members are the three COMPONENTS of one
 /// 3-vector — the vector-valued half of [`SlotId`], named once here so
 /// that a consumer wanting to treat `Origin(X)`, `Origin(Y)` and
@@ -530,6 +549,22 @@ pub enum VectorSlot {
         /// The step's index in the chain.
         step: usize,
     },
+    /// A rigid step's translation in a mate side's frame offset
+    /// ([`SlotId::MateOffset`]).
+    MateTranslation {
+        /// Which side's frame.
+        side: crate::mate::MateSide,
+        /// The step's index in the offset's chain.
+        step: usize,
+    },
+    /// A rigid step's rotation axis in a mate side's frame offset
+    /// ([`SlotId::MateOffset`]).
+    MateRotationAxis {
+        /// Which side's frame.
+        side: crate::mate::MateSide,
+        /// The step's index in the offset's chain.
+        step: usize,
+    },
 }
 
 impl VectorSlot {
@@ -544,6 +579,16 @@ impl VectorSlot {
             Self::V => SlotId::V(axis),
             Self::Translation { step } => SlotId::rigid(step, RigidArg::Translation(axis)),
             Self::RotationAxis { step } => SlotId::rigid(step, RigidArg::RotationAxis(axis)),
+            Self::MateTranslation { side, step } => SlotId::MateOffset {
+                side,
+                step,
+                arg: RigidArg::Translation(axis),
+            },
+            Self::MateRotationAxis { side, step } => SlotId::MateOffset {
+                side,
+                step,
+                arg: RigidArg::RotationAxis(axis),
+            },
         }
     }
 
@@ -562,6 +607,8 @@ impl VectorSlot {
             Self::V => "y axis".to_owned(),
             Self::Translation { step } => rigid_label(step, "translation"),
             Self::RotationAxis { step } => rigid_label(step, "rotation axis"),
+            Self::MateTranslation { side, step } => mate_offset_label(side, step, "translation"),
+            Self::MateRotationAxis { side, step } => mate_offset_label(side, step, "rotation axis"),
         }
     }
 
@@ -605,7 +652,9 @@ impl SlotId {
             | Self::TubeWindowEnd => Dimension::Angle,
             Self::Count | Self::VDegree | Self::Stations | Self::Instance => Dimension::Count,
             // A later step's component has its step-0 twin's dimension.
-            Self::PlacementStep { arg, .. } => SlotId::rigid(0, arg).dimension(),
+            Self::PlacementStep { arg, .. } | Self::MateOffset { arg, .. } => {
+                SlotId::rigid(0, arg).dimension()
+            }
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg:
             // program structure is the STEP LIST, which no slot
@@ -681,6 +730,10 @@ impl SlotId {
                 Some((step, RigidArg::RotationAngle)) => rigid_label(step, "rotation angle"),
                 _ => String::from("component"),
             },
+            Self::MateOffset { side, step, arg } => match arg {
+                RigidArg::RotationAngle => mate_offset_label(side, step, "rotation angle"),
+                RigidArg::Translation(_) | RigidArg::RotationAxis(_) => String::from("component"),
+            },
             // Every component variant answered above.
             Self::Origin(_)
             | Self::Normal(_)
@@ -719,6 +772,15 @@ impl SlotId {
                     (_, RigidArg::RotationAngle) => None,
                 }
             }
+            Self::MateOffset { side, step, arg } => match arg {
+                RigidArg::Translation(axis) => {
+                    Some((VectorSlot::MateTranslation { side, step }, axis))
+                }
+                RigidArg::RotationAxis(axis) => {
+                    Some((VectorSlot::MateRotationAxis { side, step }, axis))
+                }
+                RigidArg::RotationAngle => None,
+            },
             Self::Distance
             | Self::Radius
             | Self::ChamferDistance
@@ -1391,11 +1453,7 @@ impl SitedRef {
 /// }
 ///
 /// fn alignment() -> editor_core::Alignment {
-///     let frame = editor_core::MateFrame::authored(
-///         [0.0, 0.0, 0.0],
-///         [0.0, 0.0, 1.0],
-///         [1.0, 0.0, 0.0],
-///     );
+///     let frame = editor_core::MateFrame::from_face();
 ///     editor_core::Alignment {
 ///         a: frame.clone(),
 ///         b: frame,
@@ -1444,11 +1502,7 @@ impl SitedRef {
 /// }
 ///
 /// fn alignment() -> editor_core::Alignment {
-///     let frame = editor_core::MateFrame::authored(
-///         [0.0, 0.0, 0.0],
-///         [0.0, 0.0, 1.0],
-///         [1.0, 0.0, 0.0],
-///     );
+///     let frame = editor_core::MateFrame::from_face();
 ///     editor_core::Alignment {
 ///         a: frame.clone(),
 ///         b: frame,
@@ -2878,7 +2932,11 @@ macro_rules! node_rows {
             }
             // Origin and normal come off the face; the spin is the
             // one number an author chooses.
-            Node::Datum(Datum::FaceFrame { at: _, face: _, spin }) => $out.push((S::Spin, spin)),
+            Node::Datum(Datum::FaceFrame {
+                at: _,
+                face: _,
+                spin,
+            }) => $out.push((S::Spin, spin)),
             // A profile's slots are its program's. The payload keys its
             // rows by program address, so it answers `S::Profile` and
             // no other slot.
@@ -2998,15 +3056,34 @@ macro_rules! node_rows {
             | Node::Union {
                 members: _,
                 declare: _,
-            }
-            // A11: the alignment datum is authored geometry, not a
-            // continuous slot — a mate has no expression to drive.
-            | Node::Mate {
+            } => {}
+            // A mate's slots are its two frame offsets' rigid steps,
+            // each addressed by its side; the rest of the alignment
+            // datum is authored numbers, not slots.
+            Node::Mate {
                 a: _,
                 b: _,
                 class: _,
-                alignment: _,
-            } => {}
+                alignment,
+            } => {
+                let crate::mate::Alignment {
+                    a,
+                    b,
+                    primitive: _,
+                    sense: _,
+                    clocking: _,
+                } = alignment;
+                for (side, crate::mate::MateFrame { base: _, offset }) in
+                    [(crate::mate::MateSide::A, a), (crate::mate::MateSide::B, b)]
+                {
+                    for (slot, e) in offset.$rows() {
+                        let Some((step, arg)) = slot.rigid_arg() else {
+                            unreachable!("a placement's rows are rigid-step slots")
+                        };
+                        $out.push((S::MateOffset { side, step, arg }, e));
+                    }
+                }
+            }
             // Neither carries a SLOT. A slot's address fixes its
             // dimension ([`SlotId::dimension`]) — that is the
             // vocabulary's contract, read by the edit door, the load
@@ -4110,20 +4187,32 @@ impl<P> Node<P> {
         }
     }
 
-    /// The first literal frame this node's PLACEMENT holds that the
-    /// admission rule refuses at `tol`, with its step index
+    /// The first literal frame this node's PLACEMENTS hold that the
+    /// admission rule refuses at `tol`, with where it sits
     /// ([`crate::Placement::frame_fault`]) — the one question the edit
-    /// door and the load door ask of a transform's literal steps.
-    /// `None` for every node without a placement.
+    /// door and the load door ask of a node's literal steps: a
+    /// transform's, a gauge's, an instance's offset, and each of a
+    /// mate's two frame offsets, side `a` first. `None` for every node
+    /// without a placement.
     pub fn placement_frame_fault(
         &self,
         tol: geom_core::Tol,
-    ) -> Option<(usize, crate::placement::FrameFault)> {
+    ) -> Option<(crate::placement::FrameSite, crate::placement::FrameFault)> {
+        let step = |(index, fault)| (crate::placement::FrameSite::Step { index }, fault);
         match self {
             Node::Transform { placement, .. } | Node::Gauge { placement, .. } => {
-                placement.frame_fault(tol)
+                placement.frame_fault(tol).map(step)
             }
-            Node::InstantiatePart { offset, .. } => offset.as_ref()?.frame_fault(tol),
+            Node::InstantiatePart { offset, .. } => offset.as_ref()?.frame_fault(tol).map(step),
+            Node::Mate { alignment, .. } => [
+                (crate::mate::MateSide::A, &alignment.a),
+                (crate::mate::MateSide::B, &alignment.b),
+            ]
+            .into_iter()
+            .find_map(|(side, frame)| {
+                let (index, fault) = frame.offset.frame_fault(tol)?;
+                Some((crate::placement::FrameSite::MateStep { side, index }, fault))
+            }),
             // EXHAUSTIVE, as `placement_rule_fault` is: a node kind that
             // comes to hold a placement is classified here or the
             // compile breaks, rather than slipping past both doors.
@@ -4144,7 +4233,6 @@ impl<P> Node<P> {
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
-            | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
         }

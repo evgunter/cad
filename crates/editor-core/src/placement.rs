@@ -423,6 +423,13 @@ pub enum FrameSite {
         /// Its index in the chain.
         index: usize,
     },
+    /// Step `index` of a mate side's frame offset.
+    MateStep {
+        /// Which side's frame.
+        side: crate::mate::MateSide,
+        /// Its index in the offset's chain.
+        index: usize,
+    },
 }
 
 impl FrameSite {
@@ -435,6 +442,11 @@ impl FrameSite {
         match self {
             Self::Listed { index } => format!("placement {index} of {node}"),
             Self::Step { index } => format!("step {} of {node}'s placement", index + 1),
+            Self::MateStep { side, index } => format!(
+                "step {} of {node}'s {} frame offset",
+                index + 1,
+                side.name()
+            ),
         }
     }
 }

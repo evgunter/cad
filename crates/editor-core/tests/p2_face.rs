@@ -42,8 +42,8 @@ fn face_mate(a: SitedFace, b: SitedFace) -> Node<editor_core::ProfileProgram> {
         b,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::FromFace,
-            b: MateFrame::FromFace,
+            a: MateFrame::from_face(),
+            b: MateFrame::from_face(),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
@@ -64,7 +64,13 @@ fn authored_a(node: Node<editor_core::ProfileProgram>) -> Node<editor_core::Prof
     else {
         panic!("a mate");
     };
-    alignment.a = MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    alignment.a = MateFrame::authored(
+        [0.0; 3],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame");
     Node::Mate {
         a,
         b,
@@ -117,7 +123,7 @@ fn side_world(
     };
     assert_eq!(
         *frame,
-        MateFrame::FromFace,
+        MateFrame::from_face(),
         "side {} is a face side",
         side.name()
     );
@@ -251,7 +257,7 @@ fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
     let Some(Node::Mate { a, alignment, .. }) = out.remainder.node(m) else {
         panic!("the kept mate");
     };
-    assert_eq!(alignment.a, MateFrame::FromFace);
+    assert_eq!(alignment.a, MateFrame::from_face());
     assert_eq!(
         a.name.node, out.instance,
         "the head re-anchors through the instance"
@@ -494,8 +500,14 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
         b: head(copy_cap.clone()),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([0.0; 3], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::FromFace,
+            a: MateFrame::authored(
+                [0.0; 3],
+                [0.0, 0.0, -1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::from_face(),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
@@ -608,8 +620,14 @@ fn on_base_cap(top: SitedFace, base_cap: SitedFace) -> Node<editor_core::Profile
         b: base_cap,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([0.0; 3], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::FromFace,
+            a: MateFrame::authored(
+                [0.0; 3],
+                [0.0, 0.0, -1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::from_face(),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,

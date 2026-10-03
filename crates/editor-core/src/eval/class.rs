@@ -256,6 +256,8 @@ pub enum NodeErrorClass {
     PlacementRefused,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::FaceUnresolved`].
     MateFaceUnresolved,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::FrameOffset`].
+    MateFrameOffset,
     /// [`NodeErrorKind::CrossingUnverified`].
     CrossingUnverified,
     /// [`NodeErrorKind::MeasureRefResolve`].
@@ -443,6 +445,7 @@ impl NodeErrorClass {
             MateFault::OffsetDisagrees { .. } => Self::MateOffsetDisagrees,
             MateFault::OffsetUnchecked { .. } => Self::MateOffsetUnchecked,
             MateFault::FaceUnresolved { .. } => Self::MateFaceUnresolved,
+            MateFault::FrameOffset { .. } => Self::MateFrameOffset,
         }
     }
 
@@ -603,6 +606,7 @@ mod tests {
         Unplaced,
         PlacementRefused,
         MateFaceUnresolved,
+        MateFrameOffset,
         CrossingUnverified,
         MeasureRefResolve,
         MeasureRefUnreadable,
@@ -1073,6 +1077,21 @@ mod tests {
                     face: crate::FaceName::new(name()).expect("a face name"),
                     refusal: crate::FacePoseRefusal::NoSuchName,
                 }),
+            }),
+            C::MateFrameOffset => mate(crate::MateFault::FrameOffset {
+                mate: n(9),
+                side: crate::MateSide::B,
+                refusal: Box::new(
+                    K::Expr {
+                        slot: SlotId::MateOffset {
+                            side: crate::MateSide::B,
+                            step: 0,
+                            arg: crate::RigidArg::RotationAngle,
+                        },
+                        source: EvalError::NonFiniteResult,
+                    }
+                    .into(),
+                ),
             }),
             C::CrossingUnverified => K::CrossingUnverified {
                 instance: n(6),

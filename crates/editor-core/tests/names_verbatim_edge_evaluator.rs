@@ -126,7 +126,13 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// **Two instanced blocks on a gauge, one seated on the other** — the
