@@ -9,7 +9,7 @@ opened: 2026-10-03
 
 ## What
 
-Eight `crate::validate::decide_nonzero_reported(` calls in
+Eight `crate::validate::decide_nonzero(` calls in
 `crates/topo/src/boolean/` read a levered or plain margin's sign. Four
 of them read it as a bool and spell out the same match, each with its
 own refusal:

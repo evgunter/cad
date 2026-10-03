@@ -837,7 +837,7 @@ fn wedge_is_reflex<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     let ((first, _), (_, (second, _))) = (fl[0], fl[1]);
-    match crate::validate::decide_nonzero_reported(
+    match crate::validate::decide_nonzero(
         "bool_wedge_reflex",
         Margin::levered(second.dot(secs[first].normal.vec()), arm),
         band,
