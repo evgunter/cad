@@ -151,7 +151,7 @@ pub(super) fn sector_face<T: Decide>(
 ///   certified point-set-diameter lower bound; the chord collapses on
 ///   near-closed arcs).
 #[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic jet) — one internal tuple
-fn chord<T: Decide>(
+pub(super) fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
@@ -330,8 +330,8 @@ pub fn classify_neighborhood<T: Decide>(
         }
     }
 
-    rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
-    rules::apply_rule_b(vertex, &mut entries)?;
+    let grazes = rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
+    rules::apply_rule_b(body, plane, vertex, &mut entries, &grazes, band)?;
     Ok(entries)
 }
 

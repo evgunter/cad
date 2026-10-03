@@ -1480,34 +1480,28 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// between notices is the one no sentence can carry ([`Message::new`]).
 ///
 /// **Every arm DM7 makes the door report is worded**: a stranded
-/// payload name, a stranded appearance key, and a declaration left
-/// with no consumer.
+/// payload name and a stranded appearance key.
 ///
 /// **The mate door's offset clear is not**: it is what inserting the
 /// mate means, and where the joined group now sits is what the picture
 /// draws. It still rides [`OpOutcome::maintenance`], where a reader of
 /// the API sees it.
 ///
-/// **Each worded arm answers [`Retold`] for itself**, and all three
-/// answer [`Retold::Never`]: none can show a retelling.
+/// **Each worded arm answers [`Retold`] for itself**, and both
+/// answer [`Retold::Never`]: neither can show a retelling.
 ///
-/// - An orphaned declaration evaluates to its own payload and refuses
-///   nothing, and its row is by contract what speaks "instead of
-///   leaving the author a node nothing will mention again".
 /// - A stranded appearance key's `AppearanceLoss` is evaluation's
 ///   report to the API, and nothing in this viewer draws it.
 /// - A stranded payload name is retold only where its CARRIER fails on
-///   it, and this door cannot know that it will. A `Declare` carrier
-///   evaluates to its own payload without resolving its names, so its
-///   row stays `Ok`; any carrier poisoned by an upstream failure has a
-///   row that names the ancestor, not the strand; and the carrier's
+///   it, and this door cannot know that it will. Any carrier poisoned
+///   by an upstream failure has a row that names the ancestor, not the
+///   strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
         Maintenance::Strand { .. } => Retold::Never,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
-        Maintenance::OrphanedDeclare { .. } => Retold::Never,
         // The mate door's offset clear is what inserting the mate
         // means — the joined group stands on the one it joined — and
         // the mate the person just placed is its notice.

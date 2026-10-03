@@ -42,13 +42,15 @@
 //! plane): resolved by the flanking classes — `(In,·,In) → In`,
 //! `(Out,·,Out) → Out`, mixed → `In`, the one fold rule
 //! ([`super::sectors::fold_on_bound`]) the vertex-vertex attribution
-//! shares. This deliberately DIVERGES from the split lane's F4 table
+//! shares. The split lane's F4 table agrees for a convex edge and
+//! deliberately DIVERGES for a reflex one
 //! (`BOB → ABOVE`): the split must mint copies to keep the two pieces'
 //! fans representable, but a boolean tangential contact is a *legal 3′
 //! touching* (edge-on-face, both flanking faces the same side) already
 //! carried by the declared contact records — TOG Table II rows 5/9
 //! (`(In,In)`/`(Out,Out)` ⇒ no intersection) confirm no crossing is
-//! recorded.
+//! recorded. Mixed keeps the In side (both witnesses' choice for the
+//! split analogue).
 
 use geom_core::{Band, Decide, Margin, Sign};
 
@@ -115,16 +117,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         .get_point(
             piercing_body
                 .get_vertex(vertex)
-                .ok_or(BooleanError::CorruptOperand {
-                    operand: piercing,
-                    vertex,
-                })?
+                .ok_or(BooleanError::corrupt_at(piercing, vertex))?
                 .point,
         )
-        .ok_or(BooleanError::CorruptOperand {
-            operand: piercing,
-            vertex,
-        })?;
+        .ok_or(BooleanError::corrupt_at(piercing, vertex))?;
     // The pierced face's oriented datum at `p`, from the one door.
     // `n_pierced` carries the material side, typed so the sense flip
     // cannot be dropped on the way; on a PLANE it is bit-identically
@@ -581,16 +577,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             (Some(first), Some(last)) => {
                 let mate = piercing_body
                     .mate(last.he)
-                    .ok_or(BooleanError::CorruptOperand {
-                        operand: piercing,
-                        vertex,
-                    })?;
+                    .ok_or(BooleanError::corrupt_at(piercing, vertex))?;
                 let he2 = piercing_body
                     .get_half_edge(mate)
-                    .ok_or(BooleanError::CorruptOperand {
-                        operand: piercing,
-                        vertex,
-                    })?
+                    .ok_or(BooleanError::corrupt_at(piercing, vertex))?
                     .next;
                 // A run holding every real edge of the orbit leaves the
                 // In side strictly inside one physical sector, the one
@@ -621,29 +611,43 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // half beside that edge faces it (`insert::strut_facing`, the
         // one rule both strut minters read): a strut whose halves face
         // that way round, he_plus toward its START germ, takes the fan's
-        // side. The side follows the facing, exactly as for a fan.
+        // side. The side follows the facing, exactly as for a fan. With
+        // both germs inside faces the strut keeps the default above.
+        // At a closed edge's lone vertex with a germ along that edge,
+        // the edge cannot say which half faces it and this minter has
+        // no geometric reading of its own: refused typed. No row
+        // reaches it — a pierce whose section runs along a closed
+        // piercing edge puts that whole edge on the pierced face.
         let MevSite::Fan { he2: corner, .. } = site else {
             return Err(BooleanError::ClassificationInvariant {
                 what: "a pierce run's site is not a fan",
             });
         };
-        let corrupt = || BooleanError::CorruptOperand {
-            operand: piercing,
-            vertex,
-        };
+        let corrupt = || BooleanError::corrupt_at(piercing, vertex);
         let corner_half = piercing_body.get_half_edge(corner).ok_or_else(corrupt)?;
         let departure = corner_half.edge;
         let arrival = piercing_body
             .get_half_edge(corner_half.prev)
             .ok_or_else(corrupt)?
             .edge;
-        let start_on_arrival = strut
-            && super::insert::strut_facing(
+        let facing = if strut {
+            super::insert::strut_facing(
                 arrival,
                 departure,
                 super::insert::own_locus_edge(piercing, start_germ.0),
                 super::insert::own_locus_edge(piercing, end_germ.0),
-            )? == Some(true);
+            )?
+        } else {
+            super::insert::StrutFacing::Unnamed
+        };
+        if facing == super::insert::StrutFacing::ClosedEdge {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand: pierced_op,
+                face: contact.face,
+                kind: pierced_kind(pierced_body, contact.face),
+            });
+        }
+        let start_on_arrival = facing == super::insert::StrutFacing::PlusFirst;
         let side = if strut && !start_on_arrival {
             NewVertexSide::Below
         } else {
@@ -706,16 +710,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         .get_point(
             pierced_body
                 .get_vertex(u)
-                .ok_or(BooleanError::CorruptOperand {
-                    operand: pierced,
-                    vertex: u,
-                })?
+                .ok_or(BooleanError::corrupt_at(pierced, u))?
                 .point,
         )
-        .ok_or(BooleanError::CorruptOperand {
-            operand: pierced,
-            vertex: u,
-        })?;
+        .ok_or(BooleanError::corrupt_at(pierced, u))?;
     // (1) chord strut u → pierce point (certified line, transient).
     let chord = pierced_body.mev(
         MevSite::Fan {

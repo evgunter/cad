@@ -2,10 +2,12 @@
 id: lily-rootstock-joins-at-its-socket
 kind: issue
 title: The lily's corm and foot union through their declared socket now; the scene still shows them threaded and apart
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: E
+closed: 2026-10-03
+pr: 3910
 ---
 
 
@@ -34,3 +36,12 @@ The probe's retirement text asks for the rest, which is this file:
   no sentence there was found saying a planar `Rest` is required
   beside a cylindrical one, so this half may already be moot — read
   the cell's narration and say so.
+
+## Closed
+
+By #3910. `lily_rootstock` is the corm and foot unioned through their
+socket (three cylinder/cylinder `Rest` declarations, no planar contact),
+validated at tier 3′; its volume is asserted against the parts' sum and
+an independent closed form. The two-peg narration never claimed a
+planar `Rest` is required beside a cylindrical one; the false sentence
+was the README's lily row, corrected.

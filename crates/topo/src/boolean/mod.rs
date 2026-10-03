@@ -19,7 +19,9 @@
 //! 1. **Gates**: per-arm since M5 PR 9 (C12.1 —
 //!    [`BooleanError::CurvedBooleanUnsupported`] retires per C5 table
 //!    arm; Plane/Cylinder/Sphere/Nurbs faces pass, Cone/Torus refuse);
-//!    no scaffolding operands; **maximal faces (F7)** via the
+//!    each operand a closed solid by tier 2's own verdict
+//!    ([`crate::validate_closed`]; no scaffolding operands); **maximal
+//!    faces (F7)** via the
 //!    coincidence ladder — adjacent faces sharing a surface key or with
 //!    bit-equal oriented planes ([`plane_eq`]) refuse as
 //!    [`BooleanError::NonMaximalFaces`]; *numeric* coplanarity never
@@ -76,8 +78,14 @@ mod circle_sphere;
 mod circle_torus;
 pub(crate) mod combine;
 pub mod contact_verify;
+// The conic rows' shared test oracles (test builds only).
+#[cfg(test)]
+mod conic_oracle;
 mod contain;
 mod discard;
+#[cfg(feature = "door-tier3-meter")]
+mod door_meter;
+mod ellipse_roots;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
@@ -134,7 +142,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
 pub(crate) use contain::loop_circle;
-pub use discard::{DiscardRow, HeldEdge, fragment_root};
+pub use discard::{DiscardRow, HeldEdge, lineage_root};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -144,6 +152,7 @@ pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, orient
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
+pub use shell_witness::ShellOrientation;
 // LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by the REST lane's verify-at-use and
@@ -183,6 +192,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        "bool_point_in_solid_beside" => "whether a face lies to one side of a ray along its plane",
+        "bool_point_in_solid_clearance" => {
+            "how far a point lies off the carrier of a face a ray runs along"
+        }
         // The coincidences these names decide.
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
@@ -501,7 +514,7 @@ impl CarriedContacts {
 /// Declared coincidence intents threaded into ONE boolean call (F5 —
 /// declarations are recipe data on the consuming node; M4 PR 5). The
 /// kernel-level form is arena keys; the recipe layer resolves its
-/// `Declare` name pairs into these through the operands' name tables.
+/// declared name pairs into these through the operands' name tables.
 ///
 /// Every key is validated at the op door (live, and planar for
 /// faces) — a dangling declaration is a typed refusal
@@ -906,6 +919,20 @@ impl<T: Real> DeclaredPairs<T> {
             .is_some_and(BooleanCoincidence::is_one_carrier)
     }
 
+    /// The pairs the declaration door verified one carrier, each with
+    /// the relation its class demands: a `Rest` contact opposed, a
+    /// continuation aligned (rung 2 of the coincidence ladder).
+    pub(crate) fn settled(&self) -> impl Iterator<Item = SettledPair> + '_ {
+        self.verified.one_carrier.iter().filter_map(|&(a, b)| {
+            let relation = match self.map.get(&(a, b))? {
+                BooleanCoincidence::Contact(ContactClass::Rest) => CarrierRelation::SameOpposite,
+                BooleanCoincidence::Continuation => CarrierRelation::SameOriented,
+                BooleanCoincidence::Contact(ContactClass::Tangent) => return None,
+            };
+            Some(SettledPair { a, b, relation })
+        })
+    }
+
     /// Whether the pair is declared `Tangent`.
     pub(crate) fn declares_tangent(
         &self,
@@ -1108,6 +1135,24 @@ pub struct BooleanReduction<T: Real> {
     /// verified one carrier with opposed senses: the REST-contact pairs
     /// the declared-REST lane patches, read rather than re-verified.
     pub(crate) rest_contacts: Vec<(FaceKey, FaceKey)>,
+    /// Every cross-operand face pair the coincidence ladder settled ONE
+    /// carrier on the operands at rest, by shared recipe source (rung 1)
+    /// or a verified declaration (rung 2), sorted and deduplicated. No
+    /// pair here was inferred from values. The whole-shell `On` verdict
+    /// reads these (`shell_witness::on_verdict`).
+    pub(crate) coincident: Vec<SettledPair>,
+}
+
+/// A cross-operand face pair the coincidence ladder settled one
+/// carrier, with its orientation ([`BooleanReduction`]'s `coincident`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SettledPair {
+    /// The A face, in A's keys.
+    pub(crate) a: FaceKey,
+    /// The B face, in B's keys.
+    pub(crate) b: FaceKey,
+    /// `SameOriented` or `SameOpposite`, never `Distinct`.
+    pub(crate) relation: CarrierRelation,
 }
 
 impl<T: Real> BooleanReduction<T> {
@@ -1170,6 +1215,21 @@ pub enum PairRefusalSite {
     /// intractable pose, a tangency, a certified interior loop, or an
     /// undecided witness.
     InteriorLoopGuard,
+}
+
+/// Where a [`BooleanError::CorruptOperand`] found its operand broken.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Corruption {
+    /// Tier 1 ([`crate::validate()`]) refused the operand at the gate.
+    Structure {
+        /// The validator's tier-1 findings, each naming its entity.
+        errors: Vec<ValidationError>,
+    },
+    /// The neighbourhood of this vertex could not be walked.
+    Vertex {
+        /// The vertex.
+        vertex: VertexKey,
+    },
 }
 
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
@@ -1256,12 +1316,14 @@ pub enum BooleanError {
     /// edge cannot be cleared against a curved face, and the curved
     /// PIERCE door cannot take it. That door takes a LINE or a CIRCLE
     /// carrier definitely crossing a cylinder wall, a sphere or a torus,
-    /// whose crossing parameters come from the certified root lanes
-    /// (the line quadratics and quartic, `boolean::circle_roots`' doors)
-    /// and whose landing point the chart trim places. What this variant
-    /// reports is the rest: a tangency (not a crossing at any order the
-    /// lanes see), a cone face or a circle against one, an undeclared
-    /// on-carrier edge or circle, a root the band cannot place, or a
+    /// and an ELLIPSE crossing a cylinder wall or a sphere, whose
+    /// crossing parameters come from the certified root lanes (the line
+    /// quadratics and quartic, `boolean::circle_roots`' doors and
+    /// `boolean::ellipse_roots`) and whose landing point the chart trim
+    /// places. What this variant reports is the rest: a tangency (not a
+    /// crossing at any order the lanes see), a cone face or a conic
+    /// against one, an ellipse near a torus, an undeclared on-carrier
+    /// edge or conic, a root the band cannot place, or a
     /// trim the chart door declines to express (the M5 envelope's
     /// frontier; the C5 table routes the SECTIONS, this is the crossing
     /// layer). The
@@ -1314,15 +1376,19 @@ pub enum BooleanError {
     ArcLoopContainmentUnsupported {
         /// The operand whose face carries the loop.
         operand: Operand,
-        /// The loop no walk expresses at the point.
-        r#loop: crate::entity::LoopKey,
+        /// The loop, and the edge no ray got past.
+        cause: crate::splitting::Uncrossable,
     },
-    /// An operand already carries null scaffolding (mid-surgery body).
+    /// An operand is well-formed but not a closed solid at rest: tier 2
+    /// ([`crate::validate_closed`]) refuses it for construction
+    /// scaffolding an edit left behind — a strut's valence-1 vertex, an
+    /// empty loop, a null edge, a shell in pieces. The Boolean serves
+    /// finished solids only.
     ScaffoldingOperand {
-        /// The offending operand and edge.
+        /// The offending operand.
         operand: Operand,
-        /// The edge.
-        edge: EdgeKey,
+        /// The validator's tier-2 findings, each naming its entity.
+        errors: Vec<ValidationError>,
     },
     /// F7: two adjacent faces of one operand are structurally or
     /// declaredly coplanar — the operand is not maximal-faced; run
@@ -1521,6 +1587,22 @@ pub enum BooleanError {
         /// The B-side vertex.
         b_vertex: VertexKey,
     },
+    /// Two vertex-vertex coincidences that share a vertex both cross
+    /// there: an operand holds two vertices at one point (its own
+    /// contact's) and the other operand's vertex at that point crosses
+    /// into both of their neighborhoods. Each pair's null edges would
+    /// split the shared vertex's orbit the other pair read, and the
+    /// insertion handles one crossing pair per vertex.
+    SharedVertexCrossings {
+        /// The operand whose vertex both pairs share.
+        operand: Operand,
+        /// That vertex.
+        vertex: VertexKey,
+        /// Two of the other operand's vertices at its point that it
+        /// crosses into, in classification order: the first two, when
+        /// it crosses into more.
+        partners: [VertexKey; 2],
+    },
     /// A classification invariant failed (e.g. a surviving record
     /// without one IN and one OUT code per side) — a kernel bug
     /// surfaced loudly, not silently mis-joined.
@@ -1528,13 +1610,14 @@ pub enum BooleanError {
         /// Human-oriented description of the violated invariant.
         what: &'static str,
     },
-    /// A traversal failed: an operand is not a well-formed closed
-    /// solid at this site.
+    /// An operand is not a well-formed closed solid: tier 1 refuses it
+    /// at the operand gate, or a traversal failed at one of its
+    /// vertices.
     CorruptOperand {
         /// The operand.
         operand: Operand,
-        /// The vertex whose neighborhood could not be walked.
-        vertex: VertexKey,
+        /// Where the breakage was found.
+        corruption: Corruption,
     },
     /// `split_edge` refused while inserting a crossing (site attached,
     /// inner error whole).
@@ -1837,7 +1920,10 @@ pub enum BooleanError {
     /// — its vertices, its edges' midpoints, an interior point of each
     /// planar face — decides which side of that boundary the shell lies
     /// on: each lies ON it or too near it to say (`shell_witness`'s
-    /// module docs). Two operands that are one body reach this.
+    /// module docs). A shell whose every witness lies ON the other
+    /// boundary is asked the `On` question instead, and answers or
+    /// refuses [`BooleanError::CoincidentShell`]; this is the in-band
+    /// arm.
     ShellWitnessExhausted {
         /// The operand whose shell was probed.
         operand: Operand,
@@ -1850,6 +1936,20 @@ pub enum BooleanError {
         /// The first in-band reading: evidence about one witness, not
         /// the cause, which is that none decided.
         first_in_band: Option<PointInSolidError>,
+    },
+    /// A shell every witness of which lies ON the other operand's
+    /// boundary, which the settled coincidence pairs do not certify
+    /// as lying on one shell of the other operand
+    /// (`shell_witness::on_verdict`): it has a face with no settled
+    /// pair, its pairs disagree on orientation, or no shell of the
+    /// other operand is covered back by it and reads `On` in turn.
+    CoincidentShell {
+        /// The operand whose shell was probed.
+        operand: Operand,
+        /// The shell, in that operand's working copy.
+        shell: ShellKey,
+        /// What the settled pairs said about orientation.
+        orientation: ShellOrientation,
     },
     /// The containment fallback / uncut-component probe refused (F8).
     Containment(PointInSolidError),
@@ -1871,8 +1971,11 @@ pub enum BooleanError {
     },
     /// The F7 output stage (`merge_coplanar_faces`) refused.
     Merge(MergeCoplanarError),
-    /// The finished result failed a tier gate (kernel bug, loudly —
-    /// no invalid body is ever returned).
+    /// The finished result failed a tier gate, loudly — no invalid
+    /// body is ever returned. A kernel bug, unless an operand carried
+    /// the finding in: an operand edge still described as a scaffold
+    /// reaches every result that keeps it, and the gate refuses it
+    /// there ([`ValidationError::ScaffoldAtRest`]).
     ResultInvalid {
         /// The validator's findings.
         errors: Vec<ValidationError>,
@@ -2019,6 +2122,8 @@ pub enum BooleanErrorKind {
     InvalidDeclaration,
     /// [`BooleanError::PairingMismatch`].
     PairingMismatch,
+    /// [`BooleanError::SharedVertexCrossings`].
+    SharedVertexCrossings,
     /// [`BooleanError::ClassificationInvariant`].
     ClassificationInvariant,
     /// [`BooleanError::CorruptOperand`].
@@ -2051,6 +2156,8 @@ pub enum BooleanErrorKind {
     TornComponent,
     /// [`BooleanError::ShellWitnessExhausted`].
     ShellWitnessExhausted,
+    /// [`BooleanError::CoincidentShell`].
+    CoincidentShell,
     /// [`BooleanError::Containment`].
     Containment,
     /// [`BooleanError::Revert`].
@@ -2087,6 +2194,14 @@ fn backstop_subject(operand: Option<Operand>) -> &'static str {
 }
 
 impl BooleanError {
+    /// A traversal of `operand` failed at `vertex`.
+    pub(crate) const fn corrupt_at(operand: Operand, vertex: VertexKey) -> Self {
+        Self::CorruptOperand {
+            operand,
+            corruption: Corruption::Vertex { vertex },
+        }
+    }
+
     /// An escalation of the coincidence `which` between parts of the two
     /// solids, at a site whose door read the pair's declaration as
     /// `read` ahead of it ([`BooleanDecision::Coincidence`]): the refusal
@@ -2200,6 +2315,7 @@ impl BooleanError {
             Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
             Self::InvalidDeclaration { .. } => BooleanErrorKind::InvalidDeclaration,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
+            Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CorruptOperand { .. } => BooleanErrorKind::CorruptOperand,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -2216,6 +2332,7 @@ impl BooleanError {
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
+            Self::CoincidentShell { .. } => BooleanErrorKind::CoincidentShell,
             Self::Containment(_) => BooleanErrorKind::Containment,
             Self::Revert(_) => BooleanErrorKind::Revert,
             Self::SeamOrientation { .. } => BooleanErrorKind::SeamOrientation,
@@ -2290,6 +2407,22 @@ fn meeting_recourse(kind: &str) -> String {
     )
 }
 
+impl core::fmt::Display for Corruption {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Structure { errors } => write!(
+                f,
+                "it fails {} of the kernel's structural checks, so the Boolean refuses it",
+                errors.len()
+            ),
+            Self::Vertex { vertex } => write!(
+                f,
+                "the neighbourhood of vertex {vertex:?} could not be walked"
+            ),
+        }
+    }
+}
+
 impl core::fmt::Display for BooleanError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -2361,18 +2494,18 @@ impl core::fmt::Display for BooleanError {
             // No operand is named, for the same reason as above: some
             // raise sites carry the operand of the edge being placed, not
             // of the face whose loop has no walk.
-            Self::ArcLoopContainmentUnsupported { .. } => write!(
+            Self::ArcLoopContainmentUnsupported { cause, .. } => write!(
                 f,
                 "the Boolean cannot yet tell what lies inside a flat face whose outline \
-                 has a spiric or spline edge near the point it asked about, so it \
-                 refuses rather than guess. Recourse: model the outline with lines, \
-                 circles or ellipses"
+                 has a {} edge near the point it asked about, so it refuses rather than \
+                 guess. Recourse: model the outline with lines, circles or ellipses",
+                cause.carrier.word()
             ),
             Self::ScaffoldingOperand { operand, .. } => write!(
                 f,
-                "the {} operand is a body left in the middle of an edit (it still \
-                 carries unfinished edges), so the Boolean refuses it. This is a bug in \
-                 whatever produced that body; please report it",
+                "the {} operand is not a finished solid: it still carries what an edit \
+                 left behind, such as a strut or an empty loop, so the Boolean refuses \
+                 it. Recourse: finish that edit first",
                 operand_word(*operand),
             ),
             Self::NonMaximalFaces { operand, .. } => write!(
@@ -2603,13 +2736,23 @@ impl core::fmt::Display for BooleanError {
                  cyclically adjacent in both neighborhoods (the 15.11 invariant's guarded \
                  refusal)"
             ),
+            Self::SharedVertexCrossings { operand, .. } => write!(
+                f,
+                "a corner of the {} solid meets a point where the other solid holds two \
+                 corners that only touch each other, and cuts into both of them; the \
+                 Boolean cannot yet join one corner into two at once. There is no way \
+                 through this in the kernel yet",
+                operand_word(*operand)
+            ),
             Self::ClassificationInvariant { what } => {
                 write!(f, "classification invariant violated: {what}")
             }
-            Self::CorruptOperand { operand, vertex } => write!(
+            Self::CorruptOperand {
+                operand,
+                corruption,
+            } => write!(
                 f,
-                "the neighbourhood of vertex {vertex:?} in the {} operand could not be \
-                 walked (a broken body)",
+                "the {} operand is a broken body: {corruption}",
                 operand_word(*operand)
             ),
             Self::CrossingInsertion {
@@ -2649,24 +2792,45 @@ impl core::fmt::Display for BooleanError {
                 on_boundary,
                 in_band,
                 ..
+            } => write!(
+                f,
+                "the solids do not cross, and none of the {} points tried on the {} \
+                 solid (corners, edge middles, flat-face interiors) tells whether it \
+                 is inside the other: {on_boundary} lie on the other's boundary, \
+                 {in_band} too near it to tell. Recourse: if they nearly touch, move \
+                 them clearly together or apart",
+                on_boundary + in_band,
+                operand_word(*operand)
+            ),
+            Self::CoincidentShell {
+                operand,
+                orientation,
+                ..
             } => {
                 write!(
                     f,
-                    "the solids do not cross, and none of the {} points tried on the {} \
-                     solid (corners, edge middles, flat-face interiors) tells whether it \
-                     is inside the other: {on_boundary} lie on the other's boundary",
-                    on_boundary + in_band,
+                    "every point tried on a closed surface of the {} solid lies on the \
+                     other's boundary, ",
                     operand_word(*operand)
                 )?;
-                if *in_band == 0 {
-                    write!(f, ". Recourse: if the two are one body, use it once")
-                } else {
-                    write!(
+                match orientation {
+                    ShellOrientation::Unpaired { .. } => write!(
                         f,
-                        ", {in_band} too near it to tell. Recourse: if the two are one \
-                         body, use it once; if they nearly touch, move them clearly \
-                         together or apart"
-                    )
+                        "but one of its faces is neither built from nor declared \
+                         coincident with a face of the other. If that face lies on one, \
+                         declare the pair; if it does not (a curved face the Boolean \
+                         cannot probe inside), this is a kernel frontier"
+                    ),
+                    ShellOrientation::Mixed => write!(
+                        f,
+                        "but some of its faces face the same way as the other's faces \
+                         they lie on and some the opposite way (kernel frontier)"
+                    ),
+                    ShellOrientation::Same | ShellOrientation::Opposite => write!(
+                        f,
+                        "but the faces it lies on are not one closed surface of the other \
+                         lying back on it (kernel frontier)"
+                    ),
                 }
             }
             // The payload does not say which operand was being tested, so
@@ -2684,8 +2848,9 @@ impl core::fmt::Display for BooleanError {
             Self::Merge(e) => write!(f, "coplanar-merge output stage refused: {e}"),
             Self::ResultInvalid { errors } => write!(
                 f,
-                "finished result failed a tier gate ({} finding(s), first: {:?}) — \
-                 kernel bug, no invalid body is returned",
+                "finished result failed a tier gate ({} finding(s), first: {:?}), so no \
+                 body is returned — a kernel bug, unless an operand carried the finding in \
+                 (an edge still described as a scaffold)",
                 errors.len(),
                 errors.first()
             ),
@@ -2820,13 +2985,25 @@ pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
     plant: Option<PlantedDegradation>,
     tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
-    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None, tol)
+    sweep_traces_with_pad(
+        a_operand,
+        b_operand,
+        &BooleanDeclarations::none(),
+        strategy,
+        plant,
+        None,
+        tol,
+    )
 }
 
 /// [`sweep_traces`] with a PAD OVERRIDE (fix-pass pin 1b): the suite
 /// proves a too-small pad (e.g. `Some(0.0)`) LOSES accepted pairs and
 /// the superset comparator catches it. A deliberately breakable knob —
 /// `sweep-testing` only, never production surface.
+///
+/// `decls` are verified as the boolean verifies them, so a covered pair
+/// reaches the settle stage and its accepted pairs reach the traces;
+/// [`sweep_traces`] passes none, the undeclared posture.
 ///
 /// # Errors
 ///
@@ -2835,16 +3012,16 @@ pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
 pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
+    decls: &BooleanDeclarations,
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
     pad_override: Option<f64>,
     tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
     let band = Band::linear(tol)?;
-    // The suite's door takes no declarations: the traced sweep runs
-    // the undeclared posture, where the frontier doors are verbatim —
-    // and so, therefore, is the operand gate's covered-pair rung.
-    let declared = DeclaredPairs::default();
+    validate_declarations(a_operand, b_operand, decls)?;
+    let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
@@ -2864,28 +3041,15 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
         plant: None,
         pad_override,
     };
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &ab_knobs,
-        Some(&mut ab),
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &ba_knobs,
-        Some(&mut ba),
+        [&ab_knobs, &ba_knobs],
+        [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
     Ok((ab, ba))
@@ -2920,28 +3084,15 @@ pub fn sweep_records(
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &knobs,
-        None,
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &knobs,
-        None,
+        [&knobs, &knobs],
+        [None, None],
         tol,
     )?;
     let sizes = [
@@ -3009,7 +3160,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // The scan is `Decide`-only; its boxes are built here, at the
     // driver the 2026-07-29 amendment ratified to read brackets.
     let pad = boxes::sweep_pad(band);
-    reduce::refuse_undeclared_continuations(
+    let mut coincident = reduce::refuse_undeclared_continuations(
         a_operand,
         b_operand,
         &declared,
@@ -3018,6 +3169,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         |body, face| boxes::face_box(body, face, pad, band),
         |body, edge| boxes::edge_box(body, edge, pad),
     )?;
+    coincident.extend(declared.settled());
+    coincident.sort_by_key(|p| (p.a, p.b));
+    coincident.dedup();
 
     // The reduction carves both operand clones through the Euler
     // operators; tier 1 is paid once per clone at the end of the
@@ -3029,31 +3183,19 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut a = carved_a.begin_surgery();
     let mut b = carved_b.begin_surgery();
 
-    // Reduction sweep, both directions (A's edges first — D9 order).
+    // Reduction sweep, both directions (A's edges first — D9 order),
+    // then the touches deferred for both directions' splits.
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &knobs,
-        None,
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &knobs,
-        None,
+        [&knobs, &knobs],
+        [None, None],
         tol,
     )?;
     let contacts = acc.finish();
@@ -3098,7 +3240,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         covered.extend(out.covered);
     }
 
-    // Vertex-vertex classification.
+    // Vertex-vertex classification, every pair read before the first
+    // insertion: a vertex may sit in more than one pair (an operand
+    // whose own contact left two vertices at one point pairs both with
+    // the other operand's vertex there), and an insertion moves its
+    // vertices' orbits. A pair that crosses nowhere inserts nothing, so
+    // its reading stays good; two that cross at one vertex would each
+    // need the orbit the other moved, and refuse.
+    let mut classified = Vec::with_capacity(contacts.vv.len());
     for &c in &contacts.vv {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
@@ -3129,8 +3278,34 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &declared,
             band,
         )?;
+        classified.push((c, a_sectors, b_sectors, records, raw));
+    }
+    let crosses: Vec<bool> = classified
+        .iter()
+        .map(|(.., records, _)| records.iter().any(sectors::PairRecord::survives))
+        .collect();
+    for (i, c) in contacts.vv.iter().enumerate() {
+        let shared = |d: &VvContact| d.a == c.a || d.b == c.b;
+        if let Some(j) = (0..i).find(|&j| crosses[i] && crosses[j] && shared(&contacts.vv[j])) {
+            let d = contacts.vv[j];
+            return Err(if d.a == c.a {
+                BooleanError::SharedVertexCrossings {
+                    operand: Operand::A,
+                    vertex: c.a,
+                    partners: [d.b, c.b],
+                }
+            } else {
+                BooleanError::SharedVertexCrossings {
+                    operand: Operand::B,
+                    vertex: c.b,
+                    partners: [d.a, c.a],
+                }
+            });
+        }
+    }
+    for (c, a_sectors, b_sectors, records, raw) in &classified {
         let out = insert::insert_null_pairs(
-            &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &raw, &declared, band,
+            &mut a, &mut b, *c, a_sectors, b_sectors, records, raw, &declared, band,
         )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
@@ -3161,6 +3336,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             .collect(),
         held,
         rest_contacts,
+        coincident,
     })
 }
 
@@ -4156,11 +4332,17 @@ mod tests {
             },
             BooleanError::ArcLoopContainmentUnsupported {
                 operand: Operand::A,
-                r#loop: crate::entity::LoopKey::default(),
+                cause: crate::splitting::Uncrossable {
+                    r#loop: crate::entity::LoopKey::default(),
+                    edge,
+                    carrier: crate::splitting::UncrossableCarrier::Spiric,
+                },
             },
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
-                edge,
+                errors: vec![ValidationError::ScaffoldingStrutVertex {
+                    vertex: VertexKey::default(),
+                }],
             },
             BooleanError::NonMaximalFaces {
                 operand: Operand::A,
@@ -4215,12 +4397,22 @@ mod tests {
                 a_vertex: VertexKey::default(),
                 b_vertex: VertexKey::default(),
             },
+            BooleanError::SharedVertexCrossings {
+                operand: Operand::B,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
+            },
             BooleanError::ClassificationInvariant {
                 what: "an invariant",
             },
+            BooleanError::corrupt_at(Operand::A, VertexKey::default()),
             BooleanError::CorruptOperand {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
+                operand: Operand::B,
+                corruption: Corruption::Structure {
+                    errors: vec![ValidationError::MissingProvenance {
+                        entity: crate::entity::EntityId::Vertex(VertexKey::default()),
+                    }],
+                },
             },
             BooleanError::CurvedPairUnsupported {
                 op: None,
@@ -4281,9 +4473,14 @@ mod tests {
             BooleanError::ShellWitnessExhausted {
                 operand: Operand::B,
                 shell: ShellKey::default(),
-                on_boundary: 26,
-                in_band: 0,
+                on_boundary: 20,
+                in_band: 6,
                 first_in_band: None,
+            },
+            BooleanError::CoincidentShell {
+                operand: Operand::A,
+                shell: ShellKey::default(),
+                orientation: ShellOrientation::Unpaired { face },
             },
             BooleanError::Containment(
                 crate::boolean::solid_contain::PointInSolidError::RayExhausted,
@@ -4370,6 +4567,7 @@ mod tests {
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
                 BooleanErrorKind::InvalidDeclaration => "InvalidDeclaration",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
+                BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CorruptOperand => "CorruptOperand",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",
@@ -4386,6 +4584,7 @@ mod tests {
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
+                BooleanErrorKind::CoincidentShell => "CoincidentShell",
                 BooleanErrorKind::Containment => "Containment",
                 BooleanErrorKind::Revert => "Revert",
                 BooleanErrorKind::SeamOrientation => "SeamOrientation",

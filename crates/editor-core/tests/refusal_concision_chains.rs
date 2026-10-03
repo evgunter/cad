@@ -353,6 +353,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Boolean/Join/SectionLoopMixed",
     "Boolean/Join/UnpairedLooseEnds",
     "Split/Finish/Corrupt",
+    "Split/Finish/DegenerateSide",
     "Split/Finish/Euler",
     "Split/Finish/NotSingleSolid",
     "Split/Finish/TornComponent",
@@ -1407,10 +1408,19 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "RingHomingUncrossable",
-                J::RingHomingUncrossable {
-                    ring: LoopKey::default(),
-                },
+                "RingHoming(Uncrossable)",
+                J::RingHoming(topo::PointInLoopError::Uncrossable(topo::Uncrossable {
+                    r#loop: LoopKey::default(),
+                    edge: Default::default(),
+                    carrier: topo::UncrossableCarrier::Spiric,
+                })),
+            ),
+            (
+                "RingHoming(OffPlane)",
+                J::RingHoming(topo::PointInLoopError::OffPlane(topo::OffPlane {
+                    r#loop: LoopKey::default(),
+                    cause: topo::OffPlaneCause::Query,
+                })),
             ),
             ("UnpairedLooseEnds", J::UnpairedLooseEnds { count: 3 }),
             (
@@ -1463,6 +1473,14 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             ("SectionNotPolar", J::SectionNotPolar { face, band: band() }),
+            (
+                "SectionArcSide",
+                J::SectionArcSide {
+                    face,
+                    case: topo::ArcSideCase::EndsDisagree,
+                    band: band(),
+                },
+            ),
             (
                 "SectionCrossings",
                 J::SectionCrossings {
@@ -2841,7 +2859,12 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         ),
     ];
     let placement = [
-        ("CountSpelling", PlacementRuleFault::CountSpelling),
+        (
+            "CountSpelling",
+            PlacementRuleFault::CountSpelling {
+                shape: editor_core::CountMismatch::ListedOnPattern,
+            },
+        ),
         ("NoPlacements", PlacementRuleFault::NoPlacements),
         (
             "NonFiniteFrame",
@@ -4234,7 +4257,14 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         ),
         (
             "EdgeCarrierUnsupported",
-            PointInSolidError::EdgeCarrierUnsupported { face },
+            PointInSolidError::EdgeCarrierUnsupported {
+                face,
+                cause: topo::Uncrossable {
+                    r#loop: topo::LoopKey::default(),
+                    edge: Default::default(),
+                    carrier: topo::UncrossableCarrier::Spiric,
+                },
+            },
         ),
         (
             "WallOutlineUnsupported",

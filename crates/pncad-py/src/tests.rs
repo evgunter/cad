@@ -1671,12 +1671,12 @@ fn the_contact_class_mirror_matches_the_kernel() {
 #[test]
 fn declare_error_tags_are_stable() {
     use crate::tags::declare_error_tag;
-    use pncad::select::{DeclareError, declare_node};
+    use pncad::select::declare_all;
 
-    let empty =
-        declare_node::<pncad::document::ProfileProgram>(&[]).expect_err("an empty declare refuses");
+    let doc = pncad::document::ProfileDoc::empty_derived("declare-error-tags", Tol::witness());
+    let empty = declare_all(&doc, pncad::document::RecipeNodeId(1), &[], Tol::witness())
+        .expect_err("declaring no findings refuses");
     assert_eq!(declare_error_tag(&empty), "no_findings");
-    assert_eq!(declare_error_tag(&DeclareError::NoMintedId), "no_minted_id");
 }
 
 /// The binding matches `Expr::literal`'s OWN refusals rather than
@@ -2502,14 +2502,23 @@ fn inner_arm_tags_are_stable() {
         pair(&NodeErrorKind::UnschedulableCycle),
         ("unschedulable_cycle", None)
     );
-    // The word is already the fault's, under the carrier's own name:
-    // `kind` IS the inner discriminant here, and projecting it twice
-    // would say the same thing in two places.
+    // The fault's word is already the carrier's own (`kind` IS that
+    // discriminant), so the second word is the count mismatch's shape,
+    // as `EditError.inner_variant` publishes it, and a fault with no
+    // arms of its own has none.
     assert_eq!(
         pair(&NodeErrorKind::PlacementRule(
-            PlacementRuleFault::CountSpelling
+            PlacementRuleFault::CountSpelling {
+                shape: pncad::document::CountMismatch::ListedOnPattern,
+            }
         )),
-        ("placement_rule_mismatch", None)
+        ("placement_rule_mismatch", Some("listed_on_pattern"))
+    );
+    assert_eq!(
+        pair(&NodeErrorKind::PlacementRule(
+            PlacementRuleFault::NoPlacements
+        )),
+        ("empty_placement_list", None)
     );
 }
 
@@ -2697,6 +2706,22 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::WouldCycle { at: sp(1) }, &["node"]);
     carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
+    carries(&E::SetDeclareOnNonDeclaring { node: sp(1) }, &["node"]);
+    carries(
+        &E::DeclaredSiteNotAnOperand {
+            node: sp(1),
+            name: named(),
+            site: sp(2),
+        },
+        &["node", "input", "name"],
+    );
+    carries(
+        &E::DeclaredNameNotUpstream {
+            node: sp(1),
+            name: named(),
+        },
+        &["node", "name"],
+    );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
@@ -2733,7 +2758,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "input"],
     );
     carries(&E::WouldStartPlacing { mate: sp(1) }, &["node"]);
-    carries(&E::PlacementRuleMismatch { node: sp(1) }, &["node"]);
+    carries(
+        &E::PlacementRuleMismatch {
+            node: sp(1),
+            shape: pncad::document::CountMismatch::ListedOnPattern,
+        },
+        &["node"],
+    );
     carries(&E::EmptyPlacementList { node: sp(1) }, &["node"]);
     carries(
         &E::NonFinitePlacement {
@@ -2760,13 +2791,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::UnresolvedInput { input: sp(2) }, &["input"]);
     carries(
         &E::DuplicateInput {
-            node: sp(1),
-            input: sp(2),
-        },
-        &["node", "input"],
-    );
-    carries(
-        &E::DeclareInputNotDeclare {
             node: sp(1),
             input: sp(2),
         },
@@ -4632,6 +4656,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "arc_loop_containment_unsupported",
             "band",
             "classification_invariant",
+            "coincident_shell",
             "contact_contradicted",
             "containment",
             "continuation_contradicted",
@@ -4669,6 +4694,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rim_seam_not_declarable",
             "scaffolding_operand",
             "seam_orientation",
+            "shared_vertex_crossings",
             "shell_witness_exhausted",
             "spheres_meet",
             "torn_component",
@@ -4684,17 +4710,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "boundary_edit_inner_tag",
+        values: &[],
+        delegates: &["placement_rule_inner_tag"],
+    },
+    TagEntry {
         function: "boundary_edit_tag",
         values: &[
             "mate_head_not_a_face",
             "name_serialize",
+            "no_minted_id",
             "param_name_not_an_identifier",
         ],
-        delegates: &[
-            "declare_error_tag",
-            "label_fault_tag",
-            "placement_rule_fault_tag",
-        ],
+        delegates: &["label_fault_tag", "placement_rule_fault_tag"],
     },
     TagEntry {
         function: "census_contact_tag",
@@ -4767,8 +4795,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "count_mismatch_tag",
+        values: &[
+            "listed_on_pattern",
+            "listed_with_count",
+            "stepped_without_count",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "declare_error_tag",
-        values: &["no_findings", "no_minted_id"],
+        values: &["no_findings"],
         delegates: &["edit_error_tag"],
     },
     TagEntry {
@@ -4799,8 +4836,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "assertion_dimension",
             "assertion_target",
             "continuous_param_cannot_be_count",
-            "declare_input_not_declare",
             "declare_names_missing_node",
+            "declared_name_not_upstream",
+            "declared_site_not_an_operand",
             "delete_would_dangle",
             "dimension",
             "doc_param_count_has_no_distribution",
@@ -4852,6 +4890,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_unknown_name",
             "repeated_designation",
             "selection_not_canonical",
+            "set_declare_on_non_declaring",
             "set_members_on_non_list",
             "set_program_on_non_profile",
             "slot_dimension_mismatch",
@@ -4876,6 +4915,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         // `mate_fault_tag` once: the per-mate admission forwards the
         // solve's fault whole.
         delegates: &[
+            "count_mismatch_tag",
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "mate_fault_tag",
@@ -4963,6 +5003,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "extrusion_escalated",
             "oblique_extrusion",
             "op",
+            "pcurve",
             "side_plane",
             "sliver_join",
             "sliver_rim",
@@ -5034,8 +5075,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_frame_crosses",
             "mate_pair_splits",
             "mate_placed",
+            "moved_member_offset",
             "name_on_dropped_step",
-            "needs_a_gauge",
             "not_an_instance",
             "param_conflict",
             "part_carries_metadata",
@@ -5092,12 +5133,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "maintenance_tag",
-        values: &[
-            "offset_cleared",
-            "orphaned_declare",
-            "strand",
-            "stranded_appearance",
-        ],
+        values: &["offset_cleared", "strand", "stranded_appearance"],
         delegates: &[],
     },
     TagEntry {
@@ -5301,6 +5337,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "param_attach_error_tag",
             "param_box_error_tag",
             "pieces_fault_tag",
+            "placement_rule_inner_tag",
             "profile_error_tag",
             "readback_error_tag",
             "replay_error_tag",
@@ -5457,6 +5494,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "placement_rule_fault_tag",
         values: &[],
         delegates: &["node_error_tag"],
+    },
+    TagEntry {
+        function: "placement_rule_inner_tag",
+        values: &[],
+        delegates: &["count_mismatch_tag"],
     },
     TagEntry {
         function: "product_error_tag",
@@ -5772,7 +5814,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "assertion_bound",
             "assertion_target",
             "dangling_input",
-            "declare_input",
+            "declared_name_not_upstream",
+            "declared_site_not_an_operand",
             "duplicate_input",
             "epsilon_invalid",
             "forward_input",
@@ -5811,7 +5854,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "split_error_tag",
         values: &[
             "body_name_crosses_cut",
-            "cut_holds_gauge",
             "dead_gauge_reference",
             "empty_cut",
             "hoisted_member_offset",
@@ -5819,6 +5861,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_frame_crosses",
             "name_on_dropped_step",
             "name_straddles_cut",
+            "no_material",
             "operand_severed_from_mate",
             "part_edit",
             "part_id_collides",
@@ -5826,6 +5869,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placing_mate_left",
             "remainder_edit",
             "severed_edge",
+            "severed_gauge",
             "split_pin",
             "torn_group",
             "two_anchors",
@@ -6165,6 +6209,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("corrupt", 3),
     ("cosurface_escalated", 2),
     ("dangling_geometry", 2),
+    // One fact at two doors: `node::declared_side_fault`, asked by the
+    // edit doors and by the load door.
+    ("declared_name_not_upstream", 2),
+    ("declared_site_not_an_operand", 2),
     // Overlapping, not one fact: at rest the word is the ring half's
     // decided refusal alone (a nonpositive tube is
     // `unrepresentable_surface_datum` there); at the Boolean's pierce
@@ -6235,7 +6283,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // these four rows say only that the sharing is deliberate.
     ("payload_doc_param_dimension", 2),
     ("payload_unknown_doc_param", 2),
-    ("pcurve", 5),
+    ("pcurve", 6),
     ("pcurves", 3),
     // One fact: a placement on an instance's frame did not evaluate —
     // the instance's own row, and why its checked offset went unchecked.
@@ -9831,7 +9879,6 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "boolean_union",
     "chamfer",
     "datum",
-    "declare",
     "extrude",
     "fillet",
     "gauge",
@@ -10204,4 +10251,70 @@ fn the_unplaced_tag_is_the_kernels_word() {
     ] {
         assert_eq!(crate::tags::unplaced_tag(&cause), cause.word(), "{cause:?}");
     }
+}
+
+/// **A split's node map reaches Python in document order**: the map is
+/// keyed by id, and the cut below is grown until its ids do not run in
+/// document order, so the map's own order is NOT the document's — the
+/// disorder is asserted, not assumed — and the list the helper hands
+/// Python follows the source document and the part alike.
+#[test]
+fn a_split_node_map_reaches_python_in_document_order() {
+    use pncad::document::{Datum, DocumentId, Node, ProfileDoc, RecipeNodeId, split};
+    let frame = |x: f64| {
+        Node::Datum(Datum::Frame {
+            origin: [len(x), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        })
+    };
+    let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
+    // One instance gives the cut its material (a cut of frames alone
+    // refuses `no_material`); the frames give it its many ids.
+    let material = || {
+        insert(
+            ProfileDoc::empty_derived("place-node-map", Tol::witness()),
+            Node::instantiate_part(pncad::document::DocRef {
+                id: DocumentId::derive("place-node-map-ref"),
+                pin: pncad::document::ContentPin([0u8; 32]),
+            }),
+        )
+    };
+    let (doc, cut) = (3..12u32)
+        .map(|n| {
+            (0..n).fold(
+                {
+                    let (doc, instance) = material();
+                    (doc, vec![instance])
+                },
+                |(doc, mut cut), i| {
+                    let (doc, id) = insert(doc, frame(f64::from(i)));
+                    cut.push(id);
+                    (doc, cut)
+                },
+            )
+        })
+        .find(|(_, cut)| !ascending(cut))
+        .expect("some frame count puts the ids out of document order");
+    let out = split(
+        &doc,
+        &cut.iter().copied().collect(),
+        DocumentId::derive("place-node-map-part"),
+        Tol::witness(),
+        None,
+    )
+    .expect("a cut of free frames splits");
+    let keyed: Vec<RecipeNodeId> = out.node_map.keys().copied().collect();
+    assert_ne!(keyed, cut, "the map's own order is not the document's");
+    let listed = crate::node_map::in_document_order(&out.node_map, &out.part);
+    assert_eq!(
+        listed.iter().map(|&(from, _)| from).collect::<Vec<_>>(),
+        cut,
+        "the sources, as the split document holds them"
+    );
+    assert_eq!(
+        listed.iter().map(|&(_, to)| to).collect::<Vec<_>>(),
+        out.part.order(),
+        "the targets, as the part holds them"
+    );
 }

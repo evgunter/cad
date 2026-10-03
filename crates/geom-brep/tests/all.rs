@@ -83,6 +83,8 @@ mod curved_torus_arc_residual;
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
+#[path = "ellipse_signed_semi_axis_gate.rs"]
+mod ellipse_signed_semi_axis_gate;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
 #[path = "germ_pose_gate.rs"]
@@ -115,8 +117,12 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "onb_wall_frame_interval.rs"]
 mod onb_wall_frame_interval;
+#[path = "pcurve_frame_premise_rows.rs"]
+mod pcurve_frame_premise_rows;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
+#[path = "props_sphere_circle_loop.rs"]
+mod props_sphere_circle_loop;
 #[path = "props_sphere_pole_side.rs"]
 mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]

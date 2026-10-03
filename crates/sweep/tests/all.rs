@@ -57,6 +57,8 @@ mod revolve_common;
 
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "at_rest_pcurve_faces.rs"]
+mod at_rest_pcurve_faces;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
@@ -111,6 +113,8 @@ mod pis_arc_capped_poses;
 mod pis_cut_cavity;
 #[path = "placeholder_chart_boundary.rs"]
 mod placeholder_chart_boundary;
+#[path = "point_in_loop_arc_cap.rs"]
+mod point_in_loop_arc_cap;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
 #[path = "r1_lane0_e2e.rs"]
@@ -149,6 +153,10 @@ mod shellfix1_bitdump;
 mod shellfix1_r1_probes;
 #[path = "sym11_far_placement_rows.rs"]
 mod sym11_far_placement_rows;
+#[path = "tilted_sphere_pair.rs"]
+mod tilted_sphere_pair;
+#[path = "tilted_sphere_pair_k_rows.rs"]
+mod tilted_sphere_pair_k_rows;
 #[path = "topo_ring_nesting.rs"]
 mod topo_ring_nesting;
 #[path = "torax_axial.rs"]
@@ -210,6 +218,8 @@ mod cert5_offgrid_knot_rational;
 mod cert8_r1_probes;
 #[path = "closed_chain_junctions.rs"]
 mod closed_chain_junctions;
+#[path = "conic_edge_curved_face.rs"]
+mod conic_edge_curved_face;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
 #[path = "contained_flush_cylinder.rs"]
@@ -471,6 +481,8 @@ mod split_cylindrical_feature_box;
 mod split_edge_loft_charts;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
+#[path = "split_tangent_edge_curved.rs"]
+mod split_tangent_edge_curved;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -596,6 +608,8 @@ mod join1_mechanisms;
 mod join1_r1_probes;
 #[path = "join1_r1_rows.rs"]
 mod join1_r1_rows;
+#[path = "join_rc_probes.rs"]
+mod join_rc_probes;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]

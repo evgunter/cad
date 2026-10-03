@@ -268,8 +268,8 @@ pub(super) fn classify_vertices<T: Decide>(
 ///    Positive ⇒ two distinct roots `φ ± acos(−D/R)`; Zero ⇒ the
 ///    plane grazes the carrier's extremum — ONE (double) root, whose
 ///    insertion (if in-span) leaves a same-side ON contact for the
-///    sector adjudication (rule (b)'s AOA/BOB — the established graze
-///    net); in-band ⇒ typed escalation (F6).
+///    sector classification (the established graze net); in-band ⇒
+///    typed escalation (F6).
 /// 2. Each root, translated into `[t₀, t₀ + τ)`, is classified
 ///    against the span by `split_conic_crossing_root` — the two
 ///    margins `(t − t₀)·meter` and `(t₁ − t)·meter` (meters at the
@@ -511,11 +511,13 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
         .max(T::zero() - T::one());
     let delta = arg.acos();
     let tau = T::tau();
-    // The conservative meter (radians → meters): the minor semi-axis.
-    // An INF bound on the speed by being the smaller principal rate,
-    // which is what the interiority claim below needs — a root this
-    // meter proves clear of an endpoint is clear of it in metres.
-    let meter = geom_core::InfSpeed::new(s_v);
+    // The conservative meter (radians → meters): the smaller semi-axis
+    // MAGNITUDE (the stored semi-axes carry no order, `geom_brep::Conic`;
+    // `s_v` in the ordinary order). An INF bound on the speed by being
+    // the smaller principal rate, which is what the interiority claim
+    // below needs — a root this meter proves clear of an endpoint is
+    // clear of it in metres.
+    let meter = geom_core::InfSpeed::new(s_u.abs().min(s_v.abs()));
     let mut roots: Vec<T> = Vec::with_capacity(2);
     let candidates: [Option<T>; 2] = if both_roots {
         [Some(phi + delta), Some(phi - delta)]
@@ -620,7 +622,7 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
 ///   same-side endpoints with a belly crossing the plane twice get
 ///   BOTH crossing vertices; an ON endpoint with one interior
 ///   crossing gets it; grazes land as single ON contacts for the
-///   rule (b) adjudication. Two roots split the parent then its
+///   sector classification. Two roots split the parent then its
 ///   trailing child (ascending — the second root lives on the child's
 ///   span).
 /// - **Spiric and spline carriers** have no crossing lane. One passes
@@ -741,8 +743,43 @@ mod tests {
     use geom::Curve3;
     use geom_core::{Band, Point3, Vec3};
 
-    use super::{ConicPlaneMeet, conic_crossing_roots};
+    use super::{ConicPlaneMeet, conic_crossing_roots, conic_plane_crossing_roots};
     use crate::splitting::SplitPlane;
+
+    /// **A crossing's gap from an end is metered at the smaller semi-axis
+    /// MAGNITUDE, in either stored order.** An ellipse stored swapped —
+    /// `major = 0.01` along `u_ref`, `minor = 10` — runs at 0.01 m/rad at
+    /// its `θ = π/2` vertex. A plane crosses it `δ = 5e-8` rad past that
+    /// vertex, an arc of 5e-10 m: inside the zero band, so the crossing
+    /// is the span's own end, not an interior root. Metered at the
+    /// stored `minor` (10 m/rad) the gap read 5e-7 m and the root was
+    /// certified interior, a split 5e-10 m from a vertex.
+    #[test]
+    fn a_crossing_at_an_end_is_metered_at_the_smaller_semi_axis() {
+        let e = Curve3::Ellipse {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major: 0.01,
+            minor: 10.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let t0 = core::f64::consts::FRAC_PI_2;
+        let delta = 5e-8;
+        let x = 0.01 * (t0 + delta).cos();
+        let got = roots_of(conic_plane_crossing_roots(
+            &e,
+            t0,
+            t0 + 0.3,
+            Point3::new(x, 0.0, 0.0),
+            Vec3::unit_x(),
+            band(),
+        ))
+        .unwrap();
+        assert!(
+            got.is_empty(),
+            "a root at the span's own end certified interior: {got:?}"
+        );
+    }
 
     /// The roots arm's payload; any other arm fails the row.
     fn roots_of<T: core::fmt::Debug>(

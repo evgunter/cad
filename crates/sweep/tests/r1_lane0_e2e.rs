@@ -30,10 +30,7 @@ fn rigid_f64() -> Affine3<f64> {
 /// **At `f64` the absence arm never fires, and the map's certificate is
 /// the free certifier's.**
 ///
-/// The fixture refuses for its own reason — its cap's boundary is a
-/// neighbour's chart image, so mass properties have no stored pcurve
-/// cache to quadrature — and that refusal is not this unit's. What the
-/// row holds is the two things that are: no door on the walk reports
+/// What the row holds is two things: no door on the walk reports
 /// `ApproxLaneUnsupported` or `ApproxCertification` when the seam
 /// answers, and the surface `transform_rigid` produces carries
 /// `geom_brep::certify_offset_over`'s measurement of the mapped pair

@@ -37,6 +37,7 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Vec2, Vec3};
 use topo::{Body, EdgeKey, FaceSurface, HalfEdgeKey, MevSite, ValidationError};
 
+use super::common::certificates::assert_certificates_fresh;
 use super::common::latitude_seam::{
     collinear_cap_drum, door_cavity, graft_recertify_failures, plane_images, void_evidence,
 };
@@ -456,32 +457,7 @@ fn carried_cavity_certificates_equal_a_fresh_recertification() {
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
     let ins = topo::insert_voids(&mut out, &solids, cavity.clone(), &evidence).unwrap();
-    let band = Band::linear(tol()).unwrap();
-    let mut compared = 0;
-    for (ek, _) in cavity.edges() {
-        let dk = ins.edge(ek).unwrap();
-        let e = out.get_edge(dk).unwrap();
-        let Some(topo::CurveGeom::Certified(c)) = out.get_curve_geom(e.curve) else {
-            continue;
-        };
-        let p = |v| *out.get_point(out.get_vertex(v).unwrap().point).unwrap();
-        let start = p(out.get_half_edge(e.he_plus).unwrap().start);
-        let end = p(out.half_edge_end(e.he_plus).unwrap());
-        let fresh = c
-            .recertify_via(
-                start,
-                end,
-                |k| out.get_surface(k).cloned(),
-                band,
-                Some(geom_brep::NurbsLane::certified()),
-            )
-            .unwrap();
-        assert_eq!(
-            format!("{:?}", c.certificate()),
-            format!("{fresh:?}"),
-            "edge {dk:?}"
-        );
-        compared += 1;
-    }
+    let edges = cavity.edges().map(|(ek, _)| ins.edge(ek).unwrap());
+    let compared = assert_certificates_fresh("cavity", &out, edges, tol());
     assert!(compared > 0);
 }

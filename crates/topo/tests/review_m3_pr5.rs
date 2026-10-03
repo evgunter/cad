@@ -554,6 +554,41 @@ fn point_in_solid_on_entities_and_grazes() {
     assert_eq!(v1, v2);
 }
 
+/// A point in band of a face's plane is a question about that face only
+/// where its foot on the plane is in the face or near its loop: there
+/// the elevation refuses, and beyond the loop by more than the band the
+/// face is out of the question, at any distance.
+#[test]
+fn a_band_elevation_refuses_only_over_the_face() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let h = 5.0 * tol.get().eps; // in band: (eps, K·eps)
+    let cube = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    // Over the top face, and over its rim edge in band of it too.
+    for q in [
+        Point3::new(0.5, 0.5, 1.0 + h),
+        Point3::new(1.0 + h, 0.5, 1.0 + h),
+    ] {
+        let got = point_in_solid(&cube, q, band, tol);
+        assert!(
+            matches!(&got, Err(topo::PointInSolidError::Escalated { diag, .. })
+                if diag.predicate == Some("bool_point_in_solid_plane")),
+            "{q:?}: a point in band over the face refuses on its elevation, got {got:?}"
+        );
+    }
+    // Beyond the top face's loop by more than the band, near and far.
+    for q in [
+        Point3::new(1.5, 0.5, 1.0 + h),
+        Point3::new(5.0, 0.5, 1.0 + h),
+    ] {
+        let got = point_in_solid(&cube, q, band, tol);
+        assert!(
+            matches!(got, Ok(SolidContainment::Out)),
+            "{q:?}: the top's carrier is no question past its loop, got {got:?}"
+        );
+    }
+}
+
 // =====================================================================
 // Targets 6/8: D9 replay through every result kind (incl. the graft
 // door) and revert-oracle corpus extension.

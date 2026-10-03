@@ -154,7 +154,6 @@ fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Transform { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
-        | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Mate { .. }
         | Node::Gauge { .. }
@@ -1391,7 +1390,6 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
         | ValuePayload::Profile(_)
         | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)
-        | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
         | ValuePayload::Gauge
         | ValuePayload::Measure { .. }
@@ -1432,7 +1430,7 @@ mod refused_boolean {
                 op: BooleanOp::Union,
                 a: block,
                 b: boss,
-                declare: None,
+                declare: Vec::new(),
             },
             tol,
         );

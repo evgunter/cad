@@ -508,8 +508,9 @@ pub enum SessionOp {
     /// does. The program itself, and `ids`' shape, are the edit door's
     /// to judge, and refuse in its words ([`Refusal::Edit`]).
     ///
-    /// A name on a step the program does not keep is stranded, and the
-    /// door's report of it rides [`OpOutcome::maintenance`];
+    /// A name on a step the program does not keep, or on a kept step's
+    /// piece it stops drawing, is stranded, and the door's report of it
+    /// rides [`OpOutcome::maintenance`];
     /// [`crate::session::DocSession::edit_profile_report`] reads the
     /// same rows before the op is performed.
     ///
@@ -570,11 +571,10 @@ pub enum SessionOp {
     /// fact about any node's inputs, not about booleans, so it is
     /// stated once where every node kind reaches it.
     ///
-    /// **A contact is declared in the same action or not at all.** No
-    /// edit attaches a declaration to a live node, so an empty
-    /// `declare` authors the node's `declare` as `None` and a non-empty
-    /// one commits a `Node::Declare` of exactly those findings and then
-    /// the boolean naming it — one action, one undo. The door evaluates
+    /// **The findings become the boolean's own declared pairs**: an
+    /// empty `declare` authors an undeclared boolean, and a non-empty
+    /// one a boolean carrying exactly those findings' pairs — one
+    /// insert, one undo. The door evaluates
     /// the boolean before recording it, and one that refuses an
     /// undeclared contact of its own is not committed:
     /// [`Refusal::Contact`] carries the kernel's finding back, and its
@@ -1565,14 +1565,13 @@ pub struct OpOutcome {
     /// The log keeps the edits alone (replay re-applies them, and each
     /// re-derives its rows), so this is the one place the rows —
     /// a name stranded or rewritten in place, an appearance key
-    /// stranded, a declaration left with no consumer — leave the
-    /// session. The chrome words them through
+    /// stranded — leave the session. The chrome words them through
     /// [`crate::frame::outcome_notices`].
     ///
     /// **Net over the action, not per edit.** One action can apply
     /// several edits (a cascade delete, a profile on a new frame), and
     /// a row an earlier edit reported can be made moot by a later one — a strand the action went on to repair or whose
-    /// carrier it deleted, an orphan it consumed again, a name it moved
+    /// carrier it deleted, a name it moved
     /// twice. The rows are folded through
     /// `pncad::document::MaintenanceNet`, which states which survive,
     /// so this holds what is true of the document the action ended at.

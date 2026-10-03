@@ -31,6 +31,7 @@
 //! the `mev_null` fan; an empty span (both germs in one sector) is the
 //! strut/dangling case (`Fan { he, he }` at the next sector's edge).
 
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::sectors::{BoolSector, PairRecord, within};
@@ -72,7 +73,7 @@ pub(super) fn insert_null_pairs<T: Decide>(
     let mut ordered: Vec<(&PairRecord, &PairRecord)> = records
         .iter()
         .zip(raw)
-        .filter(|(r, _)| r.intersect)
+        .filter(|(r, _)| r.survives())
         .collect();
     ordered.sort_by_key(|(r, _)| (r.a, r.b));
     let (survivors, raw): (Vec<&PairRecord>, Vec<&PairRecord>) = ordered.into_iter().unzip();
@@ -241,14 +242,14 @@ fn mint_directed<T: Decide>(
     // loop walk meets FIRST (he_plus) must face the right germ. A germ
     // along an edge of this solid names it structurally
     // ([`strut_facing`]); otherwise the half meeting the loop first
-    // faces the germ angularly closest to the splice corner's arrival
-    // edge (the anchor bound; convex-sector dot comparison). Senses
+    // faces the germ angularly nearest the splice corner's arrival
+    // edge, measured inside the sector ([`strut_order`]). Senses
     // follow the facing by the sense theorem, so only the splice order
     // moves. Run direction is untouched (a strut's reverse run spans
     // the whole orbit).
     let empty = run_fan(sectors, gf.0, gt.0)?.is_empty();
     let structural = if empty {
-        let corrupt = || BooleanError::CorruptOperand { operand, vertex };
+        let corrupt = || BooleanError::corrupt_at(operand, vertex);
         let arrival = body
             .get_half_edge(sectors[gf.0].he)
             .ok_or_else(corrupt)?
@@ -256,38 +257,32 @@ fn mint_directed<T: Decide>(
         let mate = body.mate(sectors[gf.0].he).ok_or_else(corrupt)?;
         let departure_he = body.get_half_edge(mate).ok_or_else(corrupt)?.next;
         let departure = body.get_half_edge(departure_he).ok_or_else(corrupt)?.edge;
-        strut_facing(
+        // A germ inside a face, or along a closed edge at its lone
+        // vertex, falls through to the angular reading below.
+        match strut_facing(
             arrival,
             departure,
             own_locus_edge(operand, gf.2),
             own_locus_edge(operand, gt.2),
-        )?
+        )? {
+            StrutFacing::PlusFirst => Some(true),
+            StrutFacing::MinusFirst => Some(false),
+            StrutFacing::Unnamed | StrutFacing::ClosedEdge => None,
+        }
     } else {
         None
     };
     let spike_from_first = if let Some(first) = structural {
         first
     } else if empty {
-        let e_dir = anchor_dir(body, sectors[gf.0].he)?;
-        // Metered at the shorter sector arm: the germ directions and
-        // `e_dir` are all unit, so the bare dot difference was a
-        // DIMENSIONLESS comparand against the length band
-        // (rim-dimensional audit, class (c)); × arm makes it the
-        // displacement the facing difference induces at the sectors'
-        // own bounding-chord scale.
-        let arm = sectors[gf.0].arm.min(sectors[gt.0].arm);
-        let m = Margin::levered((gf.3 - gt.3).dot(e_dir), arm);
-        match crate::validate::decide("bool_strut_order", m, band) {
-            Ok(Sign::Positive) => true,
-            Ok(_) => false,
-            Err(diag) => {
-                return Err(BooleanError::coincidence(
-                    Coincide::Sectors,
-                    DeclarationRead::Moot,
-                    diag,
-                ));
-            }
-        }
+        let s = &sectors[gf.0];
+        strut_order(
+            anchor_dir(body, s.he)?,
+            s.normal.vec(),
+            (gf.3, gt.3),
+            s.arm.min(sectors[gt.0].arm),
+            band,
+        )?
     } else {
         false
     };
@@ -325,6 +320,23 @@ pub(super) fn own_locus_edge(operand: Operand, (_, loci): Cells) -> Option<EdgeK
     }
 }
 
+/// What a strut's corner edges say about which half faces which germ
+/// ([`strut_facing`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum StrutFacing {
+    /// `he_plus` faces the first germ and `he_minus` the second.
+    PlusFirst,
+    /// `he_minus` faces the first germ and `he_plus` the second.
+    MinusFirst,
+    /// Neither germ runs along the corner's edges: the edges name no
+    /// facing.
+    Unnamed,
+    /// The corner's two edges are one closed edge (its lone vertex) and
+    /// a germ runs along it: the germ leaves along one end of that edge
+    /// and arrives along the other, so the edge key names no half.
+    ClosedEdge,
+}
+
 /// **Which half of a strut faces which germ, where a germ runs along an
 /// edge of its own solid.** A strut splices its halves
 /// `[he_plus, he_minus]` into its corner between the arrival half and
@@ -333,38 +345,94 @@ pub(super) fn own_locus_edge(operand: Operand, (_, loci): Cells) -> Option<EdgeK
 /// own locus edge is the half that faces it — an angular reading would
 /// meet such a germ exactly ON its comparison's bound.
 ///
-/// `Some(true)`: `he_plus` faces `first` and `he_minus` `second`;
-/// `Some(false)`: the reverse; `None`: no germ runs along the corner's
-/// edges, or the corner's two edges are one (a closed edge's lone
-/// vertex), so the edges tell the halves apart for neither germ, and the
-/// caller reads the facing another way. Two germs whose edges name
-/// opposite facings are no strut the classification mints: refused.
+/// Each germ along one of the two edges is a vote; the votes must
+/// agree, and two that name opposite facings are no strut the
+/// classification mints: refused. A germ inside a face casts none
+/// ([`StrutFacing::Unnamed`] when neither votes), and at a closed
+/// edge's lone vertex the edge key cannot say which end a germ along it
+/// runs from ([`StrutFacing::ClosedEdge`]); each caller states what it
+/// does then.
 pub(super) fn strut_facing(
     arrival: EdgeKey,
     departure: EdgeKey,
     first: Option<EdgeKey>,
     second: Option<EdgeKey>,
-) -> Result<Option<bool>, BooleanError> {
+) -> Result<StrutFacing, BooleanError> {
     if arrival == departure {
-        return Ok(None);
+        let along = first == Some(arrival) || second == Some(arrival);
+        return Ok(if along {
+            StrutFacing::ClosedEdge
+        } else {
+            StrutFacing::Unnamed
+        });
     }
     let mut votes = [
-        (first == Some(arrival)).then_some(true),
-        (first == Some(departure)).then_some(false),
-        (second == Some(departure)).then_some(true),
-        (second == Some(arrival)).then_some(false),
+        (first == Some(arrival)).then_some(StrutFacing::PlusFirst),
+        (first == Some(departure)).then_some(StrutFacing::MinusFirst),
+        (second == Some(departure)).then_some(StrutFacing::PlusFirst),
+        (second == Some(arrival)).then_some(StrutFacing::MinusFirst),
     ]
     .into_iter()
     .flatten();
     let Some(facing) = votes.next() else {
-        return Ok(None);
+        return Ok(StrutFacing::Unnamed);
     };
     if votes.any(|v| v != facing) {
         return Err(BooleanError::ClassificationInvariant {
             what: "a strut's germs run along its corner's edges in contradictory order",
         });
     }
-    Ok(Some(facing))
+    Ok(facing)
+}
+
+/// **Whether the strut half met first faces the first germ**: whether
+/// `germs.0` lies angularly nearer than `germs.1` to the splice
+/// corner's arrival edge `e_dir`, measured inside the sector, which
+/// sweeps from its end bound (the arrival edge) clockwise about its
+/// face's outward `normal`.
+///
+/// Each germ is first placed in its half-turn by its side of the
+/// arrival edge, `(g × e)·n` (`bool_strut_side`): the near half-turn
+/// `[0, π)` reads positive, the far one `[π, 2π)` negative, and a germ
+/// on the edge's line is placed by [`super::sectors::direction_sense`]
+/// (along `e`: angle 0, near; against it: π, far). A germ in the near
+/// half-turn is the nearer. Within one half-turn the nearer germ is the
+/// one the other follows clockwise, `(g0 × g1)·n < 0`
+/// (`bool_strut_order`). Both readings are sines levered at `arm`, the
+/// shorter of the two sectors' bounding chords: the distance at that
+/// arm from one direction's line, so they are linear in the spacing
+/// at every angle, where a cosine is flat beside 0 and π. That is
+/// `splitting::containment`'s doctrine for angular windows: decided as
+/// distances, never as an angle. A decided zero, of a side whose
+/// direction sense is in band or of two germs along one direction,
+/// refuses: nothing orders the germs.
+fn strut_order<T: Decide>(
+    e_dir: Vec3<T>,
+    normal: Vec3<T>,
+    germs: (Vec3<T>, Vec3<T>),
+    arm: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+    let far = |g: Vec3<T>| -> Result<bool, BooleanError> {
+        let side = Margin::levered(g.cross(e_dir).dot(normal), arm);
+        match crate::validate::decide("bool_strut_side", side, band).map_err(refuse)? {
+            Sign::Positive => Ok(false),
+            Sign::Negative => Ok(true),
+            Sign::Zero => Ok(!super::sectors::direction_sense(g, e_dir, arm, band)?),
+        }
+    };
+    let (far0, far1) = (far(germs.0)?, far(germs.1)?);
+    if far0 != far1 {
+        return Ok(far1);
+    }
+    let order = Margin::levered(germs.0.cross(germs.1).dot(normal), arm);
+    match crate::validate::decide_nonzero_reported("bool_strut_order", order, band)
+        .map_err(refuse)?
+    {
+        NonzeroSign::Negative => Ok(true),
+        NonzeroSign::Positive => Ok(false),
+    }
 }
 
 /// The unit direction of an orbit half-edge away from its start
@@ -589,10 +657,10 @@ fn mint_run<T: Decide>(
     let successor = |body: &Body<T>, he: HalfEdgeKey| -> Result<HalfEdgeKey, BooleanError> {
         let mate = body
             .mate(he)
-            .ok_or(BooleanError::CorruptOperand { operand, vertex })?;
+            .ok_or(BooleanError::corrupt_at(operand, vertex))?;
         Ok(body
             .get_half_edge(mate)
-            .ok_or(BooleanError::CorruptOperand { operand, vertex })?
+            .ok_or(BooleanError::corrupt_at(operand, vertex))?
             .next)
     };
     let (site, dangling) = if hes.is_empty() {
@@ -692,6 +760,63 @@ mod tests {
     use super::*;
     use geom_core::Tol;
 
+    /// **`strut_facing`'s vote table.** `he_plus` lies beside the
+    /// arrival edge and `he_minus` beside the departure edge, so each
+    /// germ along one of them votes for the facing that puts the half
+    /// beside it toward it; agreeing votes stand, a contradiction
+    /// refuses, no vote is `Unnamed`, and one closed edge on both sides
+    /// with a germ along it is `ClosedEdge`.
+    #[test]
+    fn strut_facing_reads_the_corner_edges() {
+        use StrutFacing::{ClosedEdge, MinusFirst, PlusFirst, Unnamed};
+        let mut keys = slotmap::SlotMap::<EdgeKey, ()>::with_key();
+        let (arr, dep, other) = (keys.insert(()), keys.insert(()), keys.insert(()));
+        let f = |first, second| strut_facing(arr, dep, first, second);
+        // Each single vote.
+        assert_eq!(
+            f(Some(arr), None).unwrap(),
+            PlusFirst,
+            "first along arrival"
+        );
+        assert_eq!(
+            f(Some(dep), None).unwrap(),
+            MinusFirst,
+            "first along departure"
+        );
+        assert_eq!(
+            f(None, Some(dep)).unwrap(),
+            PlusFirst,
+            "second along departure"
+        );
+        assert_eq!(
+            f(None, Some(arr)).unwrap(),
+            MinusFirst,
+            "second along arrival"
+        );
+        // Agreeing pairs.
+        assert_eq!(f(Some(arr), Some(dep)).unwrap(), PlusFirst);
+        assert_eq!(f(Some(dep), Some(arr)).unwrap(), MinusFirst);
+        // No vote: germs inside faces, or along an edge off the corner.
+        assert_eq!(f(None, None).unwrap(), Unnamed);
+        assert_eq!(f(Some(other), Some(other)).unwrap(), Unnamed);
+        // Contradictions refuse.
+        for (first, second) in [(Some(arr), Some(arr)), (Some(dep), Some(dep))] {
+            assert!(
+                matches!(
+                    f(first, second),
+                    Err(BooleanError::ClassificationInvariant { .. })
+                ),
+                "{first:?} {second:?}"
+            );
+        }
+        // A closed edge's lone vertex.
+        let closed = |first, second| strut_facing(arr, arr, first, second).unwrap();
+        assert_eq!(closed(Some(arr), None), ClosedEdge);
+        assert_eq!(closed(None, Some(arr)), ClosedEdge);
+        assert_eq!(closed(None, None), Unnamed);
+        assert_eq!(closed(Some(other), None), Unnamed);
+    }
+
     /// The survivor-validation invariants: odd counts and dirty codes
     /// refuse loudly (unit-level; the geometric paths are pinned by the
     /// acceptance fixtures).
@@ -788,15 +913,16 @@ mod tests {
         );
     }
 
-    /// F12 stress, mechanism level: a valid 4-survivor (two-pair)
-    /// neighborhood — two consecutive record pairs, each a strut pair
-    /// in BOTH solids — mints 4 dangling null edges and 2
-    /// correspondence pairs on real cube vertices, F9 attributes
-    /// carried as data, tier 1 preserved. (A geometric 4-crossing
-    /// operand fixture is not constructible from the prismatic corpus;
-    /// the runtime guards above defend the invariant — PR report.)
+    /// F12 at mechanism level: four survivors, two consecutive record
+    /// pairs, each a strut in BOTH solids, on real cube vertices but
+    /// synthetic sectors. Every germ runs along `+y`, and the first
+    /// strut's arrival edge (a cube edge) is normal to its sector's
+    /// plane, so nothing orders the strut's two germs: the strut order
+    /// refuses at the first germ's side, before any mint. Four
+    /// survivors at one vertex pair in real geometry are
+    /// `work/join/four-germ-vertex-pairs-run-b-in-a-order`'s.
     #[test]
-    fn f12_four_survivor_pairing() {
+    fn f12_four_unordered_struts_refuse_before_any_mint() {
         use SideCode::{In, Out};
         let mk = |a: usize, b: usize, sa, sb| PairRecord {
             a,
@@ -854,7 +980,8 @@ mod tests {
             mk(1, 1, (Out, In), (Out, In)),
             mk(1, 1, (In, Out), (In, Out)),
         ];
-        let out = insert_null_pairs(
+        let edges = (abody.edges().count(), bbody.edges().count());
+        let err = insert_null_pairs(
             &mut abody,
             &mut bbody,
             contact,
@@ -865,21 +992,22 @@ mod tests {
             &crate::boolean::DeclaredPairs::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
-        .unwrap();
-        assert_eq!(out.pairs.len(), 2);
-        assert_eq!(out.edges.len(), 4);
-        assert!(out.edges.iter().all(|e| e.dangling));
-        for e in &out.edges {
-            assert_ne!(e.attr.below_end, e.attr.above_end);
-            // Dangling Out-run struts: the strut facing swap (he_minus
-            // at the from-germ) swaps the side labels with it (PR 5.5
-            // sense theorem — join module docs), so the minted copy is
-            // the below end here, NOT an echo of the mint side.
-            assert_eq!(
-                e.attr.above_end,
-                if e.operand == Operand::A { va } else { vb }
-            );
-        }
+        .expect_err("nothing orders the struts' germs");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::DirectionSense,
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+        assert_eq!(
+            (abody.edges().count(), bbody.edges().count()),
+            edges,
+            "no null edge minted"
+        );
         crate::validate::validate(&abody).unwrap();
         crate::validate::validate(&bbody).unwrap();
     }
@@ -930,5 +1058,93 @@ mod tests {
             "{err:?}"
         );
         assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{err}");
+    }
+
+    /// The strut order ranks two germs by their angle from the arrival
+    /// edge inside the sector, past a half-turn too. The sector sweeps
+    /// from the arrival edge `+x` clockwise about `+z`, so `-y` lies 90°
+    /// in, `-x` 180° and `+y` 270°. Each row's answer is whether the
+    /// first germ is the nearer; a cosine alone answers the far row the
+    /// other way round.
+    #[test]
+    fn the_strut_order_reads_angles_past_a_half_turn() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let at = |deg: f64| {
+            let t = -deg.to_radians();
+            Vec3::new(t.cos(), t.sin(), 0.0)
+        };
+        for (g0, g1, first_nearer, row) in [
+            (45.0, 90.0, true, "both in the near half-turn"),
+            (90.0, 45.0, false, "both in the near half-turn, swapped"),
+            (90.0, 270.0, true, "one in each half-turn"),
+            (270.0, 90.0, false, "one in each half-turn, swapped"),
+            (
+                180.0,
+                270.0,
+                true,
+                "both in the far half-turn, one on its bound",
+            ),
+            (270.0, 180.0, false, "both in the far half-turn, swapped"),
+            (300.0, 225.0, false, "both strictly in the far half-turn"),
+        ] {
+            assert_eq!(
+                strut_order(e, n, (at(g0), at(g1)), 1.0, band).unwrap(),
+                first_nearer,
+                "{row}: germs at {g0}° and {g1}°"
+            );
+        }
+    }
+
+    /// REVIEW (join/reflex-corner-review): two germs decidedly apart in
+    /// angle (each germ's side `(g × e)·n` decides at these spacings),
+    /// but both beside a half-turn bound, where the cosine is flat: the
+    /// cosine difference is second order in the spacing and falls inside
+    /// the band. The strut order must then either order them rightly or
+    /// escalate; a decided zero read as "the second is nearer" is a
+    /// silent wrong pick. The spacing, 0.001°, is 1.7e-5 at the unit
+    /// arm: some 17 000 bands; the cross product of the two germs,
+    /// `(g0 × g1)·n`, reads it to first order.
+    #[test]
+    fn review_the_strut_order_never_misorders_germs_beside_a_half_turn_bound() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let at = |deg: f64| {
+            let t = -deg.to_radians();
+            Vec3::new(t.cos(), t.sin(), 0.0)
+        };
+        let mut wrong = Vec::new();
+        for (g0, g1) in [
+            (0.001, 0.002),
+            (179.998, 179.999),
+            (180.0, 180.001),
+            (180.001, 180.002),
+            (0.002, 0.001),
+            (180.001, 180.0),
+        ] {
+            let truth = g0 < g1;
+            match strut_order(e, n, (at(g0), at(g1)), 1.0, band) {
+                Ok(got) if got != truth => wrong.push(format!("{g0}°/{g1}°: got {got}")),
+                _ => {}
+            }
+        }
+        assert!(wrong.is_empty(), "silently misordered: {wrong:?}");
+    }
+
+    /// REVIEW (join/reflex-corner-review): an arrival edge along the
+    /// face normal (the synthetic sectors of `f12_four_survivor_pairing`)
+    /// leaves every germ's side, its along-reading and the cosine
+    /// difference a decided zero. Nothing then orders the germs, and
+    /// the order must escalate rather than answer.
+    #[test]
+    fn review_the_strut_order_escalates_when_nothing_orders_the_germs() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        let germs = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
+        let got = strut_order(n, n, germs, 1.0, band);
+        assert!(
+            got.is_err(),
+            "decided with no comparand away from zero: {got:?}"
+        );
     }
 }

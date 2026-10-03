@@ -749,7 +749,7 @@ pub fn cube_into<T: geom_core::Decide + crate::props::AtRestPolicy>(
 /// Test-authoring convenience: the [`crate::BooleanDeclarations`] declaring
 /// every flush face pair of `(a, b)`, on any carrier the `Rest`
 /// ladder verifies — the test author's
-/// stand-in for a recipe `Declare` (the author built the contact
+/// stand-in for a recipe declaration (the author built the contact
 /// deliberately; this writes the intent down).
 ///
 /// The detection is the library's ([`crate::flush`]), so this helper

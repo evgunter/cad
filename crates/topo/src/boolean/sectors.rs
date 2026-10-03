@@ -142,7 +142,7 @@ impl<T: geom_core::Real> BoolSector<T> {
 }
 
 fn corrupt(operand: Operand, vertex: VertexKey) -> BooleanError {
-    BooleanError::CorruptOperand { operand, vertex }
+    BooleanError::corrupt_at(operand, vertex)
 }
 
 /// Builds the sector array of `vertex`'s neighborhood (module docs).
@@ -747,6 +747,16 @@ pub(super) struct PairRecord {
     pub sb: (SideCode, SideCode),
     /// Whether the pair still generates intersection geometry.
     pub intersect: bool,
+}
+
+impl PairRecord {
+    /// Whether this record reaches null-edge insertion: the one test
+    /// [`super::insert::insert_null_pairs`] filters its survivors by,
+    /// and the reduction reads to tell a vertex pair that crosses from
+    /// one that only touches.
+    pub(super) const fn survives(&self) -> bool {
+        self.intersect
+    }
 }
 
 /// Whether `dir` lies within the convex sector (Zero grazes count —
