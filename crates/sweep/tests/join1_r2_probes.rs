@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, SQRT_2};
+use sweep::ExtrudeSide;
 
 use crate::revolve_common::{axis_y, validated};
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
@@ -26,7 +27,16 @@ fn prism(origin: Point3<f64>, x: Vec3<f64>, y: Vec3<f64>, pts: &[(f64, f64)], h:
     ));
     let lp = bulge_loop(pts.iter().map(|&(a, b)| (Point2::new(a, b), 0.0)).collect());
     let p = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-    extrude(&p, Extrusion::Distance(h), tol()).unwrap().body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 fn zprism(pts: &[(f64, f64)], z: (f64, f64)) -> Body<f64> {
@@ -45,7 +55,16 @@ fn rod() -> Body<f64> {
     let p = Profile::new(SketchPlane::xy(), vec![disc.into()])
         .validate(tol())
         .unwrap();
-    extrude(&p, Extrusion::Distance(4.0), tol()).unwrap().body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 fn seg(d: f64) -> f64 {

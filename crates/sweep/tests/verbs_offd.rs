@@ -22,6 +22,7 @@
 use geom::{Curve3, Surface};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, CurveGeom, FaceKey, ReplaceFaceError};
 
@@ -427,9 +428,16 @@ fn a_shared_surface_key_refuses_typed() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a disc is a valid profile");
-    let mut body = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .expect("the disc extrudes")
-        .body;
+    let mut body = sweep::extrude(
+        &profile,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the disc extrudes")
+    .body;
     let wall = body
         .faces()
         .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. })))

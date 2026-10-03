@@ -59,6 +59,7 @@ use geom_brep::{
 };
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
@@ -129,7 +130,15 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the filleted block is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness()).map(|e| e.body)
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body)
 }
 
 /// The eight smooth struts of [`filleted_block`] — the count is the
@@ -872,9 +881,16 @@ fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
         .validate(Tol::witness())
         .expect("the filleted block is a valid profile");
     k_stats::start_recording();
-    let body = extrude(&profile, Extrusion::Distance(Probe(q)), Tol::witness())
-        .expect("the block extrudes")
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: Probe(q),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the block extrudes")
+    .body;
     let metered = k_stats::take_samples()
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")

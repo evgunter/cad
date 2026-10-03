@@ -25,6 +25,7 @@ use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult};
 
@@ -84,7 +85,10 @@ fn a_prism(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, -0.0625)));
     extrude(
         &validated(plane, loops),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude A")
@@ -107,7 +111,10 @@ fn z_prism() -> Body<f64> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(-0.0625, 0.0, 0.0)));
     extrude(
         &validated(plane, vec![lp(&z_poly)]),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude Z")

@@ -26,6 +26,7 @@ use mate2_common::{
     volume, wall_decls, walls_at,
 };
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, ContactClass, FacePairDeclaration,
@@ -392,7 +393,15 @@ fn d_prism_with_split_keys() -> (
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let built = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let built = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let mut body = built.body;
     let run = &built.walls[0][0];
     assert_eq!(run.segments, vec![0, 1], "the y = 0 side is one run");

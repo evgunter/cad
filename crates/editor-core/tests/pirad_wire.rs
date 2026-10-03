@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::expr::DimensionError;
 use editor_core::{Dimension, Expr, Node, PersistError, ProfileDoc, SlotId, load, save};
@@ -39,6 +40,7 @@ fn half_turn_doc() -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let angle = Expr::literal_with_unit(

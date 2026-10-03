@@ -253,6 +253,7 @@ use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use profile::{RawLoop, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{ProfileLoop, Section};
 use topo::Body;
 
@@ -459,9 +460,16 @@ pub fn tilted_cut_upper() -> Body<f64> {
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the disc profile validates");
-    let cylinder = sweep::extrude::<f64>(&disc, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .expect("the cylinder extrudes")
-        .body;
+    let cylinder = sweep::extrude::<f64>(
+        &disc,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the cylinder extrudes")
+    .body;
     let phi = 0.3f64;
     let result = topo::splitting::split(
         &cylinder,
@@ -541,9 +549,16 @@ pub fn bulged_extrusion() -> Body<f64> {
     let prof = Profile::new(SketchPlane::xy(), arc_section(1.0))
         .validate(Tol::witness())
         .expect("the profile validates");
-    sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness())
-        .expect("extrude")
-        .body
+    sweep::extrude::<f64>(
+        &prof,
+        sweep::Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("extrude")
+    .body
 }
 
 /// The **sup-norm distance** between two points — the largest
@@ -685,4 +700,20 @@ pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
 /// sections reproduce the EXTRUSION of that section exactly.
 pub fn stacked(z: &[f64], s: f64) -> Vec<Affine3<f64>> {
     sweep::test_support::stacked_at(&z.iter().map(|h| h * s).collect::<Vec<_>>())
+}
+
+/// The extrusion whose far cap sits at signed offset `d` along the
+/// sketch normal: depth `|d|`, toward the side `d`'s sign names — how
+/// a row that runs "both directions" over one signed offset spells it
+/// at the door, which takes the pair. What a suite drives a door WITH,
+/// so it routes here.
+pub fn to_offset(d: f64) -> sweep::Extrusion<f64> {
+    sweep::Extrusion::Distance {
+        depth: d.abs(),
+        side: if d < 0.0 {
+            sweep::ExtrudeSide::Against
+        } else {
+            sweep::ExtrudeSide::Along
+        },
+    }
 }

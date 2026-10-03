@@ -37,6 +37,7 @@ pub mod asm;
 pub mod corpus_pick;
 
 use bvh::Aabb;
+use editor_core::ExtrudeSide;
 use pncad::document::{SolvedPoses, mate_reach, solve_document};
 use pncad::geom_core::Point3;
 use viewer::camera::Camera;
@@ -165,6 +166,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
             // exists for.
             distance: Expr::div(Expr::param(thickness_param(), Dimension::Length), scl(2.0))
                 .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -186,6 +188,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
         Node::Extrude {
             profile,
             distance: Expr::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

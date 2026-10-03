@@ -15,6 +15,7 @@
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanDeclarations, BooleanResult, FacePairDeclaration};
 use topo::{
@@ -39,9 +40,16 @@ fn ext<T: geom_core::Decide + AtRestPolicy>(loops: Vec<Loop>, z0: f64, h: f64) -
     let vp = Profile::new(SketchPlane::<T>::xy(), lps)
         .validate(tol)
         .unwrap();
-    let b = extrude(&vp, Extrusion::Distance(T::from_f64(h)), tol)
-        .unwrap()
-        .body;
+    let b = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: T::from_f64(h),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
     let up = Affine3::translation(Vec3::new(0.0, 0.0, z0).map(T::from_f64));
     topo::transform_rigid(&b, &up, tol).unwrap()
 }

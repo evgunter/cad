@@ -13,6 +13,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use corpus::plate_param::{
@@ -77,6 +78,7 @@ fn scene() -> Scene {
             node: Box::new(Node::Extrude {
                 profile,
                 distance: len(PLATE_DEPTH),
+                side: ExtrudeSide::Along,
             }),
         },
         Tol::witness(),

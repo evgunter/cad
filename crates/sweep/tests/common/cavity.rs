@@ -48,6 +48,7 @@
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, subtract};
 
@@ -86,9 +87,16 @@ pub fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let profile = Profile::new(sketch_at(z0), vec![lp])
         .validate(Tol::witness())
         .expect("a circle is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), Tol::witness())
-        .expect("a rod extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a rod extrudes")
+    .body
 }
 
 /// `base` less `tool`, demanding that the cut succeed and leave
