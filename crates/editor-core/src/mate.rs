@@ -77,7 +77,7 @@ pub mod reach;
 pub mod solve;
 
 pub use coset::{Coset, Subgroup};
-pub use member::{Member, head_face, member_of};
+pub use member::{Member, head_face, member_of, member_reading};
 pub use reach::{
     FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,
 };
@@ -245,15 +245,71 @@ impl AuthoredFrame {
 /// On the wire the arm is externally tagged — `{"Authored": {…}}`, or
 /// the bare string `"FromFace"`, which carries nothing — and the
 /// authored struct is closed over its own keys: the tag decides the
-/// arm before a field is read, a stray key on the authored arm
-/// refuses, any payload on the face arm refuses, and a frame with no
-/// tag refuses.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+/// arm before a field is read, a stray key on the authored arm or
+/// beside its tag refuses, the face arm written as an object refuses
+/// whatever it holds (`null` included), and a frame with no tag
+/// refuses.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum MateFrame {
     /// Three authored vectors in the part's coordinates.
     Authored(AuthoredFrame),
     /// The side's own head face, resolved at evaluation.
     FromFace,
+}
+
+/// The two tags a frame's wire form can carry.
+#[derive(serde::Deserialize)]
+#[serde(variant_identifier)]
+enum MateFrameTag {
+    Authored,
+    FromFace,
+}
+
+/// The wire reading [`MateFrame`] states: the face arm is only ever the
+/// bare string. A derived reading would take `{"FromFace": null}` as
+/// the unit arm too, so the tagged object is read here, key by key.
+impl<'de> serde::Deserialize<'de> for MateFrame {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        struct Frame;
+        impl<'de> serde::de::Visitor<'de> for Frame {
+            type Value = MateFrame;
+
+            fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str(
+                    "a mate frame: an object tagged \"Authored\", or the bare string \"FromFace\"",
+                )
+            }
+
+            fn visit_str<E: serde::de::Error>(self, tag: &str) -> Result<MateFrame, E> {
+                match tag {
+                    "FromFace" => Ok(MateFrame::FromFace),
+                    "Authored" => Err(E::invalid_type(serde::de::Unexpected::UnitVariant, &self)),
+                    other => Err(E::unknown_variant(other, &["Authored", "FromFace"])),
+                }
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<MateFrame, A::Error> {
+                use serde::de::Error as _;
+                let frame = match map.next_key::<MateFrameTag>()? {
+                    Some(MateFrameTag::Authored) => MateFrame::Authored(map.next_value()?),
+                    Some(MateFrameTag::FromFace) => {
+                        return Err(A::Error::custom(
+                            "the FromFace arm carries nothing: it is the bare string \"FromFace\"",
+                        ));
+                    }
+                    None => return Err(A::Error::invalid_length(0, &self)),
+                };
+                match map.next_key::<serde::de::IgnoredAny>()? {
+                    Some(_) => Err(A::Error::invalid_length(2, &self)),
+                    None => Ok(frame),
+                }
+            }
+        }
+        de.deserialize_any(Frame)
+    }
 }
 
 impl MateFrame {
@@ -780,7 +836,9 @@ impl crate::spoken::Say for FaceRefusal {
             Self::NoPartFace { instance, head } => write!(
                 f,
                 "the {head} is not a face of {}'s part under that instance's own \
-                 qualifier, so its part has no face to take the frame from",
+                 qualifier, so its part has no face to take the frame from. Recourse: delete \
+                 the mate, and insert it again on a face the instance places, or with authored \
+                 vectors",
                 by.node_as(*instance, "instance")
             ),
         }

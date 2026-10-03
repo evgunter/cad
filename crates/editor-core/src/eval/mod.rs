@@ -4749,10 +4749,12 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
                 // The solve's own derivation of the part a face side
                 // resolves against (`mate::solve::part_of`), so the key
                 // and the solve name one part for one side.
-                let part_of = |reference, frame: &crate::mate::MateFrame| {
-                    matches!(frame, crate::mate::MateFrame::FromFace).then_some(())?;
-                    let member = crate::mate::member_of(doc, reference)?;
-                    crate::mate::solve::part_of(doc, &member).ok()
+                let part_of = |reference, frame: &crate::mate::MateFrame| match frame {
+                    crate::mate::MateFrame::Authored(_) => None,
+                    crate::mate::MateFrame::FromFace => {
+                        let member = crate::mate::member_of(doc, reference)?;
+                        crate::mate::solve::part_of(doc, &member).ok()
+                    }
                 };
                 [part_of(a, &alignment.a), part_of(b, &alignment.b)]
             }

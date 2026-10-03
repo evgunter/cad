@@ -198,8 +198,7 @@ pub fn face_side(
     if *frame != pncad::document::MateFrame::FromFace {
         return None;
     }
-    let member = pncad::document::member_of(doc, head)?;
-    pncad::document::head_face(&head.name, &member).map(pncad::document::FaceName::into_name)
+    pncad::document::head_face(doc, head).map(pncad::document::FaceName::into_name)
 }
 
 /// **A world pose pulled back through a placement into part

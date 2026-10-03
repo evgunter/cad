@@ -1154,12 +1154,10 @@ fn both_arms_round_trip_and_a_stray_key_on_either_refuses() {
         wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["b"]["stray"] =
             serde_json::json!(1);
     });
-    // Beside the tag, the reader meets a second entry where the
-    // tagged object must close, and refuses it as malformed.
     let err = load(&beside, Tol::witness()).expect_err("a stray key beside refuses");
     assert!(
-        matches!(err, PersistError::Parse { .. }),
-        "beside the authored tag: a second key where the tag's object closes, got {err:?}"
+        matches!(err, PersistError::Unreadable { .. }),
+        "beside the authored tag: a tagged frame is one key, got {err:?}"
     );
 }
 
@@ -1169,18 +1167,28 @@ fn both_arms_round_trip_and_a_stray_key_on_either_refuses() {
 /// that build read the frame off — is a payload the bare tag does not
 /// take, so the file is `Unreadable` with the regenerate recourse,
 /// whether its face named the head's own face or another. Loading it
-/// as the head's face would silently re-mean the second.
+/// as the head's face would silently re-mean the second. The tag as an
+/// object refuses whatever it holds: `null`, `{}` and `[]` alike.
 #[test]
 fn an_older_file_naming_its_face_refuses_unreadable_with_the_recourse() {
     let s = seat("msolve9-older", 1.0);
     let text = save(&s.doc, &[], Tol::witness()).expect("saves");
-    for (what, face) in [
-        ("the head's own face", cap(s.post_body, CapEnd::End)),
-        ("another face", cap(s.post_body, CapEnd::Start)),
+    for (what, payload) in [
+        (
+            "the head's own face",
+            serde_json::json!({ "face": cap(s.post_body, CapEnd::End) }),
+        ),
+        (
+            "another face",
+            serde_json::json!({ "face": cap(s.post_body, CapEnd::Start) }),
+        ),
+        ("null", serde_json::Value::Null),
+        ("an empty object", serde_json::json!({})),
+        ("an empty array", serde_json::json!([])),
     ] {
         let older = wire::doctored(&text, |wire| {
             wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["a"] =
-                serde_json::json!({ "FromFace": { "face": face } });
+                serde_json::json!({ "FromFace": payload });
         });
         let err = load(&older, Tol::witness()).expect_err("an older face side refuses");
         assert!(
@@ -1377,9 +1385,8 @@ fn a_face_sides_face_is_its_heads_row_in_the_part() {
     assert_eq!(alignment.a, MateFrame::FromFace);
     let head: &SitedFace = a;
     assert_eq!(head.name.node, s.post_i, "a head is the instance's wrapper");
-    let member = editor_core::member_of(&s.doc, head).expect("the head's member");
     assert_eq!(
-        editor_core::head_face(&head.name, &member).map(FaceName::into_name),
+        editor_core::head_face(&s.doc, head).map(FaceName::into_name),
         Some(cap(s.post_body, CapEnd::End)),
         "the post's own row, unwrapped"
     );

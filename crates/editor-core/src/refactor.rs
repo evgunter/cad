@@ -562,8 +562,8 @@ pub enum SplitError {
     /// **A mate side would change coordinates across the seam** (A4's
     /// frame rule): a kept mate's authored side reads a cut instance
     /// that, in the part, is not its group's root on the part's world
-    /// at the empty chain, or its face side reads one that is not
-    /// placed in the part's world, so its frame would mean another
+    /// at the empty chain, or its face side reads one that lies, in the
+    /// part, in its group's own space, so its frame would mean another
     /// place once it reads the instance the split leaves behind.
     MateFrameCrosses {
         /// The mate.
@@ -762,7 +762,7 @@ impl core::fmt::Display for SplitError {
                 f,
                 "split: {m}'s {} side reads a cut instance that is not, in the new part, \
                  its group's root at the empty chain on the part's world (for an authored \
-                 frame) or placed in the part's world (for a face frame), so its frame would \
+                 frame) or lies in its group's own space (for a face frame), so its frame would \
                  mean another place. {}",
                 side.name(),
                 Recourse(&format!("delete {m}, then split", m = mate)),
@@ -915,28 +915,36 @@ impl core::error::Error for SplitError {}
 /// **A4's frame rule, the one predicate split and inline both ask**,
 /// over the member a side reads and three conditions on it:
 /// (a) it is read at its own instance, no pattern copy and no placer
-/// between; (b) that instance lies, in the part, in a group of the
-/// part's world, never in an own space or under a dead reference
-/// (`placed`); (c) it is its group's root at the empty chain on the
-/// part's world (`root_at_empty`). Each door answers `placed` and
-/// `root_at_empty` from the part it holds or builds.
+/// between; (b) that instance lies, in the part, in a placed group of
+/// `groups` (the part's groups, each with its root and why it is
+/// unplaced), not in a group's own space; (c) it is its group's root
+/// at the empty chain on the part's world (`root_at_empty`). Each door
+/// answers `groups` and `root_at_empty` from the part it holds or
+/// builds.
 ///
 /// An authored side is held to all three: its vectors are coordinates
 /// of the instance it reads, and only there do they not change. A
 /// `FromFace` side is held to (b) alone: its frame is its head's face
 /// in the member's part, the head crosses with it, and the face moves
-/// only if the member's place in the world does.
-fn frame_survives(
+/// only if the member's place in the world does. A copy or a placer
+/// between is admitted on purpose: the head names the copy's face
+/// through the placer, and it crosses as it is.
+fn frame_survives<M: AsRef<[RecipeNodeId]>>(
     frame: &crate::mate::MateFrame,
     read: &crate::mate::Member,
-    placed: impl Fn(RecipeNodeId) -> bool,
+    groups: &[(M, RecipeNodeId, Option<crate::mate::Unplaced>)],
     root_at_empty: impl Fn(RecipeNodeId) -> bool,
 ) -> bool {
-    let b = placed(read.instance);
+    let placed = groups
+        .iter()
+        .any(|(members, _, cause)| cause.is_none() && members.as_ref().contains(&read.instance));
     match frame {
-        crate::mate::MateFrame::FromFace => b,
+        crate::mate::MateFrame::FromFace => placed,
         crate::mate::MateFrame::Authored(_) => {
-            read.copy.is_empty() && read.at == read.instance && b && root_at_empty(read.instance)
+            read.copy.is_empty()
+                && read.at == read.instance
+                && placed
+                && root_at_empty(read.instance)
         }
     }
 }
@@ -1084,8 +1092,8 @@ pub enum InlineError {
     /// **A mate side would change coordinates across the seam** (A4's
     /// frame rule): a host mate reads the instance through a face of
     /// an inner instance that is not its part group's root at the
-    /// empty chain on the part's world (an authored side) or not
-    /// placed in the part's world (a face side) — or of no instance at
+    /// empty chain on the part's world (an authored side) or that lies
+    /// in its group's own space (a face side) — or of no instance at
     /// all — so its frame would mean another place once it reads the
     /// spliced node.
     MateFrameCrosses {
@@ -1313,7 +1321,7 @@ impl core::fmt::Display for InlineError {
                 f,
                 "inline: {m}'s {} side would read an inner node that is not its part \
                  group's root at the empty chain on the part's world (for an authored frame) \
-                 or placed in the part's world (for a face frame), so its frame would mean \
+                 or lies in its group's own space (for a face frame), so its frame would mean \
                  another place. {}",
                 side.name(),
                 Recourse(&format!("delete {m}, then inline", m = mate)),
@@ -2473,11 +2481,6 @@ pub fn split(
     // A verbatim root lands on the part's world only when its gauge
     // reference leaves the cut; one on a cut gauge lands on that
     // gauge's image.
-    let placed_in_part = |instance: RecipeNodeId| {
-        cut_groups
-            .iter()
-            .any(|&(members, _, cause)| cause.is_none() && members.contains(&instance))
-    };
     let root_lands_empty = |instance: RecipeNodeId| match hoisted {
         Some((_, root)) => root == instance,
         None => cut_groups.iter().any(|&(_, root, cause)| {
@@ -2516,7 +2519,7 @@ pub fn split(
                 });
             }
             if let Some(read) = crate::mate::member_of(doc, inner)
-                && !frame_survives(frame, &read, placed_in_part, root_lands_empty)
+                && !frame_survives(frame, &read, &cut_groups, root_lands_empty)
             {
                 return Err(SplitError::MateFrameCrosses {
                     mate: doc.spoken(mate),
@@ -3067,11 +3070,6 @@ pub fn inline(
             }) if o.steps.is_empty()
         )
     };
-    let part_placed = |id: RecipeNodeId| {
-        part_groups
-            .iter()
-            .any(|(members, _, cause)| cause.is_none() && members.contains(&id))
-    };
     let part_root_at_empty = |id: RecipeNodeId| {
         part_groups
             .iter()
@@ -3231,7 +3229,7 @@ pub fn inline(
                 crate::mate::member_of(&part, &crate::node::SitedFace::at_mint(face))
             });
             let Some(inner) =
-                inner.filter(|m| frame_survives(frame, m, part_placed, part_root_at_empty))
+                inner.filter(|m| frame_survives(frame, m, &part_groups, part_root_at_empty))
             else {
                 return Err(InlineError::MateFrameCrosses {
                     mate: doc.spoken(mate),

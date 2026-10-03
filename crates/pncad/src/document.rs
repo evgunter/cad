@@ -370,10 +370,11 @@ pub use editor_core::{
 // — the typed refusal every door carries, the way `RootFault` is
 // carried above. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
-// solve places (`Member` is its answer), and `head_face` the face of
-// the member's part a head names, which a face frame reads. `UNDER_RECOURSE` and
-// `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
-// own refusals end on.
+// solve places (`Member` is its answer); `member_reading` is the same
+// walk with the name it reached at the member's instance, and
+// `head_face` the face of the member's part a head names, which a face
+// frame reads. `UNDER_RECOURSE` and `CONTRADICTORY_RECOURSE` are the
+// two recourse sentences the solve's own refusals end on.
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
@@ -398,7 +399,8 @@ pub use editor_core::{
     MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck,
     PartReach, PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup,
     UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, head_face, mate_reach,
-    member_of, places, reading_edges, relative_freedom_components, root_of, solve_document,
+    member_of, member_reading, places, reading_edges, relative_freedom_components, root_of,
+    solve_document,
 };
 /// Why a mate's `FromFace` frame did not resolve to a pose, which
 /// [`MateFault::FaceUnresolved`] carries — by the same payload rule.

@@ -41,7 +41,8 @@
 //! `Instance(i)`-headed reference at the pattern. Everything the walk
 //! cannot stand a member on is
 //! [`MateToolError::NotAnInstancePick`]. A copy's frame is read at
-//! its MASTER (`head_face` strips one `Instance(i)` per pattern level):
+//! its MASTER (the member walk takes off one `Instance(i)` per pattern
+//! level, `member_reading`):
 //! an alignment is in the member's part coordinates, every placed body
 //! is a rigid image of the same part, and the composed static offset
 //! is the solve's to apply.
@@ -95,8 +96,9 @@
 use pncad::document::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, HeldNodes, MateFrame,
     MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram, Said, SitedFace, Speaker,
-    SpokenNode, class_admission, head_face, held_by, member_of, table_gap,
+    SpokenNode, class_admission, held_by, member_reading, table_gap,
 };
+use pncad::prelude::StableName;
 use pncad::select::{ContactClass, InterrogateError, Resolution, RunCtx, face_frame, resolve};
 
 use crate::session::select::resolves;
@@ -139,9 +141,12 @@ pub fn admitted_classes() -> Vec<MateAdmission> {
         .collect()
 }
 
-/// **The reference a pick authors and the member it resolves to**:
-/// the pick's own operand — the node the ray met — paired with the
-/// picked name, and the kernel's member for that pair.
+/// **The reference a pick authors, the member it resolves to, and the
+/// name its face reads at**: the pick's own operand — the node the ray
+/// met — paired with the picked name, the kernel's member for that
+/// pair, and the name the member walk reached at the member's instance
+/// ([`pncad::document::member_reading`]; a copy reaches its MASTER's
+/// name).
 ///
 /// The admission rule is A11's member vocabulary READ, not restated
 /// ([`pncad::document::member_of`]): the walk from the operand down to
@@ -160,7 +165,7 @@ fn picked_member(
     doc: &Doc<ProfileProgram>,
     side: MateSide,
     pick: &FaceSelection,
-) -> Result<(SitedFace, Member), MateToolError> {
+) -> Result<(SitedFace, Member, StableName), MateToolError> {
     // A head is a `FaceName`, and this is the boundary that makes one
     // out of a selection. The picking door refuses
     // `SelectionRefusal::NotAFace` before a selection exists, so a
@@ -177,11 +182,13 @@ fn picked_member(
     // whose body was drawn and therefore the geometry the author is
     // pointing at.
     let reference = SitedFace::new(pick.node, name);
-    let member = member_of(doc, &reference).ok_or_else(|| MateToolError::NotAnInstancePick {
-        side,
-        node: doc.spoken(pick.node),
-    })?;
-    Ok((reference, member))
+    let (member, placed) =
+        member_reading(doc, &reference).ok_or_else(|| MateToolError::NotAnInstancePick {
+            side,
+            node: doc.spoken(pick.node),
+        })?;
+    let placed = placed.clone();
+    Ok((reference, member, placed))
 }
 
 /// A typed mate-tool refusal (closed enum, D4 ¶3).
@@ -622,8 +629,8 @@ impl MateTool {
         if let Some(what) = table_gap(choice.primitive, choice.clocking) {
             return Err(MateToolError::TableRefused { what });
         }
-        let (ref_a, member_a) = picked_member(doc, MateSide::A, a)?;
-        let (ref_b, member_b) = picked_member(doc, MateSide::B, b)?;
+        let (ref_a, member_a, placed_a) = picked_member(doc, MateSide::A, a)?;
+        let (ref_b, member_b, placed_b) = picked_member(doc, MateSide::B, b)?;
         // MEMBERS, not nodes: two copies of one pattern are two
         // members over one instance, and a mate between them is a
         // legal (loop-closing) declaration the solve places. What a
@@ -633,37 +640,27 @@ impl MateTool {
                 head: doc.spoken(a.node),
             });
         }
+        // The pre-check: the face's pose as the solve will read it, by
+        // the name the walk reached at the member's instance (a copy's
+        // MASTER's), refused here in the door's own words where it has
+        // none. That instance's product holds only its part's rows,
+        // each wrapped in its one `InPart`, so a name it answers is a
+        // face of the part, which the solve reads (`head_face`). The
+        // pose itself is not kept: the frame is the head's face,
+        // resolved by the solve.
         let frame_of = |side: MateSide,
-                        reference: &SitedFace,
-                        member: &Member|
+                        member: &Member,
+                        placed: &StableName|
          -> Result<MateFrame, MateToolError> {
-            // The face the solve reads: the kernel's own strip of the
-            // head (`head_face`), a copy reading its MASTER's face.
-            // The member walk admits only heads of that shape, so the
-            // refusal stands where a panic otherwise would, for an
-            // invariant this crate reads rather than owns.
-            let local = head_face(&reference.name, member).ok_or_else(|| {
-                MateToolError::NotAnInstancePick {
-                    side,
-                    node: doc.spoken(member.instance),
-                }
+            face_frame(eval, member.instance, placed).map_err(|error| {
+                let error = crate::tree::interrogation_as_drawn(error, eval);
+                let held = held_by(&error, doc);
+                MateToolError::Frame { side, error, held }
             })?;
-            // The pre-check: the face's pose as the solve will read
-            // it, at the member's instance, refused here in the door's
-            // own words where it has none. The pose itself is not
-            // kept: the frame is the head's face, resolved by the
-            // solve.
-            face_frame(eval, member.instance, &local.in_part(member.instance)).map_err(
-                |error| {
-                    let error = crate::tree::interrogation_as_drawn(error, eval);
-                    let held = held_by(&error, doc);
-                    MateToolError::Frame { side, error, held }
-                },
-            )?;
             Ok(MateFrame::FromFace)
         };
-        let frame_a = frame_of(MateSide::A, &ref_a, &member_a)?;
-        let frame_b = frame_of(MateSide::B, &ref_b, &member_b)?;
+        let frame_a = frame_of(MateSide::A, &member_a, &placed_a)?;
+        let frame_b = frame_of(MateSide::B, &member_b, &placed_b)?;
         Ok(MateProposal {
             a: ref_a,
             b: ref_b,
