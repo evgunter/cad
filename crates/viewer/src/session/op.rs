@@ -16,8 +16,8 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, Label, LoopProgram,
-    Maintenance, ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId,
+    Alignment, BooleanOp, DocEdit, DocumentId, Expr, Frame, FreeVar, Label, LoopProgram,
+    Maintenance, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -132,7 +132,7 @@ pub enum SessionOp {
     /// Write a value into a document parameter.
     SetParam {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
         /// The new value.
         value: SlotValue,
     },
@@ -151,7 +151,7 @@ pub enum SessionOp {
     /// refuses.
     SetParamUnit {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
         /// The unit to write it in.
         unit: UnitDef,
     },
@@ -171,7 +171,7 @@ pub enum SessionOp {
     /// the notation would be a half-applied edit nobody asked for.
     ///
     /// **A parameter holds a number, not an expression**
-    /// (`DocParam::Continuous` holds an `f64`), so text that parses to
+    /// (`FreeVar::Continuous` holds an `f64`), so text that parses to
     /// anything but a literal is refused with
     /// [`Refusal::ParamNotANumber`] — there is no
     /// `SetDocParamExpression` for it to reach, and saying so is the
@@ -180,7 +180,7 @@ pub enum SessionOp {
     /// offset.
     SetParamText {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
         /// What was typed.
         text: String,
     },
@@ -198,9 +198,9 @@ pub enum SessionOp {
     /// partition the edit's semantics).
     CreateParam {
         /// The new parameter's name.
-        name: ParamName,
+        name: VarName,
         /// Its declared dimension and exact value.
-        value: DocParam,
+        value: FreeVar,
     },
     /// Start a continuous gesture over a slot.
     BeginGesture {
@@ -220,7 +220,7 @@ pub enum SessionOp {
     /// gesture rule the ratified preview-vs-commit decision demands.
     BeginParamGesture {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
     },
     /// Move the in-flight SLOT gesture. Emits a preview edit against
     /// scratch state; commits nothing.
@@ -263,7 +263,7 @@ pub enum SessionOp {
     /// than translating them into a second vocabulary.
     PreviewParamGesture {
         /// The parameter the gesture is dragging.
-        name: ParamName,
+        name: VarName,
         /// The value under the pointer.
         value: f64,
     },
@@ -271,7 +271,7 @@ pub enum SessionOp {
     /// gesture's last previewed value.
     CommitParamGesture {
         /// The parameter the gesture is dragging.
-        name: ParamName,
+        name: VarName,
     },
     /// Abandon whichever value gesture is open, leaving the document
     /// untouched.
@@ -875,7 +875,7 @@ pub enum ValueGestureName {
         slot: SlotId,
     },
     /// A document parameter.
-    Param(ParamName),
+    Param(VarName),
 }
 
 impl ValueGestureName {

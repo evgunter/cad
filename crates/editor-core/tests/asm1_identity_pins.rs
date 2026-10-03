@@ -14,8 +14,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Attr, CapEnd, Dimension, DocEdit, DocParam, DocRef, DocumentId, EntityKind, MetaValue, Node,
-    ParamName, PersistError, ProfileDoc, Rgba8, RoleSeg, StableName, WitnessDatum, content_pin,
+    Attr, CapEnd, Dimension, DocEdit, DocRef, DocumentId, EntityKind, FreeVar, MetaValue, Node,
+    PersistError, ProfileDoc, Rgba8, RoleSeg, StableName, VarName, WitnessDatum, content_pin,
     header_document_id, load, save,
 };
 use fixture::{desc, insert, len, on_frame, step};
@@ -49,8 +49,8 @@ fn exemplar(
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.75),
+            name: VarName::from_static("depth"),
+            value: FreeVar::continuous(Dimension::Length, 0.75),
         },
     );
     (doc, profile, extrude)
@@ -79,23 +79,23 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     let (a, _) = step(
         base.clone(),
         DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.9),
+            name: VarName::from_static("depth"),
+            value: FreeVar::continuous(Dimension::Length, 0.9),
         },
     );
     // Path B: wander through 0.1 first, then land on 0.9.
     let (b, _) = step(
         base,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.1),
+            name: VarName::from_static("depth"),
+            value: FreeVar::continuous(Dimension::Length, 0.1),
         },
     );
     let (b, _) = step(
         b,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.9),
+            name: VarName::from_static("depth"),
+            value: FreeVar::continuous(Dimension::Length, 0.9),
         },
     );
     assert_eq!(
@@ -106,12 +106,12 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     // edit logs over one origin; both load-replay to the same pin.
     let (origin, _, _) = exemplar("asm1-row2");
     let log_a = vec![DocEdit::SetDocParam {
-        name: ParamName::from_static("depth"),
-        value: DocParam::continuous(Dimension::Length, 0.9),
+        name: VarName::from_static("depth"),
+        value: FreeVar::continuous(Dimension::Length, 0.9),
     }];
     let mut log_b = vec![DocEdit::SetDocParam {
-        name: ParamName::from_static("depth"),
-        value: DocParam::continuous(Dimension::Length, 0.1),
+        name: VarName::from_static("depth"),
+        value: FreeVar::continuous(Dimension::Length, 0.1),
     }];
     log_b.extend(log_a.clone());
     let loaded_a = load(
@@ -153,8 +153,8 @@ fn row2_undone_edit_pin_unchanged() {
     let (edited, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.9),
+            name: VarName::from_static("depth"),
+            value: FreeVar::continuous(Dimension::Length, 0.9),
         },
     );
     assert_ne!(
@@ -165,8 +165,8 @@ fn row2_undone_edit_pin_unchanged() {
     let (undone, _) = step(
         edited,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.75),
+            name: VarName::from_static("depth"),
+            value: FreeVar::continuous(Dimension::Length, 0.75),
         },
     );
     assert_eq!(content_pin(&undone, Tol::witness()).unwrap(), before);
@@ -211,8 +211,8 @@ fn row4_param_edit_moves_pin() {
     let (edited, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.8),
+            name: VarName::from_static("depth"),
+            value: FreeVar::continuous(Dimension::Length, 0.8),
         },
     );
     assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);

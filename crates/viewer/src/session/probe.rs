@@ -14,8 +14,8 @@
 use std::sync::Arc;
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, Evaluation, ParamName, PartReach, PartResolver,
-    ProfileProgram, RecipeNodeId, SlotId, apply,
+    Dimension, Doc, DocEdit, Evaluation, FreeVar, PartReach, PartResolver, ProfileProgram,
+    RecipeNodeId, SlotId, VarName, apply,
 };
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
@@ -77,7 +77,7 @@ pub enum BoundsTarget {
     /// A document parameter.
     Param {
         /// The parameter.
-        name: ParamName,
+        name: VarName,
     },
 }
 
@@ -205,18 +205,18 @@ fn probe_scale(
             // Same rule as a slot's: one of whatever unit the
             // field is WRITTEN in. A continuous parameter names the
             // notation it was authored in
-            // (`DocParam::Continuous::display_unit`, which rides
+            // (`FreeVar::Continuous::display_unit`, which rides
             // with the declaration and no value edit disturbs), so
             // a millimetre parameter is searched in millimetres. A
             // `Count` is a number rather than a quantity, has no
             // unit to name, and steps by 1.
             let (value, unit) = match param {
-                DocParam::Continuous {
+                FreeVar::Continuous {
                     value,
                     display_unit,
                     ..
                 } => (*value, Some(display_unit.def())),
-                DocParam::Count { value } => (*value as f64, None),
+                FreeVar::Count { value } => (*value as f64, None),
             };
             Ok((value, unit, param.dim() == Dimension::Count))
         }

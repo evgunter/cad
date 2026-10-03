@@ -25,9 +25,8 @@ use test_utils::refusal::tagged;
 
 use editor_core::{Attr, Rgba8};
 use pncad::document::{
-    Datum, Dimension, Doc, DocEdit, DocParam, LoopProgram, Maintenance, Node, ParamName,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, SpokenName, SpokenNode,
-    StepArg,
+    Datum, Dimension, Doc, DocEdit, FreeVar, LoopProgram, Maintenance, Node, ProfileProgram,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, SpokenName, SpokenNode, StepArg, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
@@ -467,11 +466,11 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
 #[test]
 fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let tol = Tol::witness();
-    let hole_r = ParamName::from_static("hole_r");
+    let hole_r = VarName::from_static("hole_r");
     let doc = common::declared(
         "maint-param-strand",
         &hole_r,
-        DocParam::continuous(Dimension::Length, 0.3),
+        FreeVar::continuous(Dimension::Length, 0.3),
         tol,
     );
     let square = common::rectangle_loop([0.0, 0.0], 2.0, 2.0);
