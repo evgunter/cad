@@ -295,3 +295,40 @@ Build order, one PR each:
 
 Also: `sweep/src/blend/battery.rs::short_arm` is the same shape, so it goes
 with step 4. `refusal_routes::NeighbourOffset::reported` goes with step 2.
+
+## Landed in PR 3974 (TOPO)
+
+The payload of `CarrierEqError::Undeclared` is now
+`topo::CoincidenceMeasure` (`boolean/carrier_eq.rs`), with three arms that
+every reader matches:
+
+- `Zero { predicate, decided: Classified }`: the datum the band decided
+  zero, with the margin it decided (the plane's `bool_plane_offset`; a
+  curved kind's first datum);
+- `Undecided(Indeterminate)`: a datum in band, or the pair door's
+  declared reading standing past the band;
+- `Unreadable(Indeterminate)`: a datum that is not finite (NaN or ±∞),
+  decided in one place (`CoincidenceMeasure::decide`, the ladders' datum
+  read).
+
+`LadderRefusal`, `untyped()` and `plane_eq_typed` are gone. The readers
+are `flush::pair_finding` (`Zero` is the finding), `pair_door_verdict`,
+the maximal-faces gate (`Zero` and `Undecided` become `NeighbourOffset`),
+the Boolean's raise sites and the conformal screen.
+`BooleanError::UndeclaredCoincidence` keeps `diag: Indeterminate`, built
+by `CoincidenceMeasure::reported()`, so editor-core's twin is unchanged.
+The `wire` row `refusal-menu-stamps-decided-coincident-on-an-in-band-coincidence`
+is the cost of that.
+
+**The one divergence from step 4.** Poison is not `InBand`. It is its own
+arm, `Unreadable`, and at the Boolean it ends as an operand defect:
+`BooleanError::PoisonedCarrierDatum`, `KERNEL_OR_FILE_DEFECT_ENDING`. Every
+Boolean door reaches it through `boolean::readable_coincidence`. At the
+flush detector it is `PairUndecided::Unreadable` /
+`FlushRefusal::PairUnreadable`. The reason is D4 ¶1 (i): the recourse
+follows from the decision, and an in-band arm's recourse offers the
+declaration and the move. A non-finite datum is not a coincidence the user
+can declare or move out of; it is a stored face that describes no shape,
+as tier 3's `PoisonedSurfaceDatum` says of the same datum.
+
+This is CLEAVE's to adopt or reshape when it builds step 2.

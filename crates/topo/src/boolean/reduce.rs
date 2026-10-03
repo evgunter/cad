@@ -679,11 +679,14 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     edge: edge_key,
                 });
             }
-            Err(super::PlaneEqError::Undeclared {
-                coincidence: CoincidenceMeasure::Zero { decided, .. },
-                ..
-            }) => {
-                return Err(coplanar(NeighbourOffset::Zero(decided)));
+            Err(super::PlaneEqError::Undeclared { coincidence, .. }) => {
+                return Err(coplanar(
+                    match super::readable_coincidence(coincidence, [(operand, f1), (operand, f2)])?
+                    {
+                        CoincidenceMeasure::Zero { decided, .. } => NeighbourOffset::Zero(decided),
+                        undecided => NeighbourOffset::Undecided(undecided.reported()),
+                    },
+                ));
             }
             Err(super::PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
@@ -691,18 +694,6 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     super::PlaneDoor::Neighbours,
                     diag,
                 ));
-            }
-            Err(super::PlaneEqError::Undeclared {
-                coincidence: CoincidenceMeasure::Undecided(diag),
-                ..
-            }) => {
-                return Err(coplanar(NeighbourOffset::Undecided(diag)));
-            }
-            Err(super::PlaneEqError::Undeclared {
-                coincidence: CoincidenceMeasure::Unreadable(diag),
-                ..
-            }) => {
-                return Err(super::unreadable_carrier_datum(diag));
             }
             // Unreachable with `declared: false`; kept typed.
             Err(super::PlaneEqError::Contradicted { fact, .. }) => {

@@ -666,32 +666,37 @@ pub(crate) fn unsettled_rest(class: BooleanCoincidence, diag: Indeterminate) -> 
 }
 
 /// The Boolean's refusal of an undeclared coincidence between `pair`:
-/// the coincidence itself where the measure decided zero or landed in
-/// band, and a carrier datum that is not finite where it could not be
-/// read ([`unreadable_carrier_datum`]).
+/// the coincidence itself where the measure read
+/// ([`readable_coincidence`]).
 pub(crate) fn undeclared_coincidence(
     coincidence: CoincidenceMeasure,
     pair: [(Operand, FaceKey); 2],
     relation: PlaneRelation,
 ) -> BooleanError {
-    match coincidence {
-        CoincidenceMeasure::Unreadable(diag) => unreadable_carrier_datum(diag),
-        CoincidenceMeasure::Zero { .. } | CoincidenceMeasure::Undecided(_) => {
-            BooleanError::UndeclaredCoincidence {
-                diag: coincidence.reported(),
-                pair,
-                relation,
-            }
-        }
+    match readable_coincidence(coincidence, pair) {
+        Ok(read) => BooleanError::UndeclaredCoincidence {
+            diag: read.reported(),
+            pair,
+            relation,
+        },
+        Err(poisoned) => poisoned,
     }
 }
 
-/// A carrier datum two faces are compared on read as NaN: poisoned
-/// input, a defect at every door, as an unreadable norm is.
-pub(crate) fn unreadable_carrier_datum(diag: Indeterminate) -> BooleanError {
-    BooleanError::Escalated {
-        decision: BooleanDecision::SelfCheck(SelfCheck::CarrierData),
-        diag,
+/// A coincidence measure between `pair` as the Boolean reads it: the
+/// measure, where it read zero or undecided, and
+/// [`BooleanError::PoisonedCarrierDatum`] where a datum it compares is
+/// not finite. Every door of the Boolean that reads a
+/// [`CoincidenceMeasure`] takes poison through here.
+pub(crate) fn readable_coincidence(
+    coincidence: CoincidenceMeasure,
+    pair: [(Operand, FaceKey); 2],
+) -> Result<CoincidenceMeasure, BooleanError> {
+    match coincidence {
+        CoincidenceMeasure::Unreadable(diag) => {
+            Err(BooleanError::PoisonedCarrierDatum { pair, diag })
+        }
+        read @ (CoincidenceMeasure::Zero { .. } | CoincidenceMeasure::Undecided(_)) => Ok(read),
     }
 }
 
@@ -1768,6 +1773,19 @@ pub enum BooleanError {
         /// the relation a declaration of this pair would assert.
         relation: PlaneRelation,
     },
+    /// A surface datum two faces are compared on is not finite (NaN or
+    /// ±∞): poisoned input, which no declaration and no move of the
+    /// parts reads. Both faces are operand faces, stored and read at
+    /// rest, so the refusal is the kernel's or the file's the operand
+    /// came from, as tier 3's [`ValidationError::PoisonedSurfaceDatum`]
+    /// reads the same datum.
+    PoisonedCarrierDatum {
+        /// The face pair compared, each face with its operand: a face of
+        /// each, or two neighbours of one at the maximal-faces gate.
+        pair: [(Operand, FaceKey); 2],
+        /// The datum's predicate, with its poisoned margin.
+        diag: Indeterminate,
+    },
     /// A declared coincidence contradicts the geometry (the declared
     /// pair's carriers are definitely distinct) — the recipe's intent
     /// cannot be realized; refused loudly, never glued (M4 PR 5).
@@ -2466,6 +2484,8 @@ pub enum BooleanErrorKind {
     Escalated,
     /// [`BooleanError::UndeclaredCoincidence`].
     UndeclaredCoincidence,
+    /// [`BooleanError::PoisonedCarrierDatum`].
+    PoisonedCarrierDatum,
     /// [`BooleanError::DeclarationContradicted`].
     DeclarationContradicted,
     /// [`BooleanError::ContactContradicted`].
@@ -2672,6 +2692,7 @@ impl BooleanError {
             Self::UnderflowedSectorChord { .. } => BooleanErrorKind::UnderflowedSectorChord,
             Self::Escalated { .. } => BooleanErrorKind::Escalated,
             Self::UndeclaredCoincidence { .. } => BooleanErrorKind::UndeclaredCoincidence,
+            Self::PoisonedCarrierDatum { .. } => BooleanErrorKind::PoisonedCarrierDatum,
             Self::DeclarationContradicted { .. } => BooleanErrorKind::DeclarationContradicted,
             Self::ContactContradicted { .. } => BooleanErrorKind::ContactContradicted,
             Self::ContinuationContradicted { .. } => BooleanErrorKind::ContinuationContradicted,
@@ -3019,6 +3040,12 @@ impl core::fmt::Display for BooleanError {
                     diag.payload()
                 )
             }
+            Self::PoisonedCarrierDatum { .. } => write!(
+                f,
+                "a surface datum two faces of the operands are compared on is not finite, so \
+                 the faces describe no shape to compare. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
             // The fact, where the carrier ladder found one; otherwise
             // the one reason true at every site. Never the margin
             // payload. The faces are the first and second operands'
@@ -4179,18 +4206,15 @@ fn verify_tangency_declaration<T: Decide>(
                 None,
             ));
         }
-        Ok(Err(carrier_eq::CarrierEqError::Undeclared {
-            coincidence: CoincidenceMeasure::Unreadable(diag),
-            ..
-        })) => return Err(unreadable_carrier_datum(diag)),
         // One carrier, geometrically: the diag keeps the predicate that
         // measured it and its value, and the fact names the finding.
         Ok(Err(carrier_eq::CarrierEqError::Undeclared { coincidence, .. })) => {
+            let read = readable_coincidence(coincidence, [(Operand::A, fa), (Operand::B, fb)])?;
             return Err(claim.contradicted_by(
                 fa,
                 fb,
                 Some(Contradiction::OneCarrier),
-                coincidence.reported(),
+                read.reported(),
                 None,
             ));
         }
@@ -5027,6 +5051,60 @@ mod tests {
         );
     }
 
+    /// **A declared tangency's conformal screen refuses a carrier datum
+    /// that is not finite as poison**, not as the one carrier that
+    /// contradicts the claim: two stacked bricks' caps on `z = 1`, the
+    /// lower one re-charted parallel through `z = +∞`.
+    #[test]
+    fn the_tangency_screen_refuses_an_infinite_offset_as_poison() {
+        let tol = geom_core::Tol::witness();
+        let mut a = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let b = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), tol);
+        let cap = |body: &Body<f64>, sign: f64| {
+            let hits: Vec<FaceKey> = crate::query::all_faces(body)
+                .into_iter()
+                .filter(|&f| {
+                    matches!(face_carrier(body, f), Some(CarrierDesc::Plane { origin, normal })
+                        if (origin.z - 1.0).abs() < 1e-12 && normal.z * sign > 0.5)
+                })
+                .collect();
+            let [f] = hits[..] else {
+                panic!("expected one cap on z = 1, got {hits:?}");
+            };
+            f
+        };
+        let (fa, fb) = (cap(&a, 1.0), cap(&b, -1.0));
+        let face = a.get_face(fa).unwrap();
+        let Some(geom::Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        }) = a.get_surface(face.surface).cloned()
+        else {
+            panic!("the cap is planar");
+        };
+        let surface = crate::euler::FaceSurface::New {
+            surface: geom::Surface::Plane {
+                origin: Point3::new(origin.x, origin.y, f64::INFINITY),
+                normal,
+                u_ref,
+            },
+            sense: face.sense,
+        };
+        // Lifts both refusals: a cap whose offset datum is infinite is
+        // the row's premise, and no edge certifies against it.
+        a.set_face_surface_stranding_for_tests(fa, surface).unwrap();
+        let band = Band::linear(tol).unwrap();
+        let err = verify_tangency_declaration(&a, fa, &b, fb, Tangency::Contact, band)
+            .map(|_| ())
+            .expect_err("the screen reads no carrier through an infinite offset");
+        let BooleanError::PoisonedCarrierDatum { pair, diag } = err else {
+            panic!("the screen refuses the poisoned datum: {err:?}");
+        };
+        assert_eq!(pair, [(Operand::A, fa), (Operand::B, fb)]);
+        assert_eq!(diag.predicate, Some("bool_plane_offset"), "{diag:?}");
+    }
+
     /// S6 (two-tolerance, D4 ¶1 addendum): the boolean coincidence
     /// pair — `UndeclaredCoincidence` (exactly-on OR in-band, per the
     /// plane-identity rung 4) and `Escalated` (in-band elsewhere) —
@@ -5520,6 +5598,7 @@ mod tests {
                 BooleanErrorKind::UnderflowedSectorChord => "UnderflowedSectorChord",
                 BooleanErrorKind::Escalated => "Escalated",
                 BooleanErrorKind::UndeclaredCoincidence => "UndeclaredCoincidence",
+                BooleanErrorKind::PoisonedCarrierDatum => "PoisonedCarrierDatum",
                 BooleanErrorKind::DeclarationContradicted => "DeclarationContradicted",
                 BooleanErrorKind::ContactContradicted => "ContactContradicted",
                 BooleanErrorKind::ContinuationContradicted => "ContinuationContradicted",

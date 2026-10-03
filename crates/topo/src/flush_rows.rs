@@ -1,8 +1,8 @@
 //! **A decided zero and a poisoned offset are two outcomes.** Two
 //! bricks meet on `z = 1`; the rows ask [`pair_finding`] about their
 //! two caps, once as built and once with the lower cap's plane datum
-//! poisoned, and read what the Boolean's undeclared coincidence says
-//! on each.
+//! poisoned (NaN, or `+∞`), and read what the Boolean's undeclared
+//! coincidence says on each.
 //!
 //! The poisoned operand is built through the failure-injection door:
 //! the public re-charting doors refuse a plane no edge of the face
@@ -10,14 +10,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, KERNEL_DEFECT_ENDING, Point3, Tol, Vec3};
+use geom_core::{Band, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Tol, Vec3};
 
-use super::{FlushRung, pair_finding};
+use super::{FlushRefusal, FlushRung, PairUndecided, find_flush_candidates, pair_finding};
 use crate::body::Body;
 use crate::boolean::{
-    BooleanError, BooleanOp, CarrierDesc, CarrierRelation, ConsumedExtent, Operand, PlaneDesc,
-    PlaneEqError, PlaneIdentity, boolean_reduce, face_carrier, oriented_plane_eq,
-    undeclared_coincidence,
+    BooleanError, BooleanOp, CarrierDesc, CarrierRelation, CoincidenceMeasure, ConsumedExtent,
+    Operand, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, boolean_reduce, face_carrier,
+    oriented_plane_eq, undeclared_coincidence,
 };
 use crate::entity::FaceKey;
 use crate::euler::FaceSurface;
@@ -52,15 +52,15 @@ fn cap(body: &Body<f64>, sign: f64) -> FaceKey {
     f
 }
 
-/// `a` with its cap on `z = 1` re-charted onto the same plane, its
-/// origin's `x` replaced by NaN: the offset datum `n·origin` is
-/// poisoned while the normal stays readable, so the ladder reaches the
-/// offset rung. Returns the cap.
-fn poison_cap(a: &mut Body<f64>) -> FaceKey {
+/// `a` with its cap on `z = 1` re-charted onto a plane of the same
+/// normal through `origin` of its own origin: with a datum that is not
+/// finite, the offset `n·origin` is poisoned while the normal stays
+/// readable, so the ladder reaches the offset rung. Returns the cap.
+fn poison_cap(a: &mut Body<f64>, origin: impl FnOnce(Point3<f64>) -> Point3<f64>) -> FaceKey {
     let top = cap(a, 1.0);
     let f = a.get_face(top).unwrap();
     let Some(geom::Surface::Plane {
-        origin,
+        origin: at,
         normal,
         u_ref,
     }) = a.get_surface(f.surface).cloned()
@@ -69,16 +69,27 @@ fn poison_cap(a: &mut Body<f64>) -> FaceKey {
     };
     let surface = FaceSurface::New {
         surface: geom::Surface::Plane {
-            origin: Point3::new(f64::NAN, origin.y, origin.z),
+            origin: origin(at),
             normal,
             u_ref,
         },
         sense: f.sense,
     };
-    // Lifts both refusals: a plane whose offset datum is NaN is the row's premise, and no edge certifies against it.
+    // Lifts both refusals: a plane whose offset datum is not finite is
+    // the row's premise, and no edge certifies against it.
     a.set_face_surface_stranding_for_tests(top, surface)
         .unwrap();
     top
+}
+
+/// The origin's `x` replaced by NaN.
+fn nan_x(o: Point3<f64>) -> Point3<f64> {
+    Point3::new(f64::NAN, o.y, o.z)
+}
+
+/// The origin moved to `z = +∞`.
+fn infinite_z(o: Point3<f64>) -> Point3<f64> {
+    Point3::new(o.x, o.y, f64::INFINITY)
 }
 
 /// **The no-regression half.** The caps decide coincident at zero
@@ -108,9 +119,9 @@ fn a_decided_zero_offset_is_a_decided_coincident_finding() {
 #[test]
 fn a_poisoned_offset_is_no_finding() {
     let (mut a, b) = stacked();
-    let top = poison_cap(&mut a);
+    let top = poison_cap(&mut a, nan_x);
     let found = pair_finding(&a, top, &b, cap(&b, -1.0), band());
-    let Err(diag) = found else {
+    let Err(PairUndecided::Unreadable(diag)) = found else {
         panic!("a poisoned offset decides nothing, so it is no finding: {found:?}");
     };
     assert!(
@@ -144,13 +155,71 @@ fn the_boolean_refusal_on_a_decided_zero_quotes_its_margin() {
     assert!(!text.contains("exactly zero"), "{text}");
 }
 
+/// **An infinite offset is poison too.** The lower cap re-charted to
+/// `z = +∞` decides no sign: it is no finding, and the detector names
+/// the pair as unreadable, in the poison's own words: a datum that is
+/// not finite, ending as the operand's defect, with no lever offered.
+#[test]
+fn an_infinite_offset_is_no_finding_and_says_it_is_not_finite() {
+    let (mut a, b) = stacked();
+    let top = poison_cap(&mut a, infinite_z);
+    let found = pair_finding(&a, top, &b, cap(&b, -1.0), band());
+    let Err(PairUndecided::Unreadable(diag)) = found else {
+        panic!("an infinite offset decides nothing, so it is no finding: {found:?}");
+    };
+    assert_eq!(diag.predicate, Some("bool_plane_offset"), "{diag:?}");
+    let refusal = find_flush_candidates(&a, &b, Tol::witness());
+    let Err(refusal @ FlushRefusal::PairUnreadable { .. }) = refusal else {
+        panic!("the detector names the unreadable pair: {refusal:?}");
+    };
+    let text = refusal.to_string();
+    assert!(
+        text.contains("is compared on a surface datum that is not finite"),
+        "{text}"
+    );
+    assert!(text.ends_with(KERNEL_OR_FILE_DEFECT_ENDING), "{text}");
+    assert!(!text.contains("separate the geometry"), "{text}");
+    assert!(!text.contains("Recourse:"), "{text}");
+}
+
+/// **The plane door reads an infinite offset as unreadable, and the
+/// largest finite one as a decision.** An origin at `z = +∞` against
+/// `z = 1` is no plane either side of the other; at `f64::MAX` it
+/// stays finite and decides apart.
+#[test]
+fn the_plane_door_reads_an_infinite_offset_as_unreadable() {
+    let plane = |z| PlaneDesc {
+        origin: Point3::new(0.0, 0.0, z),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let extent = ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), 1.0));
+    let read = |z| oriented_plane_eq(&plane(z), &plane(1.0), PlaneIdentity::NONE, &extent, band());
+    let err = read(f64::INFINITY);
+    assert!(
+        matches!(
+            err,
+            Err(PlaneEqError::Undeclared {
+                coincidence: CoincidenceMeasure::Unreadable(diag),
+                ..
+            }) if diag.margin.is_invalid() && diag.predicate == Some("bool_plane_offset")
+        ),
+        "an infinite offset is unreadable: {err:?}"
+    );
+    assert_eq!(
+        read(f64::MAX).ok(),
+        Some(PlaneRelation::Distinct),
+        "the largest finite offset decides"
+    );
+}
+
 /// **A poisoned offset is no coincidence the Boolean offers to
 /// declare.** The plane ladder's public door refuses a NaN offset datum
 /// as unreadable, and the Boolean raises it as every raise site of an
-/// undeclared coincidence does: a datum that is not finite, ending as a
-/// kernel defect, with no declaration offered and never a measure that
-/// is exactly zero. (No Boolean reaches it with a poisoned operand: the
-/// stack above refuses on its side walls first.)
+/// undeclared coincidence does: a datum that is not finite, read at
+/// rest on an operand, ending as the kernel's or the file's defect,
+/// with no declaration offered and never a measure that is exactly
+/// zero. (No Boolean reaches it with a poisoned operand: the stack
+/// above refuses on its side walls first.)
 #[test]
 fn an_undeclared_coincidence_on_a_poisoned_offset_says_it_is_poisoned() {
     let plane = |x| PlaneDesc {
@@ -174,16 +243,20 @@ fn an_undeclared_coincidence_on_a_poisoned_offset_says_it_is_poisoned() {
         panic!("a NaN offset reaches the offset rung: {err:?}");
     };
     let face = FaceKey::default();
-    let text = undeclared_coincidence(
+    let err = undeclared_coincidence(
         coincidence,
         [(Operand::A, face), (Operand::B, face)],
         relation,
-    )
-    .to_string();
-    let lead = "whether the surface data two faces are compared on are finite is undecided: \
-                margin is invalid";
-    assert!(text.starts_with(lead), "{text}");
-    assert!(text.ends_with(KERNEL_DEFECT_ENDING), "{text}");
+    );
+    assert!(
+        matches!(err, BooleanError::PoisonedCarrierDatum { diag, .. }
+            if diag.predicate == Some("bool_plane_offset")),
+        "{err:?}"
+    );
+    let text = err.to_string();
+    let lead = "a surface datum two faces of the operands are compared on is not finite, so \
+                the faces describe no shape to compare. ";
+    assert_eq!(text, format!("{lead}{KERNEL_OR_FILE_DEFECT_ENDING}"));
     assert!(!text.contains("declare"), "{text}");
     assert!(!text.contains("exactly zero"), "{text}");
 }

@@ -311,7 +311,7 @@ fn plane_ladder<T: Decide>(
         }
     };
     let offset_margin = Margin::of(d1 - sigma * d2);
-    match decide_reported("bool_plane_offset", offset_margin, band) {
+    match CoincidenceMeasure::decide("bool_plane_offset", offset_margin, band) {
         Ok(Decided {
             sign: Sign::Positive | Sign::Negative,
             ..
@@ -329,8 +329,8 @@ fn plane_ladder<T: Decide>(
             },
             relation,
         }),
-        Err(diag) => Err(PlaneEqError::Undeclared {
-            coincidence: CoincidenceMeasure::not_zero(diag),
+        Err(coincidence) => Err(PlaneEqError::Undeclared {
+            coincidence,
             relation,
         }),
     }

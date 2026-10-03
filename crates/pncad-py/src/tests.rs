@@ -4738,6 +4738,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pcurves",
             "pieces",
             "point_split_carrier_unsupported",
+            "poisoned_carrier_datum",
             "rest_zip_unsupported",
             "result_invalid",
             "result_volume_implausible",

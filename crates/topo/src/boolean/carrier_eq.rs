@@ -174,6 +174,28 @@ impl CoincidenceMeasure {
         }
     }
 
+    /// One coincidence datum decided: its sign and the margin the band
+    /// decided, or the measure it leaves where it decides nothing. A
+    /// datum that is not finite (NaN or ±∞) is unreadable whatever sign
+    /// it reads: an infinite offset is no more a locus than a NaN one.
+    pub(crate) fn decide<T: Decide>(
+        name: &'static str,
+        margin: Margin<T>,
+        band: Band,
+    ) -> Result<Decided, Self> {
+        let finite = geom_core::is_finite_length(margin.value());
+        match decide_reported(name, margin, band) {
+            Ok(decided) if finite => Ok(decided),
+            Ok(_) => Err(Self::Unreadable(Indeterminate {
+                margin: geom_core::MarginDiag::INVALID,
+                band,
+                predicate: Some(name),
+                terminal_sliver: false,
+            })),
+            Err(diag) => Err(Self::not_zero(diag)),
+        }
+    }
+
     /// A measure that did not decide zero, as what it is: unreadable
     /// where its margin is poisoned, undecided otherwise.
     pub(crate) fn not_zero(diag: Indeterminate) -> Self {
@@ -1116,7 +1138,7 @@ fn data_rungs<T: Decide>(
     let mut first_unread: Option<CoincidenceMeasure> = None;
     let mut first_in_band: Option<CoincidenceMeasure> = None;
     for &(name, _, margin) in margins {
-        match decide_reported(name, margin, band) {
+        match CoincidenceMeasure::decide(name, margin, band) {
             Ok(Decided {
                 sign: Sign::Positive | Sign::Negative,
                 ..
@@ -1132,12 +1154,10 @@ fn data_rungs<T: Decide>(
                     decided: Classified { margin, band },
                 }));
             }
-            Err(diag) => match CoincidenceMeasure::not_zero(diag) {
-                unread @ CoincidenceMeasure::Unreadable(_) => {
-                    first_unread = first_unread.or(Some(unread));
-                }
-                in_band => first_in_band = first_in_band.or(Some(in_band)),
-            },
+            Err(unread @ CoincidenceMeasure::Unreadable(_)) => {
+                first_unread = first_unread.or(Some(unread));
+            }
+            Err(in_band) => first_in_band = first_in_band.or(Some(in_band)),
         }
     }
     // Rung 4: coincident-or-near with no identity rung — near
@@ -1327,6 +1347,31 @@ mod tests {
             declared_reading(&flat, &tilted, &witnessed(0.01, [&on, &[]]), band()),
             Err(CarrierEqError::Contradicted { .. })
         ));
+    }
+
+    /// **A curved datum that is not finite is unreadable, and is
+    /// reported ahead of a datum in band.** Two spheres whose centres
+    /// stand apart inside the ambiguity band, the second's radius NaN
+    /// or `+∞`: the radius decides no sign, so the pair is neither
+    /// apart nor in band, and the refusal names the radius.
+    #[test]
+    fn an_unreadable_curved_datum_is_reported_ahead_of_one_in_band() {
+        let b = band();
+        let apart = (b.zero() + b.escalate()) / 2.0;
+        let a = sphere([0.0, 0.0, 0.0], 2.0, true);
+        for radius in [f64::NAN, f64::INFINITY] {
+            let poisoned = sphere([apart, 0.0, 0.0], radius, true);
+            match carrier_eq_verdict(&a, &poisoned, PlaneIdentity::NONE, &at(1.0), b) {
+                Err(CarrierEqError::Undeclared {
+                    coincidence: CoincidenceMeasure::Unreadable(diag),
+                    ..
+                }) => {
+                    assert!(diag.margin.is_invalid(), "{radius}: {diag:?}");
+                    assert_eq!(diag.predicate, Some("carrier_sphere_radius"), "{radius}");
+                }
+                other => panic!("a radius of {radius} is unreadable: {other:?}"),
+            }
+        }
     }
 
     /// The peg-in-bore row: value-equal radii, opposed material

@@ -1870,6 +1870,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ResultInvalid
         | BooleanErrorKind::ResultVolumeImplausible
         | BooleanErrorKind::VolumeCorrupt
+        | BooleanErrorKind::PoisonedCarrierDatum
         | BooleanErrorKind::VolumeUndecided
         | BooleanErrorKind::UnrepresentableResult
         | BooleanErrorKind::NonManifoldResult
@@ -2286,18 +2287,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
-    (
-        "mod.rs",
-        "unreadable_carrier_datum",
-        "BooleanDecision::SelfCheck",
-        1,
-    ),
-    (
-        "mod.rs",
-        "unreadable_carrier_datum",
-        "SelfCheck::CarrierData",
-        1,
-    ),
     ("mod.rs", "tangent_rim_refusal", "Coincide::Rim", 1),
     (
         "mod.rs",

@@ -62,10 +62,16 @@ repair is to hand them the typed arm too.
 
 `CarrierEqError::Undeclared` carries a `CoincidenceMeasure`: `Zero` with
 the decided margin, `Undecided` (in band, or past it where the declared
-reading stands off), or `Unreadable` (a datum is not finite). The plane
-ladder and the curved `data_rungs` decide through `decide_reported`;
-`LadderRefusal` / `plane_eq_typed` retire. `pair_finding`, the pair
-door and the Boolean's raise sites read the arm; an unreadable datum
-refuses as `SelfCheck::CarrierData`, a defect, never as a coincidence
-to declare. Rows: `flush::rows`, `plane_eq::tests::a_decided_zero_offset_is_not_a_poisoned_one`,
+reading stands off), or `Unreadable` (a datum is NaN or ±∞). The plane
+ladder and the curved `data_rungs` decide each datum through
+`CoincidenceMeasure::decide`; `LadderRefusal` / `plane_eq_typed` retire.
+`pair_finding`, the pair door and the Boolean's raise sites read the arm.
+At the Boolean an unreadable datum refuses through
+`readable_coincidence` as `BooleanError::PoisonedCarrierDatum`, the
+operand's at-rest defect, never as a coincidence to declare; at the
+detector it is `FlushRefusal::PairUnreadable`. Rows: `flush::rows`,
+`plane_eq::tests::a_decided_zero_offset_is_not_a_poisoned_one`,
+`carrier_eq::tests::an_unreadable_curved_datum_is_reported_ahead_of_one_in_band`,
+`refusal_routes::tests::the_maximal_faces_gate_refuses_an_infinite_neighbour_offset_as_poison`,
+`boolean::tests::the_tangency_screen_refuses_an_infinite_offset_as_poison`,
 `boolean::tests::coincidence_pair_carries_the_shared_recourse_once`.

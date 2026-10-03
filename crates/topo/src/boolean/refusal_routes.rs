@@ -982,11 +982,6 @@ pub enum SelfCheck {
     /// The carrier ladder's contradiction arm, which its detector
     /// posture (nothing declared) cannot reach.
     CarrierLadder,
-    /// Whether the data a carrier ladder compares two faces on are
-    /// finite (`bool_plane_offset`, the curved kinds' `carrier_*`
-    /// data): a datum read as NaN is poisoned input, and no
-    /// declaration or move of the parts reads it.
-    CarrierData,
 }
 
 impl SelfCheck {
@@ -1000,7 +995,6 @@ impl SelfCheck {
             Self::ArcFacing => "which way a germ turns about the section it lies on",
             Self::RingWinding => "which way a ring run of the section winds",
             Self::CarrierLadder => "whether a face of each solid lies on one surface",
-            Self::CarrierData => "whether the surface data two faces are compared on are finite",
         }
     }
 }
@@ -2316,10 +2310,6 @@ mod tests {
                 "whether a face of each solid lies on one surface",
                 Ending::Defect,
             ),
-            BooleanDecision::SelfCheck(SelfCheck::CarrierData) => (
-                "whether the surface data two faces are compared on are finite",
-                Ending::Defect,
-            ),
             BooleanDecision::PierceCurvature => (
                 "whether an edge leaves a curved face steeply enough against its bend to read \
                  which side it goes",
@@ -3394,6 +3384,30 @@ mod tests {
     /// the refusal names the gate's decision and lever with the
     /// tolerance its margin gives, not the declare menu, which no
     /// declaration between two faces of one operand could settle.
+    /// **A neighbour whose offset datum is not finite is the operand's
+    /// defect at the maximal-faces gate** (F7): the brick's split top,
+    /// one half re-charted parallel through `z = +∞`. The offset decides
+    /// no sign, so the gate neither passes the pair as apart nor refuses
+    /// it as coplanar neighbours: the datum is poisoned, read at rest.
+    #[test]
+    fn the_maximal_faces_gate_refuses_an_infinite_neighbour_offset_as_poison() {
+        let body = top_split_redescribed(|p0, along, _| crate::Surface::Plane {
+            origin: Point3::new(p0.x, p0.y, f64::INFINITY),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: along,
+        });
+        let err = super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
+            .expect_err("an infinite offset is no plane apart from its neighbour");
+        let BooleanError::PoisonedCarrierDatum { pair, diag } = err else {
+            panic!("the gate refuses the poisoned datum: {err:?}");
+        };
+        assert_eq!(diag.predicate, Some("bool_plane_offset"), "{diag:?}");
+        assert!(
+            pair.iter().all(|&(operand, _)| operand == Operand::A),
+            "both neighbours are the operand's: {pair:?}"
+        );
+    }
+
     #[test]
     fn the_maximal_faces_gate_ends_near_flat_neighbours_in_its_own_lever() {
         let b = band();

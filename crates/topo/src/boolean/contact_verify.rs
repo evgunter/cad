@@ -70,7 +70,7 @@ use crate::body::Body;
 use crate::contact::{ContactClass, ContactRefusal, ContactVerdict, FIT_DEFERRAL};
 use crate::entity::FaceKey;
 
-use super::carrier_eq::{CarrierEqError, CarrierRelation, CoincidenceMeasure};
+use super::carrier_eq::{CarrierEqError, CarrierRelation};
 use super::refusal_routes::Contradiction;
 
 /// **The class-dispatching contact door**: does this face pair hold
@@ -172,16 +172,19 @@ fn rest_pair_verdict<T: Decide>(
             steer: None,
         }),
         // The ladder contradicts a declared pair before it can call
-        // it `Distinct`; a `Distinct` here would be the ladder
+        // it `Distinct`, and a declared pair never reaches the
+        // undeclared coincidence rung; either here would be the ladder
         // breaking its own contract.
-        Ok((CarrierRelation::Distinct, _)) => Err(ContactRefusal::Escalated {
-            diag: Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some("contact_rest_ladder_invariant"),
-                terminal_sliver: false,
-            },
-        }),
+        Ok((CarrierRelation::Distinct, _)) | Err(CarrierEqError::Undeclared { .. }) => {
+            Err(ContactRefusal::Escalated {
+                diag: Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band,
+                    predicate: Some("contact_rest_ladder_invariant"),
+                    terminal_sliver: false,
+                },
+            })
+        }
         Err(CarrierEqError::Contradicted { fact, diag }) => Err(ContactRefusal::Contradicted {
             steer: fit_steer(fact),
             diag,
@@ -189,13 +192,6 @@ fn rest_pair_verdict<T: Decide>(
         Err(CarrierEqError::Escalated { diag, .. } | CarrierEqError::Unsettled { diag }) => {
             Err(ContactRefusal::Escalated { diag })
         }
-        Err(CarrierEqError::Undeclared {
-            coincidence: CoincidenceMeasure::Unreadable(diag),
-            ..
-        }) => Err(ContactRefusal::Escalated { diag }),
-        Err(CarrierEqError::Undeclared { coincidence, .. }) => Err(ContactRefusal::Undeclared {
-            diag: coincidence.reported(),
-        }),
     }
 }
 

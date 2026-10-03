@@ -130,7 +130,7 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
 use crate::body::Body;
 use crate::boolean::{
     BooleanDeclarations, CarrierEqError, CarrierRelation, CoincidenceMeasure, FacePairDeclaration,
-    PairUnread, carrier_pair_relation,
+    PairUnread, PlaneRung, carrier_pair_relation,
 };
 use crate::contact::BooleanCoincidence;
 use crate::entity::FaceKey;
@@ -207,9 +207,38 @@ pub enum FlushRefusal {
         /// The verifier's own diagnostic, carrying its funnel site.
         source: Indeterminate,
     },
+    /// A surface datum a pair is compared on is not finite: the pair
+    /// describes no shape to compare, and is named rather than
+    /// reported or dropped.
+    PairUnreadable {
+        /// The pair the door could not read.
+        pair: (FaceKey, FaceKey),
+        /// The verifier's own diagnostic, carrying the datum's predicate.
+        source: Indeterminate,
+    },
     /// The verify door reported `Distinct` as a finding's evidence
     /// ([`finding`]'s refusal): a kernel defect.
     Distinct(DistinctFinding),
+}
+
+/// Why [`pair_finding`] decided no finding either way.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PairUndecided {
+    /// The verify door's margin did not decide (in band, or escalated),
+    /// or a face has no extent to read it over ([`EXTENT_UNREAD`]).
+    InBand(Indeterminate),
+    /// A surface datum the pair is compared on is not finite.
+    Unreadable(Indeterminate),
+}
+
+impl PairUndecided {
+    /// The verifier's diagnostic, whichever arm carries it.
+    #[must_use]
+    pub const fn diag(self) -> Indeterminate {
+        match self {
+            Self::InBand(diag) | Self::Unreadable(diag) => diag,
+        }
+    }
 }
 
 impl core::fmt::Display for FlushRefusal {
@@ -230,6 +259,15 @@ impl core::fmt::Display for FlushRefusal {
                 pair.1,
                 source.payload(),
                 source.ending("separate the geometry")
+            ),
+            Self::PairUnreadable { pair, .. } => write!(
+                f,
+                "flush detection: face pair {:?}/{:?} is compared on a surface datum that is \
+                 not finite, so the pair describes no shape to compare and is named rather \
+                 than reported or dropped. {}",
+                pair.0,
+                pair.1,
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::Distinct(defect) => defect.fmt(f),
         }
@@ -272,7 +310,7 @@ pub fn pair_finding<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<Option<FlushEvidence>, Indeterminate> {
+) -> Result<Option<FlushEvidence>, PairUndecided> {
     let relation = match carrier_pair_relation(a, fa, b, fb, false, band) {
         Ok(relation) => relation,
         // A kind outside the `Rest` ladder's inventory (cone, NURBS,
@@ -283,12 +321,12 @@ pub fn pair_finding<T: Decide>(
         // ladder no lever, so the pair is neither flush nor apart:
         // named, under the door's own label, never dropped.
         Err(PairUnread::Extent(_)) => {
-            return Err(Indeterminate {
+            return Err(PairUndecided::InBand(Indeterminate {
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some(EXTENT_UNREAD),
                 terminal_sliver: false,
-            });
+            }));
         }
     };
     match relation {
@@ -307,13 +345,27 @@ pub fn pair_finding<T: Decide>(
             relation,
             rung: FlushRung::DecidedCoincident,
         })),
-        // In band or poisoned: not definite, not droppable. A `Distinct`
-        // relation breaks the variant's contract; typed, never silent.
-        Err(CarrierEqError::Undeclared { coincidence, .. }) => Err(coincidence.reported()),
-        Err(CarrierEqError::Escalated { diag, .. }) => Err(diag),
+        // Poisoned: a datum that is not finite, or a norm the ladder
+        // cannot read.
+        Err(
+            CarrierEqError::Undeclared {
+                coincidence: CoincidenceMeasure::Unreadable(diag),
+                ..
+            }
+            | CarrierEqError::Escalated {
+                rung: PlaneRung::Norm,
+                diag,
+            },
+        ) => Err(PairUndecided::Unreadable(diag)),
+        // In band: not definite, not droppable. A `Distinct` relation
+        // breaks the variant's contract; typed, never silent.
+        Err(CarrierEqError::Undeclared { coincidence, .. }) => {
+            Err(PairUndecided::InBand(coincidence.reported()))
+        }
+        Err(CarrierEqError::Escalated { diag, .. }) => Err(PairUndecided::InBand(diag)),
         // Unreachable with `declared: false`; kept typed.
         Err(CarrierEqError::Contradicted { diag, .. } | CarrierEqError::Unsettled { diag }) => {
-            Err(diag)
+            Err(PairUndecided::InBand(diag))
         }
     }
 }
@@ -376,7 +428,8 @@ impl core::error::Error for DistinctFinding {}
 /// # Errors
 ///
 /// [`FlushRefusal::PairInBand`] when a pair's verify-door margin is
-/// indeterminate (never silently included or dropped),
+/// indeterminate and [`FlushRefusal::PairUnreadable`] when a datum it
+/// compares is not finite (never silently included or dropped),
 /// [`FlushRefusal::Band`] if the ambient tolerance is broken.
 pub fn find_flush_candidates<T: Decide>(
     a: &Body<T>,
@@ -389,9 +442,15 @@ pub fn find_flush_candidates<T: Decide>(
     for &ka in &fa {
         for &kb in &fb {
             let evidence =
-                pair_finding(a, ka, b, kb, band).map_err(|source| FlushRefusal::PairInBand {
-                    pair: (ka, kb),
-                    source,
+                pair_finding(a, ka, b, kb, band).map_err(|undecided| match undecided {
+                    PairUndecided::InBand(source) => FlushRefusal::PairInBand {
+                        pair: (ka, kb),
+                        source,
+                    },
+                    PairUndecided::Unreadable(source) => FlushRefusal::PairUnreadable {
+                        pair: (ka, kb),
+                        source,
+                    },
                 })?;
             if let Some(evidence) = evidence {
                 out.push(finding((ka, kb), evidence).map_err(FlushRefusal::Distinct)?);
