@@ -319,8 +319,10 @@ impl core::fmt::Display for MateRole {
 ///
 /// At the scalar the solve ran at: `f64` — the default — from
 /// [`solve_document`], the evaluation's own from [`solve_with_env`].
-/// Only the poses are at that scalar; the roots, spaces, roles and
-/// faults are the document's structure, the same in every lane.
+/// Only the poses are at that scalar. The roots and spaces are the
+/// document's structure, the same in every lane; a role or a fault is
+/// what the lane decided, which is the `f64` lane's except where an
+/// interval decision escalates or a leaf box decides otherwise.
 #[derive(Debug)]
 pub struct SolvedPoses<T: Real = f64> {
     /// **Which document this is a solve OF** (DI3), stamped by
