@@ -293,6 +293,25 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    /// `body` finished for a door that takes finished bodies (the
+    /// boolean's): through the scalar's at-rest gate
+    /// ([`crate::AtRestPolicy::gate_at_rest_kept`]).
+    ///
+    /// # Panics
+    ///
+    /// Naming `what` and the validator's findings, where the gate
+    /// refuses it — a fixture that is not a finished body.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn finished<T: crate::AtRestPolicy>(
+        what: &str,
+        body: Body<T>,
+        tol: geom_core::Tol,
+    ) -> crate::AtRestBody<T> {
+        T::gate_at_rest_kept(body, tol)
+            .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+    }
+
     /// Which bridge a graft ran ([`take_graft_bridges`]).
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum GraftBridge {

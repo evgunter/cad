@@ -136,9 +136,9 @@ use super::{
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
+use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
-use crate::props::AtRestPolicy;
 use crate::validate::{AtRestBody, decide};
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
