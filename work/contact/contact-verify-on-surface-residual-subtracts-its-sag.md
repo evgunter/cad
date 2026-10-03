@@ -4,6 +4,7 @@ kind: issue
 title: contact_verify's on-surface residual decides |r| − residual_sag where the edge certifier decides r + residual_sag, so the verify direction is padded the wrong way
 status: open
 opened: 2026-10-03
+priority: P1
 ---
 
 Found by CLEAVE's `cleave/steep-tube-eps` lane, in its sweep for one-sided

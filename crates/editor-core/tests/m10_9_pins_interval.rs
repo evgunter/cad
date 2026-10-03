@@ -96,6 +96,13 @@ pub(crate) struct Study {
 /// walk's literal branch are the form's to decide, so the certificate
 /// runs on past where a `floor` atom used to stop it.
 ///
+/// **Check 5 decides only an escape's positive part** (PR 3981,
+/// `geom_brep::pcurve_cache::escape`): a row's chart box inside its
+/// window now reads Zero, a theorem, where its clearance used to be a
+/// numeric Negative. `symbolic_zero`: plate 947 → 955, link 681 → 689,
+/// pad +4 at every row; annulus and bracket unmoved. `registered` and
+/// the verdicts are unmoved.
+///
 /// The scales are M10-9's brackets. The plate, the annulus and the link
 /// certify whole at them. The bracket and the pad refuse at the
 /// extrude's `pcurve_envelope` (`refused_by`, asserted;
@@ -264,8 +271,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them. Every row
-            // is up 32 since DECIDE-9, the 32 `dihedral_wedge` margins
-            // the note on `registered` names.
+            // is up 36: 32 since DECIDE-9, the `dihedral_wedge` margins
+            // the note on `registered` names, and 4 since check 5
+            // decides only an escape's positive part (the note above).
             symbolic_zero: [1016, 1040, 1016],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },

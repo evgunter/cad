@@ -410,15 +410,15 @@ const PLATE_MAX_TERMS: usize = 252;
 /// PR 3812), every line moved. Against the pin it replaced, in three
 /// steps, each measured on its own head:
 ///
-/// | line | base | parts 1 + 2 | literal branch | frame twin |
-/// |---|---|---|---|---|
-/// | `Plain/Decision` calls / forms / frozen | 1255 / 21366 / 1176 | 1141 / 16247 / 696 | 1127 / 16018 / 696 | 1127 / 16429 / 696 |
-/// | `Plain/Assertion` calls / forms | 578 / 3233 | 612 / 3237 | 666 / 3474 | 666 / 4051 |
-/// | `Plain/Report` calls | 176 | 62 | 32 | 32 |
-/// | `Early/Decision` calls / forms | 552 / 14290 | 426 / 9125 | 416 / 8899 | 416 / 9188 |
-/// | `Early/Assertion` calls / forms | 578 / 4144 | 612 / 4166 | 666 / 4404 | 666 / 5015 |
-/// | `Door/Decision` calls / forms | 662 / 19170 | 558 / 13722 | 590 / 13212 | 590 / 13928 |
-/// | `Door/Assertion` calls | 322 | 356 | 410 | 410 |
+/// | line | base | parts 1 + 2 | literal branch | frame twin | escape (PR 3981) |
+/// |---|---|---|---|---|---|
+/// | `Plain/Decision` calls / forms / frozen | 1255 / 21366 / 1176 | 1141 / 16247 / 696 | 1127 / 16018 / 696 | 1127 / 16429 / 696 | 1143 / 16623 / 696 |
+/// | `Plain/Assertion` calls / forms | 578 / 3233 | 612 / 3237 | 666 / 3474 | 666 / 4051 | 650 / 3921 |
+/// | `Plain/Report` calls | 176 | 62 | 32 | 32 | 40 |
+/// | `Early/Decision` calls / forms | 552 / 14290 | 426 / 9125 | 416 / 8899 | 416 / 9188 | 432 / 9430 |
+/// | `Early/Assertion` calls / forms | 578 / 4144 | 612 / 4166 | 666 / 4404 | 666 / 5015 | 650 / 4837 |
+/// | `Door/Decision` calls / forms | 662 / 19170 | 558 / 13722 | 590 / 13212 | 590 / 13928 | 582 / 13610 |
+/// | `Door/Assertion` calls | 322 | 356 | 410 | 410 | 394 |
 ///
 /// - **Parts 1 and 2.** Check 3's samples on the wall rows are no longer
 ///   decided over the box (they cross-check at the point witness,
@@ -438,6 +438,16 @@ const PLATE_MAX_TERMS: usize = 252;
 ///   normalisations and the invariants are new forms in every walk.
 ///   Calls and freezes do not move: the twin is the same frame on this
 ///   plate's literal charts, so no decision is added or lost.
+/// - **The escape (PR 3981).** Check 5 decides only an escape's
+///   positive part (`geom_brep::pcurve_cache::escape`), so every
+///   trim-containment margin carries a `Max` node: new forms in every
+///   walk, and the calls move between lines (`Plain` and `Early`
+///   `Decision` +16 and `Assertion` −16, `Door/Decision` −8,
+///   `Door/Assertion` −16). Eight trim margins that read a definite
+///   clearance now read Zero numerically, and the form cannot discharge
+///   through the `Max`, so the blocked residuals the `Report` lines
+///   render rise 32 → 40 (40 → 48 without the canonical root). Every
+///   verdict passes as before: Zero and Negative are both contained.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1143 forms 16623 frozen 696 digest 564299a4e7f245e5717082b470b50f25\n\
      Plain/Assertion calls 650 forms 3921 frozen 372 digest 13019e1a84e8d26407b49d2ab3f1ec0e\n\

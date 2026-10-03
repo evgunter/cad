@@ -176,16 +176,15 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// (`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`).
 pub const CERTIFIABLE_FRACTION: f64 = 1.318e-7;
 
-/// **The same measurement at 1, 2, 3 and 4 links** — one number in
-/// four spellings.
+/// **The same measurement at 1, 2, 3 and 4 links.**
 ///
 /// The tip's certified lateral half-width, `L · 3σ · f · n(n+1)/2` at
-/// `n` links, is one number at two, three and four links alike, and
-/// [`CERTIFIED_TIP_OVER_PIN_RADIUS`] pins it over the pin radius. Since
-/// the extrude closes with the pcurve mint it is set by the placed
-/// rows' angular comparisons, whose enclosure grows with the same tip
-/// box: `5.830e-7` of the pin radius. The one-link row sits a little
-/// under it (its lever sum is the joint's own).
+/// `n` links, is what each fraction allows. The wall that sets it is
+/// check 5's escape enclosure on the placed rows, which does NOT grow in
+/// step with the tip's lever sum: the half-width rises with link count
+/// and flattens ([`CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS`]), so the
+/// four fractions are four measurements, not one number spelled four
+/// ways.
 ///
 /// (Before the mint the wall was `dihedral_wedge` and the number was
 /// HALF the pin radius, a property of this document's geometry: with
@@ -200,19 +199,21 @@ pub const CERTIFIABLE_FRACTION: f64 = 1.318e-7;
 /// the last row of it.
 pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.223e-6, 4.244e-7, 2.169e-7, 1.318e-7];
 
-/// **The tip's certified lateral half-width, over the pin radius** —
-/// the same at every link count whose box the WALL sets, and the
-/// number [`CERTIFIABLE_FRACTION_BY_LINKS`] is four spellings of.
+/// **The tip's certified lateral half-width, over the pin radius**, at
+/// 1, 2, 3 and 4 links.
 ///
-/// MEASURED by [`crate::chaintol`] at 2, 3 and 4 links and pinned
-/// there with a paste-ready re-baseline (`5.729e-7 / 5.856e-7 /
-/// 5.931e-7`); it is not derived from the two constants beside it,
-/// because what it asserts is that those two stand in this ratio AT
-/// EVERY LINK COUNT, which neither of them says. It was `4.995e-1`,
-/// half the pin radius, before the extrude closed with the pcurve mint.
+/// MEASURED by [`crate::chaintol`] and pinned there. It rises at every
+/// step, and each step is smaller than the one before (4.1%, 2.2%,
+/// 1.3%). Whether it converges is not established: steps shrinking by
+/// about 0.6 each would put a limit near `6.0e-7`, which is an
+/// extrapolation from four points, not a measurement. Before the
+/// extrude closed with the pcurve mint the wall was `dihedral_wedge`
+/// and this was one number, `4.995e-1`, half the pin radius, past one
+/// link.
 ///
 /// Read only by that cell.
-pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 5.830e-7;
+pub const CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS: [f64; LINKS] =
+    [5.503e-7, 5.729e-7, 5.856e-7, 5.931e-7];
 
 /// **The certified enclosure of each joint pin's centre at that box**
 /// — `(half-width along the chain, half-width across it)`, in metres,

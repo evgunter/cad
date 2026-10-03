@@ -452,6 +452,15 @@ fn sym_9_what_each_retry_recovers() {
 /// → `[459, 20, …]` and the bracket `[1235, 59, …]` → `[1259, 35, …]`.
 /// `registered`, `numeric` and `retried` do not move.
 ///
+/// Check 5 deciding only an escape's positive part (PR 3981,
+/// `geom_brep::pcurve_cache::escape`) moves all five up out of
+/// `numeric`, with and without the ladder alike: theorems on the plate
+/// (+8, `[955, 0, 148, 690]`) and the link (+8, `[689, 0, 118, 735]`
+/// without the ladder), `sign_gated` on the annulus (+8, `[440, 32, …]`),
+/// the boss (+6, `[459, 26, …]`) and the bracket (+10, `[1259, 45, …]`).
+/// A row box inside its window reads Zero where its clearance read a
+/// numeric Negative. `registered` and `retried` do not move.
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and

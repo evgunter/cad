@@ -5732,6 +5732,23 @@ fn schedule_residuals<T: Decide>(
     Ok(())
 }
 
+/// **An escape's positive part**: `max(gap, 0)`, the one home of the
+/// one-sided containment gates in this file (check 5's
+/// `pcurve_trim_containment`, the iso rows' `pcurve_iso_domain`).
+/// Containment is one-sided: a box or a parameter inside its bound by
+/// any amount is contained, and the clearance between two conservative
+/// boxes is nothing built, so only the escape is decided against the
+/// band. `topo::chart_bound`'s span check asks the same one-sided
+/// question in another shape, `matches!(…, Ok(Sign::Positive))` on the
+/// raw gap. NaN propagates ([`Real::max`]).
+///
+/// Metered through an infinite sup arm (an overflowing weight ratio), a
+/// contained gap is `0·∞ = NaN` and refuses, fail-loud
+/// (`escape_tests::a_contained_gap_through_an_infinite_arm_refuses`).
+fn escape<T: Real>(gap: T) -> T {
+    gap.max(T::zero())
+}
+
 /// Check 5 for either lane: the pcurve's chart box inside the face's
 /// window, metered through the map (no UV tolerance is ever compared
 /// against ε — C4).
@@ -5745,11 +5762,6 @@ fn trim_containment<T: Decide>(
 ) -> Result<(), PcurveCertifyError> {
     let boxed = pcurve.chart_box(t0, t1);
     let (u_arm, v_arm) = chart_arms_at(surface, &boxed, &window)?;
-    // Containment is one-sided: a box inside the window by any amount
-    // is contained, and the clearance between two conservative boxes
-    // is nothing built. Only an escape's positive part is decided, as
-    // the iso rows' `pcurve_iso_domain` gates do.
-    let escape = |gap: T| gap.max(T::zero());
     let escapes = [
         Margin::metered_sup(escape(window.u_min - boxed.u_min), u_arm),
         Margin::metered_sup(escape(boxed.u_max - window.u_max), u_arm),
@@ -6525,9 +6537,10 @@ fn run_iso_checks<T: Decide>(
                 let v_at_0 = p0.y + pl.y * t0;
                 let v_at_1 = p0.y + pl.y * t1;
                 let (d0, d1) = b.knots().domain();
-                let over = (T::from_f64(d0) - v_at_0.min(v_at_1))
-                    .max(v_at_0.max(v_at_1) - T::from_f64(d1))
-                    .max(T::zero());
+                let over = escape(
+                    (T::from_f64(d0) - v_at_0.min(v_at_1))
+                        .max(v_at_0.max(v_at_1) - T::from_f64(d1)),
+                );
                 match decide(
                     "pcurve_iso_domain",
                     Margin::metered_sup(over, stretch_v),
@@ -6602,9 +6615,8 @@ fn run_iso_checks<T: Decide>(
                     // span's polynomial EXTENSION, which the chart does
                     // not have — metered through the same stretch the
                     // boundary decide used, refused typed.
-                    let outside = (T::from_f64(cu0) - u_start)
-                        .max(u_start - T::from_f64(cu1))
-                        .max(T::zero());
+                    let outside =
+                        escape((T::from_f64(cu0) - u_start).max(u_start - T::from_f64(cu1)));
                     match decide(
                         "pcurve_iso_domain",
                         Margin::metered_sup(outside, stretch_u),
@@ -6678,9 +6690,7 @@ fn run_iso_checks<T: Decide>(
             let (d0, d1) = c.domain();
             let lo = t0.min(v_at_0).min(v_at_1);
             let hi = t1.max(v_at_0).max(v_at_1);
-            let over = (T::from_f64(d0) - lo)
-                .max(hi - T::from_f64(d1))
-                .max(T::zero());
+            let over = escape((T::from_f64(d0) - lo).max(hi - T::from_f64(d1)));
             match decide(
                 "pcurve_iso_domain",
                 Margin::metered_sup(over, stretch_v),
@@ -6764,9 +6774,9 @@ fn run_iso_checks<T: Decide>(
             let u_at_0 = p0.x + pl.x * t0;
             let u_at_1 = p0.x + pl.x * t1;
             let (d0, d1) = b.knots().domain();
-            let over = (T::from_f64(d0) - u_at_0.min(u_at_1))
-                .max(u_at_0.max(u_at_1) - T::from_f64(d1))
-                .max(T::zero());
+            let over = escape(
+                (T::from_f64(d0) - u_at_0.min(u_at_1)).max(u_at_0.max(u_at_1) - T::from_f64(d1)),
+            );
             match decide(
                 "pcurve_iso_domain",
                 Margin::metered_sup(over, stretch_u),
@@ -9697,5 +9707,52 @@ mod fitted_lane_routing_tests {
                 other => panic!("{name}: expected the routing boundary, got {other:?}"),
             }
         }
+    }
+}
+
+/// **An escape is decided on its positive part, and an infinite arm
+/// refuses a contained gap.**
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod escape_tests {
+    use super::escape;
+    use geom_core::k_stats::decide;
+    use geom_core::predicate::{Band, Margin, Sign, SupSpeed};
+
+    fn band() -> Band {
+        Band::new(1e-6, 1e-5).unwrap()
+    }
+
+    /// A clearance anywhere inside, the 1e-6 row's band included,
+    /// decides as contained; an escape keeps its band.
+    #[test]
+    fn only_the_positive_part_of_a_gap_is_decided() {
+        for gap in [-3.0645639348403364e-6, -1.0, 0.0] {
+            let m = Margin::metered_sup(escape(gap), SupSpeed::new(1.0));
+            assert_eq!(decide("escape", m, band()), Ok(Sign::Zero), "gap {gap}");
+        }
+        let m = Margin::metered_sup(escape(3e-6), SupSpeed::new(1.0));
+        assert!(
+            decide("escape", m, band()).is_err(),
+            "an in-band escape escalates"
+        );
+        let m = Margin::metered_sup(escape(1.0), SupSpeed::new(1.0));
+        assert_eq!(decide("escape", m, band()), Ok(Sign::Positive));
+        assert!(escape(f64::NAN).is_nan(), "poison propagates");
+    }
+
+    /// `weight_ratio_factor` answers `+inf` for an overflowing ratio.
+    /// Through that arm a contained gap meters as `0·∞ = NaN` and
+    /// refuses (fail-loud); an escape meters as `+inf` and is definite.
+    #[test]
+    fn a_contained_gap_through_an_infinite_arm_refuses() {
+        let arm = SupSpeed::new(f64::INFINITY);
+        for gap in [-1.0, 0.0] {
+            let m = Margin::metered_sup(escape(gap), arm);
+            assert!(m.value().is_nan(), "gap {gap}");
+            assert!(decide("escape", m, band()).is_err(), "gap {gap}");
+        }
+        let m = Margin::metered_sup(escape(1.0), arm);
+        assert_eq!(decide("escape", m, band()), Ok(Sign::Positive));
     }
 }
