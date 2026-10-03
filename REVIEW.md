@@ -13,7 +13,7 @@ Main and head were each built release in separate target dirs, and the line file
 
 ## Findings
 
-**MAJOR-1 — The ring-first order refuses unions main built sound (16 grid lines).** `crates/topo/src/boolean/rest.rs:922-929`. Executed.
+**MAJOR-1 — The ring-first order refuses unions main built sound (16 grid lines).** `crates/topo/src/boolean/rest.rs:918-926`. Executed.
 - `realize_seam` takes first any unrealized span with *either* end at an unjoined pierce-ring vertex. When a span with BOTH ends unjoined comes first in the join's order, `mint_chord` reaches its `([], [])` arm (`rest.rs:1264`) and refuses `RestZipUnsupported { ChordBetweenIsolatedPierces }`.
 - This happens where the contact outline runs through two consecutive ring vertices, e.g. an upper rectangle whose corners sit inside the lower's top face.
 - Grid diff, main → head: **16 SOUND→refusal**, all `ChordBetweenIsolatedPierces`, all unions. Plus 412 refusal→SOUND gains and 0 BAD on either tree.
