@@ -38,6 +38,25 @@ Lower bounds are not this class: a convex function's minimum over a
 cell is not at a coefficient, so a mignitude floor cannot be read from
 coefficient norms.
 
+## More sites (§5 sweep of SSI's rotation chart-speed lane, branch `ssi/rotation-chart-speed`, 2026-10-02)
+
+**Inferred from the code, not reproduced.** The same fold, through
+`norm_hi` or a hand-written `√(Σ cᵢ²)` over a cell's bracketed
+vectors, at sites the list above does not name, all in
+`crates/geom-brep/src/props/quad.rs`:
+
+- `nurbs_patch_face_rounds`: the area cell's `g_u`, `g_v` (`norm_hi`
+  of the `∂(S_u×S_v)` boxes) and `g_hull`.
+- `area_cell`: the same three readings over a `Collapse::Over` cell.
+- `trimmed_patch_face_rounds`: `sup_g` over the trim box, and the
+  chart's metric rates `rate_u`, `rate_v` (`norm_hi` of the `S_u`/`S_v`
+  hulls), which turn chart variation into metres.
+
+The point readings beside them (`g_mid`, `area_at` at a single
+`Collapse::At`) are enclosures of one vector, not hulls of a field, and
+`norm_lo` and `boundary_chord_perimeter_lo` are lower bounds: neither
+is this class.
+
 ## What is open
 
 For each site, decide whether frame sensitivity costs anything here (a
