@@ -386,9 +386,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   body is any number of solids, so a disjoint union is a body of
   several solids. Booleans, `shell` and `split` take bodies and return
   bodies, and each sorts its result into solids, so every output is an
-  operand. A product (gathered, possibly mated parts) is not a boolean
-  operand: the editor refuses it, naming the explicit cross-instance
-  union that makes its members one body
+  operand. A product (an explicit list of `Body` variables, D10) is not
+  a boolean operand: the editor refuses it, naming the explicit union
+  of the copies that makes them one body
   (`crates/editor-core/ASSEMBLY.md`, A2). Which solids are one part stays recipe
   structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
   The extrude/full-revolve
@@ -455,20 +455,21 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   `unproven-coincidence` lint (D10); the sliver band refuses. Every
   zero-turn joint is a tangent joint. Zero new ε: the per-junction
   classifier reuses the carrier predicates verbatim. The tangent-joint
-  set is derived from the program's steps, never stored.
+  set is derived at lowering, from the constructors and the junction
+  verdicts, never stored.
 - **Curved booleans retire per arm, never wholesale.** A face kind with
   no arm refuses typed `CurvedBooleanUnsupported` /
   `CurvedPairUnsupported` naming the pair, never falling through to a
   containment verdict a curved boundary can defeat. The wired germ join
   arms are plane×cylinder and plane×sphere (`boolean::join`'s dispatch);
-  sphere×sphere and the coaxial (one shared axis, D10) cylinder×sphere have section
+  sphere×sphere and the coaxial (sphere centre on the cylinder axis) cylinder×sphere have section
   frames but no join arm; cone and torus operands refuse. The curved
   extent test refuses typed `NurbsExtentUnsupported` on NURBS faces — a
   certified extent needs a foot point plus a bound on the patch's
   reach past it, a derivation not yet written (C12.1).
 - **Coincidence discipline in the reduction.** Every
   reduction/classification comparison is a Q1 trilean: definitely-off
-  ⇒ clean side, exactly-on ⇒ ON, in-band ⇒ escalated typed error (a
+  ⇒ clean side, decided Zero ⇒ ON, in-band ⇒ escalated typed error (a
   genuine sliver: the operand pair is ill-conditioned at this ε). An
   ON verdict that only places topology is derived; one that would make
   pieces of one result touch (a split vertex whose orbit has two or
@@ -491,12 +492,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   between the carriers (D10), never on bit-equality: a boolean merges a
   cross-operand coplanar pair its margins decide a continuation, records
   it for the `unproven-coincidence` lint, and keeps one description. A boolean whose output
-  stage cannot glue a planar group it was licensed to merge refuses
+  stage cannot glue a planar group its verdicts decided a continuation refuses
   the step with the merge's own typed reason, so every boolean output
   is a legal boolean operand; only a curved group's skip is recorded
   and shipped. Every op's output also has **maximal edges**: no
   *joinable* vertex, meaning valence 2 with two distinct edges on one
-  structural carrier between the same two faces. A sweep builds one rim
+  carrier — shared, or decided Zero between the carriers (D10) —
+  between the same two faces. A sweep builds one rim
   edge per run, as it builds one wall, and a boolean's output stage joins
   every joinable vertex after the merge, whatever drew it. A body is then
   the unique complex with maximal faces and maximal edges over its face
@@ -883,8 +885,8 @@ optional**: the table carries a dimensionless row (`ONE`, empty symbol,
 factor 1.0) so a `Scalar` value names its notation rather than
 declining to. `Count` needs no row: a count is an integer, not a
 quantity. A value crossing into a document carries the unit it was
-written in, never a bare number — which is why the GUI's creation ops
-carry `Expr`, and what `quantity::WrittenLength`/`WrittenAngle` are the
+written in, never a bare number — which is why a GUI creation op mints
+a free variable carrying the written unit (D10), and what `quantity::WrittenLength`/`WrittenAngle` are the
 library spelling of.
 
 ### D7 (agreed): Import is adoption, not admission
@@ -916,9 +918,9 @@ convention, adopted directly. Pipeline:
    each solid is gated on its own body before aggregation, and the
    aggregate pass remains for the cross-solid structure. An imported
    assembly whose parts touch certifies, and its contacts — decided
-   from values, since imported geometry has no variables — are
-   `unproven-coincidence` findings (D10), quieted by an assertion at
-   the site: the equivalence with a natively built twin whose parts
+   from values, since no imported cell is a construction of the
+   document's variables — are `unproven-coincidence` findings (D10),
+   quieted by an assertion that the gap is zero at the site: the equivalence with a natively built twin whose parts
    touch by value.
 
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
@@ -1163,7 +1165,8 @@ variable), says "this is there" in one way (a placement), and says
 coincidence, or asserting a bound). Nothing else carries dependency or
 intent.
 
-**Variables.** Every slot holds a variable whose type suits the slot.
+**Variables.** Every slot that admits more than one value holds a
+variable whose type suits the slot.
 The types are the scalars (`Length`, `Angle`, `Scalar`, `Count`), the
 discrete kinds (a side, a half, a sense), the geometric values
 (`Point`, `Direction`, `Axis`, `Plane`, `Frame`) and the references
@@ -1172,8 +1175,7 @@ unit (D6) and optionally a distribution — or **defined**, by an `Expr`
 over other variables or as an output of an operation. A dimensioned
 literal stands nowhere, neither in a slot nor inside a formula: the
 only constants are dimensionless rationals and rational fractions of a
-turn, which are the shape of a formula rather than a dimension. A slot
-with one sensible value takes no variable. Typing a value in the GUI
+turn, which are the shape of a formula rather than a dimension. Typing a value in the GUI
 mints a free variable and offers an existing variable of equal value;
 declining the offer is what makes the two distinct.
 
@@ -1219,28 +1221,33 @@ sketch may read another surface's trace in its plane and continue
 tangent to it).
 
 Every coincidence the kernel infers from values — a boolean's glue, a
-split's ON verdict, a contact the at-rest census finds — is recorded at
-the one door where structure is decided, and the **`unproven-coincidence`
-lint** checks each one holds symbolically. One that does not holds only
+split's ON verdict that makes pieces of one result touch, a contact the
+at-rest census finds — is recorded at the one door where structure is
+decided, and the **`unproven-coincidence` lint** checks whether each one
+holds structurally. One that does not holds only
 at the current values of the variables: the f64 build glues it all the
 same, so no setting changes a built body, and the lint reports it with
 the edit that would make it one construction. The analysis lanes, which
 run over a parameter box, see such a coincidence as the point it is and
-escalate there. "Symbolically" is decided at that door; today it is the
+escalate there. "Structurally" is decided at that door; today it is the
 canonical-form equality above, and a later rung — such as the symbolic
 tier's identities — is one addition there that may only prove more.
 
-**Booleans.** A boolean's operands are already in one space. It glues
-what its verdicts decide Zero, keeping one fixed operand's description
-for a merged face, and refuses what falls in the sliver band.
+**Booleans.** A boolean's operands must already be in one space;
+otherwise it refuses. It glues what its verdicts decide Zero where an
+arm exists for the carrier pair (D1's frontier), keeping one fixed
+operand's description for a merged face, and refuses what falls in the
+sliver band.
 
 **Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`,
 the bound a variable) checks and never places. At rest, contact
 between copies is an `unproven-coincidence` finding unless it is
 structural (a mate-placed face is), and interference is a finding of
-its own; neither refuses. A finding is
+its own; neither refuses where the census has a lane. A finding is
 quiet exactly when an assertion on the same measure at the same site has
-a bound the observation meets and that does not straddle zero.
+a bound the observation meets and that does not straddle zero: a
+contact finding under an assertion that the gap is zero, an
+interference finding under a bound on one side of zero.
 
 D10 governs where a companion clause disagrees, and these retire as
 the program that builds it reaches them: the declared-contact seats
@@ -1267,7 +1274,7 @@ Each layer depends only on the layers below it.
 | `geom` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection. Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
 | `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, certified mass properties, offset surfaces |
 | `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
-| `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/declared-contact machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
+| `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/contact-record machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |
 | `verbs` | The kernel verb vocabulary seat (VERB-SEAT-DESIGN §2): one closed `Verb` enum reifying an operation's parameters as data, run dispatch, and the parameter→field flow; a layer guard keeps serde, `Expr`, `StableName` and recipe ids out |
 | `mesh` / `stl` | Certified tessellation (watertight triangle meshes with source-`Face`/`Edge` back-references); STL export (binary + ASCII) |
@@ -1310,9 +1317,9 @@ kernel residuals the demos raised; M9 the declared-contact join lane.
 Standing outcomes that still bind:
 
 - **Production bit-identity coincidence checking is RETIRED** (Ev, #53;
-  #102). The ratified mechanism is NAMING-DESIGN N6 recipe-source
-  identity — `GeomSource`: same source ⇒ same bits by D9, converse
-  deliberately unclaimed. `geom_core::bit_identity`'s consumers are
+  #102). The ratified mechanism is D10's structural identity (the same
+  construction of the same variables, in canonical form): same source
+  ⇒ same bits by D9, converse deliberately unclaimed. `geom_core::bit_identity`'s consumers are
   debug-only with an EMPTY production allowlist (CI tripwires stay
   armed; a new consumer must be allowlisted and carry a
   retirement-scheduled note). A value-equal flush boolean glues on its
@@ -1525,7 +1532,7 @@ Cross-milestone commitments; each binds at the layer named.
   formatting (serde_json with `float_roundtrip`) for finite values;
   NaN/inf refuse typed (`PersistError::NonFinite`); lossy formatters
   banned; enforced by a save/load/replay-identity test. Replay never
-  solves: no edit records a frame (A11 (2)), so load re-applies the
+  solves: no edit records a frame (a placement is its mates, D10), so load re-applies the
   edits alone, and a saved document reproduces its placements bit for
   bit with no part store in hand.
 - **Flags banked**: mate solving needs witnesses/interval contraction
