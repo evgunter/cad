@@ -651,3 +651,475 @@ fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
         h.0
     );
 }
+
+// ---- Reading a lane's answer, and the independent one ----
+
+/// Every vertex of `node`'s body, by name, at the lane's scalar.
+fn vertices<T: geom_core::Decide>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+) -> Vec<(StableName, geom_core::Point3<T>)> {
+    let names = all_vertices(ev, node);
+    assert!(!names.is_empty(), "node {node:?} has vertices");
+    names
+        .into_iter()
+        .map(|n| {
+            let p = vertex_position(ev, node, &n)
+                .unwrap_or_else(|e| panic!("vertex {n:?} of {node:?} reads: {e:?}"));
+            (n, p)
+        })
+        .collect()
+}
+
+/// Every vertex of `node`, by name, in an `f64` evaluation of `doc` with
+/// `param` bound at `value` — the independent computation a lane's
+/// answer is held to.
+fn f64_vertices_at(
+    doc: &ProfileDoc,
+    opts: &EvalOptions,
+    node: RecipeNodeId,
+    param: ParamName,
+    value: f64,
+) -> BTreeMap<StableName, [f64; 3]> {
+    let doc = set_value(doc.clone(), param, value);
+    let ev = run_at::<f64>(&doc, opts, None);
+    assert!(
+        ev.node_error(node).is_none(),
+        "the f64 build at {value} evaluates node {node:?}: {:?}",
+        ev.node_error(node)
+    );
+    vertices(&ev, node)
+        .into_iter()
+        .map(|(n, p)| (n, [p.x, p.y, p.z]))
+        .collect()
+}
+
+/// The copy of a pattern a vertex of the pattern's value belongs to.
+fn copy_of(name: &StableName) -> u32 {
+    match name.path.first() {
+        Some(editor_core::RoleSeg::Instance { i, .. }) => *i,
+        other => panic!("a pattern's vertex is copy-wrapped, got {other:?}"),
+    }
+}
+
+fn seeded(opts: &EvalOptions, param: ParamName) -> EvalOptions {
+    EvalOptions {
+        seed: Some(param),
+        profile_lift: ProfileLift::Guided,
+        ..opts.clone()
+    }
+}
+
+fn boxed(opts: &EvalOptions, param: ParamName, lo: f64, hi: f64) -> EvalOptions {
+    EvalOptions {
+        param_box: Some(Arc::new(ParamBox::from_axes(BTreeMap::from([(
+            param,
+            BoxAxis::Varying { lo, hi },
+        )])))),
+        profile_lift: ProfileLift::Guided,
+        ..opts.clone()
+    }
+}
+
+/// **A seed run's tangent at every vertex of `node` is the central
+/// difference of two `f64` builds** at `nominal ± h` — exact up to
+/// rounding where the motion is affine in the parameter, which every
+/// row here is (a translation, or a rotation the parameter does not
+/// turn). The value channel is the `f64` nominal build's bits.
+/// Returns each vertex's tangent.
+fn assert_tangents_match(
+    doc: &ProfileDoc,
+    opts: &EvalOptions,
+    ev: &Evaluation<Dual64>,
+    node: RecipeNodeId,
+    param: ParamName,
+    nominal: f64,
+    what: &str,
+) -> Vec<(StableName, [f64; 3])> {
+    let h = 1e-3;
+    let at = f64_vertices_at(doc, opts, node, param.clone(), nominal);
+    let up = f64_vertices_at(doc, opts, node, param.clone(), nominal + h);
+    let down = f64_vertices_at(doc, opts, node, param, nominal - h);
+    let mut out = Vec::new();
+    for (name, p) in vertices(ev, node) {
+        let value = [p.x.value, p.y.value, p.z.value];
+        let tangent = [p.x.deriv, p.y.deriv, p.z.deriv];
+        assert_eq!(
+            value.map(f64::to_bits),
+            at[&name].map(f64::to_bits),
+            "{what}: the value channel of {name:?} is the f64 build's"
+        );
+        for k in 0..3 {
+            let fd = (up[&name][k] - down[&name][k]) / (2.0 * h);
+            assert!(
+                (tangent[k] - fd).abs() <= 1e-9,
+                "{what}: ∂/∂param of {name:?}[{k}] is {} where the f64 builds give {fd}",
+                tangent[k]
+            );
+        }
+        out.push((name, tangent));
+    }
+    out
+}
+
+/// **A box run's enclosure of every vertex of `node` contains that
+/// vertex in the `f64` builds at the box's two corners and its
+/// nominal**, and the enclosure is wider than rounding where the
+/// vertex moves.
+fn assert_encloses_corners(
+    doc: &ProfileDoc,
+    opts: &EvalOptions,
+    ev: &Evaluation<Interval>,
+    node: RecipeNodeId,
+    param: ParamName,
+    nominal: f64,
+    (lo, hi): (f64, f64),
+    what: &str,
+) {
+    use geom_core::Bounds;
+    let samples = [nominal + lo, nominal, nominal + hi]
+        .map(|v| f64_vertices_at(doc, opts, node, param.clone(), v));
+    for (name, p) in vertices(ev, node) {
+        for (k, x) in [p.x, p.y, p.z].into_iter().enumerate() {
+            for (s, at) in samples.iter().enumerate() {
+                let truth = at[&name][k];
+                assert!(
+                    x.lo() <= truth && truth <= x.hi(),
+                    "{what}: the enclosure [{}, {}] of {name:?}[{k}] omits {truth}, its f64 \
+                     position at sample {s}",
+                    x.lo(),
+                    x.hi()
+                );
+            }
+        }
+    }
+}
+
+// ---- A2: a parametric placer moves its mated part in the run that binds it ----
+
+/// **The patterned bolt, seeded on its spacing** (the designers' worked
+/// example): the bolt instance — the pattern's master — moves by
+/// `∂B/∂s = −2` along `x`, and copy #2, which the mate holds on the
+/// slab, by `∂copy2/∂s = 0`; copy #1 by `−1`. Every vertex's tangent is
+/// the central difference of two `f64` builds, and the value channel is
+/// the nominal build's bits.
+#[test]
+fn a2_a_seed_on_the_bolts_spacing_moves_the_bolt_by_minus_two_and_holds_copy_two() {
+    let b = bolted("msolve14-a2-seed", slab_at(6.0, 4.0));
+    let ev = run_at::<Dual64>(&b.doc, &seeded(&b.opts, spacing()), None);
+    assert!(ev.node_error(b.mate).is_none(), "{:?}", ev.node_error(b.mate));
+    let bolt = assert_tangents_match(
+        &b.doc,
+        &b.opts,
+        &ev,
+        b.bolt,
+        spacing(),
+        SPACING,
+        "the bolt instance",
+    );
+    for (name, t) in &bolt {
+        assert_eq!(t, &[-2.0, 0.0, 0.0], "∂B/∂s at {name:?}");
+    }
+    let copies = assert_tangents_match(
+        &b.doc,
+        &b.opts,
+        &ev,
+        b.pattern,
+        spacing(),
+        SPACING,
+        "the pattern",
+    );
+    for (name, t) in &copies {
+        let want = [-2.0, -1.0, 0.0][copy_of(name) as usize];
+        assert_eq!(t, &[want, 0.0, 0.0], "∂copy/∂s at {name:?}");
+    }
+    assert!(
+        copies.iter().any(|(n, _)| copy_of(n) == 2),
+        "copy #2 is among the pattern's vertices"
+    );
+}
+
+/// **The patterned bolt over a box on its spacing**: every vertex of the
+/// bolt and of the pattern is enclosed at both box corners and the
+/// nominal, and the bolt's enclosure has the box's width twice over —
+/// it is not the nominal's point.
+#[test]
+fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
+    use geom_core::Bounds;
+    let b = bolted("msolve14-a2-box", slab_at(6.0, 4.0));
+    let (lo, hi) = (-0.25, 0.25);
+    let ev = run_at::<Interval>(&b.doc, &boxed(&b.opts, spacing(), lo, hi), None);
+    assert!(ev.node_error(b.mate).is_none(), "{:?}", ev.node_error(b.mate));
+    for node in [b.bolt, b.pattern] {
+        assert_encloses_corners(
+            &b.doc,
+            &b.opts,
+            &ev,
+            node,
+            spacing(),
+            SPACING,
+            (lo, hi),
+            "the bolted box",
+        );
+    }
+    for (name, p) in vertices(&ev, b.bolt) {
+        assert!(
+            p.x.hi() - p.x.lo() >= 2.0 * (hi - lo) - 1e-9,
+            "the bolt's x at {name:?} spans the box twice over: [{}, {}]",
+            p.x.lo(),
+            p.x.hi()
+        );
+    }
+}
+
+/// **A rotating transform placer whose lift is seeded**: the bolt
+/// instance moves by `−R⁻¹ e_z` per unit of `gap` (the transform turns
+/// 0.4 rad about `x` after lifting), and every vertex's tangent is the
+/// `f64` builds' central difference.
+#[test]
+fn a2_a_seed_on_a_transform_placers_lift_moves_the_mated_part() {
+    let l = lifted("msolve14-a2-lift-seed");
+    let ev = run_at::<Dual64>(&l.doc, &seeded(&l.opts, gap()), None);
+    assert!(ev.node_error(l.mate).is_none(), "{:?}", ev.node_error(l.mate));
+    let tangents = assert_tangents_match(
+        &l.doc,
+        &l.opts,
+        &ev,
+        l.bolt,
+        gap(),
+        GAP,
+        "the lifted bolt",
+    );
+    let (s, c) = 0.4_f64.sin_cos();
+    for (name, t) in tangents {
+        let want = [0.0, -s, -c];
+        assert!(
+            (0..3).all(|k| (t[k] - want[k]).abs() <= 1e-12),
+            "∂B/∂gap at {name:?} is {t:?}, want {want:?}"
+        );
+    }
+    // The transformed body is what the mate holds: it does not move.
+    let held = assert_tangents_match(
+        &l.doc,
+        &l.opts,
+        &ev,
+        l.transform,
+        gap(),
+        GAP,
+        "the transformed bolt",
+    );
+    for (name, t) in held {
+        assert!(
+            t.iter().all(|x| x.abs() <= 1e-12),
+            "the seated body at {name:?} holds still: {t:?}"
+        );
+    }
+}
+
+/// **The same transform placer over a box on its lift**: every vertex of
+/// the bolt is enclosed at both corners and the nominal.
+#[test]
+fn a2_a_box_on_a_transform_placers_lift_encloses_the_mated_part() {
+    let l = lifted("msolve14-a2-lift-box");
+    let (lo, hi) = (-0.2, 0.3);
+    let ev = run_at::<Interval>(&l.doc, &boxed(&l.opts, gap(), lo, hi), None);
+    assert!(ev.node_error(l.mate).is_none(), "{:?}", ev.node_error(l.mate));
+    for node in [l.bolt, l.transform] {
+        assert_encloses_corners(
+            &l.doc,
+            &l.opts,
+            &ev,
+            node,
+            gap(),
+            GAP,
+            (lo, hi),
+            "the lifted box",
+        );
+    }
+}
+
+// ---- A1: a face frame resolves on every lane ----
+
+/// **A face-framed mate on a `Dual64` seed run resolves and carries its
+/// pose's tangent**: the bolt seated through copy #2 on the slab cap's
+/// OWN pose moves by `−2` per unit of spacing, as the authored seat
+/// does, held to the `f64` builds' central difference.
+#[test]
+fn a1_a_face_frame_on_a_seed_run_carries_the_poses_tangent() {
+    let b = bolted("msolve14-a1-seed", MateFrame::FromFace);
+    let ev = run_at::<Dual64>(&b.doc, &seeded(&b.opts, spacing()), None);
+    assert!(
+        ev.node_error(b.mate).is_none(),
+        "the face frame resolves at Dual64: {:?}",
+        ev.node_error(b.mate)
+    );
+    let tangents = assert_tangents_match(
+        &b.doc,
+        &b.opts,
+        &ev,
+        b.bolt,
+        spacing(),
+        SPACING,
+        "the face-seated bolt",
+    );
+    for (name, t) in tangents {
+        assert_eq!(t, [-2.0, 0.0, 0.0], "∂B/∂s at {name:?}");
+    }
+    let unseeded = run_at::<Dual64>(&b.doc, &b.opts, None);
+    assert!(
+        unseeded.node_error(b.mate).is_none(),
+        "{:?}",
+        unseeded.node_error(b.mate)
+    );
+}
+
+/// **A face-framed mate on an `Interval` box run resolves to an
+/// enclosure of the pose at every box corner**, and the slab — whose
+/// face the frame reads — holds still.
+#[test]
+fn a1_a_face_frame_on_a_box_run_encloses_the_pose_at_every_corner() {
+    let b = bolted("msolve14-a1-box", MateFrame::FromFace);
+    let (lo, hi) = (-0.25, 0.25);
+    let ev = run_at::<Interval>(&b.doc, &boxed(&b.opts, spacing(), lo, hi), None);
+    assert!(
+        ev.node_error(b.mate).is_none(),
+        "the face frame resolves at Interval: {:?}",
+        ev.node_error(b.mate)
+    );
+    for node in [b.bolt, b.pattern, b.slab] {
+        assert_encloses_corners(
+            &b.doc,
+            &b.opts,
+            &ev,
+            node,
+            spacing(),
+            SPACING,
+            (lo, hi),
+            "the face-seated box",
+        );
+    }
+}
+
+// ---- A4: the memo key carries the pose's two channels ----
+
+/// **A seeded pass threaded an unseeded `Dual64` prior reuses no
+/// zero-tangent pose** — `stackup`'s arrangement, through the front
+/// door. The bolt instance has no slot the seed reaches and no DAG
+/// input, so only its solved pose distinguishes the seeded pass's
+/// answer from the prior's: a key that fed the pose's value channel
+/// alone would serve the prior's bolt, tangent zero, and copy #2 would
+/// then move by `+2`.
+#[test]
+fn a4_a_seeded_pass_over_an_unseeded_prior_reuses_no_zero_tangent_pose() {
+    let b = bolted("msolve14-a4", MateFrame::FromFace);
+    let base_opts = EvalOptions {
+        profile_lift: ProfileLift::Guided,
+        ..b.opts.clone()
+    };
+    let base = run_at::<Dual64>(&b.doc, &base_opts, None);
+    for (name, p) in vertices(&base, b.bolt) {
+        assert_eq!(
+            [p.x.deriv, p.y.deriv, p.z.deriv],
+            [0.0; 3],
+            "the unseeded base carries no tangent at {name:?}"
+        );
+    }
+    let pass = run_at::<Dual64>(&b.doc, &seeded(&b.opts, spacing()), Some(&base));
+    for (name, p) in vertices(&pass, b.bolt) {
+        assert_eq!(
+            [p.x.deriv, p.y.deriv, p.z.deriv],
+            [-2.0, 0.0, 0.0],
+            "the seeded pass's bolt at {name:?} carries ∂B/∂s, not the prior's zero"
+        );
+    }
+    for (name, p) in vertices(&pass, b.pattern) {
+        let want = [-2.0, -1.0, 0.0][copy_of(&name) as usize];
+        assert_eq!(p.x.deriv, want, "∂copy/∂s at {name:?} over the prior");
+    }
+}
+
+// ---- A3's other half, and C5: one structure, every lane ----
+
+/// What a lane's evaluation says about the structure: each mate's role
+/// (its value) or that it failed, and whether each instance failed.
+fn structure<T: editor_core::EvalScalar>(
+    doc: &ProfileDoc,
+    ev: &Evaluation<T>,
+) -> Vec<(RecipeNodeId, String)> {
+    doc.order()
+        .iter()
+        .filter(|&&id| {
+            matches!(
+                doc.node(id),
+                Some(Node::Mate { .. } | Node::InstantiatePart { .. })
+            )
+        })
+        .map(|&id| {
+            let said = match ev.result(id) {
+                Some(NodeResult::Ok(v)) => match &v.payload {
+                    ValuePayload::Mate(role) => format!("{role:?}"),
+                    other => other.kind_name().to_string(),
+                },
+                Some(other) => format!("failed: {}", fault_class(other)),
+                None => "absent".to_string(),
+            };
+            (id, said)
+        })
+        .collect()
+}
+
+/// A failed result's class: the error kind's variant, and for a mate
+/// fault the fault's — never its numbers, which are the lane's.
+fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
+    let full = format!("{r:?}");
+    full.split(|c: char| c == '{' || c == '(')
+        .take(4)
+        .collect::<Vec<_>>()
+        .join("|")
+}
+
+/// **C5 and A3's dual half**: over the whole corpus, the solve's
+/// structure — every mate's role, and which mates and instances fail —
+/// is the `f64` build's at `Dual64` and at `Interval` (each unboxed and
+/// unseeded); and at `Dual64` every instance's every vertex reads the
+/// `f64` build's bits on its value channel, seeded or not.
+#[test]
+fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f64s() {
+    for (label, doc, opts) in corpus() {
+        let f = run_at::<f64>(&doc, &opts, None);
+        let d = run_at::<Dual64>(&doc, &opts, None);
+        let i = run_at::<Interval>(&doc, &opts, None);
+        let want = structure(&doc, &f);
+        assert_eq!(structure(&doc, &d), want, "{label}: Dual64's structure");
+        assert_eq!(structure(&doc, &i), want, "{label}: Interval's structure");
+        let params: Vec<ParamName> = doc.params().keys().cloned().collect();
+        let seeds = std::iter::once(None).chain(params.into_iter().map(Some));
+        for seed in seeds {
+            let o = EvalOptions {
+                seed: seed.clone(),
+                profile_lift: ProfileLift::Guided,
+                ..opts.clone()
+            };
+            let d = run_at::<Dual64>(&doc, &o, None);
+            assert_eq!(structure(&doc, &d), want, "{label}: seeded {seed:?}");
+            for &id in doc.order() {
+                if !matches!(doc.node(id), Some(Node::InstantiatePart { .. }))
+                    || f.node_error(id).is_some()
+                {
+                    continue;
+                }
+                let at: BTreeMap<StableName, [u64; 3]> = vertices(&f, id)
+                    .into_iter()
+                    .map(|(n, p)| (n, [p.x, p.y, p.z].map(f64::to_bits)))
+                    .collect();
+                for (name, p) in vertices(&d, id) {
+                    assert_eq!(
+                        [p.x.value, p.y.value, p.z.value].map(f64::to_bits),
+                        at[&name],
+                        "{label}, seed {seed:?}: the value channel at {name:?} is f64's"
+                    );
+                }
+            }
+        }
+    }
+}
