@@ -153,3 +153,26 @@ A designer pair (one Opus, one Fable; labels A/B on `analysis/design-fork/edgele
 **Owner of the arm:** TANG, `work/tang/declared-cusps-second-order-wedge-arm.md` items 3–4 (the join's slit zip from `tangent_locus`; the `sector_shape` arm and split's reduce / the boolean's sectors through it; restore C7).
 
 **Interim (this row's remaining work, dispatched as `cleave/tangent-interior-refuse`):** a verified `Tangent` pair whose locus lies interior to a face of either operand refuses typed (the `RimCuspArmUnbuilt` pattern) until the arm lands; `m9_3_wall_door.rs`'s admitted tangent union and both `wall_face_tangent_reach.rs` rows flip to that refusal; `BooleanResultKind::Assembly`'s doc narrows to vertex/edge touches. The "refuse step 2" shape in this row's earlier text and in CONTACT's `a-bridge-union-fuses-...` is superseded: step 2 is ordinary topology once step 1 is right.
+
+## Interim landed (2026-10-03, `cleave/tangent-interior-refuse`)
+
+A verified `Tangent` union whose ruling passes strictly inside a
+declared PLANE face now refuses `BooleanError::TangentSlitArmUnbuilt`
+at the reduction door (`boolean_reduce_declared_strategy` in
+`crates/topo/src/boolean/mod.rs`, reading `locus_through_plane_face`).
+Two scope choices, both measured:
+
+- **Union only.** Declared plate − rod answers the plate (16.0) and
+  plate ∩ rod answers `Empty`. Both are right, since the result has
+  material on at most one side of the ruling.
+- **The plane face decides.** A ruling inside the cylinder face but on
+  the plane face's boundary edge (the box-corner pose,
+  `work/reach/a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported.md`)
+  is an edge resting on a face, not the doubled slit. It is untouched,
+  and it refuses `CurvedBooleanUnsupported` already. Declared
+  parallel-cylinder kisses refuse `CurvedPierceUnsupported` downstream
+  (TANG's item, the gather evidence), so they are untouched too.
+
+The reproducers now pin the refusal at `f64` and `Interval`. The bridge
+step is unreachable from step 1. The row stays open for TANG's arm,
+items 3–4, which retires the refusal.
