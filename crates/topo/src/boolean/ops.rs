@@ -63,7 +63,7 @@
 //! site seams (R2) and crossing-polygon disconnections (R3),
 //! including mixed collinear+transversal channel cuts (the PR 5.5
 //! review's E-2, closed by the degenerate-segment fix in
-//! `point_in_loop`); interior-rest flush contacts (pillar standing on
+//! `point_in_vertex_polygon`); interior-rest flush contacts (pillar standing on
 //! a face); and the Fig 15.1 coplanar-overlap ∩ (seam partly on
 //! shared cap planes) — the `join` module's derived sense/role
 //! discipline is the consistency theorem behind all of them.

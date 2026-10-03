@@ -88,7 +88,7 @@ fn die_shaped(tol: Tol) -> Die {
                 op: BooleanOp::Subtract,
                 a: body,
                 b: placed,
-                declare: None,
+                declare: Vec::new(),
             },
             tol,
         );

@@ -1517,8 +1517,11 @@ mod tests {
         // Declared in id order, ordered in the document backwards.
         doc.nodes.insert(
             RecipeNodeId(0),
-            Node::Declare {
-                pairs: vec![(
+            Node::Boolean {
+                op: crate::BooleanOp::Union,
+                a: RecipeNodeId(98),
+                b: RecipeNodeId(99),
+                declare: vec![(
                     (
                         SitedRef::at_mint(first.clone()),
                         SitedRef::at_mint(second.clone()),
@@ -1529,8 +1532,11 @@ mod tests {
         );
         doc.nodes.insert(
             RecipeNodeId(1),
-            Node::Declare {
-                pairs: vec![(
+            Node::Boolean {
+                op: crate::BooleanOp::Union,
+                a: RecipeNodeId(98),
+                b: RecipeNodeId(99),
+                declare: vec![(
                     (
                         SitedRef::at_mint(third.clone()),
                         SitedRef::at_mint(third.clone()),

@@ -60,7 +60,7 @@ pub fn document() -> CorpusDoc {
         op: BooleanOp::Union,
         a: plate,
         b: boss,
-        declare: None,
+        declare: Vec::new(),
     });
 
     CorpusDoc {
