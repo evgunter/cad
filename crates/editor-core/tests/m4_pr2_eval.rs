@@ -59,15 +59,13 @@ fn final_body(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> &Body<f64>
 //   as `24.0 + 21.0 * 4.0 * 0.25 * DEPTH`, which is that number), plus
 //   a floor on how many documents still carry a pin at all.
 //
-// The one assertion that is a literal 84 rather than the document's own
+// The one assertion that is a literal 63 rather than the document's own
 // length stays in this file: `cancelation_returns_a_typed_partial_\
-// result` asserts `ev.order.len() == 84` and `(84, 0)` on the same
+// result` asserts `ev.order.len() == 63` and `(63, 0)` on the same
 // document, and `poisoning_hits_descendants_only_and_is_walkable`
-// asserts `84 - 3`. So the die's node count is still pinned here.
-//
-// It was 77 until a profile's sketch plane became a document node: the
-// die draws on seven distinct planes (the cube's, and one per face), so
-// the count rose by exactly seven frames.
+// asserts `63 - 3`. So the die's node count is still pinned here: the
+// cube, seven sketch frames, and per pip a profile, an extrude, a
+// transform and a declared subtract.
 
 // **RETIRED (2026-08-13 test-time audit): `incremental_edit_recomputes\
 // _only_the_downstream_cone`.** It moved the +z pip's Transform x from
@@ -97,7 +95,7 @@ fn final_body(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> &Body<f64>
 //   and full body fingerprint, split sides and pattern instances
 //   included, over the 14-node `rich_doc` (diamond, circular pattern,
 //   revolve, split, and a poisoned subgraph — a wider node vocabulary
-//   than the die's Profile/Extrude/Transform/Declare/Subtract).
+//   than the die's Profile/Extrude/Transform/Subtract).
 //   Memo-after-an-EDIT bit-identity is separately owned by
 //   `review_m4_pr2::edit_back_restores_bit_identical_bodies` (edit,
 //   re-evaluate, edit back against the stale memo, final body must be
@@ -118,9 +116,8 @@ fn doc_param_edit_recomputes_the_param_cone() {
     let d = die();
     let full = run(&d.doc, None, false);
     // pip_depth 0.125 → 0.0625: every pip master extrude and all 42
-    // downstream pip nodes recompute; the 7 profiles, the cube
-    // extrude, and the 21 Declare nodes (pure recipe data) are
-    // reused.
+    // downstream pip nodes recompute; the 7 frames, the 7 profiles
+    // and the cube extrude are reused.
     let edited = d
         .doc
         .apply(
@@ -136,7 +133,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
     let memo = run(&edited, Some(&full), false);
     // The seven frames are reused: a `pip_depth` edit does not
     // touch a sketch plane.
-    assert_eq!((memo.recomputed, memo.reused), (48, 36));
+    assert_eq!((memo.recomputed, memo.reused), (48, 15));
     let vol = mass_properties(final_body(&memo, d.final_node), Tol::witness())
         .unwrap()
         .volume;
@@ -208,7 +205,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
         .values()
         .filter(|r| matches!(r, NodeResult::Ok(_)))
         .count();
-    assert_eq!(ok_count, 84 - 3); // all but Failed + 2 Poisoned
+    assert_eq!(ok_count, 63 - 3); // all but Failed + 2 Poisoned
 }
 
 #[test]
@@ -220,7 +217,7 @@ fn cancelation_returns_a_typed_partial_result() {
     let ev = evaluate::<f64>(&d.doc, None, &cancel, &opts, Tol::witness());
     assert_eq!(ev.outcome, EvalOutcome::Canceled);
     assert!(ev.nodes.is_empty()); // canceled before the first node
-    assert_eq!(ev.order.len(), 84); // order is data, not schedule
+    assert_eq!(ev.order.len(), 63); // order is data, not schedule
     assert_eq!(ev.epoch, opts.epoch); // the identity token round-trips
 
     // Distinct evaluations carry distinct minted epochs (GQ2's
@@ -238,7 +235,7 @@ fn cancelation_returns_a_typed_partial_result() {
         Tol::witness(),
     );
     assert_eq!(full.outcome, EvalOutcome::Completed);
-    assert_eq!((full.recomputed, full.reused), (84, 0));
+    assert_eq!((full.recomputed, full.reused), (63, 0));
 }
 
 #[test]
@@ -280,7 +277,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
             op: BooleanOp::Subtract,
             a: small,
             b: big,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // A downstream consumer of the empty value: typed EmptyOperand
@@ -291,7 +288,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
             op: BooleanOp::Union,
             a: sub,
             b: big,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None, false);
