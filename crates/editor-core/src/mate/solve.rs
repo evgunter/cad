@@ -544,7 +544,9 @@ pub fn gauge_chain<P>(
 /// **The frame a gauge reference names, at `env`**: the chain's
 /// placements composed outermost first, so `[world, g1, g0]` is
 /// `P(g1) ∘ P(g0)` acting on what sits on `g0`. The world is the
-/// bit-exact identity.
+/// bit-exact identity. The steps fold one at a time down the whole
+/// chain ([`crate::placement::Placement::motion_after`]), so the frame
+/// depends on the chain's steps and not on which gauge holds each.
 ///
 /// # Errors
 ///
@@ -572,14 +574,16 @@ pub(crate) fn gauge_frame<P, T: geom_core::Decide>(
         let Some(Node::Gauge { placement, .. }) = doc.node(g) else {
             unreachable!("gauge_chain yields live gauges only")
         };
-        let step = placement.motion_at(env, band).map_err(|e| (g, e.into()))?;
-        frame = frame.compose(step);
+        frame = placement
+            .motion_after(frame, env, band)
+            .map_err(|e| (g, e.into()))?;
     }
     Ok(frame)
 }
 
 /// **A placed group's frame, at `env`** (A11 (5)): its root's gauge
-/// chain composed with its root's offset.
+/// chain composed with its root's offset, the offset's steps folded on
+/// after the chain's one at a time, as [`gauge_frame`] folds.
 ///
 /// # Errors
 ///
@@ -594,11 +598,12 @@ pub(crate) fn group_frame<P, T: geom_core::Decide>(
         return Ok(crate::placement::Motion::Identity);
     };
     let frame = gauge_frame(doc, *gauge, env, band)?;
-    let offset = match offset {
-        Some(offset) => offset.motion_at(env, band).map_err(|e| (root, e.into()))?,
-        None => crate::placement::Motion::Identity,
-    };
-    Ok(frame.compose(offset))
+    match offset {
+        Some(offset) => offset
+            .motion_after(frame, env, band)
+            .map_err(|e| (root, e.into())),
+        None => Ok(frame),
+    }
 }
 
 // ---- A12: reading edges, recomputed ----
@@ -753,7 +758,7 @@ pub(crate) fn root_and_cause<P>(
 
 /// One mate's two references as [`read_mates`] read them: both walks,
 /// or the first refusal that stops the mate being an edge at all.
-type ReadMate = Result<(Walk, Walk), MateFault>;
+type ReadMate<'d> = Result<(Walk<'d>, Walk<'d>), MateFault>;
 
 /// **Which mates WELD, read once**: each live mate in document order
 /// with both its references walked, or the first refusal that stops
@@ -769,7 +774,7 @@ type ReadMate = Result<(Walk, Walk), MateFault>;
 /// — such a mate welds its group and contributes no PAIR, so its
 /// instances keep the group's frame and no pose is invented for
 /// them.
-fn read_mates<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, ReadMate)> {
+fn read_mates<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, ReadMate<'_>)> {
     let mut out = Vec::new();
     for &id in doc.order() {
         let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
@@ -1167,8 +1172,10 @@ pub(crate) fn part_of<P>(
 /// table then reads through the frame witness ([`mate_coset`]).
 ///
 /// An `Authored` frame is its own vectors. A `FromFace` frame is the
-/// named face's canonical pose, asked of the member's part through
-/// the reach ([`MateReach::face_pose`]) in the part's own coordinates
+/// canonical pose of the face the side's own HEAD names in the
+/// member's part (the walk's [`Walk::part_face`]: the head with the
+/// walk's qualifiers stripped), asked of that part through the reach
+/// ([`MateReach::face_pose`]) in the part's own coordinates
 /// — the same coordinates the authored vectors are written in, so no
 /// placement enters — with the pose's origin and CHART axis (the
 /// orientation sense is not folded in; the mate's own
@@ -1192,13 +1199,14 @@ fn resolve_side<P: crate::ProfilePayload>(
     reach: &dyn MateReach,
     mate: RecipeNodeId,
     side: MateSide,
-    member: &Member,
+    read: &Walk<'_>,
     frame: &MateFrame,
 ) -> Result<AuthoredFrame, Box<MateFault>> {
-    let face = match frame {
+    let member = &read.member;
+    match frame {
         MateFrame::Authored(authored) => return Ok(*authored),
-        MateFrame::FromFace(face) => face,
-    };
+        MateFrame::FromFace => {}
+    }
     let unresolved = |refusal| {
         Box::new(MateFault::FaceUnresolved {
             mate,
@@ -1208,15 +1216,20 @@ fn resolve_side<P: crate::ProfilePayload>(
     };
     let part =
         part_of(doc, member).map_err(|node| unresolved(FaceRefusal::NotAnInstance { node }))?;
-    let named = |refusal| {
+    let face = read.part_face().ok_or_else(|| {
+        unresolved(FaceRefusal::NoPartFace {
+            instance: member.instance,
+            head: read.head.clone(),
+        })
+    })?;
+    let pose = reach.face_pose(&part, &face).map_err(|refusal| {
         unresolved(FaceRefusal::Reach {
             instance: member.instance,
             part,
-            face: face.face.clone(),
+            face: face.clone(),
             refusal,
         })
-    };
-    let pose = reach.face_pose(&part, &face.face).map_err(named)?;
+    })?;
     // `topo::readback::face_pose` answers every carrier it answers
     // through one constructor that fixes `u_ref` (an edge's pose is
     // the only readback with none), so a face's pose always carries
@@ -1314,7 +1327,7 @@ fn admit_class(mate: RecipeNodeId, class: super::ContactClass) -> Result<(), Box
 /// store replay never holds. Everything decided on the datum alone is
 /// decided again (each authored side's frame ladder, the table's
 /// static gaps). A declined decision leaves nothing false in the
-/// document: the datum is what it was — a `FromFace` side's name is
+/// document: the datum is what it was — a `FromFace` side's head is
 /// the datum — and the next solve decides it again.
 ///
 /// # Errors
@@ -1386,8 +1399,8 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
         }
         return Ok(());
     };
-    let a = resolve_side(doc, reach, mate, MateSide::A, &wa.member, &alignment.a)?;
-    let b = resolve_side(doc, reach, mate, MateSide::B, &wb.member, &alignment.b)?;
+    let a = resolve_side(doc, reach, mate, MateSide::A, &wa, &alignment.a)?;
+    let b = resolve_side(doc, reach, mate, MateSide::B, &wb, &alignment.b)?;
     let form = || {
         let parts = pair_reach(doc, reach, first, second).map_err(|refusal| {
             Box::new(MateFault::Unleverable {
@@ -1460,8 +1473,8 @@ fn fold_pair<P: crate::ProfilePayload>(
         s.record.unit(mate, || {
             admit_class(mate, *class)?;
             // The sides' frames, resolved before the lever they enter.
-            let a = resolve_side(doc, reach, mate, MateSide::A, ha, &alignment.a)?;
-            let b = resolve_side(doc, reach, mate, MateSide::B, hb, &alignment.b)?;
+            let a = resolve_side(doc, reach, mate, MateSide::A, &pm.a, &alignment.a)?;
+            let b = resolve_side(doc, reach, mate, MateSide::B, &pm.b, &alignment.b)?;
             let parts = match parts_reach {
                 Some(parts) => parts,
                 None => {
@@ -1846,13 +1859,13 @@ fn solve<P: crate::ProfilePayload>(
 /// members they resolved to key the pair, and the chains they carry
 /// are what [`pair_left_factor`] folds — so nothing below re-walks a
 /// reference the pair map already resolved.
-struct PairMate {
+struct PairMate<'d> {
     /// The mate node.
     mate: RecipeNodeId,
     /// The `a` side's walk, as authored.
-    a: Walk,
+    a: Walk<'d>,
     /// The `b` side's walk, as authored.
-    b: Walk,
+    b: Walk<'d>,
 }
 
 /// One group's solved poses and mate roles.

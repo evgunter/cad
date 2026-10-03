@@ -95,6 +95,18 @@ pub(crate) fn decide<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
 }
 
+/// [`decide`], keeping the reporting margin the classifier decided on,
+/// for a refusal that quotes the value it refused
+/// ([`geom_core::k_stats::decide_reported`]). Classification and
+/// recording are [`decide`]'s.
+pub(crate) fn decide_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<geom_core::Decided, Indeterminate> {
+    geom_core::k_stats::decide_reported(name, margin, band)
+}
+
 /// Whether an arc's carrier centre lies on the material side of its
 /// chord, from the segment's CANONICAL turn: `true` unless the turn is
 /// `Negative`.

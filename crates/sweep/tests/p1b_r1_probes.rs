@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::shell_operands::tube;
 use geom::Surface;
@@ -101,9 +102,16 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> profile::ValidatedProfile<f64> {
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
-    extrude(&validated(loops), Extrusion::Distance(h), Tol::witness())
-        .expect("the probe profile extrudes")
-        .body
+    extrude(
+        &validated(loops),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the probe profile extrudes")
+    .body
 }
 
 /// A two-vertex full circle (two semicircular arcs), counterclockwise.

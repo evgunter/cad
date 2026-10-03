@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::germ_pair::cyl;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
@@ -31,9 +32,16 @@ fn yz_prism(lp: ProfileLoop<f64>, x0: f64, dist: f64) -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(dist), Tol::witness())
-        .expect("the profile extrudes")
-        .body
+    sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: dist,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the profile extrudes")
+    .body
 }
 
 /// A 240° arc of the circle about `(y, z) = (1.3, 0)`, `r = 0.5`, from

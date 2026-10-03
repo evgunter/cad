@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::germ_pair::{cyl, repose, seams_off_the_pinch};
 use geom_brep::RadiusEvidence;
@@ -201,9 +202,16 @@ fn the_split_orphan_sweep_drops_every_side_table() {
     let vp = Profile::new(SketchPlane::xy(), crate::common::chain(1.0))
         .validate(tol)
         .unwrap();
-    let mut body = extrude(&vp, Extrusion::Distance(1.0), tol)
-        .expect("the chain extrudes")
-        .body;
+    let mut body = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("the chain extrudes")
+    .body;
     let token = ParamSource::from_lowered(b"the-document's-r");
     // The arc wall: the one cylinder surface the chain's extrusion
     // mints, which sits at x ≈ 2, wholly beyond the split plane.

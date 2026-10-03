@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
 use test_utils::refusal::Admission;
@@ -1141,6 +1142,13 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
     [
         ("Band", E::Band(band_error())),
         ("DegenerateExtrusion", E::DegenerateExtrusion),
+        (
+            "NegativeDepth",
+            E::NegativeDepth {
+                side: sweep::ExtrudeSide::Along,
+                depth: geom_core::MarginDiag::value(-0.25),
+            },
+        ),
         ("ObliqueExtrusion", E::ObliqueExtrusion),
         (
             "ExtrusionEscalated",
@@ -3386,6 +3394,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         moved(moved(doc, body, 2.0), body, 4.0)
@@ -3397,6 +3406,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let (doc, plane) = insert(
@@ -3631,6 +3641,22 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "FaceUnresolved/NoPartFace",
+            M::FaceUnresolved {
+                mate: n(9),
+                side: MateSide::A,
+                refusal: Box::new(editor_core::FaceRefusal::NoPartFace {
+                    instance: n(6),
+                    head: editor_core::FaceName::new(editor_core::StableName {
+                        kind: editor_core::EntityKind::Face,
+                        node: n(6),
+                        path: vec![],
+                    })
+                    .expect("a face"),
+                }),
+            },
+        ),
+        (
             "Unleverable",
             M::Unleverable {
                 mate: n(9),
@@ -3831,6 +3857,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let face = fname(body, wall(&doc, body, 2));

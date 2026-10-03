@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use geom_core::{Band, Point2, Tol};
 use profile::{ProfileLoop, RawLoop};
@@ -80,7 +81,16 @@ fn d6_built_cone_operand_door_measured() {
         let vp = Profile::new(SketchPlane::xy(), vec![loop_])
             .validate(tol)
             .unwrap();
-        extrude(&vp, Extrusion::Distance(0.4), tol).unwrap().body
+        extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: 0.4,
+                side: ExtrudeSide::Along,
+            },
+            tol,
+        )
+        .unwrap()
+        .body
     };
     let res = boolean_reduce(BooleanOp::Union, &c, &b, tol);
     match &res {

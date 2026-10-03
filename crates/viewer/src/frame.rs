@@ -1502,6 +1502,9 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
         Maintenance::Strand { .. } => Retold::Never,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
+        // A fold's dropped label is said nowhere else: the gauge is
+        // gone, and nothing evaluates a label.
+        Maintenance::LabelDropped { .. } => Retold::Never,
         // The mate door's offset clear is what inserting the mate
         // means — the joined group stands on the one it joined — and
         // the mate the person just placed is its notice.

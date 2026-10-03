@@ -251,7 +251,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::NoMaterial { node: n } => (
+        E::NoMaterial { node: n } | E::UnplaceableRoot { root: n, .. } => (
             id(n),
             none(),
             none(),
@@ -288,11 +288,26 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        // The mate is the subject; which side crosses is in the message.
+        // The mate is the subject; which side crosses is in the message,
+        // and the root a promote would land at the empty chain, where
+        // that is the recourse, rides `root`.
+        E::MateFrameCrosses {
+            mate,
+            promote: Some(r),
+            ..
+        } => (
+            id(mate),
+            none(),
+            none(),
+            id(r),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         E::WouldStartPlacing { mate }
         | E::PlacingMateLeft { mate }
-        | E::MateFrameCrosses { mate, .. }
-        | E::MateFaceFrameCrosses { mate, .. } => (
+        | E::MateFrameCrosses { mate, .. } => (
             id(mate),
             none(),
             none(),
@@ -302,20 +317,11 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::HoistedMemberOffset { instance } => (
-            none(),
-            none(),
-            none(),
-            none(),
-            id(instance),
-            none(),
-            none(),
-            none(),
-        ),
         E::UncutParamReference {
             param: p,
             cut_node,
             kept_node,
+            ..
         } => (
             id(cut_node),
             none(),
@@ -360,7 +366,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         ),
     };
     let gauge = match err {
-        E::SeveredGauge { gauge: g, .. } | E::DeadGaugeReference { gauge: g, .. } => id(g),
+        E::SeveredGauge { gauge: g, .. }
+        | E::DeadGaugeReference { gauge: g, .. }
+        | E::UnplaceableRoot { anchor: g, .. } => id(g),
         _ => none(),
     };
     typed_err(
@@ -676,7 +684,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::MateFrameCrosses { mate, .. } | E::MateFaceFrameCrosses { mate, .. } => (
+        E::MateFrameCrosses { mate, .. } => (
             id(mate),
             none(),
             none(),

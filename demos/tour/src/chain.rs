@@ -102,6 +102,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use pncad::document::{
     AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocParam, DocumentId,
     EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName,
@@ -420,6 +421,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         Node::Extrude {
             profile: bar_profile,
             distance: len(LINK_THICKNESS),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -441,6 +443,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             Node::Extrude {
                 profile,
                 distance: len(LINK_THICKNESS),
+                side: ExtrudeSide::Along,
             },
             tol,
         )

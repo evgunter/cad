@@ -731,7 +731,10 @@ class SplitError(PncadError):
     """`severed_gauge`: the cut gauge, `node` the kept node on it.
     `dead_gauge_reference`: the deleted gauge, `node` the cut gauge or
     instance whose chain names it. `no_material`: `node` is the cut's
-    first node."""
+    first node. `unplaceable_root`: `node` is the cut root that sits on
+    no gauge, `gauge` the gauge the cut anchors on. `mate_frame_crosses`:
+    `node` is the mate, and `root` the cut root a promote would land at
+    the empty chain, where that is the recourse."""
 
 class InlineError(PncadError):
     """The `inline` refactoring refused.
@@ -1842,6 +1845,13 @@ class BooleanOp:
     Intersect: Final[BooleanOp]
     Subtract: Final[BooleanOp]
 
+class ExtrudeSide:
+    """Which side of its sketch plane a `Node.extrude` goes toward:
+    along the plane's normal `u x v`, or against it."""
+
+    Along: Final[ExtrudeSide]
+    Against: Final[ExtrudeSide]
+
 class TubeWindow:
     """A tube's traversed window — the full ring, or an arc of it.
 
@@ -2276,13 +2286,18 @@ class Node:
     @staticmethod
     def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
     @staticmethod
-    def extrude(profile: NodeId, distance: Expr) -> Node:
-        """Extrude a profile along its sketch-plane normal.
+    def extrude(
+        profile: NodeId, distance: Expr, side: ExtrudeSide = ExtrudeSide.Along
+    ) -> Node:
+        """Extrude a profile to one side of its sketch plane.
 
-        `distance` mints a LITERAL in the node's `distance` slot.
-        `DocEdit.set_param(node, "distance", expr)` moves it
-        afterwards, and makes it a named, editable number: a literal
-        is a new document per value, a parameter reference is one
+        `distance` mints a LITERAL in the node's `distance` slot. It is
+        a depth: a size, refused at `evaluate` unless definitely
+        positive. Which way it goes is `side` alone, and
+        `DocEdit.set_extrude_side` moves it afterwards.
+        `DocEdit.set_param(node, "distance", expr)` moves the depth,
+        and makes it a named, editable number: a literal is a new
+        document per value, a parameter reference is one
         `set_doc_param_value` per value."""
 
     @staticmethod
@@ -3433,6 +3448,30 @@ class DocEdit:
         would sit on itself)."""
 
     @staticmethod
+    def promote(instance: NodeId) -> DocEdit:
+        """PROMOTE an instance's offset to a gauge: a new gauge under
+        the instance's gauge holds the offset, and the instance sits on
+        it at the empty chain, with the other members of its group.
+        `DocEdit.fold` is the inverse; promoting, then splitting the
+        group out with the new gauge left behind, makes a part at that
+        frame. Refuses typed on `EditError`: `promote_on_non_instance`,
+        `promote_without_offset`, `promote_non_root` (the offset is a
+        check; `input` is the group's root), and
+        `promote_member_offset` (`input` is a member carrying an
+        offset)."""
+
+    @staticmethod
+    def fold(gauge: NodeId) -> DocEdit:
+        """FOLD a gauge away: every node on it hangs from its parent,
+        each one's own chain with the gauge's steps in front. An
+        instance with no offset keeps none; a lone unlabelled dependent
+        takes the gauge's label, and otherwise the label goes, reported
+        as `label_dropped` maintenance. Refuses typed on `EditError`:
+        `fold_on_non_gauge`, `fold_would_dangle` (`referenced_by` reads
+        the gauge as an input), and `fold_would_start_placing` (`input`
+        is the mate that would start placing)."""
+
+    @staticmethod
     def update_reference(node: NodeId, new_pin: ContentPin) -> DocEdit:
         """Move ONE instance's pin to a new version of the same
         document. The id does not move.
@@ -3538,6 +3577,13 @@ class DocEdit:
         crosses and the edit cannot be aimed at a continuous slot. The
         edit's own refusals stay live — a node with no count slot, an
         unknown parameter, a parameter of the wrong dimension."""
+
+    @staticmethod
+    def set_extrude_side(node: NodeId, side: ExtrudeSide) -> DocEdit:
+        """Set which side of its sketch plane the extrude `node` goes
+        toward — the structural half of an extrude, which no value of
+        its depth can flip. Refuses typed on a node that is not an
+        extrude."""
 
     @staticmethod
     def bind_instance_param(node: NodeId, name: ParamName) -> DocEdit:
@@ -5479,18 +5525,18 @@ class MateFrame:
     perpendicular part are read. Both are plain numbers (a direction
     carries no dimension); `origin` is three lengths.
 
-    FROM A FACE: `MateFrame.from_face(face)`, where `face` is the
-    PART-LOCAL name text of a face of the mated part — the row
-    `evaluate(part).select(...)` answers on the part's own document,
-    never the instance-qualified spelling a mate head carries. The
-    solve reads that face's canonical pose off the part's own
-    evaluation at every evaluation and takes it as the frame: the
+    FROM A FACE: `MateFrame.from_face()`, which takes nothing: the
+    side's frame is its own HEAD's face, the face the mate's reference
+    on that side names, read in the mated part. The solve reads that
+    face's canonical pose off the part's own evaluation at every
+    evaluation and takes it as the frame: the
     carrier's origin, its CHART axis (the face's orientation sense is
     not folded in — the mate's `AxisSense` says which way the sides
     point) and the carrier's own in-frame reference direction as the
     roll. So a face frame's roll is the carrier's: a side that needs a
     roll of its own takes authored vectors. Nothing is stored twice:
-    edit the part so the face moves, and the mate follows. A face with
+    edit the part so the face moves, or rebind the head, and the mate
+    follows; split and inline carry it with its head. A face with
     no canonical frame (a NURBS carrier) refuses at the solve and keeps
     taking authored vectors.
 
@@ -5509,12 +5555,10 @@ class MateFrame:
         reference: tuple[float, float, float],
     ) -> None: ...
     @staticmethod
-    def from_face(face: str) -> MateFrame:
-        """A frame resolved from `face`, a face of the part by its
-        PART-LOCAL name text (see the class docs); the name is the
-        whole frame, and it resolves on the nominal lane only. Raises
-        ValueError for text that is not a stable name, and EditError
-        (`mate_head_not_a_face`) for a name of another kind."""
+    def from_face() -> MateFrame:
+        """A frame resolved from the side's own head face (see the
+        class docs); it takes nothing, and it resolves on the nominal
+        lane only."""
 
     @property
     def variant(self) -> str:
@@ -5533,11 +5577,6 @@ class MateFrame:
     def reference(self) -> Optional[tuple[float, float, float]]:
         """The authored clocking reference; `None` on a `from_face`
         frame, whose roll is the carrier's own."""
-
-    @property
-    def face(self) -> Optional[str]:
-        """The face a `from_face` frame names, as its name text in the
-        part's own spelling; `None` on an authored frame."""
 
     def placement(self) -> Frame:
         """The rigid placement an AUTHORED frame denotes: local +Z is
@@ -5781,8 +5820,9 @@ class MateFault:
     def root(self) -> Optional[NodeId]: ...
     @property
     def face(self) -> Optional[str]:
-        """The face a `from_face` frame named, as its name text in the
-        PART's own spelling, where the refusal is about one
+        """The face a `from_face` side read — its head's face, as its
+        name text in the PART's own spelling, or the head itself where
+        it names no face of the part — where the refusal is about one
         (`mate_face_unresolved`)."""
 
     @property
@@ -5833,7 +5873,7 @@ class MateFault:
         with no `instance`), or the face refusal's on
         `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
         `ambiguous`, `not_a_face`, `readback`, `unpinned`,
-        `not_an_instance`, with the
+        `not_an_instance`, `no_part_face`, with the
         instance as `instance` and the face as `face`). `None` on an
         arm whose payload is a struct rather than an enum — an
         escalation has no inner word, and its shape is which margin
@@ -6026,11 +6066,16 @@ class Maintenance:
     document's appearance store still holds an attachment under a name
     whose minting node the delete removed. It carries no `node`,
     because the store carries it and no node does; the attachment is
-    left exactly where it was, since the report never repairs."""
+    left exactly where it was, since the report never repairs.
+
+    A `label_dropped` names, on `node`, a gauge `DocEdit.fold` took out
+    of the document whose label went with it: no single unlabelled
+    node stood in for it. The label is in the row's message."""
 
     @property
     def variant(self) -> str:
-        """`offset_cleared`, `strand`, or `stranded_appearance`."""
+        """`offset_cleared`, `strand`, `stranded_appearance`, or
+        `label_dropped`."""
 
     @property
     def node(self) -> Optional[NodeId]: ...
@@ -6367,20 +6412,20 @@ def split(
     that is no instance votes the world. A kept instance or gauge on a
     cut gauge refuses (`severed_gauge`, its `node` the kept node
     and its `gauge` the gauge). A placing mate never crosses: a cut that leaves behind the
-    mate placing its group refuses (`placing_mate_left`). A cut that is exactly one placed
-    group HOISTS its root's offset onto that instance and lands the
-    root at the empty chain in the part; any other cut moves
-    verbatim, each cut gauge carried, one whose parent leaves the cut
-    on the part's world. A dead gauge reference refuses
-    (`dead_gauge_reference`), as do a cut that holds no body
-    (`no_material`), a cut of unplaced
-    material alone (`unplaced_alone`), a hoisted member's further
-    offset (`hoisted_member_offset`), and a kept mate that would start
-    placing (`would_start_placing`), whose cut side would change
-    coordinates (`mate_frame_crosses`), or whose cut side's frame is
-    `MateFrame.from_face` (`mate_face_frame_crosses`): the face's name
-    is the cut instance's part's, which the new part does not carry
-    unwrapped."""
+    mate placing its group refuses (`placing_mate_left`). The cut moves
+    as selected: every cut node is carried as it is, a cut gauge whose
+    parent leaves the cut on the part's world, every root keeps its
+    offset, and the instance left behind sits at the empty chain. A
+    part at a frame of its own is `DocEdit.promote` before the split,
+    with the promoted gauge left out of the cut. A dead gauge reference
+    refuses (`dead_gauge_reference`), as do a cut that holds no body
+    (`no_material`), a cut of unplaced material alone
+    (`unplaced_alone`), and a kept mate that would start
+    placing (`would_start_placing`), or whose cut side would change
+    coordinates (`mate_frame_crosses`): an authored side reading an
+    instance that is not, in the part, its group's root at the empty
+    chain, or a `MateFrame.from_face` side reading one in its group's
+    own space. A face side otherwise crosses with its head."""
 
 class InlineOutcome:
     """What an inline produced: the spliced document value and the
@@ -6408,13 +6453,14 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     typed.
 
     Where the content lands (A4): with the instance at the empty chain, on
-    its gauge as it is; over a part that is one group at the empty
-    chain on its world, with that group's root taking the instance's
-    offset; over any other part, on a gauge minted under the instance's
-    gauge holding its offset, onto which the members the instance placed
-    move (one carrying a further offset refuses `moved_member_offset`).
-    A mate-placed instance inlines only over one such group, whose root
-    takes its place; otherwise it refuses `mate_placed`."""
+    its gauge as it is; at any other offset, on a gauge minted under
+    the instance's gauge holding that offset (a `DocEdit.promote` of the
+    instance), onto which the members the instance placed move (one
+    carrying a further offset refuses `moved_member_offset`). A
+    mate-placed instance inlines only over a part that is one group
+    rooted at the empty chain on its world, holding no gauge and no
+    other member carrying an offset, whose root takes its place;
+    otherwise it refuses `mate_placed`."""
 
 # --- the pin-update door ----------------------------------------------
 

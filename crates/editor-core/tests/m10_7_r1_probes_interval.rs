@@ -7,6 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
@@ -393,6 +394,7 @@ fn bracket_with(
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile,
         distance: div(w(), 10.0),
+        side: ExtrudeSide::Along,
     });
     let hole = |r: &mut Recorder, cx: Expr| {
         let profile = r.insert(Node::Profile(ProfileProgram {
@@ -406,6 +408,7 @@ fn bracket_with(
         r.insert(Node::Extrude {
             profile,
             distance: div(w(), 10.0),
+            side: ExtrudeSide::Along,
         })
     };
     let hole_a = hole(&mut r, Expr::neg(half(4.0)).expect("a shallow negation"));

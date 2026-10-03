@@ -16,9 +16,9 @@ The contract is ASSEMBLY.md A4, A9 and A11 (2)–(5). Ev's rulings on `[ev]` #34
 ## The slate, in order
 
 1. **P2-split** (`placement-split-and-inline-at-a-gauge-are-refused-until-p2-split`, P1 H):
-   - **What it builds:** the gauge hoist, a cut holding a gauge, an inline at an offset over any other part, and a mate-placed instance inlined when its part is one group at the empty chain. These are the interim refusals P2-core left: `CutHoldsGauge`, `NeedsAGauge`, `MatePlaced` and `MateFaceFrameCrosses`.
+   - **What it builds:** the gauge hoist, a cut holding a gauge, an inline at an offset over any other part, and a mate-placed instance inlined when its part is one group at the empty chain. These are the interim refusals P2-core left: `CutHoldsGauge`, `NeedsAGauge` and `MatePlaced`. The fourth, `MateFaceFrameCrosses`, is not this unit's: Ev ruled on `[ev]` #3888 that a `FromFace` side names no face, and P2-face (`a-from-face-mate-side-cannot-cross-the-split-or-inline-seam`) removes the arm.
    - **What it does first:** spec the `## P2-split` section of `docs/EDIT-PLACEMENT-SPEC.md` from the row and from the P2 section's rulings as built.
-   - **Open question on the row:** whether a re-spelled `FromFace` side may skip the frame rule's root-at-the-empty-chain condition.
+   - **The `FromFace` side** (ruled on `[ev]` #3888): it crosses with its head and is held to the frame rule's placed-group condition alone.
    - The parent row `placement-is-spelled-three-ways-node-registry-and-rule` closes when P2-split merges.
 2. **`split-and-inline-refusals-short-of-the-shape-guard`** (P3 E): the split and inline arms that still state no recourse. They are filed by exact id in `refusal_concision_refactor.rs`'s `FILED_NO_RECOURSE`. It rides with P2-split if that unit rewrites those arms.
 3. **`document-order-is-read-off-node-id-comparison-since-ids-are-digests`** (P1 M): the sweep of the class whose one known site (`admit_mate`) P2-core fixed.
@@ -34,3 +34,13 @@ The two other rows take the orchestrator's read, or a single review if the sweep
 ## Exit shape
 
 Every row merged or re-homed with a reason, and the spec's P2-split section recording what was built. No exit criteria are set, so no walk is owed.
+
+## State (2026-10-03)
+
+P2 has merged in full: carry, split, retire and face. Ev ruled three more questions this sitting: #3888 (no hoist; a face side names no face), #3920 (the general mate frame) and #3939 (root order).
+
+The slate now:
+1. **`a-part-resting-on-a-gauge-cannot-follow-a-part-edit`**: build `MateFrame { base: Part | Face, offset: Placement }` (MSOLVE ground), then move the tour's crate onto the shelf's gauge with a placing mate. Dual review.
+2. **`a4-round-trip-moves-the-root-order-of-an-interleaved-cut`**: docs and tests only. Orchestrator's read.
+
+P3 is filed on OFFER.

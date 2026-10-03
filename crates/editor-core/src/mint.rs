@@ -415,6 +415,7 @@ mod tests {
         Node::Extrude {
             profile: RecipeNodeId(profile),
             distance: Expr::literal(distance, Dimension::Length).unwrap(),
+            side: crate::ExtrudeSide::Along,
         }
     }
 
@@ -454,10 +455,12 @@ mod tests {
         let mm = Node::<ProfileProgram>::Extrude {
             profile: RecipeNodeId(1),
             distance: written,
+            side: crate::ExtrudeSide::Along,
         };
         let m = Node::<ProfileProgram>::Extrude {
             profile: RecipeNodeId(1),
             distance: canonical,
+            side: crate::ExtrudeSide::Along,
         };
         assert!(mm.bit_eq(&m), "bit_eq cannot tell the two apart");
         assert_eq!(

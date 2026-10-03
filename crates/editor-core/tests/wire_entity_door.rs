@@ -39,6 +39,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::measure::{MeasureExpr, MeasurePrimitive};
 use editor_core::{
@@ -75,6 +76,7 @@ fn solid() -> (ProfileDoc, RecipeNodeId, StableName, StableName, StableName) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let face = fname(body, wall(&doc, body, 2));

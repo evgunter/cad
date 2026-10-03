@@ -77,7 +77,7 @@ pub mod reach;
 pub mod solve;
 
 pub use coset::{Coset, Subgroup};
-pub use member::{Member, member_of};
+pub use member::{Member, head_face, member_of, member_reading};
 pub use reach::{
     FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,
 };
@@ -199,43 +199,22 @@ impl AuthoredFrame {
     }
 }
 
-/// **A face of the part, resolved at evaluation** — the
-/// [`MateFrame::FromFace`] arm. The face name is the STATE; the frame
-/// is derived from the face's canonical pose every time the solve
-/// reads it, so an edit to the part that moves the face moves the
-/// mate with it and nothing is stored twice.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct FaceFrame {
-    /// The face, by its PART-LOCAL stable name — a row of the part's
-    /// own product table, the spelling the part's document authored,
-    /// never the qualified spelling a head carries in the assembling
-    /// document (a head's `InPart` wrapper names the instance; this
-    /// name is read INSIDE the part, where no instance exists). A
-    /// face by type, as a head is: a name of another kind is refused
-    /// where the name is made ([`crate::FaceName::new`]) and at the
-    /// wire, so the solve never meets one.
-    ///
-    /// The face is the whole of the arm: its roll reference is the
-    /// carrier's own in-frame direction (`Pose::u_ref`), which every
-    /// carrier the readback answers fixes, so there is nothing for an
-    /// author to add and no key for one on the wire.
-    pub face: crate::FaceName,
-}
-
 /// One side's **mate frame**, in that instance's own part coordinates.
 ///
 /// Two arms, closed. [`Self::Authored`] is three vectors the author
-/// wrote. [`Self::FromFace`] names a face of the part and takes that
-/// face's CANONICAL POSE — read off its surface parameters exactly,
-/// no tolerance (`topo::readback::face_pose`), through the mated
-/// part's own evaluation in the part's own coordinates
-/// ([`MateReach::face_pose`]) — as the side's frame: the pose's
-/// origin, its axis, and the carrier's own in-frame reference
-/// direction as the roll reference. Both arms then meet the same
-/// witness ladder ([`AuthoredFrame::frame`]), so a resolved face
-/// refuses a degenerate axis or a reference on the axis line exactly
-/// as authored vectors do.
+/// wrote. [`Self::FromFace`] names no face: its frame is the side's
+/// OWN HEAD face's CANONICAL POSE — the head's name with the member
+/// walk's qualifiers stripped ([`head_face`]), read off its surface
+/// parameters exactly, no tolerance (`topo::readback::face_pose`),
+/// through the mated part's own evaluation in the part's own
+/// coordinates ([`MateReach::face_pose`]): the pose's origin, its
+/// axis, and the carrier's own in-frame reference direction as the
+/// roll reference. Both arms then meet the same witness ladder
+/// ([`AuthoredFrame::frame`]), so a resolved face refuses a degenerate
+/// axis or a reference on the axis line exactly as authored vectors
+/// do. The head is the state and the frame is derived, so whatever
+/// moves or re-spells the head — a part edit, `Rebind`, split, inline
+/// — carries the frame with it.
 ///
 /// **A face frame's roll is the carrier's.** The roll reference is
 /// the carrier's `u_ref` and nothing else, so a face frame cannot
@@ -263,16 +242,74 @@ pub struct FaceFrame {
 /// those two doors refuse an assembly that holds a face frame, where
 /// the same mate authored as vectors still solves on every lane.
 ///
-/// On the wire the arm is externally tagged — `{"Authored": {…}}` or
-/// `{"FromFace": {…}}` — and each inner struct is closed over its own
-/// keys: the tag decides the arm before a field is read, a stray key on
-/// either arm refuses, and a frame with no tag refuses.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+/// On the wire the arm is externally tagged — `{"Authored": {…}}`, or
+/// the bare string `"FromFace"`, which carries nothing — and the
+/// authored struct is closed over its own keys: the tag decides the
+/// arm before a field is read, a stray key on the authored arm or
+/// beside its tag refuses, the face arm written as an object refuses
+/// whatever it holds (`null` included), and a frame with no tag
+/// refuses.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum MateFrame {
     /// Three authored vectors in the part's coordinates.
     Authored(AuthoredFrame),
-    /// A face of the part, resolved at evaluation.
-    FromFace(FaceFrame),
+    /// The side's own head face, resolved at evaluation.
+    FromFace,
+}
+
+/// The two tags a frame's wire form can carry.
+#[derive(serde::Deserialize)]
+#[serde(variant_identifier)]
+enum MateFrameTag {
+    Authored,
+    FromFace,
+}
+
+/// The wire reading [`MateFrame`] states: the face arm is only ever the
+/// bare string. A derived reading would take `{"FromFace": null}` as
+/// the unit arm too, so the tagged object is read here, key by key.
+impl<'de> serde::Deserialize<'de> for MateFrame {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        struct Frame;
+        impl<'de> serde::de::Visitor<'de> for Frame {
+            type Value = MateFrame;
+
+            fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str(
+                    "a mate frame: an object tagged \"Authored\", or the bare string \"FromFace\"",
+                )
+            }
+
+            fn visit_str<E: serde::de::Error>(self, tag: &str) -> Result<MateFrame, E> {
+                match tag {
+                    "FromFace" => Ok(MateFrame::FromFace),
+                    "Authored" => Err(E::invalid_type(serde::de::Unexpected::UnitVariant, &self)),
+                    other => Err(E::unknown_variant(other, &["Authored", "FromFace"])),
+                }
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<MateFrame, A::Error> {
+                use serde::de::Error as _;
+                let frame = match map.next_key::<MateFrameTag>()? {
+                    Some(MateFrameTag::Authored) => MateFrame::Authored(map.next_value()?),
+                    Some(MateFrameTag::FromFace) => {
+                        return Err(A::Error::custom(
+                            "the FromFace arm carries nothing: it is the bare string \"FromFace\"",
+                        ));
+                    }
+                    None => return Err(A::Error::invalid_length(0, &self)),
+                };
+                match map.next_key::<serde::de::IgnoredAny>()? {
+                    Some(_) => Err(A::Error::invalid_length(2, &self)),
+                    None => Ok(frame),
+                }
+            }
+        }
+        de.deserialize_any(Frame)
+    }
 }
 
 impl MateFrame {
@@ -286,25 +323,12 @@ impl MateFrame {
         })
     }
 
-    /// A face of the part, by its part-local name ([`FaceFrame`]).
-    pub fn from_face(face: crate::FaceName) -> Self {
-        Self::FromFace(FaceFrame { face })
-    }
-
     /// The authored vectors, where this frame is [`Self::Authored`];
     /// `None` for a face, which has none until the solve resolves it.
     pub fn authored_vectors(&self) -> Option<&AuthoredFrame> {
         match self {
             Self::Authored(frame) => Some(frame),
-            Self::FromFace(_) => None,
-        }
-    }
-
-    /// The face this frame names, where it is [`Self::FromFace`].
-    pub fn face(&self) -> Option<&FaceFrame> {
-        match self {
-            Self::Authored(_) => None,
-            Self::FromFace(face) => Some(face),
+            Self::FromFace => None,
         }
     }
 
@@ -314,7 +338,7 @@ impl MateFrame {
     fn is_finite(&self) -> bool {
         match self {
             Self::Authored(frame) => frame.is_finite(),
-            Self::FromFace(_) => true,
+            Self::FromFace => true,
         }
     }
 }
@@ -727,21 +751,24 @@ impl core::fmt::Display for LeverRefusal {
 }
 
 /// Why a `FromFace` frame could not be resolved to a pose: what the
-/// mated part's own evaluation answered about the named face
+/// mated part's own evaluation answered about the head's face
 /// ([`MateReach::face_pose`]), named against the instance the solve
-/// was reading, the part it stands on and the face the frame named —
-/// the subject a [`LeverRefusal`] adds to a reach refusal, and a face.
+/// was reading, the part it stands on and the face the head names in
+/// it — the subject a [`LeverRefusal`] adds to a reach refusal, and a
+/// face.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FaceRefusal {
     /// **The reach's own refusal of the face's pose**, named against
-    /// the instance, its part and the face the frame named: the
-    /// reach's vocabulary has its one home in [`FacePoseRefusal`].
+    /// the instance, its part and the face the head names in that
+    /// part: the reach's vocabulary has its one home in
+    /// [`FacePoseRefusal`].
     Reach {
         /// The instance.
         instance: RecipeNodeId,
         /// Its part.
         part: crate::ident::DocRef,
-        /// The face the frame named.
+        /// The face the head names, in the part's own spelling
+        /// ([`head_face`]).
         face: crate::FaceName,
         /// Why the face's pose is not in hand.
         refusal: FacePoseRefusal,
@@ -754,13 +781,26 @@ pub enum FaceRefusal {
         /// The node.
         node: RecipeNodeId,
     },
+    /// **The head names no face of its part**: below the member walk's
+    /// pattern qualifiers it is not one part face wrapped at the
+    /// member's instance ([`head_face`] answers `None`), so the part
+    /// has no row to read. A head an instance mints is always of that
+    /// shape; a document reaches this only written some other way.
+    NoPartFace {
+        /// The member's instance.
+        instance: RecipeNodeId,
+        /// The head, as the mate holds it.
+        head: crate::FaceName,
+    },
 }
 
 impl FaceRefusal {
-    /// The face the refusal is about, where it names one.
+    /// The face the refusal is about, where it names one: the part's
+    /// face the reach refused, or the head that names none.
     pub fn face(&self) -> Option<&crate::FaceName> {
         match self {
             Self::Reach { face, .. } => Some(face),
+            Self::NoPartFace { head, .. } => Some(head),
             Self::NotAnInstance { .. } => None,
         }
     }
@@ -792,6 +832,14 @@ impl crate::spoken::Say for FaceRefusal {
                  be read. {}",
                 by.node(*node),
                 geom_core::KERNEL_DEFECT_ENDING
+            ),
+            Self::NoPartFace { instance, head } => write!(
+                f,
+                "the {head} is not a face of {}'s part under that instance's own \
+                 qualifier, so its part has no face to take the frame from. Recourse: delete \
+                 the mate, and insert it again on a face the instance places, or with authored \
+                 vectors",
+                by.node_as(*instance, "instance")
             ),
         }
     }
@@ -1169,10 +1217,11 @@ pub enum MateFault {
     },
     /// **A side's `FromFace` frame did not resolve to a pose**: the
     /// mated part's own evaluation answered no pose for the face the
-    /// frame names ([`MateReach::face_pose`]), in the resolver's or
-    /// the readback's own voice — the part not in hand, a name the
+    /// side's head names ([`MateReach::face_pose`]), in the resolver's
+    /// or the readback's own voice — the part not in hand, a name the
     /// part's table lacks or ties, a carrier with no canonical frame, a
-    /// product on an analysis lane ([`FaceRefusal`]). Raised
+    /// product on an analysis lane — or the head names no face of the
+    /// part at all ([`FaceRefusal`]). Raised
     /// where the solve reads the side's frame, before the coset table
     /// and before any lever is formed; the insert door raises it for
     /// a mate being inserted, and the solve at every evaluation for a
@@ -1666,7 +1715,7 @@ impl crate::spoken::Say for MateFault {
                 refusal,
             } => write!(
                 f,
-                "{}'s {} frame names a face that did not resolve to a pose: {}",
+                "{}'s {} frame is its head's face, which did not resolve to a pose: {}",
                 mate_(*mate),
                 side.name(),
                 Said(&**refusal, by)

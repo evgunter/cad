@@ -21,7 +21,7 @@ walk is `docs/guide/assembly.md`.
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
 | A3, A11, A12 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
-| A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
+| A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs`; `DocEdit::Promote`/`Fold` in `src/edit.rs` |
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
@@ -249,8 +249,12 @@ placement's steps in front of each dependent's own; cutting the content
 and leaving the gauge behind mounts the part on it. Split and
 inline are pure, returning values plus edit lists. Acceptance:
 split-then-evaluate equals unsplit evaluation at structural and
-name-resolution identity, not bit identity, and inline-of-split returns
-the document split was given, up to node ids. A mate whose two
+name-resolution identity, not bit identity, except that the cut's roots
+come together where the first of them was (A10's replacement rule: one
+instance sits at one place in the list), so split keeps the root order
+exactly when the cut's roots are adjacent in it; and inline-of-split
+returns the document split was given, up to node ids and that one
+regrouping. A mate whose two
 `InstantiatePart` heads fall on opposite sides of a cut is an
 `InterfaceCrossing::Mate` in the instance's `InterfaceRecord`, which
 feeds the content key; evaluation refuses
@@ -368,8 +372,11 @@ node ids, document data. Invariants (`roots::check`): coverage (every
 live node is ancestor-of-or-equal-to some root) and ancestor-freedom
 (no root is a strict ancestor of another); together the root set is
 exactly the DAG's sink set and the list adds only the solid order.
-Maintenance: a new sink appends, a node consuming roots replaces them,
-deleting a root re-roots its orphaned inputs; `DocEdit::SetRoots` states
+Maintenance: a new sink appends; a node that replaces roots (an
+insert consuming them, or split's instance) goes where the first of
+them was; removing it puts what it replaced back at its position (a
+delete's orphaned inputs in document order, an inline's spliced roots in
+the part's root order); `DocEdit::SetRoots` states
 the list outright. `product::product` gathers, in list order, every
 body-denoting root (`Body`/`Boolean` solids, `Instances` as placed
 solids with no boolean implied, `Split` as both pieces); non-body roots

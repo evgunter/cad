@@ -60,6 +60,7 @@ pub mod seat;
 /// feed behind every "bit-identical to the `f64` run" claim in this tree.
 pub mod value_channel;
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
     Entry, EvalOptions, Evaluation, Expr, LoopProgram, MateReach, NameTable, Node, ParamName,
@@ -718,6 +719,7 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram>) -> Swept {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc, &EvalOptions::default());
@@ -1008,21 +1010,19 @@ pub fn die() -> Die {
     let cube = r.insert(Node::Extrude {
         profile: cube_profile,
         distance: len(2.0),
+        side: ExtrudeSide::Along,
     });
 
     // Per-face masters: pip profile centered at the plane origin,
-    // extruded INWARD by pip_depth (normal points out ⇒ negative
-    // distance).
+    // extruded INWARD by pip_depth (the normal points out, so against
+    // it).
     let mut masters = Vec::new(); // (extrude id, u, v, pips)
     for (o, u, v, pips) in faces() {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::neg(Expr::param(
-                ParamName::from_static("pip_depth"),
-                Dimension::Length,
-            ))
-            .expect("a shallow negation"),
+            distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+            side: ExtrudeSide::Against,
         });
         masters.push((ext, u, v, pips));
     }
@@ -1067,7 +1067,7 @@ pub fn die() -> Die {
                     angle: ang(0.0),
                 },
             ));
-            // The pip master extrudes INWARD (negative distance), so
+            // The pip master extrudes INWARD (against the normal), so
             // its OUTER cap — the flush one — is Bottom (on the
             // sketch plane, which IS the cube face's plane), and it
             // faces out of the cube as that face does: a continuation.
@@ -1174,6 +1174,7 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: block_profile,
             distance: len(4.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, u_profile) = on_frame(
@@ -1197,6 +1198,7 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: u_profile,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     insert(
@@ -1795,6 +1797,7 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
             Node::Extrude {
                 profile: p,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         )
     };

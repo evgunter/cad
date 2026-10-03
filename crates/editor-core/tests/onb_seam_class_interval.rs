@@ -30,6 +30,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -285,6 +286,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: p,
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
     let placed = r.insert(Node::Transform {
         input: solid,

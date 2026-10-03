@@ -15,6 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
 use geom_core::{Point2, Tol};
@@ -322,7 +323,16 @@ fn extruded(vs: Vec<(Point2<f64>, f64)>, h: f64) -> Body<f64> {
     )
     .validate(tol())
     .unwrap();
-    extrude(&pf, Extrusion::Distance(h), tol()).unwrap().body
+    extrude(
+        &pf,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 /// A stadium: two lines and two semicircles, CCW.

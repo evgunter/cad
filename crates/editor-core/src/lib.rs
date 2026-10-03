@@ -152,12 +152,12 @@ pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
     Alignment, AuthoredFrame, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash,
-    ClassAdmission, Coset, FaceFrame, FacePoseRefusal, FaceRefusal, Lever, LeverRefusal, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
+    ClassAdmission, Coset, FacePoseRefusal, FaceRefusal, Lever, LeverRefusal, MateFault, MateFrame,
+    MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
     OFFSET_RECOURSE, OffsetCheck, PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses,
     Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, class_admission, gauge_chain,
-    groups, member_of, places, reading_edges, relative_freedom_components, root_of, solve_document,
-    table_gap,
+    groups, head_face, member_of, member_reading, places, reading_edges,
+    relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
@@ -186,8 +186,8 @@ pub use names::{
     vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, InputFault, InterfaceCrossing,
-    InterfaceRecord, ListFault, MeasureNodeFault, Node, PartSelect, PatternKind,
+    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
+    InterfaceCrossing, InterfaceRecord, ListFault, MeasureNodeFault, Node, PartSelect, PatternKind,
     PlacementRuleFault, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId,
     TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };

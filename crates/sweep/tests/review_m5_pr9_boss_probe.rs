@@ -11,6 +11,7 @@ use crate::common::operands::{m5_boss, n_arc_boss};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::split;
@@ -29,9 +30,16 @@ fn plate() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![rect(3.0, 3.0)])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(0.8), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.8,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Tier-3 + closed-form volume + seam inventory + pcurve coverage.
@@ -168,9 +176,16 @@ fn a_second_curved_boolean_chains_on_the_first_result() {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let slab = extrude(&profile, Extrusion::Distance(0.15), Tol::witness())
-        .unwrap()
-        .body;
+    let slab = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.15,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     match topo::union(&first, &slab, Tol::witness()) {
         Ok(out) => {
             let body = &out.body().expect("body").body;
@@ -210,9 +225,16 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
@@ -252,9 +274,16 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let plane = topo::test_support::split_plane(
         Point3::new(0.2, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
@@ -276,9 +305,16 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     let profile2 = Profile::new(plane2, vec![lp2])
         .validate(Tol::witness())
         .unwrap();
-    let slab = extrude(&profile2, Extrusion::Distance(0.2), Tol::witness())
-        .unwrap()
-        .body;
+    let slab = extrude(
+        &profile2,
+        Extrusion::Distance {
+            depth: 0.2,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     match topo::union(&below, &slab, Tol::witness()) {
         Ok(out) => {
             let b = &out.body().expect("body").body;

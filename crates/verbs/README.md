@@ -169,7 +169,7 @@ crates' module docs.)
 
 **V1 — the per-verb declaration is closed and kernel-side.** `Verb<T>`
 (`verbs/src/verb.rs`) holds an operation's parameters as data: `Fillet`
-and `Chamfer` (edge keys and a scalar), `Extrude` (a signed distance),
+and `Chamfer` (edge keys and a scalar), `Extrude` (a depth and a side),
 `Revolve` (a sketch-plane axis and a classified `Revolution`), `Boolean`
 (the regularized op and the declared coincidence intents in arena keys),
 `Split` (the parting plane) and `Shell` (a thickness and the faces to
