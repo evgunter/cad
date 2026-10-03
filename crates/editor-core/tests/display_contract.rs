@@ -3441,6 +3441,45 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             vec![held(6, "Mate")],
         ),
         (
+            EditError::PromoteOnNonInstance {
+                node: held(6, "Mate"),
+            },
+            vec![held(6, "Mate")],
+        ),
+        (
+            EditError::PromoteWithoutOffset {
+                node: held(4, "InstantiatePart"),
+            },
+            vec![held(4, "InstantiatePart")],
+        ),
+        (
+            EditError::PromoteNonRoot {
+                node: held(5, "InstantiatePart"),
+                root: held(4, "InstantiatePart"),
+            },
+            vec![held(5, "InstantiatePart"), held(4, "InstantiatePart")],
+        ),
+        (
+            EditError::PromoteMemberOffset {
+                node: held(4, "InstantiatePart"),
+                member: held(5, "InstantiatePart"),
+            },
+            vec![held(4, "InstantiatePart"), held(5, "InstantiatePart")],
+        ),
+        (
+            EditError::FoldOnNonGauge {
+                node: held(4, "InstantiatePart"),
+            },
+            vec![held(4, "InstantiatePart")],
+        ),
+        (
+            EditError::FoldWouldStartPlacing {
+                node: held(3, "Gauge"),
+                mate: held(6, "Mate"),
+            },
+            vec![held(3, "Gauge"), held(6, "Mate")],
+        ),
+        (
             EditError::DeclareInputNotDeclare {
                 node: held(5, "Union"),
                 input: held(4, "Extrude"),
