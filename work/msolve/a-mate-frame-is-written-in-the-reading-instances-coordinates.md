@@ -44,3 +44,10 @@ inner face follows that face.
 MSOLVE's ground, and the saved meaning of every literal frame on a
 non-root inner face (a migration question: re-express existing frames,
 or version the field). It goes to a designer pair and an `[ev]` PR.
+
+**The face arm already has M1's property** (`[ev]` #3888, built by
+P2-face, `docs/EDIT-PLACEMENT-SPEC.md` § P2-split rulings 7 and 8): a
+`FromFace` side names no face, its frame is its own head's face read in
+the member's part, so it crosses split and inline with its head under
+A4's condition (b) alone, and follows that face wherever the head
+reads it. What this row asks is the same for the authored arm.

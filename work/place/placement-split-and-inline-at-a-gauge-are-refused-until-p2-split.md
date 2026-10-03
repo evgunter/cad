@@ -31,21 +31,11 @@ the recourse, so P2-split only lifts refusals.
 - **Inline of a mate-placed instance**: `InlineError::MatePlaced`. A4
   admits it when the part is one group at the empty chain (spec ruling
   7); P2-core refuses every one.
-- **A `FromFace` mate side across the seam**:
-  `SplitError::MateFaceFrameCrosses` and
-  `InlineError::MateFaceFrameCrosses`. The frame's face name is a
-  row of the member's part. After the seam the side reads another
-  member, whose part carries that face only under another name:
-  - at a split, wrapped at the inner instance (`InPart`);
-  - at an inline, unwrapped from the instance the side re-anchors onto.
-
-  The datum crosses verbatim (`remap_node`), so the name would name
-  nothing (`p2_gauges::a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline`).
-  Re-spelling the name gives A4's document. A face frame is resolved
-  in the new member's part's own coordinates, so a re-spelled side
-  is coordinate-safe even off the frame rule's root-at-the-empty-chain
-  condition. Whether to relax the frame rule for such a side is the
-  orchestrator's to rule; P2-core does not widen the rule.
+- **A `FromFace` mate side across the seam** is not this row's. Ev
+  ruled on `[ev]` #3888 that a `FromFace` side names no face: its
+  frame is its head's face, so it crosses with its head, and
+  `MateFaceFrameCrosses` goes at both seams
+  (`a-from-face-mate-side-cannot-cross-the-split-or-inline-seam`).
 
 ## Built and admitted by P2-core
 
@@ -57,6 +47,5 @@ the instance's gauge). Rows: `crates/editor-core/tests/p2_gauges.rs`.
 
 ## Repair shape
 
-Build A4's gauge hoist and gauge inline, admit the mate-placed inline
-A4 rules, and re-spell a crossing `FromFace` side's name. Each lifts a
-refusal and changes no admitted result.
+Build A4's gauge hoist and gauge inline, and admit the mate-placed
+inline A4 rules. Each lifts a refusal and changes no admitted result.
