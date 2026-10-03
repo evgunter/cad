@@ -2,12 +2,13 @@
 id: seam-zip-grafts-re-certify-through-the-lane-free-door
 kind: issue
 title: the seam-zip lanes' grafts (setopfinish, the REST lane) re-certify through the lane-free EdgeCurve::certify although their chain now holds AtRestPolicy
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: E
 parent: graft-recertifies-through-the-narrow-lane
 refs: [the-union-fallback-graft-re-certifies-a-disjoint-operand-through-the-lane-free-door]
+blocked_on: [3990]
 ---
 
 

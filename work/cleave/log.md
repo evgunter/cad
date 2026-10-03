@@ -399,3 +399,19 @@ with nothing it may start, set its `status` to `blocked` and stop.
   - the azimuth-period row filed.
 
   DR-64 rides the PR as its last commit, and it merges when CI is green.
+
+### CLEAVE under the hold (2026-10-03, 20:0xZ)
+
+The hold landed at 18:58Z. This sitting acted on it only at about 20:05Z, when Ev pointed to it.
+- **Orchestrator error, owned:** `cleave/mints-coincidence` (mints step 2: the undeclared-coincidence payloads and the `is_invalid()`-as-zero readers) was dispatched at 19:48Z, after the notice, onto exactly the held ground. It is withdrawn: interrupted and told to open no PR. Anything it pushed stays on its branch for when the ruling closes.
+- **Started before the hold, so finished as planned:**
+  - PR 3981 (steep-tube trim clamp): a pcurve certifier, not held ground.
+  - PR 3979 (mints step 1, the geom-core doors) merged at 19:48Z. It was dispatched before the notice and touches gate doors, not declared contact.
+- **Parked on `blocked_on: [3990]`** (the program-wide convention, since the ruling's item id is not on main yet):
+  - `topo-mints-indeterminates-outside-the-funnel` (P0; steps 2–5 are undeclared-coincidence payloads, contradiction typing of declared contacts, and the seal);
+  - `split-band-on-...` (the Split node's declaration);
+  - `coincidence-intent-has-too-many-spellings` (likely subsumed by #3990 itself);
+  - `a-plane-datum-through-a-named-edge` (Datum);
+  - `split-refusal-detector-names-a-shared-parameter-coincidence` (Expr parameters);
+  - `the-rest-lane-reads-a-nested-struts-site-at-its-holders-tip` and `seam-zip-grafts-re-certify-...` (the declared-Rest lane).
+- **Not held, still startable:** the split/boolean topology and certifier rows, including `split-answers-an-inside-out-operand-with-two-inside-out-halves`, the corner-crossing P1s, the chord recompute, and the validators/tessellator P2s. CLEAVE is not blocked.

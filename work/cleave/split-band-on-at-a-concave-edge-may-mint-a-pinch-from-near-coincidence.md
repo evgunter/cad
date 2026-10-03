@@ -2,12 +2,13 @@
 id: split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence
 kind: issue
 title: Split's ON verdicts at margins within ε can mint a pinch from a value coincidence, which D1 tier 3′ (i) forbids
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [3856]
 design: true
+blocked_on: [3990]
 ---
 
 

@@ -2,10 +2,11 @@
 id: a-plane-datum-through-a-named-edge
 kind: issue
 title: A DM1-style plane datum through a named edge (plus a normal) would let a split through that edge carry its declaration structurally
-status: open
+status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
+blocked_on: [3990]
 ---
 
 

@@ -2,10 +2,11 @@
 id: the-rest-lane-reads-a-nested-struts-site-at-its-holders-tip
 kind: issue
 title: The REST lane reads a nested dangling null edge's site at its holder's tip, where no real edge leaves
-status: open
+status: parked
 opened: 2026-10-03
 priority: P2
 cost: E
+blocked_on: [3990]
 ---
 
 
