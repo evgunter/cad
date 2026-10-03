@@ -157,12 +157,13 @@ the domain's sides, and where its reach is at most
 `SSI_REGION_REACH_MAX · Kε`, the largest reach still reported as an
 ε-scale contact. Beyond it the locus meets the side too shallowly to be
 a contact: no region is reported, and the roots decide, the arc traced
-between them as any branch is. A root inside a region's certified zero
-set is the region's, and one outside it is kept. A side within the band
+between them as any branch is. A reported region's cell holds no zero
+beyond its certified zero set, so a root in the cell is the region's,
+and every other root is kept. A side within the band
 with neither a bounded region nor a root refuses toward C7
 (`SsiError::RegionUnbounded`). Whether a vertex lies on a face stays the
 consumer's decision, and the exact empty answer stands outside the
-domain. Every kept root is settled onto both surfaces, or refuses
+domain. Every root is settled onto both surfaces, or refuses
 `SsiError::EndNotOnLocus`. The crossings are the only ends a branch has
 on this lane: a trace runs from one to the unused crossing on the side
 it leaves, the one nearest where its last step meets that side, its
@@ -171,15 +172,16 @@ used, so at most a fifth of the branch's; a march that leaves where no
 crossing matches refuses as the march's limit
 (`SsiError::CrossingUnmatched`). The plane's window must hold the
 wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
-march ends only at the knot rectangle. The ℝ³ lane still ends an open branch at the caller's slab
-by its boundary search (`ssi_branch_open_end`), and the slab is not
+march ends only at the knot rectangle. The ℝ³ lane still ends an open
+branch at the caller's slab by its boundary search
+(`ssi_branch_open_end`), and the slab is not
 geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). A branch shorter
 than `SSI_SHORT_CLIP` times the band takes the Hermite cubic through
 its two certified ends and their tangents as its candidate instead of a
 march. Either way the certificate decides, and a short candidate it
 refuses is a sized refusal in the branch's length
-(`SsiError::ShortBranchUncertified`). The extent keeps
-its other roles: the lever arm's clamp, the seeding floor and the tube ladder.
+(`SsiError::ShortBranchUncertified`). The extent keeps its other roles:
+the lever arm's clamp, the seeding floor and the tube ladder.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure, the boundary pass's mean-value enclosure of a strip
