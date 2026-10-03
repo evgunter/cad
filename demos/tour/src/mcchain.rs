@@ -120,7 +120,7 @@ use pncad::topo::{Body, LoopBoundary};
 
 use crate::chain::{
     CERTIFIABLE_FRACTION, CERTIFIED_PIN_BOX, Chain, JOINT_SIGMA, LINK_HEIGHT, LINK_LENGTH, LINKS,
-    PIN_RADIUS, POSITION_BOUND, chain, pin_axis,
+    PIN_RADIUS, POSITION_BOUND, pin_axis, study,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -157,10 +157,12 @@ const CERTIFIED_MIN_PX: f64 = 5.0;
 /// **Does the published certified box apply to THIS run?**
 ///
 /// [`CERTIFIED_PIN_BOX`] and [`CERTIFIABLE_FRACTION`] are measured at
-/// the compiled default ε, and the box MOVES with ε (`1.083e-1` at
-/// `1e-6` against `1.110e-1` at the default, measured) — so at another
+/// the compiled default ε, and the box MOVES with ε (`6.747e-5` at
+/// `1e-6` against `6.751e-8` at the default, measured) — so at another
 /// ε it is a different box, and `chaintol` says so (`demo-tour certified`).
-/// Why it moves is `chaintol`'s header, "What sets the wall". The sheet
+/// It moves because the wall is an enclosure escalating against the
+/// band (the placed rows' angular comparisons, since the extrude closes
+/// with the pcurve mint), so the box is ε-relative. The sheet
 /// has to agree with it: at one ε they are one statement, and a legend
 /// claiming `0.111` certifies while the cell reports a declared
 /// frontier at the same ε is the picture contradicting the report.
@@ -347,7 +349,7 @@ fn spreads(samples: &[Sample]) -> Vec<Spread> {
 ///
 /// Returns the SVG so the caller owns where it lands.
 pub fn narration(tol: Tol) -> String {
-    let base = chain(LINKS, JOINT_SIGMA, POSITION_BOUND, tol);
+    let base = study(LINKS, tol);
     let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
     let config = McConfig {
         samples: DEFAULT_SAMPLES,
@@ -1047,7 +1049,7 @@ fn sheet(
     let (teal_bold, teal_note) = if certified {
         (
             format!(
-                "teal: the CERTIFIED enclosure per joint \u{2014} exact over a box, and silent outside it. The widest box that certifies THIS chain whole is {:.3} of the study.",
+                "teal: the CERTIFIED enclosure per joint \u{2014} exact over a box, and silent outside it. The widest box that certifies THIS chain whole is {:.3e} of the study.",
                 CERTIFIABLE_FRACTION
             ),
             format!(
@@ -1058,11 +1060,11 @@ fn sheet(
     } else {
         (
             format!(
-                "CERTIFIED: no enclosure is drawn on this sheet. The published box ({:.3} of the study) is a measurement at the compiled default \u{03b5}, and this run is at \u{03b5} = {:e}.",
+                "CERTIFIED: no enclosure is drawn on this sheet. The published box ({:.3e} of the study) is a measurement at the compiled default \u{03b5}, and this run is at \u{03b5} = {:e}.",
                 CERTIFIABLE_FRACTION,
                 Tol::witness().eps()
             ),
-            "\u{2014} the box MOVES with \u{03b5} (1.083e-1 at 1e-6 against 1.110e-1 at the default, measured), so at another \u{03b5} it is a different box. The tour's chaintol cell (demo-tour certified) declares that frontier at the same \u{03b5}; the sheet says what the cell says."
+            "\u{2014} the box MOVES with \u{03b5} (6.747e-5 at 1e-6 against 6.751e-8 at the default, measured), so at another \u{03b5} it is a different box. The tour's chaintol cell (demo-tour certified) declares that frontier at the same \u{03b5}; the sheet says what the cell says."
                 .to_string(),
         )
     };

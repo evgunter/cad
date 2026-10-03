@@ -229,21 +229,8 @@ pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
 /// halved — and the module's own row checks that against the fit
 /// rather than assuming it.
 ///
-/// **What this body still cannot do, and why it is left that way.**
-/// Its cap carries no stored pcurve cache: `mint_pcurves` refuses the
-/// two edges that hold `u` constant while `v` traverses, which is the
-/// iso lane's SEAM class, whose control-difference hull compares the
-/// carrier against the chart's own boundary ROW and therefore needs a
-/// spline carrier. So tier 3's check 7 reports `VolumeUncomputable`
-/// (the quadrature wants those caches) on this body and on any rigid
-/// image of it — one finding, held constant either side of a map, and
-/// the honest baseline a row here compares against. Nothing else is
-/// red: no `DescriptionNotAdjacent`, no `Approx` finding.
-///
-/// The pcurve pass is deliberately NOT run here. A fixture that ended
-/// in a refusal would be a fixture whose last step failed; the caches
-/// are what check 7 wants and what the seam class cannot mint, and
-/// that is one wall, recorded once.
+/// It ends with the closing mint: every cap edge's row derives and
+/// certifies on the fit's chart, so the body is valid at rest and weighs.
 pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
     let mut body = unit_box();
     let face = top_face(&body);
@@ -317,6 +304,7 @@ pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
         body.set_edge_curve(edge, spec, Tol::witness())
             .unwrap_or_else(|e| panic!("re-describing {edge:?} on the Approx chart: {e}"));
     }
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the cap's rows derive on its chart");
     (body, face)
 }
 
