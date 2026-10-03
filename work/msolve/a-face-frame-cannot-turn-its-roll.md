@@ -2,11 +2,12 @@
 id: a-face-frame-cannot-turn-its-roll
 kind: issue
 title: A face frame fixes its roll by the carrier's u_ref, so a FromFace mate cannot be turned about its axis
-status: open
+status: parked
 opened: 2026-09-24
 priority: P1
 cost: M
 design: true
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -66,6 +67,8 @@ Corrections to this row, which both designers found:
   `clocking: None`.
 - No edit rewrites a committed mate's datum
   (`DocEdit::writes_a_mates_datum` is true only for `InsertNode`).
+  Since PLACE's mate-frame-offset unit, a slot edit at a frame-offset
+  step writes one too, and asks the same admission.
 
 ## Re-weighed (2026-10-03, round 3)
 
@@ -90,3 +93,25 @@ are deleted. "Turn 90°" is a verb that composes a rotation onto one
 side's offset. The build is an MSOLVE unit. It waits for row 53's
 `MateFrame` shape to land, because the deletions ride the offset.
 
+
+## The kernel half (2026-10-03, PLACE mate-frame-offset)
+
+A mate frame is a base composed with an offset (`[ev]` #3920): a face
+side turns about its own axis by an offset step,
+`MateFrame::on_face(Step::Rigid { axis: z, angle, .. })`
+(`crates/editor-core/src/mate.rs`), the offset written in the face's
+frame. So the kernel has the in-face roll this row asked for, as a
+parametric angle. What remains is the tool's affordance: the viewer's
+mate tool still authors `MateFrame::from_face()` only
+(`crates/viewer/src/matetool.rs`, `proposal`), and the story suite's
+clocked sail still falls back to authored vectors. That half is
+CHROME's (`mate-clocking-has-no-gui-path`).
+`MateFrame`'s base-and-offset shape has landed with PLACE's
+mate-frame-offset unit (PR 3961), so the build this ruling waits on can
+start. That unit kept `PlanarRest { offset }`, the rider and
+`Clocking` as they were, leaving the deletions to this build. A
+standoff written as `PlanarRest { offset: d }` pins the same coset as
+a last step `translation(0, 0, d)` on side `a`'s offset (`mate_coset`'s
+`PlanarRest` arm), so retiring it moves no pose. It does move the
+lever's terms (`Σ|authored lengths|` becomes `‖origin‖`) and with them
+the bits of every levered clash on a standoff.

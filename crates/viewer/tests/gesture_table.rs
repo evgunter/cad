@@ -145,8 +145,20 @@ fn face(node: RecipeNodeId) -> StableName {
 /// A seat for the mate door — well-formed and never evaluated here.
 fn alignment() -> Alignment {
     Alignment {
-        a: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-        b: MateFrame::authored([0.0; 3], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+        a: MateFrame::authored(
+            [0.0; 3],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            geom_core::Tol::witness(),
+        )
+        .expect("a definite frame"),
+        b: MateFrame::authored(
+            [0.0; 3],
+            [0.0, 0.0, -1.0],
+            [1.0, 0.0, 0.0],
+            geom_core::Tol::witness(),
+        )
+        .expect("a definite frame"),
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking: None,

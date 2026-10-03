@@ -2,11 +2,12 @@
 id: reflex-corner-edge-in-face-poses-zip-a-ring-parallel-to-its-section-loop
 kind: issue
 title: At the 315-degree reflex corner, B's section ring runs parallel to A's section loop (SeamOrientation), and 32 edge-in-face poses reach it once joined
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap, locus-matching-moves-frontier-refusals-to-join-desync]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
