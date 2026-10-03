@@ -71,6 +71,7 @@ pub(crate) mod reassembly;
 pub mod rules;
 mod section;
 mod section_loops;
+pub(crate) mod spiric_arc;
 
 use geom_core::{BandError, Indeterminate, Point3, Real, UnitVec3};
 

@@ -177,8 +177,8 @@ pub fn open_bench(bench: &Bench, tol: Tol) -> DocSession {
 
 /// The instance-qualified spelling of a part-local face (the GQ4
 /// wrapper), for rows that author a mate directly — the kernel's own
-/// wrapper (`FaceName::in_part`), the inverse of the unwrap the mate
-/// tool stores a face frame's name by.
+/// wrapper (`FaceName::in_part`), the inverse of the strip a face
+/// frame reads its head's face by.
 pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
     pncad::document::FaceName::new(local.clone())
         .expect("a mate head is a face")
@@ -186,14 +186,21 @@ pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
         .into_name()
 }
 
-/// **The frame the mate tool authors for a picked face**: the face's
-/// PART-LOCAL name, resolved by the solve at every evaluation — the
-/// whole of the frame. What every tool row compares a proposal's
-/// side against.
-pub fn from_face(local: &StableName) -> pncad::document::MateFrame {
-    pncad::document::MateFrame::from_face(
-        pncad::document::FaceName::new(local.clone()).expect("a cap is a face"),
-    )
+/// **The face a proposal's side takes its frame from**: the frame the
+/// mate tool authors is the bare `FromFace`, whose face is its head's
+/// in the member's part (`head_face`, the kernel's one strip) —
+/// `None` for an authored frame or a head outside the member
+/// vocabulary. What every tool row compares a proposal's side
+/// against, by the PART-LOCAL name.
+pub fn face_side(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    frame: &pncad::document::MateFrame,
+    head: &pncad::document::SitedFace,
+) -> Option<StableName> {
+    if *frame != pncad::document::MateFrame::FromFace {
+        return None;
+    }
+    pncad::document::head_face(doc, head).map(pncad::document::FaceName::into_name)
 }
 
 /// **A world pose pulled back through a placement into part

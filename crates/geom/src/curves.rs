@@ -183,7 +183,8 @@ pub enum Curve3<T: Real> {
     /// ellipse's its eccentric anomaly: `|dP/dv|² = r²cos²v +
     /// r²ρ²sin²v/(ρ² − offset²)`, `ρ = R + r·cos v`, so
     /// `|dP/dv| ∈ [r, r(R − r)/√((R − r)² − offset²)]` — bounded away
-    /// from zero, a regular parameter on the oval.
+    /// from zero, a regular parameter on the oval ([`spiric_rate_bounds`]
+    /// is the bound's one spelling, over any window of it).
     ///
     /// Conventions (D2: carried as data, unchecked by the evaluators,
     /// decided at the mint):
@@ -869,25 +870,50 @@ pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
     )
 }
 
-/// A closed-form `sup‖C″‖` for the spiric `(R, r, d)`, in metres per
-/// radian squared — the one spelling of the bound, read by the mesh
-/// chord sizing and by STEP export's node-count schedule.
+/// **Bounds on a spiric's speed and acceleration over a stretch of the
+/// oval whose `ρ = R + r·cos v` lies in `[rho_lo, rho_hi]` and whose
+/// `|sin v| ≤ sin_max`**, as `(S, A)` with `|C′| ≤ S` and `|C″| ≤ A`
+/// there — the one spelling of both bounds, over a whole period
+/// (`ρ ∈ [R − r, R + r]`, `sin_max = 1`: [`spiric_curvature_sup`]) or
+/// over one piece of an arc (`topo`'s spiric crossing row, whose pieces
+/// read their own window).
 ///
-/// From `C″ = m·f″ − axis·(r·sin v)` with
-/// `|f″| = r·|(ρ·cos v − r·sin²v)/f + r·ρ²·sin²v/f³|
-///        ≤ r·((ρ_max + r)/f_min + r·ρ_max²/f_min³)`,
-/// `ρ_max = R + r`, `f_min = √((R − r)² − d²)`, plus the axis
-/// channel's `r`. Plain `f64`: a sizing quantity, conservative by the
-/// bound's own slack rather than by rounding. Off-regime data
-/// (`f_min` poison or zero) yields a non-finite answer, which every
-/// caller reads as a refusal rather than a step.
+/// With `f = √(ρ² − d²)`, `ρ′ = −r·sin v` and `f′ = ρρ′/f`,
+/// `C′ = m·f′ + axis·(r·cos v)`, so
+/// `|C′|² = r²(cos²v + (ρ²/f²)·sin²v) = r²(1 + (d²/f²)·sin²v)`, largest
+/// at the smallest `f`: `S = r·√(1 + (d·sin_max/f(rho_lo))²)` — over a
+/// whole period, `r·(R − r)/f_min`. `C″ = m·f″ − axis·(r·sin v)` with
+/// `f″ = (ρ′² + ρρ″)/f − (ρρ′)²/f³` and `|ρ″| ≤ r`:
+/// `A = r·sin_max + (r²·sin_max² + r·rho_hi)/f(rho_lo) +
+/// r²·rho_hi²·sin_max²/f(rho_lo)³`. The `sin` factor is what keeps a
+/// near-tangent cut's pinch, where `f` is small but `ρ′` vanishes, from
+/// charging its `1/f³` to the pieces about it. Generic so the interval
+/// lane carries its enclosures; off-regime data (`rho_lo ≤ |d|`) yields
+/// poison.
+pub fn spiric_rate_bounds<T: Real>(
+    minor: T,
+    offset: T,
+    (rho_lo, rho_hi): (T, T),
+    sin_max: T,
+) -> (T, T) {
+    let f_lo = (rho_lo.powi(2) - offset.powi(2)).sqrt();
+    let speed = minor * (T::one() + (offset * sin_max / f_lo).powi(2)).sqrt();
+    let accel = minor * sin_max
+        + (minor.powi(2) * sin_max.powi(2) + minor * rho_hi) / f_lo
+        + minor.powi(2) * rho_hi.powi(2) * sin_max.powi(2) / f_lo.powi(3);
+    (speed, accel)
+}
+
+/// A closed-form `sup‖C″‖` for the spiric `(R, r, d)`, in metres per
+/// radian squared — [`spiric_rate_bounds`] over a whole period, read by
+/// the mesh chord sizing and by STEP export's node-count schedule.
+/// Plain `f64`: a sizing quantity, conservative by the bound's own slack
+/// rather than by rounding. Off-regime data (`f_min` poison or zero)
+/// yields a non-finite answer, which every caller reads as a refusal
+/// rather than a step.
 #[must_use]
 pub fn spiric_curvature_sup(major: f64, minor: f64, offset: f64) -> f64 {
-    let rho_max = major + minor;
-    let (f_min, _) = spiric_f_range(major, minor, offset);
-    minor
-        + (minor.powi(2) + minor * rho_max) / f_min
-        + minor.powi(2) * rho_max.powi(2) / f_min.powi(3)
+    spiric_rate_bounds(minor, offset, (major - minor, major + minor), 1.0).1
 }
 
 /// The spiric's radial pair from `c = cos v`: `ρ = R + r·c` and

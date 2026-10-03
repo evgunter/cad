@@ -285,7 +285,14 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_conic_straddle"
         | "point_in_arc_loop_conic_window"
         | "point_in_arc_loop_conic_disc"
-        | "point_in_arc_loop_conic_advance" => BooleanDecision::Containment.subject(),
+        | "point_in_arc_loop_conic_advance"
+        | "point_in_arc_loop_spiric_end"
+        | "point_in_arc_loop_spiric_clear"
+        | "point_in_arc_loop_spiric_on"
+        | "point_in_arc_loop_spiric_leaf"
+        | "point_in_arc_loop_spiric_side"
+        | "point_in_arc_loop_spiric_turn"
+        | "point_in_arc_loop_spiric_advance" => BooleanDecision::Containment.subject(),
         _ => return None,
     })
 }

@@ -52,9 +52,9 @@
 //!   FLUSH with the shelf's ends — the obvious way to draw it — where
 //!   they had to be inset while the chart-identity door declined every
 //!   cross-instance pair (`SEAT_A`).
-//! - **#944 — CLOSED.** A mate frame names a FACE of the part and
-//!   the solve resolves it from the part's own evaluation
-//!   (`MateFrame::from_face`); the stand's post sides are authored
+//! - **#944 — CLOSED.** A mate side's frame can be its own head FACE,
+//!   which the solve resolves from the part's own evaluation
+//!   (`MateFrame::FromFace`); the stand's post sides are authored
 //!   that way, and `update_door` shows the mate FOLLOWING the post's
 //!   cap when the post is shortened — the shelf comes down with it
 //!   and the seat still certifies, where a frame of authored numbers
@@ -98,12 +98,12 @@ use std::sync::Arc;
 use pncad::document::{
     Alignment, Assembly, AssemblyError, AtRestFinding, Attribution, AxisSense,
     CONTRADICTORY_RECOURSE, CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue,
-    DocRef, DocumentId, EvalOptions, Evaluation, Expr, FaceName, Frame, InlineError, LoopProgram,
-    MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MintRefusal,
-    NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PartReach, PartResolver, PatternKind, Placement,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace, Step, UNDER_RECOURSE,
-    ValuePayload, apply, assemble, content_pin, evaluate, inline, load, mixed_pins, parse_expr,
-    product_named, regauge_then_mate, save, solve_document, split,
+    DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault,
+    MateFrame, MatePrimitive, MateReach, MateRole, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node,
+    ParamName, PartReach, PartResolver, PatternKind, Placement, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RefusingReach, SitedFace, Step, UNDER_RECOURSE, ValuePayload, apply, assemble,
+    content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, regauge_then_mate,
+    save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -190,15 +190,6 @@ const SWINGS: [f64; 3] = [30.0, 60.0, 90.0];
 const SEAT_A: [f64; 3] = [POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0];
 const SEAT_B: [f64; 3] = [SHELF_LENGTH - POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0];
 
-/// The post's own seat, in POST coordinates: its top cap FACE, by the
-/// part's own name. The frame is resolved from the face's canonical
-/// pose at every evaluation — its centre, its normal, the carrier's
-/// own roll reference — so a post whose height changes moves the seat
-/// with it and no number here can disagree with the model.
-fn post_seat(post_top: &StableName) -> MateFrame {
-    MateFrame::from_face(FaceName::new(post_top.clone()).expect("a cap is a face"))
-}
-
 /// One post's volume, and the shelf's — the arithmetic every census
 /// below is checked against.
 const POST_VOLUME: f64 = POST_SECTION * POST_SECTION * POST_HEIGHT;
@@ -232,7 +223,7 @@ fn pe(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Expr {
 ///
 /// The head is the part-local face as the instance names it — the
 /// kernel's own wrapper (`FaceName::in_part`), the inverse of the
-/// unwrap a face frame's name is.
+/// unwrap a face frame reads its face through.
 fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
     let name = pncad::document::FaceName::new(local.clone())
         .unwrap_or_else(|err| panic!("a mate head names a face: {err}"));
@@ -254,7 +245,7 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
 
 /// Inserts a mate through `reach` — the workspace's — and returns its
 /// minted id. The door admits a mate by reading its parts: it resolves
-/// a side that names a face ([`post_seat`]) from the part's own face,
+/// a side framed on its head face (`MateFrame::FromFace`) from the part's own face,
 /// as it levers a coincidence's rider over the parts' extent, so the
 /// insert takes the reach an evaluation would use.
 fn insert_mate(
@@ -700,7 +691,11 @@ fn stand_doc(
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_A),
-                b: post_seat(post_top),
+                // The post side's frame is its head: the post's cap
+                // face, resolved from its canonical pose at every
+                // evaluation, so no number here can disagree with the
+                // model.
+                b: MateFrame::FromFace,
                 primitive,
                 sense: AxisSense::Aligned,
                 clocking: None,
@@ -716,7 +711,7 @@ fn stand_doc(
             b: head(shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: post_seat(post_top),
+                a: MateFrame::FromFace,
                 b: mate_frame(SEAT_B),
                 primitive,
                 sense: AxisSense::Aligned,
@@ -1473,7 +1468,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
             b: head(contra.shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: post_seat(post_top),
+                a: MateFrame::FromFace,
                 // The same pair, seated 10 mm higher: the author has
                 // said two things that cannot both be true.
                 b: mate_frame([SEAT_A[0], SEAT_A[1], SEAT_A[2] - 0.01]),
@@ -2207,16 +2202,16 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// which is the one thing a tour scene had never needed before — see
 /// the friction note in `walk_tour`.
 ///
-/// # A mate frame names a face, and the solve resolves it
+/// # A mate side's frame is its head's face, and the solve resolves it
 ///
 /// A11 keeps the solve's ALGORITHM structural — coset intersection
 /// over decided predicates, no numeric fitting — while its inputs are
 /// the document plus its mated parts' evaluations: a mate frame is
-/// either numbers the author wrote or a FACE of the part, whose pose
-/// the solve reads off the part's own evaluation every time. The
-/// stand's post sides are faces (`post_seat`): the post's cap by the
-/// post's own name, so a post whose height changes moves the seat
-/// with it, which the update walk shows — the shelf comes down with
+/// either numbers the author wrote or the side's own head face, whose
+/// pose the solve reads off the part's own evaluation every time. The
+/// stand's post sides are face frames (`MateFrame::FromFace`): each
+/// side's frame is its head, the post's cap, so a post whose height
+/// changes moves the seat with it, which the update walk shows — the shelf comes down with
 /// the shortened posts and the gate still certifies. The shelf's
 /// seating points stay authored numbers, because both lie on its one
 /// underside and a face frame has no offset inside its face — the two

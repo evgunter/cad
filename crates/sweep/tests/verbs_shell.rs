@@ -1029,6 +1029,28 @@ fn circle_loop(r: f64) -> ProfileLoop<f64> {
     ])
 }
 
+/// **Shelling the hand-built wall pair decides its caps' ring nesting.**
+/// Hollowing the annular elbow by `0.01` assembles a thin solid whose two
+/// planar end caps each carry a ring inside an outer loop with a spiric
+/// edge, every ring vertex inside the ball that spiric's arc lies in.
+/// Check 9 reads each ring against its outer loop across the spiric
+/// itself, so tier 3's one refusal is check 7's: the spiric-bounded
+/// cap's area (`Unimplemented`).
+#[test]
+fn the_hand_built_klein_wall_hollows_past_ring_nesting_to_the_props_door() {
+    let by_hand = klein_elbow(vec![
+        circle_loop(KLEIN_R + KLEIN_WALL / 2.0),
+        circle_loop(KLEIN_R - KLEIN_WALL / 2.0),
+    ]);
+    let e = topo::shell(&by_hand, 0.01, Tol::witness()).expect_err("check 7's volume");
+    let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric-bounded cap's area, at {face:?}"
+    );
+}
+
 /// **The `r ± t/2` wall pair — and the wall that stops it retiring.**
 ///
 /// Klein's `elbow` spells the thickness twice: `circle(R + WALL/2)` for
