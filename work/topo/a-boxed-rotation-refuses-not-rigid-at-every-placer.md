@@ -2,11 +2,12 @@
 id: a-boxed-rotation-refuses-not-rigid-at-every-placer
 kind: issue
 title: transform_rigid at Interval refuses a widened rotation NotRigid, so every boxed rotation angle on a placer or a tilted mate frame refuses in a box run
-status: open
+status: parked
 opened: 2026-10-01
 priority: P3
 cost: M
 design: true
+blocked_on: [3990]
 ---
 
 Found by a designer weighing MSOLVE's plan item 19 (the mate solve on

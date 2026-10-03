@@ -2,8 +2,9 @@
 id: boolean-declared-doors-still-offer-the-declare-menu
 kind: issue
 title: topo: the Boolean's escalations at doors whose pair is already declared still offer 'declare the coincidence'
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [3990]
 ---
 
 

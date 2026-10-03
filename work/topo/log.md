@@ -6331,3 +6331,34 @@ with nothing it may start, set its `status` to `blocked` and stop.
 ## PR 3972 merged (2026-10-03)
 
 vertex-orbit merged as `fb0b500ac4`, after CI run 37148216835 passed.
+
+## TOPO under the intent-refactor hold (2026-10-03)
+
+The hold notice (Ev, `[ev]` PR #3990) arrived in an earlier main merge,
+and Ev pointed it out in chat. Under it, units already started finish,
+and no new unit starts on the covered ground.
+
+**Started, so they finish as planned:**
+- PR 3974, the plane offset rung: undeclared-coincidence refusals and
+  the declared rung.
+- PR 3992, merge-orientation-rung: the declared-pair orientation rung.
+
+**Parked**, with `blocked_on: [3990]`, the PR-number form MSOLVE used;
+the hold's own row is not on main yet:
+- `a-boxed-rotation-refuses-not-rigid-at-every-placer` (placement);
+- `boolean-coincidence-route-still-holds-join-and-self-check-decisions`;
+- `boolean-declared-doors-still-offer-the-declare-menu`;
+- `boolean-in-band-arms-read-ahead-of-the-declaration`;
+- `coincidence-tangent-locus-contact-section-escalate-without-their-rung`;
+- `curved-pierce-frontier-tells-one-story-for-several-decisions`;
+- `declared-pair-verdict-answers-an-unreachable-distinct`;
+- `plane-orientation-offers-no-tolerance-at-a-declared-rest-door`;
+- `recl-membership-tangent-lump-arm-is-unreachable`.
+
+**Not covered, and still open:** the Euler, attach and description rows
+(including PR 3970's kef/kfmrh question, which is about topology, not
+intent), the walk rows, `circle-torus-lane-escalates-without-its-rung`
+and `valued-offer-raised-at-a-loops-first-in-band-reading-is-not-the-binding-one`
+(numeric rungs and offers, not declarations), and
+`merge-coplanar-refusals-open-with-a-stage-label` (message text). TOPO
+still has startable work, so the program is not blocked.

@@ -2,8 +2,9 @@
 id: recl-membership-tangent-lump-arm-is-unreachable
 kind: issue
 title: topo: recl's membership reads a declared-Tangent flank pair's lump, but the tangent-flank short-circuit has already skipped every such pair
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [3990]
 ---
 
 

@@ -2,8 +2,9 @@
 id: curved-pierce-frontier-tells-one-story-for-several-decisions
 kind: issue
 title: topo: CurvedPierceUnsupported offers the declaration from every arm of curved_face_arm, including arms that read none, and the radius guards' decided arm renders as a join desync
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [3990]
 ---
 
 

@@ -2,8 +2,9 @@
 id: boolean-in-band-arms-read-ahead-of-the-declaration
 kind: issue
 title: topo: in-band arms read ahead of the declaration — the Boolean's sweep and sector primitives escalate before any face-pair declaration is read, so a declared pair refuses exactly as an undeclared one
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [3990]
 ---
 
 

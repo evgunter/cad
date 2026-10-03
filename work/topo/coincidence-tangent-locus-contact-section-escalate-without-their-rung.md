@@ -2,8 +2,9 @@
 id: coincidence-tangent-locus-contact-section-escalate-without-their-rung
 kind: issue
 title: topo: the tangent-locus, contact and section coincidences escalate without their rung, so none can offer the tolerance a length rung gives
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [3990]
 ---
 
 

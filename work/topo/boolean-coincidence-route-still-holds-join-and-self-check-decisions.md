@@ -2,8 +2,9 @@
 id: boolean-coincidence-route-still-holds-join-and-self-check-decisions
 kind: issue
 title: topo: join matching, strut order, germ-line self-checks and the ray lane still end in the coincidence menu, which no face-pair declaration settles
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [3990]
 ---
 
 

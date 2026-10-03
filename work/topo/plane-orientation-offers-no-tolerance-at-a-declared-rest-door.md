@@ -2,8 +2,9 @@
 id: plane-orientation-offers-no-tolerance-at-a-declared-rest-door
 kind: issue
 title: topo: the plane orientation rung offers no tolerance at a declared Rest door, where a smaller one would pass, because the decision carries no read
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [3990]
 ---
 
 
