@@ -203,3 +203,27 @@ fn a_short_arc_in_a_long_arcs_end_box_is_traced() {
         out.branches.len()
     );
 }
+
+/// PROBE (design fork): the fold's declared joining carrier at rest.
+#[test]
+fn probe_fold_declared_carrier_at_rest() {
+    for scale in [1.0, 0.5, 0.25] {
+        let beta = scale * eps();
+        let c = 800.0 * eps();
+        let a = 0.28 * c * c / beta;
+        let w = beta / c;
+        let l = 1.2 * w;
+        let xr = (-1.5 * w, 1.8 * w);
+        let g = move |x: f64| c * x + a * x * x;
+        let h = move |y: f64| 4.0 * beta * y * (l - y) / (l * l);
+        let wall = graph_wall(xr, l, (g, c + 2.0 * a * xr.0), (h, 4.0 * beta / l));
+        let ground = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let carrier = crate::shared::fixture::segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, l, 0.0));
+        let r = geom_brep::plane_nurbs_limbs::<f64>(&carrier, &ground, &wall, 1.0, band());
+        println!("PROBE fold beta={scale}eps: {:?}", r.map(|x| (x.hull_sup, x.tube_transversality)));
+    }
+}

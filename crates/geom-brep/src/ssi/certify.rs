@@ -1286,6 +1286,90 @@ fn one_arc<T: CertifiedBounds>(
     }
 }
 
+// PROBE (design fork): the run's eps for the at-rest section proof.
+pub(crate) static PROBE_EPS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// PROBE: one rail's verdict: a certified sign, or the domain side
+/// lying within eps of the locus (|phi| <= margin*eps over it).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Rail {
+    Sign(bool),
+    Band,
+}
+
+fn rail<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    edge: (bool, f64, (f64, f64)),
+    on_side: bool,
+    tol: f64,
+) -> Option<Rail> {
+    let mut pieces = 0u32;
+    if let Some(runs) = edge_runs(boxes, plane, edge, &mut pieces) {
+        let mut sign = None;
+        let mut ok = true;
+        for r in runs {
+            match (r, sign) {
+                (Run::Constant(x), None) => sign = Some(x),
+                (Run::Constant(x), Some(y)) if x == y => {}
+                _ => ok = false,
+            }
+        }
+        if ok {
+            if let Some(x) = sign {
+                return Some(Rail::Sign(x));
+            }
+        }
+    }
+    if !on_side || std::env::var("CAD_NO_BAND").is_ok() {
+        return None;
+    }
+    let (along_u, c, (a, b)) = edge;
+    let r = if along_u { (a, b, c, c) } else { (c, c, a, b) };
+    let i = phi_over(boxes, plane, r);
+    (i.is_certified() && i.lo() >= -tol && i.hi() <= tol).then_some(Rail::Band)
+}
+
+/// PROBE: **the chain is a section** — on every slice along e_perp of
+/// every window, exactly one solution (monotone given; existence by
+/// rails of opposite sign, a domain side within eps of the locus
+/// standing in for a sign).
+fn section<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    domain: UvRect,
+    windows: &[(ChartWindow, (f64, f64))],
+    tol: f64,
+) -> bool {
+    for (w, e) in windows {
+        let Some(r) = meet(w.rect, domain) else {
+            return false;
+        };
+        // Rails: the two edges the slices (mainly along the dominant
+        // axis of e_perp) leave through.
+        let (lo, hi) = if e.0.abs() >= e.1.abs() {
+            (
+                rail(boxes, plane, (false, r.u.0, r.v), r.u.0 <= domain.u.0, tol),
+                rail(boxes, plane, (false, r.u.1, r.v), r.u.1 >= domain.u.1, tol),
+            )
+        } else {
+            (
+                rail(boxes, plane, (true, r.v.0, r.u), r.v.0 <= domain.v.0, tol),
+                rail(boxes, plane, (true, r.v.1, r.u), r.v.1 >= domain.v.1, tol),
+            )
+        };
+        let ok = match (lo, hi) {
+            (Some(Rail::Sign(a)), Some(Rail::Sign(b))) => a != b,
+            (Some(Rail::Band), Some(Rail::Sign(_))) | (Some(Rail::Sign(_)), Some(Rail::Band)) => true,
+            _ => false,
+        };
+        if !ok {
+            return false;
+        }
+    }
+    true
+}
+
 /// Limb 3's enclosure probe for the **plane × NURBS** arm: the same
 /// criterion in the NURBS chart, where the locus is
 /// `φ(u,v) = n·(S(u,v) − p₀) = 0` and `∇φ = (n·S_u, n·S_v)`. A
@@ -1361,6 +1445,15 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
                 v: surface.knots_v().domain(),
             };
             one_arc(&boxes, (n, p0), domain, pcurve, &probed)
+        })
+        && (banked || std::env::var("CAD_SECTION_AT_REST").is_err() || {
+            let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
+            let domain = UvRect {
+                u: surface.knots_u().domain(),
+                v: surface.knots_v().domain(),
+            };
+            let eps = f64::from_bits(PROBE_EPS.load(std::sync::atomic::Ordering::Relaxed));
+            section(&boxes, (n, p0), domain, &probed, worst * eps)
         });
     #[allow(clippy::cast_possible_truncation)]
     Ok(Some(ChartProbe {
@@ -1446,6 +1539,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
     let TubeScale { arm, extent } = scale;
+    PROBE_EPS.store(band.zero().to_bits(), std::sync::atomic::Ordering::Relaxed);
     let mut on_locus = T::zero();
     let mut hull_sup = T::zero();
     for (op, pc) in [(a, None), (b, pcurve_b)] {
@@ -1557,6 +1651,22 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
         });
     };
     let transversality = tube_transversality(margin, arm, boxes, band)?;
+    // PROBE (design fork, not for merge): the carrier's certified
+    // distance to the locus, delta = 2*hull_sup / margin, against eps.
+    if let Ok(path) = std::env::var("CAD_DELTA_LOG") {
+        use std::io::Write;
+        let kind = match (a, b) {
+            (SsiOperand::Analytic(_), SsiOperand::Analytic(_)) => "r3",
+            _ => "chart",
+        };
+        let h = hull_sup.hi();
+        let delta = if margin > 0.0 { 2.0 * h / margin } else { f64::INFINITY };
+        let at = match banked { Banked::No => "rest", _ => "mint" };
+        let name = std::thread::current().name().unwrap_or("?").to_string();
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(f, "{at}\t{kind}\t{:e}\t{:e}\t{:e}\t{:e}\t{name}", delta / band.zero(), h / band.zero(), margin, band.zero());
+        }
+    }
     Ok(SsiCertificate {
         samples: CERT_SAMPLES,
         on_locus_max: on_locus,
