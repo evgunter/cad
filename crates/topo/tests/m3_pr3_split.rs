@@ -540,9 +540,9 @@ fn plane_section_slicing() {
     assert_eq!(u.dot(section.plane.normal.get()), 0.0);
     assert_eq!(v.dot(section.plane.normal.get()), 0.0);
     for poly in section.regions.iter().map(|r| &r.outline) {
-        assert_eq!(poly.points.len(), poly.uv.len());
-        assert!(poly.points.len() >= 4);
-        for (p, q) in poly.points.iter().zip(&poly.uv) {
+        assert_eq!(poly.points().len(), poly.uv().len());
+        assert!(poly.points().len() >= 4);
+        for (p, q) in poly.points().iter().zip(poly.uv()) {
             // Every corner lies ON the plane, and uv reproduces it.
             assert_eq!(p.y, 1.0);
             let back = section.plane.origin + u * q.x + v * q.y;
@@ -555,9 +555,9 @@ fn plane_section_slicing() {
     let mut total = 0.0;
     for poly in section.regions.iter().map(|r| &r.outline) {
         let mut twice = 0.0;
-        for i in 0..poly.uv.len() {
-            let a = poly.uv[i];
-            let b = poly.uv[(i + 1) % poly.uv.len()];
+        for i in 0..poly.uv().len() {
+            let a = poly.uv()[i];
+            let b = poly.uv()[(i + 1) % poly.uv().len()];
             twice += a.x * b.y - b.x * a.y;
         }
         total += twice / 2.0;

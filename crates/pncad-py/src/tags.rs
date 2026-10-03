@@ -1356,6 +1356,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
         ExtrudeError::CapPlane { .. } => "cap_plane",
         ExtrudeError::SidePlane { .. } => "side_plane",
         ExtrudeError::Op { .. } => "op",
+        ExtrudeError::Pcurve(_) => "pcurve",
     }
 }
 
