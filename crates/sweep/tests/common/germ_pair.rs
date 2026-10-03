@@ -90,7 +90,8 @@ pub fn seams_off_the_pinch(h: f64, phi: f64) -> (Body<f64>, Body<f64>) {
 /// **Whether two refusals of one configuration in two poses are one
 /// door** — the re-pose rows' comparison, for both scalar lanes. Their
 /// `Debug` agrees, except where a refusal carries a decided margin
-/// (the pierce curvature's, `CurvedSectorSideUnsupported`): each pose
+/// (the pierce curvature's, `CurvedSectorSideUnsupported`, and an
+/// undeclared coincidence's, `UndeclaredCoincidence`): each pose
 /// reads it off its own coordinates, so the twins' margins agree to
 /// within the zero band the verdict was classified against rather than
 /// bit for bit. A verdict of the other sign, or a margin a band-width
@@ -121,6 +122,18 @@ pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
             (Refused::Negative { margin: x }, Refused::Negative { margin: y }) => near(*x, *y),
             _ => false,
         },
+        (
+            topo::BooleanError::UndeclaredCoincidence {
+                diag: x,
+                pair: pa,
+                relation: ra,
+            },
+            topo::BooleanError::UndeclaredCoincidence {
+                diag: y,
+                pair: pb,
+                relation: rb,
+            },
+        ) => pa == pb && ra == rb && x.predicate == y.predicate && near(x.margin, y.margin),
         _ => format!("{a:?}") == format!("{b:?}"),
     }
 }
