@@ -2,11 +2,12 @@
 id: rigid-map-row-asks-a-sampled-residual-for-sub-ulp-agreement-at-eps-1e-12
 kind: issue
 title: rigid_map_near_eps_plane_nurbs asks the sampled on-locus residual to re-derive to 1e-6 relative, which at eps 1e-12 is 1e-18 m, under one ulp of a unit-scale point; red since #3524
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P2
 cost: E
 refs: [3524, 3737]
+branch: reach/rigid-map-1e12
 ---
 
 
