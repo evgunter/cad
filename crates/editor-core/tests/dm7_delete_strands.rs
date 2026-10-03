@@ -273,9 +273,12 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             op: BooleanOp::Union,
             a: body,
             b: other,
+            // Sited at the operands, as every pair must be; the names
+            // are the victim's, minted before the boolean, so the
+            // delete strands them without taking an operand.
             declare: editor_core::declare_rest(vec![(
-                SitedRef::new(victim, f1.clone()),
-                SitedRef::new(victim, f2.clone()),
+                SitedRef::new(body, f1.clone()),
+                SitedRef::new(other, f2.clone()),
             )]),
         },
     );
