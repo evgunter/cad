@@ -2,149 +2,156 @@
 
 ## For Ev
 
-**Recommendation (likely).** Do not build a narrower edge gate. Delete `gate_operand_edges`, and make each crossing
-site answer a spiric or NURBS edge itself, through one generic certified lane: "this carrier against this face's
-implicit residual". Build it in three steps (below). Then **re-scope the row**. The three tour joins it names do not
-wait on operand *edges*. They wait on spline-walled operands (*faces*), which is a separate and larger row. The edge
-row's real consumers are bodies whose faces are all analytic (plane, cylinder, sphere, torus) but whose edges are
-spiric or fitted NURBS.
+**Recommendation (likely).** Build no edge lane as a unit of its own and no pair-scoped edge gate. Do two things:
 
-### Premise check — three corrections, measured
+- **Now, a small typed fix.** The planar crossing lane silently treats a spiric or NURBS edge as a line (premise 2).
+  Make it refuse typed, so the gate stops being load-bearing.
+- **Later, retire `gate_operand_edges` inside the first row that has a consumer for it.** Two rows qualify, whichever
+  lands first:
+  1. the **NURBS-face operand row**, which is what the tour scenes wait on;
+  2. **frontier (d)**, the cylinder×sphere join window. Once that lands, the boolean mints NURBS seams on analytic
+     faces and must accept its own output.
 
-1. **Lifting the edge gate retires none of the three scenes (sure).** I admitted spiric and NURBS edges in a local,
-   uncommitted build. Then I united `sweep::test_support::loft_prism` (four NURBS walls, NURBS seams) with a brick in
-   four placements. Every one refused on a NURBS *face*, at three different doors:
-   - disjoint: `NurbsExtentUnsupported` (DESIGN frontier (e));
-   - 0.3 from a seam but clear: `NurbsExtentUnsupported`;
-   - poking through the top cap only: `Containment(KindUnsupported{Nurbs})`;
-   - transversal through the walls: `CurvedBooleanUnsupported{Nurbs}` (`curved_face_arm` refuses any edge against a
-     NURBS face).
+When the edge is retired, it gets one rung keyed on the carrier:
+- a NURBS edge: the existing rational Bernstein composite (`geom_core::spline::compose`);
+- a spiric edge: a transfer to the conic section of its cap plane, using the existing conic×torus lanes.
 
-   Behind those doors there is a fourth: `germ_section_frame` has no arm for any NURBS face pair (`FrameError::NoArm`
-   → `GermFrameUnsupported`). The teapot spout ∪ pot is a lofted (NURBS-walled) canal crossing a sphere, so it needs a
-   NURBS×sphere *surface* section. The Klein loop is a sweep and the lily sheath is a loft, so both reach the same
-   face doors. The pinned `CurvedEdgeUnsupported` hides those doors only because it fires first.
-2. **Today the gate is load-bearing for soundness (sure).** It is not merely conservative.
-   - In the planar crossing lane (`sweep_direction`), `conic_plane_crossing_roots` returns `Err(())` for line, spiric
-     and NURBS alike. Its caller reads `Err` as "a line" and interpolates the crossing linearly from the two endpoint
-     signs. Behind the gate, a spiric or NURBS edge would get a crossing point that is off the plane, and a curve that
-     dips through a face and back would be missed entirely. Neither case raises an error.
-   - The join's on-edge germ frame answers `JoinDesync` ("the operand gates refuse the kinds").
+**Terms.**
+- *Carrier*: an edge's underlying curve.
+- *Spiric*: a torus cut by a plane parallel to its axis. The offset-axial door mints it as a hollowed partial
+  revolve's rim.
+- *Crossing layer*: the sweep that finds where an operand edge meets the other operand's faces.
+- *Rung*: one certified case of the crossing layer.
+- *Analytic face*: plane, cylinder, cone, sphere or torus.
 
-   So a pair-scoped gate is not a gate-only change. The split's twin could narrow safely because its crossing site
-   already guards the same case (`classify.rs` re-checks `edge_clears` at insertion).
-3. **"Rung-3 edges are what the zip MINTS, not what it consumes" is false today, and the gate turns into a
-   contradiction later (likely).**
-   - Today the boolean's sections are lines and conics. The spiric and NURBS edges in the tree come from loft, sweep
-     and the offset-axial door (a hollowed partial revolve's torus rim is a spiric).
-   - Once frontier (d) lands, the cylinder×sphere join window will mint fitted NURBS seams on analytic faces. From
-     then on the boolean's own output is refused as its input. That contradicts DESIGN's "every boolean output is a
-     legal boolean operand" (Maximal-faces paragraph).
-   - The claim is agent-written code doc (reduce.rs, REACH/CURVED commits), not ratified text. No change to DESIGN is
-     needed.
+### Premise check (sure, measured)
 
-   "Re-entry through the germ-chord lanes" is not a crossing mechanism: (d) is the join's section *window*, which
-   mints an edge. It does not locate where an existing edge pierces a face.
+1. **Lifting the edge gate retires nothing that can be built today: no consumer exists.** I lifted the gate in a
+   local build (reverted) and ran both populations of bodies that carry these edges. Every case refused on a *face*:
 
-### What consuming such an edge actually requires
+   | operand (∪ a brick unless noted) | refuses next at |
+   |---|---|
+   | loft prism, disjoint / clear near a seam | `NurbsExtentUnsupported` (frontier (e)) |
+   | loft prism, rod through its planar cap only | `Containment(KindUnsupported{Nurbs})` |
+   | loft prism, slab through its walls | `CurvedBooleanUnsupported{Nurbs}` |
+   | spiric-rimmed vessel cavity, disjoint / rod through a cap | `Containment(PartialTorusFace)` |
+   | that cavity, rod across the rim; ∪ the klein elbow | `CurvedPierceUnsupported` — a *line* edge of B against the cavity's torus face |
 
-An operand edge `e` with carrier `C(t)` meets a face `f` of the other operand where `F(C(t)) = 0`, with `F` the
-residual of `f`'s surface: plane `n·(p−o)`; sphere, cylinder `(|⊥(p−o)|² − r²)/2r`; torus the existing quartic (`torus_curvature_bound`).
+   - The loft prism has NURBS walls and NURBS seams.
+   - The vessel cavity has analytic faces (torus and planes) and spiric rims. It comes from the public
+     `topo::offset_charts_together`, and it reaches the boolean because the operand gate checks tiers 1–2 only. The
+     `shell` verb itself stops at tier 3 on that body.
+   - The tour joins (teapot spout, lily sheath, klein loop) are NURBS-walled. They belong to the face row.
+2. **The gate hides a silent defect (sure).**
+   - In the planar crossing lane, `conic_plane_crossing_roots` answers `Err(())` for a line, a spiric and a NURBS
+     carrier alike.
+   - The arm reads `Err(())` as "a line: the M3 lane below owns it". It then interpolates the crossing point linearly
+     from the endpoint distances, and it misses any curve that dips through the plane and back.
+   - The body-scoped gate is the only thing keeping that arm sound. A pair-scoped gate would make the defect live.
+   - Separately, the join's on-edge frame answers `JoinDesync` for these kinds.
+3. **The gate's stated reason is wrong (sure).** It says rung-3 edges "are what the curved zip MINTS, not what it
+   consumes". Nothing in the boolean mints them today. The producers are:
+   - the loft's seams (the path sweep skins through the loft);
+   - the offset-axial spiric rim.
 
-There is one generic lane, by subdivision of `t`. On each piece:
-- enclose `F` by the conic rung's sampled hull plus the chord-dip charge `f2·h²/8`;
-- enclose `F′` the same way, one derivative down.
+   This is agent-written code doc, not ratified text. It becomes *wrong in the other direction* once frontier (d)
+   lands: the cylinder×sphere section's 3-D carrier is the C5 table's rung-3 fitted NURBS
+   (`geom_brep::cylinder_sphere_ssi`). From then on the gate would refuse the boolean's own output, against DESIGN's
+   "every boolean output is a legal boolean operand". So (d) cannot land before this gate is retired (likely; (d) has
+   no scheduled row that I found).
+4. **"Re-entry through the germ-chord lanes" does not apply to NURBS edges.** For a spiric edge it is the right idea,
+   in the form of the section transfer described below.
 
-The answers are:
-- **Clear**: the enclosure of `F` excludes 0 on every piece.
-- **Simple root**: `F` changes sign on a piece where `F′`'s enclosure excludes 0. The root is unique there, its
-  parameter is certified, and the lane splits `e` at that parameter.
-- **Endpoint contact only**: `F(t₀) = 0` and `F′` excludes 0 near `t₀`, with no other root. This is the lily graft's
-  posture, where seams end on the declared rectangle.
-- **Unsettled** at the subdivision floor: `CurvedPierceUnsupported` naming `(edge, face)` — the pair, as the face gate
-  already does.
+### The rung, when its row comes (likely)
 
-Each carrier must supply:
-- `s₁ ≥ |C′|`, `s₂ ≥ |C″|`, and `s₃ ≥ |C‴|` (the third bounds the dip of `F′`, whose second derivative needs `C‴`);
-- for a spiric: from `spiric_rate_bounds` and its trigonometric form;
-- for a NURBS: from its hodograph control hulls (a rational carrier takes the quotient-rule bound).
+- **NURBS edge × analytic face: `spline::compose`.**
+  - `implicit_composite` already builds `f ∘ C` in rational Bernstein form, in certification arithmetic, for plane,
+    sphere, cylinder, cone and torus. Today it serves the fitted-carrier certificate.
+  - The coefficient hull *is* the enclosure: one-signed means the edge clears the face.
+  - Knot insertion (`insert_knot_plan` / `apply_certified`) subdivides the hull.
+  - A piece whose ends differ in sign and whose derivative hull (`derivative_coeffs`) is one-signed holds exactly one
+    root. A piece that shrinks below the band is a tangency and refuses typed.
+  - This is the same clear / monotone / split ladder `circle_roots::certified_subdivision` runs, with hulls in place
+    of Taylor bounds.
+  - A plane face is the linear composite, so the planar lane's arm is repaired by the same rung.
+  - The edge's box becomes its control hull (`nurbs_curve_aabb`), which is sound; today it is poison.
+- **Spiric edge × analytic face `S`: section transfer.**
+  - The edge lies on its torus `T` and its cap plane `Π`. So it meets `S` exactly where the section `Π ∩ S` meets
+    `T`.
+  - For a plane or sphere face, `Π ∩ S` is a line or a circle, and `line_torus_roots` / `circle_torus_roots` already
+    answer it exactly.
+  - Cylinder, cone and torus faces refuse typed until their sections have torus lanes.
+- **NURBS and `Approx` faces** have no implicit form. They are the face row's problem, not this rung's.
+- **Refusals stay pair-scoped.** They come from the rung that lacks an arm, naming `(edge, face)`, which is C12.1's
+  "retire per arm, never wholesale".
 
-Each face kind supplies `|F″|`, from the issue body's formulas for the quadrics and the torus. Line, circle and
-ellipse keep their closed-form lanes as exact special cases. NURBS and `Approx` faces have no implicit `F`, so they
-stay outside this lane (they are the face row).
+### Options weighed
 
-### The options, as final states
+- **A. Edge rung as a line item of its first consumer's row; planar-lane fix now (recommended).**
+  - Nothing is built without a caller.
+  - The silent arm is closed first.
+  - Reversible.
+- **B. Standalone edge lane now.**
+  - It is unit-testable on hand-built bodies.
+  - But no end-to-end consumer exists: measured in both populations above. That is the dead-code pattern (frontier
+    (f)'s posture).
+  - Not recommended.
+- **C. Pair-scoped gate, like the split's.**
+  - Retires no row in the table.
+  - It re-states the BVH's box pruning at a second site.
+  - It is unsound until the planar-lane fix lands.
+  - The split could narrow its gate because its only other operand is a plane, and its insertion site re-checks
+    clearance. Neither holds here.
+  - Not recommended.
+- **D. Per-carrier `|C′|,|C″|,|C‴|` bounds with a sampled residual enclosure.** This was my first draft.
+  - It works, but it re-derives per carrier what the composite carries exactly.
+  - It lacks a cone arm, which the composite has.
+  - For the spiric it is weaker than the exact section transfer.
+  - Not recommended.
 
-- **A. No edge gate; one generic lane at every crossing site (recommended).**
-  - The crossing lane's own carrier dispatch is the only record of which carriers it reads. No second roster has to be
-    kept in step with it.
-  - A refusal names the pair that needed an answer. A far edge prunes: a NURBS edge takes its control-hull box, which
-    `EdgeBoxRule`'s docs already earmark for "the day the gate admits the kind". A near but clear edge clears by
-    enclosure.
-  - The same lane serves the split, since a split plane is a plane face. That retires the split's `edge_clears` box
-    rule as well.
-  - Leaves possible: nothing silent, if step 1 lands first.
-  - Reversible: yes; a gate can be re-added in one function.
-- **B. A pair-scoped edge gate mirroring the split's** (refuse a spiric/NURBS edge whose reach box may meet any face
-  of the other operand).
-  - Cheap, and it fails up front.
-  - But it is a second roster beside the lanes. It is strictly weaker than A once the lane exists: it refuses at box
-    level where the enclosure would clear.
-  - It still needs step 1 below to be sound.
-  - Defensible only as an interim; I lean against it as a final state.
-- **C. Triple-point routing.** For an edge that is the section of two analytic faces `g, h`, find where it pierces `f`
-  as the crossing of the lower-rung section `g∩f` with `h`, reusing the conic lanes.
-  - Exact where it applies.
-  - It does not cover cylinder×sphere seams, whose own `g∩f` is rung 3, nor spline walls.
-  - At most an optimisation under A; not a design.
-
-### Build order (sequencing, not a fork)
-
-1. **Make every site sound without the gate.**
-   - The planar lane refuses (or routes) any non-line carrier instead of interpolating it.
-   - The on-edge germ frame refuses typed rather than `JoinDesync`.
-   - A NURBS edge takes its control-hull box.
-   - Then delete `gate_operand_edges`. What this admits: analytic-walled bodies whose spiric/NURBS edges are box-clear
-     of the other operand. For example, a hollowed partial torus revolve drilled away from its spiric rim, and later
-     every (d) output used the same way.
-2. **The generic residual lane: clearance first.** Clear pairs clear against plane, sphere, cylinder and torus.
-3. **Then root isolation and the split** — definite crossings for those bodies.
-4. **Spline-walled operands, as its own row.** The tour scenes need:
-   - NURBS extent (frontier (e));
-   - point-in-NURBS-face;
-   - edge × NURBS-face pierce;
-   - a NURBS-face section frame. The SSI tracer that mints plane×NURBS already exists in `geom_brep::ssi`; the join
-     has no general-section window.
-
-   Steps 1–3 are prerequisites for it, but not the bulk of it.
+**Ratified text:** nothing to change. The edge gate lives only in code docs. C12.1 decides the shape. DESIGN's "every
+boolean output is a legal operand" is the reason (d) is ordered after the retirement.
 
 **Confidence.**
-- Recommendation A: likely.
-- Lifting the edge gate retires no tour scene: sure (measured).
-- The gate is load-bearing for soundness: sure (read).
-- (d) will mint NURBS seams on analytic faces: likely. This is DESIGN's frontier (d) text read with geom-brep README
-  C1's "cylinder×sphere (rung 3)".
+- Recommendation: likely.
+- No consumer today (both populations): sure, measured.
+- The planar-lane defect: sure.
+- (d) mints NURBS edges on analytic faces: likely.
+- The composite as the root rung: likely. The doors exist; the subdivision ladder is new code.
 
 ## For the orchestrator
 
-- **Measurement.** Local, reverted, nothing committed. I added an env-var bypass to `gate_operand_edges` and a
-  throwaway `sweep/tests/zz_probe.rs` (registered as its own `[[test]]`), with four `loft_prism ∪ brick` placements.
-  Results are as quoted above. I did not build a spiric-rimmed analytic operand, so step 1's payoff for that
-  population is argued, not measured.
-- **Brief errors.**
-  - "Three demo joins wait on it" (the issue body) is wrong: they wait on the face row.
-  - The issue's "Why it is a design row" says lifting the edge gate needs "a certificate the crossing layer does not
-    have". That is true, but it misses the silent planar-lane fallback (premise 2).
-- **Off-question defects to file.** Each is latent while the gate holds, and each should be a REACH/CLEAVE issue:
-  - The `reduce.rs` `sweep_direction` comment "`Err(()) => {} // a line: the M3 lane below owns it`" is the unsound
-    fallback.
-  - `CurvedEdgeUnsupported`'s Display says "a spline (NURBS) curve" and the variant doc says "rung-3 (`Nurbs`)", but
-    the variant also fires for spirics.
-  - `join.rs` `germ_section_frame` on-edge arm: `JoinDesync` for a reachable kind once the gate goes.
-- **Tour/test rows that flip.** Gate deletion turns the pins into other refusals, not successes:
-  - teapot wall 3, lily wall 8, klein walls 3/4;
-  - `review_cleave_nurbs_lane` disjoint union, `s16_box_soundness`, `offc_r1_probes`, `spiric_rim`.
+**What changed in round 1, and why.**
+1. **"When" — moved; I now agree with the other report.** I measured the population I had argued for: the
+   spiric-rimmed analytic body (`vessel_cavity`, via the public `offset_charts_together`). With the gate lifted it
+   refuses on its partial-torus face, at containment or at a line-edge pierce, never on its spiric edge. So the edge
+   lane has no consumer today. My first draft's step 1 (delete the gate standalone) is withdrawn. I keep only the
+   typed planar-lane fix as standalone work.
+2. **Where I still differ, slightly.** The other report says the spiric operand "cannot be built past tier 3", so
+   never reaches the gate. That is imprecise:
+   - `offset_charts_together` is a public kernel door, and its output reaches the boolean, whose operand gate checks
+     tiers 1–2. `sweep/tests/spiric_rim.rs` row 11 already pins `CurvedEdgeUnsupported` on it.
+   - The conclusion is unchanged (the face refuses next).
+   - I also add frontier (d) as a second possible first consumer, with a hard ordering: (d) must not land before the
+     gate retires.
+3. **"How" — I adopt theirs.** The composite's hull is an exact enclosure in certification arithmetic, already
+   written for all five analytic kinds, including the cone, which my draft lacked. My sampled enclosure needed new
+   per-carrier derivative bounds. For the spiric, their section transfer is exact and reuses existing lanes.
+   - I could not check that `implicit_composite` accepts the operand scalar lanes the boolean runs at (f64 and
+     Interval). They assumed it through `certified_coords`.
 
-  The scene walls should re-pin on the face door they actually reach, which is itself the finding.
-- I could not find who wrote "rung-3 edges are what the zip MINTS". The `-S` search on the reduce.rs phrase lands on
-  REACH/CURVED commits from 2026-09-30/10-01. Neither commit is an Ev ruling.
+**Measurement.** All local and reverted; the branch carries only this file.
+- An env-var bypass in `gate_operand_edges`.
+- Four `loft_prism ∪ brick` cases (round 0).
+- In round 1, a throwaway test appended to `sweep/tests/spiric_rim.rs`: `vessel_cavity(1/128)` ∪ four placements
+  (far, cap rod, rim rod, klein elbow). The bbox and the two spiric rim midpoints were printed to confirm the
+  placements.
+
+**Defects to file** (not filed: this branch carries only the report):
+- CLEAVE, P2: the planar-lane `Err(()) => {} // a line` arm in `reduce.rs` (premise 2).
+- Doc-only: `CurvedEdgeUnsupported`'s Display says "a spline (NURBS) curve" but fires for spirics. Its doc, and
+  `gate_operand_edges`'s, name the zip as the producer.
+- `join.rs` `germ_section_frame` on-edge arm: `JoinDesync` for a kind that becomes reachable.
+- The work row should be re-scoped into the NURBS-face operand row. Its "no root lane" paragraph should cite
+  `spline::compose`.
+- If (d) gets a row, it should carry "retire the edge gate first" as a precondition.
