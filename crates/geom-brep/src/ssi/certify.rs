@@ -90,15 +90,15 @@
 //! not, by itself, cover the whole box). And it says nothing about a
 //! **disjoint component threading the padded chain at `e`-levels the
 //! carrier never occupies**: a second arc beside the first along `e`,
-//! leaving through the box's sides, passes the slice argument. A search
-//! banks every cell inside a tube as accounted ([`super::exhaust`]), so
-//! where one does, the probe proves that component absent too: a piece
-//! of the solution set in a box ends on its boundary at two points, so a
-//! boundary holding exactly two simple solutions holds one piece, and
-//! consecutive boxes sharing a solution share it ([`one_arc`],
-//! [`one_arc_r3`]). Components outside the chain are the accounting
-//! pass's to exclude or refuse; uniqueness here and completeness there
-//! are two theorems, and neither is doing the other's work.
+//! leaving through the box's sides, passes the slice argument. The
+//! solution set in the chain is one arc, and where the probe runs that
+//! proof it shows the component absent too: a piece of the solution set
+//! in a box ends on its boundary at two points, so a boundary holding
+//! exactly two simple solutions holds one piece, and consecutive boxes
+//! sharing a solution share it ([`one_arc`], [`one_arc_r3`]). Components
+//! outside the chain are the accounting pass's ([`super::exhaust`]) to
+//! exclude or refuse; uniqueness here and completeness there are two
+//! theorems, and neither is doing the other's work.
 //!
 //! An enclosure that **straddles** zero at every rung escalates, typed,
 //! never retried: `ssi_tube_transversality` lands in `Sign::Zero` and

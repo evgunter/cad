@@ -88,5 +88,6 @@ With the fix applied onto `origin/ssi/hermite-first`, every fold variant
 answers correctly or refuses: limb 3 refuses the wrong-pairing Hermite,
 and the march takes the branch.
 
-At rest (`certify_rung3`) nothing banks the tube, and the probe proves
-the graph alone: `limb3-at-rest-proves-the-graph-not-the-arc`.
+At rest (`certify_rung3`) the code still proves the graph alone,
+short of the ratified one arc (OQ2, C2.3); that defect is
+`limb3-at-rest-proves-the-graph-not-the-arc`.
