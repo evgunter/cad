@@ -51,8 +51,10 @@ whose verdict no declaration reads:
   `NoInterior | Elsewhere` (the `covered` twin reads the declaration,
   this arm does not);
 - the circle rung's `Ok(Sign::Negative)` for a non-torus circle (an
-  arc that crosses the wall), and every carrier the rung has no arm
-  for (an ellipse, a NURBS edge). The rung's `Ok(Sign::Zero)` is not
+  arc that crosses the wall), and an ellipse the rung has no arm for.
+  (A spiric or NURBS edge no longer reaches this frontier: it refuses
+  `CrossingCarrierUnsupported`, which offers no declaration —
+  `reach/planar-crossing-lane-reads-a-curved-carrier-as-a-line`.) The rung's `Ok(Sign::Zero)` is not
   on this list: a declaration settles it (below).
 
 A second definite sibling of the same shape: the declared-coaxial
