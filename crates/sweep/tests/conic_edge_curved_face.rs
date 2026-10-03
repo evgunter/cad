@@ -284,11 +284,12 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<topo::BooleanError> {
 /// crossing layer and the sector side pass, and every op stops at the
 /// join, at the door that pose's germ pairs reach: a ball's wall ×
 /// sphere pair has no section frame
-/// (`work/join/cylinder-sphere-germ-pair-has-no-section-frame.md`), a
-/// wide rod's parallel wall pair no join arm
-/// (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`), and a
-/// narrow rod's pierce ring in the drum's wall no join arm either
-/// (`work/tang/pierce-ring-has-no-join-arm.md`). On the base the balls
+/// (`work/join/cylinder-sphere-germ-pair-has-no-section-frame.md`), and
+/// a rod's parallel wall pair no join arm
+/// (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`) — the
+/// narrow rods too, since their pierce ring in the drum's wall joins
+/// (TANG, PR 3851; before it they stopped at the ring,
+/// `SectionArcWindow { NoChartedRun }`). On the base the balls
 /// refused `CurvedPierceUnsupported` on the rim, and the rods on their
 /// own rim circle, whose root on the drum wall the wall's chart trim
 /// (bounded by the rim's arcs) could not place.
@@ -304,15 +305,6 @@ fn a_rim_crossing_reaches_the_join() {
                 kind: geom::SurfaceKind::Cylinder,
                 ..
             }
-        )
-    };
-    let ring = |e: &E| {
-        matches!(
-            e,
-            E::Join(topo::SplitJoinError::SectionArcWindow {
-                case: topo::ArcWindowCase::NoChartedRun,
-                ..
-            })
         )
     };
     type Door<'a> = &'a dyn Fn(&E) -> bool;
@@ -335,12 +327,12 @@ fn a_rim_crossing_reaches_the_join() {
         (
             "rod r 0.1 at (-0.45, 0)",
             rod(0.1, -0.45, 0.0, 0.5, 0.3),
-            &ring,
+            &no_arm,
         ),
         (
             "rod r 0.1 at (0, 0.48)",
             rod(0.1, 0.0, 0.48, 0.3, 0.4),
-            &ring,
+            &no_arm,
         ),
     ];
     for (label, b, at_the_door) in poses {

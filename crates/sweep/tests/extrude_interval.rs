@@ -12,6 +12,7 @@ use geom_core::Tol;
 use geom_core::{Bounds, Interval, Real};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{validate, validate_closed, validate_geometric};
 
@@ -30,7 +31,10 @@ fn interval_l_profile_extrudes_and_passes_all_tiers() {
         .unwrap();
     let t = extrude(
         &vp,
-        Extrusion::Distance(Interval::from_f64(1.5)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.5),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -83,7 +87,10 @@ fn interval_disc_extrudes_a_shared_cylinder() {
         .unwrap();
     let t = extrude(
         &vp,
-        Extrusion::Distance(Interval::from_f64(1.0)),
+        Extrusion::Distance {
+            depth: Interval::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();

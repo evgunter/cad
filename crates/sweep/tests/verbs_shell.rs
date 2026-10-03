@@ -24,6 +24,7 @@ use crate::common::torus_walls::{klein_elbow, props_door};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::test_support::{block, corners, prism, tube_frame};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
@@ -2005,9 +2006,16 @@ fn holed_box(side: f64, bore: f64, h: f64) -> Body<f64> {
     )
     .validate(Tol::witness())
     .expect("a square with a square hole is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("the holed square extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the holed square extrudes")
+    .body
 }
 
 /// **The whole audit of one record, against the operand AND the result.**

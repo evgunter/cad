@@ -17,6 +17,7 @@ use crate::tags::{
     promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag, workspace_error_tag,
 };
 use pncad::document::Dimension;
+use pncad::document::ExtrudeSide;
 use pncad::tolerance::Tol;
 use pncad::topo::{FaceKey, SolidKey, VertexKey};
 use std::collections::{BTreeMap, BTreeSet};
@@ -116,6 +117,7 @@ fn box_doc(
         Node::Extrude {
             profile,
             distance: len(1.5),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, body)
@@ -1467,6 +1469,7 @@ fn resolution_status_tags_are_stable() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
 
@@ -2735,6 +2738,32 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::DuplicateWitnessEntry { node: sp(1) }, &["node"]);
     carries(&E::OffsetOnNonInstance { node: sp(1) }, &["node"]);
     carries(&E::GaugeOnNonPlaced { node: sp(1) }, &["node"]);
+    carries(&E::PromoteOnNonInstance { node: sp(1) }, &["node"]);
+    carries(&E::PromoteWithoutOffset { node: sp(1) }, &["node"]);
+    carries(&E::FoldOnNonGauge { node: sp(1) }, &["node"]);
+    // A promote or a fold names its target and the other node the
+    // refusal is about.
+    carries(
+        &E::PromoteNonRoot {
+            node: sp(1),
+            root: sp(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::PromoteMemberOffset {
+            node: sp(1),
+            member: sp(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::FoldWouldStartPlacing {
+            node: sp(1),
+            mate: sp(2),
+        },
+        &["node", "input"],
+    );
     // A gauge reference names the node it is written on and the id it
     // names.
     carries(
@@ -2807,6 +2836,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::DeleteWouldDangle {
             id: sp(1),
+            referenced_by: sp(2),
+        },
+        &["node", "referenced_by"],
+    );
+    carries(
+        &E::FoldWouldDangle {
+            node: sp(1),
             referenced_by: sp(2),
         },
         &["node", "referenced_by"],
@@ -4682,6 +4718,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_desync",
             "merge",
             "non_finite_sector_chord",
+            "non_manifold_result",
             "non_maximal_faces",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
@@ -4699,6 +4736,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "shared_vertex_crossings",
             "shell_witness_exhausted",
             "spheres_meet",
+            "tangent_slit_arm_unbuilt",
             "torn_component",
             "undeclared_coincidence",
             "underflowed_sector_chord",
@@ -4721,7 +4759,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "mate_head_not_a_face",
             "name_serialize",
-            "no_minted_id",
             "param_name_not_an_identifier",
         ],
         delegates: &["label_fault_tag", "placement_rule_fault_tag"],
@@ -4853,6 +4890,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_placement_list",
             "empty_witness_bulk",
             "evaluation_of_another_document",
+            "fold_on_non_gauge",
+            "fold_would_dangle",
+            "fold_would_start_placing",
             "gauge_cycle",
             "gauge_not_live",
             "gauge_on_non_placed",
@@ -4882,6 +4922,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_axis",
             "placement_rule_mismatch",
             "profile_program_refused",
+            "promote_member_offset",
+            "promote_non_root",
+            "promote_on_non_instance",
+            "promote_without_offset",
             "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
@@ -4893,6 +4937,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "repeated_designation",
             "selection_not_canonical",
             "set_declare_on_non_declaring",
+            "set_extrude_side_on_non_extrude",
             "set_members_on_non_list",
             "set_program_on_non_profile",
             "slot_dimension_mismatch",
@@ -5003,6 +5048,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cosurface_escalated",
             "degenerate_extrusion",
             "extrusion_escalated",
+            "negative_depth",
             "oblique_extrusion",
             "op",
             "pcurve",
@@ -5135,7 +5181,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "maintenance_tag",
-        values: &["offset_cleared", "strand", "stranded_appearance"],
+        values: &[
+            "label_dropped",
+            "offset_cleared",
+            "strand",
+            "stranded_appearance",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5860,7 +5911,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "body_name_crosses_cut",
             "dead_gauge_reference",
             "empty_cut",
-            "hoisted_member_offset",
             "mate_face_frame_crosses",
             "mate_frame_crosses",
             "name_on_dropped_step",
@@ -5879,6 +5929,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "two_anchors",
             "uncut_param_reference",
             "unknown_cut_node",
+            "unplaceable_root",
             "unplaced_alone",
             "would_start_placing",
         ],

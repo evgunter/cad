@@ -358,8 +358,12 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
         tol: Tol,
     ) -> Result<VerbRecord<T>, VerbError<T>> {
         match self {
-            Self::Extrude { distance } => {
-                sweep::extrude(operand, sweep::Extrusion::Distance(*distance), tol)
+            Self::Extrude { distance, side } => {
+                let extrusion = sweep::Extrusion::Distance {
+                    depth: *distance,
+                    side: *side,
+                };
+                sweep::extrude(operand, extrusion, tol)
                     .map(VerbRecord::Extrude)
                     .map_err(VerbError::Extrude)
             }

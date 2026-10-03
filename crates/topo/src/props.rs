@@ -37,7 +37,7 @@ use core::fmt;
 use geom::Surface;
 use geom_brep::props::quad::{self, RoundOutcome, RoundWindow};
 use geom_brep::props::{
-    CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
+    CarrierId, FaceContribution, LoopEdge, PropsError, curved_face_loops, planar_face,
 };
 use geom_brep::recourse::{
     Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
@@ -201,8 +201,10 @@ pub enum MassPropsError {
         /// The per-face failure.
         source: PropsError,
     },
-    /// A curved face carries interior rings — no M2 construction
-    /// produces one (curved patches are swept UV rectangles).
+    /// A curved face carries interior rings and is not a cylinder wall
+    /// bounded by rims and rulings — the one ringed curved face the
+    /// closed forms measure (`geom_brep::props::curved_face_loops`). A
+    /// boolean pierce leaves a ring in the wall it pierces.
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -233,13 +235,12 @@ impl fmt::Display for MassPropsError {
                 f,
                 "a face's share of the volume and surface area cannot be computed: {source}"
             ),
-            // Every construction keeps curved faces ring-free, and
-            // STEP import refuses a ring on one before a body exists,
-            // so reaching this is a defect.
             Self::RingOnCurvedFace { .. } => write!(
                 f,
-                "the kernel cannot measure the volume of a curved face with a hole. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                "the kernel cannot yet measure the volume of a curved face with a hole, \
+                 other than a cylinder wall bounded by circles about its axis and lines along \
+                 it. Recourse: move the cut so it crosses the face's edge instead of closing \
+                 inside the face"
             ),
             Self::Corrupt { what } => write!(
                 f,
@@ -1797,10 +1798,11 @@ fn face_loops<T: Decide>(
 }
 
 /// **A face's closed form**, at whatever scalar its geometry is read
-/// at: a plane over every loop, any other surface over its outer loop
-/// and its sense. The face walk runs it at the walk's scalar, and
-/// [`QuadLane`]'s `closed_form` at the interval scalar over the same
-/// geometry lifted.
+/// at: a plane and a cylinder over every loop, any other surface over
+/// its outer loop and its sense (a ring there is refused before this is
+/// reached, `RingOnCurvedFace`). The face walk runs it at the walk's
+/// scalar, and [`QuadLane`]'s `closed_form` at the interval scalar over
+/// the same geometry lifted.
 fn closed_form_of<U: Decide>(
     surface: &Surface<U>,
     loops: &[Vec<LoopEdge<U>>],
@@ -1809,12 +1811,10 @@ fn closed_form_of<U: Decide>(
 ) -> Result<FaceContribution<U>, PropsError> {
     match *surface {
         Surface::Plane { origin, .. } => planar_face(origin, loops),
-        _ => curved_face(
-            surface,
-            loops.first().map_or(&[][..], Vec::as_slice),
-            sense,
-            band,
-        ),
+        _ => {
+            let loops: Vec<&[LoopEdge<U>]> = loops.iter().map(Vec::as_slice).collect();
+            curved_face_loops(surface, &loops, sense, band)
+        }
     }
 }
 
@@ -1847,10 +1847,31 @@ fn face_flux<T: Decide>(
             closed_form_of(surface, &face_loops(body, face)?, face.sense, band).map_err(wrap)?
         }
         _ => {
-            if !face.rings.is_empty() {
+            // A cylinder face's closed form reads every loop
+            // (`geom_brep::props::curved_face_loops`); no other curved
+            // kind, and no quadrature lane, reads a ring.
+            let mut rings = Vec::with_capacity(face.rings.len());
+            for &lk in &face.rings {
+                rings.push(loop_edges(body, lk)?.0);
+            }
+            let untrimmed = |edges: &[LoopEdge<T>]| {
+                edges.iter().all(|e| {
+                    matches!(
+                        e.carrier,
+                        geom::Curve3::Line { .. } | geom::Curve3::Circle { .. }
+                    )
+                })
+            };
+            if !rings.is_empty()
+                && !(matches!(surface, Surface::Cylinder { .. })
+                    && rings.iter().all(|r| untrimmed(r)))
+            {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
             let (outer, hes) = loop_edges(body, face.outer)?;
+            if !rings.is_empty() && !untrimmed(&outer) {
+                return Err(MassPropsError::RingOnCurvedFace { face: face_key });
+            }
             // Structural dispatch (C5: on the carrier KIND, never a
             // runtime fallback): a conic/NURBS trim carrier routes
             // the face to the PR 11 certified-quadrature lane; an
@@ -1924,7 +1945,11 @@ fn face_flux<T: Decide>(
                 // walk holding no [`QuadLane`] (a `_structural` door,
                 // which is how a dual measures) — whose honest outcome
                 // on a trimmed face is the closed form's typed refusal.
-                None => closed_form_of(surface, &[outer], face.sense, band).map_err(wrap)?,
+                None => {
+                    let loops: Vec<Vec<LoopEdge<T>>> =
+                        core::iter::once(outer).chain(rings).collect();
+                    closed_form_of(surface, &loops, face.sense, band).map_err(wrap)?
+                }
             }
         }
     };

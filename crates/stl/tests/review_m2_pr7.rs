@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use sweep::ExtrudeSide;
 
 use geom_core::{Point2, Tol};
 use profile::RawLoop;
@@ -559,7 +560,10 @@ fn consumer_e2e_vase_and_bracket() {
     };
     let bracket = extrude(
         &common::validated(vec![outer, hole(2.2, 0.5, 0.25), hole(0.5, 2.2, 0.25)]),
-        Extrusion::Distance(0.5),
+        Extrusion::Distance {
+            depth: 0.5,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

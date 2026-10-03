@@ -24,6 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanCoincidence, BooleanOp, BooleanValue, CancelToken, DeclareError, EditError, EvalOptions,
@@ -65,6 +66,7 @@ fn box_at(
         Node::Extrude {
             profile: p,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -381,6 +383,7 @@ fn tilted_in_band_pairs_pin_the_verification_arm() {
             Node::Extrude {
                 profile: p,
                 distance: len(0.5),
+                side: ExtrudeSide::Along,
             },
         );
         let ev = eval(&doc);

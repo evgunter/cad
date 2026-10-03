@@ -2,12 +2,14 @@
 id: tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line
 kind: issue
 title: tier 3 passes a body whose curved wall touches a plane face's interior along a line with no edge for the contact
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact]
-design: true
+branch: cleave/tangent-interior-refuse
+pr: 3938
+closed: 2026-10-03
 ---
 
 
@@ -140,3 +142,39 @@ own contract. By the letter of the bands this is "a live wrong
 answer", which is P0. I recommend P1 because both reproducers start
 from a deliberately declared tangent rest, and the volume is right.
 The orchestrator should weigh that.
+
+## Designed (2026-10-03): ratified text decides it — no Ev fork
+
+A designer pair (one Opus, one Fable; labels A/B on `analysis/design-fork/edgeless-contact`) weighed it over four rounds, crossing twice, with an executed measurement settling the fact beneath (`analysis/edgeless-*.md` on that branch). Both converge:
+
+- **The defect is step 1, not tier 3.** The declared `Tangent` union ships a line contact as two vertex-on-face rows; two points certify two points, not the line. Tier 3 is local by contract; nothing should refuse because shells fused.
+- **The final state is #131's doubled cusp** (`docs/DESIGN.md` tier 3, "Ratify #131", `1b2f1848b`, ruled with Ev 2026-08-23): "two material wedges on one tangent line — the kissing union, a slit interior to material — … the coincident-distinct-edges class, each edge classifying separately". The union mints two coincident distinct edges on the locus, one per sheet, each a wedge-2π slit, end vertices shared; one shell; no contact record (PR 3317: "the shared edge is the structural record"). Where the locus ends inside a plane face, that face carries the slit as a two-edge zero-area ring.
+- **The ring is legal today.** Measured on main: a planar face with a two-edge zero-area ring (shared vertex keys, each edge bounding a distinct wall) passes tiers 1, 2, 3, 3′ and the at-rest gate, meshes with exact volume, and merges unchanged. The one owed consumer arm: `sector_shape` admits a ~2π sector only for a strut's single orbit half-edge and refuses it between two distinct coincident edges, so split and the boolean's sectors refuse a cut through or along the slit (`SliverSector`, typed).
+- **The two-row answer deviated from #131.** Issue 941 item 4 (and the C7 sentence the same commit wrote: "the doubled form (material both sides) is F2's coincident-distinct-edges class; the join-lane spec grows that arm before `Tangent` joins ship") said the arm is owed before `Tangent` joins ship; the DEV-1 lane shipped the two-row answer under an orchestrator acceptance. The C7 sentence was dropped when CONTACT-DESIGN moved into `crates/topo/README.md` (`585b3422f`, no replacement) and is restored with the arm.
+
+**Owner of the arm:** TANG, `work/tang/declared-cusps-second-order-wedge-arm.md` items 3–4 (the join's slit zip from `tangent_locus`; the `sector_shape` arm and split's reduce / the boolean's sectors through it; restore C7).
+
+**Interim (this row's remaining work, dispatched as `cleave/tangent-interior-refuse`):** a verified `Tangent` pair whose locus lies interior to a face of either operand refuses typed (the `RimCuspArmUnbuilt` pattern) until the arm lands; `m9_3_wall_door.rs`'s admitted tangent union and both `wall_face_tangent_reach.rs` rows flip to that refusal; `BooleanResultKind::Assembly`'s doc narrows to vertex/edge touches. The "refuse step 2" shape in this row's earlier text and in CONTACT's `a-bridge-union-fuses-...` is superseded: step 2 is ordinary topology once step 1 is right.
+
+## Interim landed (2026-10-03, `cleave/tangent-interior-refuse`)
+
+A verified `Tangent` union whose ruling passes strictly inside a
+declared PLANE face now refuses `BooleanError::TangentSlitArmUnbuilt`
+at the reduction door (`boolean_reduce_declared_strategy` in
+`crates/topo/src/boolean/mod.rs`, reading `locus_through_plane_face`).
+Two scope choices, both measured:
+
+- **Union only.** Declared plate − rod answers the plate (16.0) and
+  plate ∩ rod answers `Empty`. Both are right, since the result has
+  material on at most one side of the ruling.
+- **The plane face decides.** A ruling inside the cylinder face but on
+  the plane face's boundary edge (the box-corner pose,
+  `work/reach/a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported.md`)
+  is an edge resting on a face, not the doubled slit. It is untouched,
+  and it refuses `CurvedBooleanUnsupported` already. Declared
+  parallel-cylinder kisses refuse `CurvedPierceUnsupported` downstream
+  (TANG's item, the gather evidence), so they are untouched too.
+
+The reproducers now pin the refusal at `f64` and `Interval`. The bridge
+step is unreachable from step 1. The row stays open for TANG's arm,
+items 3–4, which retires the refusal.

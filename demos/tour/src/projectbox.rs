@@ -21,6 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, TAU};
+use pncad::document::ExtrudeSide;
 
 use pncad::geom::NurbsCurve3;
 use pncad::geom_core::Point3;
@@ -260,9 +261,16 @@ fn rod<S: Scalar>(cx: f64, cy: f64, r: f64, z: (f64, f64), tol: Tol) -> pncad::t
         .into();
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![circle], tol).expect("the rod profile validates");
-    extrude(&profile, Extrusion::Distance(S::from_f64(z.1 - z.0)), tol)
-        .expect("extrude the rod")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(z.1 - z.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("extrude the rod")
+    .body
 }
 
 /// Builds the 15-op enclosure chain, generic (the Probe sweep runs the

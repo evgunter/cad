@@ -34,6 +34,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::time::Instant;
 
@@ -240,6 +241,7 @@ fn plate_spaced(
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile,
         distance: param("depth", Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let mut holes = Vec::new();
     for cx in [-hole_x, hole_x] {
@@ -254,6 +256,7 @@ fn plate_spaced(
         holes.push(r.insert(Node::Extrude {
             profile: p,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         }));
     }
     // The wall names come from the selection door, the way a user gets
@@ -325,6 +328,7 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let cube = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let copy = r.insert(Node::transform(
         cube,
@@ -381,6 +385,7 @@ fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
     let block = r.insert(Node::Extrude {
         profile: p,
         distance: param("depth", Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let refs = vec![
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
@@ -1307,6 +1312,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let bore = r.insert(Node::Extrude {
         profile: bore_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
@@ -1319,6 +1325,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let pin = r.insert(Node::Extrude {
         profile: pin_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];

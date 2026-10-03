@@ -15,6 +15,7 @@ use mesh::tessellate;
 use mesh::validate::{check_mesh, triangle_count};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult};
 
@@ -50,7 +51,10 @@ fn az_counter() -> Body<f64> {
             SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, -0.0625))),
             vec![lp(&A_OUTLINE), lp(&A_COUNTER)],
         ),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -71,7 +75,10 @@ fn az_counter() -> Body<f64> {
                 (-0.0625, 0.4375),
             ])],
         ),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

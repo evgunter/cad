@@ -5,7 +5,8 @@
 //!
 //! **Two lanes, and this header describes one of them.** Everything
 //! below is the CLOSED-FORM lane: the M2 analytic surfaces over
-//! structurally verified iso-parameter rectangles. The other is
+//! structurally verified iso-parameter rectangles, and a cylinder face
+//! over any region its rims and rulings bound. The other is
 //! [`quad`], the certified-quadrature lane — NURBS patches, conic-
 //! trimmed faces, an enclosure with a `pad` rather than an exact
 //! number — and it is `pub`, larger than this lane, and governed by
@@ -54,7 +55,8 @@
 //! module's.
 //!
 //! Areas of curved faces come from the chart Jacobians over the face's
-//! iso-parameter rectangle `[u0,u1]×[v0,v1]` — save a sphere face with
+//! iso-parameter rectangle `[u0,u1]×[v0,v1]` — on a cylinder, over its
+//! chart region `−∮ v du`, every loop included; save a sphere face with
 //! a circle tilted against its chart on the boundary, which has no
 //! rectangle and whose area is Gauss–Bonnet's over its circle arcs
 //! (`curved::sphere_circle_loop`); planar face area is
@@ -152,9 +154,9 @@
 //!
 //! **What the predicate is and is not, stated exactly**:
 //!
-//! * Every **flux/area closed form** runs it before integrating —
-//!   cylinder, cone, rim-bearing sphere, torus — with **one
-//!   exemption**, so "every curved kind" is not the claim: the
+//! * Every **iso flux/area closed form** runs it before integrating —
+//!   cone, rim-bearing sphere, torus — with **one exemption**, so
+//!   "every curved kind" is not the claim: the
 //!   **rimless sphere band**, which carries no rim, so the predicate
 //!   is vacuous on it rather than satisfied by it. What that arm does
 //!   establish (its meridians all lie on ONE great circle that the loop
@@ -162,9 +164,13 @@
 //!   wedge, whose `Δu` is the azimuth between them on the face's side;
 //!   its `v`-extent, from the fold that carries each arc's span-derived
 //!   pole extremes) is stated at `curved::sphere`, at the arm.
-//! * **[`boundary_material_sign`] runs it too, on ALL FOUR arms**,
-//!   because every one of them reaches a side derivation that rests
-//!   on this premise. It was listed here as a second exemption, on the
+//!   The **cylinder** does not run it: its flux is the chart Green
+//!   form over every loop (`curved::cylinder_chart`), which integrates
+//!   the region the boundary actually bounds and needs no rectangle.
+//! * **[`boundary_material_sign`] runs it too, on the three iso
+//!   arms**, because each reaches a side derivation that rests on this
+//!   premise; the cylinder arm reads the sign of its chart area, as
+//!   its flux does. It was listed here as a second exemption, on the
 //!   argument that *"running the predicate there could only convert an
 //!   answer into an exemption"* — which covers the ERROR direction
 //!   only. The three linearly-leveled arms derive a side from
@@ -221,9 +227,11 @@
 //!   form.
 //!
 //! Outside that verification: the loop-local vertex **tags** are
-//! trusted as declared (the [`LoopEdge`] trust boundary), and the
-//! residuals certify carriers, not that the traversed arcs jointly
-//! close a loop.
+//! trusted as declared (the [`LoopEdge`] trust boundary), and on the
+//! cone, sphere and torus the residuals certify carriers, not that the
+//! traversed arcs jointly close a loop. The cylinder's Green form
+//! checks closure (`props_loop_closed`, `props_chart_loops_closed`),
+//! because its anchor-freedom rests on it.
 
 mod curved;
 mod loop_area;
@@ -234,8 +242,8 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, Point3, Real, Vec3};
 
 pub use curved::{
-    MaterialSign, boundary_material_sign, cone_face_closed_form, curved_face,
-    require_iso_rectangle, require_one_chart_branch,
+    MaterialSign, boundary_material_sign, boundary_material_sign_loops, cone_face_closed_form,
+    curved_face, curved_face_loops, require_iso_rectangle, require_one_chart_branch,
 };
 pub use loop_area::loop_vector_area;
 

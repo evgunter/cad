@@ -20,6 +20,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use pncad::document::{
     BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocParam, DocRef,
     DocumentId, EditError, EvalOptions, Evaluation, Expr, LoopProgram, Node, NodeErrorKind,
@@ -279,6 +280,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Extrude {
             profile: section,
             distance: len(depth),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -309,6 +311,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Extrude {
             profile: disc,
             distance: len(BOSS_HEIGHT),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

@@ -18,10 +18,12 @@
 //!   is the whole answer (disjoint ∖, nested ∩, …).
 //! - [`Assembly`](BooleanResultKind::Assembly): components of both
 //!   operands without a seam, each piece a solid — the disjoint union
-//!   (∪ of separated bodies), including
-//!   touching-at-declared-contacts assemblies (the carried
+//!   (∪ of separated bodies), including assemblies touching at declared
+//!   vertex and edge contacts (the carried
 //!   [`ContactRecords`] say where; genuinely 3′, certified by PR 6's
-//!   validator).
+//!   validator). A declared line contact through a face's interior is
+//!   not one: its records would name points of the line, so the union
+//!   refuses it ([`BooleanError::TangentSlitArmUnbuilt`]).
 //! - [`Voided`](BooleanResultKind::Voided): **legitimate voids** —
 //!   A∖B with B strictly inside A yields the outer shell plus the
 //!   reverted inner shell, a tier-2-legal multi-shell body. The
@@ -150,7 +152,7 @@ pub enum BooleanResultKind {
     /// The result is operand B's material.
     OperandB,
     /// A multi-shell combination of components from both operands
-    /// without a seam (disjoint or touching-only).
+    /// without a seam (disjoint, or touching at vertices and edges).
     Assembly,
     /// A∖B with B inside A: outer shell + reverted inner void shell.
     Voided,

@@ -10,6 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanCoincidence, BooleanOp, CancelToken, CapEnd, DocEdit, EvalOptions, Node, NodeResult,
     ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, evaluate, find_flush_candidates,
@@ -39,6 +40,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }

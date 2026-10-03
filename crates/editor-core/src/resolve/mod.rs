@@ -2282,6 +2282,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetProgram { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
+        | DocEdit::SetExtrudeSide { .. }
         | DocEdit::SetExpression { .. }
         | DocEdit::SetDocParam { .. }
         | DocEdit::SetDocParamValue { .. }
@@ -2293,6 +2294,8 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetRoots { .. }
         | DocEdit::SetOffset { .. }
         | DocEdit::SetGauge { .. }
+        | DocEdit::Promote { .. }
+        | DocEdit::Fold { .. }
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => {}
     }

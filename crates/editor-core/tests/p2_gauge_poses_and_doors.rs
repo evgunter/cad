@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -44,6 +45,7 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -863,7 +865,7 @@ fn split_of(
 /// **A placing mate never crosses a cut** (A4): a cut holding a placed
 /// group's two instances but not the mate placing them refuses
 /// `PlacingMateLeft` naming the mate, rather than leave a self-mate in
-/// the remainder; with the mate in the cut the group hoists.
+/// the remainder; with the mate in the cut the group moves.
 #[test]
 fn a_cut_that_leaves_its_groups_placing_mate_behind_refuses() {
     let p = parts("r2-split-mate");
@@ -886,7 +888,7 @@ fn a_cut_that_leaves_its_groups_placing_mate_behind_refuses() {
         other => panic!("a placing mate left behind refuses typed: {other:?}"),
     }
     split_of(&p, &doc, &[base, top, mate], "r2-split-mate-whole")
-        .expect("the whole group with its mate hoists");
+        .expect("the whole group with its mate moves");
 }
 
 /// **Inline of split on the verbatim shape** (a cut of two placed

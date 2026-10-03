@@ -52,15 +52,16 @@
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
+use pncad::document::ExtrudeSide;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Label,
-    LoopProgram, Maintenance, MaintenanceNet, Node, ParamName, PartReach, PartResolver,
-    ProductError, ProfileProgram, RecipeNodeId, SlotId, StepId, Subject, apply, assemble_gathered,
-    cascade_delete_order, parse_expr, product_recorded, run_checks_on,
+    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr,
+    Label, LoopProgram, Maintenance, Node, ParamName, PartReach, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, apply,
+    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -2378,8 +2379,8 @@ impl DocSession {
     /// committed action and therefore one undo
     /// ([`ProfilePlane::NewXy`]).
     ///
-    /// The frame's id is not predicted: each edit is built from what
-    /// its predecessor MINTED ([`Self::commit_run`]), so the profile
+    /// The frame's id is not predicted: the profile is built from what
+    /// the frame's insert MINTED ([`Self::commit_run`]), so the profile
     /// names the node the door actually created. All-or-nothing comes
     /// free with that — a profile the insert door refuses leaves no
     /// orphan frame behind, because nothing is recorded until both
@@ -2389,27 +2390,14 @@ impl DocSession {
             Ok(frame) => datum_node(frame),
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
         };
-        let mut loops = Some(loops);
-        self.commit_run(|minted| match minted {
-            [] => Some(DocEdit::InsertNode {
-                node: Box::new(frame.clone()),
-            }),
-            [Some(plane)] => Some(DocEdit::InsertNode {
-                node: Box::new(Node::Profile(ProfileProgram {
-                    plane: *plane,
-                    // Loud, like the arm below: ending the run here
-                    // instead would commit the lone frame, which is
-                    // the exact orphan all-or-nothing promises
-                    // against. The generator is called once per
-                    // position and this position comes round once.
-                    loops: loops
-                        .take()
-                        .unwrap_or_else(|| unreachable!("the profile's position comes round once")),
-                    ids: Vec::new(),
-                })),
-            }),
-            [None] => unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)"),
-            _ => None,
+        self.commit_run(|run| {
+            let plane = run.insert(frame)?;
+            run.insert(Node::Profile(ProfileProgram {
+                plane,
+                loops,
+                ids: Vec::new(),
+            }))?;
+            Ok(())
         })
     }
 
@@ -2432,7 +2420,7 @@ impl DocSession {
     /// **What [`SessionOp::EditProfile`] would report, without
     /// committing it** — the edit door's own `Applied::maintenance` for
     /// the one `SetProgram` the op would commit, netted by
-    /// [`MaintenanceNet`] as the commit nets it: every name on a step
+    /// [`Recording`] as the commit nets it: every name on a step
     /// the reshaping drops, or on a kept step's piece it stops drawing,
     /// stranded. Empty when the op would write nothing.
     ///
@@ -2455,11 +2443,10 @@ impl DocSession {
         };
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        let applied = apply(self.committed_doc(), &edit, self.tol, &reach)
-            .map_err(|error| Refusal::Edit(Box::new(error)))?;
-        let mut net = MaintenanceNet::new();
-        net.push(&applied);
-        Ok(net.finish(&applied.doc))
+        let mut run = Recording::start(self.committed_doc(), self.tol, &reach);
+        let refused = |error| Refusal::Edit(Box::new(error));
+        run.apply(edit).map_err(refused)?;
+        Ok(run.finish().map_err(refused)?.maintenance)
     }
 
     /// **The one `SetProgram` [`SessionOp::EditProfile`] commits**, or
@@ -2497,7 +2484,11 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::Extrude { profile, distance }),
+            node: Box::new(Node::Extrude {
+                profile,
+                distance,
+                side: ExtrudeSide::Along,
+            }),
         })
     }
 
@@ -2544,22 +2535,17 @@ impl DocSession {
         // on — rather than as the narrower complaint about the pair.
         // An empty list is the undeclared boolean.
         let pairs = declared_pairs(&declare);
-        let staged = self.stage_run(|minted| {
-            minted.is_empty().then(|| DocEdit::InsertNode {
-                node: Box::new(Node::Boolean {
-                    op,
-                    a,
-                    b,
-                    declare: pairs.clone(),
-                }),
+        let staged = self.stage_run(|run| {
+            run.insert(Node::Boolean {
+                op,
+                a,
+                b,
+                declare: pairs,
             })
         });
-        let staged = match staged {
+        let (staged, node) = match staged {
             Ok(staged) => staged,
             Err(refusal) => return OpOutcome::refused(refusal),
-        };
-        let Some(Some(node)) = staged.minted.last().copied() else {
-            unreachable!("the run ends on the boolean's `InsertNode`")
         };
         // Judged before it is recorded: the one recourse to a contact
         // refusal is a declaration in the same action, which cannot be
@@ -2722,22 +2708,12 @@ impl DocSession {
         // takes the root slot the pattern took from the body it
         // replicates; each later projection's input has stopped being a
         // root by then, so it is APPENDED to the root list.
-        self.commit_run(|minted| match minted.split_first() {
-            None => Some(DocEdit::InsertNode {
-                node: Box::new(pattern.clone()),
-            }),
-            Some((Some(pattern), projections)) => i64::try_from(projections.len())
-                .ok()
-                .filter(|index| *index < combine::DUPLICATE_COUNT)
-                .map(|index| DocEdit::InsertNode {
-                    node: Box::new(combine::part_node(
-                        *pattern,
-                        PartSelectSpec::Instance(index),
-                    )),
-                }),
-            Some((None, _)) => {
-                unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)")
+        self.commit_run(|run| {
+            let pattern = run.insert(pattern)?;
+            for index in 0..combine::DUPLICATE_COUNT {
+                run.insert(combine::part_node(pattern, PartSelectSpec::Instance(index)))?;
             }
+            Ok(())
         })
     }
 
@@ -2844,6 +2820,10 @@ impl DocSession {
             ),
             // The rename field's text, against the label the node has.
             DocEdit::SetLabel { node, label } => doc.label(*node) == label.as_ref(),
+            DocEdit::SetExtrudeSide { node, side } => matches!(
+                doc.node(*node),
+                Some(Node::Extrude { side: stood, .. }) if stood == side
+            ),
             // Every other edit submits. The structure of the recipe and
             // the shape of the product: a node inserted, deleted,
             // re-parented or re-pointed has no standing value of its
@@ -2864,6 +2844,8 @@ impl DocSession {
             // on, not a panel field's value.
             | DocEdit::SetOffset { .. }
             | DocEdit::SetGauge { .. }
+            | DocEdit::Promote { .. }
+            | DocEdit::Fold { .. }
             // The declaration doors that are not the value or the
             // notation half. `SetDocParam` is create-or-replace: a
             // redeclaration is an act — it is how a parameter's
@@ -2952,96 +2934,75 @@ impl DocSession {
     /// list of them: one run of [`Self::commit_run`], so one user
     /// action is one undo.
     fn commit_action(&mut self, edits: Vec<DocEdit<ProfileProgram>>) -> OpOutcome {
-        let mut edits = edits.into_iter();
-        self.commit_run(|_| edits.next())
+        self.commit_run(|run| {
+            for edit in edits {
+                run.apply(edit)?;
+            }
+            Ok(())
+        })
     }
 
     /// The same door again, for an action whose later edits name the
     /// ids its earlier ones MINTED: [`Self::stage_run`], then
     /// [`Self::record_run`].
-    fn commit_run<F>(&mut self, next: F) -> OpOutcome
-    where
-        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
-    {
-        match self.stage_run(next) {
-            Ok(staged) => self.record_run(staged),
+    fn commit_run(
+        &mut self,
+        action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<(), EditError>,
+    ) -> OpOutcome {
+        match self.stage_run(action) {
+            Ok((staged, ())) => self.record_run(staged),
             Err(refusal) => OpOutcome::refused(refusal),
         }
     }
 
-    /// **An action's edits, applied and not yet recorded.**
+    /// **An action's edits, applied and not yet recorded**, beside what
+    /// `action` answered.
     ///
-    /// `next` is handed what each edit so far minted, in order — an
-    /// `InsertNode`'s new id, `None` for every edit that creates no
-    /// node — and answers with the next edit, or `None` to end the
-    /// run. The slice's LENGTH is how many edits have landed, so a
-    /// caller that only inserts can match on its shape and a caller
-    /// with a fixed list ([`Self::commit_action`]) ignores it.
+    /// `action` records its edits on the [`Recording`] it is handed — an
+    /// insert through [`Recording::insert`], which answers the id it
+    /// minted, so a later edit names the node the door actually
+    /// created.
     ///
     /// **All or nothing**: each edit is applied to the value the last
     /// one produced and nothing is recorded until [`Self::record_run`]
-    /// takes the result, so a refusal anywhere — or a caller that
-    /// drops the staged run — leaves the session on the document it
-    /// started from. That is purity doing the work — no rollback
-    /// exists to be got wrong.
-    fn stage_run<F>(&self, mut next: F) -> Result<StagedRun, Refusal>
-    where
-        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
-    {
+    /// takes the result. A refused edit ends the run — the recording
+    /// answers its refusal from then on, `finish` included — so a
+    /// refusal leaves the session on the document it started from
+    /// whether or not `action` stops at it, and so does a caller that
+    /// drops the staged run. That is purity doing the work — no
+    /// rollback exists to be got wrong.
+    fn stage_run<T>(
+        &self,
+        action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<T, EditError>,
+    ) -> Result<(Recorded<ProfileProgram>, T), Refusal> {
         // ONE reach for the whole action, over the session's own seam
         // (the directory rule; `None` refuses typed): an inserted
         // mate's clocking rider asks it, and nothing it decides is
         // recorded — the edits are the history.
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        // Threaded rather than cloned up front: the first `apply`
-        // reads the history's value in place, and each later one reads
-        // its predecessor's output, so a group of one costs exactly
-        // what a single commit always cost.
-        let mut produced: Option<Doc<ProfileProgram>> = None;
-        let mut logged: Vec<DocEdit<ProfileProgram>> = Vec::new();
-        let mut net = MaintenanceNet::new();
-        let mut minted: Vec<Option<RecipeNodeId>> = Vec::new();
-        while let Some(edit) = next(&minted) {
-            let attempt = {
-                let base = produced.as_ref().unwrap_or_else(|| self.history.doc());
-                apply(base, &edit, self.tol, &reach)
-            };
-            match attempt {
-                Ok(applied) => {
-                    logged.push(edit);
-                    minted.push(applied.record.minted);
-                    net.push(&applied);
-                    produced = Some(applied.doc);
-                }
-                Err(error) => return Err(Refusal::Edit(Box::new(error))),
-            }
-        }
-        let Some(doc) = produced else {
+        let mut run = Recording::start(self.history.doc(), self.tol, &reach);
+        let answer = action(&mut run);
+        let refused = |error| Refusal::Edit(Box::new(error));
+        let staged = run.finish().map_err(refused)?;
+        let answer = answer.map_err(refused)?;
+        if staged.edits.is_empty() {
             unreachable!("an action commits at least one edit")
-        };
-        Ok(StagedRun {
-            doc,
-            logged,
-            net,
-            minted,
-        })
+        }
+        Ok((staged, answer))
     }
 
     /// **A staged run, recorded**: the whole run is one history state,
     /// so one user action is one undo.
-    fn record_run(&mut self, staged: StagedRun) -> OpOutcome {
-        let StagedRun {
+    fn record_run(&mut self, staged: Recorded<ProfileProgram>) -> OpOutcome {
+        let Recorded {
             doc,
-            logged,
-            net,
+            edits,
+            maintenance,
             minted,
         } = staged;
-        let committed = logged.clone();
-        // Net over the action: a row an earlier edit reported can be
-        // made moot by a later one ([`MaintenanceNet`]).
-        let maintenance = net.finish(&doc);
-        self.history.commit_group(logged, doc);
+        let committed = edits.clone();
+        self.history.commit_group(edits, doc);
         let pruned = self.display.prune(self.history.doc());
         self.request_eval();
         OpOutcome {
@@ -3085,19 +3046,6 @@ impl DocSession {
             resolver: self.requested_resolver.clone(),
         });
     }
-}
-
-/// An action's edits applied in order and not yet recorded
-/// ([`DocSession::stage_run`]).
-struct StagedRun {
-    /// The document the last edit produced.
-    doc: Doc<ProfileProgram>,
-    /// Each edit, for the history.
-    logged: Vec<DocEdit<ProfileProgram>>,
-    /// The maintenance, netted over the whole action.
-    net: MaintenanceNet,
-    /// What each edit minted, in the order the edits applied.
-    minted: Vec<Option<RecipeNodeId>>,
 }
 
 /// Whether a document is assembly-shaped — one of the two conditions
@@ -3232,5 +3180,49 @@ impl core::fmt::Debug for DocSession {
             .field("derived", derived)
             .field("notation", notation)
             .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::{DocSession, ProfilePlane, Refusal, datum_node};
+    use pncad::document::{Doc, Node, ProfileProgram};
+    use pncad::geom_core::Tol;
+
+    /// **An action that swallows a refusal commits nothing.** The
+    /// action lands a frame, has its profile refused (an empty loop
+    /// list), ignores the refusal, lands a second frame and answers
+    /// success; the door still refuses the whole action, so neither
+    /// frame is committed. This reds if the run goes on past a refusal,
+    /// which would commit the two frames around it.
+    #[test]
+    fn an_action_that_swallows_a_refusal_commits_nothing() {
+        let tol = Tol::witness();
+        let mut session = DocSession::inline(Doc::empty_derived("swallowed-refusal", tol), tol);
+        let frame = || datum_node(ProfilePlane::world_xy().expect("the world frame"));
+        let before = session.history().len();
+        let outcome = session.commit_run(|run| {
+            let plane = run.insert(frame())?;
+            let _ = run.insert(Node::Profile(ProfileProgram {
+                plane,
+                loops: Vec::new(),
+                ids: Vec::new(),
+            }));
+            let _ = run.insert(frame());
+            Ok(())
+        });
+        assert!(
+            matches!(outcome.refusal, Some(Refusal::Edit(_))),
+            "the profile's refusal is the action's: {:?}",
+            outcome.refusal
+        );
+        assert!(outcome.committed.is_empty(), "nothing is committed");
+        assert_eq!(session.history().len(), before, "nothing is recorded");
+        assert!(
+            session.committed_doc().order().is_empty(),
+            "neither frame landed"
+        );
     }
 }
