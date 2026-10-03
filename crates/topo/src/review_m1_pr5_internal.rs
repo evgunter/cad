@@ -241,6 +241,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "insert_void",
         "calls `insert_voids` with the one destination as a slice — same body, same assertion",
     ),
+    (
+        "insert_voids",
+        "refuses a hollow cavity before any mutation, then calls `insert_hollow_voids` — same \
+         body, same assertion",
+    ),
     // ---- Pipelines composed of asserting operators. ----
     (
         "merge_coplanar_faces",
@@ -386,10 +391,6 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          caller that discards the `Err` can fire a later operator's postcondition from \
          API MISUSE rather than a kernel bug — the state class D9's footnote says \
          cannot occur. Open as S14; this entry records it, it does not excuse it.",
-    ),
-    (
-        "graft_disjoint_all_onto_keyed",
-        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
     ),
 ];
 

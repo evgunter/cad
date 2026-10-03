@@ -4,7 +4,7 @@ kind: issue
 title: MappedCurve::restrict composes the anchored rotation into the stored placement per split, re-applying rotation_about's diagonal enclosure each time — compose in the parameter, keep one placement
 status: open
 opened: 2026-09-05
-refs: [rotation-about-diagonal-width-floor, 1277]
+refs: [1277]
 priority: P1
 cost: H
 ---
@@ -56,3 +56,10 @@ waits here for its owner.
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/props/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). Filed from a PROPS lane (PR 1980's rider); `crates/geom-brep/src/mapped.rs` is in no program's `paths` and PROPS — enclosure certificates and interval honesty — is its natural owner. PROPS draws the fence on `mapped.rs` in the PR that takes it.
+
+## A reference that outlived its program (2026-10-03)
+
+`rotation-about-diagonal-width-floor` was PROPS' and was deleted with `work/props/` when that program closed.
+It is dropped from this row's `refs:` because `refs` names live items; the
+finding is unchanged and readable at `git show 63df2069c:work/props/<id>.md`,
+and PROPS' done-state of record is `docs/doc-ledger/props-leaves-the-tracker.md`.

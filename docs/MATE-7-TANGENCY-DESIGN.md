@@ -109,11 +109,11 @@ different situations wearing one description:
 1. **The smooth continuation** — walking across the rim, the
    tangent plane is continuous and material fills a π wedge. This
    is the tube chain: consecutive segments of one bent pipe meeting
-   at a circular seam. The lily's stem-corm weld is this. There is
-   nothing to *declare* here — the rim is a seam of one composite
-   wall, and the join's job is purely structural: zip the two walls
-   into one body carrying a π edge (the treatment M9-3 already
-   ships for the tube chain).
+   at a circular seam. The lily's stem-corm weld is this. The rim is
+   a seam of one composite wall, and the join zips the two walls into
+   one body carrying a π edge (the treatment M9-3 already ships for
+   the tube chain). Inside one profile that is structural; between two
+   operands the seam is declared `Seam` and verified (C4).
 2. **The kiss** — tangent planes agree at the rim but the composed
    material pinches to wedge 0 (a knife-edge circle) or opens to 2π
    (a circular slit). This is the declared-cusp family the #131

@@ -201,7 +201,14 @@ fn wall_declarations(
                 .push(FacePairDeclaration::new(fa, fb, class));
         }
     }
-    decls
+    // A seam pair names faces that meet along the rim. (A `Tangent`
+    // pair is kept whole: the rows here refuse it on the class or the
+    // routing, which a pair that never meets must reach too.)
+    if class == topo::BooleanCoincidence::Seam {
+        crate::common::seam_pairs::meeting(a, b, decls)
+    } else {
+        decls
+    }
 }
 
 // -------------------------------------------------------------------
@@ -458,33 +465,33 @@ fn the_admitted_torus_lane_stops_at_the_section_pass() {
 /// agree across the rim, so the material runs smoothly through it and
 /// the routing classifies the seam.
 ///
-/// The declaration is `Tangent` because that is the only class an
-/// author has to state a rim contact with today — and the routing's
-/// answer is precisely that this rim does not want one: a wedge-π rim
-/// is structural. The refusal is its own variant so it can say that
-/// without also claiming the π arm is unbuilt, which it is not.
+/// Declared `Tangent`, the aligned senses contradict the claim, as they
+/// contradict `Rest` on one carrier, and the refusal steers to the class
+/// that fits: a `Seam`.
 #[test]
 fn the_g1_tube_chain_rim_routes_to_the_smooth_seam() {
     let (a, b) = (segment_a(), segment_b());
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("a seam takes no declaration, and the join wiring is not built");
+        .expect_err("a G1 rim is no Tangent contact");
     assert!(
-        matches!(err, BooleanError::RimSeamNotDeclarable { .. }),
+        is_tangent_on_a_seam(&err),
         "a G1 chain's rim is the wedge-π seam: {err:?}"
     );
     let text = format!("{err}");
     assert!(
-        text.contains("they are one wall and the Tangent declaration on them is wrong")
-            && text.contains("no way through this in the kernel yet")
-            && !text.contains("Recourse"),
-        "the refusal must say the seam is structural, and that removing the \
-         declaration is not a way through (the union then refuses the torus pair): {text}"
+        text.contains("is a `Seam`: declare that") && text.contains("Recourse"),
+        "the refusal must steer to the seam: {text}"
     );
-    assert!(
-        !text.contains("UNBUILT"),
-        "the π arm IS built — the seam refusal must not claim otherwise: {text}"
-    );
+}
+
+/// A `Tangent` declaration the rim routing found to be a wedge-π seam.
+fn is_tangent_on_a_seam(err: &BooleanError) -> bool {
+    matches!(
+        err,
+        BooleanError::ContactContradicted { margin, .. }
+            if margin.predicate == Some("contact_tangent_rim_seam")
+    )
 }
 
 /// **The same chain, undeclared or declared `Rest`, never reaches the
@@ -569,7 +576,7 @@ fn the_two_arms_are_decided_by_the_rim_and_not_by_the_kind() {
     // of the same claim: the routing did not merely fill one payload
     // two ways, it sent the two geometries down two paths.
     assert!(
-        matches!(chain, BooleanError::RimSeamNotDeclarable { .. }),
+        is_tangent_on_a_seam(&chain),
         "the G1 chain routes to the seam: {chain:?}"
     );
     assert!(
@@ -614,7 +621,7 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
         matches!(
             err,
             BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent
+                class: topo::BooleanCoincidence::TANGENT
             }
         ),
         "no rim, no routing — the class refusal stands verbatim: {err:?}"
@@ -673,10 +680,7 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
         &wall_declarations(&a, &b, TUBE, ContactClass::Tangent),
     ) {
         let err = r.expect_err(op);
-        assert!(
-            matches!(err, BooleanError::RimSeamNotDeclarable { .. }),
-            "the chain, {op}: {err:?}"
-        );
+        assert!(is_tangent_on_a_seam(&err), "the chain, {op}: {err:?}");
     }
     let (a, b) = kissing_pair();
     for (op, r) in subtract_both_orders_and_intersect(
@@ -875,9 +879,107 @@ fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
 
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("a seam takes no declaration, and the join wiring is not built");
+        .expect_err("aligned senses contradict a Tangent claim");
     assert!(
-        matches!(err, BooleanError::RimSeamNotDeclarable { .. }),
+        is_tangent_on_a_seam(&err),
         "with one side reversed the kissing rim's normals AGREE: wedge π, not the slit: {err:?}"
     );
+}
+
+/// The coincident planar end faces across the two operands, declared
+/// `Rest` (the chain's junction discs, opposed).
+fn junction_discs(x: &Body<f64>, y: &Body<f64>) -> Vec<FacePairDeclaration> {
+    let planes = |b: &Body<f64>| -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
+        query::all_faces(b)
+            .into_iter()
+            .filter_map(|f| match b.get_surface(b.get_face(f)?.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => Some((f, *origin, *normal)),
+                _ => None,
+            })
+            .collect()
+    };
+    let mut out = Vec::new();
+    for (fa, oa, na) in planes(x) {
+        for (fb, ob, nb) in planes(y) {
+            if na.dot(nb) < -1.0 + 1e-12 && (ob - oa).dot(na).abs() < 1e-12 {
+                out.push(FacePairDeclaration::rest(fa, fb));
+            }
+        }
+    }
+    out
+}
+
+/// **The G1 chain declared a `Seam` verifies, and stops at the
+/// crossing layer.** The torus × torus seam passes the witness lane
+/// along the shared meridian circle and the wedge routing, so no
+/// declaration refuses; what stops the union is two pieces the seam
+/// does not supply. A torus × torus seam certifies no global side (the
+/// two tubes diverge past the rim, so each carrier crosses the other's
+/// continuation), so an edge leaving the rim keeps its graze door
+/// (`a-torus-seam-graze-needs-the-rim-root-deflated`); and the rim
+/// semicircle lying on the partner torus is a meridian, which the
+/// circle × torus root door cannot place on the carrier
+/// (`a-torus-meridian-lying-on-a-torus-is-unsettled`). Both orders.
+#[test]
+fn the_g1_tube_chain_declared_a_seam_stops_at_the_crossing_layer() {
+    let (a, b) = (segment_a(), segment_b());
+    for (x, y) in [(&a, &b), (&b, &a)] {
+        let mut decls = wall_declarations(x, y, TUBE, topo::BooleanCoincidence::Seam);
+        let discs = junction_discs(x, y);
+        assert_eq!(discs.len(), 1, "one junction disc pair");
+        decls.coincident_faces.extend(discs);
+        let err = topo::union_with(x, y, &decls, Tol::witness())
+            .expect_err("the crossing layer stops the chain");
+        let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
+            panic!("the crossing layer's refusal: {err:?}");
+        };
+        let body = if operand == topo::Operand::A { x } else { y };
+        let carrier = body
+            .get_curve_geom(body.get_edge(edge).expect("a live edge").curve)
+            .and_then(|g| g.certified())
+            .expect("a certified edge")
+            .carrier()
+            .clone();
+        assert!(
+            matches!(carrier, geom::Curve3::Circle { .. }),
+            "a circle at the rim: {carrier:?}"
+        );
+    }
+}
+
+/// **A seam declared on the kissing pair is contradicted**: the two
+/// tori touch externally, outward normals opposed, which is the
+/// `Tangent` claim's sense and contradicts the seam's
+/// (`seam_senses_aligned`). Both orders.
+#[test]
+fn a_seam_declared_on_the_kissing_torus_pair_is_contradicted() {
+    let (a, b) = kissing_pair();
+    let walls = |body: &Body<f64>| -> Vec<FaceKey> {
+        query::all_faces(body)
+            .into_iter()
+            .filter(|&f| {
+                matches!(
+                    body.get_face(f).and_then(|fd| body.get_surface(fd.surface)),
+                    Some(geom::Surface::Torus { .. })
+                )
+            })
+            .collect()
+    };
+    for (x, y) in [(&a, &b), (&b, &a)] {
+        let mut decls = BooleanDeclarations::none();
+        for fa in walls(x) {
+            for fb in walls(y) {
+                decls.coincident_faces.push(FacePairDeclaration::new(
+                    fa,
+                    fb,
+                    topo::BooleanCoincidence::Seam,
+                ));
+            }
+        }
+        let err = topo::union_with(x, y, &decls, Tol::witness()).expect_err("contradicted");
+        let BooleanError::SeamContradicted { margin, .. } = &err else {
+            panic!("the seam is contradicted: {err:?}");
+        };
+        assert_eq!(margin.predicate, Some("seam_senses_aligned"), "{err}");
+    }
 }

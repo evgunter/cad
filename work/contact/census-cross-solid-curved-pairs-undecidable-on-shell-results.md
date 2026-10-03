@@ -40,3 +40,16 @@ refusing these 26 results until the cross-solid backstop can decide
 curved × curved and curved × planar pairs: either certify them apart, or
 find the coincidence. The lane has to land before or with shell's
 adoption of the bar.
+
+## 2026-10-03 — booleans can reach it too (FUSE, PR 3891)
+
+Under Ev's ruling that a solid is one piece of material (PR 3901),
+every boolean result is sorted one solid per piece, and pieces that
+only touch are distinct solids. So a union whose pieces touch with a
+curved face in reach of the other piece lands in this class as well:
+the "same geometry passes as shells of one solid" asymmetry above is
+gone from the verbs' outputs, which no longer put two pieces under one
+solid. Measured on PR 3891's branch with a box declared `Tangent` to a
+plate's fillet (two solids, tier 3 green, 3′ `CensusUndecidable` alone);
+main has since refused that union (`TangentSlitArmUnbuilt`), so no row
+pins it today.

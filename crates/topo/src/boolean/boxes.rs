@@ -30,7 +30,7 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **two** of the eight doors that read a box from
+//! PRUNES. That is **three** of the nine doors that read a box from
 //! here; at four of the other six, box NON-overlap is the answer being
 //! sought, so a bigger box is a REFUSAL, and at the other two it is
 //! more exact work AND can be a refusal:
@@ -92,12 +92,18 @@
 //!   box IS the vertex hull, and a reach box a curved face inflates
 //!   belongs to a pair arm 1 refuses first
 //!   (`bool4r1_probes::probe_d`).
+//! - `pieces`'s screen (`pieces::Screen`, its face boxes built by the
+//!   boolean's exit in `boolean/ops.rs` and passed in) PRUNES: two
+//!   shells of one result whose hulled boxes clear are never probed
+//!   against each other, and where each shell stands is decided by the
+//!   point-in-solid walk through `Decide`. A bigger box costs a probe
+//!   (and a recorded verdict), never an answer.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The eight are not
+//! about a door, and the door has to be named. The nine are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
-//! a ninth door cannot land unargued. **It pins WHERE the doors are
+//! a tenth door cannot land unargued. **It pins WHERE the doors are
 //! and not which way each reads**, which is the column that carries
 //! the argument above; that gap is `S234` and has an owner rather
 //! than a disclosure.
@@ -3070,11 +3076,15 @@ pub(crate) mod tests {
         // driver builds its padded boxes (`boxes::face_box`/`edge_box`
         // at `pad`) and hands them in as closures, and the scan's own
         // calls through those closure parameters match the same text.
-        const PINNED: [(&str, usize); 5] = [
+        // So are one of `boolean/ops.rs`'s three and `pieces.rs`'s one:
+        // the boolean's exit builds the face-box closure the piece
+        // sort's screen calls.
+        const PINNED: [(&str, usize); 6] = [
             ("boolean/mod.rs", 2),
-            ("boolean/ops.rs", 2),
+            ("boolean/ops.rs", 3),
             ("boolean/reduce.rs", 8),
             ("census.rs", 7),
+            ("pieces.rs", 1),
             ("separation.rs", 2),
         ];
         const HOME: &str = "boolean/boxes.rs";

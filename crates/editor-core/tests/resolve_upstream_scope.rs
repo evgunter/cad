@@ -662,6 +662,7 @@ fn hand_eval(
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            parts: 1,
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
             placement: None,

@@ -155,7 +155,7 @@ pub enum LoopContainment {
 }
 
 /// Typed failure of [`point_in_loop`].
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum PointInLoopError {
     /// A predicate escalated (in-band margin).
     Escalated {
