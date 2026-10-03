@@ -15,6 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use sweep::ExtrudeSide;
 
 use common::arena_census;
 use geom_core::{Point2, Tol};
@@ -39,9 +40,16 @@ fn chamfered_cube() -> topo::Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a square is a valid profile");
-    let cube = extrude(&profile, Extrusion::Distance(L), Tol::witness())
-        .expect("the cube extrudes")
-        .body;
+    let cube = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: L,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the cube extrudes")
+    .body;
     let edges: Vec<topo::EdgeKey> = cube.edges().map(|(k, _)| k).collect();
     chamfer_edges(&cube, &edges, D, Tol::witness())
         .expect("a cube's twelve edges chamfer")

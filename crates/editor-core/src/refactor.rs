@@ -1515,6 +1515,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::DeclaredSiteNotAnOperand { .. }
             | EditError::DeclaredNameNotUpstream { .. }
             | EditError::SetProgramOnNonProfile { .. }
+            | EditError::SetExtrudeSideOnNonExtrude { .. }
             | EditError::StepIdsRefused { .. }
             | EditError::NodeIdCollides { .. }
             | EditError::TooFewMembers { .. }
@@ -1959,9 +1960,14 @@ fn remap_node(
             loops: p.loops.clone(),
             ids: Vec::new(),
         }),
-        Node::Extrude { profile, distance } => Node::Extrude {
+        Node::Extrude {
+            profile,
+            distance,
+            side,
+        } => Node::Extrude {
             profile: id(*profile)?,
             distance: distance.clone(),
+            side: *side,
         },
         Node::Revolve {
             profile,

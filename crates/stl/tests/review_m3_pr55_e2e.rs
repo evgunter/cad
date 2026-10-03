@@ -14,6 +14,7 @@ use geom_core::{Point2, Point3, Vec3};
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, mass_properties, subtract, validate, validate_closed};
@@ -41,7 +42,10 @@ fn slab(
     ]);
     extrude(
         &validated(sketch_from_axes(origin, u, v, Tol::witness()), lp),
-        Extrusion::Distance(depth),
+        Extrusion::Distance {
+            depth,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

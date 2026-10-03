@@ -535,14 +535,13 @@ pub enum SessionOp {
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
-    /// A NEGATIVE distance is admitted deliberately and builds: it is
-    /// an extrusion along the negative sketch normal, the same value
-    /// the property panel can author into the slot afterwards, and
-    /// the door does not narrow what the vocabulary means.
+    /// The extrude goes along the sketch normal. The distance is a
+    /// depth: the door inserts what it is given, and a negative one
+    /// refuses at evaluation, naming the side as its recourse.
     AddExtrude {
         /// The profile node extruded.
         profile: RecipeNodeId,
-        /// The extrusion distance (`Length`).
+        /// The extrusion depth (`Length`).
         distance: Expr,
     },
     /// Insert one revolve of an existing profile node about an

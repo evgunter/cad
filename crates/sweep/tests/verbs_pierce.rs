@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
@@ -24,9 +25,16 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// **The wrong answer this substrate closes.** A box driven up through
@@ -135,9 +143,16 @@ fn a_box_down_a_circular_hole_in_a_square_plate_sees_the_hole() {
         let profile = Profile::new(plane, vec![outer, hole.into()])
             .validate(tol)
             .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), tol)
-            .unwrap()
-            .body
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            tol,
+        )
+        .unwrap()
+        .body
     };
     let boss = brick((-0.2, 0.2), (-0.2, 0.2), (0.5, 2.0), tol);
     let topo::BooleanResult::Body(out) =

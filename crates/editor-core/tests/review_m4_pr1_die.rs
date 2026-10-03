@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{ang, len, scl};
+use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, Doc, DocEdit, DocParam, Expr, Node, NodeChange, ParamName, RecipeNodeId, eval,
 };
@@ -164,6 +165,7 @@ fn author_theirs() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap(),
                 distance: len(2.0 * HALF),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -181,6 +183,7 @@ fn author_theirs() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
                 distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -239,6 +242,7 @@ fn author_mine() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
                 distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -249,6 +253,7 @@ fn author_mine() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap(),
                 distance: len(2.0 * HALF),
+                side: ExtrudeSide::Along,
             }),
         },
     );

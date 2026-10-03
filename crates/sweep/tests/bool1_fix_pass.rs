@@ -28,6 +28,7 @@
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, SplitError, SplitFinishError, SplitReduceError};
 
@@ -37,9 +38,16 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     let prof = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
         .expect("a valid profile");
-    extrude(&prof, Extrusion::Distance(h), Tol::witness())
-        .expect("the profile extrudes")
-        .body
+    extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the profile extrudes")
+    .body
 }
 
 /// The issue-1152 notched block with the notch floor at `1 + dy`.

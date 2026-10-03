@@ -24,6 +24,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use std::sync::Arc;
 
@@ -266,6 +267,7 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
         Node::Extrude {
             profile,
             distance: common::len(0.02),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -425,6 +427,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
             profile,
             distance: Expr::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

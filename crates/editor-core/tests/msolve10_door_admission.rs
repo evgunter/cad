@@ -28,6 +28,7 @@
 
 use crate::fixture;
 use crate::wire;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
@@ -58,6 +59,7 @@ fn box_part(label: &str, half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -1049,6 +1051,7 @@ fn corpus() -> Vec<Row> {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let local_cap = editor_core::StableName {

@@ -721,7 +721,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x3e6e_20eb_6768_c4b8, 0x8b2f_473f_9e3f_e294),
+        (0x458d_97fb_11a1_d19a, 0xc786_dfaf_c59b_ca6e),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -747,7 +747,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x4148_d828_173b_7b16, 0x1dcc_30bb_4700_7e4a),
+        (0x9502_c488_ae26_81a8, 0x09a9_49e7_a4a7_2704),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -771,7 +771,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x3e6e_20eb_6768_c4b8, 0x8b2f_473f_9e3f_e294),
+        (0x458d_97fb_11a1_d19a, 0xc786_dfaf_c59b_ca6e),
         "the corpus's Probe evaluation moved"
     );
 }

@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc,
@@ -43,6 +44,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -220,6 +222,7 @@ fn split_through_a_reflex_corner_names_its_copy_on_each_half() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, plane) = insert(

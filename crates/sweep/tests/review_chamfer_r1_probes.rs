@@ -43,6 +43,7 @@ use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::BlendError;
 use sweep::chamfer::chamfer_edges;
 use sweep::{Extrusion, extrude};
@@ -57,9 +58,16 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a convex polygon validates");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("the prism extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the prism extrudes")
+    .body
 }
 
 /// **The material oracle**: on a CONVEX body, every face's sensed
@@ -252,9 +260,16 @@ fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a rectangle validates");
-    let pad = extrude(&profile, Extrusion::Distance(Probe(1.0)), Tol::witness())
-        .expect("the pad extrudes")
-        .body;
+    let pad = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: Probe(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the pad extrudes")
+    .body;
     let edges: Vec<EdgeKey> = pad.edges().map(|(k, _)| k).collect();
     k_stats::start_recording();
     chamfer_edges(&pad, &edges, Probe(0.1), Tol::witness()).expect("the pad chamfers");

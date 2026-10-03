@@ -12,6 +12,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -78,6 +79,7 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext)
@@ -386,6 +388,7 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
         Node::Extrude {
             profile,
             distance: len(3.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (b, taller) = insert(
@@ -393,6 +396,7 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
         Node::Extrude {
             profile,
             distance: len(5.0),
+            side: ExtrudeSide::Along,
         },
     );
     assert_ne!(tall, taller, "each branch mints its own node's id");

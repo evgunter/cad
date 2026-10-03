@@ -185,8 +185,8 @@ pub use names::{
     meridian_vertex, select, select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, InputFault, InterfaceCrossing,
-    InterfaceRecord, ListFault, MeasureNodeFault, Node, PartSelect, PatternKind,
+    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
+    InterfaceCrossing, InterfaceRecord, ListFault, MeasureNodeFault, Node, PartSelect, PatternKind,
     PlacementRuleFault, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId,
     TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };

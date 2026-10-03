@@ -26,6 +26,7 @@
 
 use crate::common::operands::slab;
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom::Curve3;
 use geom::Surface;
@@ -380,9 +381,16 @@ fn a_ball_in_the_wall_boxs_corner_is_certified_separated() {
     let vp = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tol::witness())
         .unwrap();
-    let cyl = extrude(&vp, Extrusion::Distance(1.3), Tol::witness())
-        .unwrap()
-        .body;
+    let cyl = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.3,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let ball = ball_poled_y(0.05, Vec3::new(0.34, 0.34, 0.65), Tol::witness());
     let out = topo::union(&cyl, &ball, Tol::witness())
         .expect("a genuinely separated pair must be certified, not refused");
@@ -420,9 +428,16 @@ fn a_ball_above_the_cylinders_cap_is_certified_separated() {
     let vp = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tol::witness())
         .unwrap();
-    let cyl = extrude(&vp, Extrusion::Distance(1.3), Tol::witness())
-        .unwrap()
-        .body;
+    let cyl = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.3,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     // Ball bottom at z = 1.55, cap at z = 1.3: a gap of 0.25, less
     // than the wall's 0.35 radius.
     let ball = ball_poled_y(0.2, Vec3::new(0.0, 0.0, 1.75), Tol::witness());
@@ -457,9 +472,16 @@ fn a_ball_straddling_a_notched_walls_carrier_builds() {
     let vp = Profile::new(SketchPlane::xy(), vec![notched])
         .validate(Tol::witness())
         .unwrap();
-    let slab = extrude(&vp, Extrusion::Distance(1.3), Tol::witness())
-        .unwrap()
-        .body;
+    let slab = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.3,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let at = 0.35 * core::f64::consts::FRAC_1_SQRT_2;
     let ball = ball_poled_y(0.05, Vec3::new(at, -at, 0.65), Tol::witness());
     let (v_slab, v_ball) = (

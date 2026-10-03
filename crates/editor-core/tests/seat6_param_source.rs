@@ -30,6 +30,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use corpus::{body_of, eval, failures};
 use editor_core::param_source;
@@ -76,6 +77,7 @@ fn filleted_cube(
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let node = Node::fillet(cube, radius, prism_edges(&doc, cube, 4));
@@ -219,9 +221,16 @@ fn the_same_geometry_without_the_channel_refuses() {
         let sketch = profile::Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tol::witness())
             .expect("a unit square is a valid profile");
-        let cube = sweep::extrude(&sketch, sweep::Extrusion::Distance(1.0), Tol::witness())
-            .expect("the kernel extrudes it")
-            .body;
+        let cube = sweep::extrude(
+            &sketch,
+            sweep::Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .expect("the kernel extrudes it")
+        .body;
         let edges = topo::query::all_edges(&cube);
         sweep::blend::build::fillet_edges(&cube, &edges, R, Tol::witness())
             .expect("the kernel door blends the same cube")
@@ -320,6 +329,7 @@ fn the_chamfer_attaches_nothing_because_its_flow_says_so() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let node1 = Node::chamfer(cube, param("r"), prism_edges(&doc, cube, 4));

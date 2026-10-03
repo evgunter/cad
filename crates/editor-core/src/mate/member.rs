@@ -968,6 +968,7 @@ mod tests {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: crate::ExtrudeSide::Along,
             },
         );
         let id = |s: Src| match s {

@@ -581,7 +581,7 @@ impl core::fmt::Display for StableName {
 pub type RolePath = Vec<RoleSeg>;
 
 /// Which end of the sweep vector a cap face closes. The sweep vector
-/// is the signed extrusion (or the stacking from first section to
+/// is the extrusion vector (or the stacking from first section to
 /// last), so both variants hold whichever way it points; the derived
 /// `Ord` is the name table's key order and the declaration order is
 /// that key order alone.

@@ -89,6 +89,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::collections::{BTreeMap, BTreeSet};
 use std::f64::consts::PI;
 use std::path::Path;
@@ -422,6 +423,7 @@ fn prism_part(
         Node::Extrude {
             profile,
             distance: pe(length, &scope),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

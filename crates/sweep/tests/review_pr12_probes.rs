@@ -6,6 +6,7 @@ use core::f64::consts::PI;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::cube;
@@ -22,9 +23,16 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let lp = bulge_loop(vec![
