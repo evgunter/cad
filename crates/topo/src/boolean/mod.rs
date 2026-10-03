@@ -1839,9 +1839,10 @@ pub enum BooleanError {
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
     /// neighborhoods, and one pair has no run in the shared vertex's
-    /// orbit that holds none of another pair's cuts (a fan both of
-    /// whose ways round hold one), where a dangling null edge holding
-    /// another's whole would nest it (`insert::reconcile_shared`).
+    /// orbit that holds none of another pair's cuts: two dangling null
+    /// edges with one segment, or a null edge both of whose ways round
+    /// hold one (`insert::reconcile_shared`). A dangling null edge whose
+    /// segment holds another's whole builds: the inner hangs at its tip.
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,

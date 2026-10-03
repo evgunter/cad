@@ -450,23 +450,27 @@ type Segment<T> = (Cut<T>, Cut<T>);
 
 /// **Whether the strut segment `outer` holds the strut segment `inner`
 /// whole**: both in one physical sector, `inner`'s germs between
-/// `outer`'s or along their directions. Another piece's boundary
-/// crosses no piece's In segment, so a segment strictly inside another
-/// is an In run inside an Out run, and the inner strut hangs at the
-/// outer's tip ([`mint_plans`]): that tip is the Out end of both, so
-/// the join's sense reading holds there. An end along an end's
-/// direction is two pieces touching along a pinch line in the corner's
-/// face; at both ends the two runs are one arc, each holds the other,
-/// and whichever mints first holds the other, its tip one end of both
-/// either way round.
+/// `outer`'s, strictly at one end at least and at the other strictly
+/// or along its direction (a pinch line in the corner's face). The
+/// inner strut then hangs at the outer's tip ([`mint_plans`]). Two
+/// struts tied at both ends (one arc) hold neither: which would hold
+/// the other is not read off the geometry, and the pair refuses
+/// [`BooleanError::SharedVertexCrossings`] ([`tied_held`]).
 fn holds_whole<T: Decide>(
     secs: &[BoolSector<T>],
     (lo, hi): Segment<T>,
     (ilo, ihi): Segment<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let not_after = |p: Cut<T>, q: Cut<T>| precedes(secs, p, q, band).map(|o| o != Some(false));
-    Ok(secs[lo.0].he == secs[ilo.0].he && not_after(lo, ilo)? && not_after(ihi, hi)?)
+    if secs[lo.0].he != secs[ilo.0].he {
+        return Ok(false);
+    }
+    let (at_lo, at_hi) = (
+        precedes(secs, lo, ilo, band)?,
+        precedes(secs, ihi, hi, band)?,
+    );
+    let inside = |o: Option<bool>| o != Some(false);
+    Ok(inside(at_lo) && inside(at_hi) && (at_lo, at_hi) != (None, None))
 }
 
 /// **Several vertex pairs' null edges at one vertex.** An operand
@@ -484,16 +488,16 @@ fn holds_whole<T: Decide>(
 /// other way round is the whole orbit) whose segment holds another
 /// pair's strut whole keeps it, the inner hanging at its tip
 /// ([`holds_whole`]): a piece with a reflex corner at the point leaves
-/// such a segment outside it, and two pieces touching along both its
-/// ends' directions make the two runs one arc. Another pair's cut
-/// strictly inside a strut's segment lies outside the strut's piece,
-/// and so does that pair's piece's In arc from it, up to the segment's
-/// ends: both its cuts lie in the segment, and its run is a strut that
-/// nests (the other way round would be the whole orbit). A null edge
-/// both of whose runs hold another pair's cut otherwise
-/// refuses [`BooleanError::SharedVertexCrossings`]: a fan whose two
-/// ways round both do, which needs a pair paired across the arcs
-/// outside its piece. Two crossing pairs that share both their
+/// such a segment outside it. Another pair's cut strictly inside a
+/// strut's segment lies outside the strut's piece, and so does that
+/// pair's piece's In arc from it, up to the segment's ends: both its
+/// cuts lie in the segment, and its run is a strut that nests (the
+/// other way round would be the whole orbit). A null edge both of
+/// whose runs hold another pair's cut otherwise refuses
+/// [`BooleanError::SharedVertexCrossings`]: two struts with one
+/// segment (two pieces touching along both its ends' directions), or a
+/// fan whose two ways round both hold one, which needs a pair paired
+/// across the arcs outside its piece. Two crossing pairs that share both their
 /// vertices refuse
 /// [`BooleanError::NonManifoldResult`]: the result would hold a
 /// shared-entity wedge fan there.
@@ -747,10 +751,11 @@ fn nested<T: Decide>(
 /// on one side are nested: not held either, as the longer holds the
 /// shorter's far cut strictly and turns ([`reconcile_shared`]'s fixed
 /// point); unless both ends tie, one arc, which holds, and the other
-/// way round is the complement, on the opposite side, so a fan turns.
-/// Struts on one side nest before this reading ([`nested`]). No witness
-/// reaches a fan's one arc, nor the invariant that the two directions
-/// are opposite rays (a convex sector holds none).
+/// way round is the complement, on the opposite side, so a fan turns,
+/// while a strut's is the whole orbit. Struts on one side otherwise
+/// nest before this reading ([`nested`]). No witness reaches a fan's
+/// one arc, nor the invariant that the two directions are opposite rays
+/// (a convex sector holds none).
 fn tied_held<T: Decide>(
     secs: &[BoolSector<T>],
     ((k, own), own_leaves): (Cut<T>, bool),
@@ -972,11 +977,11 @@ fn mint_directed<T: Decide>(
         });
     }
     // The join reads a null half's sense off the side its start vertex
-    // is the end of, so no vertex at a shared point is the In end of
-    // one null edge and the Out end of another: each run takes its own
-    // pair's region, the vertex keeps what lies outside them all, and a
-    // nested strut's region lies inside its holder's, so its holder's
-    // tip is the same end of both.
+    // is the end of, so no vertex at a shared point may be the In end
+    // of one null edge and the Out end of another. Each run takes its
+    // own pair's region and the vertex keeps what lies outside them
+    // all; a nested strut hangs at its holder's tip, and its facing
+    // (above) makes that tip the same end of both.
     if run.shared {
         for (end, below) in [(rec.attr.below_end, true), (rec.attr.above_end, false)] {
             if hung
