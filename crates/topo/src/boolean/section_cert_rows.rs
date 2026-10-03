@@ -880,14 +880,16 @@ fn w2_clears_only_where_the_face_describes() {
 // -------------------------------------------------------------------
 
 /// The unit wall's full circle at height `z`, as the intersection of
-/// `cyl` and the rim plane there.
-fn full_rim(body: &mut Body<f64>, cyl: crate::geometry::SurfaceKey, z: f64) -> EdgeCurveSpec<f64> {
-    let rim_plane = body.add_surface(Surface::Plane {
-        origin: p(0.0, 0.0, z),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
-    });
-    EdgeCurveSpec {
+/// `cyl` and the rim plane there, whose normal is `normal`; and that
+/// plane's key, for the cap the circle bounds.
+fn full_rim(
+    body: &mut Body<f64>,
+    cyl: crate::geometry::SurfaceKey,
+    z: f64,
+    normal: Vec3<f64>,
+) -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
+    let rim_plane = body.add_surface(plane(p(0.0, 0.0, z), normal));
+    let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             s1: cyl,
             s2: rim_plane,
@@ -901,7 +903,8 @@ fn full_rim(body: &mut Body<f64>, cyl: crate::geometry::SurfaceKey, z: f64) -> E
         },
         param_start: 0.0,
         param_end: TAU,
-    }
+    };
+    (spec, rim_plane)
 }
 
 /// **A seamless band**: one face on the unit cylinder over
@@ -923,15 +926,15 @@ fn seamless_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
             },
         )
         .unwrap();
-    let bottom = full_rim(&mut body, cyl, z0);
+    let (bottom, bottom_plane) = full_rim(&mut body, cyl, z0, v(0.0, 0.0, -1.0));
     let cap_b = body
         .mef(
             MefSite::Lone {
                 r#loop: seed.r#loop,
             },
             bottom,
-            FaceSurface::New {
-                surface: plane(p(0.0, 0.0, z0), v(0.0, 0.0, -1.0)),
+            FaceSurface::Shared {
+                key: bottom_plane,
                 sense: true,
             },
             tol,
@@ -947,15 +950,15 @@ fn seamless_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
             tol,
         )
         .unwrap();
-    let top = full_rim(&mut body, cyl, z1);
+    let (top, top_plane) = full_rim(&mut body, cyl, z1, v(0.0, 0.0, 1.0));
     body.mef(
         MefSite::Chords {
             he1: strut.he_minus,
             he2: strut.he_minus,
         },
         top,
-        FaceSurface::New {
-            surface: plane(p(0.0, 0.0, z1), v(0.0, 0.0, 1.0)),
+        FaceSurface::Shared {
+            key: top_plane,
             sense: true,
         },
         tol,
