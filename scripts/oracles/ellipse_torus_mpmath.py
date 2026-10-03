@@ -160,7 +160,7 @@ def main(path):
                 failures.append(f"{label}: a miss with {len(roots)} true roots, least distance {mp.nstr(least, 5)}")
             continue
         got = [mpf(t) for t in d["roots"]]
-        for t, (value, bound) in zip(got, d["residuals"]):
+        for t, (value, bound) in zip(got, d["residuals"], strict=True):
             off = abs(mpf(value) - pose.residual(t))
             if off > mpf(bound):
                 failures.append(f"{label}: residual {value} at {mp.nstr(t, 17)} is {mp.nstr(off, 5)} off, bound {bound}")

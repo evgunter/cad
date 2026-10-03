@@ -1716,10 +1716,8 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// frontier is everything the roots do not cover: a TANGENCY (an
 /// in-band discriminant, or a torus root count the quartic cannot
 /// certify, is not a crossing at any order this lane sees), a conic
-/// carrier against a cone, an ELLIPSE against a torus (its residual is a
-/// degree-4 trigonometric polynomial, an octic in the half-angle, which
-/// no ladder here solves), and a trim the chart door declines to
-/// express.
+/// carrier against a cone, a root the band cannot place, and a trim the
+/// chart door declines to express.
 ///
 /// **A CIRCLE against a SPHERE, a CYLINDER or a TORUS takes the same
 /// arms as a line.** Against a sphere its residual is a first harmonic

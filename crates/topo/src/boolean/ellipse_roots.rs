@@ -1327,6 +1327,21 @@ mod torus_rows {
         }
     }
 
+    /// A pose of [`a_root_the_band_cannot_place_is_not_certified`]: the
+    /// ellipse (centred at the origin, normal `n`, `u_ref` `u`, semi-axes
+    /// `semi`), the torus (`hub`, `t_axis`, `radii` `R` and `r`), the arc
+    /// and the true roots.
+    struct Graze {
+        n: [f64; 3],
+        u: [f64; 3],
+        semi: [f64; 2],
+        hub: [f64; 3],
+        t_axis: [f64; 3],
+        radii: [f64; 2],
+        arc: [f64; 2],
+        truth: [f64; 4],
+    }
+
     /// **A root the representation cannot place is refused, not
     /// certified.** Two grazes the fuzz drew at ε = 1e-12, each crossing
     /// the torus twice within 1e-4 rad: there the residual's slope along
@@ -1341,91 +1356,81 @@ mod torus_rows {
     fn a_root_the_band_cannot_place_is_not_certified() {
         let band = Band::new(1e-12, 1e-11).unwrap();
         let x = Vec3::new(1.0, 0.0, 0.0);
-        let cases: [(
-            [f64; 3],
-            [f64; 3],
-            f64,
-            f64,
-            [f64; 3],
-            [f64; 3],
-            f64,
-            f64,
-            f64,
-            f64,
-            [f64; 4],
-        ); 2] = [
-            (
-                [
+        let cases = [
+            Graze {
+                n: [
                     0.203_297_924_652_609_5,
                     -0.849_258_597_911_928_6,
                     -0.487_267_675_620_502_5,
                 ],
-                [
+                u: [
                     -0.947_599_164_518_603_8,
                     -0.295_910_810_043_571_84,
                     0.120_385_281_089_513_89,
                 ],
-                0.468_167_765_509_919_23,
-                0.029_302_888_415_728_03,
-                [
+                semi: [0.468_167_765_509_919_23, 0.029_302_888_415_728_03],
+                hub: [
                     0.555_302_572_861_934_7,
                     -0.432_052_166_574_670_16,
                     -1.582_439_375_116_944_3,
                 ],
-                [
+                t_axis: [
                     0.631_422_079_152_858_2,
                     -0.720_417_358_371_581_6,
                     0.286_888_458_665_025_5,
                 ],
-                1.962_544_801_084_216_4,
-                0.349_075_956_625_705_34,
-                1.226_257_671_700_713_4,
-                6.066_069_630_592_406_4,
-                [
+                radii: [1.962_544_801_084_216_4, 0.349_075_956_625_705_34],
+                arc: [1.226_257_671_700_713_4, 6.066_069_630_592_406_4],
+                truth: [
                     1.655_031_910_583_527_7,
                     1.655_125_629_734_536_3,
                     2.047_503_220_344_307_7,
-                    5.772_456_607_894_865_5,
+                    5.772_456_607_894_865,
                 ],
-            ),
-            (
-                [
+            },
+            Graze {
+                n: [
                     0.585_210_592_572_929_7,
                     0.025_848_412_147_504_423,
                     -0.810_469_260_323_852_8,
                 ],
-                [
+                u: [
                     0.351_512_957_155_989_74,
                     0.892_611_310_206_308_1,
                     0.282_282_996_022_129_2,
                 ],
-                1.622_886_978_643_085_3,
-                0.116_744_224_570_161_3,
-                [
+                semi: [1.622_886_978_643_085_3, 0.116_744_224_570_161_3],
+                hub: [
                     -0.396_557_758_150_929_8,
                     -0.550_975_344_440_982_3,
                     -1.626_369_091_986_125_1,
                 ],
-                [
+                t_axis: [
                     0.970_926_661_587_580_1,
                     0.209_414_540_512_199_7,
                     0.115_961_062_604_914_39,
                 ],
-                1.632_177_296_965_134,
-                0.289_732_944_160_409_07,
-                2.866_752_917_421_971,
-                4.963_815_025_747_772,
-                [
+                radii: [1.632_177_296_965_134, 0.289_732_944_160_409_07],
+                arc: [2.866_752_917_421_971, 4.963_815_025_747_772],
+                truth: [
                     2.204_785_365_190_525_8,
-                    3.334_730_708_216_814_8,
+                    3.334_730_708_216_815,
                     3.689_491_881_643_564_1,
-                    3.689_517_963_451_269_6,
+                    3.689_517_963_451_27,
                 ],
-            ),
+            },
         ];
-        for (k, (n, u, major, minor, hub, t_axis, big, small, t0, t1, truth)) in
-            cases.into_iter().enumerate()
-        {
+        for (k, c) in cases.into_iter().enumerate() {
+            let Graze {
+                n,
+                u,
+                semi: [major, minor],
+                hub,
+                t_axis,
+                radii: [big, small],
+                arc: [t0, t1],
+                truth,
+            } = c;
             let e = geom::Curve3::Ellipse {
                 center: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::from_array(n),
@@ -1462,20 +1467,21 @@ mod torus_rows {
         }
     }
 
-    /// **The draws, for the high-precision oracle.** Writes one JSON line
-    /// per pose — the carrier, the torus, the arc, the band and the door's
-    /// answer — to the file `CAD_ELLIPSE_TORUS_DUMP` names;
+    /// **The draws, for the high-precision oracle.** Prints one JSON
+    /// line per pose, tagged `ETDUMP` — the carrier, the torus, the arc,
+    /// the band, the door's answer, and the residual with its running
+    /// rounding bound at every certified root
+    /// ([`geom_brep::conic_torus_residual`]).
     /// `scripts/oracles/ellipse_torus_mpmath.py` then re-solves each pose
     /// at 40 digits and checks the count, every root's place along the
-    /// arc, every `Miss`, and the residual's running rounding bound at
-    /// every certified root ([`geom_brep::conic_torus_residual`]). Run:
-    /// `CAD_ELLIPSE_TORUS_DUMP=/tmp/et.jsonl cargo nextest run -p topo --lib
-    /// --run-ignored only dump_for_the_mpmath_oracle`, then
+    /// arc, every `Miss` and every bound. Run:
+    /// `cargo nextest run -p topo --lib --run-ignored only
+    /// dump_for_the_mpmath_oracle --no-capture | sed -n 's/^ETDUMP //p' >
+    /// /tmp/et.jsonl`, then
     /// `python3 scripts/oracles/ellipse_torus_mpmath.py /tmp/et.jsonl`.
     #[test]
     #[ignore = "an oracle dump; run command in the docs"]
     fn dump_for_the_mpmath_oracle() {
-        let path = std::env::var("CAD_ELLIPSE_TORUS_DUMP").expect("CAD_ELLIPSE_TORUS_DUMP");
         let mut rng = fuzz::start("ellipse_roots::dump_for_the_mpmath_oracle");
         let mut out = String::new();
         for eps in [1e-6, 1e-9, 1e-12] {
@@ -1529,7 +1535,7 @@ mod torus_rows {
                     let pt = |p: Point3<f64>| format!("[{:?}, {:?}, {:?}]", p.x, p.y, p.z);
                     writeln!(
                         out,
-                        "{{\"family\": \"{name}\", \"eps\": {eps:?}, \"center\": {}, \"axis\": {}, \
+                        "ETDUMP {{\"family\": \"{name}\", \"eps\": {eps:?}, \"center\": {}, \"axis\": {}, \
                          \"u_ref\": {}, \"major\": {major:?}, \"minor\": {minor:?}, \"hub\": {}, \
                          \"t_axis\": {}, \"R\": {major_radius:?}, \"r\": {minor_radius:?}, \
                          \"t0\": {t0:?}, \"t1\": {t1:?}, \"answer\": \"{answer}\", \"roots\": {roots:?}, \
@@ -1544,6 +1550,6 @@ mod torus_rows {
                 }
             }
         }
-        std::fs::write(&path, out).expect("the dump file");
+        print!("{out}");
     }
 }
