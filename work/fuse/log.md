@@ -233,3 +233,11 @@ conflict with #3870 at whichever merges second.
 
 `a-flush-partner-folded-onto-an-edge-contact-refuses-corrupt-operand`
 closed. Its two-crossing residue is P0 on this slate.
+
+## 2026-10-03 — next dispatch: the pinch's two-crossing arm
+
+`a-vertex-crossing-both-sides-of-a-pinch-refuses-shared-vertex-crossings`
+(P0) dispatched on `fuse/shared-vertex-crossings` (cloud session
+session_01Cue3Dtmhh4foVNGTEFWHBo). `a-subtract-through-a-pinch-line-drops-the-pinch-row-at-its-cut`
+(P1) waits for it, because both edit the reduction's v-v lane and the
+contact remap. Review tier: single FULL.

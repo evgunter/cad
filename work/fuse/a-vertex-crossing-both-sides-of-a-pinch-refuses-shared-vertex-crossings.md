@@ -2,10 +2,11 @@
 id: a-vertex-crossing-both-sides-of-a-pinch-refuses-shared-vertex-crossings
 kind: issue
 title: A vertex that crosses into both neighbourhoods of an operand's pinch refuses SharedVertexCrossings: the insertion handles one crossing pair per vertex
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P0
 cost: H
+branch: fuse/shared-vertex-crossings
 ---
 
 
