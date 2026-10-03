@@ -760,7 +760,7 @@ fn scan(a: &Body<f64>, face: FaceKey, b: &Body<f64>) -> Vec<Result<Vec<Cleared>,
         b,
         band(),
         ops::SectionPath::Crossings,
-        |_, _| false,
+        ops::Exempt::Nothing,
         |_, _| false,
         false,
     )
@@ -959,7 +959,7 @@ fn scan_b(a: &Body<f64>, b: &Body<f64>, face: FaceKey) -> Vec<Result<Vec<Cleared
         b,
         band(),
         ops::SectionPath::Crossings,
-        |_, _| false,
+        ops::Exempt::Nothing,
         |_, _| false,
         false,
     )

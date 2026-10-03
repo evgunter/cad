@@ -37,7 +37,7 @@ full turn about `y`), the cup's inner sphere face × the ball's declared
 `ball ∖ cup`, in both operand orders, refuse `FallbackExtentUnsupported`
 with this item's sentence ("the sphere's section circle runs near the
 plane face's boundary"), operand the ball. Before
-`touches_only` answered the sphere pair they refused `SpheresMeet`
+`ops.rs` `Exempt::Rest` answered the sphere pair they refused `SpheresMeet`
 (nested margin zero) one arm earlier. The ball's equator lies in the
 cup's rim plane, on the boundary of the rim annulus, so the plane arm
 meets exactly this item's circle-on-a-boundary read; a ball filling a

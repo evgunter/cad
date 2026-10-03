@@ -72,19 +72,24 @@ zero), its union included.
 
 ## Fix
 
-The no-crossings path reads the coincidence ladder's settled pairs
-(`BooleanReduction::coincident`): a pair settled one carrier with
-opposed senses (a verified `Rest`, or a shared recipe source) only
-touches, because each material stands on its own side of the one
-carrier, so it hides no overlap from the vertex probe
-(`ops.rs` `touches_only`). The section pass skips such a pair, and the
-sphere scan's sphere pair skips a carrier whose every face reaching
-the partner face is such a pair. A continuation (aligned senses) is
-not exempt.
+The no-crossings path reads the `Rest` declarations the declaration
+door verified one carrier with opposed senses
+(`BooleanReduction::rest_contacts`): such a pair only touches, because
+each material stands on its own side of the one carrier, so it hides
+no overlap from the vertex probe (`ops.rs` `Exempt::Rest`). The
+section pass skips such a pair, and the sphere scan's sphere pair
+skips a carrier only when every face of it is such a pair against the
+partner face. A continuation (aligned senses) is not exempt. Nor is a
+pair settled only by a shared recipe source: measured, such a curved
+pair (a shaft drilled through a disc with its source carried onto the
+bore; a ball in the cavity its own subtraction made) refuses
+`CurvedPierceUnsupported` at the crossing layer, whose one-sided cover
+does not read a shared source, so none reaches this path.
 
 Pinned by `rest_mate_every_op` (both seam layouts, three radii and
 lengths, five spans including blind, azimuths 0° and 60°, two poses;
-the ball in a cavity), `full_turn_bore_mate::intersect_and_differences_answer_the_closed_form`
+the ball in a cavity; the cavity with one sphere pair undeclared; a
+pebble buried beside the mate), `full_turn_bore_mate::intersect_and_differences_answer_the_closed_form`
 and `mate7a_torus_rest::subtract_and_intersect_on_the_torus_rest_fixtures`,
 against closed forms at ε 1e-9, 1e-6 and 1e-12.
 

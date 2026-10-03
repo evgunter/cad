@@ -89,8 +89,8 @@ shape as the rounded stack's fillet pair. The oracle once they build:
 
 ## The `Rest` half answered, the continuation half left (`reach/rest-mate-intersect-diff`)
 
-The no-crossings path now answers a pair settled one carrier with
-OPPOSED senses without its section (`ops.rs` `touches_only`): its
+The no-crossings path now answers a verified `Rest` pair (one carrier,
+OPPOSED senses) without its section (`ops.rs` `Exempt::Rest`): its
 materials stand on opposite sides of the carrier, so the pair only
 touches. That closed the declared cylinder, torus and sphere `Rest`
 mates' `∩` and `∖`

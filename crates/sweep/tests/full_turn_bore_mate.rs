@@ -33,11 +33,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::mate2_common::{peg_at, wall_decls};
-use core::f64::consts::{FRAC_PI_2, PI};
-use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
-use sweep::{Revolution, RevolveAxis, revolve};
+use crate::mate2_common::{full_turn_collar, onto_y, peg_at, wall_decls};
+use core::f64::consts::PI;
+use geom_core::{Affine3, Point3, Tol};
 use topo::{Body, BooleanOp, BooleanResult, mass_properties};
 
 /// The collar's bore and outer radii and its span in `y`.
@@ -46,37 +44,13 @@ const OUTER: f64 = 1.5;
 const COLLAR: (f64, f64) = (1.0, 2.0);
 
 fn collar() -> Body<f64> {
-    let (y0, y1) = COLLAR;
-    let lp = ProfileLoop::polygon([
-        Point2::new(BORE, y0),
-        Point2::new(OUTER, y0),
-        Point2::new(OUTER, y1),
-        Point2::new(BORE, y1),
-    ]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: Point2::new(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    full_turn_collar(BORE, OUTER, COLLAR)
 }
 
 /// The three-arc peg, first ruling at azimuth `deg` (from `+x`, the
 /// collar's seam), spanning `y ∈ [y0, y0 + h]`.
 fn shaft(deg: f64, y0: f64, h: f64) -> Body<f64> {
-    // A quarter turn about `x` takes the peg's `z` axis to `y` and its
-    // sketch azimuth `θ` (from `+x` toward `+y`) to the azimuth `θ` from
-    // `+x` toward `−z`, which is the revolve's own sense about `+y`.
-    let up = Affine3::rotation_about_axis(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        -FRAC_PI_2,
-    );
-    topo::transform_rigid(&peg_at(deg, y0, h), &up, Tol::witness()).unwrap()
+    onto_y(&peg_at(deg, y0, h))
 }
 
 fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> Body<f64> {

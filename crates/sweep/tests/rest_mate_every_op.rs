@@ -25,17 +25,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::three_arc;
-use crate::mate2_common::{continuations, walls_at};
-use core::f64::consts::{FRAC_PI_2, PI};
-use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
-use sweep::test_support::{extruded, sketch_at};
-use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{
-    Body, BooleanDeclarations, BooleanOp, BooleanResult, ContactClass, FacePairDeclaration,
-    mass_properties,
+use crate::mate2_common::{
+    collar_of, declare_rest, full_turn_collar, onto_y, peg_of, spheres_at, wall_decls_at,
 };
+use core::f64::consts::PI;
+use geom_core::{Affine3, Point3, Tol, Vec3};
+use sweep::test_support::ball_poled_y;
+use topo::{Body, BooleanDeclarations, BooleanOp, BooleanResult, mass_properties};
 
 /// The collar's wall thickness, outside its bore.
 const WALL: f64 = 1.0;
@@ -72,59 +68,19 @@ impl Mate {
     }
 
     fn collar(self) -> Body<f64> {
-        let (r, outer) = (self.r, self.r + WALL);
+        let outer = self.r + WALL;
         match self.layout {
-            Layout::ArcSplit => {
-                let o = Point2::new(0.0, 0.0);
-                extruded(
-                    sketch_at(BASE),
-                    vec![three_arc(o, outer, 0.0), three_arc(o, r, 0.0)],
-                    self.len,
-                    Tol::witness(),
-                )
-            }
-            Layout::FullTurn => {
-                let (y0, y1) = (BASE, BASE + self.len);
-                let lp = ProfileLoop::polygon([
-                    Point2::new(r, y0),
-                    Point2::new(outer, y0),
-                    Point2::new(outer, y1),
-                    Point2::new(r, y1),
-                ]);
-                let vp = Profile::new(SketchPlane::xy(), vec![lp])
-                    .validate(Tol::witness())
-                    .unwrap();
-                let axis = RevolveAxis {
-                    origin: Point2::new(0.0, 0.0),
-                    dir: Vec2::new(0.0, 1.0),
-                };
-                revolve(&vp, axis, Revolution::Full, Tol::witness())
-                    .unwrap()
-                    .body
-            }
+            Layout::ArcSplit => collar_of(self.r, outer, 0.0, BASE, self.len),
+            Layout::FullTurn => full_turn_collar(self.r, outer, (BASE, BASE + self.len)),
         }
     }
 
     fn shaft(self) -> Body<f64> {
         let (z0, h) = self.span;
-        let peg = extruded(
-            sketch_at(z0),
-            vec![three_arc(Point2::new(0.0, 0.0), self.r, self.deg)],
-            h,
-            Tol::witness(),
-        );
+        let peg = peg_of(self.r, self.deg, z0, h);
         match self.layout {
             Layout::ArcSplit => peg,
-            // A quarter turn about `x` takes the peg's `z` axis to the
-            // revolve's `y` axis.
-            Layout::FullTurn => {
-                let up = Affine3::rotation_about_axis(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                    -FRAC_PI_2,
-                );
-                topo::transform_rigid(&peg, &up, Tol::witness()).unwrap()
-            }
+            Layout::FullTurn => onto_y(&peg),
         }
     }
 }
@@ -138,19 +94,6 @@ fn spans(len: f64) -> [(&'static str, (f64, f64)); 5] {
         ("proud below", (BASE - 0.5, len + 0.5)),
         ("blind", (BASE + 0.5 * len, len)),
     ]
-}
-
-/// Every (bore wall × shaft wall) pair declared `Rest`, plus every
-/// continuation the parts have.
-fn decls(a: &Body<f64>, b: &Body<f64>, r: f64) -> BooleanDeclarations {
-    let mut d = continuations(a, b);
-    for &fa in &walls_at(a, r) {
-        for &fb in &walls_at(b, r) {
-            d.coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    d
 }
 
 fn volume(b: &Body<f64>) -> f64 {
@@ -199,7 +142,7 @@ fn holds(
 fn intersect_and_differences(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
     let tol = Tol::witness();
     let scale = m.collar_volume().max(m.shaft_volume());
-    let (cs, sc) = (decls(c, s, m.r), decls(s, c, m.r));
+    let (cs, sc) = (wall_decls_at(c, s, m.r), wall_decls_at(s, c, m.r));
     let op = |op, a, b, d| topo::boolean_op_with(op, a, b, d, topo::SweepStrategy::Realized, tol);
     for (order, a, b, d) in [("collar ∩ shaft", c, s, &cs), ("shaft ∩ collar", s, c, &sc)] {
         match op(BooleanOp::Intersect, a, b, d) {
@@ -231,7 +174,7 @@ fn unions(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
     let want = m.collar_volume() + m.shaft_volume();
     for (order, a, b) in [("collar ∪ shaft", c, s), ("shaft ∪ collar", s, c)] {
         holds(
-            topo::union_with(a, b, &decls(a, b, m.r), tol),
+            topo::union_with(a, b, &wall_decls_at(a, b, m.r), tol),
             (want, 1),
             want,
             &format!("{tag}: {order}"),
@@ -342,11 +285,7 @@ fn full_turn_bore_unions_are_the_closed_form() {
 
 /// A ball of radius `r` about the origin, poles on `y`.
 fn ball(r: f64) -> Body<f64> {
-    sweep::test_support::revolved_about_y(
-        vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
-        Revolution::Full,
-        Tol::witness(),
-    )
+    ball_poled_y(r, Vec3::new(0.0, 0.0, 0.0), Tol::witness())
 }
 
 /// The ball of radius `outer` with a ball of radius `r` taken out of
@@ -361,24 +300,8 @@ fn hollow(r: f64, outer: f64) -> Body<f64> {
 /// Every pair of sphere faces of radius `r` across `a` and `b`
 /// declared `Rest`.
 fn sphere_decls(a: &Body<f64>, b: &Body<f64>, r: f64) -> BooleanDeclarations {
-    let at = |body: &Body<f64>| -> Vec<topo::FaceKey> {
-        body.faces()
-            .filter(|(_, f)| {
-                matches!(
-                    body.get_surface(f.surface),
-                    Some(geom::Surface::Sphere { radius, .. }) if (radius - r).abs() < 1e-9
-                )
-            })
-            .map(|(k, _)| k)
-            .collect()
-    };
     let mut d = BooleanDeclarations::none();
-    for &fa in &at(a) {
-        for &fb in &at(b) {
-            d.coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
+    declare_rest(&mut d, &spheres_at(a, r), &spheres_at(b, r));
     assert!(!d.coincident_faces.is_empty(), "a declared sphere pair");
     d
 }
@@ -416,6 +339,103 @@ fn a_ball_filling_a_spherical_cavity_answers_every_op_in_closed_form() {
                 (ball_volume(r), 1),
                 scale,
                 &format!("{tag}: ball ∖ hollow"),
+            );
+        }
+    }
+}
+
+/// **A cavity with one of its sphere pairs undeclared keeps the
+/// refusal.** The hollow's cavity and the ball each carry two sphere
+/// faces, face `i` of each on the same side of the same seam. With a
+/// pair `(i, j)`, `i ≠ j`, left undeclared, every face still has a
+/// declared partner, the crossing layer passes, and the extent scan's
+/// sphere pair refuses `SpheresMeet`: it asks every face of a carrier,
+/// each on its exact pair, and a declaration on a face speaks for that
+/// face against its own partner only. (Leaving out a pair `(i, i)`
+/// refuses earlier, at the crossing layer along the seam the two faces
+/// share.)
+#[test]
+fn a_cavity_with_one_sphere_pair_undeclared_keeps_the_sphere_refusal() {
+    let tol = Tol::witness();
+    let (h, b) = (hollow(0.5, 1.0), ball(0.5));
+    let (fh, fb) = (spheres_at(&h, 0.5), spheres_at(&b, 0.5));
+    assert_eq!((fh.len(), fb.len()), (2, 2), "two sphere faces each");
+    for (oh, ob) in [(0, 1), (1, 0)] {
+        let (mut hb, mut bh) = (BooleanDeclarations::none(), BooleanDeclarations::none());
+        for (i, &x) in fh.iter().enumerate() {
+            for (j, &y) in fb.iter().enumerate() {
+                if (i, j) != (oh, ob) {
+                    declare_rest(&mut hb, &[x], &[y]);
+                    declare_rest(&mut bh, &[y], &[x]);
+                }
+            }
+        }
+        for (op, out) in [
+            ("hollow ∪ ball", topo::union_with(&h, &b, &hb, tol)),
+            ("hollow ∩ ball", topo::intersect_with(&h, &b, &hb, tol)),
+            ("hollow ∖ ball", topo::subtract_with(&h, &b, &hb, tol)),
+            ("ball ∖ hollow", topo::subtract_with(&b, &h, &bh, tol)),
+        ] {
+            assert!(
+                matches!(out, Err(topo::BooleanError::SpheresMeet { .. })),
+                "pair ({oh}, {ob}) undeclared: {op}: {:?}",
+                out.as_ref().err()
+            );
+        }
+    }
+}
+
+/// **A second shell beside the mate is classified as any shell is.**
+/// The shaft through the arc-split collar, declared as everywhere here,
+/// with a pebble (a ball of radius 0.2) buried in the collar's wall
+/// and joined to the shaft as a second solid of one operand: `∩` is
+/// the pebble, the collar minus it keeps it as a cavity, the operand
+/// minus the collar is the shaft, and the union is collar and shaft.
+#[test]
+fn a_pebble_buried_in_the_collar_beside_the_mate_is_its_own_shell() {
+    let tol = Tol::witness();
+    let pebble_volume = 4.0 / 3.0 * PI * 0.2 * 0.2 * 0.2;
+    let (collar_volume, shaft_volume) = (2.0 * PI, 0.5 * PI);
+    for (pose_name, pose) in poses() {
+        let tag = format!("pose {pose_name}");
+        let c = placed(&collar_of(0.5, 1.5, 0.0, 1.0, 1.0), &pose);
+        let pebble = topo::transform_rigid(
+            &ball(0.2),
+            &Affine3::translation(Vec3::new(1.0, 0.0, 1.5)),
+            tol,
+        )
+        .unwrap();
+        let two = match topo::union(&peg_of(0.5, 0.0, 0.5, 2.0), &pebble, tol) {
+            Ok(BooleanResult::Body(bb)) => placed(&bb.body, &pose),
+            other => panic!("{tag}: shaft and pebble: {other:?}"),
+        };
+        assert_eq!(two.shells().count(), 2, "{tag}: two solids");
+        let (cb, bc) = (wall_decls_at(&c, &two, 0.5), wall_decls_at(&two, &c, 0.5));
+        let scale = collar_volume;
+        holds(
+            topo::intersect_with(&c, &two, &cb, tol),
+            (pebble_volume, 1),
+            scale,
+            &format!("{tag}: collar ∩ shaft and pebble"),
+        );
+        holds(
+            topo::subtract_with(&c, &two, &cb, tol),
+            (collar_volume - pebble_volume, 2),
+            scale,
+            &format!("{tag}: collar ∖ shaft and pebble"),
+        );
+        holds(
+            topo::subtract_with(&two, &c, &bc, tol),
+            (shaft_volume, 1),
+            scale,
+            &format!("{tag}: shaft and pebble ∖ collar"),
+        );
+        for (order, x, y, d) in [("collar", &c, &two, &cb), ("shaft", &two, &c, &bc)] {
+            holds(
+                topo::union_with(x, y, d, tol),
+                (collar_volume + shaft_volume, 1),
+                scale,
+                &format!("{tag}: {order} first, ∪"),
             );
         }
     }
