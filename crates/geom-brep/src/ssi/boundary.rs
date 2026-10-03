@@ -309,8 +309,12 @@ enum SideClass {
     Region { strip: UvRect, reach: f64 },
     /// The plane misses the strip beside it (the exact empty answer).
     Clear { strip: UvRect },
-    /// No rung holds the locus within ε of it: the smallest certified
-    /// reach.
+    /// A strip holds the locus's cover, but no rung holds it within ε
+    /// of the side: no region, and an arc there ends on the domain's
+    /// sides, where the other sides' roots meet it.
+    Apart,
+    /// No rung holds the locus's cover inside its strip: the smallest
+    /// certified reach.
     Unbounded { reach: f64 },
 }
 
@@ -454,9 +458,10 @@ impl Pass<'_> {
     /// # Errors
     ///
     /// [`SsiError::BoundaryTangent`] where the slope across the side
-    /// does not clear the band. Where no rung holds the locus within ε
-    /// of the side it is [`SideClass::Unbounded`], and its own roots
-    /// decide it.
+    /// does not clear the band. Where a rung's cover lies inside its
+    /// strip but none within ε of the side, the side is
+    /// [`SideClass::Apart`]; where none lies inside its strip, it is
+    /// [`SideClass::Unbounded`], and its own roots decide it.
     fn side_region(
         &self,
         side: ChartSide,
@@ -474,6 +479,7 @@ impl Pass<'_> {
         };
         let rungs = self.rungs();
         let mut classified = false;
+        let mut covered = false;
         let mut best_reach = f64::INFINITY;
         for pad in rungs {
             let strip = self.strip(side, pad);
@@ -518,11 +524,13 @@ impl Pass<'_> {
             if inside && distance <= self.band.zero() {
                 return Ok(Some(SideClass::Region { strip, reach }));
             }
+            covered |= inside;
         }
-        if !classified {
-            return Ok(None);
-        }
-        Ok(Some(SideClass::Unbounded { reach: best_reach }))
+        Ok(match (classified, covered) {
+            (false, _) => None,
+            (true, true) => Some(SideClass::Apart),
+            (true, false) => Some(SideClass::Unbounded { reach: best_reach }),
+        })
     }
 
     /// How deep in from `side` a zero of `strip` lies, in parameter, and
@@ -776,12 +784,17 @@ impl Pass<'_> {
                             clear.push(strip);
                             section
                         }
+                        // The locus lies inside a strip beside the side, so
+                        // an arc there ends on the domain's sides; the side
+                        // itself, within the band along its length, has no
+                        // root to decide, and the corners on it are its.
+                        Some(SideClass::Apart) => section,
                         // The side lies within the band of the plane, and
-                        // no strip beside it holds a region: no rung has
+                        // no strip beside it holds the locus: no rung has
                         // the wall's slope across it one-signed (a side
                         // shorter than the band that the plane crosses is
-                        // the case met), or none holds the locus within ε
-                        // of the side. The side's own roots decide it; a
+                        // the case met), or none holds its cover inside
+                        // the strip. The side's own roots decide it; a
                         // plane tangent to the wall along it refuses as
                         // their graze.
                         class => {
