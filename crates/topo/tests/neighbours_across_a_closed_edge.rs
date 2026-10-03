@@ -136,11 +136,14 @@ fn a_disc_on_its_hosts_plane_refuses_as_coplanar_neighbours() {
 }
 
 /// **(c)**: a circle that spans less than the band still leaves the
-/// orientation undecided: a disc whose diameter is 5e-9. The refusal is
+/// orientation undecided: a disc whose diameter lies in the middle of
+/// the run's ambiguity band. The refusal is
 /// the gate's orientation rung, with its lever and no tolerance.
 #[test]
 fn an_edge_spanning_less_than_the_band_still_refuses_undecided() {
-    let (body, _, _) = disc_in_top(1.0, 2.5e-9);
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let diameter = (band.zero() + band.escalate()) / 2.0;
+    let (body, _, _) = disc_in_top(1.0, diameter / 2.0);
     let err = union_far(&body, 1.0);
     let BooleanError::Escalated {
         decision: BooleanDecision::Neighbours(PlaneRung::Orientation),

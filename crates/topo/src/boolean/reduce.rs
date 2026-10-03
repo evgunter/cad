@@ -5528,7 +5528,8 @@ mod neighbour_extent_rows {
     /// **An open edge that spans less than the band leaves the
     /// orientation undecided** (no over-acceptance): a unit triangle
     /// planted in the top on a key of its own holding the top's plane,
-    /// its corners then drawn in to sides of 5e-9. No public door builds
+    /// its corners then drawn in to sides in the middle of the run's
+    /// ambiguity band. No public door builds
     /// it, since an edge that short does not certify.
     #[test]
     fn a_short_open_edge_leaves_the_orientation_undecided() {
@@ -5551,7 +5552,7 @@ mod neighbour_extent_rows {
             },
         )
         .expect("the triangle takes a key of its own");
-        let s = 5e-9;
+        let s = (band().zero() + band().escalate()) / 2.0;
         let outer = body.faces[ring.membrane.face].outer;
         let crate::LoopBoundary::Cycle { first } = body.loops[outer].boundary else {
             panic!("the triangle's loop is a cycle");
