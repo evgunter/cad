@@ -2,12 +2,12 @@
 id: variables-are-identities-with-labels
 kind: unit
 title: D10 stage 1, the representation: what a variable is (identity, label, free or defined, scope), what constants remain, how an Expr reads a variable, how it persists
-status: open
+status: closed
 opened: 2026-10-03
 priority: P0
 cost: H
-design: true
 parent: d10-one-way-to-say-intent-is-unbuilt
+closed: 2026-10-03
 ---
 
 
@@ -74,3 +74,22 @@ fractions of a turn); how an `Expr` reads a variable; how the façade's
 f64-first doors and the bindings meet "no literal"; what `ParamSource`
 becomes; what persists and how a file this build cannot read refuses;
 and anything else the representation forces.
+
+## Closed
+
+Weighed by a designer pair (blinding on
+`analysis/design-fork/intent-variables-2026-10-03`). Both recommended a
+minted `VarId` with a separate unique optional name, a slot holding a
+`VarId`, no float in `Expr` (rationals and `turn`), anonymous variables
+for typed values, and id-keyed tokens. They differed only on where a
+written quantity becomes a variable: one had the formula parser refuse
+a unit inside a formula; the other lowered an authored `Formula` at the
+edit door, minting an anonymous variable per written quantity. The
+orchestrator took the second (friendlier, and it makes "no literal in
+the document" a type fact) with the first's findings folded in
+(symbolic-tier symbols keyed by id; mint records gain a `var` arm).
+It elaborates D10 and changes no ratified text, so it did not go to Ev.
+The design is `docs/VARIABLES-DESIGN.md` (VR1–VR9); the build is
+`variables-replace-the-parameter-table`, then
+`no-dimensioned-literal-in-a-slot`, `parameters-defined-by-formulas`
+and `typing-a-value-mints-or-offers-a-variable`.
