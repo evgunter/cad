@@ -54,7 +54,7 @@ impl SaidKey for String {
     }
 }
 
-impl SaidKey for crate::doc::ParamName {
+impl SaidKey for crate::doc::VarName {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         as_written(f, self.as_str())
     }

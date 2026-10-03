@@ -807,7 +807,7 @@ pub enum BoundaryEdit<'a> {
     /// one rule for one — an identifier an expression reads back — is
     /// held by the constructor there, so the binding answers with the
     /// constructor's own refusal at the call that offered the text.
-    ParamName(&'a pncad::document::ParamNameFault),
+    ParamName(&'a pncad::document::VarNameFault),
     /// A text that is not a label. A label crosses as text, and the
     /// document layer's rule for one — non-blank, one line, no control
     /// character — is held by `Label::new`, so the binding answers with

@@ -21,8 +21,8 @@ use crate::corpus;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Node,
-    ParamName, PartSelect, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide, UnitSym, ValuePayload,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, FreeVar, Node,
+    PartSelect, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide, UnitSym, ValuePayload, VarName,
     apply, evaluate,
 };
 use geom_core::{Bounds, Decide, Interval, SymBudget, Tol};
@@ -63,8 +63,8 @@ fn widened_document(width: f64) -> ProfileDoc {
     apply(
         &cd.doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static(corpus::part_select::H),
-            value: DocParam::Continuous {
+            name: VarName::from_static(corpus::part_select::H),
+            value: FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,
                 display_unit: UnitSym::canonical_for(Dimension::Length),

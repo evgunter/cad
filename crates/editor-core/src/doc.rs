@@ -23,7 +23,7 @@ use geom_core::Tol;
 /// from an expression, so a name is one the expression parser reads
 /// back as a reference to that same parameter — exactly one
 /// identifier token covering the whole text
-/// ([`crate::parse::ParamNameFault`] says how a text fails that). The
+/// ([`crate::parse::VarNameFault`] says how a text fails that). The
 /// field is private and [`Self::new`] is the one door, so neither an
 /// edit nor a file can hold a parameter no expression could name: the
 /// edit door never sees an inadmissible name because none can be
@@ -37,21 +37,21 @@ use geom_core::Tol;
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(try_from = "String")]
-pub struct ParamName(String);
+pub struct VarName(String);
 
-impl ParamName {
+impl VarName {
     /// The one door: the text, or why the expression parser does not
     /// read it back as a reference to itself.
     ///
     /// # Errors
     ///
-    /// [`crate::parse::ParamNameFault`], carrying the offered text and
+    /// [`crate::parse::VarNameFault`], carrying the offered text and
     /// the lexer's finding.
-    pub fn new(name: impl Into<String>) -> Result<Self, crate::parse::ParamNameFault> {
+    pub fn new(name: impl Into<String>) -> Result<Self, crate::parse::VarNameFault> {
         let offered = name.into();
-        match crate::parse::param_name_fault(&offered) {
+        match crate::parse::var_name_fault(&offered) {
             None => Ok(Self(offered)),
-            Some(reason) => Err(crate::parse::ParamNameFault { offered, reason }),
+            Some(reason) => Err(crate::parse::VarNameFault { offered, reason }),
         }
     }
 
@@ -82,8 +82,8 @@ impl ParamName {
     }
 }
 
-impl TryFrom<String> for ParamName {
-    type Error = crate::parse::ParamNameFault;
+impl TryFrom<String> for VarName {
+    type Error = crate::parse::VarNameFault;
 
     fn try_from(name: String) -> Result<Self, Self::Error> {
         Self::new(name)
@@ -95,7 +95,7 @@ impl TryFrom<String> for ParamName {
 /// the question (`parse::Parser::primary`). Sound because the derived
 /// `Hash`, `Eq` and `Ord` over a single `String` field are `str`'s
 /// own.
-impl core::borrow::Borrow<str> for ParamName {
+impl core::borrow::Borrow<str> for VarName {
     fn borrow(&self) -> &str {
         &self.0
     }
@@ -118,7 +118,7 @@ impl core::borrow::Borrow<str> for ParamName {
 /// rather than decorating a name the document holds. Nothing else
 /// decides this per call site; the row is
 /// `display_contract::a_parameter_name_renders_unquoted_at_every_door_but_parse`.
-impl core::fmt::Display for ParamName {
+impl core::fmt::Display for VarName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(&self.0)
     }
@@ -129,7 +129,7 @@ impl core::fmt::Display for ParamName {
 /// for Count — bit-identical replay is trivial by representation).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum DocParam {
+pub enum FreeVar {
     /// A continuous parameter in canonical kernel units.
     Continuous {
         /// Declared dimension (never `Count`; `apply` refuses).
@@ -149,7 +149,7 @@ pub enum DocParam {
         /// It rides with the DECLARATION, beside `dim` and
         /// `distribution`, and not with the value — which is exactly
         /// why [`crate::DocEdit::SetDocParamValue`] leaves it alone
-        /// (see [`DocParamValue`]): how a parameter is written is a
+        /// (see [`FreeValue`]): how a parameter is written is a
         /// fact about the parameter, not about the number being typed
         /// into it.
         ///
@@ -158,8 +158,8 @@ pub enum DocParam {
         /// pairing is a document invariant checked by the shared
         /// save/load validator (`persist::check`), like every other
         /// invariant this `pub` payload can be corrupted past. The
-        /// authoring doors ([`DocParam::written_length`],
-        /// [`DocParam::written_angle`]) cannot produce a mismatched
+        /// authoring doors ([`FreeVar::written_length`],
+        /// [`FreeVar::written_angle`]) cannot produce a mismatched
         /// one at all.
         display_unit: crate::expr::UnitSym,
         /// Optional uncertainty about this parameter (ERROR-DESIGN
@@ -191,10 +191,10 @@ pub enum DocParam {
 /// [`Distribution`] — belongs to the parameter, not to the number
 /// being typed into it. Carrying only the number is what lets the
 /// value door leave both alone; a caller that rebuilds a whole
-/// [`DocParam`] from `(dim, value)` deletes the annotation, silently,
+/// [`FreeVar`] from `(dim, value)` deletes the annotation, silently,
 /// because [`crate::DocEdit::SetDocParam`] is create-or-replace.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum DocParamValue {
+pub enum FreeValue {
     /// A continuous parameter's nominal, in its ALREADY-DECLARED
     /// dimension (canonical kernel units).
     Continuous(f64),
@@ -202,7 +202,7 @@ pub enum DocParamValue {
     Count(i64),
 }
 
-impl DocParamValue {
+impl FreeValue {
     /// Whether this is the `Count` arm — the kind a value edit must
     /// match against the existing declaration.
     pub fn is_count(&self) -> bool {
@@ -210,7 +210,7 @@ impl DocParamValue {
     }
 }
 
-impl core::fmt::Display for DocParamValue {
+impl core::fmt::Display for FreeValue {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Continuous(v) => write!(f, "continuous {v}"),
@@ -220,7 +220,7 @@ impl core::fmt::Display for DocParamValue {
 }
 
 /// Why a notation cannot be written onto a declaration
-/// ([`DocParam::with_display_unit`]).
+/// ([`FreeVar::with_display_unit`]).
 ///
 /// The two reasons a notation edit is refused, decided in ONE place —
 /// the door — so that its callers only route them. The edit vocabulary
@@ -229,7 +229,7 @@ impl core::fmt::Display for DocParamValue {
 /// of the two applies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DisplayUnitRefusal {
-    /// The parameter is a [`DocParam::Count`]. A count is an exact
+    /// The parameter is a [`FreeVar::Count`]. A count is an exact
     /// integer, not a quantity: it names no notation, and the arm
     /// carries no field to write one into.
     CountHasNoNotation,
@@ -265,7 +265,7 @@ impl core::fmt::Display for DisplayUnitRefusal {
 impl core::error::Error for DisplayUnitRefusal {}
 
 /// Why an E1/E2 annotation cannot be written onto a declaration
-/// ([`DocParam::with_distribution`]).
+/// ([`FreeVar::with_distribution`]).
 ///
 /// [`DisplayUnitRefusal`]'s shape at the third field, and for its
 /// reason: the two ways the annotation door can refuse, decided in ONE
@@ -277,9 +277,9 @@ impl core::error::Error for DisplayUnitRefusal {}
 /// which applies.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DistributionRefusal {
-    /// The parameter is a [`DocParam::Count`], which takes no
+    /// The parameter is a [`FreeVar::Count`], which takes no
     /// annotation and carries no field to write one into — the
-    /// argument is [`DocParam::with_distribution`]'s rustdoc (E11.3).
+    /// argument is [`FreeVar::with_distribution`]'s rustdoc (E11.3).
     CountHasNoAnnotation,
     /// The offered distribution breaks an E2 invariant — the same
     /// [`Distribution::check`] the persistence doors run, so an
@@ -309,7 +309,7 @@ impl core::fmt::Display for DistributionRefusal {
 impl core::error::Error for DistributionRefusal {}
 
 /// WHICH float of a continuous document parameter a refusal is about
-/// ([`DocParam::first_non_finite`]).
+/// ([`FreeVar::first_non_finite`]).
 ///
 /// One name for the answer at both doors: the nominal, or the
 /// distribution offset [`DistributionField`] names. An `Option<
@@ -352,13 +352,13 @@ pub(crate) enum ParamRefFault {
     /// The expression names a parameter the document does not declare.
     Unknown {
         /// The name it reads.
-        name: ParamName,
+        name: VarName,
     },
     /// The parameter is declared, at another dimension than the
     /// expression reads it at.
     Dimension {
         /// The name it reads.
-        name: ParamName,
+        name: VarName,
         /// The dimension the declaration carries.
         declared: Dimension,
         /// The dimension the expression reads it at.
@@ -366,7 +366,7 @@ pub(crate) enum ParamRefFault {
     },
 }
 
-impl DocParam {
+impl FreeVar {
     /// **The parameter's first float that is not a number** (the ruled
     /// non-finite policy, D2), or `None` — the nominal first, then the
     /// annotation's offsets in [`Distribution::first_non_finite`]'s
@@ -380,7 +380,7 @@ impl DocParam {
     /// at all, and a diagnostic that names `sigma` beats one that
     /// names only the parameter.
     ///
-    /// A [`DocParam::Count`] carries no float and no annotation, so it
+    /// A [`FreeVar::Count`] carries no float and no annotation, so it
     /// has nothing this can find.
     pub(crate) fn first_non_finite(&self) -> Option<DocParamField> {
         let Self::Continuous {
@@ -443,7 +443,7 @@ impl DocParam {
     ///
     /// No distribution: the E1/E2 annotation belongs to the parameter
     /// and is added through its own door, exactly as
-    /// [`DocParam::continuous`] leaves it alone.
+    /// [`FreeVar::continuous`] leaves it alone.
     pub fn written_length(written: quantity::WrittenLength) -> Self {
         Self::Continuous {
             dim: Dimension::Length,
@@ -454,7 +454,7 @@ impl DocParam {
     }
 
     /// A continuous ANGLE parameter that remembers its authored
-    /// notation — [`DocParam::written_length`]'s mirror, total for the
+    /// notation — [`FreeVar::written_length`]'s mirror, total for the
     /// same reason.
     pub fn written_angle(written: quantity::WrittenAngle) -> Self {
         Self::Continuous {
@@ -512,7 +512,7 @@ impl DocParam {
     /// create-or-replace door, where the dimension and the annotation
     /// are stated afresh — and a value edit that quietly performed one
     /// would be the same silent deletion in a different disguise.
-    pub fn with_value(&self, value: DocParamValue) -> Option<Self> {
+    pub fn with_value(&self, value: FreeValue) -> Option<Self> {
         match (self, value) {
             (
                 Self::Continuous {
@@ -521,19 +521,19 @@ impl DocParam {
                     distribution,
                     ..
                 },
-                DocParamValue::Continuous(value),
+                FreeValue::Continuous(value),
             ) => Some(Self::Continuous {
                 dim: *dim,
                 value,
                 display_unit: *display_unit,
                 distribution: *distribution,
             }),
-            (Self::Count { .. }, DocParamValue::Count(value)) => Some(Self::Count { value }),
+            (Self::Count { .. }, FreeValue::Count(value)) => Some(Self::Count { value }),
             // EXHAUSTIVE on purpose, both sides spelled: a new
-            // `DocParam` arm or a new value arm must say how a value
+            // `FreeVar` arm or a new value arm must say how a value
             // edit reaches it, or the compile breaks.
-            (Self::Continuous { .. }, DocParamValue::Count(_))
-            | (Self::Count { .. }, DocParamValue::Continuous(_)) => None,
+            (Self::Continuous { .. }, FreeValue::Count(_))
+            | (Self::Count { .. }, FreeValue::Continuous(_)) => None,
         }
     }
 
@@ -578,7 +578,7 @@ impl DocParam {
     /// asked rather than restated.
     ///
     /// EXHAUSTIVE on both arms as [`Self::with_value`] is: a new
-    /// `DocParam` variant must say how a notation edit reaches it, or
+    /// `FreeVar` variant must say how a notation edit reaches it, or
     /// the compile breaks.
     pub fn with_display_unit(
         &self,
@@ -673,7 +673,7 @@ impl DocParam {
     /// because the field happened to be absent would hide that.
     ///
     /// EXHAUSTIVE on both arms as its two siblings are: a new
-    /// `DocParam` variant must say how an annotation edit reaches it,
+    /// `FreeVar` variant must say how an annotation edit reaches it,
     /// or the compile breaks.
     pub fn with_distribution(
         &self,
@@ -717,12 +717,12 @@ impl DocParam {
     ///
     /// EXHAUSTIVE on purpose, on BOTH sides of the pair: the mismatched
     /// pairs are spelled out rather than swept up, so a future
-    /// `DocParam` variant must say how it compares here or the compile
+    /// `FreeVar` variant must say how it compares here or the compile
     /// breaks. A wildcard would have answered `false` for a new variant
     /// against ITSELF — two equal parameters reported as differing,
     /// through [`Doc::bit_eq`] and `diff.rs`, which is D7's replay
     /// identity and the document diff reading the same wrong answer.
-    pub fn bit_eq(&self, other: &DocParam) -> bool {
+    pub fn bit_eq(&self, other: &FreeVar) -> bool {
         match (self, other) {
             (
                 Self::Continuous {
@@ -807,7 +807,7 @@ pub struct Doc<P> {
     pub(crate) roots: Vec<RecipeNodeId>,
     /// Document-level named parameters.
     #[serde(with = "crate::persist::strict::params")]
-    pub(crate) params: BTreeMap<ParamName, DocParam>,
+    pub(crate) params: BTreeMap<VarName, FreeVar>,
     /// The recorded modeling tolerance ε (M4 PR 6 spec D4): new
     /// documents record the process's committed ambient ε; loading
     /// reconciles the recorded value against the process (one process
@@ -1082,7 +1082,7 @@ impl<P> Doc<P> {
     }
 
     /// The document-level named parameters.
-    pub fn params(&self) -> &BTreeMap<ParamName, DocParam> {
+    pub fn params(&self) -> &BTreeMap<VarName, FreeVar> {
         &self.params
     }
 
@@ -1233,11 +1233,11 @@ impl<P> Doc<P> {
                 // distribution is document metadata the scalar channel
                 // never sees (E1).
                 let v = match *p {
-                    DocParam::Continuous { dim, value, .. } => ParamValue::Continuous {
+                    FreeVar::Continuous { dim, value, .. } => ParamValue::Continuous {
                         dim,
                         value: T::from_f64(value),
                     },
-                    DocParam::Count { value } => ParamValue::Count(value),
+                    FreeVar::Count { value } => ParamValue::Count(value),
                 };
                 (name.clone(), v)
             })

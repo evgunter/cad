@@ -18,10 +18,10 @@ use crate::p2_gauges::{Parts, block, body_of, cut, literal, min_corner, parts, s
 use crate::wire::doctored;
 
 use editor_core::{
-    Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocParam, DocParamValue, DocumentId,
-    EditError, EvalOptions, Expr, Frame, FrameSite, MateFrame, MatePrimitive, MateRole, MateSide,
-    Node, ParamName, PersistError, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RigidArg,
-    SitedFace, SlotId, SnapshotError, SplitError, Step, apply, load, save,
+    Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocumentId, EditError, EvalOptions,
+    Expr, Frame, FrameSite, FreeValue, FreeVar, MateFrame, MatePrimitive, MateRole, MateSide, Node,
+    PersistError, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RigidArg, SitedFace, SlotId,
+    SnapshotError, SplitError, Step, VarName, apply, load, save,
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -30,8 +30,8 @@ use geom_core::Tol;
 
 // ---- substrate ----
 
-fn slide() -> ParamName {
-    ParamName::from_static("slide")
+fn slide() -> VarName {
+    VarName::from_static("slide")
 }
 
 /// A rigid step that only translates, by `t`.
@@ -97,7 +97,7 @@ fn declare_slide(doc: ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         DocEdit::SetDocParam {
             name: slide(),
-            value: DocParam::continuous(Dimension::Length, value),
+            value: FreeVar::continuous(Dimension::Length, value),
         },
     )
     .0
@@ -195,7 +195,7 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
         doc.clone(),
         DocEdit::SetDocParamValue {
             name: slide(),
-            value: DocParamValue::Continuous(1.0),
+            value: FreeValue::Continuous(1.0),
         },
     );
     let second = editor_core::evaluate::<f64>(
@@ -229,14 +229,14 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
     let (unmated, _) = step(
         unmated,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("tilt"),
-            value: DocParam::continuous(Dimension::Angle, 0.0),
+            name: VarName::from_static("tilt"),
+            value: FreeVar::continuous(Dimension::Angle, 0.0),
         },
     );
     let named = |name: &'static str, dim| -> Placement {
         shift([
             len(0.0),
-            Expr::param(ParamName::from_static(name), dim),
+            Expr::param(VarName::from_static(name), dim),
             len(0.0),
         ])
         .into()

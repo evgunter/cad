@@ -398,7 +398,7 @@ fn probing_a_field_that_is_not_there_refuses_typed() {
 
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: pncad::document::ParamName::from_static("nope"),
+            name: pncad::document::VarName::from_static("nope"),
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
@@ -554,7 +554,7 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
         &doc,
         pncad::document::DocEdit::SetDocParam {
             name: common::thickness_param(),
-            value: pncad::document::DocParam::written_length(WrittenLength::in_unit(8.0, MM)),
+            value: pncad::document::FreeVar::written_length(WrittenLength::in_unit(8.0, MM)),
         },
         tol,
     );
@@ -602,7 +602,7 @@ fn every_seed_brackets_the_half_line_floor() {
                 &doc,
                 pncad::document::DocEdit::SetDocParamValue {
                     name: common::thickness_param(),
-                    value: pncad::document::DocParamValue::Continuous(v),
+                    value: pncad::document::FreeValue::Continuous(v),
                 },
                 tol,
             );

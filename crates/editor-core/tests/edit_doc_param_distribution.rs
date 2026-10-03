@@ -1,14 +1,14 @@
-//! **The annotation door for a document parameter** — `DocParam::
+//! **The annotation door for a document parameter** — `FreeVar::
 //! with_distribution` and the `DocEdit::SetDocParamDistribution` that
 //! routes through it.
 //!
 //! The declaration has four fields; two already had a narrow edit
-//! (`SetDocParamValue` through `DocParam::with_value`,
-//! `SetDocParamUnit` through `DocParam::with_display_unit`) and this
+//! (`SetDocParamValue` through `FreeVar::with_value`,
+//! `SetDocParamUnit` through `FreeVar::with_display_unit`) and this
 //! is the third. Without this door the only way to add, change or
 //! clear an E1/E2 annotation is `SetDocParam`, which is
 //! create-or-replace: the authoring spelling for an annotated
-//! parameter, `DocParam::continuous_with`, writes the CANONICAL
+//! parameter, `FreeVar::continuous_with`, writes the CANONICAL
 //! notation, so a parameter authored in millimetres reverts to metres
 //! the moment anyone annotates it — with no refusal and no
 //! diagnostic. The first row below is that fact, and every row after
@@ -16,7 +16,7 @@
 //!
 //! **The ruling these rows execute**: there is ONE annotation door and
 //! `None` clears. The argument is stated once, in
-//! `DocParam::with_distribution`'s rustdoc, and run here by
+//! `FreeVar::with_distribution`'s rustdoc, and run here by
 //! `clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration`
 //! rather than restated in prose.
 //!
@@ -43,14 +43,14 @@ test_utils::gated_to![
 
 use editor_core::{
     AnalysisPolicy, CarryForwardDoor, Dimension, Distribution, DistributionFault,
-    DistributionField, DistributionRefusal, Doc, DocEdit, DocParam, DocParamValue, DocumentId,
-    EditError, ParamName, PersistError, ProfileDoc, UnitSym, analyzed_box, apply, load, save,
+    DistributionField, DistributionRefusal, Doc, DocEdit, DocumentId, EditError, FreeValue,
+    FreeVar, PersistError, ProfileDoc, UnitSym, VarName, analyzed_box, apply, load, save,
 };
 use geom_core::Tol;
 use quantity::{MM, WrittenLength};
 
-fn p(name: &'static str) -> ParamName {
-    ParamName::from_static(name)
+fn p(name: &'static str) -> VarName {
+    VarName::from_static(name)
 }
 
 fn mm() -> UnitSym {
@@ -71,8 +71,8 @@ fn band() -> Distribution {
 /// The notation a parameter is written in.
 fn notation(doc: &editor_core::ProfileDoc, name: &'static str) -> UnitSym {
     match doc.params()[&p(name)] {
-        DocParam::Continuous { display_unit, .. } => display_unit,
-        DocParam::Count { .. } => panic!("{name} is continuous"),
+        FreeVar::Continuous { display_unit, .. } => display_unit,
+        FreeVar::Count { .. } => panic!("{name} is continuous"),
     }
 }
 
@@ -94,15 +94,15 @@ fn declaring_log() -> Vec<DocEdit<editor_core::ProfileProgram>> {
     vec![
         DocEdit::SetDocParam {
             name: p("wall"),
-            value: DocParam::written_length(WrittenLength::in_unit(3.0, MM)),
+            value: FreeVar::written_length(WrittenLength::in_unit(3.0, MM)),
         },
         DocEdit::SetDocParam {
             name: p("bore"),
-            value: DocParam::continuous_with(Dimension::Length, 0.01, sigma()),
+            value: FreeVar::continuous_with(Dimension::Length, 0.01, sigma()),
         },
         DocEdit::SetDocParam {
             name: p("ribs"),
-            value: DocParam::Count { value: 4 },
+            value: FreeVar::Count { value: 4 },
         },
     ]
 }
@@ -125,7 +125,7 @@ fn fixture() -> ProfileDoc {
 /// authored in.
 ///
 /// Written through the only spelling available before this door
-/// (`SetDocParam` with `DocParam::continuous_with`) it FAILS: the
+/// (`SetDocParam` with `FreeVar::continuous_with`) it FAILS: the
 /// notation reverts to the canonical unit, silently. That is the
 /// filed finding, and `edit_doc_param_unit.rs`'s
 /// `annotating_through_create_or_replace_reverts_the_notation` holds
@@ -187,7 +187,7 @@ fn the_annotation_door_carries_the_value_forward() {
     .expect("applies")
     .doc;
     match after.params()[&p("wall")] {
-        DocParam::Continuous {
+        FreeVar::Continuous {
             dim,
             value,
             display_unit,
@@ -205,7 +205,7 @@ fn the_annotation_door_carries_the_value_forward() {
                 "and the annotation is the one offered"
             );
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
     // Unlike the notation, an annotation is bit-semantic: `bit_eq`
     // sees it, so the edit reaches replay identity and `diff.rs`.
@@ -222,7 +222,7 @@ fn the_annotation_door_carries_the_value_forward() {
 
 /// **The clearing ruling, executed.** `None` goes through the SAME
 /// door, and clears while keeping the notation and the value — the
-/// reading stated in `DocParam::with_distribution`'s rustdoc. A second
+/// reading stated in `FreeVar::with_distribution`'s rustdoc. A second
 /// `ClearDocParamDistribution` arm would be the `SetAppearanceMeta`
 /// shape, and the declaration is not a map.
 #[test]
@@ -266,11 +266,11 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
         "the notation survived the clearing"
     );
     match cleared.params()[&p("bore")] {
-        DocParam::Continuous { dim, value, .. } => {
+        FreeVar::Continuous { dim, value, .. } => {
             assert_eq!(dim, Dimension::Length);
             assert_eq!(value.to_bits(), 0.01_f64.to_bits(), "and so did the value");
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
     // Clearing an already-unannotated parameter is accepted: `None` is
     // a value of the field, not a removal that has to find something.
@@ -289,19 +289,19 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
     );
 }
 
-/// `DocParam::with_distribution` on its own — the carry-forward in one
+/// `FreeVar::with_distribution` on its own — the carry-forward in one
 /// place, and the two typed refusals the edit door only routes.
 #[test]
 fn with_distribution_is_the_carry_forward_and_its_refusals_are_typed() {
-    let written = DocParam::written_length(WrittenLength::in_unit(3.0, MM));
+    let written = FreeVar::written_length(WrittenLength::in_unit(3.0, MM));
     let annotated = written
         .with_distribution(Some(sigma()))
         .expect("a continuous parameter takes an annotation");
     match annotated {
-        DocParam::Continuous { display_unit, .. } => {
+        FreeVar::Continuous { display_unit, .. } => {
             assert_eq!(display_unit, mm(), "the notation rode through")
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
     assert_eq!(
         annotated
@@ -313,11 +313,11 @@ fn with_distribution_is_the_carry_forward_and_its_refusals_are_typed() {
     // A count has no field to hang one on, and says so — for a
     // clearing edit too.
     assert_eq!(
-        DocParam::Count { value: 4 }.with_distribution(Some(sigma())),
+        FreeVar::Count { value: 4 }.with_distribution(Some(sigma())),
         Err(DistributionRefusal::CountHasNoAnnotation)
     );
     assert_eq!(
-        DocParam::Count { value: 4 }.with_distribution(None),
+        FreeVar::Count { value: 4 }.with_distribution(None),
         Err(DistributionRefusal::CountHasNoAnnotation),
         "clearing a count's annotation is the same wrong parameter"
     );
@@ -418,7 +418,7 @@ fn the_annotation_door_refuses_typed() {
     for other in [
         DocEdit::SetDocParamValue {
             name: p("nonesuch"),
-            value: DocParamValue::Continuous(1.0),
+            value: FreeValue::Continuous(1.0),
         },
         DocEdit::SetDocParamUnit {
             name: p("nonesuch"),

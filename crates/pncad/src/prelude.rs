@@ -558,8 +558,12 @@ pub use topo::{
 // `StepImport::Solid::enclosure`'s other arm: an admitted body whose
 // volume is not measurable at this ε imports with that refusal, and
 // the curated-type rule (the `coherence` note below) says a caller
-// able to hold the answer must be able to spell its vocabulary.
-pub use topo::{MassProperties, MassPropsError, TargetUnreached, VolumeEnclosure, mass_properties};
+// able to hold the answer must be able to spell its vocabulary;
+// `VolumeReading` is that answer read as a number or a bracket.
+pub use topo::{
+    MassProperties, MassPropsError, TargetUnreached, VolumeEnclosure, VolumeReading,
+    mass_properties,
+};
 
 // --- 7. Tessellation and export -------------------------------
 pub use mesh::{Mesh, TessellateError, tessellate};
@@ -716,7 +720,7 @@ pub use stl::{
 // `GeomPred::DatumDistance` selection is written against, and
 // `select_where` takes a `ParamEnv`, so both are needed to write a
 // position filter at all.
-// `ParamName` and `DocParam` ride here because they are what
+// `VarName` and `FreeVar` ride here because they are what
 // `DocEdit::SetDocParam` and `Expr::param` take, so a prelude user
 // could previously hold the param-editing doors and not open them —
 // the parametric flagship (`plate_param`, guide §3.2) imports both.
@@ -727,14 +731,14 @@ pub use stl::{
 // `SitedFace` is a mate's head and `FaceName` is the name in it, whose
 // one constructor answers `NotAFaceName`: a prelude user who can spell
 // `Node::Mate` can spell its two heads, and handle the refusal a name
-// read out of a file gets. `ParamNameFault` is the same thing for
-// `ParamName::new`, the door a name that arrives as text goes through.
+// read out of a file gets. `VarNameFault` is the same thing for
+// `VarName::new`, the door a name that arrives as text goes through.
 pub use crate::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
-    Expr, FaceName, LoopProgram, Node, NodeError, NotAFaceName, ParamEnv, ParamName,
-    ParamNameFault, ParseError, PatternKind, ProfileLift, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace,
-    SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr, unparse,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr,
+    FaceName, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParamEnv, ParseError,
+    PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload,
+    VarName, VarNameFault, apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::{NameTextError, StableName};
 

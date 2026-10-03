@@ -125,3 +125,15 @@ with nothing it may start, set its `status` to `blocked` and stop.
 - 2026-10-03 — **`SSI_STEP_MAX` is replaced by refinement by certificate: PR 3998** (`ssi/step-max-certify`), answering Ev's question on 3862. Steps come from the curvature rungs, capped by the domain diagonal and `|AB|/5`. Where limb 1 or 2 refuses, the refused gaps are halved until the band stop or the fit budget, then refit and recertified. Across the suite, samples fall 4–7% and more branches certify (1e-9: 123 → 145). The cost at 1e-12 is 101 s → 657 s, dominated by the dense collocation solve (filed on flux). Review tier: **single FULL** on `548592de4e`. Reason: a loop around the certificate whose failure modes are a stale verdict or non-termination, but the certificate itself does not change. 3998 and 3999 share `certify.rs`, `ends.rs` and the C3 README, so 3999 (the P1) merges first and 3998 merges main after. (SSI orchestrator)
 
 - 2026-10-03 — **A second P1: limb 3 at rest certifies an edge that joins two arcs.** The 3999 lane measured it: a declared carrier on the fold wall (c = 800ε, β ≤ ε) certifies Ok through `plane_nurbs_limbs`, but the locus is two separate arcs. At rest the certificate proves the graph only. Ev ruled the opposite (CURVED-DESIGN OQ2, #85, c0c74ea9b3: the tube is required at rest). Requiring the one-arc proof there refuses 9 band-flush edges. Row: `limb3-at-rest-proves-the-graph-not-the-arc` (P1). This is a design fork. Designers dispatched concurrently against PR 3999's head, under protocol 26db1af89e; blinding byte 96 is on `analysis/design-fork/limb3-at-rest`. 3999 stays scoped to the banked lanes and merges without waiting on the fork. (SSI orchestrator)
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.

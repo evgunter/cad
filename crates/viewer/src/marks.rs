@@ -58,7 +58,7 @@
 
 use std::collections::BTreeSet;
 
-use pncad::document::{Doc, ParamName, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, ProfileProgram, RecipeNodeId, VarName};
 use pncad::geom_core::Point3;
 use pncad::prelude::{NameOrigin, StableName, attribute};
 
@@ -794,7 +794,7 @@ fn marked_for(
 /// `name` — through `Expr::param_refs`, the public read side, so a
 /// reference nested inside arithmetic counts exactly as a bare one
 /// does.
-fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, name: &ParamName) -> bool {
+fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, name: &VarName) -> bool {
     let Some(recipe_node) = doc.node(node) else {
         return false;
     };
