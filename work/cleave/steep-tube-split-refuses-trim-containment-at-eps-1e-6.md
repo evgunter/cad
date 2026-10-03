@@ -39,3 +39,11 @@ A fix decides between two options:
 - the trim reading should resolve at 1e-6 (a lever question for
   `pcurve_trim_containment`);
 - the row accepts a typed refusal at the coarse band for this pose.
+
+## Owed
+
+Measure what the −3.06e-6 is. It is the split pcurve's trim-containment
+margin at the first sample (`HalfEdgeKey(24v1)` at `flip false`,
+`18v1` at `flip true`). Decide whether it is a real overshoot of the
+trimmed window whose size tracks ε, or a certifier margin that does not
+scale. Then fix the code, or state the row's ε premise.

@@ -457,6 +457,8 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "meta_nesting_bound.rs"]
+mod meta_nesting_bound;
 #[path = "name_depth.rs"]
 mod name_depth;
 #[path = "name_tables_by_position.rs"]

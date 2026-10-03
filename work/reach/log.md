@@ -555,6 +555,35 @@ the orchestrator checked itself.
   ends only, and an offset stack that refuses `Join(UnpairedLooseEnds)`.
 — (REACH orchestrator)
 
+## 2026-10-02 — main's dev-probe leg green again (PR 3853)
+
+A REACH cloud lane fixed the three suites that had kept the nightly's
+`k-lint (dev-probe)` row red. One of them, `bool_plane_orient`'s
+linearity, REACH's own #3657 had turned red. The PR had a single full
+review (APPROVE-WITH-FIXES) and one fix pass, which the orchestrator
+checked itself. It ran the probe sweep again on the merged head,
+because the PR gate runs no probe suite.
+
+- **The sweep row** carried counts that had gone stale against #3715's
+  support-boundary walk.
+- **The topo row** caught a real defect. A unit-at-rest normal's
+  dimensionless norm was decided against the length band. It now goes
+  through `UnitVec3::levered`, with its own K name
+  (`unit_direction_arm`). The door refuses an arm that is not a
+  positive finite length, and its doc says only what the witness shows.
+- **One home for the half-edge start point**
+  (`Body::half_edge_start_point`), in place of eight copies.
+- **Filed:**
+  - why the reds landed and stayed (CIW's all-features item): the PR gate
+    runs no probe suite, and the sweep's plain loop stops at the first red;
+  - the lily-walls clearance flags (CLEAVE);
+  - authored directions decided against the length band (PROPS);
+  - the steep tube cuts' ε 1e-6 escalation, red on main since #3718
+    (CLEAVE);
+  - found by the orchestrator's sweep on the merged head:
+    `lily_leaf_b`'s mass exhausts the quadrature budget at ε 1e-12, so
+    the demo k-probe pass panics. Main is red the same way since SHOW's
+    #3838, measured on the trees either side of it (SHOW, P1).
 ## 2026-10-02 — an ellipse edge meets a curved face (PR 3805)
 
 Built by a wave-one cloud implementer.
@@ -576,4 +605,25 @@ Built by a wave-one cloud implementer.
   plus the frame's defect.
 - **Filed.** Evidence for CLEAVE's steep tube cut at ε 1e-6 (red on main),
   folded into `steep-tube-split-refuses-trim-containment-at-eps-1e-6`.
+— (REACH orchestrator)
+
+## 2026-10-03 — the finished-body contract ratified (PR 3870)
+
+Ev approved the designers' recommendation and folded tier 3′ into the
+bar. A finished body (`AtRestBody`) passes tier 3′ against its own
+declared contacts, which is an empty list for most bodies. Every door
+that returns or consumes one pays that gate once. Euler operators hand
+back construction state.
+
+A measurement lane settled the fold over 2,572 contact-free bodies:
+- the census costs a median 0.09× tier 3;
+- it catches 8 real defects;
+- it cannot yet decide 26 multi-solid shell results. That is filed on
+  CONTACT, and shell's adoption waits on it.
+
+The build is `boolean-door-adopts-the-finished-body-type` (P1), with its
+sequencing.
+- The fork-log row is 47. It was renumbered because another program
+  took 46.
+- Ev's answer matches the recommendation, refined by his fold.
 — (REACH orchestrator)
