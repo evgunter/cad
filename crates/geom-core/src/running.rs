@@ -80,6 +80,17 @@ impl<T: Real> Rounded<T> {
         }
     }
 
+    /// `√self`, as `self.value.sqrt()`. Two bounds hold on the operand's
+    /// share, `δ/(2√x)` (first order) and `√δ` (`|√a − √b| ≤ √|a − b|`,
+    /// which holds at the origin), and the smaller is taken; the root's
+    /// own rounding adds `u` of the result.
+    #[must_use]
+    pub fn sqrt(self) -> Self {
+        let value = self.value.sqrt();
+        let share = (self.error / (T::from_f64(2.0) * value)).min(self.error.sqrt());
+        Self::charged(value, share)
+    }
+
     /// `when_le` where `decision ≤ 0`, else `when_gt`: [`Real::select_le_zero`]
     /// on the value and the bound alike.
     #[must_use]
