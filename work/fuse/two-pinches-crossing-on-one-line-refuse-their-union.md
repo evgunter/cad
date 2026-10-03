@@ -2,10 +2,12 @@
 id: two-pinches-crossing-on-one-line-refuse-their-union
 kind: issue
 title: Two pinches crossing on one line refuse their union: two crossing pairs share both their vertices
-status: open
+status: closed
 opened: 2026-10-03
 priority: P0
 cost: H
+closed: 2026-10-03
+pr: 3935
 ---
 
 
@@ -79,3 +81,21 @@ The refusal is now permanent and named: the both-shared arm of
 the point and two of B's, with the recourse to keep the pinch lines
 from overlapping along a length. Every other `SharedVertexCrossings`
 arm keeps its kind.
+
+## Closed (FUSE, PR 3935, 2026-10-03): unrepresentable, refused permanently
+
+The union cannot be represented, so no zip arm is owed.
+- **Why:** the two ends of the pinch line need opposite pairings of the
+  four faces along it, so at the overlap's ends the result would be one
+  vertex whose orbit passes the line twice. That is a shared-entity
+  wedge fan, which DESIGN.md D1's representability boundary rules out.
+- **Now:** this case refuses with its own permanent kind,
+  `BooleanError::NonManifoldResult`, whose recourse is to keep the pinch
+  lines from overlapping along a length. Every other arm of
+  `SharedVertexCrossings` keeps its kind.
+- **Tests:** two pinches meeting end to end build in every op. The
+  crossing pair's subtract and intersect build too. Both are pinned in
+  `union_flush_onto_edge_contact.rs`.
+- **Review:** the orchestrator's read. The lane stopped rather than
+  build, and the orchestrator checked the edge-pairing argument.
+

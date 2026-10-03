@@ -224,3 +224,10 @@ closed. Its two-crossing residue is P0 on this slate.
   closes. Its second witness moves to
   `two-pinches-crossing-on-one-line-refuse-their-union` (P0), and the
   inside-out operand is cleave's (P1).
+
+- 2026-10-03 — PR 3935 lands. Two pinches crossing on one line have no
+  representable union: it would be a shared-entity wedge fan, which D1's
+  representability boundary rules out. The case now refuses with its own
+  permanent kind, `NonManifoldResult`. The P0 row closes, and the
+  end-to-end variant and the crossing pair's ∖ and ∩ are pinned as
+  builds.
