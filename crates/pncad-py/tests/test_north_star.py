@@ -3513,7 +3513,7 @@ class TestTeapot(unittest.TestCase):
         self.assertEqual(refusal.kind, "boolean")
         text = str(refusal)
         self.assertIn(
-            "an edge of the second operand is a spline (NURBS) curve", text
+            "an edge of the second operand is a spiric or spline (NURBS) curve", text
         )
         # NOT the pair rung any more, and this is the half that would
         # go quietly wrong if it were only asserted positively.
