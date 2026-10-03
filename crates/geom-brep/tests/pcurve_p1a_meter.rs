@@ -14,8 +14,8 @@
 use crate::shared::surf::table;
 use geom::{Curve3, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
-    PcurveCache, PcurveCertifyError, PcurveCheck, chart_pcurve, implicit_residual,
+    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache,
+    PcurveCertifyError, PcurveCheck, chart_pcurve, implicit_residual,
 };
 use geom_core::{Band, Point3, Vec3};
 
@@ -40,15 +40,6 @@ const ROW_EPS: f64 = 1.0e-9;
 /// other.
 fn band() -> Band {
     Band::new(ROW_EPS, 10.0 * ROW_EPS).expect("the rows' own band")
-}
-
-fn window() -> ChartWindow<f64> {
-    ChartWindow {
-        u_min: -100.0,
-        u_max: 100.0,
-        v_min: -100.0,
-        v_max: 100.0,
-    }
 }
 
 /// A cone seam ruling displaced `d` metres along the surface's own
@@ -153,7 +144,7 @@ fn the_cache_lane_already_imposed_the_collapsed_meter() {
     let d = 0.98 * ROW_EPS;
     let (cone, carrier, t0, t1) = cone_seam(alpha, d);
     let pcurve = chart_pcurve(&carrier, &cone, band()).expect("the cone ruling mints");
-    let err = PcurveCache::certify(pcurve, t0, t1, &carrier, &cone, window(), band()).expect_err(
+    let err = PcurveCache::certify(pcurve, t0, t1, &carrier, &cone, band()).expect_err(
         "the cache lane must already refuse the geometry the description lane now \
              refuses — if it certifies, the collapse is imposing a NEW rule and the \
              re-baseline argument is wrong",

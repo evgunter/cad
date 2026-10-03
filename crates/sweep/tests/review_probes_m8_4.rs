@@ -269,12 +269,6 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
         t1,
         &carrier,
         &Surface::Nurbs(Arc::new(chart.clone())),
-        geom_brep::ChartWindow {
-            u_min: chart.knots_u().domain().0,
-            u_max: chart.knots_u().domain().1,
-            v_min: chart.knots_v().domain().0,
-            v_max: chart.knots_v().domain().1,
-        },
         band(),
     );
     let refusal = verdict

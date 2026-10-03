@@ -27,7 +27,7 @@ use crate::fixture;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2};
-use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
+use geom_brep::{PcurveCache, PcurveCertifyError, PcurveCheck};
 use geom_core::Tol;
 use geom_core::{Band, Point2};
 use test_utils::vacuity;
@@ -141,7 +141,6 @@ fn a_between_samples_image_corruption_survives_the_full_c2_certificate() {
 
     // (c) the full C2 certificate admits it...
     let img = Arc::new(corrupted);
-    let window = Pcurve::Fitted(Arc::clone(&img)).chart_box(t0, t1);
     let cache = PcurveCache::certify_fitted(
         Arc::clone(&img),
         t0,
@@ -149,7 +148,6 @@ fn a_between_samples_image_corruption_survives_the_full_c2_certificate() {
         &Curve3::Nurbs(Arc::clone(&built.carrier)),
         &built.cylinder,
         Some(&built.sphere),
-        window,
         band,
         geom_brep::FittedLane::certified(),
     )
@@ -169,14 +167,14 @@ fn a_between_samples_image_corruption_survives_the_full_c2_certificate() {
 }
 
 /// Species 3: a sub-interval cache. `recertify` re-derives over the
-/// cache's own stored `(t0, t1)` and no check compares them to the
-/// edge's span — but the at-rest pass still REJECTS the cache, through
-/// the loop-continuity walk: a half-edge whose image stops at the
-/// half-way point cannot meet its neighbour in the chart. The net that
-/// catches this species is loop continuity, not param coverage; pinned
-/// so that if the walk ever loosens, the species resurfaces here.
+/// cache's own stored `(t0, t1)`, so the certificate cannot see it; the
+/// at-rest pass REJECTS it as a row that does not state its edge's
+/// interval (`RowInterval`), and as nothing else. A joint is not what
+/// catches it: the loop walk decides each joint's deck element, and a
+/// half-span image stops short of its neighbour in 3-D, which the row's
+/// interval reads directly.
 #[test]
-fn a_sub_interval_cache_is_caught_by_loop_continuity() {
+fn a_sub_interval_cache_is_caught_by_its_interval() {
     let Some(mut built) = fixture::build::<f64>() else {
         vacuity::stood_down(
             &format!(
@@ -185,16 +183,14 @@ fn a_sub_interval_cache_is_caught_by_loop_continuity() {
             ),
             "the cylinder×sphere fixture stood down on the SSI door's typed \
              FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about \
-             species 3: not that a sub-interval cache is caught, and not that loop \
-             continuity rather than a param-coverage comparison is the net that \
-             catches it",
+             species 3: not that a sub-interval cache is caught, and not that its \
+             interval is the net that catches it",
         );
         return;
     };
     let band = Band::linear(Tol::witness()).unwrap();
     let (t0, t1) = built.image.domain();
     let tm = t0 + (t1 - t0) * 0.5;
-    let window = Pcurve::Fitted(Arc::clone(&built.image)).chart_box(t0, t1);
     let cache = PcurveCache::certify_fitted(
         Arc::clone(&built.image),
         t0,
@@ -202,17 +198,17 @@ fn a_sub_interval_cache_is_caught_by_loop_continuity() {
         &Curve3::Nurbs(Arc::clone(&built.carrier)),
         &built.cylinder,
         Some(&built.sphere),
-        window,
         band,
         geom_brep::FittedLane::certified(),
     )
     .expect("the half-interval certifies honestly");
     built.body.attach_pcurve(built.he_plus, cache);
     let findings = validate_pcurves(&built.body, band);
-    assert!(
-        findings
-            .iter()
-            .any(|f| matches!(f, PcurveMintError::LoopDiscontinuity { .. })),
-        "the loop-continuity walk is what catches a sub-interval cache: {findings:?}"
+    assert_eq!(
+        findings,
+        vec![PcurveMintError::RowInterval {
+            half_edge: built.he_plus
+        }],
+        "the row's interval is what catches a sub-interval cache: {findings:?}"
     );
 }

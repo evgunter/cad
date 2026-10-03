@@ -102,7 +102,6 @@ where
     let at_f64 = arc_chain::chain(&general_circle::<f64>(), f0, f1);
     let image = Arc::new(lift2::<T>(&arc_chain::image(&at_f64, 1.0, f0, f1)));
     let carrier = Curve3::Nurbs(Arc::new(arc_chain::chain(&general_circle::<T>(), f0, f1)));
-    let window = geom_brep::Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
     PcurveCache::<T>::certify_fitted(
         image,
         t0,
@@ -110,7 +109,6 @@ where
         &carrier,
         &sphere::<T>(),
         Some(&tilted_plane::<T>()),
-        window,
         band,
         T::fitted_lane().expect("a certifying scalar holds the fitted door"),
     )

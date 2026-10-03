@@ -1350,9 +1350,9 @@ pub enum ValidationError {
     },
     /// **Tier 3, check 8 (M5 PR 6).** A stored pcurve cache failed its
     /// at-rest pass: missing on a chart that mints, failed
-    /// re-certification (the meters-through-the-map residual, the
-    /// closed-form envelope, or trim containment), or broke its
-    /// face loop's one-branch chart continuity. The typed finding is
+    /// re-certification (the meters-through-the-map residual or the
+    /// closed-form envelope), or broke its face loop's branch or
+    /// winding. The typed finding is
     /// nested whole.
     Pcurve {
         /// The pcurve pass's typed finding.
@@ -2837,7 +2837,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::IntervalNotForward
                 | C::AzimuthPeriodExceeded
                 | C::ResidualExceeded { .. }
-                | C::TrimEscape
                 | C::FittedCertificate { .. } => (WRONG, DEFECT),
                 C::FittedEscalated { .. } | C::Escalated { .. } => (CLOSE, DEFECT),
                 C::Band(b) => (classify_band(b), TOLERANCE),

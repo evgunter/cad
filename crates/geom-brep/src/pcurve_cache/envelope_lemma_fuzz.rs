@@ -26,7 +26,7 @@ test_utils::gated_to![
 use std::collections::BTreeSet;
 
 use super::{
-    ChartWindings, ChartWindow, Derivation, EnvelopeTerm, EnvelopeTerms, Pcurve, PcurveCache,
+    ChartWindings, Derivation, EnvelopeTerm, EnvelopeTerms, Pcurve, PcurveCache,
     PcurveCertifyError, PcurveCheck, Winding, carrier_harmonic, chart_image_harmonic,
     derive_harmonic, incidence, orthonormal_chart, periodic_envelope,
 };
@@ -1034,12 +1034,6 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
             "cone rim (lower nappe)",
         ),
     ];
-    let window = |w: f64| ChartWindow {
-        u_min: -w,
-        u_max: w,
-        v_min: -w,
-        v_max: w,
-    };
     let (t0, t1) = (0.2, 2.9);
     // A move a thousand times the band's zero: definitely over it at
     // every ε row, and far inside every class decision's margin.
@@ -1141,16 +1135,7 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
                 Err(other) => panic!("{name} / {what}: an unexpected refusal {other:?}"),
             };
             let at_f64 = read(
-                PcurveCache::certify(
-                    stored.clone(),
-                    t0,
-                    t1,
-                    carrier,
-                    surface,
-                    window(100.0),
-                    band(),
-                )
-                .map(|_| ()),
+                PcurveCache::certify(stored.clone(), t0, t1, carrier, surface, band()).map(|_| ()),
             );
             let lift = Interval::from_f64;
             let at_iv = read(
@@ -1160,12 +1145,6 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
                     lift(t1),
                     &carrier.map_scalar(lift),
                     &surface.map_scalar(lift),
-                    ChartWindow {
-                        u_min: lift(-100.0),
-                        u_max: lift(100.0),
-                        v_min: lift(-100.0),
-                        v_max: lift(100.0),
-                    },
                     band(),
                 )
                 .map(|_| ()),

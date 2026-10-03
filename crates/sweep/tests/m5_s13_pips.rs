@@ -143,21 +143,8 @@ fn die_pip_subtract_is_green() {
             };
             let p = geom_brep::chart_pcurve(curve.carrier(), &plane, band)
                 .unwrap_or_else(|e| panic!("seam pcurve on the plane chart: {e:?}"));
-            let cache = geom_brep::PcurveCache::certify(
-                p,
-                t0,
-                t1,
-                curve.carrier(),
-                &plane,
-                geom_brep::ChartWindow {
-                    u_min: -10.0,
-                    u_max: 10.0,
-                    v_min: -10.0,
-                    v_max: 10.0,
-                },
-                band,
-            )
-            .unwrap_or_else(|e| panic!("seam pcurve certification: {e:?} (edge {ek:?})"));
+            let cache = geom_brep::PcurveCache::certify(p, t0, t1, curve.carrier(), &plane, band)
+                .unwrap_or_else(|e| panic!("seam pcurve certification: {e:?} (edge {ek:?})"));
             assert!(cache.certificate().max_residual < 1e-9);
         }
     }

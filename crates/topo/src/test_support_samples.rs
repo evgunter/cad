@@ -381,7 +381,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             check: PcurveCheck::MapResidual,
             sample: 4,
         },
-        PcurveCertifyError::TrimEscape,
         PcurveCertifyError::Escalated {
             check: PcurveCheck::Envelope,
             sample: 4,

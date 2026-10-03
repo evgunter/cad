@@ -650,7 +650,6 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
             t1,
             &carrier,
             &surface,
-            shifted.chart_box(t0, t1),
             Band::linear(tol).unwrap(),
         )
         .expect("the shifted pcurve certifies on the periodic chart");

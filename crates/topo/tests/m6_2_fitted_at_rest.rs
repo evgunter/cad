@@ -225,7 +225,7 @@ fn a_producers_closing_mint_carries_the_fitted_row() {
 /// naming `f64`, and its text must not claim `f64` may not certify.
 #[test]
 fn the_dual_refuses_at_check_four_and_says_so() {
-    use geom_brep::{ChartWindow, PcurveCache, PcurveCertifyError, PcurveCheck};
+    use geom_brep::{PcurveCache, PcurveCertifyError, PcurveCheck};
     use geom_core::{Dual64, Real};
     use topo::AtRestPolicy;
     let Some(built) = fixture::build::<f64>() else {
@@ -248,13 +248,6 @@ fn the_dual_refuses_at_check_four_and_says_so() {
         built.cylinder.map_scalar(lift),
         built.sphere.map_scalar(lift),
     );
-    let w = built.window;
-    let window = ChartWindow {
-        u_min: lift(w.u_min),
-        u_max: lift(w.u_max),
-        v_min: lift(w.v_min),
-        v_max: lift(w.v_max),
-    };
     let (f0, f1) = built.carrier.domain();
     let offer = |image: &geom::NurbsCurve2<f64>, t0: f64, t1: f64| {
         PcurveCache::<Dual64>::certify_general(
@@ -264,7 +257,6 @@ fn the_dual_refuses_at_check_four_and_says_so() {
             &carrier,
             &cylinder,
             Some(&sphere),
-            window,
             band,
             <Dual64 as AtRestPolicy>::fitted_lane(),
         )
@@ -312,7 +304,6 @@ fn the_dual_refuses_at_check_four_and_says_so() {
             &geom::Curve3::Nurbs(std::sync::Arc::clone(&built.carrier)),
             &built.cylinder,
             Some(&built.sphere),
-            built.window,
             Band::linear(Tol::witness()).unwrap(),
             None,
         )

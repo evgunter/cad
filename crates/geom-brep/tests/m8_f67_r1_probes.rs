@@ -24,14 +24,13 @@ use core::f64::consts::FRAC_1_SQRT_2;
 use std::sync::Arc;
 
 use crate::shared::fixture;
-use crate::shared::fixture::wide_window as window;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, Pcurve,
-    PcurveCache, PcurveCertifyError, PcurveCheck,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, Pcurve, PcurveCache,
+    PcurveCertifyError, PcurveCheck,
 };
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
@@ -243,7 +242,6 @@ fn iso_lane_poison_meter_escalates_invalid_end_to_end() {
         1.0,
         &degenerate_net(),
         &quarter_cylinder_wall(),
-        window(),
         band(),
     );
     match got {
@@ -273,7 +271,6 @@ fn iso_lane_backwards_span_stays_interval_not_forward() {
         0.0,
         &axis_segment_f64(1.0),
         &quarter_cylinder_wall(),
-        window(),
         band(),
     );
     match got {
@@ -305,7 +302,6 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
         &degenerate_net(),
         &wall,
         Some(&px),
-        window(),
         band(),
         FittedLane::certified(),
     );
@@ -362,12 +358,6 @@ fn iso_lane_gate_and_span_margins_are_reparametrization_invariant() {
             NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).expect("wall"),
         ))
     };
-    let win = ChartWindow {
-        u_min: Probe(-10.0),
-        u_max: Probe(10.0),
-        v_min: Probe(-10.0),
-        v_max: Probe(10.0),
-    };
     let margins = |domain: f64| {
         let iso = Pcurve::IsoLine {
             p0: Point2::new(Probe(0.0), Probe(0.0)),
@@ -383,7 +373,6 @@ fn iso_lane_gate_and_span_margins_are_reparametrization_invariant() {
             Probe(domain),
             &probe_segment(1.0, domain),
             &wall,
-            win,
             band(),
         );
         let samples = k_stats::take_samples();

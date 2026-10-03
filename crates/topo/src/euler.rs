@@ -4039,7 +4039,7 @@ impl<T: Decide> Body<T> {
         touched: &[LoopKey],
         faces: impl FnOnce(
             &Self,
-            &[(FaceKey, crate::pcurves::SiteFrom<T>)],
+            &[(FaceKey, crate::pcurves::SiteFrom)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
         edge: Option<&EdgeCurve<T>>,
         tol: Tol,
@@ -4088,12 +4088,12 @@ impl<T: Decide> Body<T> {
         read: impl IntoIterator<Item = Result<FaceKey, EulerOpError>>,
         faces: impl FnOnce(
             &Self,
-            &[(FaceKey, crate::pcurves::SiteFrom<T>)],
+            &[(FaceKey, crate::pcurves::SiteFrom)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
         edge: Option<&EdgeCurve<T>>,
         tol: Option<Tol>,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom<T>)> = Vec::new();
+        let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom)> = Vec::new();
         let mut seen: Vec<FaceKey> = Vec::new();
         for face in read {
             let face = face?;

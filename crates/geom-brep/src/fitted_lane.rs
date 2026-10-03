@@ -49,7 +49,7 @@
 //!
 //! **A `None` door refuses where the door is first needed.** For an
 //! image the caller already holds, that is check 4 of the fitted lane's
-//! five checks, where every fitted cache's certificate is derived — in
+//! four checks, where every fitted cache's certificate is derived — in
 //! [`crate::PcurveCache::certify_general`] and
 //! [`crate::PcurveCache::recertify`], the two doors that take the
 //! `Option` because a caller reaches them at every scalar (the mint
@@ -147,7 +147,7 @@ impl<T: Decide + geom_core::CertifiedBounds> FittedLane<T> {
 
 impl<T: Real> FittedLane<T> {
     /// The full C2 certificate of a fitted chart image against its
-    /// operand pair — check 4 of the fitted lane's five checks, reached
+    /// operand pair — check 4 of the fitted lane's four checks, reached
     /// only from inside this crate's fitted doors.
     ///
     /// The carrier arrives as the edge's own [`Curve3`]: a rung-3
