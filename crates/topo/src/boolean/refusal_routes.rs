@@ -180,7 +180,7 @@ macro_rules! proximity_lever {
 /// ([`CORNER_EDGES`]).
 macro_rules! corner_edges {
     () => {
-        "make the edges at the corner where the two faces meet clearly longer than the tolerance"
+        "make the edges at the corner where the two faces meet span clearly more than the tolerance"
     };
 }
 
@@ -1365,14 +1365,14 @@ pub(crate) enum PlaneDoor {
 
 /// The maximal-faces gate's lever: the one move that takes two
 /// neighbouring faces off the question, whichever rung asked it.
-pub(crate) const NEIGHBOUR_LEVER: &str = "merge the two faces into one first \
+pub(crate) const NEIGHBOUR_LEVER: &str = "merge the two faces into one \
                                (merge_coplanar_faces), or \
-                               tilt one to meet at a clear angle along an edge clearly longer \
-                               than the tolerance";
+                               tilt one to meet at a clear angle along an edge spanning \
+                               clearly more than the tolerance";
 
 /// A corner's own shape: its arm and its straightness, the two rungs
 /// of [`SectorRung`], which one move answers.
-const CORNER_LEVER: &str = "reshape that corner so its edges are clearly longer than the tolerance and clearly not in line";
+const CORNER_LEVER: &str = "reshape that corner so its edges span clearly more than the tolerance and are clearly not in line";
 
 /// A sized decision's table row at a build, where the stored arm is
 /// never read.
@@ -1531,14 +1531,14 @@ impl BooleanDecision {
             // coincidence or a carrier contradiction at every tolerance.
             Self::PlaneOrientation => Ending::Lever(CORNER_EDGES, LeverPass::ByArm),
             // The margin is the normals' sine over the shared edge's
-            // chord, and a definitely positive one (a clear angle)
+            // extent, and a definitely positive one (a clear angle)
             // passes.
             Self::Neighbours(PlaneRung::Parallel) => sized(
                 NEIGHBOUR_LEVER,
                 "bend across their shared edge",
                 SizedPass::Positive,
             ),
-            // Asked only once the angle read flat over the chord; either
+            // Asked only once the angle read flat over the extent; either
             // definite orientation then leaves the faces coplanar, which
             // the gate refuses, so no sign of this margin passes and no
             // tolerance decides it passing.
@@ -1769,9 +1769,9 @@ mod tests {
     }
 
     const NEIGHBOURS: &str = "whether two neighbouring faces of one operand lie on one plane";
-    const NEIGHBOUR_ENDING: &str = "Recourse: merge the two faces into one first \
+    const NEIGHBOUR_ENDING: &str = "Recourse: merge the two faces into one \
                                     (merge_coplanar_faces), or tilt one to meet at a clear angle \
-                                    along an edge clearly longer than the tolerance";
+                                    along an edge spanning clearly more than the tolerance";
 
     const TUBE_LEVER: &str =
         "Recourse: reshape the torus so its tube is clearly thicker than the tolerance";
@@ -2119,14 +2119,14 @@ mod tests {
     }
 
     const LONGER: &str = "Recourse: make the edges at the corner where the two faces meet \
-                          clearly longer than the tolerance";
+                          span clearly more than the tolerance";
 
     /// Each decision's subject and ending, as literals: an independent
     /// statement of the words `subject` and `ending` must produce, on a
     /// margin it can read (`readable`) or a poisoned one.
     fn want(decision: BooleanDecision, readable: bool) -> (&'static str, Ending) {
-        const CORNER: &str = "Recourse: reshape that corner so its edges are clearly longer than \
-                              the tolerance and clearly not in line";
+        const CORNER: &str = "Recourse: reshape that corner so its edges span clearly more than \
+                              the tolerance and are clearly not in line";
         const STRAIGHT: &str = "whether a corner is straight or folds back on itself";
         const SPHERES: &str = "Recourse: move the spheres so they clearly stand apart, or so one \
                                lies clearly inside the other";
@@ -3276,7 +3276,7 @@ mod tests {
                              undecided: "
                         ) && text.contains(
                             "Recourse: make the edges at the corner where the two faces meet \
-                             clearly longer than the tolerance"
+                             span clearly more than the tolerance"
                         ) && text.contains(if zero {
                             "lies within the zero band"
                         } else {
@@ -3317,16 +3317,16 @@ mod tests {
         let b = band();
         let (z, e) = (b.zero(), b.escalate());
         let (f1, f2) = (FaceKey::default(), FaceKey::default());
-        for (chord, definite) in [(0.5 * z, false), ((z + e) / 2.0, false), (1.0, true)] {
+        for (reach, definite) in [(0.5 * z, false), ((z + e) / 2.0, false), (1.0, true)] {
             for sign in [1.0, -1.0] {
-                let label = format!("chord {chord:e}, facing {sign}");
+                let label = format!("reach {reach:e}, facing {sign}");
                 let (p1, p2) = planes(sign);
                 let verdict = declared_pair_verdict(
                     oriented_plane_eq(
                         &p1,
                         &p2,
                         DECLARED,
-                        &crate::boolean::ConsumedExtent::arm(chord),
+                        &crate::boolean::ConsumedExtent::arm(reach),
                         b,
                     ),
                     f1,
@@ -3369,7 +3369,7 @@ mod tests {
                         && !text.contains("FaceKey"),
                     "{label}: {text}"
                 );
-                let offer = (!definite && sign > 0.0).then(|| chord / k());
+                let offer = (!definite && sign > 0.0).then(|| reach / k());
                 assert_eq!(offered_below(&text), offer.map(Some), "{label}: {text}");
                 assert_eq!(
                     BooleanError::Merge(err).to_string(),
@@ -3670,8 +3670,8 @@ mod tests {
     /// the Boolean both end it as a defect, with no declaration. The
     /// maximal-faces gate compares two faces of one operand, which no
     /// declaration names: a real in-band parallelism raise there (two
-    /// neighbours bent by an in-band angle over a unit chord) and a
-    /// real orientation raise (coincident neighbours over a chord in
+    /// neighbours bent by an in-band angle over a unit extent) and a
+    /// real orientation raise (coincident neighbours over an extent in
     /// the band) end in the gate's lever, the former with the tolerance
     /// its margin gives and the latter with none, since either
     /// orientation leaves the faces coplanar.
@@ -3719,16 +3719,16 @@ mod tests {
                 "an unreadable norm is a defect at every door: {text}"
             );
         }
-        const GATE: &str = "Recourse: merge the two faces into one first (merge_coplanar_faces), \
-                            or tilt one to meet at a clear angle along an edge clearly longer \
-                            than the tolerance";
+        const GATE: &str = "Recourse: merge the two faces into one (merge_coplanar_faces), \
+                            or tilt one to meet at a clear angle along an edge spanning \
+                            clearly more than the tolerance";
         let theta = (z + e) / 2.0;
         let (flat, _) = planes(1.0);
         let bent = PlaneDesc {
             origin: Point3::new(0.0, 0.0, 1.0),
             normal: Vec3::new(theta.sin(), 0.0, theta.cos()),
         };
-        for (p2, chord, rung) in [
+        for (p2, extent, rung) in [
             (bent, 1.0, PlaneRung::Parallel),
             (flat, (z + e) / 2.0, PlaneRung::Orientation),
         ] {
@@ -3736,7 +3736,7 @@ mod tests {
                 &flat,
                 &p2,
                 PlaneIdentity::NONE,
-                &crate::boolean::ConsumedExtent::arm(chord),
+                &crate::boolean::ConsumedExtent::arm(extent),
                 b,
             )
             .expect_err("the gate's rung refuses");

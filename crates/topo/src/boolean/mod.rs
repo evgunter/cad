@@ -1492,6 +1492,13 @@ pub enum Corruption {
         /// The vertex.
         vertex: VertexKey,
     },
+    /// This edge's sides or extent could not be read.
+    Edge {
+        /// The edge.
+        edge: EdgeKey,
+        /// The lookup that came back empty.
+        absence: crate::readback::CarrierAbsence,
+    },
 }
 
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
@@ -2779,6 +2786,11 @@ impl core::fmt::Display for Corruption {
             Self::Vertex { vertex } => write!(
                 f,
                 "the neighbourhood of vertex {vertex:?} could not be walked"
+            ),
+            Self::Edge { edge, absence } => write!(
+                f,
+                "edge {edge:?} could not be read: {}",
+                crate::readback::ReadbackError::from(*absence)
             ),
         }
     }

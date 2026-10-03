@@ -2,7 +2,9 @@
 id: merge-orientation-rung-reads-a-closed-shared-edges-chord-as-its-arm
 kind: issue
 title: topo: the declared-pair orientation rung is levered at the shared edge's chord, which is 0 on a closed edge, so it refuses a legitimate merge (and F7 reads the same chord)
-status: open
+status: review
+pr: 3992
+branch: topo/merge-orientation-rung-levers-at-the-extent
 opened: 2026-09-30
 priority: P2
 cost: M
