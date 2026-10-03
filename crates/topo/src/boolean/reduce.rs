@@ -1651,10 +1651,9 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// harmonic bounds and the arc's own chord-dip bound), so a definitely
 /// one-sided arc clears. What definitely MEETS the face is split by
 /// kind, and the third paragraph below is the statement of record: a
-/// LINE or a CIRCLE carrier against a CYLINDER wall, a SPHERE or a
-/// TORUS, and an ELLIPSE against a cylinder wall or a sphere, is routed
-/// through the certified roots and pierces; everything else — a
-/// tangency, a cone, an ellipse against a torus, an undeclared
+/// LINE, a CIRCLE or an ELLIPSE carrier against a CYLINDER wall, a
+/// SPHERE or a TORUS is routed through the certified roots and pierces;
+/// everything else — a tangency, a cone, an undeclared
 /// on-carrier edge, a trim with no verdict — refuses typed at the named
 /// frontier door ([`BooleanError::CurvedPierceUnsupported`]). An
 /// in-band clearance escalates (F6, the same margin's other half) —
@@ -1751,10 +1750,8 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// frontier is everything the roots do not cover: a TANGENCY (an
 /// in-band discriminant, or a torus root count the quartic cannot
 /// certify, is not a crossing at any order this lane sees), a conic
-/// carrier against a cone, an ELLIPSE against a torus (its residual is a
-/// degree-4 trigonometric polynomial, an octic in the half-angle, which
-/// no ladder here solves), and a trim the chart door declines to
-/// express.
+/// carrier against a cone, a root the band cannot place, and a trim the
+/// chart door declines to express.
 ///
 /// **A CIRCLE against a SPHERE, a CYLINDER or a TORUS takes the same
 /// arms as a line.** Against a sphere its residual is a first harmonic
@@ -1764,9 +1761,9 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// [`super::circle_cylinder`]; a circle square to the wall's axis is a
 /// first harmonic again, and takes the square arm, the first-harmonic door).
 /// An ELLIPSE against a sphere or a cylinder wall is a degree-2
-/// trigonometric polynomial in its eccentric anomaly too
-/// ([`super::ellipse_roots`]). Every degree-2 door's answer is the
-/// certified subdivision's, decided on the residual itself
+/// trigonometric polynomial in its eccentric anomaly too, and against a
+/// torus one of degree four ([`super::ellipse_roots`]). Every such door's
+/// answer is the certified subdivision's, decided on the residual itself
 /// ([`super::circle_roots`]). A conic reaches those arms only from the
 /// conic rung, after the enclosures failed to clear the arc, and never
 /// through a one-sided cover arm — those rest on a line's separation
@@ -3036,8 +3033,9 @@ enum SpanVerdict<T: geom_core::Real> {
 /// The curved-wall crossing route: solve the certified roots — a
 /// line's quadratic on a cylinder wall or a sphere, its quartic on a
 /// torus, a circle's closed form on a sphere and its half-angle quartic
-/// on a torus or a cylinder wall, an ellipse's half-angle quartic on a
-/// sphere or a cylinder wall — keep the roots the EDGE's
+/// on a torus or a cylinder wall, an ellipse's degree-2 residual on a
+/// sphere or a cylinder wall and its degree-4 one on a torus — keep the
+/// roots the EDGE's
 /// span carries strictly inside, and place the landing point in the
 /// face's trim.
 ///
@@ -3094,12 +3092,13 @@ fn wall_crossing<T: Decide>(
             }
             _ => return Ok(SpanVerdict::Unsettled),
         },
-        // The ellipse door ([`super::ellipse_roots`]), on the kinds whose
-        // residual along it is a degree-2 trigonometric polynomial. Against
-        // a torus it is degree four (an octic in the half-angle), which no
-        // lane here solves, so that cell is `Unsettled`.
+        // The ellipse door ([`super::ellipse_roots`]): its residual is a
+        // trigonometric polynomial of degree two against a sphere or a
+        // wall and of degree four against a torus.
         geom::Curve3::Ellipse { .. } => match surface {
-            geom::Surface::Sphere { .. } | geom::Surface::Cylinder { .. } => {
+            geom::Surface::Sphere { .. }
+            | geom::Surface::Cylinder { .. }
+            | geom::Surface::Torus { .. } => {
                 super::ellipse_roots::ellipse_roots(carrier, t0, t1, surface, band)?
             }
             _ => return Ok(SpanVerdict::Unsettled),
@@ -3235,9 +3234,10 @@ fn line_wall_roots_of<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, SpanVerdict<T>>, BooleanError> {
     use super::solid_contain::WallRoots;
-    let two = |ts: [T; 2]| CircleRoots::Certified {
-        count: 2,
-        thetas: [ts[0], ts[1], T::zero(), T::zero()],
+    let two = |ts: [T; 2]| {
+        let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
+        thetas[..2].copy_from_slice(&ts);
+        CircleRoots::Certified { count: 2, thetas }
     };
     // The certified roots, per kind. Every lane answers the same three
     // ways — a certified root set, a definite miss, or no certain

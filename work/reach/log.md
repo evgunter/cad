@@ -709,6 +709,22 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 
+## 2026-10-03 — an ellipse edge meets a torus face (PR 3973)
+
+- The ellipse door's torus arm answers on the shared root core at degree
+  four (`geom_brep::ConicTorusHarmonics`), each root's slack charged
+  from the residual's running bound; no body is newly built (the
+  tilted-cut torus is filed).
+- Dual review: R1 APPROVE-WITH-FIXES (0/4/5), R2 NOT-MERGEABLE-AS-IS
+  (1/2/5); R2's MAJOR (the crossing row red at ε 1e-12) was R1's MINOR,
+  so it is bilateral and untallied (DR row on this commit).
+- Last fix pass: every slack-meter term pinned by a pose, the graze and
+  fuzz rows exact, the crossing row demands certificates only where the
+  band resolves them, and the circle door keeps main's clear reading
+  (the one moved verdict filed on HONE).
+- An independent verifier session re-ran the claimed mutants and the
+  three-ε rows: VERIFIED. Its note: at ε 1e-12 no row pins the door's
+  liveness.
 ## 2026-10-03 — the split gate reads its boxes in the cut's frame (PR 3982)
 
 - The split gate reads every unarmed face's reach in the cut plane's own
@@ -727,4 +743,12 @@ coincidence is now a margined verdict (no declarations), checked by the
   three-ε rows: VERIFIED. Its notes: the per-coordinate row pins
   coordinate 0 only, and no row sees the rim-pair reading in
   `zone_extent`.
+— (REACH orchestrator)
+
+## 2026-10-03 — a carrier tangency off the faces clears the extent scan (PR 3978)
+
+- **The change.** On the no-crossings path, the extent scan clears a carrier tangency whose touch point lies off every face, on a pair the reduction found no event for. A pair with an event still refuses as tangent. A ball deep in a wall, a rigid tilt, and a plate with a hole about the touch now build.
+- **Review.** It was a dual review, frozen at `65e53562cf`, and both reviews came back APPROVE-WITH-FIXES with no MAJOR. Both found rows forgiving enough that the bound mutants survived, and found the guard unpinned at body level.
+- **The fix pass.** It deleted the touch-ball guard (`boundary_clear_of`) and its bound rather than pinning them. The argument: on a silent pair, any loop inside both faces would put an edge within the margin of the other carrier, which the crossing layer records or refuses (premise S). The new row pins the touch at the centre of every loop its margin admits.
+- **Verification.** An independent verifier session found the pass VERIFIED: all five touch and event mutants are red, and the hole and tilt rows are red on the old head and green now. Its notes: S is shown by execution, not by proof, and no body-level row reaches an evented touch. After main's `decide_nonzero` rename, the lane merged main and re-ran the battery and mutants; all three ε are green.
 — (REACH orchestrator)

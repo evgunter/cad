@@ -857,21 +857,27 @@ pub(crate) const CORNER_EDGES: &str = corner_edges!();
 pub enum SphereQuestion {
     /// Whether the sphere crosses a plane face's carrier or clears it
     /// (`bool_sphere_extent_gap`, `r − |s|`): either definite side
-    /// passes, and a decided zero, a tangency, refuses with its decided
-    /// margin.
+    /// passes. A decided zero, a tangency, passes where the section
+    /// certificate places the touch off one of the faces, and refuses
+    /// with its margin otherwise. An in-band margin refuses with its
+    /// margin: the certificate reads the same margin as undecided
+    /// (R-tan).
     AgainstPlane,
     /// Whether two spheres stand apart (`bool_sphere_sphere_gap`): a
-    /// positive gap passes. A gap at or below zero goes on to
-    /// [`SphereQuestion::Nested`], whose margin is then about minus the
-    /// smaller sphere's diameter, so a gap within the band of zero
-    /// refuses there.
+    /// positive gap passes, and a negative one goes on to
+    /// [`SphereQuestion::Nested`]. A decided zero, spheres touching
+    /// from outside, passes where the section certificate places the
+    /// touch off one of the faces, and refuses with its margin
+    /// otherwise; an in-band gap refuses with its margin, as at
+    /// [`SphereQuestion::AgainstPlane`].
     Apart,
     /// Whether the smaller of two overlapping spheres lies strictly
     /// inside the larger (`bool_sphere_sphere_nested`): a positive
-    /// clearance passes, and so does a negative one whose two spheres'
-    /// faces the section certificate certifies apart. A decided zero, and
-    /// a crossing whose circle lies inside both faces, refuse
-    /// (`BooleanError::SpheresMeet` is its decided refusal).
+    /// clearance passes, and so do a negative one and a decided zero
+    /// whose two spheres' faces the section certificate certifies apart.
+    /// A crossing whose circle lies inside both faces, and a decided
+    /// zero touching on both faces, refuse (`BooleanError::SpheresMeet`
+    /// is its decided refusal).
     Nested,
     /// Whether the plane faces one sphere pokes through are parallel
     /// (`bool_sphere_escape_parallel`): only a zero passes (a single
