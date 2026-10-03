@@ -4308,6 +4308,7 @@ mod tests {
 mod winding_arm_tests {
     use super::*;
     use crate::euler::{FaceSurface, MefSite, MevSite};
+    use crate::loop_winding::RunClosing::{self, Straight};
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
     use geom_core::{Point3, Sign, Vec3};
 
@@ -4520,10 +4521,7 @@ mod winding_arm_tests {
                     he2: e1.he_minus,
                 },
                 arc(-Vec3::unit_z()),
-                FaceSurface::New {
-                    surface: plane(),
-                    sense: true,
-                },
+                FaceSurface::Inherit,
                 tol,
             )
             .unwrap();
@@ -5261,10 +5259,11 @@ mod winding_arm_tests {
             Ok(LoopWinding::Wound(Ok(d))) => d,
             other => panic!("the triangle winds: {other:?}"),
         };
-        let run_margin = |t: &Tri, (h1, h2)| match t.body.planar_run_winding_decided(h1, h2, n, b) {
-            Ok(Some(Ok(d))) => d,
-            other => panic!("the run winds: {other:?}"),
-        };
+        let run_margin =
+            |t: &Tri, (h1, h2)| match t.body.planar_run_winding_decided((h1, h2), Straight, n, b) {
+                Ok(Some(Ok(d))) => d,
+                other => panic!("the run winds: {other:?}"),
+            };
 
         let t = fresh();
         let whole = loop_margin(&t);
@@ -5296,7 +5295,7 @@ mod winding_arm_tests {
         let run = run_of(&t);
         fit_a_nurbs_quarter(&mut t, tol);
         assert_eq!(
-            t.body.planar_run_winding_decided(run.0, run.1, n, b),
+            t.body.planar_run_winding_decided(run, Straight, n, b),
             Ok(None),
             "a NURBS edge on the run is not wound by its chord"
         );
@@ -5307,7 +5306,7 @@ mod winding_arm_tests {
         let other = t.body.edges().map(|(k, _)| k).find(|&k| k != own).unwrap();
         t.body.half_edges.get_mut(h2).unwrap().edge = other;
         assert_eq!(
-            t.body.planar_run_winding_decided(h1, h2, n, b),
+            t.body.planar_run_winding_decided((h1, h2), Straight, n, b),
             Err(TornLoop::Unclaimed {
                 he: h2,
                 edge: other
@@ -5316,12 +5315,16 @@ mod winding_arm_tests {
         );
     }
 
-    /// **A run's conic bulge is read, closing chord and all**: one
+    /// **A run's conic bulge is read, closing curve and all**: one
     /// semicircle of [`two_semicircle_disc`] closed by its diameter is
     /// a half-disc whose chord Newell sum is exactly zero, so only the
     /// run's bulge can decide it, and it winds counterclockwise like the
     /// disc; the run over both semicircles closes on a zero-length chord
-    /// and is the disc's own loop, margin for margin.
+    /// and is the disc's own loop, margin for margin. A closing CURVE is
+    /// one more edge: a semicircle closed by the other semicircle is the
+    /// disc, margin for margin, and closed by itself run back it encloses
+    /// nothing — which a closing read as its straight chord would call
+    /// the half-disc.
     #[test]
     fn a_run_on_arcs_is_decided_by_its_bulge() {
         let tol = Tol::witness();
@@ -5333,7 +5336,7 @@ mod winding_arm_tests {
             panic!("the disc's loop is a cycle");
         };
         let second = body.get_half_edge(first).unwrap().next;
-        let run = |h1, h2| match body.planar_run_winding_decided(h1, h2, n, b) {
+        let run = |h1, h2| match body.planar_run_winding_decided((h1, h2), Straight, n, b) {
             Ok(Some(Ok(d))) => d,
             other => panic!("the run winds: {other:?}"),
         };
@@ -5349,6 +5352,71 @@ mod winding_arm_tests {
             other => panic!("the disc winds: {other:?}"),
         };
         assert_eq!(run(first, second), whole, "the whole run is the disc");
+        // The one-half run `opens` closed by a chord curve, as the ring
+        // lane reads it: a [`SegmentCurve`] between `opens` and the other
+        // half, standing for the match's, whose spec is the edge under
+        // `he`, computed running the way that edge's plus half runs;
+        // `with_traversal` says whether the closing (from the run's end
+        // back to its start) runs the way `he` does. Both edges' plus
+        // halves run a → b, so the closing of `first` (b → a's half, its
+        // edge's minus) is the curve as computed, and the closing of
+        // `second` is the curve run back.
+        let closed = |opens: crate::HalfEdgeKey, he: crate::HalfEdgeKey, with_traversal: bool| {
+            let other = if opens == first { second } else { first };
+            let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+            let curve = body
+                .get_curve_geom(edge.curve)
+                .unwrap()
+                .certified()
+                .unwrap();
+            let (t0, t1) = curve.params();
+            let spec = EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: body
+                        .get_face(body.get_loop(disc).unwrap().face)
+                        .unwrap()
+                        .surface,
+                    s2: body
+                        .get_face(body.get_loop(disc).unwrap().face)
+                        .unwrap()
+                        .surface,
+                    witness: curve.carrier().mid_point(t0, t1),
+                },
+                carrier: curve.carrier().clone(),
+                param_start: t0,
+                param_end: t1,
+            };
+            let forward = with_traversal == edge.claim(he).unwrap().plus;
+            let halves = if forward {
+                (other, opens)
+            } else {
+                (opens, other)
+            };
+            let segment = crate::chord_join::SegmentCurve::of(halves, Some(spec));
+            let face = body.get_loop(disc).unwrap().face;
+            let closing = segment.run_closing(opens, face).unwrap();
+            match body.planar_run_winding_decided(
+                (opens, opens),
+                RunClosing::of(closing.as_ref()),
+                n,
+                b,
+            ) {
+                Ok(Some(Ok(d))) => d,
+                other => panic!("the closed run winds: {other:?}"),
+            }
+        };
+        for (opens, other) in [(first, second), (second, first)] {
+            assert_eq!(
+                closed(opens, other, true),
+                whole,
+                "a semicircle closed by the other one is the disc"
+            );
+            assert_eq!(
+                closed(opens, opens, false).sign,
+                Sign::Zero,
+                "a semicircle closed by itself run back encloses nothing"
+            );
+        }
     }
 
     /// **The ring lane's own shape**: a run that opens AND closes on a
@@ -5400,7 +5468,7 @@ mod winding_arm_tests {
             Some(t.body.get_half_edge(h2).unwrap().start),
             "the run ends at the null half's far vertex, not at `d` itself"
         );
-        match t.body.planar_run_winding_decided(h1, h2, n, b) {
+        match t.body.planar_run_winding_decided((h1, h2), Straight, n, b) {
             Ok(Some(Ok(d))) => assert_eq!(d, whole, "the bracketed run is the triangle"),
             other => panic!("the run winds: {other:?}"),
         }
@@ -5472,16 +5540,19 @@ mod declared_reach_rows {
                 .clone();
             let he1 = leaving(&body, top, a).expect("A is on the top");
             let he2 = leaving(&body, top, c).expect("C is on the top");
+            // Lifts RechartStrandsDescriptions: the half on a key of its own is the declared pair; its rim's descriptions are not the row.
             let split = body
-                .mef(
-                    MefSite::Chords { he1, he2 },
-                    line(pa, pc),
-                    FaceSurface::New {
-                        surface: flat,
-                        sense: true,
-                    },
-                    tol,
-                )
+                .lifting_rechart_refusals_for_tests(|body| {
+                    body.mef(
+                        MefSite::Chords { he1, he2 },
+                        line(pa, pc),
+                        FaceSurface::New {
+                            surface: flat,
+                            sense: true,
+                        },
+                        tol,
+                    )
+                })
                 .expect("the diagonal splits the top");
             // The half holding B (+y) turns about the x-axis hinge at
             // z = 1; the half holding D stays flat.

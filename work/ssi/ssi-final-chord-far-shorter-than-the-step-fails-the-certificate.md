@@ -2,10 +2,11 @@
 id: ssi-final-chord-far-shorter-than-the-step-fails-the-certificate
 kind: issue
 title: ssi: a branch whose last marched state lands 2e-11 to 1e-7 m inside the domain boundary fails its certificate at ε 1e-12 (a final chord far shorter than the step)
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
+closed: 2026-10-03
 ---
 
 
@@ -65,3 +66,49 @@ certifies at every δ in the table at ε 1e-6, 1e-9 and 1e-12. What is
 left is the ℝ³ lane, whose `push_boundary` still appends the bisected
 slab crossing however close it lies to the last state; that lane's slab
 is itself in question (`ssi-r3-slab-is-not-geometry`).
+
+## Closed (2026-10-03)
+
+**The row's fixture no longer reproduces on main.** PR 3862 retired it
+on the plane × NURBS lane with `ssi/ends.rs`'s `close_at`, as the
+section above says. Measuring it found the fixture had stopped
+exercising that rule. The march now starts at the bottom edge's
+crossing, so the wall height `(31/32 + δ)·256/255` left the last state
+3.80 to 4.80 mm short of the top edge, not δ, and the row passed with
+`close_at`'s pop removed. At height `31/32 + δ` the last state lands δ
+short (measured: the final chord equals δ at every δ in the table),
+and `m5_pr7_ssi.rs`'s
+`a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies` now
+builds that height.
+
+| δ | ε 1e-6 | ε 1e-9 | ε 1e-12 | 1e-9, pop removed | 1e-12, pop removed |
+|---|---|---|---|---|---|
+| 1e-11 | certifies | certifies | certifies | `CertificateLimb { HullSup, 8.9e-8 }` | `CertificateLimb { HullSup, 4.2e-10 }` |
+| 2e-11 | certifies | certifies | certifies | `CertificateLimb { HullSup, 2.3e-7 }` | `CertificateEscalated { OnLocus }` |
+| 1e-10 | certifies | certifies | certifies | `CertificateEscalated { HullSup }` | `CertificateEscalated { OnLocus }` |
+| 1e-9 | certifies | certifies | certifies | `CertificateEscalated { HullSup }` | `CertificateLimb { HullSup, 3.9e-10 }` |
+| 1e-8 | certifies | certifies | certifies | certifies | `CertificateLimb { HullSup, 2.0e-11 }` |
+| 1e-7 | certifies | certifies | certifies | certifies | `CertificateEscalated { HullSup }` |
+| 1e-6 to 1e-3 | certifies | certifies | certifies | certifies | certifies |
+
+At ε 1e-6 every δ certifies with the pop removed too. `close_at` is
+what retires the mechanism, and with it removed the row fails at 1e-9
+and 1e-12.
+
+**The ℝ³ lane did not reproduce it.** Its `push_boundary` still
+appends the bisected slab crossing however close it lies. The scan
+took the threaded cylinder × unit sphere in a slab of half-extent 0.1
+and extent 0.2, centred at `(0.13 + s, 0, 0.996)`. The slab clips the
+north loop to a half-loop that ends on the face `x = 0.03 + s`. Over
+600 shifts `s` in `[−6, 6]` mm at each ε:
+
+- every run certifies at 1e-6 and 1e-9, the shortest final chord
+  reached being 6.8e-7 m at 1e-9;
+- every run refuses `FitSampleBudget` at 1e-12 before the
+  certificate reads the chord.
+
+The scan never reached the sub-nanometre chords where the chart lane
+failed at 1e-9, so this is no evidence that the ℝ³ lane is immune. The
+ℝ³ slab end is carried by `ssi-r3-slab-is-not-geometry`, which now
+says that a resolution keeping `push_boundary` owes it `close_at`'s
+rule.
