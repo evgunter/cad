@@ -2,13 +2,14 @@
 id: ellipse-edge-crossing-a-torus-has-no-root-lane
 kind: issue
 title: An ellipse edge crossing (or near) a torus face refuses at the frontier - its residual is an octic in the half-angle
-status: review
+status: closed
 pr: 3973
 branch: reach/ellipse-torus-roots
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [non-circle-conic-edge-refuses-against-every-curved-face, a-torus-near-a-tilted-cut-stops-at-the-extent-scan, an-edge-crossing-a-cone-face-has-no-root-lane, degree-2-subdivision-doors-carry-no-root-slack-meter]
+closed: 2026-10-03
 ---
 
 Found by the REACH lane that gave the ELLIPSE carrier its clearance
@@ -81,3 +82,11 @@ reading through the floor, filed:
 Residue filed: `an-edge-crossing-a-cone-face-has-no-root-lane`,
 `work/hone/degree-2-subdivision-doors-carry-no-root-slack-meter.md`,
 `work/hone/circle-torus-clear-margin-reads-the-floor.md`.
+
+## Closed (2026-10-03, PR 3973)
+
+An ellipse edge near or crossing a torus face is decided: the ellipse
+door's torus arm answers on `circle_roots::certified_subdivision` at
+degree four, each root's slack charged by a meter whose terms are pinned
+by poses. No body is newly built; the oblique section is
+`a-torus-near-a-tilted-cut-stops-at-the-extent-scan`.
