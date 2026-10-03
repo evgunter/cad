@@ -13,10 +13,10 @@
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::spline::SpanLocate;
-use geom_core::{Interval, Point3, Real, Tol, Vec3};
+use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
 use topo::{AtRestPolicy, Body, FaceSurface, MefSite, MevSite};
 
-fn half_cap<T: Real + SpanLocate + AtRestPolicy>() -> Result<(), String> {
+fn half_cap<T: Real + SpanLocate + AtRestPolicy>() -> Result<Body<T>, String> {
     let tol = Tol::witness();
     let f = T::from_f64;
     let z = 0.5_f64;
@@ -75,13 +75,59 @@ fn half_cap<T: Real + SpanLocate + AtRestPolicy>() -> Result<(), String> {
     )
     .map_err(|e| format!("mef {e:?}"))?;
     topo::pcurves::mint_pcurves(&mut body, tol).map_err(|e| format!("mint {e:?}"))?;
-    Ok(())
+    Ok(body)
+}
+
+/// **Which representation the walk picks**: of the half cap's four
+/// rows, exactly one — the pole-crossing arc's, met across the pole —
+/// is stored as the involution twin of its derivation (azimuth `π` on,
+/// polar `π − v`), and the rest as derived, at both scalars. The joint
+/// before it lifts only through the twin: the derivation's own azimuth
+/// sits on a half-period mark of the branch decision.
+fn twins<T: Real + SpanLocate + AtRestPolicy + Bounds>() -> usize {
+    use geom_brep::{Pcurve, chart_pcurve};
+    let body = half_cap::<T>().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let near = |x: T, to: f64| (x.lo() - to).abs() < 1e-12 && (x.hi() - to).abs() < 1e-12;
+    let mut twins = 0;
+    for (he, h) in body.half_edges() {
+        let row = body.pcurve(he).expect("every half of the cap stores a row");
+        let edge = body.get_edge(h.edge).unwrap();
+        let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+            panic!("a certified edge")
+        };
+        let face = body.face_of_half_edge(he).unwrap();
+        let sphere = body
+            .get_surface(body.get_face(face).unwrap().surface)
+            .unwrap();
+        let derived = chart_pcurve(curve.carrier(), sphere, band).unwrap();
+        let (Pcurve::Harmonic { p0: d, .. }, Pcurve::Harmonic { p0: s, .. }) =
+            (&derived, row.pcurve())
+        else {
+            panic!("the cap's rows are harmonic")
+        };
+        if near(s.x - d.x, core::f64::consts::PI) && near(s.y + d.y, core::f64::consts::PI) {
+            twins += 1;
+        } else {
+            assert!(
+                near(s.x - d.x, 0.0) && near(s.y - d.y, 0.0),
+                "{he:?}: a row is its derivation or its twin"
+            );
+        }
+    }
+    twins
+}
+
+#[test]
+fn the_walk_stores_one_row_as_the_twin() {
+    assert_eq!(twins::<f64>(), 1, "at f64");
+    assert_eq!(twins::<Interval>(), 1, "at Interval");
 }
 
 #[test]
 fn the_pole_crossing_half_cap_mints_at_f64_and_at_interval() {
-    let at_f64 = half_cap::<f64>();
-    let at_iv = half_cap::<Interval>();
+    let at_f64 = half_cap::<f64>().map(|_| ());
+    let at_iv = half_cap::<Interval>().map(|_| ());
     assert!(
         at_f64.is_ok() && at_iv.is_ok(),
         "f64 {at_f64:?} / Interval {at_iv:?}"

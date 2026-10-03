@@ -182,20 +182,24 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
             BooleanOp::Intersect => topo::boolean::intersect(&a, &b, Tol::witness()),
             BooleanOp::Subtract => topo::boolean::subtract(&a, &b, Tol::witness()),
         };
-        // At ε 1e-12 the tilted arcs' fitted pcurve rows meet the loop's
-        // continuity check with enclosures wider than the band, and the
-        // mint escalates by name
+        // At ε 1e-12 the tilted arcs' fitted pcurve rows certify their
+        // map residual with enclosures wider than the band, and the mint
+        // escalates by name
         // (`work/pcert/fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar.md`).
         if Tol::witness().get().eps < 1e-10 {
             let Err(topo::BooleanError::Pcurves {
-                source: topo::PcurveMintError::Escalated { cause, .. },
+                source:
+                    topo::PcurveMintError::Certify {
+                        error: geom_brep::PcurveCertifyError::Escalated { cause, .. },
+                        ..
+                    },
             }) = &out
             else {
                 panic!("Interval {op:?} at eps 1e-12: expected the mint's escalation, got {out:?}");
             };
             assert_eq!(
                 cause.predicate,
-                Some("pcurve_loop_continuity"),
+                Some("pcurve_map_residual"),
                 "Interval {op:?}"
             );
             continue;
