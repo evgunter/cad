@@ -274,8 +274,12 @@ and CHROME; triaged 2026-10-01:**
     already meets that. On 2026-10-03 PLACE's row 53 gave every mate
     frame a general offset (`MateFrame { base, offset: Placement }`),
     which can already turn a side about its axis. So the turn and two
-    offsets now spell one roll three ways. #3681 is held while the
-    same designers weigh the roll with row 53 in hand (round 3). If approved, the unit also owes an edit
+    offsets now spell one roll three ways. Round 3 converged, and Ev
+    approved the revision on 2026-10-03: the offsets carry the roll,
+    there is no turn field, the primitive is `Coaxial { roll: Free |
+    Pinned }`, and the standoff retires. The build is an MSOLVE unit
+    that also builds row 53's `MateFrame { base, offset }` (a note on
+    PLACE's row says so), after MSOLVE-13 and item 19's build. If approved, the unit also owes an edit
     that rewrites a committed mate's turn (only `InsertNode` writes a
     mate's datum today), and the mate panel's turn control (it
     hard-codes `clocking: None`). The planar zero went to a note under

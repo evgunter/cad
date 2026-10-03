@@ -1205,3 +1205,10 @@ first. Two things the MSOLVE-12 lane noted:
   on main. Unverified here; it is not this program's file.
 - One merge commit on that branch (`84db7bf21`) lacks the trailers. It
   is merged history now, and merge-only means it stays.
+
+Ev approved the revised roll on #3681 ("the new plan makes sense"),
+and fork-log row 60 carries the decision. The `MateFrame { base,
+offset }` shape from PLACE's row 53 is unbuilt and lives in `mate.rs`,
+so MSOLVE builds it with the roll unit. A note on PLACE's row says so
+and leaves PLACE the crate, the tour gauge and, if it wants it, the
+offset edit.
