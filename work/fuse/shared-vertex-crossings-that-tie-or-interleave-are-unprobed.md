@@ -2,11 +2,10 @@
 id: shared-vertex-crossings-that-tie-or-interleave-are-unprobed
 kind: issue
 title: "SharedVertexCrossings: the fan-interleave arm is reached by no witness; the one-arc strut arm is its own row"
-status: dispatched
+status: open
 opened: 2026-10-03
-priority: P0
+priority: P3
 cost: M
-branch: fuse/strut-holding-a-cut
 ---
 
 
@@ -66,4 +65,19 @@ single FULL, with one fix pass that added three things:
 The row stays open at P0 for the reachable arm. Its pinch-end 3′
 failure is now its own row,
 `a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`.
+
+## Landed (FUSE, PR 3950, 2026-10-03)
+
+A dangling null edge holding another pair's cut whole now nests the
+inner one at its tip. The pit-and-spike witness and two spikes build in
+every op.
+- **Review:** single FULL. One MAJOR: the one-arc tie built in one
+  insertion order only. In the other order it hit `JoinDesync`, where
+  main refused typed. The fix pass returns the one-arc tie to a typed
+  refusal, in its own row
+  (`two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings`),
+  and builds its witnesses both ways round.
+- **Reprioritized:** what remains here is the interleave arm, which no
+  witness reaches until cleave's `PairingMismatch` row lands. No
+  reachable refusal is left on this row, so it drops from P0 to P3.
 
