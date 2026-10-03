@@ -15,10 +15,13 @@
 //!   neighbours read Out (`sectors::fold_on_bound`). Folding mixed
 //!   bounds Out instead turns two `review_m3_pr55` rows
 //!   (`g_stacked_full_on_edge_germ_dump`,
-//!   `g_boundary_on_boundary_refusals_sharp`) and
-//!   `verbs_1031b_arcwind::the_boolean_on_the_cup_builds_and_balances`
-//!   red, which the other two mutations leave green; it also turns
-//!   [`matching_reads_the_germs_loci`] red. (Re-measured at fix pass 2.)
+//!   `g_boundary_on_boundary_refusals_sharp`) red, which the other two
+//!   mutations leave green; it also turns
+//!   [`matching_reads_the_germs_loci`] red. (Re-measured at fix pass 2;
+//!   re-measured by TANG's PR 3851, whose re-pin of the cup row —
+//!   `verbs_1031b_arcwind::the_boolean_on_the_cup_builds_and_balances`,
+//!   once `…_reaches_the_join` — no longer goes red under it: the cup
+//!   builds and balances either way.)
 //!
 //! Each row asserts the body that builds: tiers 2 and 3′, the at-rest
 //! certificate, the closed-form volume, and that it is a legal boolean
