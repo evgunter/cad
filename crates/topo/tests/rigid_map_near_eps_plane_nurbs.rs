@@ -43,7 +43,7 @@ const FLOOR: f64 = 4.2e-14;
 /// map has re-rounded, so its error is a few ulps of the coordinates
 /// whatever `δ` is. Measured within 1.8 in every frame at every
 /// battery ε.
-const ROUNDING_ULPS: f64 = 8.0;
+const ROUNDING_ULPS: f64 = 4.0;
 
 fn kv2() -> KnotVector {
     KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
