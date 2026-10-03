@@ -6391,7 +6391,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unreadable", 2),
     ("validate", 2),
     ("vertex", 2),
-    ("vertex_on_edge", 2),
+    // One fact: the census's finding and the stale record name one
+    // contact kind, the cell pair (vertex, edge); the ring word is the
+    // same shape on a face's own loop.
+    ("vertex_on_edge", 3),
     ("vertex_on_face", 2),
     ("vertex_vertex", 3),
     // One fact (A4, A11 (2)): a declaring mate a re-gauge would turn

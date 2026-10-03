@@ -289,14 +289,17 @@ fn both_sweeps_evaluate_in_one_document() {
 /// (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`'s
 /// realized-vs-idealized bit equality) were green across the change
 /// untouched.
+/// Re-blessed when contact records gained the `(vertex, edge)` kind:
+/// the digest feeds the records' `Debug`, which now prints an empty
+/// `ve` list; with that field stripped every constant here held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xb23f_de75_dcfd_65e9),
-        ("corner_table", 0x246c_30e8_519e_c23f),
+        ("die", 0xe1d8_e91e_80ab_eb46),
+        ("corner_table", 0xd0d6_2cb3_855b_6d35),
         ("cut_cylinder", 0x1676_4144_da9e_6975),
-        ("boss_union", 0x9149_8127_2c43_ed66),
-        ("kitchen_sink", 0x0973_ecf8_520a_08a7),
+        ("boss_union", 0xa328_4b93_5337_9179),
+        ("kitchen_sink", 0x990d_f75a_2d68_b4cc),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

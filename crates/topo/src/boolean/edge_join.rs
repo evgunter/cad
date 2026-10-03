@@ -30,6 +30,18 @@ struct Join {
     kept: EdgeKey,
 }
 
+/// One join [`BooleanBody::join_edges`] made: `vertex` and `gone` are
+/// dead, and `kept` holds both their interiors and its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EdgeJoin {
+    /// The joined-away vertex.
+    pub vertex: VertexKey,
+    /// The edge killed with it.
+    pub gone: EdgeKey,
+    /// The edge that is the two edges now.
+    pub kept: EdgeKey,
+}
+
 /// Every half-edge starting at each vertex.
 fn starts<T: Real>(body: &Body<T>) -> BTreeMap<VertexKey, Vec<HalfEdgeKey>> {
     let mut out: BTreeMap<VertexKey, Vec<HalfEdgeKey>> = BTreeMap::new();
@@ -99,66 +111,78 @@ impl<T: Decide + crate::props::AtRestPolicy> BooleanBody<T> {
     /// time in vertex-arena order, and carries the contact records by
     /// substitution: a record naming a joined vertex or a killed edge
     /// names the joined edge. The joined edge is described from its two
-    /// faces, as the boolean describes the edges it mints. Returns the
-    /// vertices joined away.
+    /// faces, as the boolean describes the edges it mints, and the
+    /// pcurve map is re-minted, as the boolean re-mints its own. Returns
+    /// the joins in the order made, a later one's `gone` or `kept`
+    /// possibly an earlier one's `kept`.
     ///
     /// # Errors
     ///
     /// The kill's own refusal ([`BooleanError::Euler`]), the
-    /// description's, or the door's.
-    pub fn join_edges(&mut self, tol: Tol) -> Result<Vec<VertexKey>, BooleanError> {
+    /// description's, the pcurve mint's, or the door's.
+    pub fn join_edges(&mut self, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError> {
         let band = Band::linear(tol)?;
         let mut joined = Vec::new();
         let mut desc = Descendants::default();
+        let mut body = self.body.begin_surgery();
         loop {
-            let starts = starts(&self.body);
-            let Some((w, join)) = self
-                .body
+            let starts = starts(&body);
+            let Some((w, join)) = body
                 .vertices()
                 .map(|(k, _)| k)
-                .find_map(|w| joinable(&self.body, w, &starts).map(|j| (w, j)))
+                .find_map(|w| joinable(&body, w, &starts).map(|j| (w, j)))
             else {
                 break;
             };
-            self.join_one(w, &join, band, tol)?;
+            join_one(&mut body, w, &join, band, tol)?;
             desc.substitute(Cell::Vertex(w), Cell::Edge(join.kept));
             desc.substitute(Cell::Edge(join.gone), Cell::Edge(join.kept));
-            joined.push(w);
+            joined.push(EdgeJoin {
+                vertex: w,
+                gone: join.gone,
+                kept: join.kept,
+            });
         }
+        if !joined.is_empty() {
+            crate::pcurves::mint_pcurves(&mut body, tol)
+                .map_err(|source| BooleanError::Pcurves { source })?;
+        }
+        body.sweep_and_close();
         if !joined.is_empty() {
             self.contacts = carry_in_place(&self.body, &self.contacts, &desc)?;
         }
         Ok(joined)
     }
+}
 
-    fn join_one(
-        &mut self,
-        w: VertexKey,
-        join: &Join,
-        band: Band,
-        tol: Tol,
-    ) -> Result<(), BooleanError> {
-        let body = &mut self.body;
-        let members = body
-            .kev_merged_members(join.he)
-            .map_err(BooleanError::Euler)?;
-        let spec = members
-            .iter()
-            .find(|m| m.edge == join.kept)
-            .map(|m| crate::EdgeCurveSpec::line_between(m.start, m.end))
-            .ok_or(BooleanError::JoinDesync {
-                what: "a joined edge is not the kill's merged member",
-            })?;
-        let killed = body
-            .kev_describing(join.he, &[(join.kept, spec)], tol)
-            .map_err(BooleanError::Euler)?;
-        debug_assert_eq!(killed.killed_vertex, w, "the kill takes the joined vertex");
-        describe_minted_edges(
-            body,
-            &[join.kept],
-            &crate::merge_faces::MergeCoplanarOutcome::default(),
-            band,
-            tol,
-        )
-    }
+/// Joins at `w` (module docs): `gone` dies with `w` through `kev`, and
+/// `kept`, re-based onto `gone`'s far end, is described from its faces.
+fn join_one<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    w: VertexKey,
+    join: &Join,
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let members = body
+        .kev_merged_members(join.he)
+        .map_err(BooleanError::Euler)?;
+    let spec = members
+        .iter()
+        .find(|m| m.edge == join.kept)
+        .map(|m| crate::EdgeCurveSpec::line_between(m.start, m.end))
+        .ok_or(BooleanError::JoinDesync {
+            what: "a joined edge is not the kill's merged member",
+        })?;
+    let killed = body
+        .kev_describing(join.he, &[(join.kept, spec)], tol)
+        .map_err(BooleanError::Euler)?;
+    debug_assert_eq!(killed.killed_vertex, w, "the kill takes the joined vertex");
+    describe_minted_edges(
+        body,
+        &[join.kept],
+        &crate::merge_faces::MergeCoplanarOutcome::default(),
+        band,
+        tol,
+    )
 }

@@ -1003,7 +1003,7 @@ pub fn product_named<P, T: Decide + AtRestPolicy>(
 ///
 /// A source body's records move onto the aggregate through the GRAFT's
 /// own descendant map, exactly as its name rows do — the lineage rule
-/// the boolean pipeline's `remap_contacts` states: a record's new key
+/// the boolean pipeline's substitution door (`carry`) states: a record's new key
 /// is the key the graft says its old entity BECAME, never a key
 /// re-derived by looking at the gathered geometry. Re-derivation is
 /// the scan-to-bless move F1 bans; there is no second opinion here

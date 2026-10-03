@@ -4287,6 +4287,11 @@ pub(crate) mod staleness_posture {
                  carried rows",
             ),
             (
+                "join_edges",
+                Maintains,
+                "re-mints the whole body after its last join, inside its surgery scope",
+            ),
+            (
                 "replace_faces_offset",
                 Maintains,
                 "re-mints the clone whole-body before adopting it",

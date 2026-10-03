@@ -144,7 +144,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // classification this module's own walk dispatches on.
 pub(crate) use contain::loop_circle;
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
-pub use edge_join::joinable_vertices;
+pub use edge_join::{EdgeJoin, joinable_vertices};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
