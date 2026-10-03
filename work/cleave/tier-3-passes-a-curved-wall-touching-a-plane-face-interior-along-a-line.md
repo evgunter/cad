@@ -4,9 +4,10 @@ kind: issue
 title: tier 3 passes a body whose curved wall touches a plane face's interior along a line with no edge for the contact
 status: open
 opened: 2026-10-02
-priority: P2
+priority: P1
 cost: H
 refs: [a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact]
+design: true
 ---
 
 
