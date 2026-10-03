@@ -6471,3 +6471,13 @@ design fork, not held by D10. Two designers were dispatched concurrently on one
 problem statement (`/home/user/topo-orch/design-stalekey-problem.md`), which
 names no candidate. The blinding record is on
 `analysis/design-fork/topo-stale-key-provenance`.
+
+## Stale-key fork: [ev] PR 4006 opened (2026-10-03)
+
+The first reports agreed on the core: split refusals by key source at the raise site. They differed on four
+points of shape. Three converged within two rounds. Point (3), where "the kernel passed a bad key" is
+expressed, crossed three times, so per protocol rule 5 a further designer was dispatched. It proposed
+`KernelCalled(EulerOpError)` as the drivers' field type, and both originals accepted it in round 4.
+PR 4006 carries one recommendation. The only question for Ev is one D2-addendum sentence, which the code
+does not wait on. Fork-log row 63 holds the recommendation half; the designer mapping is on the analysis
+branch. Off-question defect still to file: `readback::DanglingRef` raises `Entity` for record links.
