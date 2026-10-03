@@ -4717,6 +4717,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
             "graft_recertify",
+            "inside_out_operand",
             "invalid_declaration",
             "join",
             "join_desync",
