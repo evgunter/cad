@@ -2,11 +2,13 @@
 id: a-part-resting-on-a-gauge-cannot-follow-a-part-edit
 kind: issue
 title: a part set on another part's gauge cannot follow that part's edit: a mate across gauges only declares, and a nested gauge restates the solved face by hand
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: H
 branch: place/mate-frame-offset
+pr: 3961
+closed: 2026-10-03
 ---
 
 
@@ -78,3 +80,17 @@ A mate frame is a base composed with an offset, a `Placement` written in the bas
 - `FromFace` is the face base, with the empty chain by default.
 
 The crate sits on the shelf's gauge, with a placing mate whose shelf side is the shelf's top face offset in that face's frame. It follows any edit of the shelf. Gauges are unchanged, and A11 (2) is unchanged. The offset can be any rigid motion; the mate's contact class decides which offsets are legal. A3 and A11 (5) state this, and the design-fork log records it as row 53. The tour's shelf-top gauge goes when this is built.
+
+## Closed
+
+Built on `place/mate-frame-offset` (PR 3961). A mate frame is a base
+composed with an offset (`MateFrame { base, offset }`,
+`crates/editor-core/src/mate.rs`). The tour's crate goes on the stand's
+turntable through `regauge_then_mate`, its shelf side being the shelf's
+top face with an in-face offset (`demos/tour/src/assembly.rs`, `bench`).
+Walls 1 and 2 are now positive asserts: a thicker shelf lifts the crate
+and shorter posts lower it, and the gate certifies both (`update_door`).
+The residue is filed: the face base's local-+Y convention is
+`work/msolve/a-face-base-puts-its-reference-on-local-y.md`, and the
+`PlanarRest` fold is
+`work/msolve/planar-rest-offset-is-a-second-spelling-of-a-frame-offset-step.md`.
