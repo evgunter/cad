@@ -1,0 +1,58 @@
+diff --git a/crates/topo/src/boolean/section_cert_rows.rs b/crates/topo/src/boolean/section_cert_rows.rs
+index 61bb25698..a7d3ba08d 100644
+--- a/crates/topo/src/boolean/section_cert_rows.rs
++++ b/crates/topo/src/boolean/section_cert_rows.rs
+@@ -1776,3 +1776,53 @@ fn an_apex_face_wound_past_a_turn_neither_describes_nor_trims() {
+     assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
+     assert_eq!(contain_at(&body, face, cone_at(0.5, 0.25 * PI)), None);
+ }
++
++/// Reviewer probe (PR #3978, reach-dual3978-r2): the spread's per-arm
++/// factors at poses where they exceed the √10 slack `escalate / zero`
++/// leaves — a ball deep in a wall (`1 + ρc/e` = 51) and walls 5.7° apart
++/// (`1/sin` = 10). Green on the PR's bounds; a mutant dropping either
++/// factor turns it red, which `a_touch_holds…` does not.
++#[test]
++fn review_probe_spread_factors_past_the_slack() {
++    let mu = 0.9 * band().zero();
++    let origin = p(0.0, 0.0, 0.0);
++    for push in [0.0, mu] {
++        let (rc, e, rho) = (1.0, 0.02, 0.98 + push);
++        let wall = cylinder(origin, Vec3::unit_z(), rc);
++        let ball = sphere(p(e, 0.0, 0.0), rho);
++        let t = touch_both_ways(&ball, &wall, "section_sphere_cylinder_reach");
++        let section: Vec<_> = turns(1 << 16)
++            .flat_map(|th| {
++                let t2 = rho * rho - (e * e + rc * rc - 2.0 * e * rc * th.cos());
++                let h = t2.max(0.0).sqrt();
++                let ok = t2 >= -1e-12;
++                [h, -h]
++                    .into_iter()
++                    .filter(move |_| ok)
++                    .map(move |h| p(rc * th.cos(), rc * th.sin(), h))
++            })
++            .collect();
++        holds("ball deep in a wall", &t, &section);
++        let tilt = (0.1_f64).acos();
++        let u = v(tilt.cos(), 0.0, tilt.sin());
++        let delta = 1.5 - push;
++        let w = u.cross(Vec3::unit_y());
++        let (one, two) = (
++            cylinder(origin, Vec3::unit_z(), 1.0),
++            cylinder(p(0.0, delta, 0.0), u, 0.5),
++        );
++        let t = touch_both_ways(&one, &two, "section_cylinder_pair_reach");
++        let section: Vec<_> = turns(1 << 16)
++            .flat_map(|ph| {
++                let q = p(0.0, delta, 0.0) + (w * ph.sin() - Vec3::unit_y() * ph.cos()) * 0.5;
++                let reach = 1.0 - q.y * q.y;
++                let root = reach.max(0.0).sqrt();
++                [root, -root]
++                    .into_iter()
++                    .filter(move |_| reach >= -1e-12)
++                    .map(move |x| q + u * ((x - q.x) / u.x))
++            })
++            .collect();
++        holds("walls 5.7° apart", &t, &section);
++    }
++}

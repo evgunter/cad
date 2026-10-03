@@ -1,0 +1,13 @@
+diff --git a/crates/sweep/tests/all.rs b/crates/sweep/tests/all.rs
+index f30b2535a..47f4e427c 100644
+--- a/crates/sweep/tests/all.rs
++++ b/crates/sweep/tests/all.rs
+@@ -586,6 +586,8 @@ mod m9_3_wall_door;
+ 
+ #[path = "extent_scan_off_face_tangency.rs"]
+ mod extent_scan_off_face_tangency;
++#[path = "review_3978_r2_probes.rs"]
++mod review_3978_r2_probes;
+ #[path = "full_turn_wall.rs"]
+ mod full_turn_wall;
+ #[path = "germ_circle_torus.rs"]
