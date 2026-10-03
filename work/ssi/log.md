@@ -117,3 +117,5 @@ the above — land it as planned. Park each row the hold covers
 (`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
 so the row fires when the ruling closes). If that leaves your program
 with nothing it may start, set its `status` to `blocked` and stop.
+
+- 2026-10-03 — Read the #3990 hold. SSI's open rows, its two live lanes (`ssi/limb3-one-arc`, `ssi/step-max-certify`) and the held PR 3983 are plane × NURBS marching and certification inside `geom-brep`; none uses the node vocabulary, document parameters, placement, declared contact or `Measure`/`Assertion` (the rigid-map rows rotate geometry in tests, not a document `Transform`). Nothing parked; the program continues. (SSI orchestrator)
