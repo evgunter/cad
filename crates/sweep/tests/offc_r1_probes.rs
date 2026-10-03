@@ -360,7 +360,7 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
         |_, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
     )
     .unwrap();
-    // Lifts both refusals: the degraded fit behind an honest certificate is the row.
+    // Lifts RechartStrandsDescriptions: the degraded fit behind an honest certificate is the row.
     body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
@@ -439,7 +439,7 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
 
     let mut a = unit_box();
     let face = top_face(&a);
-    // Lifts both refusals: the certified offset on a box cap is the germ-pair gate's input.
+    // Lifts RechartStrandsDescriptions: the certified offset on a box cap is the germ-pair gate's input.
     a.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {

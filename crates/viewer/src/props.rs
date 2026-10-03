@@ -588,9 +588,11 @@ pub struct SlotRow {
 
 /// The rows for one node, in the node vocabulary's own slot order.
 ///
-/// Empty for a node that carries no expressions (a boolean, a mate, an
-/// instance) — which is a true statement about that node, not a
-/// failure.
+/// Empty for a node that carries no expressions (a boolean, an
+/// instance with no rigid offset step) — which is a true statement
+/// about that node, not a failure. A mate lists its frame offsets'
+/// rigid-step components, and an edit to one is admitted as an insert
+/// of the mate would be.
 pub fn slot_rows(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> Vec<SlotRow> {
     let Some(node) = doc.node(id) else {
         return Vec::new();

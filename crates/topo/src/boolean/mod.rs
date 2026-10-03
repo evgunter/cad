@@ -99,6 +99,7 @@ pub(crate) use ops::no_crossings_certificates;
 pub(crate) use ops::volume_backstop;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
+pub(crate) use ops::{boundary_edges, describe_edges};
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
@@ -130,7 +131,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::contact::{BooleanCoincidence, ContactClass};
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
@@ -1211,6 +1212,16 @@ pub enum Locus {
     OnEdge(crate::entity::EdgeKey),
 }
 
+impl Locus {
+    /// The edge a germ along an edge lies on; `None` inside a face.
+    pub fn edge(self) -> Option<crate::entity::EdgeKey> {
+        match self {
+            Self::OnEdge(e) => Some(e),
+            Self::InFace(_) => None,
+        }
+    }
+}
+
 /// The **germ** a null-edge half faces (F9 as data, PR 5): every
 /// surviving crossing record — a section-polygon edge emanating from
 /// the classified vertex — lies on the intersection line of one A-face
@@ -1340,20 +1351,17 @@ pub struct PierceRingRecord {
 /// **Whether two points are one vertex** (`bool_contact_vertex`, the
 /// distance between them): `true` decided zero, `false` decided apart,
 /// the escalation when the band cannot say. A distance has no negative
-/// side, so a negative verdict is the codomain's contradiction and
-/// escalates as an invalid margin.
+/// side: a magnitude.
 pub(crate) fn one_vertex<T: Decide>(
     p: Point3<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    match crate::validate::decide("bool_contact_vertex", geom_core::Margin::norm3(p - q), band)? {
-        geom_core::Sign::Zero => Ok(true),
-        geom_core::Sign::Positive => Ok(false),
-        geom_core::Sign::Negative => {
-            Err(crate::invalid_margin::invalid(band, "bool_contact_vertex"))
-        }
-    }
+    let distance = geom_core::Margin::norm3(p - q);
+    Ok(
+        geom_core::k_stats::decide_magnitude("bool_contact_vertex", distance, band)?
+            == geom_core::k_stats::Magnitude::Zero,
+    )
 }
 
 /// The result of [`boolean_reduce`]: both operands' annotated clones
@@ -1620,6 +1628,19 @@ pub enum BooleanError {
         /// The edge.
         edge: EdgeKey,
     },
+    /// **Two edges along one germ whose identity no rule decides.**
+    /// Where both operands' edges leave a vertex pair along the germ and
+    /// the reduction paired their far ends, the join reads them as one
+    /// segment only for lines and circles, which meet a line or circle
+    /// tangent to them at the site nowhere else. A conic or spline can
+    /// meet such a partner again, so the paired ends do not make the two
+    /// edges one, and nothing here reads whether they are.
+    GermEdgeCarrierUnsupported {
+        /// The operand whose edge is neither a line nor a circle.
+        operand: Operand,
+        /// The edge.
+        edge: EdgeKey,
+    },
     /// **Point-in-face on a loop no walk expresses at the point.** The
     /// in-plane walk reads each edge on its own carrier — a line as its
     /// chord, a circle or ellipse arc on its conic — and has no crossing
@@ -1643,6 +1664,19 @@ pub enum BooleanError {
         operand: Operand,
         /// The validator's tier-2 findings, each naming its entity.
         errors: Vec<ValidationError>,
+    },
+    /// An operand holds an inside-out solid: tier 3's check 7 decides
+    /// its signed volume definitely negative
+    /// ([`ValidationError::NegativeVolume`]), so its faces bound the
+    /// complement of the region they enclose. Such a body is not a
+    /// finished solid (`docs/DESIGN.md` D1, tier 3), and the Boolean
+    /// refuses it before any classification reads it, rather than
+    /// answering for the complement.
+    InsideOutOperand {
+        /// The offending operand.
+        operand: Operand,
+        /// Its first inside-out solid, in arena order.
+        solid: SolidKey,
     },
     /// F7: two adjacent faces of one operand are structurally or
     /// declaredly coplanar — the operand is not maximal-faced; run
@@ -2001,8 +2035,8 @@ pub enum BooleanError {
     ///   window's blocker MOVED at M6-2: `Pcurve::Fitted` now exists
     ///   and certifies at rest (the SSI enclosure/certify stack is no
     ///   longer `f64`-only), so what is left is the JOIN LANE itself —
-    ///   `run_azimuth_window`/`chart_pcurve` have no cyl×sphere window
-    ///   analog, and building one is still banked. **The exact coaxial
+    ///   the C5 table has no cyl×sphere arm for the chord's carrier
+    ///   (`chord_join::section_case`), and building one is still banked. **The exact coaxial
     ///   classification does not retire this**, and the sentence is
     ///   re-verified rather than moved: the coaxial arm's locus is two
     ///   exact CIRCLES and needs no fitted chord at all, so it gives
@@ -2402,10 +2436,14 @@ pub enum BooleanErrorKind {
     CurvedEdgeUnsupported,
     /// [`BooleanError::PointSplitCarrierUnsupported`].
     PointSplitCarrierUnsupported,
+    /// [`BooleanError::GermEdgeCarrierUnsupported`].
+    GermEdgeCarrierUnsupported,
     /// [`BooleanError::ArcLoopContainmentUnsupported`].
     ArcLoopContainmentUnsupported,
     /// [`BooleanError::ScaffoldingOperand`].
     ScaffoldingOperand,
+    /// [`BooleanError::InsideOutOperand`].
+    InsideOutOperand,
     /// [`BooleanError::NonMaximalFaces`].
     NonMaximalFaces,
     /// [`BooleanError::CoplanarNeighbours`].
@@ -2613,10 +2651,12 @@ impl BooleanError {
             Self::PointSplitCarrierUnsupported { .. } => {
                 BooleanErrorKind::PointSplitCarrierUnsupported
             }
+            Self::GermEdgeCarrierUnsupported { .. } => BooleanErrorKind::GermEdgeCarrierUnsupported,
             Self::ArcLoopContainmentUnsupported { .. } => {
                 BooleanErrorKind::ArcLoopContainmentUnsupported
             }
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
+            Self::InsideOutOperand { .. } => BooleanErrorKind::InsideOutOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
             Self::CoplanarNeighbours { .. } => BooleanErrorKind::CoplanarNeighbours,
             Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
@@ -2812,6 +2852,14 @@ impl core::fmt::Display for BooleanError {
                  Recourse: move the parts so that edge does not meet the other solid",
                 operand_word(*operand),
             ),
+            Self::GermEdgeCarrierUnsupported { operand, .. } => write!(
+                f,
+                "an edge of each solid runs from one shared point to another, and the \
+                 Boolean can tell whether two such edges are one curve only when both \
+                 are lines or circles; the {} operand's is not. Recourse: move the \
+                 parts so those edges do not run together",
+                operand_word(*operand),
+            ),
             // No operand is named, for the same reason as above: some
             // raise sites carry the operand of the edge being placed, not
             // of the face whose loop has no walk.
@@ -2827,6 +2875,13 @@ impl core::fmt::Display for BooleanError {
                 "the {} operand is not a finished solid: it still carries what an edit \
                  left behind, such as a strut or an empty loop, so the Boolean refuses \
                  it. Recourse: finish that edit first",
+                operand_word(*operand),
+            ),
+            Self::InsideOutOperand { operand, .. } => write!(
+                f,
+                "the {} operand is inside-out: its faces point into its material, so it \
+                 encloses negative volume and the Boolean refuses it. Recourse: build it \
+                 with its faces pointing outward, or revert it",
                 operand_word(*operand),
             ),
             Self::NonMaximalFaces { operand, .. } => write!(
@@ -3364,7 +3419,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     validate_declarations(a_operand, b_operand, decls)?;
     let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, tol)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
@@ -3419,7 +3474,7 @@ pub fn sweep_records(
 ) -> Result<(ContactRecords, [usize; 4]), BooleanError> {
     let band = Band::linear(tol)?;
     let declared = DeclaredPairs::default();
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, tol)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     let mut a = a_operand.clone();
@@ -3480,6 +3535,35 @@ pub(crate) fn through_the_join(
     )
 }
 
+/// **The join's own refusal** of `op` under `decls`: what its matching
+/// or its surgery refuses on the reduction, before the declared-REST
+/// door may take it over. `None` where the join connects, or where the
+/// reduction leaves no null pair to join. Test vocabulary
+/// (`topo::test_support`): a declared union that builds while its join
+/// refuses was built by the zip.
+///
+/// # Errors
+///
+/// The reduction's refusal.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn join_refusal(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    decls: &BooleanDeclarations,
+    tol: Tol,
+) -> Result<Option<BooleanError>, BooleanError> {
+    let band = Band::linear(tol)?;
+    let mut red = boolean_reduce_declared_strategy(op, a, b, decls, SweepStrategy::Realized, tol)?;
+    if red.null_pairs.is_empty() {
+        return Ok(None);
+    }
+    red.enter_join_surgery();
+    let connected = join::bool_connect(&mut red, a, b, band, tol);
+    red.leave_join_surgery(connected.is_ok());
+    Ok(connected.err())
+}
+
 /// [`boolean_reduce_declared`] with an explicit [`SweepStrategy`] —
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
@@ -3503,7 +3587,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         });
     }
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, tol)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     // The scan is `Decide`-only; its boxes are built here, at the
@@ -3564,6 +3648,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             c,
             op,
             &declared,
+            &contacts,
             band,
             tol,
         )?;
@@ -3580,6 +3665,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             c,
             op,
             &declared,
+            &contacts,
             band,
             tol,
         )?;
@@ -3672,7 +3758,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .iter()
         .map(|(c, a_sectors, b_sectors, records, raw, _)| {
             insert::plan_null_pairs(
-                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, band,
+                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, band,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -5213,6 +5299,10 @@ mod tests {
                 operand: Operand::A,
                 edge,
             },
+            BooleanError::GermEdgeCarrierUnsupported {
+                operand: Operand::B,
+                edge,
+            },
             BooleanError::ArcLoopContainmentUnsupported {
                 operand: Operand::A,
                 cause: crate::splitting::Uncrossable {
@@ -5226,6 +5316,10 @@ mod tests {
                 errors: vec![ValidationError::ScaffoldingStrutVertex {
                     vertex: VertexKey::default(),
                 }],
+            },
+            BooleanError::InsideOutOperand {
+                operand: Operand::B,
+                solid: SolidKey::default(),
             },
             BooleanError::NonMaximalFaces {
                 operand: Operand::A,
@@ -5443,8 +5537,10 @@ mod tests {
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
+                BooleanErrorKind::GermEdgeCarrierUnsupported => "GermEdgeCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
+                BooleanErrorKind::InsideOutOperand => "InsideOutOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
                 BooleanErrorKind::CoplanarNeighbours => "CoplanarNeighbours",
                 BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",

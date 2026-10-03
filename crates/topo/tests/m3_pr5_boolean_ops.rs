@@ -402,14 +402,42 @@ fn inset_leg_union() {
 }
 
 // ---------------------------------------------------------------
-// Acceptance (3): the A∖B ≡ A∩revert(B) executable oracle
-// (Problem 15.9) across the corpus: census + volume + area equality
-// (bitwise replay equality is NOT claimed across the two routes —
-// they take different pipeline paths; documented in the PR report).
+// Acceptance (3): A∖B and A∩B partition A, across the corpus. The
+// complement route A∩revert(B) is not an oracle: revert(B) is
+// inside-out, and the operand gate refuses it.
 // ---------------------------------------------------------------
 
+/// `vol(A ∖ B) + vol(A ∩ B) = vol(A)`, an empty result counting zero,
+/// and `A ∩ revert(B)` refused as an inside-out operand B.
+pub(crate) fn partition_oracle(name: &str, a: &Body<f64>, b: &Body<f64>) {
+    let tol = Tol::witness();
+    let vol = |r: BooleanResult<f64>| match r {
+        BooleanResult::Empty => 0.0,
+        BooleanResult::Body(out) => mass_properties(&out.body, tol).unwrap().volume,
+    };
+    let (sub, int) = (
+        vol(subtract(a, b, tol).unwrap()),
+        vol(topo::intersect(a, b, tol).unwrap()),
+    );
+    let whole = mass_properties(a, tol).unwrap().volume;
+    assert!(
+        (sub + int - whole).abs() <= 1e-12 * whole,
+        "{name}: vol(A ∖ B) {sub} + vol(A ∩ B) {int} is not vol(A) {whole}"
+    );
+    assert!(
+        matches!(
+            topo::intersect(a, &b.revert().unwrap(), tol),
+            Err(BooleanError::InsideOutOperand {
+                operand: topo::Operand::B,
+                ..
+            })
+        ),
+        "{name}: A ∩ revert(B) refuses the inside-out operand"
+    );
+}
+
 #[test]
-fn subtract_equals_intersect_revert_oracle() {
+fn subtract_and_intersect_partition_a() {
     let corpus: Vec<(&str, Body<f64>, Body<f64>)> = vec![
         (
             "two-brick",
@@ -454,23 +482,7 @@ fn subtract_equals_intersect_revert_oracle() {
         ),
     ];
     for (name, a, b) in corpus {
-        let direct = subtract(&a, &b, Tol::witness()).unwrap();
-        let via_revert = topo::intersect(&a, &b.revert().unwrap(), Tol::witness()).unwrap();
-        match (&direct, &via_revert) {
-            (BooleanResult::Empty, BooleanResult::Empty) => {}
-            (BooleanResult::Body(d), BooleanResult::Body(r)) => {
-                assert_eq!(
-                    arena_counts(&d.body),
-                    arena_counts(&r.body),
-                    "{name}: census equality"
-                );
-                let md = mass_properties(&d.body, Tol::witness()).unwrap();
-                let mr = mass_properties(&r.body, Tol::witness()).unwrap();
-                assert_eq!(md.volume, mr.volume, "{name}: volume equality");
-                assert_eq!(md.surface_area, mr.surface_area, "{name}: area equality");
-            }
-            _ => panic!("{name}: oracle kinds diverge: {direct:?} vs {via_revert:?}"),
-        }
+        partition_oracle(name, &a, &b);
     }
 }
 

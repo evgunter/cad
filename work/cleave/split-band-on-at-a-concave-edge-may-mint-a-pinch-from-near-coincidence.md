@@ -2,12 +2,13 @@
 id: split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence
 kind: issue
 title: Split's ON verdicts at margins within ε can mint a pinch from a value coincidence, which D1 tier 3′ (i) forbids
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [3856]
 design: true
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -118,3 +119,21 @@ that reading is overturned. Record: `analysis/design-fork/split-band-on`.)
   3. Before building, add one scratch row confirming that a 2-run vertex
      whose sides connect elsewhere refuses rather than succeeds.
 - Brief correction: the fixture is `crates/topo/tests/m3_pr3_split.rs`.
+
+## Ev's decision (PR 3960, 2026-10-03)
+
+Ev approved the design as diffed: "i think this works". Ev also asked:
+- for a picture of the case;
+- whether the main cases would be structural.
+
+The answer was no. An explicit statement that the tip lies on the plane is
+much stronger ground for a silent assumption than parameters that happen to
+agree. So shared-parameter `Expr` identity is at most a detector finding.
+Follow-ups filed:
+- `split-refusal-detector-names-a-shared-parameter-coincidence`;
+- `a-plane-datum-through-a-named-edge`.
+
+Ev's concern, filed as its own row:
+`coincidence-intent-has-too-many-spellings`. In Ev's words, "this is
+evidence that this whole system is able to say the same thing in too many
+ways".

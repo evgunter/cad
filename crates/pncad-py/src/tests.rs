@@ -821,6 +821,13 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         &["expected_document", "found_document"],
     );
     carries(&F::ClassNotAdmitted { mate: id(1) }, &["mate"]);
+    carries(
+        &F::PoseOutOfRange {
+            held: id(1),
+            added: id(2),
+        },
+        &["held", "added"],
+    );
     // The four arms whose payload is a NESTED refusal. Each crosses
     // under the inner refusal's own word, with the numbers that word
     // qualifies beside it — the frame door's vocabulary, spelled the
@@ -2398,6 +2405,7 @@ fn node_error_tags_are_the_published_words() {
         MateClassNotAdmitted => "mate_class_not_admitted",
         MateTableLacks => "mate_table_lacks",
         MateIndeterminate => "mate_indeterminate",
+        MatePoseOutOfRange => "mate_pose_out_of_range",
         MateBand => "mate_band",
         MateContradictory => "mate_contradictory",
         MateUnder => "mate_under",
@@ -2409,6 +2417,7 @@ fn node_error_tags_are_the_published_words() {
         MateOffsetDisagrees => "mate_offset_disagrees",
         MateOffsetUnchecked => "mate_offset_unchecked",
         MateFaceUnresolved => "mate_face_unresolved",
+        MateFrameUnevaluated => "mate_frame_unevaluated",
         CrossingUnverified => "crossing_unverified",
         Unplaced => "unplaced",
         PlacementRefused => "placement_refused",
@@ -4204,13 +4213,14 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                 *word,
                 "`{word}` reads back as a slot the forward map spells otherwise"
             ),
-            // The two words an address is not completed by: a profile
-            // program's expression is reached by a loop index, a step
-            // index and an argument role, and a later placement step's
-            // by a step index and a component, none of which the word
-            // carries.
+            // The three words an address is not completed by: a
+            // profile program's expression is reached by a loop index,
+            // a step index and an argument role, a later placement
+            // step's by a step index and a component, and a mate
+            // offset's by a side, a step index and a component, none
+            // of which the word carries.
             None => assert!(
-                matches!(*word, "profile" | "placement_step"),
+                matches!(*word, "profile" | "placement_step" | "mate_frame_step"),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
         }
@@ -4714,9 +4724,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "escalated",
             "euler",
             "fallback_extent_unsupported",
+            "germ_edge_carrier_unsupported",
             "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
             "graft_recertify",
+            "inside_out_operand",
             "invalid_declaration",
             "join",
             "join_desync",
@@ -5163,7 +5175,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "lever_refusal_tag",
-        values: &["not_an_instance", "out_of_range"],
+        values: &["below_zero_band", "not_an_instance", "out_of_range"],
         delegates: &["reach_refusal_tag"],
     },
     TagEntry {
@@ -5305,11 +5317,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_dangling_head",
             "mate_face_unresolved",
             "mate_frame_degenerate",
+            "mate_frame_unevaluated",
             "mate_indeterminate",
             "mate_offset_disagrees",
             "mate_offset_unchecked",
             "mate_part_selects_another_copy",
             "mate_placer_refused",
+            "mate_pose_out_of_range",
             "mate_poses_of_another_document",
             "mate_self",
             "mate_table_lacks",
@@ -5444,6 +5458,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "indeterminate",
             "placement_refused",
             "unleverable",
+            "unmeasurable",
             "unreached",
         ],
         delegates: &[],
@@ -5664,7 +5679,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "refused_ref_tag",
-        values: &["ref_ambiguous", "ref_read_below_a_root", "ref_vanished"],
+        values: &["ref_ambiguous", "ref_moved_above", "ref_vanished"],
         delegates: &[],
     },
     TagEntry {
@@ -5833,6 +5848,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "direction_z",
             "distance",
             "instance",
+            "mate_frame_step",
             "normal_x",
             "normal_y",
             "normal_z",

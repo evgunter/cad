@@ -45,7 +45,7 @@ fn cone() -> Surface<f64> {
 fn two_axis_faces() -> (Body<f64>, [SurfaceKey; 2]) {
     let mut b = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
-    // Lifts both refusals: the rows read the axis-bearing surfaces' keys, not the brick's edges.
+    // Lifts RechartStrandsDescriptions: the rows read the axis-bearing surfaces' keys, not the brick's edges.
     let cyl = b
         .set_face_surface_stranding_for_tests(
             faces[0],
@@ -55,7 +55,7 @@ fn two_axis_faces() -> (Body<f64>, [SurfaceKey; 2]) {
             },
         )
         .unwrap();
-    // Lifts both refusals: the rows read the axis-bearing surfaces' keys, not the brick's edges.
+    // Lifts RechartStrandsDescriptions: the rows read the axis-bearing surfaces' keys, not the brick's edges.
     let cone = b
         .set_face_surface_stranding_for_tests(
             faces[1],

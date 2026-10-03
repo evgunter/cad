@@ -375,8 +375,8 @@ mod tests {
     /// **A head moved off the axis IN the balls' seam plane builds.**
     /// Moved 0.05 along `x`, the head tilts the radical plane against
     /// both balls' polar axes, and the section crosses the seams the two
-    /// revolves share. The run-side arc rule and the Gauss–Bonnet sphere
-    /// arm carry it (the tilted sphere pair). Every op passes tier 3 and
+    /// revolves share. The germs' arcs and the Gauss–Bonnet sphere arm
+    /// carry it (the tilted sphere pair). Every op passes tier 3 and
     /// meets the two-ball closed form at the moved centre distance.
     #[test]
     fn a_head_moved_off_the_axis_in_the_seam_plane_builds_to_its_closed_form() {

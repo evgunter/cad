@@ -307,6 +307,7 @@
 use geom_brep::{EdgeCurve, EdgeCurveSpec};
 use geom_core::{Decide, Point3, Real, Tol};
 
+use crate::attach::Slot;
 use crate::body::Body;
 use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
@@ -314,6 +315,7 @@ use crate::entity::{
 };
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
+use crate::euler::RechartDoor;
 use crate::euler::{
     Clearing, EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, ProvenMate,
     Records, RunExtent, shared_loop,
@@ -812,13 +814,14 @@ impl<T: Decide> Body<T> {
     /// anchor is its first member, which the orbit proof covers); each
     /// loop's new anchor holds: its `first` is not killed and lies in the
     /// loop, and the segment kill's loop keeps no member but the killed
-    /// two and empties at a survivor written `None` that no other loop
-    /// holds ([`EulerOpError::LoopCycleBroken`] naming the loop —
+    /// two and empties at a survivor written `None`
+    /// ([`EulerOpError::LoopCycleBroken`] naming the loop —
     /// tier-1-invalid input: a torn `next` can land the step on the mate
     /// or in another loop, or read the loop as `[he, mate]` while it
     /// keeps other members or while the merge moves a fan onto the
-    /// survivor, and a torn start can put the survivor on another loop's
-    /// lone vertex);
+    /// survivor), and no other loop is `Empty` at that survivor
+    /// ([`EulerOpError::EmptyAnchorsCollide`] — a torn start can put the
+    /// survivor on another loop's lone vertex);
     /// where the halves are adjacent in `next` order, both lie in one
     /// loop (`LoopCycleBroken` naming the mate's loop, which that arm
     /// does not re-anchor); no half-edge but the killed two names the
@@ -826,12 +829,11 @@ impl<T: Decide> Body<T> {
     /// half-edge off the far vertex's orbit starts at it (`OrbitBroken`
     /// naming the first), and no loop is `Empty` at it
     /// (`KillLeavesDangling` from the loop); nothing the kill keeps names
-    /// a killed half: no `next` or `prev` as the unsplice leaves it, and
-    /// no loop's `first` but those it re-anchors (`LoopCycleBroken`
-    /// naming the half-edge's loop, or the loop), then no vertex's
-    /// `emanating` but the survivor's and no other edge's slot
-    /// ([`EulerOpError::KillLeavesDangling`]), each first in arena
-    /// order. Then, where the merged fan is
+    /// a killed half: no `next` or `prev` as the unsplice leaves it, no
+    /// loop's `first` but those it re-anchors, no vertex's `emanating`
+    /// but the survivor's and no other edge's slot
+    /// ([`EulerOpError::KillLeavesDangling`] from the first record, in
+    /// that order and in arena order within each). Then, where the merged fan is
     /// not empty: the killed
     /// edge's curve entry resolves ([`EulerOpError::StaleGeometry`]),
     /// and unless it is a null edge, per merged member in orbit order,
@@ -1005,7 +1007,8 @@ impl<T: Decide> Body<T> {
     /// the fan-merge geometry). Pure.
     ///
     /// Beyond resolving every key the kill writes, it proves that every
-    /// half-edge of the merged fan starts at the dying vertex, the
+    /// half-edge of the merged fan starts at the dying vertex (the
+    /// orbit walk's own proof, [`Body::vertex_orbit`]), the
     /// survivor's new `emanating` and the loops' new anchors
     /// ([`Body::require_kill_anchors`]), and that nothing the kill keeps
     /// names the edge, the vertex or the half-edges it removes
@@ -1013,10 +1016,8 @@ impl<T: Decide> Body<T> {
     /// [`Body::require_killed_halves_unnamed`]). The first is
     /// what keeps the killed edge out of its own merged members: its
     /// halves are `he`, which starts at the survivor, and the mate, which
-    /// heads the orbit walk and so is not in the fan. The walk steps
-    /// through `next(mate(·))` and reads no start vertex, so a torn
-    /// `next` can put a foreign half-edge — the killed half among
-    /// them — on it, and only this check sees one.
+    /// heads the orbit walk and so is not in the fan; a torn `next` that
+    /// puts the killed half on the walk breaks it.
     fn kev_plan(&self, he: HalfEdgeKey) -> Result<KevPlan, EulerOpError> {
         let ProvenMate {
             he_data,
@@ -1050,11 +1051,10 @@ impl<T: Decide> Body<T> {
         }
         // w's whole fan, walked clockwise from the doomed mate: the
         // members after m are the survivors to merge onto v (bounded
-        // walk, D9).
+        // walk, D9; every member starts at w).
         let orbit_w = self
             .vertex_orbit(m)
             .ok_or(EulerOpError::OrbitBroken { he: m })?;
-        self.require_orbit_starts_at(&orbit_w, w, m)?;
         let fan: Vec<HalfEdgeKey> = orbit_w[1..].to_vec();
         let members = self.run_edges(&fan)?;
         // The unsplice writes through all four neighbor links; prove
@@ -1351,6 +1351,13 @@ impl<T: Decide> Body<T> {
     /// phase acts on, and a mutation phase reads nothing it has not
     /// proven.
     ///
+    /// **What it does not ask:** where the surviving face wears another
+    /// key, whether the remnant's descriptions still name a key their
+    /// faces wear, or a key the surviving face wears — the questions
+    /// [`Body::mef`] and [`Body::ring_move`] refuse on
+    /// ([`RechartDoor`]). Production callers rely on that move today
+    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+    ///
     /// # Precondition check order
     ///
     /// `he` resolves ([`EulerOpError::StaleKey`]); its edge resolves
@@ -1389,21 +1396,20 @@ impl<T: Decide> Body<T> {
     /// a member, which the kill would leave naming a dead loop); then
     /// the surviving loop's new anchor holds: its `first` is not killed
     /// and lies in it once the remnant has moved in, and in the `Lone`
-    /// inverse it keeps no member but the killed two and no other loop
-    /// is `Empty` at its vertex (`LoopCycleBroken` naming the surviving
-    /// loop — a torn `next(m)` can land on a killed half or in another
-    /// loop, or read the mate as alone in a loop that keeps other
-    /// members); then no face but the dying one lists the dying loop, no
+    /// inverse it keeps no member but the killed two (`LoopCycleBroken`
+    /// naming the surviving loop — a torn `next(m)` can land on a killed
+    /// half or in another loop, or read the mate as alone in a loop that
+    /// keeps other members) and no other loop is `Empty` at its vertex
+    /// ([`EulerOpError::EmptyAnchorsCollide`]); then no face but the dying one lists the dying loop, no
     /// loop but it names the dying face, and no shell but the dying
     /// face's own lists that face ([`EulerOpError::KillLeavesDangling`]
     /// naming the first in arena order); then no half-edge but the
     /// killed two names the edge (`UnclaimedHalfEdge` naming the first in
     /// arena order); then nothing the kill keeps names a killed half: no
-    /// `next` or `prev` as the splice leaves it, and no loop's `first`
-    /// but the surviving loop's (`LoopCycleBroken` naming the half-edge's
-    /// loop, or the loop), then no vertex's `emanating` but the
-    /// endpoints' and no other edge's slot (`KillLeavesDangling`), each
-    /// first in arena order; then, where the surviving face would be re-minted,
+    /// `next` or `prev` as the splice leaves it, no loop's `first` but
+    /// the surviving loop's, no vertex's `emanating` but the endpoints'
+    /// and no other edge's slot (`KillLeavesDangling` from the first
+    /// record, in that order and in arena order within each); then, where the surviving face would be re-minted,
     /// the
     /// site mint's plan ([`Body::plan_moved_rows`]'s errors,
     /// [`EulerOpError::PcurveMint`] naming the surviving face among
@@ -1778,6 +1784,14 @@ impl<T: Decide> Body<T> {
     /// band is read only where that re-mint runs. A spline chart keeps
     /// the drop at either door.
     ///
+    /// **A face minted on another chart is vouched for by the ring's
+    /// edges, or refused** ([`RechartDoor::Mfkrh`]), at every door of
+    /// the family: every edge of the ring is asked
+    /// [`Body::vouch_move`]'s questions against the new face's key. The
+    /// lever is the chart the face is minted on: mint it on a key the
+    /// ring's certified edges name, or on the demoting face's and move
+    /// it with [`Body::set_face_surfaces_describing`].
+    ///
     /// Euler vector: `(v 0, e 0, f +1, h −1, r −1, s 0)` — arena delta
     /// +1 face (the "−1 ring" is the surviving loop's promotion, not a
     /// kill; genus is derived, not stored).
@@ -1798,7 +1812,11 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::StaleGeometry`]); a stated sense agrees with
     /// the derived one on the demoting face's chart
     /// ([`EulerOpError::SenseContradictsChart`]); the ring walks
-    /// ([`EulerOpError::LoopCycleBroken`]); then, where the new face
+    /// ([`EulerOpError::LoopCycleBroken`]); then, where the new face's
+    /// key is not the demoting face's, no edge of the ring is stranded
+    /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
+    /// in cycle order) and every certified one names that key
+    /// ([`EulerOpError::RechartUnvouched`], the same); then, where the new face
     /// would be minted, the site mint's plan ([`Body::plan_moved_rows`]'s
     /// errors, [`EulerOpError::PcurveMint`] naming the demoting face
     /// among them — `KeysOnly` at this door).
@@ -1814,7 +1832,7 @@ impl<T: Decide> Body<T> {
     ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let created = self.mfkrh_with(ring, surface, None)?;
+        let created = self.mfkrh_with(ring, surface, None, RechartDoor::Mfkrh)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh");
         Ok(created)
@@ -1839,20 +1857,22 @@ impl<T: Decide> Body<T> {
     ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let created = self.mfkrh_with(ring, surface, Some(tol))?;
+        let created = self.mfkrh_with(ring, surface, Some(tol), RechartDoor::Mfkrh)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh_minting");
         Ok(created)
     }
 
     /// [`Body::mfkrh`]'s plan and surgery, with the band its site mint
-    /// runs at, or none for the keys-only door. The door that calls it
-    /// declares the postcondition.
+    /// runs at, or none for the keys-only door, and the door its
+    /// re-chart refusals name. The door that calls it declares the
+    /// postcondition.
     fn mfkrh_with(
         &mut self,
         ring: LoopKey,
         surface: FaceSurface<T>,
         tol: Option<Tol>,
+        door: RechartDoor,
     ) -> Result<MfkrhCreated, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
         let ring_data = self.get_loop(ring).ok_or(EulerOpError::StaleKey {
@@ -1879,6 +1899,15 @@ impl<T: Decide> Body<T> {
             ParentSide::Against,
         )?;
         let ring_halves = self.site_cycle(ring)?;
+        self.vouch_move(
+            door,
+            old_face,
+            (inherit_surface, Slot::of_spec(&surface, inherit_surface)),
+            self.run_edges(&ring_halves)?,
+            |_, l, _| l == ring,
+            resolved.on_parent_chart,
+            None,
+        )?;
         let rows = self.plan_moved_rows(
             &ring_halves,
             resolved.on_parent_chart,
@@ -1945,17 +1974,33 @@ impl<T: Decide> Body<T> {
     /// refuses for one. The caller states the honest bit, and mints the
     /// rows, when it gives the face a real surface.
     ///
+    /// **This door promotes scaffold rings.** No description names the
+    /// placeholder's fresh key, so it asks [`Body::mfkrh`]'s questions
+    /// ([`Body::vouch_move`]) as [`RechartDoor::MfkrhPlug`]: a ring
+    /// with an edge it would strand, or with a certified edge, is
+    /// refused. Its caller picks no chart, so the lever its refusals
+    /// name is the door: promote the ring with [`Body::mfkrh`] onto a
+    /// chart its certified edges name.
+    ///
     /// # Errors
     ///
-    /// As [`Body::mfkrh`].
+    /// As [`Body::mfkrh`], the re-chart refusals naming
+    /// [`RechartDoor::MfkrhPlug`].
     pub fn mfkrh_plug(&mut self, ring: LoopKey, sense: bool) -> Result<MfkrhCreated, EulerOpError> {
-        self.mfkrh(
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mfkrh_with(
             ring,
             FaceSurface::New {
                 surface: geom::Surface::nurbs_placeholder(),
                 sense,
             },
-        )
+            None,
+            RechartDoor::MfkrhPlug,
+        )?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh_plug");
+        Ok(created)
     }
 }
 
@@ -2671,7 +2716,9 @@ mod tests {
         assert_eq!(
             body.kev_describing(strut.he_minus, &[(seg.edge, spec)], Tol::witness())
                 .map(|_| ()),
-            Err(EulerOpError::DescriptionNotAdjacent { edge: seg.edge })
+            Err(EulerOpError::DescriptionNotAdjacent {
+                edge: Some(seg.edge)
+            })
         );
         assert_eq!(deep_snapshot(&body), before);
     }
@@ -2788,7 +2835,7 @@ mod tests {
         body.get_half_edge_mut(strut.he_minus).unwrap().next = seg.he_plus;
         body.get_half_edge_mut(seg.he_minus).unwrap().next = seg.he_minus;
         assert_eq!(
-            body.vertex_orbit(seg.he_minus),
+            crate::validate::vertex_orbit_reading_no_start(&body, seg.he_minus),
             Some(vec![seg.he_minus, strut.he_plus, seg.he_plus])
         );
         let torn = EulerOpError::OrbitBroken { he: seg.he_minus };
@@ -2821,7 +2868,7 @@ mod tests {
         let m = body.mate(he).unwrap();
         let torn = EulerOpError::OrbitBroken { he: m };
         let killed = body.get_half_edge(he).unwrap().edge;
-        let orbit = body.vertex_orbit(m).unwrap();
+        let orbit = crate::validate::vertex_orbit_reading_no_start(&body, m).unwrap();
         assert!(
             orbit[1..]
                 .iter()
@@ -4176,8 +4223,7 @@ mod tests {
         // The review's S8: a segment beside a lone vertex `x` (a second
         // `mvfs`), with the segment's plus half torn to start at `x`.
         // The kill reads `x` as the survivor and the segment's loop as
-        // emptying there, but `x` is already another loop's lone vertex,
-        // and the segment's own start would keep a dead anchor.
+        // emptying there, but `x` is already another loop's lone vertex.
         let tol = Tol::witness();
         let mut body = Body::new();
         let seed = body.mvfs(p(0.0), true).unwrap();
@@ -4192,8 +4238,8 @@ mod tests {
             .unwrap();
         let other = body.mvfs(p(5.0), true).unwrap();
         body.get_half_edge_mut(seg.he_plus).unwrap().start = other.vertex;
-        let torn = EulerOpError::LoopCycleBroken {
-            r#loop: seed.r#loop,
+        let torn = EulerOpError::EmptyAnchorsCollide {
+            vertex: other.vertex,
         };
         assert_kev_doors_refuse(&mut body, seg.he_plus, &[], &torn);
     }

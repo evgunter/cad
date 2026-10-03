@@ -3709,6 +3709,19 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "FrameUnevaluated",
+            M::FrameUnevaluated {
+                mate: n(9),
+                side: MateSide::B,
+                refusal: Box::new(
+                    NodeErrorKind::DegenerateDirection {
+                        role: "transform rotation axis",
+                    }
+                    .into(),
+                ),
+            },
+        ),
+        (
             "Unleverable",
             M::Unleverable {
                 mate: n(9),

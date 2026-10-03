@@ -8,7 +8,7 @@
 //!   [`matching_reads_the_germs_loci`] red, and nothing else here.
 //! - **the structural skip** — on the boolean lanes a chord is not
 //!   minted when the edge between the two halves IS the segment's
-//!   locus edge (`SegmentEdge::Is`). Never skipping turns
+//!   locus edge (`chord_join::Chords::Segment`). Never skipping turns
 //!   [`the_skip_takes_the_locus_edge_for_the_segment`] red, and it
 //!   stays green under the other two mutations.
 //! - **the fold direction** — an on-bound joins the In run unless both

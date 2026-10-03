@@ -197,7 +197,10 @@
 //!   its side faces): mint with a conventional spec, then upgrade via
 //!   [`Body::set_edge_curve`], which also enforces
 //!   description-adjacency coherence. The operators themselves accept
-//!   any spec that certifies.
+//!   any spec that certifies, save `mef` minting a face on another
+//!   key: the chord's two faces then wear the old face's key and the
+//!   one it mints, both known in its plan phase, so it asks the same
+//!   adjacency question of the chord.
 //! - Chord-line sugar for polyhedral construction and the migrated M1
 //!   suites: [`Body::mev_line`], [`Body::mef_chord`],
 //!   [`Body::mekr_chord`] derive the spec from the site's endpoint
@@ -282,6 +285,7 @@ use crate::policy_lane::ByPolicy;
 use geom_core::{Band, Decide, Point3, Real, Tol};
 use slotmap::SecondaryMap;
 
+use crate::attach::{Slot, require_description_adjacent};
 use crate::body::Body;
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -323,6 +327,116 @@ pub enum FaceSurface<T: Real> {
         /// The material side against `key`'s chart normal.
         sense: bool,
     },
+}
+
+/// The keys-only door a [`EulerOpError::RechartStrandsDescriptions`] or
+/// [`EulerOpError::RechartUnvouched`] refusal is raised by. Each puts
+/// existing half-edges, or a chord it mints, on a face wearing another
+/// key than the one they lay on, and the lever its refusal names is
+/// its own: a minting door picks the chart it mints the face on, a
+/// moving door the face it moves the loop onto.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RechartDoor {
+    /// [`Body::set_face_surface`]: re-charts a face in place.
+    SetFaceSurface,
+    /// [`Body::mef`] and [`Body::mef_chord`]: mints a face from part of
+    /// a loop (the run `[he1 .. he2)` and the chord's `he_minus`).
+    Mef,
+    /// [`Body::mfkrh`] and [`Body::mfkrh_minting`]: mints a face from a
+    /// ring.
+    Mfkrh,
+    /// [`Body::mfkrh_plug`]: mints a face from a ring on a fresh
+    /// placeholder chart. Its caller picks no chart, so its lever is
+    /// the door: [`Body::mfkrh`], which takes one.
+    MfkrhPlug,
+    /// [`Body::ring_move`] and [`Body::ring_move_minting`]: moves a
+    /// ring onto another face.
+    RingMove,
+}
+
+impl RechartDoor {
+    /// The door's name, as its refusals lead with it.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::SetFaceSurface => "set_face_surface",
+            Self::Mef => "mef",
+            Self::Mfkrh => "mfkrh",
+            Self::MfkrhPlug => "mfkrh_plug",
+            Self::RingMove => "ring_move",
+        }
+    }
+
+    /// [`EulerOpError::RechartStrandsDescriptions`]' text at this door,
+    /// ending in the door's own lever (D4 ¶1 (i)).
+    fn strands(self, edges: &[EdgeKey]) -> String {
+        let name = self.name();
+        let (what, lever) = match self {
+            Self::SetFaceSurface => (
+                "the swap",
+                "leave the face on the chart those edges name, or re-describe them on the \
+                 chart it moves onto (set_face_surfaces_describing takes their \
+                 re-descriptions under a band, and carried_redescriptions states the stored \
+                 ones there)",
+            ),
+            Self::Mef | Self::Mfkrh => (
+                "the face it mints",
+                "mint the face on the chart those edges name, then move it onto its own \
+                 (set_face_surfaces_describing takes their re-descriptions under a band, and \
+                 carried_redescriptions states the stored ones there)",
+            ),
+            Self::MfkrhPlug => (
+                "the face it mints",
+                "promote the ring with mfkrh onto the chart those edges name",
+            ),
+            Self::RingMove => (
+                "the move",
+                "move the loop onto a face on the chart its edges name",
+            ),
+        };
+        format!(
+            "{name}: {what} would leave edges {edges:?} described against a surface their \
+             faces no longer wear, and the keys-only door takes no band to re-describe them. \
+             Recourse: {lever}"
+        )
+    }
+
+    /// [`EulerOpError::RechartUnvouched`]' text at this door, ending in
+    /// the door's own lever (D4 ¶1 (i)).
+    fn unvouched(self, face: FaceKey, edges: &[EdgeKey], chord: bool) -> String {
+        let name = self.name();
+        let named = match (edges.is_empty(), chord) {
+            (_, false) => format!("its certified edges {edges:?} do"),
+            (true, true) => "the certified chord it mints does".to_string(),
+            (false, true) => format!("its certified edges {edges:?} and the chord it mints do"),
+        };
+        match self {
+            Self::SetFaceSurface => format!(
+                "{name}: face {face:?} would move onto a chart that {named} not name, so \
+                 nothing vouches that its boundary lies on that chart. Recourse: move the face \
+                 onto a chart its certified edges name, or re-describe them on the new chart \
+                 (set_face_surfaces_describing certifies each re-description it is handed \
+                 against that chart)"
+            ),
+            Self::Mef | Self::Mfkrh => format!(
+                "{name}: the face it would mint from face {face:?} lies on a chart that \
+                 {named} not name, so nothing vouches that its boundary lies on that \
+                 chart. Recourse: mint the face on a chart its certified edges name, or mint \
+                 it on its parent's chart and move it with set_face_surfaces_describing, which \
+                 certifies each re-description it is handed against the new chart"
+            ),
+            Self::MfkrhPlug => format!(
+                "{name}: the face it would mint from face {face:?} lies on a fresh placeholder \
+                 chart that {named} not name, so nothing vouches that its boundary lies on \
+                 that chart; this door promotes scaffold rings. Recourse: promote the ring \
+                 with mfkrh onto a chart its certified edges name"
+            ),
+            Self::RingMove => format!(
+                "{name}: the loop would move onto face {face:?}, on a chart that {named} not \
+                 name, so nothing vouches that they lie on that chart. Recourse: move the \
+                 loop onto a face on a chart its edges name"
+            ),
+        }
+    }
 }
 
 /// Which way a face on its parent's chart faces relative to the
@@ -585,6 +699,22 @@ impl<T: Real> NewCurve<T> {
     }
 }
 
+/// [`require_description_adjacent`] for the chord [`Body::mef`] mints,
+/// whose faces wear `old`, the parent's key, and `after`, the new
+/// face's: asked where `after` is not `old`. Where it is, nothing is
+/// asked — the boolean pipeline's chord joins mint a chord with the
+/// description of the face that will be glued along it
+/// (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+fn require_chord_adjacent<T: Real>(
+    spec: &EdgeCurveSpec<T>,
+    (old, after): (SurfaceKey, Slot),
+) -> Result<(), EulerOpError> {
+    if after == Slot::Kept(old) {
+        return Ok(());
+    }
+    require_description_adjacent(None, &spec.description, [Slot::Kept(old), after])
+}
+
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
 /// body is untouched whenever one of these is returned (the operators
 /// are atomic).
@@ -711,51 +841,65 @@ pub enum EulerOpError {
         /// The edge listed twice.
         edge: EdgeKey,
     },
-    /// A door writing a description ([`Body::set_edge_curve`] and the
-    /// describing doors' listed specs): an intrinsic (`Intersection`) or
-    /// `Seam` description's surface keys do not match the edge's two
-    /// adjacent faces' surfaces — the description does not describe
-    /// *this* edge's locus (D2: an intersection edge's surfaces are its
-    /// adjacent faces'; a seam's surface is on both sides).
+    /// A door writing a description ([`Body::set_edge_curve`], the
+    /// describing doors' listed specs, and the chord [`Body::mef`]
+    /// mints): an intrinsic (`Intersection`) or `Seam` description's
+    /// surface keys do not match the edge's two adjacent faces'
+    /// surfaces, or a chart image names neither — the description does
+    /// not describe *this* edge's locus (D2: an intersection edge's
+    /// surfaces are its adjacent faces'; a seam's surface is on both
+    /// sides).
     DescriptionNotAdjacent {
-        /// The edge whose description is incoherent with its faces.
-        edge: EdgeKey,
+        /// The edge whose description is incoherent with its faces;
+        /// `None` for the edge a minting door would mint, which has no
+        /// key before the mutation phase.
+        edge: Option<EdgeKey>,
     },
-    /// The keys-only [`Body::set_face_surface`] would leave these edges
-    /// described against a surface their faces no longer wear: each
-    /// description is adjacency-coherent now and would not be once the
-    /// face moves, which tier 3 reports at rest as
-    /// `DescriptionNotAdjacent`. Every one is named, in edge-arena
-    /// order, because the caller re-describes the whole list. The
-    /// lever is the chart and the descriptions: leave the face on the
-    /// chart they name, or re-describe them on the new chart through
-    /// [`Body::set_face_surfaces_describing`], which takes a band and
-    /// the re-descriptions. Raised in the plan phase, so the body is
+    /// A keys-only re-chart door ([`RechartDoor`]) would leave these
+    /// edges described against a surface their faces no longer wear:
+    /// each description is adjacency-coherent now and would not be once
+    /// the face, loop or run moves, which tier 3 reports at rest as
+    /// `DescriptionNotAdjacent`. Every one is named — in edge-arena
+    /// order at [`Body::set_face_surface`], in the order the door moves
+    /// them at the Euler doors — because the caller re-describes the
+    /// whole list. The lever is the door's own ([`RechartDoor`]): the
+    /// chart a face is re-charted or minted onto, or the face a loop
+    /// moves onto; [`Body::set_face_surfaces_describing`] takes a band
+    /// and the re-descriptions. Raised in the plan phase, so the body is
     /// untouched.
     RechartStrandsDescriptions {
-        /// The stranded edges, in edge-arena order.
+        /// The door that refuses.
+        door: RechartDoor,
+        /// The stranded edges.
         edges: Vec<EdgeKey>,
     },
-    /// The keys-only [`Body::set_face_surface`] would move `face` onto
-    /// another chart with these certified boundary edges naming no key
-    /// the face wears after the swap, so nothing vouches that they, and
-    /// the vertices they end at, lie on the new chart — on a plane,
-    /// tier 3's `PlanarBoundaryResidual` / `PlanarFaceResidual` at
-    /// rest. Every one is named, in edge-arena order. The lever is the
-    /// chart and the descriptions: move the face onto a chart its
-    /// certified edges name, or re-describe them on the new chart
-    /// through [`Body::set_face_surfaces_describing`], which certifies
-    /// every re-description it is handed. That door asks the boundary's
-    /// own residuals only on a plane: onto a curved chart, handed no
+    /// A keys-only re-chart door ([`RechartDoor`]) would put these
+    /// certified edges — or the certified chord a minting door mints —
+    /// on a face whose key their descriptions do not name, so nothing
+    /// vouches that they, and the vertices they end at, lie on its
+    /// chart: on a plane, tier 3's `PlanarBoundaryResidual` /
+    /// `PlanarFaceResidual` at rest. Every one is named, in the order
+    /// [`EulerOpError::RechartStrandsDescriptions`] names them. The
+    /// lever is the door's own ([`RechartDoor`]); the describing door,
+    /// [`Body::set_face_surfaces_describing`], certifies every
+    /// re-description it is handed, and asks the boundary's own
+    /// residuals only on a plane: onto a curved chart, handed no
     /// re-descriptions, it asks nothing
     /// (`work/restfront/validate-tier3-curved-boundary-containment`,
     /// #638). Raised in the plan phase, so the body is untouched.
     RechartUnvouched {
-        /// The moved face.
+        /// The door that refuses.
+        door: RechartDoor,
+        /// The face the move is asked about: the re-charted face, the
+        /// face a minting door mints from, or the face a ring moves
+        /// onto.
         face: FaceKey,
-        /// The certified edges on it that name no key it wears after
-        /// the swap, in edge-arena order.
+        /// The certified edges that name no key their face wears after
+        /// the move.
         edges: Vec<EdgeKey>,
+        /// Whether the chord a minting door mints is among them: it has
+        /// no key before the mutation phase.
+        chord: bool,
     },
     /// [`Body::set_face_surfaces_describing`] was handed no
     /// re-description for these edges, and the move would strand them
@@ -830,7 +974,8 @@ pub enum EulerOpError {
         /// The second half-edge, starting elsewhere.
         he2: HalfEdgeKey,
     },
-    /// The clockwise orbit walk from `he1` failed to close, or closed
+    /// The clockwise orbit walk from `he1` failed to close, reached a
+    /// half-edge that does not start at `he1`'s vertex, or closed
     /// without visiting `he2` (despite the matching start vertex) —
     /// tier-1-invalid input.
     FanOrbitBroken {
@@ -860,8 +1005,7 @@ pub enum EulerOpError {
     /// `next` step disagrees with the loop's members: the member it
     /// would anchor the loop at is killed or lies in another loop, or
     /// the loop it would empty keeps a member, or empties at a vertex
-    /// the kill does not leave lone or another loop's lone vertex
-    /// ([`Body::kef`], [`Body::kev`],
+    /// the kill does not leave lone ([`Body::kef`], [`Body::kev`],
     /// [`Body::kemr`]); or an `Empty` loop that [`Body::kvfs`] or
     /// [`Body::mekr`]'s `Empty` ring sites remove, or that
     /// [`Body::movefac`]'s labelling reaches, is claimed by a half-edge.
@@ -931,9 +1075,7 @@ pub enum EulerOpError {
     /// failed to close or reached a half-edge that does not start at that
     /// vertex (fired by [`Body::kev`], [`Body::kev_describing`] and
     /// [`Body::kev_merged_members`], which walk the far vertex's whole fan
-    /// from the mate, and by a fan [`Body::mev`] or [`Body::mev_null`] for
-    /// a walk from `he1` that leaves the split vertex; the mev-specific
-    /// form for a walk that fails to close or misses `he2` is
+    /// from the mate; the fan [`Body::mev`]'s form is
     /// [`EulerOpError::FanOrbitBroken`]); or a kill's new `emanating` for
     /// that vertex, read one `next` step from either killed half, starts
     /// elsewhere, or is `None` while another half-edge still starts there
@@ -957,7 +1099,9 @@ pub enum EulerOpError {
     /// [`Body::kemr`] when both split components are empty and would
     /// anchor at one vertex (a segment loop whose edge is a self-loop)
     /// and by [`Body::mekr`]'s `BothEmpty` site when the two lone
-    /// vertices coincide. Believed unreachable through valid operator
+    /// vertices coincide, and by a kill that would empty a loop at a
+    /// vertex another loop is already `Empty` at ([`Body::kef`],
+    /// [`Body::kev`], [`Body::kemr`]). Believed unreachable through valid operator
     /// sequences (the offending inputs are already tier-1-invalid);
     /// checked defensively.
     EmptyAnchorsCollide {
@@ -1267,25 +1411,24 @@ impl EulerOpError {
             Self::DuplicateRedescription { edge } => {
                 format!("edge {edge:?} is re-described twice")
             }
-            Self::DescriptionNotAdjacent { edge } => format!(
-                "edge {edge:?}'s intrinsic/seam description names surfaces that are not \
-                 its adjacent faces' surfaces (D2 adjacency coherence)"
-            ),
-            Self::RechartStrandsDescriptions { edges } => format!(
-                "set_face_surface: the swap would leave edges {edges:?} described against a \
-                 surface their faces no longer wear, and the keys-only door takes no band to \
-                 re-describe them. Recourse: leave the face on the chart those edges name, \
-                 or re-describe them on the chart it moves onto (set_face_surfaces_describing \
-                 takes their re-descriptions under a band, and carried_redescriptions states \
-                 the stored ones there)"
-            ),
-            Self::RechartUnvouched { face, edges } => format!(
-                "set_face_surface: face {face:?} would move onto a chart that its certified \
-                 edges {edges:?} do not name, so nothing vouches that its boundary lies on \
-                 that chart. Recourse: move the face onto a chart its certified edges name, \
-                 or re-describe them on the new chart (set_face_surfaces_describing certifies \
-                 each re-description it is handed against that chart)"
-            ),
+            Self::DescriptionNotAdjacent { edge } => {
+                let edge = edge.map_or_else(
+                    || "the edge the door mints".to_string(),
+                    |edge| format!("edge {edge:?}"),
+                );
+                format!(
+                    "{edge}: its description names surfaces that are not its two faces' \
+                     surfaces (D2 adjacency coherence). Recourse: describe it against the \
+                     surfaces its faces wear"
+                )
+            }
+            Self::RechartStrandsDescriptions { door, edges } => door.strands(edges),
+            Self::RechartUnvouched {
+                door,
+                face,
+                edges,
+                chord,
+            } => door.unvouched(*face, edges, *chord),
             Self::RechartUndescribed { edges } => format!(
                 "set_face_surfaces_describing: the move would leave edges {edges:?} described \
                  against a surface their faces no longer wear, and no re-description is listed \
@@ -1332,7 +1475,7 @@ impl EulerOpError {
                 "loop {loop:?}'s next cycle disagrees with the half-edges that \
                  claim it: a walk of it fails to close, strays into another \
                  loop or misses one of its members, or it is empty at a vertex \
-                 another loop also holds or a half-edge starts at. {}",
+                 a half-edge starts at. {}",
                 geom_core::KERNEL_DEFECT_ENDING,
                 loop = r#loop
             ),
@@ -1542,15 +1685,20 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::MergeRebasesCarriers { edges: vec![ek] },
         EulerOpError::NotMergedMember { edge: ek },
         EulerOpError::DuplicateRedescription { edge: ek },
-        EulerOpError::DescriptionNotAdjacent { edge: ek },
-        EulerOpError::RechartStrandsDescriptions { edges: vec![ek] },
+        EulerOpError::DescriptionNotAdjacent { edge: Some(ek) },
+        EulerOpError::RechartStrandsDescriptions {
+            door: RechartDoor::Mef,
+            edges: vec![ek],
+        },
         EulerOpError::RechartFalsifies {
             edge: ek,
             error: CertifyError::Unimplemented,
         },
         EulerOpError::RechartUnvouched {
+            door: RechartDoor::RingMove,
             face: fc,
             edges: vec![ek],
+            chord: false,
         },
         EulerOpError::RechartUndescribed { edges: vec![ek] },
         EulerOpError::RechartOffBoundary {
@@ -2249,6 +2397,30 @@ impl<T: Decide> Body<T> {
     /// its loops the cut rewires leave complete, and a ring it keeps
     /// keeps what it had.
     ///
+    /// **A chord bounding a face minted on another key describes the
+    /// edge it is, or is refused.** Where `surface` is not the old
+    /// face's key, the chord's two faces wear the old face's key and the
+    /// new face's, and `curve`'s description is asked the adjacency
+    /// question [`Body::set_edge_curve`] asks
+    /// ([`EulerOpError::DescriptionNotAdjacent`], naming no edge: the
+    /// chord has no key yet).
+    ///
+    /// **What it does not ask:** where the new face keeps the old
+    /// face's key, whether the chord's description names it. The
+    /// boolean pipeline's chord joins rely on that: they mint the chord
+    /// with the description of the face glued along it afterwards
+    /// (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+    ///
+    /// **A face minted on another chart is vouched for by the edges it
+    /// takes, or refused** ([`RechartDoor::Mef`]). Where `surface` is
+    /// not the old face's key, the run's edges and the chord change the
+    /// key one of their faces wears, and this keys-only door asks
+    /// [`Body::vouch_move`]'s questions of them. A `New` key is one no
+    /// description names, so onto a `New` chart off the old face's
+    /// payload only scaffold and null edges pass. The lever is the chart the face is minted on: mint it
+    /// on a key its certified edges name, or on the old face's and move
+    /// it with [`Body::set_face_surfaces_describing`].
+    ///
     /// # Surgery (Chords, `he1 != he2`)
     ///
     /// The run `[he1 .. he2)` in `next` order moves to the new loop;
@@ -2295,8 +2467,18 @@ impl<T: Decide> Body<T> {
     /// Then, for both sites, the geometry gates: a
     /// [`FaceSurface::Shared`] key resolves (`StaleGeometry`), a stated
     /// sense agrees with the derived one on the old face's chart
-    /// ([`EulerOpError::SenseContradictsChart`]), and `curve` certifies
-    /// ([`EulerOpError::Certification`]). Last, the
+    /// ([`EulerOpError::SenseContradictsChart`]), where the new face's
+    /// key is not the old one's `curve`'s description is
+    /// adjacency-coherent with the two
+    /// ([`EulerOpError::DescriptionNotAdjacent`], `edge: None`), and
+    /// `curve` certifies ([`EulerOpError::Certification`]) — the order
+    /// [`Body::set_edge_curve`] asks them in. Then, where the new face's key
+    /// is not the old one's, no edge of the run is stranded
+    /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
+    /// in run order), then every certified edge of the run and a
+    /// certified chord name it ([`EulerOpError::RechartUnvouched`], the
+    /// same; `StaleKey` / `StaleGeometry` where a key the walk over the
+    /// run follows does not resolve). Last, the
     /// pcurve rows, as [`Body::mev`] states them: the loop, its face and
     /// the face's surface resolve; then, only where the site mint
     /// selects that face, the old loop's cycle from `he1` walks
@@ -2509,9 +2691,9 @@ impl<T: Decide> Body<T> {
     /// and [`Body::mev_null`] (which replaces the geometry gate with a
     /// null-scaffold mint). Pure — no mutation.
     ///
-    /// Beyond resolving every key the split writes, it proves that
-    /// every half-edge the orbit walk from `he1` visits starts at the
-    /// split vertex ([`Body::require_orbit_starts_at`]), so the run
+    /// Beyond resolving every key the split writes, it takes the orbit
+    /// walk from `he1`, which proves that every half-edge it visits
+    /// starts at the split vertex ([`Body::vertex_orbit`]), so the run
     /// `[he1 .. he2)` the surgery and the re-basing gate re-base is a
     /// slice of that vertex's orbit and the new halves splice into
     /// that orbit. A torn half-edge in the run would be re-based; one
@@ -2534,7 +2716,8 @@ impl<T: Decide> Body<T> {
         // certification's start endpoint (he_plus runs old → new).
         let point = self.resolve_vertex_point_key(v)?;
         // The clockwise run [he1 .. he2): members of the next(mate(·))
-        // orbit walk (bounded, D9), empty for a strut.
+        // orbit walk (bounded, D9; every member starts at v), empty for
+        // a strut.
         let orbit = self
             .vertex_orbit(he1)
             .ok_or(EulerOpError::FanOrbitBroken { he1, he2 })?;
@@ -2542,7 +2725,6 @@ impl<T: Decide> Body<T> {
             .iter()
             .position(|&he| he == he2)
             .ok_or(EulerOpError::FanOrbitBroken { he1, he2 })?;
-        self.require_orbit_starts_at(&orbit, v, he1)?;
         let run = orbit[..position].to_vec();
         // The splice writes through both prev links; prove them now so
         // the mutation below cannot fail midway (atomicity).
@@ -2870,7 +3052,19 @@ impl<T: Decide> Body<T> {
             ParentSide::With,
         )?;
         let carried = resolved.on_parent_chart;
-        let certified = self.certify_edge_spec(None, curve.spec(u1 == u2, p1, p2), p1, p2, tol)?;
+        let after = Slot::of_spec(&surface, inherit_surface);
+        let spec = curve.spec(u1 == u2, p1, p2);
+        require_chord_adjacent(&spec, (inherit_surface, after))?;
+        let certified = self.certify_edge_spec(None, spec, p1, p2, tol)?;
+        self.vouch_move(
+            RechartDoor::Mef,
+            face_key,
+            (inherit_surface, after),
+            self.run_edges(&run)?,
+            |he, _, _| run.contains(&he),
+            carried,
+            Some(&certified),
+        )?;
         // ---- The pcurve rows the new halves need (still no mutation).
         // The old loop becomes `he_plus` then he2's side, the new loop
         // `he_minus` then the run; both are re-anchored at the new half.
@@ -3022,11 +3216,22 @@ impl<T: Decide> Body<T> {
             (inherit_surface, inherit_sense),
             ParentSide::With,
         )?;
-        let certified =
-            self.certify_edge_spec(None, curve.spec(true, anchor, anchor), anchor, anchor, tol)?;
+        let after = Slot::of_spec(&surface, inherit_surface);
+        let spec = curve.spec(true, anchor, anchor);
+        require_chord_adjacent(&spec, (inherit_surface, after))?;
+        let certified = self.certify_edge_spec(None, spec, anchor, anchor, tol)?;
+        let carried = resolved.on_parent_chart;
+        self.vouch_move(
+            RechartDoor::Mef,
+            face_key,
+            (inherit_surface, after),
+            [],
+            |_, _, _| false,
+            carried,
+            Some(&certified),
+        )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // each half is a one-half-edge loop of its own face.
-        let carried = resolved.on_parent_chart;
         let rows = self.plan_site_rows(
             &[loop_key],
             |body| {
@@ -3098,28 +3303,17 @@ impl<T: Decide> Body<T> {
         self.resolve_half_edge_live(he).map(|(_, data)| data)
     }
 
-    /// Proves that every member of a closed orbit walk
-    /// ([`Body::vertex_orbit`]), or of any list of half-edges a plan
-    /// takes as `v`'s, starts at `v`, refusing
-    /// [`EulerOpError::OrbitBroken`] naming the walk's origin otherwise.
-    ///
-    /// The walk steps `next(mate(·))` and reads no start vertex, so a
-    /// torn `next` can close it through another vertex's half-edges; a
-    /// plan that moves or splices into a vertex's orbit proves its walk
-    /// here, and a kill proves the anchors it writes through
-    /// [`Body::require_kill_anchors`], which calls this. The validator
-    /// ([`crate::validate::validate`]) reports the same fault in pass 6.
-    /// A member that does not resolve fails the proof.
-    pub(crate) fn require_orbit_starts_at(
+    /// Proves that `he`, a half-edge a kill anchors `v` at, starts at
+    /// `v`, refusing [`EulerOpError::OrbitBroken`] naming `origin`
+    /// otherwise; a stale `he` fails the proof. An orbit walk needs no
+    /// such proof: [`Body::vertex_orbit`] proves its own members.
+    pub(crate) fn require_starts_at(
         &self,
-        members: &[HalfEdgeKey],
+        he: HalfEdgeKey,
         v: VertexKey,
         origin: HalfEdgeKey,
     ) -> Result<(), EulerOpError> {
-        if members
-            .iter()
-            .all(|&member| self.half_edges.get(member).map(|he| he.start) == Some(v))
-        {
+        if self.half_edges.get(he).map(|data| data.start) == Some(v) {
             Ok(())
         } else {
             Err(EulerOpError::OrbitBroken { he: origin })
@@ -3171,7 +3365,7 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::OrbitBroken`] naming `origin`, the killed half
     /// that starts at `vertex`, at the first that fails. A
     /// [`KillAnchor::Step`] starts at `vertex`
-    /// ([`Body::require_orbit_starts_at`]); a [`KillAnchor::Merged`] is
+    /// ([`Body::require_starts_at`]); a [`KillAnchor::Merged`] is
     /// proven by the caller's orbit walk and asks nothing here; a
     /// [`KillAnchor::Lone`] leaves `vertex` lone: no half-edge but
     /// `killed` starts at it, and a loop this kill writes is `Empty` at
@@ -3181,13 +3375,15 @@ impl<T: Decide> Body<T> {
     ///
     /// One `(loop, boundary)` per loop the kill keeps and re-anchors,
     /// and the loop the run mints if it mints one
-    /// ([`KillInto::Minted`]), refusing `LoopCycleBroken` naming the
-    /// loop (for a minted loop, the run's) at the first that fails. A
+    /// ([`KillInto::Minted`]), refusing at the first that fails. A
     /// `Cycle`'s `first` is not killed and lies in the loop once the
     /// kill has run: its `parent_loop`, or the run's destination for a
     /// member of the run. An `Empty` loop holds a vertex that `writes`
-    /// anchors [`KillAnchor::Lone`], keeps no member once the kill has
-    /// run, and is the only loop `Empty` at that vertex.
+    /// anchors [`KillAnchor::Lone`] and keeps no member once the kill
+    /// has run. Either failing refuses `LoopCycleBroken` naming the loop
+    /// (for a minted loop, the run's). An `Empty` loop that passes both
+    /// is then the only loop `Empty` at its vertex, or the kill refuses
+    /// [`EulerOpError::EmptyAnchorsCollide`] naming the vertex.
     ///
     /// Each kill reads an anchor one `next` step from a killed half, and
     /// reads "no anchor" where that step lands on a killed half. A torn
@@ -3226,7 +3422,7 @@ impl<T: Decide> Body<T> {
         for &(vertex, anchor, origin) in writes {
             match anchor {
                 KillAnchor::Step(step) => {
-                    self.require_orbit_starts_at(core::slice::from_ref(&step), vertex, origin)?;
+                    self.require_starts_at(step, vertex, origin)?;
                 }
                 KillAnchor::Merged(_) => {}
                 KillAnchor::Lone => {
@@ -3276,11 +3472,15 @@ impl<T: Decide> Body<T> {
                             .half_edges
                             .iter()
                             .any(|(he, data)| stays_in(he, data, target))
-                        && self.empty_at_besides(vertex, target.as_slice()).is_none()
                 }
             };
             if !holds {
                 return Err(EulerOpError::LoopCycleBroken { r#loop: name });
+            }
+            if let LoopBoundary::Empty { vertex } = boundary
+                && self.empty_at_besides(vertex, target.as_slice()).is_some()
+            {
+                return Err(EulerOpError::EmptyAnchorsCollide { vertex });
             }
         }
         Ok(())
@@ -6307,14 +6507,14 @@ mod tests {
         body.get_half_edge_mut(strut.he_minus).unwrap().next = seg.he_plus;
         body.get_half_edge_mut(seg.he_minus).unwrap().next = seg.he_minus;
         assert_eq!(
-            body.vertex_orbit(strut.he_plus),
+            crate::validate::vertex_orbit_reading_no_start(&body, strut.he_plus),
             Some(vec![strut.he_plus, seg.he_plus, seg.he_minus])
         );
         (body, seg, strut)
     }
 
     /// Every fan door at `(he1, he2)` on `body`, each refusing
-    /// `OrbitBroken` naming `he1` with the body untouched: `mev_null`,
+    /// `FanOrbitBroken` with the body untouched: `mev_null`,
     /// `mev_line` to a moved point, and a certified `mev` that moves
     /// nothing (a closed carrier at the old point, which the re-basing
     /// gate passes wherever the run starts at the split vertex).
@@ -6327,7 +6527,7 @@ mod tests {
         let site = MevSite::Fan { he1, he2 };
         let v = body.get_half_edge(he1).unwrap().start;
         let at = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-        let torn = EulerOpError::OrbitBroken { he: he1 };
+        let torn = EulerOpError::FanOrbitBroken { he1, he2 };
         assert_err_deep_unchanged(body, &torn, |b| {
             b.mev_null(site, crate::NewVertexSide::Above).unwrap_err()
         });
@@ -6366,7 +6566,7 @@ mod tests {
         body.get_half_edge_mut(halves[4]).unwrap().next = halves[11];
         for (from, to) in [(halves[5], halves[6]), (halves[6], halves[5])] {
             let v = body.get_half_edge(from).unwrap().start;
-            let orbit = body.vertex_orbit(from).unwrap();
+            let orbit = crate::validate::vertex_orbit_reading_no_start(&body, from).unwrap();
             assert!(orbit.contains(&to), "the walk from {from:?} reaches {to:?}");
             assert!(
                 orbit

@@ -435,10 +435,13 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
     // body does not see the key slots a refusal could consume.
     assert_eq!(
         body.set_face_surface(t.seed.face, swap()),
-        Err(EulerOpError::RechartStrandsDescriptions { edges: rim }),
+        Err(EulerOpError::RechartStrandsDescriptions {
+            door: topo::RechartDoor::SetFaceSurface,
+            edges: rim
+        }),
     );
 
-    // Lifts both refusals: the stranded state tier 3 detects at rest is the row.
+    // Lifts RechartStrandsDescriptions: the stranded state tier 3 detects at rest is the row.
     body.set_face_surface_stranding_for_tests(t.seed.face, swap())
         .unwrap();
 

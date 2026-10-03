@@ -264,7 +264,7 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
     let (ves, bx) = (solids[0], solids[1]);
     let victim = faces_of(&pair, bx)[0];
     let mut body = pair.clone();
-    // Lifts both refusals: a cylinder the box face does not lie on is the unmintable neighbour.
+    // Lifts RechartStrandsDescriptions: a cylinder the box face does not lie on is the unmintable neighbour.
     body.set_face_surface_stranding_for_tests(
         victim,
         topo::FaceSurface::New {

@@ -236,7 +236,6 @@ fn tier2_strut_scan_echoes_on_dangling_start() {
 /// row is the only other reader; this table stays this guard's.
 pub(crate) const ALLOWED: &[(&str, &str)] = &[
     // ---- Sugar: delegates to an asserting operator. ----
-    ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
     (
         "insert_void",
         "calls `insert_voids` with the one destination as a slice — same body, same assertion",
@@ -264,8 +263,13 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ),
     (
         "set_face_surface_stranding_for_tests",
-        "the failure-injection twin of `set_face_surface`: the same door with its \
-         stranding refusal taken out, so the same postcondition",
+        "the failure-injection twin of `set_face_surface`: the same door run inside \
+         `lifting_rechart_refusals_for_tests`, so the same postcondition",
+    ),
+    (
+        "lifting_rechart_refusals_for_tests",
+        "a failure-injection scope that writes nothing itself: every door its closure \
+         calls declares its own postcondition",
     ),
     (
         "set_face_surfaces_describing",

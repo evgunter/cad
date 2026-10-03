@@ -74,6 +74,16 @@ the result's wall is notched by the pocket. Pinned by
 `crates/editor-core/tests/pierce_ring_engraving.rs`,
 `a_pocket_across_the_rim_stops_at_the_notched_walls_volume`, which reds when this row lands.
 
+## More consumers (JOIN-3)
+
+Once a matched segment's second chord reads its curve instead of an
+empty run, the wall pierce rings join, and these rows stop here rather
+than at the join: `verbs_germarms`'s three bar-through-wall rows,
+`verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar`,
+`verbs_germarms_r1_probes::r1_the_planar_cap_pierce_joins_and_the_curved_wall_pierce_refuses`,
+`axis_lap::laps_off_the_rulings_stop_at_the_wall_pierce_ring` (the laps
+across the rulings) and `reach_wall_chord_rows`'s ∪ and A∖B at `c = 0.9`.
+
 ## 2026-10-02 — closed: the cylinder flux is the chart Green form (`tang/pierce-ring`)
 
 The first arm of the fix above, for every cylinder face bounded by rims

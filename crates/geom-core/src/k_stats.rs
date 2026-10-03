@@ -12,12 +12,14 @@
 //! [`Probe`]-lane run tags every sample with its real predicate name —
 //! `<unnamed>` is unreachable from shipped decide paths.
 //!
-//! All three doors — [`decide`], [`decide_flagged`], [`decide_invariant`]
-//! — delegate to one private `classify`. The name write and the verdict
+//! Every classifying door — [`decide`], [`decide_reported`],
+//! [`decide_flagged`], [`decide_invariant`], [`decide_magnitude`] and the
+//! gates ([`decide_positive`], [`decide_negative`], [`decide_nonzero`]) —
+//! delegates to one private `classify`. The name write and the verdict
 //! push therefore happen in exactly one place, so no door can carry one
-//! channel and miss the other, and the three doors classify identically
-//! because they are the same code and not because three bodies are kept
-//! level.
+//! channel and miss the other, and the doors classify identically
+//! because they are the same code and not because several bodies are
+//! kept level.
 //!
 //! Cost on the production path: one thread-local `Cell` write per
 //! decision, plus — **inside an open [`Bracket`]** — one `Vec` push per
@@ -202,7 +204,7 @@ use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
 
-use crate::predicate::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Sign};
+use crate::predicate::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Sign, SizedPass};
 use crate::real::Real;
 // Only `Probe`'s impls name this.
 #[cfg(feature = "probe")]
@@ -411,12 +413,10 @@ fn record_escalation(source: Indeterminate) -> Indeterminate {
 /// The gated body: classify through the funnel, then apply the sign
 /// requirement the calling predicate's question depends on. A definite
 /// verdict the requirement rejects is an [`Indeterminate`] carrying the
-/// margin `admits` reports for it — the decided margin where the
-/// rejected verdict is band-decided, or
-/// [`MarginKind::Invalid`](crate::MarginKind::Invalid) where "the
-/// question was never validly posed here" — recorded on the same frame
-/// and in the same decision order as the escalation `classify` itself
-/// would have produced.
+/// margin the classifier decided — never a fabricated one: a gate's
+/// rejection is a measured sign the question cannot use, not poison —
+/// recorded on the same frame and in the same decision order as the
+/// escalation `classify` itself would have produced.
 ///
 /// Both outcomes of one gated decision reach the frame: the funnel's
 /// definite verdict, because the classifier really did decide, and the
@@ -427,16 +427,18 @@ fn classify_gated<T: Decide, R>(
     name: &'static str,
     margin: T,
     band: Band,
-    admits: fn(Decided) -> Result<R, MarginDiag>,
+    passes: SizedPass,
+    admits: fn(Sign) -> Option<R>,
 ) -> Result<R, Indeterminate> {
     // `admits` both TESTS the verdict and carries it into the caller's
     // own vocabulary, in one function: a gate that answered `bool` here
     // would leave every caller converting an already-tested sign a
     // second time, with an arm for the answer this door escalated — the
     // shape these doors exist to remove, reproduced one level up.
-    admits(classify(name, margin, band)?).map_err(|margin| {
+    let Decided { sign, margin } = classify(name, margin, band)?;
+    admits(sign).ok_or_else(|| {
         record_escalation(Indeterminate {
-            margin,
+            margin: margin.rejected_by(sign, passes),
             band,
             predicate: Some(name),
             terminal_sliver: false,
@@ -640,6 +642,16 @@ pub fn decide_invariant<T: Decide>(
 /// so the rejection is minted and recorded where every other escalation
 /// is, and a caller never holds a sign it can reject in private.
 ///
+/// The rejection carries the margin the classifier decided, tagged
+/// with the decided sign and the signs this gate passes
+/// ([`MarginDiag::rejected_sign`]). A decided `Zero` on the positive
+/// side is band-decided where the quantity is a size the user may
+/// intend (D4 ¶1 (i)), and its refusal offers the tolerance that margin
+/// gives ([`Indeterminate::ending`]); a zero on the negative side stays
+/// there at every smaller tolerance, and a decided `Negative` is
+/// sign-certain, so neither offers one. Every gate below tags its
+/// rejection the same way, with its own pass set.
+///
 /// The frame records both channels of one gated decision: the definite
 /// verdict the classifier reached, and the gate's escalation beside it.
 ///
@@ -647,33 +659,8 @@ pub fn decide_invariant<T: Decide>(
 ///
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite non-positive sign, an [`Indeterminate`]
-/// carrying [`MarginKind::Invalid`](crate::MarginKind::Invalid) under `name`.
+/// carrying the decided margin under `name`.
 pub fn decide_positive<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<(), Indeterminate> {
-    classify_gated(name, margin.value(), band, |decided| match decided.sign {
-        Sign::Positive => Ok(()),
-        Sign::Zero | Sign::Negative => Err(MarginDiag::INVALID),
-    })
-}
-
-/// [`decide_positive`] for a gate whose `Zero` is band-decided: the
-/// quantity is a size the user may intend, and a smaller tolerance
-/// decides a zero-band one positive (D4 ¶1 (i)). A decided `Zero`
-/// escalates carrying the margin the classifier decided, so the ending
-/// can offer the tolerance it gives; a definite `Negative` is no size
-/// and keeps [`MarginKind::Invalid`](crate::MarginKind::Invalid). Both
-/// are recorded as [`decide_positive`] records them.
-///
-/// # Errors
-///
-/// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin; for
-/// a decided `Zero`, an [`Indeterminate`] carrying the decided margin
-/// under `name`; for a definite `Negative`, one carrying
-/// [`MarginKind::Invalid`](crate::MarginKind::Invalid).
-pub fn decide_positive_reported<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -682,10 +669,10 @@ pub fn decide_positive_reported<T: Decide>(
         name,
         margin.value(),
         band,
-        |Decided { sign, margin }| match sign {
-            Sign::Positive => Ok(()),
-            Sign::Zero => Err(margin),
-            Sign::Negative => Err(MarginDiag::INVALID),
+        SizedPass::Positive,
+        |sign| match sign {
+            Sign::Positive => Some(()),
+            Sign::Zero | Sign::Negative => None,
         },
     )
 }
@@ -702,16 +689,22 @@ pub fn decide_positive_reported<T: Decide>(
 ///
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite non-negative sign, an [`Indeterminate`]
-/// carrying [`MarginKind::Invalid`](crate::MarginKind::Invalid) under `name`.
+/// carrying the decided margin under `name`.
 pub fn decide_negative<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
 ) -> Result<(), Indeterminate> {
-    classify_gated(name, margin.value(), band, |decided| match decided.sign {
-        Sign::Negative => Ok(()),
-        Sign::Zero | Sign::Positive => Err(MarginDiag::INVALID),
-    })
+    classify_gated(
+        name,
+        margin.value(),
+        band,
+        SizedPass::Negative,
+        |sign| match sign {
+            Sign::Negative => Some(()),
+            Sign::Zero | Sign::Positive => None,
+        },
+    )
 }
 
 /// A definite sign a [`decide_nonzero`] decision admits. `Zero` is not
@@ -730,38 +723,14 @@ pub enum NonzeroSign {
 /// side to read when the margin is definitely zero — two normals whose
 /// tangent planes coincide cannot be paired. Same posture, same
 /// recording: the gate's rejection is the funnel's escalation, on the
-/// frame beside the verdict.
+/// frame beside the verdict, carrying the margin decided zero.
 ///
 /// # Errors
 ///
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
-/// otherwise, for a definite `Zero`, an [`Indeterminate`] carrying
-/// [`MarginKind::Invalid`](crate::MarginKind::Invalid) under `name`.
+/// otherwise, for a definite `Zero`, an [`Indeterminate`] carrying the
+/// decided margin under `name`.
 pub fn decide_nonzero<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<NonzeroSign, Indeterminate> {
-    classify_gated(name, margin.value(), band, |decided| match decided.sign {
-        Sign::Positive => Ok(NonzeroSign::Positive),
-        Sign::Negative => Ok(NonzeroSign::Negative),
-        Sign::Zero => Err(MarginDiag::INVALID),
-    })
-}
-
-/// [`decide_nonzero`] for a gate whose `Zero` is band-decided: the
-/// margin is a size the user may intend (a direction's cosine levered
-/// at a corner's arm, `≈ ±arm`), so a decided `Zero` escalates carrying
-/// the margin the classifier decided, and the ending can offer the
-/// tolerance it gives, as [`decide_positive_reported`] does for a
-/// positive gate. Recorded as [`decide_nonzero`] records it.
-///
-/// # Errors
-///
-/// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin; for
-/// a decided `Zero`, an [`Indeterminate`] carrying the decided margin
-/// under `name`.
-pub fn decide_nonzero_reported<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -770,12 +739,72 @@ pub fn decide_nonzero_reported<T: Decide>(
         name,
         margin.value(),
         band,
-        |Decided { sign, margin }| match sign {
-            Sign::Positive => Ok(NonzeroSign::Positive),
-            Sign::Negative => Ok(NonzeroSign::Negative),
-            Sign::Zero => Err(margin),
+        SizedPass::NonZero,
+        |sign| match sign {
+            Sign::Positive => Some(NonzeroSign::Positive),
+            Sign::Negative => Some(NonzeroSign::Negative),
+            Sign::Zero => None,
         },
     )
+}
+
+/// A definite sign a [`decide_magnitude`] decision can reach. `Negative`
+/// is not one of its values: a magnitude has none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Magnitude {
+    /// The magnitude classified within the zero band.
+    Zero,
+    /// The magnitude classified definitely positive.
+    Positive,
+}
+
+/// **The magnitude door**: [`decide`] for a quantity that is
+/// nonnegative BY CONSTRUCTION — a norm, a `sqrt`, an `abs`, a sum or
+/// product of those, or a `max` taken from zero — so its classified
+/// sign is `Zero` or `Positive` and nothing else. Both are verdicts the caller acts on; neither is a rejection.
+///
+/// **The precondition is the caller's, and it is construction, not
+/// mathematics.** A difference that is nonnegative only mathematically
+/// (`|a| − |b|` where `|a| ≥ |b|`, a squared distance minus a radius
+/// squared) can round negative at `f64` and enclose below zero at
+/// `Interval`, so its `Negative` is reachable from input and it belongs
+/// at [`decide`] or a gate. A quantity built only from operations
+/// whose result is nonnegative at every scalar — `sqrt` of anything
+/// (an enclosure's negative part is clamped, which classifies as
+/// poison), `abs`, a square, a sum or product of nonnegatives, a `max`
+/// with zero (elementwise at `Interval`, so its lower bound is `≥ 0`) —
+/// cannot decide `Negative`: at `f64` its value is `≥ 0` or NaN, and at
+/// `Interval` its lower bound is `≥ 0`, never `≤ −escalate`.
+///
+/// A decided `Negative` is therefore a kernel bug observable in a
+/// branch (D9 row 4) and panics, naming the predicate, the band and the
+/// margin it saw. The verdict is recorded on the frame before the
+/// panic, as every decision's is.
+///
+/// # Errors
+///
+/// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin.
+///
+/// # Panics
+///
+/// On a definite `Negative`, which the precondition rules out.
+pub fn decide_magnitude<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<Magnitude, Indeterminate> {
+    let Decided { sign, margin } = classify(name, margin.value(), band)?;
+    match sign {
+        Sign::Zero => Ok(Magnitude::Zero),
+        Sign::Positive => Ok(Magnitude::Positive),
+        Sign::Negative => unreachable!(
+            "`{name}` decided a magnitude Negative (margin {margin:e}, band ({:e}, {:e})): the \
+             quantity is nonnegative by construction (a norm, a sqrt, a max from zero), so no \
+             finite margin and no sound enclosure of it lies at or below -escalate",
+            band.zero(),
+            band.escalate()
+        ),
+    }
 }
 
 /// **The measurement gate** — the funnel's door for a value an op is

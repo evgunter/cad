@@ -428,6 +428,21 @@
 //! ARENA-order stream moved. The POINT SETS did not: a scratch dump of
 //! every corpus body's sorted vertex positions and its vertex, edge,
 //! face and point counts is identical before and after the change.
+//!
+//! RE-DERIVED, INTERVAL ROW ONLY, WHEN A BOOLEAN MATCH'S CHORDS CAME TO
+//! SHARE ONE CURVE (`chord_join::SegmentCurve`): a segment's second
+//! chord is its first chord's curve run back (θ ↦ −θ about the flipped
+//! axis) rather than a second arc selection from its own run. Measured
+//! by a scratch dump of every node's outcome and every point's interval
+//! bits, the merged tree with and without the change:
+//!
+//! - **f64 lane: unmoved**; the `f64` digest was not re-derived.
+//! - **Interval lane: every node outcome identical; 5 coordinates of
+//!   5 points moved, all in `die_composed` and `die_composed_tour`, and
+//!   every one got WIDER**, by 2.5× to 3.25× (4 to 25 ulps wide where
+//!   they were 4 to 8), endpoints moving at most 9 ulps. Each still
+//!   holds its value. The dump does not say which read of the
+//!   reversed carrier the widening enters through.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -747,7 +762,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x9502_c488_ae26_81a8, 0x09a9_49e7_a4a7_2704),
+        (0x9e06_f8bb_0dfa_69ef, 0x330f_3cc8_2963_f3bb),
         "the corpus's Interval evaluation moved"
     );
 }

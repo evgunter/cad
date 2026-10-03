@@ -213,6 +213,7 @@ fn parallel_cylinders_that_pierce_reach_the_cylinder_pair_join() {
                 matches!(
                     err,
                     BooleanError::CurvedBooleanUnsupported {
+                        operand: topo::Operand::A,
                         kind: geom::SurfaceKind::Cylinder,
                         ..
                     }

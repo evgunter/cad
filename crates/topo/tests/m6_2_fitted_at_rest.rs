@@ -28,8 +28,8 @@
 //! of the hosted matrix each state something true.
 //!
 //! **What this row does NOT do**, so nobody reads more into it: it does
-//! not wire the cyl×sphere JOIN lane (`run_azimuth_window` has no
-//! window analog for a fitted chord — banked past M6). The edge is
+//! not wire the cyl×sphere JOIN lane (the C5 table has no cyl×sphere
+//! arm for a fitted chord's carrier — banked past M6). The edge is
 //! built through the public certification doors, exactly as
 //! `m5_pr7_split_meter.rs`'s rung-3 scaffold is.
 

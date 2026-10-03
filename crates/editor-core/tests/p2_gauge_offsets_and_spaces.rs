@@ -91,7 +91,8 @@ impl Parts {
 }
 
 fn mframe(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core::ProfileProgram> {

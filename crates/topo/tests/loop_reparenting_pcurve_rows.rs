@@ -232,19 +232,22 @@ fn sheet() -> Sheet {
         normal: (b - a).cross(axis()).normalize(),
         u_ref: (b - a).normalize(),
     };
+    // Lifts RechartUnvouched: the rim arcs bow off the plane, which is the fixture's chart that mints nothing.
     let closing = body
-        .mef(
-            MefSite::Chords {
-                he1: e_ef.he_minus,
-                he2: e_ab.he_plus,
-            },
-            EdgeCurveSpec::line_between(f, a),
-            FaceSurface::New {
-                surface: plane,
-                sense: true,
-            },
-            tol(),
-        )
+        .lifting_rechart_refusals_for_tests(|body| {
+            body.mef(
+                MefSite::Chords {
+                    he1: e_ef.he_minus,
+                    he2: e_ab.he_plus,
+                },
+                EdgeCurveSpec::line_between(f, a),
+                FaceSurface::New {
+                    surface: plane,
+                    sense: true,
+                },
+                tol(),
+            )
+        })
         .unwrap();
     // The front side, split at `VM` by a rim arc from `c` to `f`:
     // `he1` is the half-edge leaving `c` (`c -> d`), `he2` the one
@@ -410,7 +413,10 @@ fn ring_move_onto_a_chart_that_mints_nothing_drops_the_rings_rows() {
     let mut s = sheet();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    s.body.ring_move(ring, s.plane).unwrap();
+    // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither of its faces wears once the ring is on the plane; the dropped rows are the row.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.ring_move(ring, s.plane))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -454,7 +460,10 @@ fn ring_move_onto_a_minted_curved_face_mints_the_ring_in_its_chart() {
             }
         }
         assert_eq!(rows_of(&s.body, s.up), (4, 0), "rowless: {rowless}");
-        s.body.ring_move_minting(ring, s.up, tol()).unwrap();
+        // Lifts RechartUnvouched: the ring's edges name the plane and the cylinder's first key, and the panel's chart is the row's subject.
+        s.body
+            .lifting_rechart_refusals_for_tests(|b| b.ring_move_minting(ring, s.up, tol()))
+            .unwrap();
         assert_eq!(rows_of(&s.body, s.up), (10, 0), "rowless: {rowless}");
         assert_eq!(rows_of(&s.body, s.low), (4, 0), "rowless: {rowless}");
         assert_rows_are_the_pass(&s.body, s.up);
@@ -519,13 +528,16 @@ fn the_keys_only_doors_refuse_a_re_mint_they_owe_and_touch_nothing() {
     let ring = ring_of(&s.body, s.low);
     let low = s.low;
     refuses(&mut s.body, low, "mfkrh", &|b| {
-        b.mfkrh(
-            ring,
-            FaceSurface::New {
-                surface: cylinder(),
-                sense: true,
-            },
-        )
+        // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder's key, which neither of its faces wears once promoted onto a fresh one, and the refusal this row reads is the re-mint's.
+        b.lifting_rechart_refusals_for_tests(|b| {
+            b.mfkrh(
+                ring,
+                FaceSurface::New {
+                    surface: cylinder(),
+                    sense: true,
+                },
+            )
+        })
         .unwrap_err()
     });
 
@@ -636,7 +648,11 @@ fn mfkrh_plug_drops_the_promoted_rings_rows() {
     let mut s = sheet();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    let made = s.body.mfkrh_plug(ring, true).unwrap();
+    // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither of its faces wears once on the placeholder, whose dropped rows are the row.
+    let made = s
+        .body
+        .lifting_rechart_refusals_for_tests(|b| b.mfkrh_plug(ring, true))
+        .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -676,16 +692,19 @@ fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_tier_3_names_why() {
         radius: 2.0,
         u_ref: u_ref(),
     };
+    // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither of its faces wears once promoted, and a promotion onto a curved chart the ring is not on is the row's premise.
     let made = s
         .body
-        .mfkrh_minting(
-            ring,
-            FaceSurface::New {
-                surface: other,
-                sense: true,
-            },
-            tol(),
-        )
+        .lifting_rechart_refusals_for_tests(|b| {
+            b.mfkrh_minting(
+                ring,
+                FaceSurface::New {
+                    surface: other,
+                    sense: true,
+                },
+                tol(),
+            )
+        })
         .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     loud_at_rest(&mut s.body);
@@ -919,7 +938,10 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
     let mut s = sheet();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    s.body.ring_move(ring, s.plane).unwrap();
+    // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither of its faces wears once the ring is on the plane; what the pass restores is the row.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.ring_move(ring, s.plane))
+        .unwrap();
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
@@ -1008,16 +1030,19 @@ fn mfkrh_onto_a_second_key_sharing_a_recipe_mints_the_promoted_face_in_its_chart
 
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
+    // Lifts RechartStrandsDescriptions: the ring's lower rim names the first key, which neither of its faces wears once both sit on the second, and the second key is the row's subject.
     let made = s
         .body
-        .mfkrh_minting(
-            ring,
-            FaceSurface::Shared {
-                key: second,
-                sense: true,
-            },
-            tol(),
-        )
+        .lifting_rechart_refusals_for_tests(|b| {
+            b.mfkrh_minting(
+                ring,
+                FaceSurface::Shared {
+                    key: second,
+                    sense: true,
+                },
+                tol(),
+            )
+        })
         .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (4, 0));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
@@ -1078,7 +1103,10 @@ fn ring_move_onto_a_rowless_curved_face_drops_the_rows_and_tier_3_names_why() {
         .unwrap();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    s.body.ring_move(ring, s.plane).unwrap();
+    // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither of its faces wears once the ring joins the back on its own chart, and a rowless curved target is the row's premise.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.ring_move(ring, s.plane))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     loud_at_rest(&mut s.body);
@@ -1188,8 +1216,11 @@ fn ruling_site(s: &mut Sheet) -> (topo::HalfEdgeKey, topo::HalfEdgeKey, EdgeCurv
 /// keeps `m2→f`, `f→a`, `a→m1` and the minted `m1→m2`.
 fn split_low(s: &mut Sheet, surface: FaceSurface<f64>) -> topo::MefCreated {
     let (he1, he2, chord) = ruling_site(s);
+    // Lifts RechartStrandsDescriptions: the run's lower rim names the cylinder's key, which neither of its faces wears once the new face leaves it, and the run's rows are the subject wherever the new face lands.
     s.body
-        .mef(MefSite::Chords { he1, he2 }, chord, surface, tol())
+        .lifting_rechart_refusals_for_tests(|b| {
+            b.mef(MefSite::Chords { he1, he2 }, chord, surface, tol())
+        })
         .unwrap()
 }
 
@@ -1463,7 +1494,7 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_onto_the_plane() 
 fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door() {
     let mut s = sheet();
     let forged = forge(&mut s);
-    // Lifts both refusals: the forged key joining the cylinder to a plane is the row's premise.
+    // Lifts RechartStrandsDescriptions: the forged key joining the cylinder to a plane is the row's premise.
     s.body
         .set_face_surface_stranding_for_tests(
             s.low,
@@ -1504,22 +1535,28 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
             },
         )
         .unwrap();
-    s.body.ring_move(ring, s.plane).unwrap();
+    // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither of its faces wears once both sit on the forged key, and that key is the row's premise.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.ring_move(ring, s.plane))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10), "ring_move");
 
     let mut s = sheet();
     let forged = forge(&mut s);
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
+    // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither the promoted face on the forged key nor the back wears, and that key is the row's premise.
     let made = s
         .body
-        .mfkrh(
-            ring,
-            FaceSurface::Shared {
-                key: forged,
-                sense: true,
-            },
-        )
+        .lifting_rechart_refusals_for_tests(|b| {
+            b.mfkrh(
+                ring,
+                FaceSurface::Shared {
+                    key: forged,
+                    sense: true,
+                },
+            )
+        })
         .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4), "mfkrh");
 
@@ -1711,7 +1748,7 @@ fn kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart() {
 #[test]
 fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
     let mut s = sheet();
-    // Lifts both refusals: a minted cylinder face onto a plane its boundary misses is the row.
+    // Lifts RechartStrandsDescriptions: a minted cylinder face onto a plane its boundary misses is the row.
     s.body
         .set_face_surface_stranding_for_tests(
             s.low,
@@ -1745,7 +1782,7 @@ fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
 #[test]
 fn a_swap_onto_another_minting_chart_drops_the_rows_and_tier_3_names_the_face() {
     let mut s = sheet();
-    // Lifts both refusals: a face on a cylinder its boundary misses is the row.
+    // Lifts RechartStrandsDescriptions: a face on a cylinder its boundary misses is the row.
     s.body
         .set_face_surface_stranding_for_tests(
             s.low,
@@ -1789,7 +1826,7 @@ fn a_swap_drops_the_rows_of_every_loop_of_the_face() {
     assert_eq!(rows_of(&s.body, s.low), (8, 0));
     assert_eq!(s.body.get_face(s.low).unwrap().rings.len(), 1);
 
-    // Lifts both refusals: a face with a ring, onto a plane, is the row.
+    // Lifts RechartStrandsDescriptions: a face with a ring, onto a plane, is the row.
     s.body
         .set_face_surface_stranding_for_tests(
             s.low,
@@ -2222,11 +2259,26 @@ fn a_spline_destination_keeps_the_drop() {
     let (body, _) = both_doors(
         "ring_move",
         &body,
-        |b| b.ring_move(ring, up),
-        |b| b.ring_move_minting(ring, up, tol()),
+        // Lifts RechartUnvouched: the ring's edges name `low`'s key, and the spline drop onto `up`'s is the row.
+        |b| b.lifting_rechart_refusals_for_tests(|b| b.ring_move(ring, up)),
+        // Lifts RechartUnvouched: as its keys-only twin beside it.
+        |b| b.lifting_rechart_refusals_for_tests(|b| b.ring_move_minting(ring, up, tol())),
     );
     assert_eq!(rows_of(&body, up), (4, 6), "ring_move");
     assert_eq!(rows_deep(&body, up), up_before, "ring_move");
+}
+
+/// `op` on `body`, through the test-only lift unless `tied`: on one
+/// payload `Arc` the move re-reads the payload every certificate on
+/// the moved edges was taken on (`Body::same_chart`), so the real door
+/// takes it; on a deep copy no edge names the third key.
+fn unless_tied<R>(body: &mut Body<f64>, tied: bool, op: impl FnOnce(&mut Body<f64>) -> R) -> R {
+    if tied {
+        op(body)
+    } else {
+        // Lifts RechartUnvouched: on the copy no edge names the third key, and the row reads the door's writes across two charts.
+        body.lifting_rechart_refusals_for_tests(op)
+    }
 }
 
 /// `up` is first moved onto `low`'s key, so the demotion into `low`
@@ -2252,7 +2304,7 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
             .unwrap();
         s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);
-        s.body.ring_move(ring, s.plane).unwrap();
+        unless_tied(&mut s.body, tied, |b| b.ring_move(ring, s.plane)).unwrap();
         let want = if tied {
             (RING_ROWS, 6 + 4 - RING_ROWS)
         } else {
@@ -2273,16 +2325,16 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
             .unwrap();
         s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);
-        let made = s
-            .body
-            .mfkrh(
+        let made = unless_tied(&mut s.body, tied, |b| {
+            b.mfkrh(
                 ring,
                 FaceSurface::Shared {
                     key: keys[2],
                     sense: false,
                 },
             )
-            .unwrap();
+        })
+        .unwrap();
         let want = if tied {
             (RING_ROWS, 4 - RING_ROWS)
         } else {
@@ -2310,17 +2362,20 @@ fn mef_carries_the_runs_rows_across_one_payload() {
         let (he1, he2) = (he_at(&s.body, s.low, a), he_at(&s.body, s.low, c));
         let chord = || EdgeCurveSpec::line_between(a, c);
         let before = rows_deep(&s.body, s.low);
+        // Lifts RechartUnvouched: the refusal this row reads is the site mint's.
         let refused = s
             .body
-            .mef(
-                MefSite::Chords { he1, he2 },
-                chord(),
-                FaceSurface::Shared {
-                    key: keys[2],
-                    sense: true,
-                },
-                tol(),
-            )
+            .lifting_rechart_refusals_for_tests(|b| {
+                b.mef(
+                    MefSite::Chords { he1, he2 },
+                    chord(),
+                    FaceSurface::Shared {
+                        key: keys[2],
+                        sense: true,
+                    },
+                    tol(),
+                )
+            })
             .unwrap_err();
         assert_eq!(
             refused,
@@ -2334,9 +2389,8 @@ fn mef_carries_the_runs_rows_across_one_payload() {
 
         let fa = he_at(&s.body, s.low, at(U0, VM));
         assert!(s.body.detach_pcurve(fa).is_some());
-        let made = s
-            .body
-            .mef(
+        let made = unless_tied(&mut s.body, tied, |b| {
+            b.mef(
                 MefSite::Chords { he1, he2 },
                 chord(),
                 FaceSurface::Shared {
@@ -2345,7 +2399,8 @@ fn mef_carries_the_runs_rows_across_one_payload() {
                 },
                 tol(),
             )
-            .unwrap();
+        })
+        .unwrap();
         let want = if tied { (2, 1) } else { (0, 3) };
         assert_eq!(rows_of(&s.body, made.face), want, "tied: {tied}");
     }
@@ -2487,12 +2542,16 @@ fn mef_derives_the_parents_bit_on_its_chart_and_writes_the_stated_one_elsewhere(
                 .is_some()
         );
         let before = format!("{:?}", s.body);
-        let got = s.body.mef(
-            MefSite::Chords { he1, he2 },
-            EdgeCurveSpec::line_between(a, c),
-            spec.build(&s.body, keys[0], keys[2]),
-            tol(),
-        );
+        let spec_built = spec.build(&s.body, keys[0], keys[2]);
+        // Lifts RechartUnvouched: the row reads the bit the door writes off the parent's chart.
+        let got = s.body.lifting_rechart_refusals_for_tests(|b| {
+            b.mef(
+                MefSite::Chords { he1, he2 },
+                EdgeCurveSpec::line_between(a, c),
+                spec_built,
+                tol(),
+            )
+        });
         match (got, want) {
             (Ok(made), Ok((sense, carried))) => {
                 let got = (
@@ -2748,7 +2807,9 @@ fn mfkrh_rows(base: &Body<f64>, found: Vec<(FaceKey, LoopKey, bool)>, failures: 
             let on_chart = !matches!(spec, FaceSurface::New { .. });
             let mut b = base.clone();
             let before = format!("{b:?}");
-            match (b.mfkrh(ring, spec), want) {
+            // Lifts RechartStrandsDescriptions: the row reads the bit the door writes off the parent's chart.
+            let got = b.lifting_rechart_refusals_for_tests(|b| b.mfkrh(ring, spec));
+            match (got, want) {
                 (Ok(made), Ok(sense)) => {
                     if sense_of(&b, made.face) != sense {
                         failures.push(format!("{name}: want {sense}"));
@@ -2817,7 +2878,7 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
         "the patch faces the plane's way"
     );
     let plane_key = body.get_face(top).unwrap().surface;
-    // Lifts both refusals: the cap re-charted onto its own flat patch is the row's premise.
+    // Lifts RechartStrandsDescriptions: the cap re-charted onto its own flat patch is the row's premise.
     let own = body
         .set_face_surface_stranding_for_tests(
             top,

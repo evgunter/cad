@@ -1,7 +1,7 @@
 ---
 id: rest-zip-frontier-refusals-reached-by-no-row
 kind: issue
-title: "zip: none of the rest zip's sixteen typed sub-frontier refusals is reached by any row, so which are gates and which are dead is unmeasured"
+title: "zip: none of the rest zip's fifteen typed sub-frontier refusals is reached by any row, so which are gates and which are dead is unmeasured"
 status: open
 opened: 2026-10-01
 priority: P3
@@ -11,17 +11,17 @@ cost: M
 ## Finding
 
 `topo::RestZipFrontier` (`crates/topo/src/boolean/refusal_routes.rs`)
-names sixteen sub-frontiers the declared-REST zip
+names fifteen sub-frontiers the declared-REST zip
 (`crates/topo/src/boolean/rest.rs`) refuses at. One is reached by an
 end-to-end fixture: `ChordBetweenIsolatedPierces`
-(`crates/topo/tests/seat3_flush_detector.rs`). The other fifteen are
+(`crates/topo/tests/seat3_flush_detector.rs`). The other fourteen are
 constructed only as values, by the refusal-text rows in
 `boolean/mod.rs` (`every_rest_zip_frontier_ends_in_its_own_lever_and_no_declaration`
 and the display table), which assert their wording and reach none of
 their sites:
 
-- seam realization (`realize_seam`, `fan_edge_between`, `mint_chord`):
-  `ParallelSeamEdges`, `ChordMefRefused`, `ChordMekrRefused`,
+- seam realization (`realize_seam`, `mint_chord`):
+  `ChordMefRefused`, `ChordMekrRefused`,
   `PierceRingMekrRefused`, `ChordEndpointAbsent`,
   `ChordEndpointRevisited`;
 - patch pairing (`pair_patches`): `PatchVertexUnmatched`,
@@ -91,3 +91,20 @@ all; on main 0abf909cb the reflex battery reached it on 8 poses
 (`ChordBetweenIsolatedPierces` among them, `sqQ2` unions), which the
 join now builds or refuses before the zip runs. All sixteen sub-frontiers
 are reached by no row.
+
+## Now seventeen (JOIN-2, PR 3880)
+
+The zip reads the join's segments and realizes them outward from the
+contact faces' boundary (`realize_seam`). Segments left whose ends are
+all pierce-ring vertices joined to nothing refuse there as
+`SegmentsBetweenIsolatedPierces`, which has a reaching row:
+`join2_r2_probes`'s
+`an_island_of_ring_vertex_segments_refuses_at_the_zip_frontier` (a
+channel arm's top an island inside a plate's face, through the zip).
+The same pose's battery, `join2_r2_island_through_the_zip`, refuses
+there on all 16 union lines, as main refused them at
+`ChordBetweenIsolatedPierces`. `ChordBetweenIsolatedPierces` stays
+`mint_chord`'s, reachable from `mirror_edges`; no line of JOIN-2's
+reviewers' batteries (`join2_r1_probes` with its grid,
+`join2_r2_probes`, `join2_d_probes`; 35 208 lines) reaches it at the
+head, and no row pins it. The other fifteen are reached by no row.

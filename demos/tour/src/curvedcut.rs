@@ -81,19 +81,10 @@ const C_ARCS: (f64, f64, f64) = (-0.5, 0.25, 0.15);
 /// Half the C's opening, about +x from its centre (rad).
 const C_GAP: f64 = PI / 4.0;
 
-/// How the C's two sides are drawn.
-#[derive(Clone, Copy)]
-enum Sides {
-    /// One arc per side: the spelling a user writes first.
-    OneArc,
-    /// Each side as two arcs meeting tangent at the C's leftmost point.
-    SplitAtApex,
-}
-
 /// The C's outline: the annular sector about [`C_ARCS`]'s centre
-/// between its two radii, open over 2·[`C_GAP`] facing +x, with its
-/// sides drawn per `sides`.
-fn c_outline<S: Scalar>(sides: Sides, tol: Tol) -> ConstructedLoop<S> {
+/// between its two radii, open over 2·[`C_GAP`] facing +x, each side
+/// one arc.
+fn c_outline<S: Scalar>(tol: Tol) -> ConstructedLoop<S> {
     let (cx, ro, ri) = C_ARCS;
     let at = |r: f64, a: f64| p2::<S>(cx + r * a.cos(), r * a.sin());
     let about = |winding, p| Center {
@@ -103,50 +94,26 @@ fn c_outline<S: Scalar>(sides: Sides, tol: Tol) -> ConstructedLoop<S> {
     };
     let (start, outer_end) = (at(ro, C_GAP), at(ro, -C_GAP));
     let (inner_start, inner_end) = (at(ri, -C_GAP), at(ri, C_GAP));
-    match sides {
-        Sides::OneArc => Open
-            .at(start)
-            .arc_to(about(ArcSweep::Ccw, outer_end), tol)
-            .expect("the C's outer arc")
-            .line_to(inner_start, tol)
-            .expect("its lower terminal")
-            .arc_to(about(ArcSweep::Cw, inner_end), tol)
-            .expect("the C's inner arc")
-            .line_to(Start, tol)
-            .expect("its upper terminal closes the C")
-            .into(),
-        Sides::SplitAtApex => Open
-            .at(start)
-            .arc_to(about(ArcSweep::Ccw, p2(cx - ro, 0.0)), tol)
-            .expect("the C's outer arc, to its leftmost point")
-            .tangent()
-            .tangent_arc_to(outer_end, tol)
-            .expect("and on round to its lower end")
-            .line_to(inner_start, tol)
-            .expect("its lower terminal")
-            .arc_to(about(ArcSweep::Cw, p2(cx - ri, 0.0)), tol)
-            .expect("the C's inner arc, to its leftmost point")
-            .tangent()
-            .tangent_arc_to(inner_end, tol)
-            .expect("and on round to its upper end")
-            .line_to(Start, tol)
-            .expect("its upper terminal closes the C")
-            .into(),
-    }
+    Open.at(start)
+        .arc_to(about(ArcSweep::Ccw, outer_end), tol)
+        .expect("the C's outer arc")
+        .line_to(inner_start, tol)
+        .expect("its lower terminal")
+        .arc_to(about(ArcSweep::Cw, inner_end), tol)
+        .expect("the C's inner arc")
+        .line_to(Start, tol)
+        .expect("its upper terminal closes the C")
+        .into()
 }
 
 /// C: the annular sector of [`c_outline`], sweeping θ = 2π − 2·[`C_GAP`]
 /// and enclosing (θ/2)(r_o² − r_i²).
-///
-/// Its sides are split at the apex: drawn as one arc each, the C cuts
-/// no pocket (`work/zip/an-engraved-annular-sector-refuses-seam-orientation.md`,
-/// wall 4 in [`walls`]).
 fn glyph_c<S: Scalar>(tol: Tol) -> Glyph<S> {
     let (_, ro, ri) = C_ARCS;
     let sweep = 2.0 * PI - 2.0 * C_GAP;
     Glyph {
         name: "C",
-        outline: c_outline(Sides::SplitAtApex, tol),
+        outline: c_outline(tol),
         area: sweep / 2.0 * (ro * ro - ri * ri),
     }
 }
@@ -453,15 +420,6 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
             )
         },
         "engrave the cap after the cut, the natural order, and retire this probe",
-    );
-    let c_whole = tool(level(H - DEPTH), c_outline(Sides::OneArc, tol), tol);
-    crate::walls::wall(
-        "tilted cut",
-        4,
-        "engrave the C drawn with one arc per side into the cylinder's cap",
-        try_subtract(&cut.stages[0], &c_whole, tol),
-        |e| matches!(e, BooleanError::SeamOrientation { .. }),
-        "draw glyph_c with Sides::OneArc and retire this probe",
     );
 }
 

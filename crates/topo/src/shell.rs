@@ -1559,34 +1559,37 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             // The promoted face faces the HOST's way on the host's
             // surface: a ring of the guest is wound opposite to the
             // guest's outer loop, i.e. the way an outer loop of a
-            // host-facing face must be. The lift re-charted the
+            // host-facing face must be. It is minted on the guest's
+            // chart, which its ring's descriptions name, then moved
+            // onto the host's with them: the lift re-charted the
             // counterpart onto a surface of its own, so the host's key
-            // is never the guest's chart, and `mfkrh` writes the
-            // host's bit as stated.
+            // is never the guest's chart, and the move writes the
+            // host's bit as stated. The ring lies on the host's plane
+            // too — the lift put the two planes on top of each other —
+            // so each re-description is a key swap with the carrier
+            // untouched, certified against the geometry.
             // Tier 3's check 6 reads `sense` against the stored loop
             // windings on every planar face, and check 7 reads the
             // volume the same windings integrate, so a flip either way
             // reds at the verb's own closing `validate_geometric`.
+            let rim_error = |error| ShellError::Rim {
+                face: designated,
+                error,
+            };
             let made = out
-                .mfkrh(
-                    guest_ring,
-                    crate::euler::FaceSurface::Shared {
-                        key: host_surface,
-                        sense: host_sense,
-                    },
-                )
-                .map_err(|error| ShellError::Rim {
-                    face: designated,
-                    error,
-                })?;
-            rename_loop_surface(
-                &mut out,
-                guest_ring,
-                guest_surface,
-                host_surface,
+                .mfkrh(guest_ring, crate::euler::FaceSurface::Inherit)
+                .map_err(rim_error)?;
+            let specs = loop_rekeyed(&out, guest_ring, guest_surface, host_surface)?;
+            out.set_face_surfaces_describing(
+                vec![crate::attach::Rechart::shared(
+                    host_surface,
+                    made.face,
+                    host_sense,
+                )],
+                &specs,
                 tol,
-                designated,
-            )?;
+            )
+            .map_err(rim_error)?;
             promoted.push((made.face, host_ring));
         }
 
@@ -1934,8 +1937,18 @@ fn canonicalize_chart<T: Decide>(
 
     // ---- 2 and 3: proper loops. ----
     while let Some((r#loop, he1, he2)) = duplicate_in_loop(body, anchor) {
-        let far = |he| body.half_edge_end(he);
-        if far(he1).is_some_and(|v| valence(body, v) == 1) {
+        // Whether `he` ends at a valence-one tip, which `kev` kills; a
+        // far vertex whose valence cannot be read refuses.
+        let tip = |body: &Body<T>, he: HeKey| -> Result<bool, ShellError<T>> {
+            let far = body.half_edge_end(he).ok_or(ShellError::Corrupt {
+                key: EntityId::HalfEdge(he),
+            })?;
+            let valence = valence(body, far).ok_or(ShellError::Corrupt {
+                key: EntityId::Vertex(far),
+            })?;
+            Ok(valence == 1)
+        };
+        if tip(body, he1)? {
             let killed = body.kev(he1).map_err(|error| ShellError::Rim {
                 face: anchor,
                 error,
@@ -1944,7 +1957,7 @@ fn canonicalize_chart<T: Decide>(
             dead.vertices.push(killed.killed_vertex);
             continue;
         }
-        if far(he2).is_some_and(|v| valence(body, v) == 1) {
+        if tip(body, he2)? {
             let killed = body.kev(he2).map_err(|error| ShellError::Rim {
                 face: anchor,
                 error,
@@ -2114,12 +2127,10 @@ fn split_cycle<T: Real>(
     }
 }
 
-/// How many edges emanate from a vertex.
-fn valence<T: Real>(body: &Body<T>, vertex: crate::entity::VertexKey) -> usize {
-    body.get_vertex(vertex)
-        .and_then(|d| d.emanating)
-        .and_then(|he| body.vertex_orbit(he))
-        .map_or(0, |orbit| orbit.len())
+/// How many edges emanate from a vertex: `None` where its orbit does
+/// not read ([`Body::vertex_orbit_of`]), which is not a valence.
+fn valence<T: Real>(body: &Body<T>, vertex: crate::entity::VertexKey) -> Option<usize> {
+    body.vertex_orbit_of(vertex).map(|orbit| orbit.len())
 }
 
 /// Sampled points along a run of half-edges — each edge at the
@@ -2320,6 +2331,22 @@ fn rename_loop_surface<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
     rim: FaceKey,
 ) -> Result<(), ShellError<T>> {
+    for (edge, spec) in loop_rekeyed(body, r#loop, dead, live)? {
+        body.set_edge_curve(edge, spec, tol)
+            .map_err(|error| ShellError::Rim { face: rim, error })?;
+    }
+    Ok(())
+}
+
+/// Every edge on `r#loop`, in cycle order, with its stored description
+/// restated naming `live` wherever it names `dead`, carrier and
+/// interval verbatim.
+fn loop_rekeyed<T: Decide>(
+    body: &Body<T>,
+    r#loop: crate::entity::LoopKey,
+    dead: crate::geometry::SurfaceKey,
+    live: crate::geometry::SurfaceKey,
+) -> Result<Vec<(crate::entity::EdgeKey, geom_brep::EdgeCurveSpec<T>)>, ShellError<T>> {
     let corrupt = |key| ShellError::Corrupt { key };
     let ring = r#loop;
     let LoopBoundary::Cycle { first } = body
@@ -2327,7 +2354,7 @@ fn rename_loop_surface<T: Decide + crate::props::AtRestPolicy>(
         .ok_or_else(|| corrupt(EntityId::Loop(ring)))?
         .boundary
     else {
-        return Ok(());
+        return Ok(Vec::new());
     };
     let cycle = body
         .loop_cycle(first)
@@ -2361,11 +2388,7 @@ fn rename_loop_surface<T: Decide + crate::props::AtRestPolicy>(
             },
         ));
     }
-    for (edge, spec) in specs {
-        body.set_edge_curve(edge, spec, tol)
-            .map_err(|error| ShellError::Rim { face: rim, error })?;
-    }
-    Ok(())
+    Ok(specs)
 }
 
 /// **The closed-form wall-clearance gate** (module docs). Every pair of
@@ -2748,4 +2771,27 @@ fn face_neighbours<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Vec<FaceKey
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// A vertex whose orbit does not walk has no valence to answer, so
+    /// the read refuses rather than answer zero, which the spur test
+    /// reads as "not a tip" and sends to the slit's `kemr`. A lone
+    /// vertex meets no edge and answers zero.
+    #[test]
+    fn valence_refuses_a_vertex_whose_orbit_does_not_walk() {
+        let (body, halves, v) = crate::fixtures::torn_cube_closing_through_another_vertex();
+        assert_eq!(valence(&body, v), None, "the torn walk");
+        let cube = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let start = body.get_half_edge(halves[11]).unwrap().start;
+        assert_eq!(start, v);
+        assert_eq!(valence(&cube, v), Some(3), "the same vertex untorn");
+        let lone = crate::fixtures::mvfs_state();
+        assert_eq!(valence(&lone.body, lone.vertex), Some(0), "a lone vertex");
+        assert_eq!(valence(&cube, VertexKey::default()), None, "a stale vertex");
+    }
 }

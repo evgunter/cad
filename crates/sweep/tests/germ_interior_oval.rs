@@ -724,7 +724,7 @@ fn nurbs_bump() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .expect("the block has a top face");
-    // Lifts both refusals: the bump's net is the fixture; the top edges stay the lines they were.
+    // Lifts RechartStrandsDescriptions: the bump's net is the fixture; the top edges stay the lines they were.
     body.set_face_surface_stranding_for_tests(
         top,
         topo::FaceSurface::New {

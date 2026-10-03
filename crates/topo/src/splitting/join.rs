@@ -64,8 +64,8 @@ use super::order;
 use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, ConicCrossingsCase, CutOutcome, FragmentRows, JoinLane, Leave, SectionCase,
-    SectionCtx, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
+    ChordJoiner, ConicCrossingsCase, CutOutcome, FragmentRows, Leave, SectionCase, SectionCtx,
+    SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
     vertex_point, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -157,8 +157,16 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
         for (slot, half) in [(0, up), (1, down)] {
             if let Some(end) = st.take_neighbor(&red.body, half)? {
                 let leave = Leave {
-                    h1: split_leave(&red.body, red.plane.normal, &st.above_set, end)?,
-                    h2: split_leave(&red.body, red.plane.normal, &st.above_set, half)?,
+                    at: [
+                        (
+                            end,
+                            split_leave(&red.body, red.plane.normal, &st.above_set, end)?,
+                        ),
+                        (
+                            half,
+                            split_leave(&red.body, red.plane.normal, &st.above_set, half)?,
+                        ),
+                    ],
                 };
                 let Sweep {
                     joiner, section, ..
@@ -167,9 +175,10 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                     &mut red.body,
                     end,
                     half,
-                    JoinLane::Split(section),
-                    crate::chord_join::SegmentEdge::InPlane,
-                    leave,
+                    crate::chord_join::Chords::Split {
+                        ctx: section,
+                        leave,
+                    },
                     tol,
                 )?;
                 joined[slot] = true;

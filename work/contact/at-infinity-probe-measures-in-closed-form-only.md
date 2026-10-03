@@ -81,3 +81,24 @@ offset in the face's frame ((0, 0), (0.3, 0.2), (−0.2, −0.3)).
   `VolumeUncertified`.
 - Arc-bearing glyphs on the section face stop earlier, at the curved
   pierce arm (`work/reach/non-circle-conic-edge-refuses-against-every-curved-face.md`).
+
+## More consumers (JOIN-3's dual review)
+
+JOIN-3 builds blind and through D pockets whose profiles are tilted
+against the block, so the block's caps cut ellipse arcs; every one of
+those builds is sound (tiers 2, 3′, the certificate, the closed form)
+and is not a legal operand: the far-brick union refuses
+`Containment(VolumeUncertified)`, this probe's refusal. Measured
+release, main against JOIN-3's fix-pass head (the batteries are
+`#[ignore]`d in `crates/sweep/tests/`):
+
+| battery | non-operands, main / head |
+|---|---|
+| `join3_r2_probes::j3r2_tilted_battery` (D, stadium, lens… tilted 0.15 / 0.3 rad) | 576 / 2153 |
+| `join3_review_r1::j3r1_tilted_through` (random bulge profiles tilted 0.05–0.45 rad) | 460 / 526 |
+| `join3_review_r1::j3r1_d_family` (the D tilted 0.2 and 0.6) | 0 / 144 |
+
+Main already fails the gate the same way on its own tilted builds, and
+on a tilted ROUND pocket (`j3r2_tilted_rod_operand`); the tilted cutters
+themselves are legal operands (`j3r2_tilted_operands`, 89 of 90). No
+other non-operand kind appears.

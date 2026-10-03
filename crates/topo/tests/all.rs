@@ -121,6 +121,8 @@ mod graft_disjoint;
 mod h14_census_deferrals;
 #[path = "hollow_island.rs"]
 mod hollow_island;
+#[path = "inside_out_operand.rs"]
+mod inside_out_operand;
 #[path = "interval_body.rs"]
 mod interval_body;
 #[path = "issue86_double_subtract.rs"]

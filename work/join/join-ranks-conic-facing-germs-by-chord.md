@@ -53,6 +53,17 @@ candidate set without its `is_up` filter (`join.rs:700`), which may
 already exclude some back-to-back pairs; `loose_partners` has no such
 filter. A fix measures which of the two the hazard reaches first.
 
+## JOIN-3 (re-measure owed)
+
+The hazard above went red on the blind D pocket's ring-run winding
+(`Zero`). Since JOIN-3 the ring lane closes its run with the chord the
+join mints rather than the straight one, and the blind D builds from
+both faces, so the arc ranking's cost should be re-measured on that
+head. A second shape of the same ranking, unmeasured: sites on one
+conic where the true partner lies more than a half turn away along the
+arc, and another opposed-sense site past it, nearer by chord
+(`2r·sin(Δ/2)` falls past `Δ = π`).
+
 ## Measured and fixed (2026-10-03, PR 3985, `reach/arc-from-pairing`)
 
 Reached on a whole body, in the suite:
@@ -74,4 +85,6 @@ near germ's walk (`walk_passes`, `bool_join_walk_site` /
 ranking among valid pairs is untouched, so a match where chord-nearest
 already was walk-nearest keeps its surgery order — the hazard this item
 recorded (`axis_lap::a_blind_d_pocket_builds_from_below_and_refuses_from_above`)
-stays green. `loose_partners` shares `partners`, so it sees the same set.
+stays green. `loose_partners` shares `partners`, so it sees the same set. It also answers the second shape above: a site with
+another site of the locus between it and its partner along the walk is
+never matched, whatever the chord lengths.

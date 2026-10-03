@@ -2,10 +2,11 @@
 id: the-carved-balls-clearance-row-is-vacuous-on-main
 kind: issue
 title: tilted_sphere_pair_k_rows' clearance row is red on main under --features probe: no bool_circle_curved_clearance is asked, so the row calls itself vacuous
-status: review
+status: closed
 opened: 2026-10-03
 pr: 3957
 branch: cleave/all-features-row
+closed: 2026-10-03
 ---
 
 

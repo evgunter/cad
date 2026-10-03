@@ -355,6 +355,24 @@ pub mod test_support {
         crate::boolean::through_the_join(op, a, b, tol)
     }
 
+    /// The join's own refusal of `op` under `decls`, before the
+    /// declared-REST door may take it over (`boolean::join_refusal`):
+    /// `None` where the join connects. A declared union that builds
+    /// while this is `Some` was built by the zip.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's refusal.
+    pub fn boolean_join_refusal(
+        op: crate::BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        decls: &crate::BooleanDeclarations,
+        tol: geom_core::Tol,
+    ) -> Result<Option<crate::BooleanError>, crate::BooleanError> {
+        crate::boolean::join_refusal(op, a, b, decls, tol)
+    }
+
     /// The direct split run through its join: the scratch body with
     /// every null edge killed, before the finish and the closing mint
     /// (`splitting::through_the_join`).
@@ -642,7 +660,9 @@ pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-pub use euler::{EulerOpError, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+pub use euler::{
+    EulerOpError, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated, RechartDoor,
+};
 pub use euler_kill::{KefResult, KevResult, KvfsResult, MergedMember, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // The types that appear in this crate's own operator signatures, so a
@@ -670,8 +690,8 @@ pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
-    MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup,
-    OutlineVerdict, SkippedMerge,
+    DihedralReading, EdgeDescribeFailure, MergeCoplanarError, MergeCoplanarOutcome, MergeDecision,
+    MergeKind, MergedGroup, OutlineVerdict, SkippedMerge,
 };
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
