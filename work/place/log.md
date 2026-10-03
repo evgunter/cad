@@ -105,3 +105,18 @@ A fresh lane ran the fix pass from the union of both reviews (the original lane'
 - an ordered root comparison.
 
 The ordered comparison exposed the interleaved-cut root order. It is filed as `a4-round-trip-moves-the-root-order-of-an-interleaved-cut` and goes to Ev as a wording question on A4's acceptance.
+
+## 2026-10-03 — a `FromFace` mate side names no face (PR 3934, DR-61)
+
+Ev's face ruling on `[ev]` #3888, built: the frame is the head's own face, it crosses split and inline with its head, and `Rebind` repairs it by construction. This closes MSOLVE's Rebind row, which moved here.
+
+Review: dual, a concurrent Opus pair (class H), on frozen head `fd2e3daa67`. Both returned APPROVE-WITH-FIXES with no MAJOR, so the tally is 0.
+
+A fresh lane ran the fix pass from the union of both reviews:
+- the wire reads only the bare `"FromFace"`;
+- a seam row pins the pattern-copy read;
+- the descent has one home in `Walk` (`head_face`, `member_reading`);
+- `NoPartFace` is pinned and states a recourse;
+- the docs state only the reachable cases.
+
+Next on this ground: the general mate frame (`MateFrame { base, offset }`, `[ev]` #3920) and the root-order docs and tests (`[ev]` #3939).
