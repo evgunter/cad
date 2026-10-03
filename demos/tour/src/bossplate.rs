@@ -27,18 +27,20 @@ use pncad::authoring::{p2, polygon, v3, validated};
 use pncad::geom_core::Affine3;
 use pncad::profile::{SketchPlane, circle_split};
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{Body, BooleanBody, BooleanResult, Curve3};
+use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanResult, Curve3};
+
+use crate::booleans::finished;
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
 
 /// The plate: a 4×4×1 block, z ∈ [0, 1].
-fn plate<S: Scalar>(tol: Tol) -> Body<S> {
+fn plate<S: Scalar>(tol: Tol) -> AtRestBody<S> {
     let lp =
         polygon(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], tol).expect("plate outline");
     let profile = validated(SketchPlane::xy(), vec![lp], tol).unwrap();
-    extrude(
+    let body = extrude(
         &profile,
         Extrusion::Distance {
             depth: S::from_f64(1.0),
@@ -47,13 +49,14 @@ fn plate<S: Scalar>(tol: Tol) -> Body<S> {
         tol,
     )
     .unwrap()
-    .body
+    .body;
+    finished("the plate", body, tol)
 }
 
 /// The boss: radius 0.5 about (2, 2), three 120° arcs, sketched at
 /// z = 0.4 (strictly inside the plate), extruded 1.2 → pokes out to
 /// z = 1.6.
-fn boss<S: Scalar>(tol: Tol) -> Body<S> {
+fn boss<S: Scalar>(tol: Tol) -> AtRestBody<S> {
     // The DECLARED-SUBDIVISION carrier (`circle_split`), not `circle`:
     // this boss is deliberately split into THREE 120-degree arcs of one
     // carrier, because the stop's whole point is a transverse curved
@@ -65,7 +68,7 @@ fn boss<S: Scalar>(tol: Tol) -> Body<S> {
         .expect("the three-arc rim authors");
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, 0.4)));
     let profile = validated(plane, vec![rim.into()], tol).unwrap();
-    extrude(
+    let body = extrude(
         &profile,
         Extrusion::Distance {
             depth: S::from_f64(1.2),
@@ -74,7 +77,8 @@ fn boss<S: Scalar>(tol: Tol) -> Body<S> {
         tol,
     )
     .unwrap()
-    .body
+    .body;
+    finished("the boss", body, tol)
 }
 
 /// The union (a seamed boolean body — 3′ validates with its own
@@ -177,9 +181,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         // Routed by `crate::declares_no_contacts`; this transverse
         // union declares none and passes plain tier 3 in full.
         bodies: vec![if crate::declares_no_contacts(&bb.contacts) {
-            SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body)
+            SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body.into_body())
         } else {
-            SceneBody::seamed("bossplate", [0.85, 0.55, 0.25], bb.body, bb.contacts)
+            SceneBody::seamed(
+                "bossplate",
+                [0.85, 0.55, 0.25],
+                bb.body.into_body(),
+                bb.contacts,
+            )
         }],
     }]
 }

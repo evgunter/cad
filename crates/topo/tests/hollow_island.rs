@@ -13,9 +13,9 @@
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
-use topo::{Body, BooleanBody, BooleanResult, BooleanResultKind, ShellRole};
+use topo::{AtRestBody, Body, BooleanBody, BooleanResult, BooleanResultKind, ShellRole};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -28,12 +28,17 @@ fn body_of(r: BooleanResult<f64>) -> BooleanBody<f64> {
     }
 }
 
-fn cube(lo: f64, hi: f64) -> Body<f64> {
-    brick((lo, hi), (lo, hi), (lo, hi), tol())
+fn cube(lo: f64, hi: f64) -> AtRestBody<f64> {
+    finished("cube", brick((lo, hi), (lo, hi), (lo, hi), tol()), tol())
+}
+
+/// The brick `x × y × z`, finished.
+fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
+    finished("block", brick(x, y, z, tol()), tol())
 }
 
 /// `cube(lo..hi)` with each `(lo, hi)` cube of `cavities` carved out.
-fn hollow(lo: f64, hi: f64, cavities: &[(f64, f64)]) -> Body<f64> {
+fn hollow(lo: f64, hi: f64, cavities: &[(f64, f64)]) -> AtRestBody<f64> {
     cavities.iter().fold(cube(lo, hi), |body, &(a, b)| {
         body_of(topo::subtract(&body, &cube(a, b), tol()).expect("the cavity carves")).body
     })
@@ -115,26 +120,30 @@ fn assert_graft_lineage(r: &BooleanBody<f64>, what: &str) {
 
 use ShellRole::{Outer, Void};
 
-fn subtract(a: &Body<f64>, b: &Body<f64>) -> BooleanBody<f64> {
+fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
     body_of(topo::subtract(a, b, tol()).expect("the subtraction runs"))
 }
 
-fn union(a: &Body<f64>, b: &Body<f64>) -> BooleanBody<f64> {
+fn union(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
     body_of(topo::union(a, b, tol()).expect("the union runs"))
 }
 
 /// The unit's own operand pair's result: `cube(0..6) ∖ shell(cube(2..4),
 /// 0.25)`.
 fn hollow_b_result() -> BooleanBody<f64> {
-    let b = topo::shell(&cube(2.0, 4.0), 0.25, tol())
-        .expect("the small cube shells")
-        .body;
+    let b = finished(
+        "the shelled cube",
+        topo::shell(&cube(2.0, 4.0), 0.25, tol())
+            .expect("the small cube shells")
+            .body,
+        tol(),
+    );
     subtract(&cube(0.0, 6.0), &b)
 }
 
 /// `hollow(lo, hi, cavity)` with `cube(island)` standing in its cavity:
 /// two pieces, so a body of two solids.
-fn hollow_with_island(lo: f64, hi: f64, cavity: (f64, f64), island: (f64, f64)) -> Body<f64> {
+fn hollow_with_island(lo: f64, hi: f64, cavity: (f64, f64), island: (f64, f64)) -> AtRestBody<f64> {
     let r = union(&hollow(lo, hi, &[cavity]), &cube(island.0, island.1));
     assert_eq!(
         r.body.solids().count(),
@@ -175,7 +184,7 @@ fn the_two_solid_result_is_the_next_booleans_operand() {
         ],
         "a cavity cut far from the island",
     );
-    let crossing = subtract(&r, &brick((5.5, 6.5), (0.5, 1.5), (0.5, 1.5), tol()));
+    let crossing = subtract(&r, &block((5.5, 6.5), (0.5, 1.5), (0.5, 1.5)));
     assert_eq!(crossing.kind, BooleanResultKind::Seamed);
     assert_grouping(
         &crossing.body,
@@ -190,7 +199,7 @@ fn the_two_solid_result_is_the_next_booleans_operand() {
 #[test]
 fn a_channel_into_the_cavity_leaves_the_island_its_own_solid() {
     let r = hollow_b_result().body;
-    let channel = brick((3.9, 6.5), (2.5, 3.5), (2.5, 3.5), tol());
+    let channel = block((3.9, 6.5), (2.5, 3.5), (2.5, 3.5));
     let cut = subtract(&r, &channel);
     assert_grouping(
         &cut.body,
@@ -329,13 +338,9 @@ fn a_disjoint_union_is_two_solids_and_an_operand() {
         "side by side",
     );
 
-    let pair = union(
-        &cube(0.0, 1.0),
-        &brick((3.0, 4.0), (0.0, 1.0), (0.0, 1.0), tol()),
-    )
-    .body;
+    let pair = union(&cube(0.0, 1.0), &block((3.0, 4.0), (0.0, 1.0), (0.0, 1.0))).body;
     assert_grouping(&pair, &[(&[Outer], 1.0), (&[Outer], 1.0)], "two cubes");
-    let notched = subtract(&pair, &brick((0.5, 3.5), (0.25, 0.75), (0.5, 1.5), tol()));
+    let notched = subtract(&pair, &block((0.5, 3.5), (0.25, 0.75), (0.5, 1.5)));
     assert_grouping(
         &notched.body,
         &[(&[Outer], 1.0 - 0.125), (&[Outer], 1.0 - 0.125)],
@@ -376,7 +381,7 @@ fn a_seamed_subtract_files_the_island_inside_the_merged_cavity() {
 /// door): the cavity's two enclosers stand at one depth, so the shells
 /// cross and no verb can tell which piece the cavity belongs to.
 fn crossing_body() -> Body<f64> {
-    let mut body = cube(0.0, 2.0);
+    let mut body = cube(0.0, 2.0).into_body();
     topo::graft_disjoint_all_keyed(
         &mut body,
         &brick((0.5, 1.5), (-1.0, 3.0), (0.5, 1.5), tol()),
@@ -393,7 +398,11 @@ fn crossing_body() -> Body<f64> {
 #[test]
 fn every_verb_refuses_a_body_whose_pieces_cannot_be_read() {
     let body = crossing_body();
-    match topo::subtract(&body, &cube(10.0, 11.0), tol()) {
+    match topo::subtract(
+        &finished("the crossing body", body.clone(), tol()),
+        &cube(10.0, 11.0),
+        tol(),
+    ) {
         Err(topo::BooleanError::Pieces(topo::PieceSortError::Crossing { .. })) => {}
         other => panic!("the boolean: {:?}", other.map(|_| ())),
     }
@@ -419,9 +428,13 @@ fn every_verb_refuses_a_body_whose_pieces_cannot_be_read() {
 /// cavity between, through a far cut.
 #[test]
 fn a_cube_inside_a_cube_under_one_solid_refuses_as_overlapping() {
-    let mut body = cube(0.0, 6.0);
+    let mut body = cube(0.0, 6.0).into_body();
     topo::graft_disjoint_all_keyed(&mut body, &cube(2.0, 4.0)).unwrap();
-    let body = body.with_solids_merged_for_tests();
+    let body = finished(
+        "the overlapping body",
+        body.with_solids_merged_for_tests(),
+        tol(),
+    );
     match topo::subtract(&body, &cube(10.0, 11.0), tol()) {
         Err(topo::BooleanError::Pieces(topo::PieceSortError::Overlapping { .. })) => {}
         other => panic!("{:?}", other.map(|_| ())),

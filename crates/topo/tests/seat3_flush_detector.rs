@@ -16,7 +16,7 @@
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::flush::{FlushRefusal, FlushRung, declare, declare_all, find_flush_candidates};
 use topo::{
@@ -26,10 +26,19 @@ use topo::{
 
 /// A flush stack: two bricks meeting on z = 1, independently authored
 /// (so no shared source — the geometric rung decides).
-fn stacked() -> (Body<f64>, Body<f64>) {
+fn stacked() -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
+    let tol = Tol::witness();
     (
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
-        brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness()),
+        finished(
+            "the lower brick",
+            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        ),
+        finished(
+            "the upper brick",
+            brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), tol),
+            tol,
+        ),
     )
 }
 
@@ -263,10 +272,19 @@ fn a_declared_report_is_a_set_and_the_whole_set_builds() {
 
 /// The order fixture: `b` rests on `a`'s top cap AND their x = 1 walls
 /// are flush, so the report holds two findings of different relations.
-fn stepped() -> (Body<f64>, Body<f64>) {
+fn stepped() -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
+    let tol = Tol::witness();
     (
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
-        brick((0.5, 1.0), (0.25, 0.75), (1.0, 2.0), Tol::witness()),
+        finished(
+            "the cube",
+            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        ),
+        finished(
+            "the bar",
+            brick((0.5, 1.0), (0.25, 0.75), (1.0, 2.0), tol),
+            tol,
+        ),
     )
 }
 

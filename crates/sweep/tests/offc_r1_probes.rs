@@ -22,6 +22,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::finished;
 use topo::{Body, CurveGeom, FaceKey, FaceSurface};
 
 use crate::common;
@@ -409,7 +410,9 @@ fn a_boolean_against_the_twisted_approx_body_refuses_typed() {
     let Some((a, _)) = twisted_approx() else {
         return;
     };
-    let e = topo::union(&a, &moved_box(), Tol::witness())
+    let a = finished("the twisted Approx body", a, Tol::witness());
+    let b = finished("the moved box", moved_box(), Tol::witness());
+    let e = topo::union(&a, &b, Tol::witness())
         .expect_err("a lofted Approx operand is outside the boolean envelope");
     assert!(
         matches!(e, topo::BooleanError::CurvedEdgeUnsupported { .. }),
@@ -448,7 +451,9 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
         },
     )
     .expect("the attach-layer door accepts a live face");
-    let e = topo::union(&a, &moved_box(), Tol::witness())
+    let a = finished("the box with an Approx cap", a, Tol::witness());
+    let b = finished("the moved box", moved_box(), Tol::witness());
+    let e = topo::union(&a, &b, Tol::witness())
         .expect_err("an Approx operand is unsupported-kind for the boolean gate");
     assert!(
         matches!(

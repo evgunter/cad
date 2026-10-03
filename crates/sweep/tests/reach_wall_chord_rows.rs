@@ -34,8 +34,8 @@ use core::f64::consts::{FRAC_1_SQRT_2, PI};
 use crate::common::germ_pair::cyl;
 use crate::common::operands::{framed_bar, three_arc_cylinder};
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use sweep::test_support::brick;
-use topo::{Body, BooleanError, BooleanResult};
+use sweep::test_support::{brick, finished};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 /// What one op must answer.
 #[derive(Clone, Copy, Debug)]
@@ -69,7 +69,7 @@ fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
 }
 
 /// The four ops of `a` with `b`, against `[∪, A∖B, B∖A, ∩]`.
-fn four(what: &str, a: &Body<f64>, b: &Body<f64>, want: [Want; 4]) {
+fn four(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, want: [Want; 4]) {
     let tol = Tol::witness();
     check(&format!("{what} ∪"), topo::union(a, b, tol), want[0]);
     check(&format!("{what} A∖B"), topo::subtract(a, b, tol), want[1]);
@@ -99,7 +99,11 @@ fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
         1.738_194_969_430_420_4,
     );
     let s = FRAC_1_SQRT_2;
-    let a = three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0);
+    let a = finished(
+        "the cylinder",
+        three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0),
+        Tol::witness(),
+    );
     let (vcyl, vbar) = (2.0 * PI, w * w * (t1 - t0));
     for c in [0.9_f64, 1.047, 1.15] {
         let lo = c - w / 2.0;
@@ -108,7 +112,11 @@ fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
         let area = f(half.min(t1)) - f((-half).max(t0));
         for depth in [0.002, 0.0078, 0.03, 0.1, 0.3] {
             let o = Point3::new(c * s, -c * s, 2.0 - depth + w / 2.0);
-            let b = framed_bar(o, Vec3::new(s, s, 0.0), t0, t1, w);
+            let b = finished(
+                "the bar",
+                framed_bar(o, Vec3::new(s, s, 0.0), t0, t1, w),
+                Tol::witness(),
+            );
             let i = area * depth;
             let what = format!("c {c}, depth {depth}:");
             four(
@@ -135,17 +143,25 @@ fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
 fn an_x_bar_sunk_into_either_cap_answers_its_closed_form() {
     let (w, depth) = (0.4_f64, 0.1);
     let h = w / 2.0;
-    let a = three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0);
+    let a = finished(
+        "the cylinder",
+        three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0),
+        Tol::witness(),
+    );
     let (vcyl, vbar) = (2.0 * PI, w * w * 6.0);
     for c in [0.3, -0.95, 1.1] {
         let i = band_area(c - h, c + h) * depth;
         for (cap, zc) in [("top", 2.0 - depth + h), ("bottom", depth - h)] {
-            let b = framed_bar(
-                Point3::new(0.0, c, zc),
-                Vec3::new(1.0, 0.0, 0.0),
-                -3.0,
-                3.0,
-                w,
+            let b = finished(
+                "the bar",
+                framed_bar(
+                    Point3::new(0.0, c, zc),
+                    Vec3::new(1.0, 0.0, 0.0),
+                    -3.0,
+                    3.0,
+                    w,
+                ),
+                Tol::witness(),
             );
             four(
                 &format!("x-bar c {c}, {cap} cap:"),
@@ -164,7 +180,7 @@ fn an_x_bar_sunk_into_either_cap_answers_its_closed_form() {
 
 /// The rigid motion taking the cube `[0, l]³`'s corner at the origin to
 /// `p`, its main diagonal to `diag`, spun `spin` about it.
-fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> Body<f64> {
+fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let u1 = Vec3::new(1.0, 1.0, 1.0).normalize();
     let u2 = Vec3::new(1.0, -1.0, 0.0).normalize();
@@ -180,8 +196,9 @@ fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> Body<f64> {
     };
     let m = Mat3::from_cols(col(0), col(1), col(2));
     let cube = brick((0.0, l), (0.0, l), (0.0, l), tol);
-    topo::transform_rigid(&cube, &Affine3::from_parts(m, p - Point3::origin()), tol)
-        .expect("the cube moves")
+    let cube = topo::transform_rigid(&cube, &Affine3::from_parts(m, p - Point3::origin()), tol)
+        .expect("the cube moves");
+    finished("the cube", cube, tol)
 }
 
 /// **A cube touching a drum's wall at one corner.** Its main diagonal
@@ -191,7 +208,7 @@ fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> Body<f64> {
 /// tangent plane.
 #[test]
 fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
-    let drum = cyl(1.0, 2.0);
+    let drum = finished("the drum", cyl(1.0, 2.0), Tol::witness());
     let vd = 4.0 * PI;
     let phi = 0.7_f64;
     let p = Point3::new(phi.cos(), phi.sin(), 0.3);

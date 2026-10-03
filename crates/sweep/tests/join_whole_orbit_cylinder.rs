@@ -9,7 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
-use sweep::test_support::cylinder_of_arcs_at;
+use sweep::test_support::{cylinder_of_arcs_at, finished};
 use topo::flush::{declare_all, find_flush_candidates};
 use topo::{BooleanResult, intersect_with, mass_properties, subtract_with, union_with};
 
@@ -17,7 +17,9 @@ use topo::{BooleanResult, intersect_with, mass_properties, subtract_with, union_
 fn a_cylinder_cap_over_a_merged_rim_vertex_answers_every_op() {
     let tol = Tol::witness();
     let c = topo::test_support::brick((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
+    let c = finished("brick C", c, tol);
     let d = topo::test_support::brick((1.2, 2.2), (0.0, 1.0), (0.0, 1.0), tol);
+    let d = finished("brick D", d, tol);
     let decls = declare_all(&find_flush_candidates(&c, &d, tol).unwrap());
     let BooleanResult::Body(bar) = union_with(&c, &d, &decls, tol).unwrap() else {
         panic!("the bar is not empty");
@@ -30,6 +32,7 @@ fn a_cylinder_cap_over_a_merged_rim_vertex_answers_every_op() {
         (6, 0.25, 1.5),
     ] {
         let cyl = cylinder_of_arcs_at(n, r, Point2::new(cx, 1.0), 0.0, 1.0, tol);
+        let cyl = finished("the cylinder", cyl, tol);
         let decls = declare_all(&find_flush_candidates(&bar, &cyl, tol).unwrap());
         let half = core::f64::consts::PI * r * r / 2.0;
         for (name, op, want) in [

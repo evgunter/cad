@@ -150,7 +150,11 @@ fn an_oblique_split_leaves_the_cut_wall_minted_whole_at_the_join() {
 /// row for the join to leave half-minted and is not read.
 #[test]
 fn a_slab_across_a_minted_boss_leaves_its_walls_minted_whole_at_the_join() {
-    let plate = finished("the plate", brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), tol()), tol());
+    let plate = finished(
+        "the plate",
+        brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), tol()),
+        tol(),
+    );
     let boss = finished("the boss", m5_boss(3, 0.3, 1.3), tol());
     let first = topo::union(&plate, &boss, tol())
         .expect("the boss unions on")

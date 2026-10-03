@@ -25,17 +25,27 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations, prism_z};
+use common::{brick, finished, flush_declarations, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::{
-    Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract,
-    subtract_with, union, union_with, validate_geometric, validate_pseudomanifold,
+    AtRestBody, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties,
+    subtract, subtract_with, union, union_with, validate_geometric, validate_pseudomanifold,
 };
 
+/// The brick `x × y × z`, finished.
+fn finished_brick<T: Decide + topo::AtRestPolicy>(
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+) -> AtRestBody<T> {
+    let tol = Tol::witness();
+    finished("brick", brick::<T>(x, y, z, tol), tol)
+}
+
 fn glue<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
 ) -> BooleanBody<T> {
     match union_with(
         a,
@@ -74,8 +84,8 @@ fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(g: 
 /// faces. Undeclared, the coincidence door refuses unchanged.
 fn stacked_plates_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
 -> BooleanBody<T> {
-    let bot = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let top = brick::<T>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
+    let bot = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
+    let top = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
     let err = union(&bot, &top, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::UndeclaredCoincidence { .. }),
@@ -107,9 +117,9 @@ fn stacked_plates_full_face_rest() {
 /// result's faces — reuse of a REST result as an operand).
 #[test]
 fn three_plate_chain() {
-    let p1 = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let p2 = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
-    let p3 = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0), Tol::witness());
+    let p1 = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
+    let p2 = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
+    let p3 = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0));
     let g12 = glue(&p1, &p2);
     assert_glued(&g12);
     assert_eq!(
@@ -132,8 +142,8 @@ fn three_plate_chain() {
 /// refuses; ∖ stays operand A (no join door was ever reached).
 fn corner_flush_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
 -> (BooleanBody<T>, BooleanBody<T>) {
-    let slab = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
-    let corner = brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0), Tol::witness());
+    let slab = finished_brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
+    let corner = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
     let err = union(&slab, &corner, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::UndeclaredCoincidence { .. }),
@@ -186,7 +196,11 @@ fn false_rest_declaration_contradicts_at_the_lane() {
         2.0,
         Tol::witness(),
     );
-    let mut decls = flush_declarations(&bot.body, &top.body, Tol::witness());
+    let (bot_body, top_body) = (
+        finished("bot", bot.body, Tol::witness()),
+        finished("top", top.body, Tol::witness()),
+    );
+    let mut decls = flush_declarations(&bot_body, &top_body, Tol::witness());
     // The lie: bot's bottom cap (z = 0, outward −z) declared
     // coincident with top's top cap (z = 2, outward +z) — opposite
     // orientation, definitely-distinct planes.
@@ -194,7 +208,7 @@ fn false_rest_declaration_contradicts_at_the_lane() {
         bot.bottom_face,
         top.top_face,
     ));
-    let err = union_with(&bot.body, &top.body, &decls, Tol::witness()).unwrap_err();
+    let err = union_with(&bot_body, &top_body, &decls, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::ContactContradicted { .. }),
         "false REST declaration must contradict, naming the class and the margin: {err:?}"
@@ -209,9 +223,9 @@ fn false_rest_declaration_contradicts_at_the_lane() {
 /// refusal; the generalized zip retired it.
 #[test]
 fn annular_rest_contact_unions_exactly_additively() {
-    let tube = |z0: f64, z1: f64| -> Body<f64> {
-        let outer = brick::<f64>((0.0, 3.0), (0.0, 3.0), (z0, z1), Tol::witness());
-        let hole = brick::<f64>((1.0, 2.0), (1.0, 2.0), (z0 - 1.0, z1 + 1.0), Tol::witness());
+    let tube = |z0: f64, z1: f64| -> AtRestBody<f64> {
+        let outer = finished_brick::<f64>((0.0, 3.0), (0.0, 3.0), (z0, z1));
+        let hole = finished_brick::<f64>((1.0, 2.0), (1.0, 2.0), (z0 - 1.0, z1 + 1.0));
         match subtract(&outer, &hole, Tol::witness()).expect("tube subtract") {
             BooleanResult::Body(b) => b.body,
             BooleanResult::Empty => panic!("tube is not empty"),
@@ -245,13 +259,13 @@ fn annular_rest_contact_unions_exactly_additively() {
 /// reaches the containment fallback instead (`review_s1_probes.rs`).
 #[test]
 fn rest_subtract_and_intersect_resolve_structurally() {
-    let beam_a = brick::<f64>((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), Tol::witness());
-    let cut_a = brick::<f64>((1.75, 2.25), (1.5, 2.5), (0.25, 0.75), Tol::witness());
+    let beam_a = finished_brick::<f64>((0.0, 4.0), (1.75, 2.25), (0.0, 0.5));
+    let cut_a = finished_brick::<f64>((1.75, 2.25), (1.5, 2.5), (0.25, 0.75));
     let BooleanResult::Body(a) = subtract(&beam_a, &cut_a, Tol::witness()).unwrap() else {
         panic!("notch A yields a body");
     };
-    let beam_b = brick::<f64>((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), Tol::witness());
-    let cut_b = brick::<f64>((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), Tol::witness());
+    let beam_b = finished_brick::<f64>((1.75, 2.25), (0.0, 4.0), (0.0, 0.5));
+    let cut_b = finished_brick::<f64>((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25));
     let BooleanResult::Body(b) = subtract(&beam_b, &cut_b, Tol::witness()).unwrap() else {
         panic!("notch B yields a body");
     };
@@ -281,8 +295,8 @@ fn rest_subtract_and_intersect_resolve_structurally() {
 #[test]
 fn stacked_rerun_is_bit_identical() {
     let run = || {
-        let bot = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-        let top = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
+        let bot = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
+        let top = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
         glue(&bot, &top)
     };
     let (g1, g2) = (run(), run());

@@ -6,8 +6,8 @@
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
-use sweep::test_support::{brick, extruded, sketch_from_axes};
-use topo::{Body, BooleanDeclarations, BooleanOp, BooleanResult, SweepStrategy};
+use sweep::test_support::{brick, extruded, finished, sketch_from_axes};
+use topo::{AtRestBody, Body, BooleanDeclarations, BooleanOp, BooleanResult, SweepStrategy};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -48,7 +48,12 @@ fn a_box_edge_resting_on_a_rim_answers_past_its_in_band_corner() {
         0.4,
         tol(),
     );
-    let b: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let a = finished("the box", a, tol());
+    let b: AtRestBody<f64> = finished(
+        "the unit box",
+        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
     let va = 0.6 * 0.4 * 0.4;
     for (op, ab, ba) in [
         (BooleanOp::Union, Some(1.0 + va), Some(1.0 + va)),

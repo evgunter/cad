@@ -18,7 +18,7 @@
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::{Sign, Tol};
 use topo::{
     Body, BooleanResult, BooleanResultKind, SolidContainment, VoidContainment, VoidEvidence,
@@ -92,6 +92,10 @@ fn door_accepts_carried_strict_evidence() {
 fn door_agrees_with_the_subtract_fallback() {
     let (mut dst, cavity) = outer_and_cavity();
     let (a, b) = outer_and_cavity();
+    let (a, b) = (
+        finished("the outer block", a, Tol::witness()),
+        finished("the cavity block", b, Tol::witness()),
+    );
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = probed_in(&cavity);
     insert_void(&mut dst, solid, cavity, &evidence).unwrap();
@@ -229,13 +233,21 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
 fn door_refuses_a_hollow_cavity() {
     let dst_of = || brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), Tol::witness());
     let hollow = match subtract(
-        &brick((1.0, 5.0), (1.0, 5.0), (1.0, 5.0), Tol::witness()),
-        &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+        &finished(
+            "the block",
+            brick((1.0, 5.0), (1.0, 5.0), (1.0, 5.0), Tol::witness()),
+            Tol::witness(),
+        ),
+        &finished(
+            "the cavity",
+            brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
     {
-        BooleanResult::Body(b) => b.body,
+        BooleanResult::Body(b) => b.body.into_body(),
         other => panic!("a hollow cube, got {other:?}"),
     };
     let hollow_solid = hollow.solids().next().unwrap().0;

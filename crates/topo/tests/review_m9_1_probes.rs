@@ -8,7 +8,7 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
@@ -323,8 +323,16 @@ fn probe_patch_contact_is_never_certified_at_rest() {
 /// fields).
 #[test]
 fn probe_records_partialeq_bites_on_mutation() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness());
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "b",
+        brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let decls = flush_declarations(&a, &b, Tol::witness());
     let topo::BooleanResult::Body(out) = topo::union_with(&a, &b, &decls, Tol::witness()).unwrap()
     else {
@@ -362,8 +370,16 @@ fn probe_records_partialeq_bites_on_mutation() {
 /// carried this shape no longer declares it.
 #[test]
 fn probe_dev8_false_declaration_is_a_silent_noop_at_the_op() {
-    let c = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness());
-    let slot = brick::<f64>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), Tol::witness());
+    let c = finished(
+        "c",
+        brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let slot = finished(
+        "slot",
+        brick::<f64>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), Tol::witness()),
+        Tol::witness(),
+    );
     let z_face = |body: &Body<f64>, z: f64| {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
@@ -437,8 +453,16 @@ fn probe_aq6_definite_beats_declaration_both_directions() {
 /// and the A/B orientation of a declared pair still verifies.
 #[test]
 fn probe_declared_pair_direction_still_normalized() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "b",
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let decls = flush_declarations(&a, &b, Tol::witness());
     assert!(!decls.coincident_faces.is_empty());
     assert!(

@@ -20,6 +20,7 @@ use core::f64::consts::TAU;
 use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, ShellError, transform_rigid};
 
@@ -322,7 +323,8 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let other = klein_elbow_of_disc(0.1);
+    let cavity = finished("the vessel cavity", cavity, tol());
+    let other = finished("the klein elbow", klein_elbow_of_disc(0.1), tol());
     let e = topo::union(&cavity, &other, tol()).expect_err("the boolean fence refuses the kind");
     assert!(
         matches!(e, topo::BooleanError::CurvedEdgeUnsupported { .. }),

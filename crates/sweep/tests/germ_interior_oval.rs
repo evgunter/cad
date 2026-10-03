@@ -21,8 +21,9 @@ use sweep::ExtrudeSide;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
+use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
-use topo::Body;
+use topo::{AtRestBody, Body};
 
 /// The certificate's verdicts on the crossings path, one string per
 /// pair: `Ok([...])` with each component's witness, or `Err(...)` with
@@ -66,20 +67,21 @@ fn bracket_xz(pts: &[(f64, f64)], half_y: f64) -> Body<f64> {
     .body
 }
 
-fn half_donut() -> Body<f64> {
+fn half_donut() -> AtRestBody<f64> {
     let vp = validated(vec![revolve_common::donut_profile()]);
-    revolve(
+    let half = revolve(
         &vp,
         axis_y(),
         Revolution::Partial(std::f64::consts::PI),
         Tol::witness(),
     )
     .expect("the half donut revolves")
-    .body
+    .body;
+    finished("the half donut", half, Tol::witness())
 }
 
-fn torus_bracket() -> Body<f64> {
-    bracket_xz(
+fn torus_bracket() -> AtRestBody<f64> {
+    let bracket = bracket_xz(
         &[
             (1.95, -0.1),
             (2.05, -0.1),
@@ -93,10 +95,11 @@ fn torus_bracket() -> Body<f64> {
             (1.95, 1.0),
         ],
         0.3,
-    )
+    );
+    finished("the torus bracket", bracket, Tol::witness())
 }
 
-fn dome() -> Body<f64> {
+fn dome() -> AtRestBody<f64> {
     let t = (std::f64::consts::PI / 8.0).tan();
     let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
@@ -109,7 +112,7 @@ fn dome() -> Body<f64> {
         .body;
     up.merge_coplanar_faces(Tol::witness())
         .expect("the split base disc merges");
-    up
+    finished("the dome", up, Tol::witness())
 }
 
 fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
@@ -143,8 +146,8 @@ fn cap_dir() -> Vec3<f64> {
     Vec3::new(0.0, 0.5, 0.75_f64.sqrt())
 }
 
-fn dome_bracket() -> Body<f64> {
-    let top = boxed((-0.6, 0.6), (0.9, 1.5), (-0.6, 0.6));
+fn dome_bracket() -> AtRestBody<f64> {
+    let top = top_box();
     let u = cap_dir();
     let e2 = Vec3::new(0.0, 0.75_f64.sqrt(), -0.5);
     let foot = topo::transform_rigid(
@@ -156,12 +159,17 @@ fn dome_bracket() -> Body<f64> {
         Tol::witness(),
     )
     .expect("the foot tilts");
+    let foot = finished("the tilted foot", foot, Tol::witness());
     let r = topo::union(&top, &foot, Tol::witness()).expect("the bracket's two boxes union");
     r.body().expect("non-empty").body.clone()
 }
 
-fn top_box() -> Body<f64> {
-    boxed((-0.6, 0.6), (0.9, 1.5), (-0.6, 0.6))
+fn top_box() -> AtRestBody<f64> {
+    finished(
+        "the top box",
+        boxed((-0.6, 0.6), (0.9, 1.5), (-0.6, 0.6)),
+        Tol::witness(),
+    )
 }
 
 fn volume(b: &Body<f64>) -> f64 {
@@ -316,8 +324,8 @@ fn the_pin_alone_answers_its_closed_form() {
 /// The bracket without its foot: the pin, the bridge and the upright.
 /// Its profile is `0.99 m²` (the pin `0.1 × 1.1`, the bridge
 /// `1.15 × 0.2`, the upright `0.2 × 3.25`), `0.6` thick, so `0.594 m³`.
-fn pin_only_bracket() -> Body<f64> {
-    bracket_xz(
+fn pin_only_bracket() -> AtRestBody<f64> {
+    let bracket = bracket_xz(
         &[
             (1.95, -0.1),
             (2.05, -0.1),
@@ -329,7 +337,8 @@ fn pin_only_bracket() -> Body<f64> {
             (1.95, 1.0),
         ],
         0.3,
-    )
+    );
+    finished("the pin-only bracket", bracket, Tol::witness())
 }
 
 /// **The pin alone under ∖ and ∩, both orders, in closed form.** The
@@ -559,7 +568,11 @@ fn the_corner_bar_never_comes_back_a_body() {
     let hw = 0.1_f64;
     let rho = 2.0 - (0.25 - hw * hw).sqrt();
     let z = (rho * rho - hw * hw).sqrt();
-    let b = boxed((-hw, hw), (-hw, hw), (-z, z));
+    let b = finished(
+        "the corner bar",
+        boxed((-hw, hw), (-hw, hw), (-z, z)),
+        Tol::witness(),
+    );
     for (what, r) in [
         ("∪", topo::union(&d, &b, Tol::witness())),
         ("∩", topo::intersect(&d, &b, Tol::witness())),
@@ -576,17 +589,18 @@ fn the_corner_bar_never_comes_back_a_body() {
 }
 
 /// The full donut, `R = 2`, `r = 0.5` about `y`.
-fn donut() -> Body<f64> {
+fn donut() -> AtRestBody<f64> {
     let vp = validated(vec![revolve_common::donut_profile()]);
-    revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+    let donut = revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .expect("the donut revolves")
-        .body
+        .body;
+    finished("the donut", donut, Tol::witness())
 }
 
 /// A wedge above the donut, `6` deep in `z`: its profile runs from
 /// `y = 2.2` at `x = −3` down to `y = 0.4` at `x = 3` along the
 /// underside `0.3x + y = 1.3`, and up to `y = 2.5` — `7.2 m²`.
-fn wedge_above_the_donut() -> Body<f64> {
+fn wedge_above_the_donut() -> AtRestBody<f64> {
     let lp = ProfileLoop::polygon([
         Point2::new(-3.0, 2.2),
         Point2::new(3.0, 0.4),
@@ -600,7 +614,7 @@ fn wedge_above_the_donut() -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the wedge profile validates");
-    sweep::extrude(
+    let wedge = sweep::extrude(
         &vp,
         sweep::Extrusion::Distance {
             depth: 6.0,
@@ -609,7 +623,8 @@ fn wedge_above_the_donut() -> Body<f64> {
         Tol::witness(),
     )
     .expect("the wedge extrudes")
-    .body
+    .body;
+    finished("the wedge", wedge, Tol::witness())
 }
 
 /// **A wedge clear of the donut's carrier answers although its box
@@ -743,10 +758,23 @@ fn nurbs_bump() -> Body<f64> {
 /// bar's four long edges pierce the block's `x = ±2` walls (the
 /// crossings). Every clamp edge stands below `z = 0`, at `x ≤ −2.5` or
 /// `x = 3`, or at `y = ±3`: clear of the bump face's box.
-fn nurbs_clamp() -> Body<f64> {
-    let plate = boxed((-3.0, 3.0), (-3.0, 3.0), (0.8, 2.5));
-    let leg = boxed((-2.9, -2.5), (-1.2, 1.2), (-0.8, 1.0));
-    let bar = boxed((-2.8, 3.0), (-1.0, 1.0), (-0.7, -0.3));
+fn nurbs_clamp() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let plate = finished(
+        "the plate",
+        boxed((-3.0, 3.0), (-3.0, 3.0), (0.8, 2.5)),
+        tol,
+    );
+    let leg = finished(
+        "the leg",
+        boxed((-2.9, -2.5), (-1.2, 1.2), (-0.8, 1.0)),
+        tol,
+    );
+    let bar = finished(
+        "the bar",
+        boxed((-2.8, 3.0), (-1.0, 1.0), (-0.7, -0.3)),
+        tol,
+    );
     let r = topo::union(&plate, &leg, Tol::witness()).expect("plate ∪ leg");
     let r = topo::union(&r.body().expect("non-empty").body, &bar, Tol::witness())
         .expect("(plate ∪ leg) ∪ bar");
@@ -802,6 +830,7 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
         vec!["Plane × Nurbs: Err(Reach)".to_string()],
         "the same with the operands swapped"
     );
+    let a = finished("the bump block", a, Tol::witness());
     for (what, r) in [
         ("a ∪ b", topo::union(&a, &b, Tol::witness())),
         ("b ∪ a", topo::union(&b, &a, Tol::witness())),

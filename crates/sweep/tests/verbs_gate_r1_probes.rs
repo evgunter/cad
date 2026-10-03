@@ -31,7 +31,7 @@ use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use topo::{Body, BooleanError};
 
 fn vol(body: &Body<f64>) -> f64 {
@@ -163,8 +163,12 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
 #[test]
 fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
     for sphere_caps in [true, false] {
-        let a = vase_with_caps(sphere_caps);
-        let b = brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0), Tol::witness());
+        let a = finished("the vase", vase_with_caps(sphere_caps), Tol::witness());
+        let b = finished(
+            "the brick",
+            brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0), Tol::witness()),
+            Tol::witness(),
+        );
         let out = match topo::union(&a, &b, Tol::witness()) {
             Err(
                 BooleanError::CurvedPairUnsupported { .. }
@@ -220,8 +224,12 @@ fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
 /// the torus gate admission was told to expect, measured.
 #[test]
 fn the_same_union_posed_into_the_torus_band_stops_at_the_germ_frame() {
-    let a = vase();
-    let b = brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness());
+    let a = finished("the vase", vase(), Tol::witness());
+    let b = finished(
+        "the brick",
+        brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
     let err =
         topo::union(&a, &b, Tol::witness()).expect_err("a torus × plane germ has no join arm");
     let BooleanError::GermFrameUnsupported {
@@ -255,8 +263,12 @@ fn the_same_union_posed_into_the_torus_band_stops_at_the_germ_frame() {
 /// of a body whose only curved faces are torus faces.
 #[test]
 fn a_disjoint_union_with_a_torus_face_is_admitted_and_now_answered() {
-    let a = donut();
-    let b = brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let a = finished("the donut", donut(), Tol::witness());
+    let b = finished(
+        "the brick",
+        brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
     let out = match topo::union(&a, &b, Tol::witness()) {
         Err(
             BooleanError::CurvedPairUnsupported { .. }

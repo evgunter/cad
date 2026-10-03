@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::{Body, BooleanBody, BooleanResult, EdgeKey, FaceKey, VertexKey, subtract};
 
@@ -54,8 +54,16 @@ pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
 #[test]
 fn a_through_slot_records_the_strip_it_discards_between_two_kept_pieces() {
     let tol = Tol::witness();
-    let plate = brick::<f64>((0.0, 3.0), (0.0, 2.0), (0.0, 1.0), tol);
-    let slot = brick::<f64>((1.4, 1.6), (-1.0, 3.0), (-1.0, 3.0), tol);
+    let plate = finished(
+        "plate",
+        brick::<f64>((0.0, 3.0), (0.0, 2.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let slot = finished(
+        "slot",
+        brick::<f64>((1.4, 1.6), (-1.0, 3.0), (-1.0, 3.0), tol),
+        tol,
+    );
     let BooleanResult::Body(out) = subtract(&plate, &slot, tol).expect("the slot subtracts") else {
         panic!("a slotted plate is not empty");
     };

@@ -181,12 +181,14 @@ fn m10r2_split_lineage_after_graft() {
     // (c) the boolean's disjoint union, both operand orders: with the
     // ball (a curved pair, refused before any graft) and with a far
     // box (disjoint operands, grafted).
-    let u1 = topo::union(&ball(), &src, tol).map(|r| r.body().map(|b| volume(&b.body)));
-    let u2 = topo::union(&src, &ball(), tol).map(|r| r.body().map(|b| volume(&b.body)));
+    let src = topo::test_support::finished("the split-seam donut", src, tol);
+    let ball = topo::test_support::finished("the ball", ball(), tol);
+    let u1 = topo::union(&ball, &src, tol).map(|r| r.body().map(|b| volume(&b.body)));
+    let u2 = topo::union(&src, &ball, tol).map(|r| r.body().map(|b| volume(&b.body)));
     println!("M10R2 union(ball, split donut): {u1:?}");
     println!("M10R2 union(split donut, ball): {u2:?}");
     let far_box = || {
-        sweep::extrude(
+        let body = sweep::extrude(
             &validated(vec![profile::ProfileLoop::<f64>::polygon([
                 Point2::new(10.0, 10.0),
                 Point2::new(11.0, 10.0),
@@ -200,7 +202,8 @@ fn m10r2_split_lineage_after_graft() {
             tol,
         )
         .unwrap()
-        .body
+        .body;
+        topo::test_support::finished("the far box", body, tol)
     };
     let u3 = topo::union(&far_box(), &src, tol).map(|r| r.body().map(|b| volume(&b.body)));
     let u4 = topo::union(&src, &far_box(), tol).map(|r| r.body().map(|b| volume(&b.body)));

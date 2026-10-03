@@ -21,22 +21,25 @@ use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Mat3, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::ExtrudeSide;
-use sweep::test_support::extruded;
+use sweep::test_support::{extruded, finished};
 use sweep::{Extrusion, extrude};
 use topo::{
-    Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FacePairDeclaration,
+    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass,
+    FacePairDeclaration,
 };
 
 /// A radius-`r` three-arc cylinder at (2, 2), z ∈ [z0, z0 + h] (the
 /// boss_union authorship: three 120° arcs on ONE cylinder surface).
-fn cyl(z0: f64, h: f64, r: f64) -> Body<f64> {
-    three_arc_cylinder(Point2::new(2.0, 2.0), r, z0, h, 0.0)
+fn cyl(z0: f64, h: f64, r: f64) -> AtRestBody<f64> {
+    let cyl = three_arc_cylinder(Point2::new(2.0, 2.0), r, z0, h, 0.0);
+    finished("the cylinder", cyl, Tol::witness())
 }
 
 /// The bored plate: a through-hole subtract (the shipped transverse
 /// lane) leaving three bore-wall faces on one cylinder carrier.
-fn bored_plate() -> Body<f64> {
-    match topo::subtract(&plate(), &cyl(-0.2, 1.4, 0.5), Tol::witness())
+fn bored_plate() -> AtRestBody<f64> {
+    let plate = finished("the plate", plate(), Tol::witness());
+    match topo::subtract(&plate, &cyl(-0.2, 1.4, 0.5), Tol::witness())
         .expect("the through-hole subtract is the shipped transverse lane")
     {
         BooleanResult::Body(b) => b.body,
@@ -199,19 +202,20 @@ fn declared_rest_with_wrong_radius_contradicts() {
 /// A horizontal three-arc cylinder (axis +y at height `zc`, radius
 /// 0.5) with a meridian SEAM on its lowest ruling (profile vertices
 /// at 60°/180°/300° in sketch coordinates), spanning y ∈ [0.5, 3.5].
-fn lying_cyl(zc: f64) -> Body<f64> {
+fn lying_cyl(zc: f64) -> AtRestBody<f64> {
     // Sketch frame: sketch x → world z, sketch y → world x, normal
     // (extrusion) +y. Disc centre at world (x = 2, z = zc).
     let plane = SketchPlane::new(Affine3::from_parts(
         Mat3::from_cols(Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y()),
         Point3::new(0.0, 0.5, 0.0) - Point3::origin(),
     ));
-    extruded(
+    let cyl = extruded(
         plane,
         vec![three_arc(Point2::new(zc, 2.0), 0.5, 60.0)],
         3.0,
         Tol::witness(),
-    )
+    );
+    finished("the lying cylinder", cyl, Tol::witness())
 }
 
 /// The plate-top × cylinder-wall pairs declared under `class`.
@@ -247,7 +251,7 @@ fn top_wall_declarations(
 /// plate top's interior.
 #[test]
 fn tangent_door_contradicts_escalates_and_verifies() {
-    let a = plate();
+    let a = finished("the plate", plate(), Tol::witness());
     // Definitely apart (gap 0.5): contradicted.
     let apart = lying_cyl(2.0);
     let err = topo::union_with(
@@ -325,7 +329,7 @@ fn tangent_door_contradicts_escalates_and_verifies() {
 /// refusal is the typed class door, not a silent carry.
 #[test]
 fn tangent_outside_the_witness_lane_refuses_by_class() {
-    let a = plate::<f64>();
+    let a = finished("the plate", plate::<f64>(), Tol::witness());
     // A second plate floating above (planar faces only, gap 1).
     let b = {
         let lp = ProfileLoop::polygon([
@@ -338,7 +342,7 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
         let profile = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();
-        extrude(
+        let b = extrude(
             &profile,
             Extrusion::Distance {
                 depth: 1.0,
@@ -347,7 +351,8 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
             Tol::witness(),
         )
         .unwrap()
-        .body
+        .body;
+        finished("the floating plate", b, Tol::witness())
     };
     let top: Vec<_> = a
         .faces()

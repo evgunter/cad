@@ -12,10 +12,12 @@
 
 use geom::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
-use sweep::test_support::tube_frame;
+use sweep::test_support::{finished, tube_frame};
 use sweep::{TubeWindow, tube_along_arc};
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration};
+use topo::{
+    AtRestBody, Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration,
+};
 
 const STEM_TUBE: f64 = 0.060;
 const ARCH_TUBE: f64 = 0.052;
@@ -30,8 +32,8 @@ fn deg(d: f64) -> f64 {
 /// numbers: root at the origin heading +z (in the xz-plane), left turn
 /// of 22 degrees on a 5 m ring — so the ring centre is (-5, 0, 0), the
 /// start radial +x, the axis -y (`tube_arc`'s left-turn sense).
-pub(crate) fn stem() -> Body<f64> {
-    tube_along_arc(
+pub(crate) fn stem() -> AtRestBody<f64> {
+    let stem = tube_along_arc(
         tube_frame(
             Point3::new(-STEM_RING, 0.0, 0.0),
             Vec3::new(0.0, -1.0, 0.0),
@@ -47,7 +49,8 @@ pub(crate) fn stem() -> Body<f64> {
         Tol::witness(),
     )
     .expect("stem builds")
-    .body
+    .body;
+    finished("the stem", stem, Tol::witness())
 }
 
 /// The fork point (the stem's end / the arch's start), its tangent,
@@ -86,9 +89,9 @@ pub(crate) fn arch_frame() -> ArchFrame {
 
 /// The lily's arch, continuing G1 from the stem's end: 170 degrees on
 /// a 1.1 m ring, tube 0.052.
-pub(crate) fn arch() -> Body<f64> {
+pub(crate) fn arch() -> AtRestBody<f64> {
     let f = arch_frame();
-    tube_along_arc(
+    let arch = tube_along_arc(
         tube_frame(
             f.center,
             Vec3::new(0.0, -1.0, 0.0),
@@ -104,7 +107,8 @@ pub(crate) fn arch() -> Body<f64> {
         Tol::witness(),
     )
     .expect("arch builds")
-    .body
+    .body;
+    finished("the arch", arch, Tol::witness())
 }
 
 fn plane_faces(body: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
@@ -396,7 +400,7 @@ fn p2_the_g1_chain_price_is_the_measured_69_rows() {
         let tangent = Vec3::new(-turn.sin(), 0.0, turn.cos());
         let inward = Vec3::new(-tangent.z, 0.0, tangent.x);
         let center = end + inward * 1.1;
-        tube_along_arc(
+        let seg_b = tube_along_arc(
             tube_frame(
                 center,
                 Vec3::new(0.0, -1.0, 0.0),
@@ -412,7 +416,8 @@ fn p2_the_g1_chain_price_is_the_measured_69_rows() {
             Tol::witness(),
         )
         .expect("segment B builds")
-        .body
+        .body;
+        finished("segment B", seg_b, Tol::witness())
     };
     let mut decls = BooleanDeclarations::none();
     for &fa in &torus_faces(&seg_a) {
@@ -555,6 +560,7 @@ fn p4_a_definitely_different_rim_radius_keeps_the_class_refusal() {
     )
     .expect("segment B' builds")
     .body;
+    let seg_b = finished("segment B'", seg_b, Tol::witness());
     let mut decls = BooleanDeclarations::none();
     for &fa in &torus_faces(&seg_a) {
         for &fb in &torus_faces(&seg_b) {

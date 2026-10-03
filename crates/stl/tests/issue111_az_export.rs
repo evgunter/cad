@@ -9,6 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::finished;
 use geom_core::Tol;
 use geom_core::{OrthoFrame, Point2, Point3};
 use mesh::tessellate;
@@ -83,8 +84,10 @@ fn az_counter() -> Body<f64> {
     )
     .unwrap()
     .body;
+    let a = finished("prism A", a);
+    let z = finished("prism Z", z);
     match topo::intersect(&a, &z, Tol::witness()) {
-        Ok(BooleanResult::Body(bb)) => bb.body,
+        Ok(BooleanResult::Body(bb)) => bb.body.into_body(),
         other => panic!("A×Z intersect did not produce a body ({other:?})"),
     }
 }

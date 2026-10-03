@@ -21,7 +21,8 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
-use topo::{Body, SolidContainment};
+use sweep::test_support::finished;
+use topo::{AtRestBody, Body, SolidContainment};
 
 /// The spins at which the rim arc meets the outside root first.
 const SPINS: [f64; 3] = [0.0, 0.3, 3.0];
@@ -80,8 +81,8 @@ struct Fixture {
 }
 
 impl Fixture {
-    fn b(&self) -> Body<f64> {
-        boxed(self.x, (0.5, 0.7), (-1.5, 1.5))
+    fn b(&self) -> AtRestBody<f64> {
+        finished("B", boxed(self.x, (0.5, 0.7), (-1.5, 1.5)), Tol::witness())
     }
     /// The overlap: the strip `y ∈ [0.5, 0.7]` of the unit disc left of
     /// `x = x₁` (the disc's chord there is wider than `|x₁|` over the
@@ -151,7 +152,7 @@ fn every_op_answers_its_closed_form_when_the_outside_root_comes_first() {
         let b = fx.b();
         let ov = fx.overlap();
         for s in SPINS {
-            let a = spin(&cyl(1.0, 1.0), Vec3::unit_z(), s);
+            let a = finished("A", spin(&cyl(1.0, 1.0), Vec3::unit_z(), s), Tol::witness());
             let rows: [Row; 4] = [
                 (
                     "A ∪ B",

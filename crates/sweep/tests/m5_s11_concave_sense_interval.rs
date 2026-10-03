@@ -20,6 +20,7 @@ use crate::common::interval::{iv, p2, p3, v2};
 use geom_core::Tol;
 use geom_core::{Band, Bounds, Interval};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, mass_properties};
@@ -72,8 +73,8 @@ fn interval_notch_door_reads_out() {
 
 #[test]
 fn interval_union_keeps_the_pellet() {
-    let a = notched();
-    let b = pellet();
+    let a = finished("the notched revolve", notched(), Tol::witness());
+    let b = finished("the pellet", pellet(), Tol::witness());
     let r = topo::boolean::union(&a, &b, Tol::witness()).unwrap();
     let out = r.body().expect("union of two non-empty solids");
     assert_eq!(out.body.shells().count(), 2);

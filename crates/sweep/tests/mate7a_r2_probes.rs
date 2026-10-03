@@ -6,16 +6,18 @@
 
 use geom::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
-use sweep::test_support::tube_frame;
+use sweep::test_support::{finished, tube_frame};
 use sweep::{TubeWindow, tube_along_arc};
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration};
+use topo::{
+    AtRestBody, Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration,
+};
 
 const TUBE: f64 = 0.06;
 const RING: f64 = 5.0;
 
-fn full_torus(major: f64) -> Body<f64> {
-    tube_along_arc(
+fn full_torus(major: f64) -> AtRestBody<f64> {
+    let torus = tube_along_arc(
         tube_frame(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
@@ -28,7 +30,8 @@ fn full_torus(major: f64) -> Body<f64> {
         Tol::witness(),
     )
     .expect("the full torus builds")
-    .body
+    .body;
+    finished("the full torus", torus, Tol::witness())
 }
 
 fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {

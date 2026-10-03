@@ -33,8 +33,9 @@
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, BooleanError};
+use topo::{AtRestBody, Body, BooleanError};
 
 /// The cylinder: a circle of radius `r` at the origin, extruded along
 /// world Z from `z0` to `z1`. Its axis is Z.
@@ -90,13 +91,20 @@ fn posed(b: &Body<f64>) -> Body<f64> {
 
 /// The coaxial fixture, direct and re-posed: `r = 1`, `R = 1.5`, the
 /// sphere centred on the axis at the cylinder's mid-height.
-fn fixture() -> [(&'static str, Body<f64>, Body<f64>); 2] {
+fn fixture() -> [(&'static str, AtRestBody<f64>, AtRestBody<f64>); 2] {
     let c = cyl(1.0, -2.0, 2.0);
     let s = ball_at(1.5, Vec3::new(0.0, 0.0, 0.0));
     [
         ("direct", c.clone(), s.clone()),
         ("re-posed twin", posed(&c), posed(&s)),
     ]
+    .map(|(pose, c, s)| {
+        (
+            pose,
+            finished(pose, c, Tol::witness()),
+            finished(pose, s, Tol::witness()),
+        )
+    })
 }
 
 /// **THE OPENING MEASUREMENT.** The crossing coaxial union gets past
@@ -158,6 +166,10 @@ fn a_transversal_pose_reaches_the_germ_frame_in_both_poses() {
         ("direct", c.clone(), s.clone()),
         ("re-posed twin", posed(&c), posed(&s)),
     ] {
+        let (c, s) = (
+            finished(label, c, Tol::witness()),
+            finished(label, s, Tol::witness()),
+        );
         let err = topo::union(&c, &s, Tol::witness()).expect_err("no off-axis cyl×sphere frame");
         assert!(
             matches!(
@@ -175,7 +187,12 @@ fn a_transversal_pose_reaches_the_germ_frame_in_both_poses() {
 
 /// The boolean's volume, `None` for an empty result, after tiers 1–3;
 /// a refusal fails with the payload.
-fn built_volume(label: &str, op: topo::BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<f64> {
+fn built_volume(
+    label: &str,
+    op: topo::BooleanOp,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+) -> Option<f64> {
     let tol = Tol::witness();
     let out = match op {
         topo::BooleanOp::Union => topo::union(a, b, tol),
@@ -214,6 +231,10 @@ fn a_contained_ball_builds_through_the_section_pass() {
             ("direct", c.clone(), s.clone()),
             ("re-posed twin", posed(&c), posed(&s)),
         ] {
+            let (c, s) = (
+                finished(pose, c, Tol::witness()),
+                finished(pose, s, Tol::witness()),
+            );
             for (op, x, y, want) in [
                 (Union, &c, &s, Some(vc)),
                 (Union, &s, &c, Some(vc)),
@@ -264,6 +285,10 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
         ("direct", c.clone(), s.clone()),
         ("re-posed twin", posed(&c), posed(&s)),
     ] {
+        let (c, s) = (
+            finished(pose, c, Tol::witness()),
+            finished(pose, s, Tol::witness()),
+        );
         let err = topo::union(&c, &s, Tol::witness()).expect_err("the oval is interior");
         let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
             panic!("{pose}: expected the section pass's refusal, got {err:?}");
@@ -338,8 +363,12 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
         torus_circle_on_wall,
         "a torus circle meets the cylinder's wall"
     );
-    let err = topo::union(&a, &torus, Tol::witness())
-        .expect_err("a cylinder × torus germ pair has no frame");
+    let err = topo::union(
+        &finished("the cylinder", a, Tol::witness()),
+        &finished("the torus", torus, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect_err("a cylinder × torus germ pair has no frame");
     assert!(
         matches!(
             err,
@@ -402,6 +431,10 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     // detector finds them to be, so the op reaches its crossing layer.
     let found = topo::flush::find_flush_candidates(&a, &b, Tol::witness()).unwrap();
     let flush = topo::flush::declare_all(&found);
+    let (a, b) = (
+        finished("the cylinder", a, Tol::witness()),
+        finished("the NURBS-walled cylinder", b, Tol::witness()),
+    );
     let err = topo::union_with(&a, &b, &flush, Tol::witness())
         .expect_err("a NURBS wall has no crossing layer in this build");
     assert!(

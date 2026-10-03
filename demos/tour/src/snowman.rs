@@ -56,7 +56,9 @@ use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, fillet_edges, que
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::query::RimError;
-use pncad::topo::{Body, BooleanBody, BooleanError, BooleanResult, EdgeKey};
+use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, EdgeKey};
+
+use crate::booleans::finished;
 
 use crate::{SceneBody, Stop, View};
 
@@ -96,11 +98,12 @@ fn semicircle(r: f64, y: f64, tol: Tol) -> ConstructedLoop<f64> {
         .into()
 }
 
-/// A ball: the semicircle fully revolved about `y`.
-fn ball(r: f64, y: f64, tol: Tol) -> Body<f64> {
+/// A ball: the semicircle fully revolved about `y`, finished as a
+/// boolean operand.
+fn ball(r: f64, y: f64, tol: Tol) -> AtRestBody<f64> {
     let profile = validated(SketchPlane::xy(), vec![semicircle(r, y, tol)], tol)
         .expect("the semicircle validates");
-    revolve(
+    let body = revolve(
         &profile,
         RevolveAxis {
             origin: p2(0.0, 0.0),
@@ -110,7 +113,8 @@ fn ball(r: f64, y: f64, tol: Tol) -> Body<f64> {
         tol,
     )
     .expect("the semicircle fully revolves")
-    .body
+    .body;
+    finished("a ball", body, tol)
 }
 
 fn seamed(what: &str, out: Result<BooleanResult<f64>, BooleanError>) -> BooleanBody<f64> {
@@ -388,6 +392,7 @@ mod tests {
         let moved =
             pncad::topo::transform_rigid(&head, &Affine3::translation(v3(0.05, 0.0, 0.0)), tol)
                 .expect("a rigid pose");
+        let moved = finished("the moved head", moved, tol);
         let (va, vb, vl) = (
             ball_volume(R1),
             ball_volume(R2),
@@ -421,6 +426,7 @@ mod tests {
             0.9,
         );
         let moved = pncad::topo::transform_rigid(&head, &spin, tol).expect("a rigid pose");
+        let moved = finished("the moved head", moved, tol);
         let (va, vb, vl) = (ball_volume(R1), ball_volume(R2), lens_volume_at(D));
         for (op, out, expected) in [
             ("∪", pncad::topo::union(&bottom, &moved, tol), va + vb - vl),
@@ -451,6 +457,7 @@ mod tests {
         let moved =
             pncad::topo::transform_rigid(&head, &Affine3::translation(v3(0.0, 0.0, 0.05)), tol)
                 .expect("a rigid pose");
+        let moved = finished("the moved head", moved, tol);
         for (op, out) in [
             ("∪", pncad::topo::union(&bottom, &moved, tol)),
             ("∖", pncad::topo::subtract(&bottom, &moved, tol)),

@@ -27,10 +27,10 @@ use pncad::geom::NurbsCurve3;
 use pncad::geom_core::Point3;
 use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::prelude::{ConstructedLoop, circle_split};
-use pncad::topo::BooleanBody;
+use pncad::topo::{AtRestBody, BooleanBody};
 
 use crate::bool_bodies::slab;
-use crate::booleans::{check, expect_seamed, try_subtract, try_union_declared};
+use crate::booleans::{check, expect_seamed, finished, try_subtract, try_union_declared};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, polygon, validated};
@@ -254,14 +254,14 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
 }
 
 /// A rod of radius `r` on the vertical axis through `(cx, cy)`, from
-/// `z.0` to `z.1`.
-fn rod<S: Scalar>(cx: f64, cy: f64, r: f64, z: (f64, f64), tol: Tol) -> pncad::topo::Body<S> {
+/// `z.0` to `z.1`, finished as a boolean operand.
+fn rod<S: Scalar>(cx: f64, cy: f64, r: f64, z: (f64, f64), tol: Tol) -> AtRestBody<S> {
     let circle = pncad::profile::circle(p2(cx, cy), S::from_f64(r), tol)
         .expect("the rod radius is positive")
         .into();
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![circle], tol).expect("the rod profile validates");
-    extrude(
+    let body = extrude(
         &profile,
         Extrusion::Distance {
             depth: S::from_f64(z.1 - z.0),
@@ -270,14 +270,15 @@ fn rod<S: Scalar>(cx: f64, cy: f64, r: f64, z: (f64, f64), tol: Tol) -> pncad::t
         tol,
     )
     .expect("extrude the rod")
-    .body
+    .body;
+    finished("the rod", body, tol)
 }
 
 /// Builds the 15-op enclosure chain, generic (the Probe sweep runs the
 /// same ops); returns the final body and its closed-form volume.
 pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
     // Outer shell 3 x 2 x 1.5, walls/floor 0.25.
-    let outer: pncad::topo::Body<S> = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5), tol);
+    let outer: AtRestBody<S> = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5), tol);
     let cavity = slab((0.25, 2.75), (0.25, 1.75), (0.25, 2.0), tol);
     let mut vol = 9.0 - 2.5 * 1.5 * 1.25;
     let mut acc: BooleanBody<S> = expect_seamed(
@@ -402,7 +403,7 @@ pub fn stop(tol: Tol) -> Stop {
         bodies: core::iter::once(SceneBody::seamed(
             "projectbox",
             [0.40, 0.60, 0.72],
-            acc.body,
+            acc.body.into_body(),
             acc.contacts,
         ))
         .chain(core::iter::once(SceneBody::plain(

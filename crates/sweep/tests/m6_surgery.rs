@@ -15,11 +15,11 @@ use geom::SurfaceKind;
 use geom_core::Tol;
 use geom_core::Vec3;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{ball_poled, cube};
+use sweep::test_support::{ball_poled, cube, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
 use topo::readback::euler_counts;
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::{AtRestBody, Body, BooleanDeclarations, EdgeKey};
 
 /// The die's side, meters.
 const DIE_L: f64 = 1.0;
@@ -100,14 +100,17 @@ fn pip_placements() -> Vec<(Vec3<f64>, Vec3<f64>)> {
     out
 }
 
-fn pip_tool() -> Body<f64> {
+fn pip_tool() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let pip =
+        |c: Vec3<f64>, n: Vec3<f64>| finished("a pip ball", ball_poled(PIP_R, c, n, tol), tol);
     let places = pip_placements();
-    let mut tool = ball_poled(PIP_R, places[0].0, places[0].1, Tol::witness());
+    let mut tool = pip(places[0].0, places[0].1);
     for (c, n) in &places[1..] {
         tool = boolean_op_with(
             BooleanOp::Union,
             &tool,
-            &ball_poled(PIP_R, *c, *n, Tol::witness()),
+            &pip(*c, *n),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             Tol::witness(),
@@ -121,7 +124,7 @@ fn pip_tool() -> Body<f64> {
     tool
 }
 
-fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
     let out = boolean_op_with(
         BooleanOp::Subtract,
         a,
@@ -131,12 +134,12 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("pip subtraction: {e}"));
-    out.body().expect("a body").body.clone()
+    out.body().expect("a body").body.clone().into_body()
 }
 
 /// The pipped cube and its twelve surviving box edges.
 fn pipped_and_box_edges() -> (Body<f64>, Vec<EdgeKey>) {
-    let cube0 = cube(DIE_L, Tol::witness());
+    let cube0 = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
     let box_edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pipped = subtract(&cube0, &pip_tool());
     let surviving: Vec<_> = box_edges

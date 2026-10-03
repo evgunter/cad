@@ -61,8 +61,8 @@ use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_z, brick, finished, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
 use topo::{
-    AtRestBody, Body, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult, ContactClass,
-    FaceKey, FacePairDeclaration,
+    AtRestBody, Body, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult,
+    ContactClass, FaceKey, FacePairDeclaration,
 };
 
 const R: f64 = 1.0;

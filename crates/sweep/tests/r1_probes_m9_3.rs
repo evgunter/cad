@@ -14,8 +14,8 @@ use sweep::ExtrudeSide;
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
 use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FacePairDeclaration,
-    mass_properties,
+    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass,
+    FacePairDeclaration, mass_properties,
 };
 
 fn body_of(r: BooleanResult<f64>) -> AtRestBody<f64> {
@@ -455,10 +455,7 @@ fn lying_plane() -> SketchPlane<f64> {
     ))
 }
 
-fn lying_extrude(
-    vertices: Vec<(Point2<f64>, f64)>,
-    tangent_joints: Vec<usize>,
-) -> AtRestBody<f64> {
+fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> AtRestBody<f64> {
     let profile = Profile::new(
         lying_plane(),
         vec![bulge_loop(vertices).with_tangent_joints(tangent_joints)],

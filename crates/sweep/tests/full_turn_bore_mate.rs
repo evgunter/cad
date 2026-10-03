@@ -37,8 +37,9 @@ use crate::mate2_common::{peg_at, wall_decls};
 use core::f64::consts::{FRAC_PI_2, PI};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, BooleanOp, BooleanResult, mass_properties};
+use topo::{AtRestBody, Body, BooleanOp, BooleanResult, mass_properties};
 
 /// The collar's bore and outer radii and its span in `y`.
 const BORE: f64 = 0.5;
@@ -79,8 +80,10 @@ fn shaft(deg: f64, y0: f64, h: f64) -> Body<f64> {
     topo::transform_rigid(&peg_at(deg, y0, h), &up, Tol::witness()).unwrap()
 }
 
-fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> Body<f64> {
-    topo::transform_rigid(b, pose, Tol::witness()).unwrap()
+/// `b` moved by `pose`, finished as an operand.
+fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> AtRestBody<f64> {
+    let moved = topo::transform_rigid(b, pose, Tol::witness()).unwrap();
+    finished("the placed operand", moved, Tol::witness())
 }
 
 fn volume(b: &Body<f64>) -> f64 {
@@ -116,7 +119,7 @@ fn agrees(got: f64, want: f64) -> bool {
 /// `c ∪ p` and `p ∪ c`, each with its declarations in its own operand
 /// order: a body, its volume the closed form, one shell, tier 3 and the
 /// pseudomanifold census clean.
-fn unions_both_ways(c: &Body<f64>, p: &Body<f64>, h: f64, tag: &str) {
+fn unions_both_ways(c: &AtRestBody<f64>, p: &AtRestBody<f64>, h: f64, tag: &str) {
     let tol = Tol::witness();
     for (order, a, b) in [("collar ∪ shaft", c, p), ("shaft ∪ collar", p, c)] {
         let tag = format!("{tag}, {order}");

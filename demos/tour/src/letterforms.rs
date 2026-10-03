@@ -29,9 +29,9 @@
 use pncad::document::ExtrudeSide;
 use pncad::profile::SketchPlane;
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{Body, BooleanBody, BooleanError};
+use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError};
 
-use crate::booleans::{check, expect_seamed, try_intersect, try_intersect_declared};
+use crate::booleans::{check, expect_seamed, finished, try_intersect, try_intersect_declared};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p3, polygon, validated};
@@ -102,16 +102,19 @@ const C: [(f64, f64); 8] = [
     (0.0, 2.0),
 ];
 
-fn h_prism<S: Scalar>(tol: Tol) -> Body<S> {
-    letter(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)), &H, 3.0, tol)
+fn h_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
+    let body = letter(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)), &H, 3.0, tol);
+    finished("the H prism", body, tol)
 }
 
-fn t_prism<S: Scalar>(tol: Tol) -> Body<S> {
-    letter(OrthoFrame::axes_yz(p3(0.0, 0.0, 0.0)), &T, 2.0, tol)
+fn t_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
+    let body = letter(OrthoFrame::axes_yz(p3(0.0, 0.0, 0.0)), &T, 2.0, tol);
+    finished("the T prism", body, tol)
 }
 
-fn c_prism<S: Scalar>(tol: Tol) -> Body<S> {
-    letter(OrthoFrame::axes_zx(p3(0.0, 0.0, 0.0)), &C, 3.0, tol)
+fn c_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
+    let body = letter(OrthoFrame::axes_zx(p3(0.0, 0.0, 0.0)), &C, 3.0, tol);
+    finished("the C prism", body, tol)
 }
 
 /// H × T volume, ∫ len_x(H at y) · len_z(T at y) dy (each prism spans
@@ -134,7 +137,7 @@ const V_3WAY: f64 = 2.75;
 
 /// Builds the 2-way and 3-way results, narrating the undeclared
 /// refusal first; also hands back the C prism the 3-way consumed.
-pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, BooleanBody<S>, Body<S>) {
+pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, BooleanBody<S>, AtRestBody<S>) {
     let (h, t, c) = (h_prism::<S>(tol), t_prism::<S>(tol), c_prism::<S>(tol));
     match try_intersect(&h, &t, tol) {
         Err(e @ BooleanError::UndeclaredCoincidence { .. }) => println!(
@@ -233,7 +236,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         bodies: vec![SceneBody::seamed(
             name,
             [0.80, 0.44, 0.30],
-            three.body.clone(),
+            (*three.body).clone(),
             three.contacts.clone(),
         )],
     };
@@ -267,7 +270,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bodies: vec![SceneBody::seamed(
                 "silhouette",
                 [0.85, 0.62, 0.28],
-                two.body,
+                two.body.into_body(),
                 two.contacts,
             )],
         },
@@ -292,7 +295,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bodies: vec![SceneBody::seamed(
                 "silhouette3",
                 [0.80, 0.44, 0.30],
-                three.body,
+                three.body.into_body(),
                 three.contacts,
             )],
         },

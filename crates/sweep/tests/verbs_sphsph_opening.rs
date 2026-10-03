@@ -32,17 +32,18 @@
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, BooleanError};
+use topo::{AtRestBody, BooleanError};
 
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
 /// constructor chart).
-fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
+fn ball_at(r: f64, centre: Vec3<f64>) -> AtRestBody<f64> {
     ball_at_tol(r, centre, Tol::witness())
 }
 
 /// [`ball_at`], built at `tol`.
-fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> Body<f64> {
+fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> AtRestBody<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(0.0, -r), 1.0),
         (Point2::new(0.0, r), 0.0),
@@ -55,10 +56,11 @@ fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> Body<f64> {
         dir: Vec2::new(0.0, 1.0),
     };
     let ball = revolve(&vp, axis, Revolution::Full, tol).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(centre), tol).unwrap()
+    let ball = topo::transform_rigid(&ball, &Affine3::translation(centre), tol).unwrap();
+    finished("the ball", ball, tol)
 }
 
-fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
+fn union_err(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanError {
     topo::union(a, b, Tol::witness()).expect_err("the pair is refused")
 }
 

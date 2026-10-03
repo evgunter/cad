@@ -20,15 +20,17 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
 use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig};
-use sweep::test_support::{bored_block_of_arcs, circle_arcs_at_z, disc_of_arcs, pocket_of_arcs};
+use sweep::test_support::{
+    bored_block_of_arcs, circle_arcs_at_z, disc_of_arcs, finished, pocket_of_arcs,
+};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, EdgeKey, subtract, union, validate_closed, validate_geometric};
+use topo::{AtRestBody, Body, EdgeKey, subtract, union, validate_closed, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-fn cube(x0: f64, y0: f64, z0: f64, sx: f64, sy: f64, sz: f64) -> Body<f64> {
+fn cube(x0: f64, y0: f64, z0: f64, sx: f64, sy: f64, sz: f64) -> AtRestBody<f64> {
     let lp = ProfileLoop::polygon([
         Point2::new(x0, y0),
         Point2::new(x0 + sx, y0),
@@ -40,7 +42,7 @@ fn cube(x0: f64, y0: f64, z0: f64, sx: f64, sy: f64, sz: f64) -> Body<f64> {
         Point3::new(0.0, 0.0, z0) - Point3::origin(),
     ));
     let v = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-    extrude(
+    let cube = extrude(
         &v,
         Extrusion::Distance {
             depth: sz,
@@ -49,7 +51,8 @@ fn cube(x0: f64, y0: f64, z0: f64, sx: f64, sy: f64, sz: f64) -> Body<f64> {
         tol(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the tool cube", cube, tol())
 }
 
 fn pts(p: &[(f64, f64)]) -> ProfileLoop<f64> {
@@ -84,7 +87,7 @@ fn planar_same_key_adjacency(b: &Body<f64>) -> usize {
 
 /// The row's checks; `faces` is the expected face count where the row
 /// pins one. Panics naming the row.
-fn holds(label: &str, b: &Body<f64>, faces: Option<usize>, tools: &[Body<f64>]) {
+fn holds(label: &str, b: &Body<f64>, faces: Option<usize>, tools: &[AtRestBody<f64>]) {
     let t = tol();
     if let Some(f) = faces {
         assert_eq!(b.faces().count(), f, "{label}: one wall per run");
@@ -104,10 +107,11 @@ fn holds(label: &str, b: &Body<f64>, faces: Option<usize>, tools: &[Body<f64>]) 
         merged.groups.is_empty(),
         "{label}: coplanar faces left to merge"
     );
+    let b = finished(label, b.clone(), t);
     for (i, tool) in tools.iter().enumerate() {
         for (op, r) in [
-            ("union", union(b, tool, t)),
-            ("subtract", subtract(b, tool, t)),
+            ("union", union(&b, tool, t)),
+            ("subtract", subtract(&b, tool, t)),
         ] {
             // A boolean may refuse for reasons of its own (a pierce it
             // has no chart for); it must never refuse the operand as
@@ -232,7 +236,7 @@ fn revolved_runs_build_one_wall_each() {
         RevolveAxis<f64>,
         usize,
         usize,
-        Vec<Body<f64>>,
+        Vec<AtRestBody<f64>>,
     );
     let off = RevolveAxis {
         origin: Point2::new(-1.0, 0.0),
@@ -383,7 +387,7 @@ fn revolved_runs_build_one_wall_each() {
                 revolve(&v, axis, rev, tol()).unwrap_or_else(|e| panic!("{label} {rev:?}: {e:?}"));
             holds(&format!("revolve {label} {rev:?}"), &r.body, faces, &tools);
             let far = cube(10.0, 10.0, 10.0, 1.0, 1.0, 1.0);
-            union(&r.body, &far, tol())
+            union(&finished(label, r.body, tol()), &far, tol())
                 .unwrap_or_else(|e| panic!("{label} {rev:?}: disjoint union: {e:?}"));
         }
     }

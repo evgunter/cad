@@ -1358,6 +1358,8 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
         Vec3::new(0.0, 1.0, 0.0),
         PHI,
     );
+    let raw_a = topo::test_support::finished("the raw spun cylinder A", raw_a, tol());
+    let raw_b = topo::test_support::finished("the raw spun cylinder B", raw_b, tol());
     let raw = topo::union(&raw_a, &raw_b, tol()).expect_err("this family has no join arm");
     assert_eq!(
         pinch_evidence(&raw),

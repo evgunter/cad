@@ -43,11 +43,11 @@ use crate::revolve_common;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::{axis_y, validated};
-use sweep::test_support::tube_frame;
+use sweep::test_support::{finished, tube_frame};
 use sweep::{Revolution, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::query;
 use topo::{
-    Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FaceKey,
+    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FaceKey,
     FacePairDeclaration,
 };
 
@@ -70,8 +70,8 @@ fn window(deg: f64) -> TubeWindow<f64> {
 
 /// Segment A of the chain: a tube along the lily's lower stem arc,
 /// starting at the origin heading `+z`.
-fn segment_a() -> Body<f64> {
-    tube_along_arc(
+fn segment_a() -> AtRestBody<f64> {
+    let body = tube_along_arc(
         tube_frame(
             Point3::new(-RING, 0.0, 0.0),
             axis(),
@@ -84,14 +84,15 @@ fn segment_a() -> Body<f64> {
         Tol::witness(),
     )
     .expect("segment A builds")
-    .body
+    .body;
+    finished("segment A", body, Tol::witness())
 }
 
 /// Segment B: the SAME tube radius on a tighter ring, continuing from
 /// A's end with A's own end tangent — so the two walls meet G1 along
 /// the shared terminal meridian circle and the composed material runs
 /// smoothly through it.
-fn segment_b() -> Body<f64> {
+fn segment_b() -> AtRestBody<f64> {
     let turn = TURN.to_radians();
     let end = Point3::new(-RING + RING * turn.cos(), 0.0, RING * turn.sin());
     let tangent = Vec3::new(-turn.sin(), 0.0, turn.cos());
@@ -99,7 +100,7 @@ fn segment_b() -> Body<f64> {
     // the same side A is turning toward.
     let inward = Vec3::new(-tangent.z, 0.0, tangent.x);
     let center = end + inward * 1.1;
-    tube_along_arc(
+    let body = tube_along_arc(
         tube_frame(center, axis(), (end - center).normalize(), Tol::witness()),
         1.1,
         window(170.0),
@@ -107,13 +108,14 @@ fn segment_b() -> Body<f64> {
         Tol::witness(),
     )
     .expect("segment B builds")
-    .body
+    .body;
+    finished("segment B", body, Tol::witness())
 }
 
 /// The toroidal SOCKET: a hollow elbow whose BORE is a torus of tube
 /// radius [`TUBE`] — the curved spelling of the bored plate.
-fn socket() -> Body<f64> {
-    tube_along_arc_hollow(
+fn socket() -> AtRestBody<f64> {
+    let body = tube_along_arc_hollow(
         tube_frame(
             Point3::new(-RING, 0.0, 0.0),
             axis(),
@@ -127,7 +129,8 @@ fn socket() -> Body<f64> {
         Tol::witness(),
     )
     .expect("socket builds")
-    .body
+    .body;
+    finished("the socket", body, Tol::witness())
 }
 
 /// Two FULL tori KISSING along one circle: coaxial and coplanar, ring
@@ -137,14 +140,14 @@ fn socket() -> Body<f64> {
 /// torus and the inner equator seam of the outer one, so it is a
 /// boundary edge of a face on each side — a rim, not an interior
 /// touch.
-fn kissing_pair() -> (Body<f64>, Body<f64>) {
+fn kissing_pair() -> (AtRestBody<f64>, AtRestBody<f64>) {
     (full_torus(RING), full_torus(RING + 2.0 * TUBE))
 }
 
 /// A full solid torus of ring radius `major` and tube [`TUBE`], about
 /// the origin on `+z`. It carries its two wall faces and nothing else.
-fn full_torus(major: f64) -> Body<f64> {
-    tube_along_arc(
+fn full_torus(major: f64) -> AtRestBody<f64> {
+    let body = tube_along_arc(
         tube_frame(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
@@ -157,7 +160,8 @@ fn full_torus(major: f64) -> Body<f64> {
         Tol::witness(),
     )
     .expect("the full torus builds")
-    .body
+    .body;
+    finished("the full torus", body, Tol::witness())
 }
 
 /// The torus faces of a body whose tube radius is `minor`.
@@ -227,7 +231,11 @@ fn wall_declarations(
 /// (`work/join/peg-in-socket-union-refuses-join-desync-at-a-coarse-eps.md`);
 /// the declared-REST zip takes that refusal over and builds the same
 /// census.
-fn peg_in_socket_union_holds(s: &Body<f64>, p: &Body<f64>, decls: &BooleanDeclarations) {
+fn peg_in_socket_union_holds(
+    s: &AtRestBody<f64>,
+    p: &AtRestBody<f64>,
+    decls: &BooleanDeclarations,
+) {
     let r = topo::union_with(s, p, decls, Tol::witness())
         .unwrap_or_else(|e| panic!("the peg-in-socket union builds: {e:?}"));
     let bb = r.body().expect("a union of two solids is not empty");
@@ -305,6 +313,7 @@ fn a_contradicted_torus_rest_declaration_refuses_loudly() {
     )
     .expect("the thin peg builds")
     .body;
+    let thin = finished("the thin peg", thin, Tol::witness());
     let mut decls = BooleanDeclarations::none();
     for &fa in &torus_faces(&s, TUBE) {
         for &fb in &torus_faces(&thin, TUBE * 0.75) {
@@ -614,6 +623,7 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
     )
     .expect("the distant elbow builds")
     .body;
+    let b = finished("the distant elbow", b, Tol::witness());
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
         .expect_err("a Tangent declaration outside the witness lane is refused");
@@ -762,9 +772,10 @@ fn a_cone_face_still_cannot_be_declared_at_all() {
             Point2::new(1.0, 0.0),
             Point2::new(0.0, 1.0),
         ])]);
-        revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+        let cone = revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
             .expect("the cone body builds")
-            .body
+            .body;
+        finished("the cone", cone, Tol::witness())
     };
     let cone_face = cone
         .faces()
@@ -860,11 +871,13 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
 /// answer the slit.
 #[test]
 fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
-    let (a, mut b) = kissing_pair();
+    let (a, b) = kissing_pair();
+    let mut b = b.into_body();
     for fb in torus_faces(&b, TUBE) {
         let s = b.get_face(fb).expect("the wall face resolves").sense;
         b.set_face_sense(fb, !s).expect("the key is live");
     }
+    let b = finished("the sense-flipped outer torus", b, Tol::witness());
     // The premise, stated rather than assumed: the two operands' walls
     // now carry DIFFERENT bits, so the second argument is load-bearing.
     let sense_of = |body: &Body<f64>| {

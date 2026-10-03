@@ -22,65 +22,84 @@ use crate::mate2_common;
 use geom::SurfaceKind;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use mate2_common::{
-    assert_additive, body_of, boolean_body, collar, collar_at, continuations, peg_at, plane_face,
-    volume, wall_decls, walls_at,
+    assert_additive, boolean_body, collar, collar_at, continuations, peg_at, plane_face, volume,
+    wall_decls, walls_at,
 };
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
-    Body, BooleanBody, BooleanDeclarations, BooleanError, ContactClass, FacePairDeclaration,
-    FaceSurface, MergeCoplanarError, Operand, Rechart, SkippedMerge, validate_closed,
-    validate_geometric, validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanError, ContactClass,
+    FacePairDeclaration, FaceSurface, MergeCoplanarError, Operand, Rechart, SkippedMerge,
+    validate_closed, validate_geometric, validate_pseudomanifold,
 };
 
 const BORE_R: f64 = 0.5;
 
 /// Scene A: the peg floats in the bore (z ∈ [1.5, 2.5] against a bore
 /// z ∈ [1, 2]); nine wall `Rest`s.
-fn scene_a() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
+fn scene_a() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
     let c = collar();
     let p = peg_at(0.0, 1.5, 1.0);
     let d = wall_decls(&c, &p);
-    (c, p, d)
+    let tol = Tol::witness();
+    (
+        finished("the collar", c, tol),
+        finished("the peg", p, tol),
+        d,
+    )
 }
 
 /// Scene B: the peg ends mid-bore (z ∈ [0.5, 1.5]).
-fn scene_b() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
+fn scene_b() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
     let c = collar_at(0.0);
     let p = peg_at(0.0, 0.5, 1.0);
     let d = wall_decls(&c, &p);
-    (c, p, d)
+    let tol = Tol::witness();
+    (
+        finished("the collar", c, tol),
+        finished("the peg", p, tol),
+        d,
+    )
 }
 
 /// Scene C: flush at the bottom, proud at the top (z ∈ [1, 2.5]).
-fn scene_c() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
+fn scene_c() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
     let c = collar_at(0.0);
     let p = peg_at(0.0, 1.0, 1.5);
     let d = wall_decls(&c, &p);
-    (c, p, d)
+    let tol = Tol::witness();
+    (
+        finished("the collar", c, tol),
+        finished("the peg", p, tol),
+        d,
+    )
 }
 
 /// Scene D: partial engagement — a plate with a peg reaching halfway up
 /// the through-bore of a plate above it; one planar `Rest` (the plates'
 /// mating faces) plus nine wall `Rest`s.
-fn scene_d() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
-    let p = body_of(
+fn scene_d() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
+    let tol = Tol::witness();
+    let p = boolean_body(
         topo::union(
-            &plate6(0.0),
-            &plate6_cyl(2.0, 0.4, 1.1, BORE_R),
-            Tol::witness(),
+            &finished("the lower plate", plate6(0.0), tol),
+            &finished("the peg", plate6_cyl(2.0, 0.4, 1.1, BORE_R), tol),
+            tol,
         )
         .unwrap(),
-    );
-    let q = body_of(
+    )
+    .body;
+    let q = boolean_body(
         topo::subtract(
-            &plate6(1.0),
-            &plate6_cyl(2.0, 0.8, 1.4, BORE_R),
-            Tol::witness(),
+            &finished("the upper plate", plate6(1.0), tol),
+            &finished("the bore", plate6_cyl(2.0, 0.8, 1.4, BORE_R), tol),
+            tol,
         )
         .unwrap(),
-    );
+    )
+    .body;
     // The plates' flush outer walls are continuations.
     let mut d = continuations(&p, &q);
     d.coincident_faces.push(FacePairDeclaration::new(
@@ -102,8 +121,8 @@ fn scene_d() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
 /// to be right on its own.
 fn union_honest(
     label: &str,
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
     d: &BooleanDeclarations,
 ) -> BooleanBody<f64> {
     let bb = boolean_body(
@@ -551,7 +570,7 @@ fn record_beside_a_committing_curved_run_names_only_live_faces() {
 #[test]
 fn pair_with_no_live_faces_mints_no_record() {
     let (c, p, d) = scene_c();
-    let mut body = union_honest("C", &c, &p, &d).body;
+    let mut body = union_honest("C", &c, &p, &d).body.into_body();
     let walls = walls_at(&body, BORE_R);
     let pk = body.get_face(walls[0]).unwrap().surface;
     assert!(
@@ -934,8 +953,8 @@ fn rendered_skip_names_the_door_not_the_declaration() {
 /// and this record is what shows the pair waiting for it.
 #[test]
 fn stacked_equal_pegs_same_sense_walls() {
-    let lo = peg_at(0.0, 0.0, 1.0);
-    let hi = peg_at(0.0, 1.0, 1.0);
+    let lo = finished("the lower peg", peg_at(0.0, 0.0, 1.0), Tol::witness());
+    let hi = finished("the upper peg", peg_at(0.0, 1.0, 1.0), Tol::witness());
     let mut caps = BooleanDeclarations::none();
     caps.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&lo, 1.0, true),

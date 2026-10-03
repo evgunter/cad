@@ -7,22 +7,36 @@
 //! f64 tour and the Probe K-telemetry sweep; oracles compare through
 //! the exact `f()` extraction.
 //!
+//! Operands are finished bodies ([`AtRestBody`]), the doors' own
+//! type: a scene finishes each operand it builds once, with
+//! [`finished`], and passes a boolean result (already finished) straight
+//! on to the next op.
+//!
 //! Tier-3 posture: boolean results validate as they are, via
 //! `validate_pseudomanifold` with the op's own declared `contacts`
 //! (M3 PR 6a's 3′ contract) — see `crate::run_body`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::topo::{Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind};
+use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind};
 
 use crate::scalar::Scalar;
 use pncad::geom_core::Tol;
 
+/// `body` finished for the boolean doors, through the scalar's at-rest
+/// gate. A tour scene authors its own operands, so one the gate refuses
+/// is a scene or kernel defect, and the panic names `what` and the
+/// validator's findings.
+pub fn finished<S: Scalar>(what: &str, body: Body<S>, tol: Tol) -> AtRestBody<S> {
+    S::gate_at_rest_kept(body, tol)
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+}
+
 /// A ∪* B — refusals surface to the caller; every result goes through
 /// the scene builders' exact-volume oracle before it ships.
 pub fn try_union<S: Scalar>(
-    a: &Body<S>,
-    b: &Body<S>,
+    a: &AtRestBody<S>,
+    b: &AtRestBody<S>,
     tol: Tol,
 ) -> Result<BooleanResult<S>, BooleanError> {
     pncad::topo::union(a, b, tol)
@@ -30,8 +44,8 @@ pub fn try_union<S: Scalar>(
 
 /// A ∖* B (same posture as [`try_union`]).
 pub fn try_subtract<S: Scalar>(
-    a: &Body<S>,
-    b: &Body<S>,
+    a: &AtRestBody<S>,
+    b: &AtRestBody<S>,
     tol: Tol,
 ) -> Result<BooleanResult<S>, BooleanError> {
     pncad::topo::subtract(a, b, tol)
@@ -39,8 +53,8 @@ pub fn try_subtract<S: Scalar>(
 
 /// A ∩* B (same posture as [`try_union`]).
 pub fn try_intersect<S: Scalar>(
-    a: &Body<S>,
-    b: &Body<S>,
+    a: &AtRestBody<S>,
+    b: &AtRestBody<S>,
     tol: Tol,
 ) -> Result<BooleanResult<S>, BooleanError> {
     pncad::topo::intersect(a, b, tol)
@@ -50,8 +64,8 @@ pub fn try_intersect<S: Scalar>(
 /// author's coincidence intent, stated — the kernel never infers it
 /// from values).
 pub fn try_union_declared<S: Scalar>(
-    a: &Body<S>,
-    b: &Body<S>,
+    a: &AtRestBody<S>,
+    b: &AtRestBody<S>,
     tol: Tol,
 ) -> Result<BooleanResult<S>, BooleanError> {
     pncad::topo::union_with(a, b, &flush_declarations(a, b, tol), tol)
@@ -60,8 +74,8 @@ pub fn try_union_declared<S: Scalar>(
 /// A ∩* B with the scene's flush contacts declared
 /// ([`try_union_declared`]).
 pub fn try_intersect_declared<S: Scalar>(
-    a: &Body<S>,
-    b: &Body<S>,
+    a: &AtRestBody<S>,
+    b: &AtRestBody<S>,
     tol: Tol,
 ) -> Result<BooleanResult<S>, BooleanError> {
     pncad::topo::intersect_with(a, b, &flush_declarations(a, b, tol), tol)

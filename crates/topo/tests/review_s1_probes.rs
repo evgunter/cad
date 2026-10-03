@@ -20,14 +20,18 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations, prism_z};
+use common::{brick, finished, flush_declarations, prism_z};
 use geom_core::Tol;
 use topo::{
     Body, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, subtract_with,
     union_with, validate_geometric, validate_pseudomanifold,
 };
 
-fn glued(a: &Body<f64>, b: &Body<f64>, volume: f64) -> topo::BooleanBody<f64> {
+fn glued(
+    a: &topo::AtRestBody<f64>,
+    b: &topo::AtRestBody<f64>,
+    volume: f64,
+) -> topo::BooleanBody<f64> {
     let g = match union_with(
         a,
         b,
@@ -64,8 +68,16 @@ fn glued(a: &Body<f64>, b: &Body<f64>, volume: f64) -> topo::BooleanBody<f64> {
 /// brick bottom), with one pierce site per solid. Builds exactly.
 #[test]
 fn probe_overhang_partial_both_faces() {
-    let plate = brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
-    let over = brick((2.0, 6.0), (2.0, 6.0), (1.0, 2.0), Tol::witness());
+    let plate = finished(
+        "plate",
+        brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let over = finished(
+        "over",
+        brick((2.0, 6.0), (2.0, 6.0), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     glued(&plate, &over, 32.0);
 }
 
@@ -84,9 +96,21 @@ fn probe_overhang_partial_both_faces() {
 /// equal to the exact one.
 #[test]
 fn probe_symmetric_two_patch_bridge() {
-    let a = brick((0.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let bridge_blank = brick((0.0, 3.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
-    let notch = brick((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5), Tol::witness());
+    let a = finished(
+        "a",
+        brick((0.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let bridge_blank = finished(
+        "bridge_blank",
+        brick((0.0, 3.0), (0.0, 1.0), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let notch = finished(
+        "notch",
+        brick((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5), Tol::witness()),
+        Tol::witness(),
+    );
     let BooleanResult::Body(b) = subtract(&bridge_blank, &notch, Tol::witness()).unwrap() else {
         panic!("bridge subtract yields a body");
     };
@@ -109,8 +133,16 @@ fn probe_symmetric_two_patch_bridge() {
 /// `DeclarationContradicted`, never a silent no-op.
 #[test]
 fn probe_near_miss_false_declaration_contradicts() {
-    let bot = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let top = brick::<f64>((0.0625, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
+    let bot = finished(
+        "bot",
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let top = finished(
+        "top",
+        brick::<f64>((0.0625, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let mut decls = flush_declarations(&bot, &top, Tol::witness());
     assert!(
         !decls.coincident_faces.is_empty(),
@@ -164,8 +196,13 @@ fn probe_subtract_notch_rests_on_b() {
         Tol::witness(),
     )
     .body;
+    let a = finished("a", a, Tol::witness());
     assert_eq!(mass_properties(&a, Tol::witness()).unwrap().volume, 5.0);
-    let b = brick((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness());
+    let b = finished(
+        "b",
+        brick((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
     let decls = flush_declarations(&a, &b, Tol::witness());
     assert!(!decls.coincident_faces.is_empty());
     let BooleanResult::Body(sub) = subtract_with(&a, &b, &decls, Tol::witness())

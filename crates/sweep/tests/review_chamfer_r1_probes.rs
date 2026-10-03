@@ -354,22 +354,8 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
         )
         .expect("the ball translates")
     };
-    let dimpled = {
-        use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
-        boolean_op_with(
-            BooleanOp::Subtract,
-            &cube,
-            &ball,
-            &BooleanDeclarations::none(),
-            SweepStrategy::Realized,
-            Tol::witness(),
-        )
-        .expect("the dimple subtracts")
-        .body()
-        .expect("a body")
-        .body
-        .clone()
-    };
+    let dimpled =
+        sweep::test_support::realized(topo::BooleanOp::Subtract, &cube, &ball, Tol::witness());
     let surviving: Vec<EdgeKey> = box_edges
         .into_iter()
         .filter(|k| dimpled.get_edge(*k).is_some())

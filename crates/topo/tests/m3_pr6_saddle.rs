@@ -36,14 +36,14 @@
 //! fixture (any future firing lands here).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use crate::common;
-use common::{mapped_cube, prism_z};
+use common::{finished, mapped_cube, prism_z};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
-use topo::{Body, BooleanError, union};
+use topo::{AtRestBody, BooleanError, union};
 
 /// The L-prism with its reflex wedge edge along z at (2, 2).
-fn l_prism() -> Body<f64> {
-    prism_z::<f64>(
+fn l_prism() -> AtRestBody<f64> {
+    let l = prism_z::<f64>(
         &[
             (0.0, 0.0),
             (4.0, 0.0),
@@ -56,7 +56,8 @@ fn l_prism() -> Body<f64> {
         1.0,
         Tol::witness(),
     )
-    .body
+    .body;
+    finished("the L-prism", l, Tol::witness())
 }
 
 /// Part 1's pin: prism × prism at the reflex corner — the collinear
@@ -73,6 +74,7 @@ fn prism_reflex_kiss_takes_edge_edge_lane() {
         Tol::witness(),
     )
     .body;
+    let b = finished("the kissing prism", b, Tol::witness());
     // M4 PR 5: the coplanar top/bottom contacts are declared so the
     // classification reaches the edge-edge lane (undeclared, it now
     // refuses earlier at the coincidence door — rung (b)).
@@ -110,6 +112,7 @@ fn tilted_saddle_corner_refuses_typed() {
         },
         Tol::witness(),
     );
+    let b = finished("the tilted cube", b, Tol::witness());
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let err = union(&a, &b, Tol::witness()).unwrap_err();
     // JoinDesync ONLY (review tightening): the frontier is known to be
@@ -149,7 +152,11 @@ fn tilt_sweep_no_silent_mispair() {
                     zc + 0.8 * z2 - 0.3 * x1,
                 )
             };
-            let b = mapped_cube(map, Tol::witness());
+            let b = finished(
+                "a tilted cube",
+                mapped_cube(map, Tol::witness()),
+                Tol::witness(),
+            );
             match union(&a, &b, Tol::witness()) {
                 // Gated success (tier 1–2 + volume backstop inside).
                 Ok(_) => {}

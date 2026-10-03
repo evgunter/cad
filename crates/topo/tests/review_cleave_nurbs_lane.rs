@@ -171,8 +171,13 @@ fn a_plain_cavity_through_the_void_door_decides_nothing() {
 /// reachable from the boolean.
 #[test]
 fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
-    let cube = m7_8_cube::<f64>();
-    let brick = common::brick::<f64>((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), Tol::witness());
+    let tol = Tol::witness();
+    let cube = common::finished("the M7-8 cube", m7_8_cube::<f64>(), tol);
+    let brick = common::finished(
+        "the enclosing brick",
+        common::brick::<f64>((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol),
+        tol,
+    );
     match topo::subtract(&brick, &cube, Tol::witness()) {
         Err(topo::BooleanError::CurvedPairUnsupported {
             operand: topo::Operand::B,
@@ -196,8 +201,13 @@ fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
 /// reachable from the boolean.
 #[test]
 fn a_disjoint_union_with_the_m7_8_cube_refuses_before_the_graft() {
-    let cube = m7_8_cube::<f64>();
-    let brick = common::brick::<f64>((4.0, 5.0), (4.0, 5.0), (4.0, 5.0), Tol::witness());
+    let tol = Tol::witness();
+    let cube = common::finished("the M7-8 cube", m7_8_cube::<f64>(), tol);
+    let brick = common::finished(
+        "the far brick",
+        common::brick::<f64>((4.0, 5.0), (4.0, 5.0), (4.0, 5.0), tol),
+        tol,
+    );
     match topo::union(&brick, &cube, Tol::witness()) {
         Err(topo::BooleanError::CurvedEdgeUnsupported {
             operand: topo::Operand::B,

@@ -18,7 +18,7 @@ use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::cube;
+use sweep::test_support::{cube, finished};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
@@ -67,13 +67,13 @@ fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, topo::BooleanError> {
     let out = boolean_op_with(
         BooleanOp::Subtract,
-        a,
-        b,
+        &finished("operand A", a.clone(), Tol::witness()),
+        &finished("operand B", b.clone(), Tol::witness()),
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
         Tol::witness(),
     )?;
-    Ok(out.body().expect("a body").body.clone())
+    Ok(out.body().expect("a body").body.clone().into_body())
 }
 
 fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -309,8 +309,8 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         let b2 = ball_top(PIP_R, Vec3::new(0.5 + 0.11, 0.5, DIE_L + (PIP_R - PIP_H)));
         let tool = boolean_op_with(
             BooleanOp::Union,
-            &b1,
-            &b2,
+            &finished("the first pip ball", b1, Tol::witness()),
+            &finished("the second pip ball", b2, Tol::witness()),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             Tol::witness(),
@@ -367,8 +367,8 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         );
         let tool = boolean_op_with(
             BooleanOp::Union,
-            &b1,
-            &b2,
+            &finished("the first pip ball", b1, Tol::witness()),
+            &finished("the second pip ball", b2, Tol::witness()),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             Tol::witness(),

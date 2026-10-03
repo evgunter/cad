@@ -14,7 +14,7 @@ test_utils::gated_to![
 
 use crate::common;
 
-use common::{brick, holed_block, prism_z};
+use common::{brick, finished, holed_block, prism_z};
 use geom_core::{Band, Decide, Interval, Point3, Tol};
 use topo::{Body, BooleanOp, SolidContainment, point_in_solid};
 
@@ -213,7 +213,7 @@ type Case = (&'static str, Body<f64>, [Option<f64>; 3]);
 fn booleans_beside_a_far_carrier_never_answer_wrong() {
     let tol = Tol::witness();
     let eps = tol.get().eps;
-    let l = l_prism::<f64>();
+    let l = finished("the L-prism", l_prism::<f64>(), tol);
     let mut wrong = Vec::new();
     let mut refused = Vec::new();
     for k in [2.0, 5.0, 9.0] {
@@ -244,6 +244,7 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
             ),
         ];
         for (name, c, want) in cases {
+            let c = finished(name, c, tol);
             for (op, want) in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect]
                 .into_iter()
                 .zip(want)

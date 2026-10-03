@@ -33,11 +33,11 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Band, Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::ball_poled_y;
+use sweep::test_support::{ball_poled_y, finished};
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::test_support::GraftBridge;
-use topo::{Body, BooleanDeclarations, BooleanError};
+use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError};
 
 // ---------------------------------------------------------------------
 // Fixtures and helpers (the S12 suite's, radius-generalized).
@@ -56,15 +56,18 @@ fn cap(r: f64, h: f64) -> f64 {
     PI * h * h * (3.0 * r - h) / 3.0
 }
 
-/// Both sweep strategies, bit-identical, tier-3 valid (the S12 door).
+/// Both sweep strategies, bit-identical, tier-3 valid (the S12 door),
+/// on `a` and `b` each finished once as an operand.
 fn both_lanes(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+    let a = &finished("operand A", a.clone(), Tol::witness());
+    let b = &finished("operand B", b.clone(), Tol::witness());
     let decls = BooleanDeclarations::none();
     let realized = boolean_op_with(op, a, b, &decls, SweepStrategy::Realized, Tol::witness())
         .unwrap_or_else(|e| panic!("{op:?} (realized): {e}"));
     let idealized = boolean_op_with(op, a, b, &decls, SweepStrategy::Idealized, Tol::witness())
         .unwrap_or_else(|e| panic!("{op:?} (idealized): {e}"));
-    let rb = realized.body().expect("a body").body.clone();
-    let ib = idealized.body().expect("a body").body.clone();
+    let rb = realized.body().expect("a body").body.clone().into_body();
+    let ib = idealized.body().expect("a body").body.clone().into_body();
     assert_eq!(
         format!("{rb:?}"),
         format!("{ib:?}"),
@@ -83,8 +86,9 @@ const PIP_H: f64 = 0.3;
 
 /// The pip's ball, y-poled: its poles lie on a horizontal axis, which
 /// is the chart the §1 re-cut must re-align.
-fn pip_ball(x: f64, y: f64) -> Body<f64> {
-    ball_poled_y(PIP_R, Vec3::new(x, y, 1.0 + PIP_R - PIP_H), Tol::witness())
+fn pip_ball(x: f64, y: f64) -> AtRestBody<f64> {
+    let ball = ball_poled_y(PIP_R, Vec3::new(x, y, 1.0 + PIP_R - PIP_H), Tol::witness());
+    finished("the pip ball", ball, Tol::witness())
 }
 
 // ---------------------------------------------------------------------
@@ -274,8 +278,10 @@ fn in_band_extent_escalates_instead_of_answering() {
     let mid = 0.5 * (band.zero() + band.escalate());
     // Center above the slab so that r − |s| = mid for the top face.
     let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 2.0 - mid), Tol::witness());
+    let b = finished("the ball", b, Tol::witness());
+    let slab = finished("the slab", slab(), Tol::witness());
     let err =
-        topo::union(&slab(), &b, Tol::witness()).expect_err("an in-band extent must not answer");
+        topo::union(&slab, &b, Tol::witness()).expect_err("an in-band extent must not answer");
     let BooleanError::Escalated { .. } = err else {
         panic!("expected the extent trilean's escalation, got {err:?}");
     };
@@ -324,8 +330,16 @@ fn certified_disjoint_and_contained_shells_keep_their_answers() {
 /// layer higher.
 #[test]
 fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
-    let b1 = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
-    let b2 = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 1.9), Tol::witness());
+    let b1 = finished(
+        "the lower ball",
+        ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness()),
+        Tol::witness(),
+    );
+    let b2 = finished(
+        "the upper ball",
+        ball_poled_y(1.0, Vec3::new(2.0, 2.0, 1.9), Tol::witness()),
+        Tol::witness(),
+    );
     let err = topo::union(&b1, &b2, Tol::witness()).expect_err("no sphere×sphere seam lane");
     let BooleanError::SpheresMeet { .. } = err else {
         panic!("expected the scan's typed refusal, got {err:?}");
@@ -392,6 +406,10 @@ fn a_ball_in_the_wall_boxs_corner_is_certified_separated() {
     .unwrap()
     .body;
     let ball = ball_poled_y(0.05, Vec3::new(0.34, 0.34, 0.65), Tol::witness());
+    let (cyl, ball) = (
+        finished("the cylinder", cyl, Tol::witness()),
+        finished("the ball", ball, Tol::witness()),
+    );
     let out = topo::union(&cyl, &ball, Tol::witness())
         .expect("a genuinely separated pair must be certified, not refused");
     let built = out.body().expect("a non-empty union");
@@ -441,6 +459,10 @@ fn a_ball_above_the_cylinders_cap_is_certified_separated() {
     // Ball bottom at z = 1.55, cap at z = 1.3: a gap of 0.25, less
     // than the wall's 0.35 radius.
     let ball = ball_poled_y(0.2, Vec3::new(0.0, 0.0, 1.75), Tol::witness());
+    let (cyl, ball) = (
+        finished("the cylinder", cyl, Tol::witness()),
+        finished("the ball", ball, Tol::witness()),
+    );
     let out = topo::union(&cyl, &ball, Tol::witness())
         .expect("a genuinely separated pair must be certified, not refused");
     let kind = out.body().expect("a non-empty union").kind;
@@ -484,6 +506,10 @@ fn a_ball_straddling_a_notched_walls_carrier_builds() {
     .body;
     let at = 0.35 * core::f64::consts::FRAC_1_SQRT_2;
     let ball = ball_poled_y(0.05, Vec3::new(at, -at, 0.65), Tol::witness());
+    let (slab, ball) = (
+        finished("the notched slab", slab, Tol::witness()),
+        finished("the ball", ball, Tol::witness()),
+    );
     let (v_slab, v_ball) = (
         0.75 * PI * 0.35_f64.powi(2) * 1.3,
         4.0 * PI * 0.05_f64.powi(3) / 3.0,
