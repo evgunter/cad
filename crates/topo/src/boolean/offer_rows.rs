@@ -2240,6 +2240,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("join.rs", "ring_winding_order", "SelfCheck::RingWinding", 1),
     ("join.rs", "slots", "Coincide::Join", 1),
+    ("join.rs", "walk_passes", "Coincide::Join", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (

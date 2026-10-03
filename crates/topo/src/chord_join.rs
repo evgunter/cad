@@ -49,8 +49,8 @@
 //! M3 plan (RATIFIED #42) item 5 said *"Ch. 14 join reused
 //! with A↔B correspondence disambiguation"*, and ch. 14's join is the
 //! split lane's. So the boolean joining imported [`ChordJoiner`],
-//! [`CutOutcome`], [`SectionCtx`], [`face_azimuth_window`] and
-//! [`SplitJoinError`] out of `splitting/join.rs`, while `splitting/`
+//! [`CutOutcome`], [`SectionCtx`] and [`SplitJoinError`] out of
+//! `splitting/join.rs`, while `splitting/`
 //! reciprocated by hosting the [`JoinLane::BoolPlanar`] arm and
 //! [`bool_planar_chord_spec`], which only the boolean reaches. The
 //! three-way [`JoinLane`] threaded through [`chord_spec`] was the
@@ -60,26 +60,26 @@
 //! `splitting/`, like [`crate::sector_shape`] and
 //! [`crate::sector_face`], so neither half hosts the other's core.
 //! `JoinLane::BoolPlanar` is NOT deleted by the move and was never the
-//! defect: it is deliberate and argued (the planar side of a curved
-//! germ pair has no chart of its own, so the azimuth window must
-//! arrive by value). What changes is that both arms of a shared enum
-//! now live in shared scope, instead of one lane hosting the other's.
+//! defect: the planar side of a curved germ pair sections the OTHER
+//! operand's wall, which must arrive by value. What changes is that
+//! both arms of a shared enum now live in shared scope, instead of one
+//! lane hosting the other's.
 //!
 //! # The section-chord geometry
 //!
 //! [`chord_spec`] answers what curve a chord between two vertices of a
 //! divided face rides: `None` for planar faces (the straight-chord
-//! lane), and for a charted face the section conic of the face's
-//! carrier against the section plane, with the ARC selected by
-//! azimuth-window containment (`split_arc_window`, the M5 S9 rule) —
-//! the window being the divided face's own ([`face_azimuth_window`]) or,
-//! on the [`JoinLane::BoolPlanar`] arm, the partner wall's, arriving by
-//! value because the planar side has no chart to compute one from.
-//! A sphere section tilted against the chart's polar axis has no
-//! monotone azimuth for a window to bound: on a divided sphere face its
-//! arc is selected by the side of the run it leaves on
-//! (`split_arc_run_side`), and the [`JoinLane::BoolPlanar`] arm, which
-//! has only the mate's window, refuses it.
+//! lane), and for a curved face the section conic of the face's
+//! carrier against the section plane — or, on the
+//! [`JoinLane::BoolPlanar`] arm, of the plane against the partner wall.
+//! Which of the conic's two arcs between the vertices is not asked of
+//! the face: the lane that paired the chord's two ends already decided
+//! it, and hands it over as the section's direction of departure at
+//! each end ([`Leave`]) — the boolean's germ direction, the split's
+//! conic walk. The chord only orients the arc along it
+//! (`chord_arc_leave`), so a chord reads no chart and every conic the
+//! table mints, on any carrier and at any tilt, takes its arc the same
+//! way.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::{
@@ -91,121 +91,12 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
-use crate::face_normal;
 use crate::geometry::SurfaceKey;
 use crate::null::CurveGeom;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
 use geom_core::Tol;
-
-/// Which sub-case of the arc-side **azimuth-window containment** rule
-/// refused (M5 S9). The rule selects the section arc whose azimuth
-/// sweep lies inside the divided face's own window; when containment
-/// does not name exactly one arc it refuses with the sub-case named,
-/// never a guess (the PR 5 defect was a guess that could not be seen
-/// downstream — #144).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ArcWindowCase {
-    /// The joined run carries no edge with a closed-form chart image,
-    /// so the divided face has no azimuth window at all.
-    ///
-    /// A cross-loop chord reads the divided face's outer cycle
-    /// ([`cross_loop_window_cycle`]), never a pierce ring's own null
-    /// scaffolding, which `run_azimuth_window` steps over. A same-loop
-    /// chord reads the run it co-bounds the new face with, so a run made
-    /// of scaffolding alone, a frontier-carrier run and a corrupt one
-    /// arrive here; this variant does not distinguish them.
-    NoChartedRun,
-    /// NEITHER candidate arc lies inside the window — the window is
-    /// degenerate relative to the chord (an ill-conditioned operand, or
-    /// a run that does not actually co-bound the face with this chord).
-    NeitherContained,
-    /// BOTH candidates lie inside the window: the window spans at least
-    /// one full period, so containment does not distinguish the arcs.
-    /// Ambiguous by construction — refused, never broken by convention.
-    BothContained,
-    /// The window would be read across a cone face's APEX, where every
-    /// azimuth maps to one point and no branch pin carries: either a
-    /// walk was asked to pin across the apex, or the face has no single
-    /// lift that closes there (it meets its apex more than once, carries
-    /// a ring, or reaches it from both nappes — [`cone_apex_closure`]'s
-    /// `Open`). A window guessed there selects the complement arc
-    /// without any later check seeing it.
-    ApexUnlifted,
-}
-
-/// Why the run-side arc rule ([`select_arc_by_run_side`]) named no
-/// arc — each a degeneracy of the chord against its run, refused typed
-/// rather than tie-broken.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ArcSideCase {
-    /// The joined run carries no certified edge, so there is no side
-    /// of it to read.
-    NoCertifiedRun,
-    /// The section leaves a run end along the run itself: it is
-    /// tangent to the face boundary there, and neither candidate is on
-    /// a definite side.
-    TangentToRun,
-    /// The run's two ends name different candidates: no candidate
-    /// leaves both ends on the run's left, so neither arc bounds a
-    /// region with the run — the run does not co-bound the divided face
-    /// with this chord.
-    EndsDisagree,
-    /// A run end is a reflex corner or a cusp of the divided face,
-    /// where leaving on the run's left does not put an arc inside the
-    /// face's sector there.
-    ReflexRunEnd,
-    /// The divided face's loop holds no certified edge beside the run,
-    /// so the corner at a run end, which decides whether that end's
-    /// reading counts, has no second side to read.
-    NothingBesideRun,
-}
-
-impl core::fmt::Display for ArcSideCase {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::NoCertifiedRun => write!(
-                f,
-                "the joined run carries no certified edge, so it has no side to read"
-            ),
-            Self::TangentToRun => write!(
-                f,
-                "the section is tangent to the face boundary at an end of the joined run"
-            ),
-            Self::EndsDisagree => write!(
-                f,
-                "the joined run's two ends put different arcs on the face's side, so neither \
-                 arc bounds a region with the run"
-            ),
-            Self::ReflexRunEnd => write!(
-                f,
-                "an end of the joined run is a reflex corner or a cusp of the divided face, \
-                 where the run's side does not decide the arc"
-            ),
-            Self::NothingBesideRun => write!(
-                f,
-                "the divided face's loop carries no certified edge beside the joined run, so \
-                 the corner at a run end cannot be read"
-            ),
-        }
-    }
-}
-
-impl ArcWindowCase {
-    /// Is this a **containment verdict** — a definite classification of
-    /// `split_arc_window` against the run's band, and so one half of the
-    /// two-tolerance pair whose other half is
-    /// [`SplitJoinError::Escalated`] on the very same margin (S6, D4 ¶1
-    /// addendum)? [`Self::NoChartedRun`] is not: nothing was classified
-    /// there, so the shared recourse would be a false lead.
-    fn is_containment_verdict(self) -> bool {
-        match self {
-            Self::NeitherContained | Self::BothContained => true,
-            Self::NoChartedRun | Self::ApexUnlifted => false,
-        }
-    }
-}
 
 /// Why a curved face's crossings could not be paired along the face's
 /// section conic (`splitting::join`'s conic pairing): the conic's
@@ -241,35 +132,6 @@ impl core::fmt::Display for ConicCrossingsCase {
                 f,
                 "along the section the face's crossings do not alternate between entering \
                  and leaving it"
-            ),
-        }
-    }
-}
-
-impl core::fmt::Display for ArcWindowCase {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::NoChartedRun => write!(
-                f,
-                "the joined run carries no edge with a closed-form chart image, so the \
-                 divided face has no azimuth window"
-            ),
-            Self::NeitherContained => write!(
-                f,
-                "neither arc of the section conic lies inside the divided face's azimuth \
-                 window (a degenerate window)"
-            ),
-            Self::BothContained => write!(
-                f,
-                "both arcs of the section conic lie inside the divided face's azimuth \
-                 window (the window spans at least one full period — an ambiguous chord)"
-            ),
-            Self::ApexUnlifted => write!(
-                f,
-                "the divided cone face's azimuth window would be read across its apex, \
-                 where the chart has no azimuth: the walk reached the apex, or the face \
-                 meets it in a way no single chart lift closes (twice, from both nappes, \
-                 or around a ring)"
             ),
         }
     }
@@ -426,25 +288,15 @@ pub enum SplitJoinError {
         /// The table's refusal.
         source: geom_brep::SectionError,
     },
-    /// The arc-side containment rule did not name exactly one arc
-    /// (M5 S9): the sub-case says which way it failed.
-    ///
-    /// The two containment sub-cases are the **definite** half of a
-    /// two-tolerance pair (D4 ¶1 addendum, the S6 sweep): the very same
-    /// `split_arc_window` margin one band-width away escalates as
-    /// [`Self::Escalated`] instead, and a user cannot tell the two
-    /// situations apart from the geometry. So both halves name the
-    /// predicate, both quote the band that decided, and both end on the
-    /// one shared recourse carrier — composed exactly once.
-    SectionArcWindow {
-        /// The face being divided.
+    /// A cone face's chart window would be read across its APEX, where
+    /// every azimuth maps to one point and no branch pin carries: the
+    /// walk reached the apex, or the face meets it in a way no single
+    /// chart lift closes (twice, from both nappes, or around a ring —
+    /// [`cone_apex_closure`]'s `Open`). A window guessed there reads
+    /// the face's complement without any later check seeing it.
+    ApexUnlifted {
+        /// The cone face whose window was read.
         face: FaceKey,
-        /// Which containment verdict refused.
-        case: ArcWindowCase,
-        /// The band the containment margins were classified against —
-        /// the two tolerances, so the definite verdict and its in-band
-        /// neighbour read as one situation.
-        band: Band,
     },
     /// A curved-section invariant failed. Two DISTINCT populations
     /// share this arm (M5 PR 9 fix pass — read `what` to tell them
@@ -476,30 +328,6 @@ pub enum SplitJoinError {
         face: FaceKey,
         /// Its surface kind.
         kind: geom::SurfaceKind,
-    },
-    /// The boolean's PLANAR side of a plane×sphere germ pair met a
-    /// section tilted against the sphere's chart polar axis
-    /// (`split_sphere_section_polar`). That side selects its arc by the
-    /// mate wall face's azimuth window, handed over by value, and a
-    /// tilted section's azimuth is not monotone, so there is no window
-    /// to select by; the wall side of the same pair, and both sides of
-    /// a sphere pair, take the run-side rule instead. A deliberate
-    /// typed frontier (`work/reach/planar-side-of-a-tilted-plane-sphere-cut-has-no-arc-cue.md`).
-    SectionNotPolar {
-        /// The planar face being divided.
-        face: FaceKey,
-        /// The band the tilt was decided against.
-        band: Band,
-    },
-    /// The run-side arc rule — the one a section whose chart azimuth
-    /// is not monotone takes (`split_arc_run_side`) — named no arc.
-    SectionArcSide {
-        /// The face being divided.
-        face: FaceKey,
-        /// Which degeneracy.
-        case: ArcSideCase,
-        /// The band the sides were decided against.
-        band: Band,
     },
     /// A curved face crossed more than twice could not have its
     /// crossings paired along its section conic, which is the only
@@ -666,21 +494,12 @@ impl SplitJoinError {
             Self::Section { source, .. } => {
                 write!(f, "the section through a curved face refused: {source}")
             }
-            Self::SectionArcWindow { case, band, .. } => {
-                write!(
-                    f,
-                    "the section through a curved face has no arc to take: {case}"
-                )?;
-                if case.is_containment_verdict() {
-                    write!(
-                        f,
-                        " ('split_arc_window', band ({:e}, {:e})). Recourse: {recourse}",
-                        band.zero(),
-                        band.escalate(),
-                    )?;
-                }
-                Ok(())
-            }
+            Self::ApexUnlifted { .. } => write!(
+                f,
+                "a cone face's azimuth window would be read across its apex, where the chart \
+                 has no azimuth: the walk reached the apex, or the face meets it in a way no \
+                 single chart lift closes (twice, from both nappes, or around a ring)"
+            ),
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
             }
@@ -689,34 +508,6 @@ impl SplitJoinError {
                 "a cut passes through a {kind:?} face without reaching its boundary, leaving \
                  a ring the join reads only on a cylinder wall. Recourse: move the cut so it \
                  crosses the face's edge, or divide the face there first"
-            ),
-            Self::SectionNotPolar { band, .. } => write!(
-                f,
-                "the planar side of a plane×sphere cut is tilted against the sphere's polar \
-                 axis, and that side takes its arc from the sphere face's azimuth window, \
-                 which a tilted section has none of ('split_sphere_section_polar', band \
-                 ({:e}, {:e})). Recourse: revolve the ball about the face's normal",
-                band.zero(),
-                band.escalate(),
-            ),
-            // Only the tangency is a verdict of the band; a run with no
-            // certified edge or two disagreeing ends is the geometry's.
-            Self::SectionArcSide { case, band, .. } => write!(
-                f,
-                "the section through a curved face has no arc to take: {case} \
-                 ('split_arc_run_side', band ({:e}, {:e})). Recourse: {}",
-                band.zero(),
-                band.escalate(),
-                match case {
-                    ArcSideCase::TangentToRun => recourse,
-                    ArcSideCase::NoCertifiedRun => {
-                        "the section pierces this face as a ring, which has no join arm yet; \
-                         move the geometry so the section crosses the face's boundary"
-                    }
-                    ArcSideCase::EndsDisagree
-                    | ArcSideCase::ReflexRunEnd
-                    | ArcSideCase::NothingBesideRun => "move the geometry",
-                },
             ),
             Self::SectionCrossings { case, band, .. } => write!(
                 f,
@@ -866,14 +657,12 @@ pub(crate) struct SectionCtx<T: Real> {
 ///   locus, so no section rides along.
 /// - [`JoinLane::Split`] — the split lane's conic machinery, AND the
 ///   boolean's WALL-side chord (the germ pair's plane arrives as a
-///   transient context; the divided face's own cylinder chart drives
-///   the S9 azimuth-window arc selection unchanged).
+///   transient context).
 /// - [`JoinLane::BoolPlanar`] — the boolean's PLANAR-side chord of a
-///   curved germ pair: the divided face is the plane, the partner
-///   wall arrives by value with its face's azimuth window (computed
-///   by the caller from the OTHER operand), and the selected arc is
-///   the one contained in that window — the same S9 statement, asked
-///   of the mate's chart.
+///   curved germ pair: the divided face is the plane, and the partner
+///   wall arrives by value from the OTHER operand.
+///
+/// Every lane takes its arc from the join's [`Leave`].
 pub(crate) enum JoinLane<'a, T: Real> {
     /// Straight chords only.
     Planar,
@@ -883,8 +672,6 @@ pub(crate) enum JoinLane<'a, T: Real> {
     BoolPlanar {
         /// The partner wall surface (value; from the other operand).
         wall: geom::Surface<T>,
-        /// The wall FACE's azimuth window on the wall chart.
-        window: Option<(T, T)>,
         /// The aux wall key in THIS body (minted once, caller-cached).
         partner_key: &'a mut Option<SurfaceKey>,
     },
@@ -901,13 +688,8 @@ impl<T: Real> JoinLane<'_, T> {
         match self {
             JoinLane::Planar => JoinLane::Planar,
             JoinLane::Split(ctx) => JoinLane::Split(ctx),
-            JoinLane::BoolPlanar {
-                wall,
-                window,
-                partner_key,
-            } => JoinLane::BoolPlanar {
+            JoinLane::BoolPlanar { wall, partner_key } => JoinLane::BoolPlanar {
                 wall: wall.clone(),
-                window: *window,
                 partner_key,
             },
             JoinLane::AlongEdge => JoinLane::AlongEdge,
@@ -915,13 +697,13 @@ impl<T: Real> JoinLane<'_, T> {
     }
 }
 
-/// The section conic's frame — the datum both chord lanes select an
-/// arc of, in the form the arc-side rule reads it.
+/// The section conic's frame — the curve both chord lanes take an arc
+/// of.
 pub(crate) struct SectionConic<T: Real> {
     /// The conic's centre.
     center: Point3<T>,
-    /// The section plane's normal — the conic's own axis, whose sign
-    /// against the wall chart's axis says which candidate is ccw.
+    /// The section plane's normal — the conic's own axis, about which
+    /// its parameter runs ccw.
     normal: Vec3<T>,
     /// The major direction.
     major: Vec3<T>,
@@ -931,13 +713,6 @@ pub(crate) struct SectionConic<T: Real> {
     sb: T,
     /// The carrier itself.
     carrier: geom::Curve3<T>,
-    /// Whether chart azimuth is monotone along the carrier — the
-    /// premise of the azimuth-window rule ([`select_arc`]). A cylinder or
-    /// cone conic the table admits and a polar sphere section have it; a
-    /// sphere section tilted against the chart's polar axis does not,
-    /// and its arc is selected by the run's side instead
-    /// ([`select_arc_by_run_side`]).
-    azimuth_monotone: bool,
 }
 
 impl<T: Real> SectionConic<T> {
@@ -973,8 +748,8 @@ pub(crate) enum SectionCase<T: Real> {
     Tangent(geom::Curve3<T>),
 }
 
-/// The section of the surface PAIR `(s1, s2)` under THE C5 table, in
-/// the frame the arc-side rule reads — **one implementation for both
+/// The section of the surface PAIR `(s1, s2)` under THE C5 table, as
+/// the conic a chord takes an arc of — **one implementation for both
 /// chord lanes** — this classification was written twice in this file,
 /// once per lane, differing only in the wording of its refusals and in
 /// what it did with the tangent arm.
@@ -989,14 +764,9 @@ pub(crate) enum SectionCase<T: Real> {
 /// straight chord.
 ///
 /// The sphere lane (M5 S13) classifies through `plane_sphere_section`
-/// — an exact Circle, never a fitted chord — and decides whether the
-/// section is polar for the sphere's chart (`split_sphere_section_polar`):
-/// the azimuth-window rule premises azimuth MONOTONE along the carrier,
-/// which a sphere chart gives for a polar section, and a tilted one is
-/// handed on marked for the run-side rule ([`SectionConic::azimuth_monotone`]).
-/// The cylinder lane is PR 5/PR 9's `plane_cylinder_section`; the cone
-/// lane is `plane_cone_section`, whose ellipse meets every generator
-/// once, so its azimuth is monotone along the carrier.
+/// — an exact Circle, never a fitted chord — whatever the section's
+/// tilt against the sphere's chart. The cylinder lane is PR 5/PR 9's
+/// `plane_cylinder_section`; the cone lane is `plane_cone_section`.
 fn section_case<T: Decide>(
     face: FaceKey,
     band: Band,
@@ -1021,8 +791,8 @@ fn section_case<T: Decide>(
         _ => {
             return Err(invariant(
                 "a chord's section pair has no plane — the C5 arms this lane reads are \
-                 plane×cylinder, plane×cone and plane×sphere, and a curved×curved pair has no arc-side \
-                 rule to run; refused typed rather than defaulted to a straight chord. A \
+                 plane×cylinder, plane×cone and plane×sphere, and a curved×curved pair has no conic \
+                 to take an arc of; refused typed rather than defaulted to a straight chord. A \
                  sphere pair never arrives here: its section lies in the pair's radical \
                  plane, which the boolean's join hands each side as a plane×sphere pair",
             ));
@@ -1035,12 +805,7 @@ fn section_case<T: Decide>(
             source: other,
         },
     };
-    if let geom::Surface::Sphere {
-        axis: sph_axis,
-        radius: sph_r,
-        ..
-    } = wall
-    {
+    if let geom::Surface::Sphere { .. } = wall {
         let sec = geom_brep::plane_sphere_section(plane_s, wall, band).map_err(table)?;
         let circle = match sec {
             geom_brep::PlaneSphereSection::Circle(c) => c,
@@ -1071,16 +836,6 @@ fn section_case<T: Decide>(
                 "plane×sphere classification carried a non-circle",
             ));
         };
-        let azimuth_monotone = match decide(
-            "split_sphere_section_polar",
-            Margin::levered(axis.cross(*sph_axis).norm(), *sph_r),
-            band,
-        )
-        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-        {
-            Sign::Zero => true,
-            Sign::Positive | Sign::Negative => false,
-        };
         return Ok(SectionCase::Conic(SectionConic {
             center,
             normal: axis,
@@ -1088,7 +843,6 @@ fn section_case<T: Decide>(
             sa: radius,
             sb: radius,
             carrier: circle,
-            azimuth_monotone,
         }));
     }
     let conic =
@@ -1128,48 +882,8 @@ fn section_case<T: Decide>(
     }
 }
 
-/// A cone wall's chart lever and nappe for the arc-side rule.
-///
-/// The lever is the section's farthest reach from the axis, bounded by
-/// its centre's radial offset plus its semi-major axis — an honest
-/// over-arm (the sphere frame takes the sphere's radius the same way),
-/// and exact for the axis-normal circle. The nappe is the chord start's
-/// side of the apex: the chart azimuth of a mirror-nappe point is the
-/// spatial one plus `π`, and the window this chord is read against was
-/// built in the chart's azimuth.
-fn cone_chart_lever<T: Decide>(
-    face: FaceKey,
-    band: Band,
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    conic: &SectionConic<T>,
-    p1: Point3<T>,
-) -> Result<(T, T), SplitJoinError> {
-    let offset = conic.center - apex;
-    let radius = (offset - axis * offset.dot(axis)).norm() + conic.sa;
-    let nappe = match decide(
-        "split_cone_chord_nappe",
-        Margin::of((p1 - apex).dot(axis)),
-        band,
-    )
-    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-    {
-        Sign::Positive => T::one(),
-        Sign::Negative => T::zero() - T::one(),
-        Sign::Zero => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "a conic section chord starts at its cone's apex level — no conic arc \
-                       of a plane off the apex reaches it",
-            });
-        }
-    };
-    Ok((radius, nappe))
-}
-
-/// The arc-side frame of a section carrier: an ellipse's own axes, a
-/// circle's radius twice, its azimuth monotone (the cylinder and cone
-/// conics the table admits). `None` for any other kind.
+/// The frame of a section carrier: an ellipse's own axes, a circle's
+/// radius twice. `None` for any other kind.
 fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
     let (center, normal, major, sa, sb) = match carrier {
         geom::Curve3::Ellipse {
@@ -1194,216 +908,7 @@ fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
         sa,
         sb,
         carrier,
-        azimuth_monotone: true,
     })
-}
-
-/// The wall chart an azimuth window lives in: azimuth is measured ccw
-/// about `axis` from `u_ref`, and containment margins are metered at
-/// `radius` (azimuth × chart radius — metres, the PR 6 convention).
-struct ChartFrame<T: Real> {
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-    /// `+1`, or `−1` on a cone's mirror nappe, whose chart azimuth is
-    /// the spatial one plus `π` (the cone chart's own convention).
-    nappe: T,
-}
-
-/// **The arc-side rule (M5 S9), once, for both chord lanes.** Given
-/// the section conic, the chord's endpoints and the azimuth WINDOW the
-/// arc has to lie inside, returns the selected arc as an oriented
-/// `(carrier, t_start, t_end)` running `p1 → p2`.
-///
-/// Where the window comes from is the only thing the two lanes disagree
-/// about, and it is a parameter: the split lane derives it from the
-/// divided face's own run ([`run_azimuth_window`]), the boolean's
-/// planar side is handed the MATE wall face's window by value, because
-/// a plane has no chart of its own to derive one from. The margins,
-/// the predicate names, the short-circuit order and the refusal cases
-/// are therefore the same by construction rather than by hand-syncing
-/// two copies — which is what they were.
-///
-/// # Errors
-///
-/// [`SplitJoinError::SectionArcWindow`] when containment names no
-/// single arc, [`SplitJoinError::Escalated`] on an in-band boundary,
-/// [`SplitJoinError::SectionInvariant`] for a section frame with no
-/// chart orientation.
-fn select_arc<T: Decide>(
-    face: FaceKey,
-    band: Band,
-    chart: &ChartFrame<T>,
-    conic: &SectionConic<T>,
-    window: (T, T),
-    p1: Point3<T>,
-    p2: Point3<T>,
-) -> Result<bool, SplitJoinError> {
-    let (w_min, w_max) = window;
-    let width = w_max - w_min;
-    // The chord's endpoints in the SAME chart frame the window lives
-    // in (cylinder chart: azimuth ccw about the axis from `u_ref`).
-    let chart_az = |p: Point3<T>| -> T {
-        let w = p - chart.origin;
-        let radial = (w - chart.axis * w.dot(chart.axis)) * chart.nappe;
-        stable_azimuth(
-            radial.dot(chart.axis.cross(chart.u_ref)),
-            radial.dot(chart.u_ref),
-            band,
-        )
-    };
-    let tau = T::tau();
-    let a1 = chart_az(p1);
-    // Containment margins are metered as azimuth × chart radius
-    // (metres — the PR 6 convention); an in-band window boundary
-    // escalates F6 with that lever arm. Fixed evaluation order, no
-    // data-dependent iteration (D9).
-    let contains = |margin: T| -> Result<bool, SplitJoinError> {
-        match decide(
-            "split_arc_window",
-            Margin::levered(margin, chart.radius),
-            band,
-        )
-        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-        {
-            Sign::Positive | Sign::Zero => Ok(true),
-            Sign::Negative => Ok(false),
-        }
-    };
-    // A window spanning a full period contains BOTH candidates (at one
-    // branch or another), so containment names no arc — and it is
-    // exactly the condition under which the chord's own branch inside
-    // the window is undetermined. Decided FIRST, before anything
-    // depends on that branch.
-    if contains(width - tau)? {
-        return Err(SplitJoinError::SectionArcWindow {
-            face,
-            case: ArcWindowCase::BothContained,
-            band,
-        });
-    }
-    // The chord's start, window-relative: the unique branch of its
-    // azimuth lying in the (now certainly sub-period) window. Found by
-    // reducing against the window's CENTRE, never its edge — the
-    // chord's start sits ON a window edge generically (it is one of the
-    // run's own ends), and a periodic reduction taken there straddles a
-    // period boundary, which at interval type widens to a full period
-    // by containment honesty and would escalate every curved cut.
-    //
-    // `reduce_periodic_centred` is that reduction under its own name:
-    // it folds the offset-from-centre once, into the window whose jump
-    // is at ±τ/2, so the argument's distance to the nearest jump is
-    // **(τ − width)/2** for a start inside the window —
-    // half the window's COMPLEMENT, not half the window. That distance
-    // is positive only because the `width ≥ τ` arm above already
-    // returned, and it is that arm's own band that makes it more than
-    // infinitesimally positive: a window a hair under a full period
-    // escalates there rather than reaching a knife-edge reduction here.
-    // On the shipped belly/tilted cuts the complement is most of a
-    // period, which is why the margin is comfortable in practice.
-    //
-    // **"For a start inside the window" is a PREMISE, not a gate.** No
-    // check on this path establishes it, and the bound is false without
-    // it: a start box at the window's ANTIPODE sits on the centred
-    // fold's own jump and comes back a full period wide at every window
-    // width, including widths where `(τ − width)/2` is a comfortable
-    // 1.57 rad. That is measured — `cert4r1_the_centred_anchoring_
-    // widens_at_its_own_jump_for_a_near_whole_window` in this file's
-    // tests drives it. Whether a run can present an antipodal start is
-    // NOT established either way here; it is recorded as an open
-    // premise rather than gated, because gating an unreached case costs
-    // a decision on every cut.
-    let half_w = width * T::from_f64(0.5);
-    let x1 = (a1 - (w_min + half_w)).reduce_periodic_centred(tau) + half_w;
-    // The azimuth gap to the chord's end. A difference, like every
-    // quantity here, so a rotated `u_ref` (a moved seam) cancels.
-    //
-    // A FORWARD gap, so the `[0, τ)` window and not the centred one: a
-    // chord may legitimately span more than half a period and its gap
-    // must read as that and not as its negative complement. The
-    // window's jump is therefore at a gap of zero — the two ends
-    // coincident, where `0` and `τ` are genuinely both consistent with
-    // an enclosure of them.
-    //
-    // Reaching it needs a chord whose two ends share an azimuth. That
-    // a real run does not produce one is an UNENFORCED PREMISE, stated
-    // as such: nothing on this path gates the gap away from zero, and
-    // the two ends being distinct points does not by itself make their
-    // azimuths distinct (a chord parallel to the axis has one azimuth
-    // at both ends). Moving the jump would relocate it onto a
-    // non-degenerate gap rather than remove it, so the window stays;
-    // what is not claimed is that the degenerate case is impossible.
-    let g = (chart_az(p2) - a1).reduce_periodic(tau);
-    // Both ends of both candidates are checked against both ends of the
-    // window — `up` = [x₁, x₁ + g] (ccw in the chart) and
-    // `dn` = [x₁ − (τ − g), x₁] against [0, width]. The chord's start
-    // lying in the window is a consequence of the run's own geometry,
-    // not an assumption: a run that does not actually end where this
-    // chord starts fails the x₁ rows and lands in `NeitherContained`.
-    //
-    // `&&` short-circuits, and the semantics of that are stated rather
-    // than left to be discovered: an in-band boundary escalates on the
-    // rows that are EVALUATED; a row skipped because an earlier
-    // containment on the same candidate was definitely FALSE never gets
-    // metered. That is deterministic (the order is fixed, D9) and
-    // refusal-safe (the candidate is already excluded, so a skipped row
-    // could only have excluded it again or escalated — never admitted
-    // it), and it keeps a definite non-containment from being masked by
-    // an unrelated ill-conditioned boundary on the same candidate.
-    let up_in = contains(x1)? && contains(width - x1 - g)?;
-    let dn_in = contains(width - x1)? && contains(x1 + g - tau)?;
-    // Which candidate is the conic parameter's CCW arc: θ runs ccw
-    // about the section normal n̂ₑ, chart azimuth ccw about the axis
-    // âc, so they agree exactly when n̂ₑ · âc > 0. Definite for every
-    // TiltedEllipse/Rim the table admits (|n̂ₑ · âc| · sₐ is the chart
-    // radius); an axis-orthogonal section frame is a ruling case the
-    // classification routes elsewhere, refused typed if it arrives.
-    let ccw_is_up = match decide(
-        "split_arc_chart_orientation",
-        Margin::levered(conic.normal.dot(chart.axis), conic.sa),
-        band,
-    )
-    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-    {
-        Sign::Positive => true,
-        Sign::Negative => false,
-        Sign::Zero => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "the section conic's frame is orthogonal to the cylinder axis \
-                       (no chart orientation for the arc-side rule)",
-            });
-        }
-    };
-    let (ccw_in, cw_in) = if ccw_is_up {
-        (up_in, dn_in)
-    } else {
-        (dn_in, up_in)
-    };
-    let ccw = match (ccw_in, cw_in) {
-        (true, false) => true,
-        (false, true) => false,
-        (false, false) => {
-            return Err(SplitJoinError::SectionArcWindow {
-                face,
-                case: ArcWindowCase::NeitherContained,
-                band,
-            });
-        }
-        // Unreachable in exact arithmetic once the window is under a
-        // period, but reachable in the ε-shell where both containment
-        // rows classify Zero on a window a hair under τ — the same
-        // verdict, refused the same way rather than tie-broken.
-        (true, true) => {
-            return Err(SplitJoinError::SectionArcWindow {
-                face,
-                case: ArcWindowCase::BothContained,
-                band,
-            });
-        }
-    };
-    Ok(ccw)
 }
 
 /// The candidate arc of `conic` from `th1` to `th2` (exact conic
@@ -1416,23 +921,13 @@ fn oriented_arc<T: Real>(
     ccw: bool,
 ) -> (geom::Curve3<T>, T, T) {
     let tau = T::tau();
-    // The arc's own span, forward from `th1` — the `[0, τ)` window for
-    // the same reason [`select_arc`]'s azimuth gap takes it, and with
-    // its jump in the same place: a span of zero, which is a
-    // zero-length or a whole-circle arc.
-    //
-    // Only ONE of those two ends is guarded, and by the arm that
-    // actually guards it: `BothContained` fires on `width ≥ τ`, so it
-    // keeps a whole-period WINDOW off this reduction — the τ end. The
-    // zero end is not its business and is not gated here; a
-    // zero-length arc reaching this reduction would come back a period
-    // wide, honestly, and the selection rules' classifications are what
-    // make that configuration not arise rather than what forbids it.
-    // On the run-side rule the window arm does not exist: there the τ
-    // end is two chord ends sharing a conic parameter, which the
-    // `split_arc_run_end` match refuses as a degenerate chord.
+    // The arc's own span, forward from `th1`, in `[0, τ)`: a chord may
+    // span more than half the conic. The window's jump is at a span of
+    // zero, two ends sharing a conic parameter — a zero-length or a
+    // whole-conic arc. Nothing here gates it: the boolean joins only
+    // distinct sites (`bool_join_chord`); that the split's pairing does
+    // is not established here.
     if ccw {
-        // The ccw arc from p1 lies in the face.
         let span = (th2 - th1).reduce_periodic(tau);
         (conic.carrier.clone(), th1, th1 + span)
     } else {
@@ -1468,308 +963,6 @@ fn oriented_arc<T: Real>(
         let th1f = T::zero() - th1;
         (flipped, th1f, th1f + span)
     }
-}
-
-/// A point on a half-edge and its unit tangent there, in the half-edge's
-/// own direction of travel.
-type PointTangent<T> = (Point3<T>, Vec3<T>);
-
-/// A half-edge's point and unit tangent, in its own direction of
-/// travel, at its start (`at_start`) or its end; `None` for null
-/// scaffolding, which is zero-length and has no tangent.
-fn half_end<T: Decide>(
-    body: &Body<T>,
-    he: HalfEdgeKey,
-    at_start: bool,
-) -> Result<Option<PointTangent<T>>, SplitJoinError> {
-    let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-    let edge = body
-        .get_edge(he_data.edge)
-        .ok_or_else(|| corrupt_edge(he_data.edge))?;
-    let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
-        return Ok(None);
-    };
-    let (t0, t1) = curve.params();
-    // A minus half runs its carrier backwards: it starts at `t1`.
-    let (t, sign) = match (edge.he_plus == he, at_start) {
-        (true, true) => (t0, T::one()),
-        (true, false) => (t1, T::one()),
-        (false, true) => (t1, -T::one()),
-        (false, false) => (t0, -T::one()),
-    };
-    let d = curve.carrier().deriv(t) * sign;
-    Ok(Some((curve.carrier().eval(t), d / d.norm())))
-}
-
-/// The run's certified half-edges in order — the one walk of the run
-/// the run-side rule reads its ends, its corners and its coincidence
-/// from. Null scaffolding is stepped over.
-fn certified_run<T: Decide>(
-    body: &Body<T>,
-    run: &[HalfEdgeKey],
-) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
-    let mut real = Vec::with_capacity(run.len());
-    for &he in run {
-        let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-        let edge = body
-            .get_edge(he_data.edge)
-            .ok_or_else(|| corrupt_edge(he_data.edge))?;
-        if let Some(CurveGeom::Certified(_)) = body.get_curve_geom(edge.curve) {
-            real.push(he);
-        }
-    }
-    Ok(real)
-}
-
-/// The tangent of the divided face's boundary just beside a run end,
-/// off the run: the first certified half-edge reached from `he` by
-/// walking the loop backwards (`at_start`, the half arriving at the
-/// run's start) or forwards (the half leaving its end). `None` when the
-/// loop holds nothing certified but the run's own halves' scaffolding.
-fn beside_run<T: Decide>(
-    body: &Body<T>,
-    he: HalfEdgeKey,
-    at_start: bool,
-) -> Result<Option<Vec3<T>>, SplitJoinError> {
-    let cycle_len = body.loop_cycle(he).ok_or_else(|| corrupt_he(he))?.len();
-    let mut at = he;
-    for _ in 0..cycle_len {
-        let data = body.get_half_edge(at).ok_or_else(|| corrupt_he(at))?;
-        at = if at_start { data.prev } else { data.next };
-        if let Some((_, tangent)) = half_end(body, at, !at_start)? {
-            return Ok(Some(tangent));
-        }
-    }
-    Ok(None)
-}
-
-/// Whether the run is one certified edge lying on the section conic:
-/// an arc of the section the join has already minted. Decided at the
-/// edge's mid-parameter — its offset from the section plane and its
-/// conic residual — as `split_conic_inplane_mid` decides a between
-/// edge: a conic edge on the face's carrier meets the section in at
-/// most two points unless it lies on it, and its two ends are the
-/// chord's.
-fn run_is_section_arc<T: Decide>(
-    body: &Body<T>,
-    band: Band,
-    face: FaceKey,
-    conic: &SectionConic<T>,
-    real: &[HalfEdgeKey],
-) -> Result<bool, SplitJoinError> {
-    let [he] = real else {
-        return Ok(false);
-    };
-    let edge = body
-        .get_half_edge(*he)
-        .and_then(|h| body.get_edge(h.edge))
-        .ok_or_else(|| corrupt_he(*he))?;
-    let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
-        return Ok(false);
-    };
-    if !matches!(
-        curve.carrier(),
-        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
-    ) {
-        return Ok(false);
-    }
-    let d = curve.mid_point() - conic.center;
-    let x = d.dot(conic.major) / conic.sa;
-    let y = d.dot(conic.normal.cross(conic.major)) / conic.sb;
-    let escalated = |diag| SplitJoinError::Escalated { face, diag };
-    let in_plane = decide(
-        "split_arc_run_on_section_plane",
-        Margin::of(d.dot(conic.normal)),
-        band,
-    )
-    .map_err(escalated)?;
-    if in_plane != Sign::Zero {
-        return Ok(false);
-    }
-    let on_conic = decide(
-        "split_arc_run_on_section_conic",
-        Margin::levered((x.powi(2) + y.powi(2)).sqrt() - T::one(), conic.sa),
-        band,
-    )
-    .map_err(escalated)?;
-    Ok(on_conic == Sign::Zero)
-}
-
-/// Whether a corner of a face's boundary — arriving along `arrive`,
-/// leaving along `depart`, both unit, the face to the left under the
-/// outward `normal` — is smooth or convex: the face's sector there is
-/// at most a half-turn. A left turn about the normal is convex
-/// (`split_arc_run_corner` positive), none is smooth unless the boundary
-/// reverses (a cusp, `split_arc_run_cusp`), and a right turn is reflex.
-/// Metered as angle × `lever`.
-fn run_corner_opens<T: Decide>(
-    normal: Vec3<T>,
-    arrive: Vec3<T>,
-    depart: Vec3<T>,
-    lever: T,
-    band: Band,
-) -> Result<bool, geom_core::Indeterminate> {
-    match decide(
-        "split_arc_run_corner",
-        Margin::levered(normal.dot(arrive.cross(depart)), lever),
-        band,
-    )? {
-        Sign::Positive => Ok(true),
-        Sign::Negative => Ok(false),
-        Sign::Zero => Ok(decide(
-            "split_arc_run_cusp",
-            Margin::levered(arrive.dot(depart), lever),
-            band,
-        )? == Sign::Positive),
-    }
-}
-
-/// **The arc-side rule where azimuth is not monotone along the
-/// section** — a sphere section tilted against the face's chart polar
-/// axis, whose chart image doubles back, so no azimuth window says
-/// which arc a face holds. Chart-free: the selected arc and the run
-/// bound the divided face together, and the face lies to the LEFT of
-/// the run (the interior-left rule, viewed down the face's outward
-/// normal), so at each run end the arc leaves on the run's left.
-///
-/// Each run end is matched to the chord end it sits on (a named
-/// trilean on the two distances), the ccw candidate's direction of
-/// departure there is read off the conic's tangent, and its side of the
-/// run is the sign of that direction against `n̂ × t̂` (outward normal
-/// cross the run's travel tangent), metered as angle × section radius.
-/// Exactly one candidate leaves on the left at a run end that is a
-/// smooth boundary point or a convex corner of the divided face, since
-/// there the face's sector at that end is at most a half-turn and the
-/// two candidates leave in opposite directions — so that is checked at
-/// each end before its reading counts: the turn from the boundary
-/// arriving at the end to the boundary leaving it, about the outward
-/// normal, must be a left turn or none (`split_arc_run_corner`; a turn
-/// of none that reverses is a cusp, `split_arc_run_cusp`). A reflex
-/// corner refuses typed. Both ends must name the same candidate;
-/// anything else refuses typed, never broken by convention.
-///
-/// # Errors
-///
-/// [`SplitJoinError::SectionArcSide`] when the run has no certified
-/// edge, when the section is tangent to the run at an end, when a run
-/// end is a reflex corner or a cusp of the divided face, when the loop
-/// holds no certified edge beside the run to read that corner from, or
-/// when the two ends name different candidates; [`SplitJoinError::Escalated`] on
-/// an in-band side, corner or end match.
-#[allow(clippy::too_many_arguments)] // one internal rule, each argument a named duty
-fn select_arc_by_run_side<T: Decide>(
-    body: &Body<T>,
-    band: Band,
-    face: FaceKey,
-    conic: &SectionConic<T>,
-    run: &[HalfEdgeKey],
-    p1: Point3<T>,
-    p2: Point3<T>,
-) -> Result<bool, SplitJoinError> {
-    let refuse = |case| SplitJoinError::SectionArcSide { face, case, band };
-    let escalated = |diag| SplitJoinError::Escalated { face, diag };
-    let real = certified_run(body, run)?;
-    let (Some(&first), Some(&last)) = (real.first(), real.last()) else {
-        return Err(refuse(ArcSideCase::NoCertifiedRun));
-    };
-    let (th1, th2) = (conic.param(p1), conic.param(p2));
-    let mut ccw: Option<bool> = None;
-    for (he, is_start) in [(first, true), (last, false)] {
-        let Some((at, travel)) = half_end(body, he, is_start)? else {
-            return Err(refuse(ArcSideCase::NoCertifiedRun));
-        };
-        let at_p1 = match decide(
-            "split_arc_run_end",
-            Margin::of((at - p2).norm() - (at - p1).norm()),
-            band,
-        )
-        .map_err(escalated)?
-        {
-            Sign::Positive => true,
-            Sign::Negative => false,
-            Sign::Zero => {
-                return Err(SplitJoinError::SectionInvariant {
-                    face,
-                    what: "a run end is equidistant from the chord's two ends — the chord \
-                           is degenerate",
-                });
-            }
-        };
-        // The ccw candidate runs p1 → p2 with θ increasing: it leaves
-        // p1 along +C′(θ₁) and leaves p2, walked back, along −C′(θ₂).
-        let leave = if at_p1 {
-            conic.tangent(th1)
-        } else {
-            -conic.tangent(th2)
-        };
-        let normal = match face_normal::face_outward_normal_at(body, face, at, band) {
-            Ok(Some(n)) => n.vec(),
-            Ok(None) => return Err(corrupt_face(face)),
-            Err(face_normal::NormalAtError::Escalated { diag, .. }) => {
-                return Err(escalated(diag));
-            }
-            Err(_) => {
-                return Err(SplitJoinError::SectionInvariant {
-                    face,
-                    what: "the divided face has no outward normal at a run end",
-                });
-            }
-        };
-        // Sign-blind extraction is sound here: the side is read against
-        // the STORED loop traversal, which `revert` reverses with the
-        // sense bit (`OutwardNormal::vec`).
-        let left = normal.cross(travel);
-        let side = left.dot(leave) / (left.norm() * leave.norm());
-        let reading = decide("split_arc_run_side", Margin::levered(side, conic.sa), band)
-            .map_err(escalated)?;
-        let here = match reading {
-            Sign::Positive | Sign::Negative => {
-                // The reading counts only at a smooth or convex corner
-                // of the divided face (fn docs).
-                let beside =
-                    beside_run(body, he, is_start)?.ok_or(refuse(ArcSideCase::NothingBesideRun))?;
-                let (arrive, depart) = if is_start {
-                    (beside, travel)
-                } else {
-                    (travel, beside)
-                };
-                if !run_corner_opens(normal, arrive, depart, conic.sa, band).map_err(escalated)? {
-                    return Err(refuse(ArcSideCase::ReflexRunEnd));
-                }
-                reading == Sign::Positive
-            }
-            // The divided face's corner at this end has no opening: the
-            // chord would run along the run. That is the sliver the
-            // join's second chord bounds against its first — its run IS
-            // the first chord, an arc of this very section — and then
-            // the chord takes that arc, leaving along the run at the
-            // run's start and back along it at the run's end. Any other
-            // tangency is refused.
-            Sign::Zero => {
-                if !run_is_section_arc(body, band, face, conic, &real)? {
-                    return Err(refuse(ArcSideCase::TangentToRun));
-                }
-                let along = travel.dot(leave) / leave.norm();
-                let forward = match decide(
-                    "split_arc_run_along",
-                    Margin::levered(along, conic.sa),
-                    band,
-                )
-                .map_err(escalated)?
-                {
-                    Sign::Positive => true,
-                    Sign::Negative => false,
-                    Sign::Zero => return Err(refuse(ArcSideCase::TangentToRun)),
-                };
-                forward == is_start
-            }
-        };
-        match ccw {
-            Some(prev) if prev != here => return Err(refuse(ArcSideCase::EndsDisagree)),
-            _ => ccw = Some(here),
-        }
-    }
-    ccw.ok_or(refuse(ArcSideCase::NoCertifiedRun))
 }
 
 /// The direction the section leaves each of a join's two sites in,
@@ -1825,37 +1018,6 @@ fn arc_leaving<T: Decide>(
     }
 }
 
-/// ARCPAIR cross-check: the datum's arc against the old selector's.
-fn arcpair_check<T: Decide>(
-    lane: &str,
-    face: FaceKey,
-    old: Result<bool, SplitJoinError>,
-    new: Result<bool, SplitJoinError>,
-) -> Result<bool, SplitJoinError> {
-    let tag = match (&old, &new) {
-        (Ok(a), Ok(b)) if a == b => "agree",
-        (Ok(_), Ok(_)) => "DISAGREE",
-        (Err(_), Ok(_)) => "old-refused",
-        (Ok(_), Err(_)) => "NEW-REFUSED",
-        (Err(_), Err(_)) => "both-refused",
-    };
-    if let Ok(path) = std::env::var("ARCPAIR_LOG") {
-        use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-            let test = std::thread::current().name().unwrap_or("?").to_string();
-            let line = format!("{tag}\t{lane}\t{face:?}\t{test}\told={:?}\tnew={:?}\n", old.as_ref().map_err(|e| format!("{e:?}")), new.as_ref().map_err(|e| format!("{e:?}")));
-            let _ = f.write_all(line.as_bytes());
-        }
-    }
-    match (old, new) {
-        (Ok(a), Ok(b)) if a != b && std::env::var("ARCPAIR_PREFER_NEW").is_err() => Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "ARCPAIR: the pairing's datum and the old selector name different arcs",
-        }),
-        (_, new) => new,
-    }
-}
-
 /// The chord spec for dividing `face` between vertices `u1 → u2`
 /// (the mef/mekr `he_plus` direction): `None` for planar faces and
 /// for ruling sections (the straight chord IS the honest carrier —
@@ -1864,73 +1026,25 @@ fn arcpair_check<T: Decide>(
 ///
 /// The conic lane (M5 PR 5):
 ///
-/// 1. Classify (plane × wall surface) through THE table's
-///    [`geom_brep::plane_cylinder_section`] — trileans before any
-///    rung; `TiltedEllipse`/`Rim` proceed, `ParallelLines` falls back
-///    to the ruling chord, `TangentLine` refuses typed (C7),
-///    escalations pass through whole.
-/// 2. Select WHICH arc of the section conic lies in `face` by
-///    **azimuth-window containment** (M5 S9, repairing the PR 5
-///    RUN-sample rule — see the selection note below).
+/// 1. Classify (plane × wall surface) through THE table
+///    ([`section_case`]) — trileans before any rung; a conic proceeds,
+///    a ruling falls back to the straight chord, a tangent ruling is
+///    described as such (C7), escalations pass through whole.
+/// 2. Orient: of the conic's two arcs from `u1` to `u2`, take the one
+///    leaving `u1` along `leave`, the section's direction of departure
+///    there as the lane that paired the chord's ends decided it
+///    ([`Leave`], [`arc_leaving`]). Which arc lies in the face is the
+///    pairing's answer; the chord does not ask the face again.
 /// 3. Describe as `Intersection { wall, aux plane, witness }` with the
 ///    witness minted at the carrier's mid-parameter (the witness
 ///    contract) — certification then pins endpoints, residuals, and
 ///    transversality through the ordinary gate.
-///
-/// # The arc-side rule: azimuth-window containment (M5 S9)
-///
-/// The stored arc must lie inside the **divided face's own azimuth
-/// window** — the same statement M5 PR 6 certifies for pcurves
-/// ([`crate::pcurves`]), evaluated here at selection time.
-///
-/// - The window comes from the RUN this chord co-bounds the face with
-///   (`run`, the real halves between the two null halves being joined):
-///   each run edge's chart image is derived in closed form through
-///   [`geom_brep::chart_pcurve`], branch-pinned to its predecessor's
-///   exit exactly as PR 6's loop walk does, and the hull of their
-///   **exact** azimuth extents is the window. Nothing is sampled.
-/// - The chord's two complementary candidates are closed azimuth
-///   intervals anchored at its start, `[x₁, x₁ + g]` (ccw in the chart)
-///   and `[x₁ − (τ − g), x₁]`, with `g` the endpoints' azimuth gap;
-///   the selected arc is the one **contained** in the window. Exactly
-///   one is contained whenever the window is narrower than a period
-///   (the two candidates' unions cover the circle and only one can fit
-///   inside a sub-period window), so neither/both are genuine
-///   degeneracies and refuse typed with the sub-case named
-///   ([`ArcWindowCase`]) — never a guess.
-/// - Every containment margin is metered as **azimuth × chart radius**
-///   (metres, the PR 6 convention) through the named trilean
-///   `split_arc_window`; an in-band window boundary escalates F6.
-///   Which candidate is the conic parameter's ccw arc is itself a named
-///   trilean, `split_arc_chart_orientation` (θ runs ccw about the
-///   section normal, azimuth ccw about the cylinder axis: they agree
-///   iff `n̂ₑ · âc > 0`). The cw arc takes the axis-flipped frame so the
-///   carrier still runs forward `u1 → u2`.
-///
-/// **Why the PR 5 rule was wrong** (#144, and the history note in
-/// `sweep/tests/m5_pr5_tilted_cut.rs`): it decided the side from a
-/// single azimuth *sample* on the run, premised on that sample lying
-/// inside the chord's own interval. That premise fails whenever the
-/// divided face spans more azimuth than the chord — the tilted belly
-/// cut, where a 91° rim run bounds a face closed by 17.5° and 44.4°
-/// section arcs — and the rule then selected the complement arc, a body
-/// no tier-3 check could reject. Containment asks about the face, not
-/// about a point.
-///
-/// Seam placement does not enter: rotating the chart's `u_ref` shifts
-/// the window and the chord's endpoint azimuths by the same constant,
-/// and every quantity below is a difference.
-///
-/// A sphere section tilted against the chart's polar axis doubles back
-/// in azimuth, so no window bounds its arc; that section takes
-/// [`select_arc_by_run_side`] on the same run instead.
 #[allow(clippy::too_many_arguments)] // one internal lane, each argument a named duty
 fn chord_spec<T: Decide>(
     body: &mut Body<T>,
     band: Band,
     lane: JoinLane<'_, T>,
     face: FaceKey,
-    run: ChordRun<'_>,
     u1: VertexKey,
     u2: VertexKey,
     leave: Vec3<T>,
@@ -1946,17 +1060,12 @@ fn chord_spec<T: Decide>(
         // takes its own lane (M5 PR 9); every other lane keeps
         // the straight chord BIT-IDENTICALLY.
         return match lane {
-            JoinLane::BoolPlanar {
-                wall,
-                window,
-                partner_key,
-            } => bool_planar_chord_spec(
+            JoinLane::BoolPlanar { wall, partner_key } => bool_planar_chord_spec(
                 body,
                 band,
                 face,
                 wall_key,
                 &wall,
-                window,
                 partner_key,
                 u1,
                 u2,
@@ -1977,41 +1086,13 @@ fn chord_spec<T: Decide>(
                    only planar faces)",
         });
     };
-    let Some(WallSection { wall: cyl_s, case }) =
+    let Some(WallSection { case, .. }) =
         wall_section(body, band, ctx.origin, ctx.normal, face, u1)?
     else {
         return Err(SplitJoinError::SectionInvariant {
             face,
             what: "a face read planar by its key reads curved by its section",
         });
-    };
-    // The chart frame: (center, axis, radius, seam u_ref) — azimuth
-    // about the axis, the shape the S9 tail below meters. A sphere's
-    // is about its polar axis (M5 S13). A cone's radius varies along
-    // the slant, so its lever is the section's own reach, taken once
-    // the conic is known (below).
-    let (o_c, a_c, r_c, u_ref_c) = match cyl_s {
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => (origin, axis, Some(radius), u_ref),
-        geom::Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => (center, axis, Some(radius), u_ref),
-        geom::Surface::Cone {
-            apex, axis, u_ref, ..
-        } => (apex, axis, None, u_ref),
-        _ => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "section chord requested on a face kind the gate refuses",
-            });
-        }
     };
     let conic = match case {
         // Ruling sections: the straight chord is the honest carrier.
@@ -2086,46 +1167,7 @@ fn chord_spec<T: Decide>(
     };
     let p1 = vertex_point(body, u1)?;
     let p2 = vertex_point(body, u2)?;
-    // ---- The arc side (fn docs) ----
-    //
-    // By azimuth-window containment where the section's azimuth is
-    // monotone: the divided face's own window, from the run this chord
-    // co-bounds it with. A run with no charted edge leaves the face
-    // without a window: refused typed, never guessed.
-    let old = (|| {
-        if conic.azimuth_monotone {
-            let Some(window) = run_azimuth_window(body, &cyl_s, face, run.halves(), band)? else {
-                return Err(SplitJoinError::SectionArcWindow {
-                    face,
-                    case: ArcWindowCase::NoChartedRun,
-                    band,
-                });
-            };
-            let (radius, nappe) = match r_c {
-                Some(r) => (r, T::one()),
-                None => cone_chart_lever(face, band, o_c, a_c, &conic, p1)?,
-            };
-            let chart = ChartFrame {
-                origin: o_c,
-                axis: a_c,
-                radius,
-                u_ref: u_ref_c,
-                nappe,
-            };
-            select_arc(face, band, &chart, &conic, window, p1, p2)
-        } else {
-            let co_bounded = match run {
-                ChordRun::CoBounded(halves) => halves,
-                ChordRun::FaceWindow(_) => &[],
-            };
-            select_arc_by_run_side(body, band, face, &conic, co_bounded, p1, p2)
-        }
-    })();
-    if std::env::var("ARCPAIR_DEBUG").is_ok() {
-        let mid = |ccw: bool| { let (c, a, b) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw); c.eval((a + b) * T::from_f64(0.5)) };
-        eprintln!("ARCDBG wall face={face:?} mono={} p1={p1:?} p2={p2:?} leave={leave:?} old={old:?} new={:?} mid_ccw={:?} mid_cw={:?} run={}", conic.azimuth_monotone, arc_leaving(face, band, &conic, p1, leave), mid(true), mid(false), match run { ChordRun::CoBounded(h) => format!("co{}", h.len()), ChordRun::FaceWindow(h) => format!("fw{}", h.len()) });
-    }
-    let ccw = arcpair_check::<T>("wall", face, old, arc_leaving(face, band, &conic, p1, leave))?;
+    let ccw = arc_leaving(face, band, &conic, p1, leave)?;
     let (carrier, t_start, t_end) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw);
     // The aux plane surface (honest u_ref: the section's major
     // direction, ⊥ normal by construction), minted once per split.
@@ -2257,17 +1299,12 @@ pub(crate) fn azimuth_hull<T: Real>(images: &[AzimuthImage<T>]) -> Option<(T, T)
 }
 
 /// The boolean PLANAR-side chord of a curved germ pair (M5 PR 9): the
-/// divided face IS the germ plane, the section conic comes from the C5
-/// table against the partner wall (by value, from the other operand),
-/// and the arc side is selected by containment in the WALL FACE's
-/// azimuth window — the S9 statement asked of the mate's chart. Both
-/// operands' chords of one polygon side therefore select the same
-/// geometric arc, which is what keeps the zip's seams
-/// antiparallel-congruent. The arc selection itself is [`select_arc`],
-/// the one body this lane SHARES with [`chord_spec`]'s S9 block — same
-/// margins, same predicate names, same refusal cases because it is the
-/// same code; what differs is only that the window arrives from the
-/// mate's face instead of being derived here.
+/// divided face IS the germ plane, and the section conic comes from the
+/// C5 table against the partner wall (by value, from the other
+/// operand). The arc is the one the germ's direction names
+/// ([`arc_leaving`]), the same datum the wall side's chord reads, so
+/// both operands' chords of one polygon side are one geometric arc —
+/// which is what keeps the zip's seams antiparallel-congruent.
 #[allow(clippy::too_many_arguments)]
 fn bool_planar_chord_spec<T: Decide>(
     body: &mut Body<T>,
@@ -2275,35 +1312,21 @@ fn bool_planar_chord_spec<T: Decide>(
     face: FaceKey,
     plane_key: SurfaceKey,
     wall: &geom::Surface<T>,
-    window: Option<(T, T)>,
     partner_key: &mut Option<SurfaceKey>,
     u1: VertexKey,
     u2: VertexKey,
     leave: Vec3<T>,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
-    // The wall's chart frame — cylinder (PR 9, untouched) or sphere
-    // (M5 S13: center, polar axis, radius, seam u_ref).
-    let (o_c, a_c, r_c, u_ref_c) = match *wall {
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => (origin, axis, radius, u_ref),
-        geom::Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => (center, axis, radius, u_ref),
-        _ => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "boolean planar-side germ partner is neither a cylinder nor a sphere \
-                       (arm not wired)",
-            });
-        }
-    };
+    if !matches!(
+        wall,
+        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
+    ) {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "boolean planar-side germ partner is neither a cylinder nor a sphere (arm not \
+                   wired)",
+        });
+    }
     let (p_o, p_n) = match body.get_surface(plane_key) {
         Some(&geom::Surface::Plane { origin, normal, .. }) => (origin, normal),
         // The two failures are different things and are typed apart: a
@@ -2343,25 +1366,7 @@ fn bool_planar_chord_spec<T: Decide>(
     };
     let p1 = vertex_point(body, u1)?;
     let p2 = vertex_point(body, u2)?;
-    // ---- The arc side against the SUPPLIED (mate-face) window: the
-    // shared rule, called with a window this lane did not derive. A
-    // section with no monotone azimuth has no window to be handed. ----
-    let old = if !conic.azimuth_monotone {
-        Err(SplitJoinError::SectionNotPolar { face, band })
-    } else {
-        let chart = ChartFrame {
-            origin: o_c,
-            axis: a_c,
-            radius: r_c,
-            u_ref: u_ref_c,
-            nappe: T::one(),
-        };
-        match window {
-            Some(window) => select_arc(face, band, &chart, &conic, window, p1, p2),
-            None => Err(SplitJoinError::SectionNotPolar { face, band }),
-        }
-    };
-    let ccw = arcpair_check::<T>("planar", face, old, arc_leaving(face, band, &conic, p1, leave))?;
+    let ccw = arc_leaving(face, band, &conic, p1, leave)?;
     let (carrier, t_start, t_end) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw);
     // The aux WALL surface in this body (honest full copy of the
     // mate's wall; minted once per germ wall face, caller-cached).
@@ -2532,8 +1537,8 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
 /// exactly zero for every pcurve this lane derives and keeps the
 /// statement true if the family ever widens.
 ///
-/// **The closed-form lane only, and it says so with `None`.** The join
-/// lane reads a chart image's azimuth through its closed form; a
+/// **The closed-form lane only, and it says so with `None`.** The
+/// window walk reads a chart image's azimuth through its closed form; a
 /// fitted (rung-3) image has none, so it gets no answer rather than a
 /// sentinel. A sentinel would be actively wrong here: the caller hulls
 /// with `(a.min(lo), b.max(hi))`, which ABSORBS an inverted range
@@ -2543,80 +1548,16 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
 ///
 /// The arm is unreachable today — `chart_pcurve` refuses a `Nurbs`
 /// carrier before a fitted image can reach this function — and it is
-/// written anyway because the cyl×sphere join window (banked past M6,
-/// M6-PLAN: "chase the lift") is exactly what would make it live.
+/// written anyway because a face bounded by a fitted cyl×sphere edge is
+/// exactly what would make it live.
 fn chart_azimuth_range<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T, T)> {
     p.closed_form_span_box(t0, t1).map(|b| (b.u_min, b.u_max))
 }
 
-/// The divided face's **azimuth window** on its own chart: the hull of
-/// the boundary run's exact chart-azimuth extents, unwrapped
-/// branch-continuously along the run — PR 6's per-face window
-/// derivation ([`crate::pcurves`]), transplanted to selection time.
-/// `None` when the run carries no charted edge.
-///
-/// **The chart images here are consumed UNCERTIFIED.** This is a
-/// selection-time read of [`geom_brep::chart_pcurve`]'s closed form, not
-/// a minted cache: no residual, envelope, winding or trim check runs on
-/// it. The run's edges are certified against their own surfaces, so a
-/// chart image that does not represent one is corrupt input.
-///
-/// **Nothing downstream re-asks which arc this window selects.** The
-/// complement arc lies on the same wall and the same plane, so the `mef`
-/// gate certifies it; the mint pass hulls its window out of the face's
-/// own images, which then contain it; and no tier-3 check compares a
-/// trim against the face it bounds. A wrong window ships a wrong body,
-/// so the window is right by construction or it refuses:
-///
-/// - The branch of each run edge is pinned exactly as the PR 6 loop
-///   walk pins it — the whole number of periods that lands this edge's
-///   entry azimuth on the previous edge's exit — which is exact at
-///   every junction that is a chart point.
-/// - A cone APEX is not one. A cone face whose boundary visits its apex
-///   takes the run's images from the face's apex-closed lift
-///   ([`cone_apex_closure`]), which never pins across the apex and
-///   supplies the jump there from the closed boundary; a face no single
-///   lift describes refuses [`ArcWindowCase::ApexUnlifted`], and so does
-///   the walk itself if it is ever asked to pin across an apex.
-///
-/// Null scaffolding halves are zero-length coincident copies — they
-/// carry no azimuth extent and no branch information, and are stepped
-/// over without breaking the chain.
-fn run_azimuth_window<T: Decide>(
-    body: &Body<T>,
-    surface: &geom::Surface<T>,
-    face: FaceKey,
-    halves: &[HalfEdgeKey],
-    band: Band,
-) -> Result<Option<(T, T)>, SplitJoinError> {
-    if let geom::Surface::Cone { .. } = surface {
-        match cone_apex_closure(body, surface, face, band)? {
-            ApexClosure::Clear => {}
-            ApexClosure::Closed { images, .. } => {
-                let run: Vec<AzimuthImage<T>> = images
-                    .into_iter()
-                    .filter(|image| halves.contains(&image.he))
-                    .collect();
-                return Ok(azimuth_hull(&run));
-            }
-            ApexClosure::Open => {
-                return Err(SplitJoinError::SectionArcWindow {
-                    face,
-                    case: ArcWindowCase::ApexUnlifted,
-                    band,
-                });
-            }
-        }
-    }
-    Ok(azimuth_hull(&run_azimuth_images(
-        body, surface, face, halves, band,
-    )?))
-}
-
 /// One boundary half-edge's chart azimuth image, on the branch the
-/// run walk pinned: the azimuth where the walk ENTERS it and where it
+/// walk pinned: the azimuth where the walk ENTERS it and where it
 /// EXITS it (the half-edge's own start and end), and the hull
-/// [`run_azimuth_window`] folds.
+/// [`face_azimuth_window`] folds.
 #[derive(Clone, Debug)]
 pub(crate) struct AzimuthImage<T: geom_core::Real> {
     /// The half-edge.
@@ -2830,9 +1771,9 @@ pub(crate) fn cone_apex_closure<T: Decide>(
     })
 }
 
-/// The run walk behind [`run_azimuth_window`] and
-/// [`face_azimuth_images`]: each charted half-edge's image, its branch
-/// pinned to the previous edge's exit.
+/// The walk behind [`face_azimuth_images`] and [`cone_apex_closure`]:
+/// each charted half-edge's image, its branch pinned to the previous
+/// edge's exit.
 fn run_azimuth_images<T: Decide>(
     body: &Body<T>,
     surface: &geom::Surface<T>,
@@ -2900,11 +1841,7 @@ fn run_azimuth_images<T: Decide>(
                         .map_err(|diag| SplitJoinError::Escalated { face, diag })?
                         == Sign::Zero
                     {
-                        return Err(SplitJoinError::SectionArcWindow {
-                            face,
-                            case: ArcWindowCase::ApexUnlifted,
-                            band,
-                        });
+                        return Err(SplitJoinError::ApexUnlifted { face });
                     }
                 }
                 if let geom::Surface::Sphere {
@@ -2985,9 +1922,8 @@ fn run_azimuth_images<T: Decide>(
         let (lo, hi) =
             chart_azimuth_range(&pcurve, t0, t1).ok_or(SplitJoinError::SectionInvariant {
                 face,
-                what: "a run edge's chart image is FITTED — this window rule reads \
-                       a closed-form azimuth, and the fitted-chord join lane is not \
-                       written",
+                what: "a boundary edge's chart image is FITTED — the window walk reads a \
+                       closed-form azimuth",
             })?;
         let exit = pcurve.eval(exit_t).x;
         images.push(AzimuthImage {
@@ -3002,47 +1938,6 @@ fn run_azimuth_images<T: Decide>(
         prev_exit = Some(exit);
     }
     Ok(images)
-}
-
-/// What a curved chord's arc side is read from ([`chord_spec`]).
-#[derive(Clone, Copy)]
-enum ChordRun<'a> {
-    /// The run the chord co-bounds the divided face with (a same-loop
-    /// join): both arc rules read it.
-    CoBounded(&'a [HalfEdgeKey]),
-    /// A cross-loop join co-bounds no run, so it hands the divided
-    /// face's outer cycle ([`cross_loop_window_cycle`]): a window for the
-    /// containment rule only. The run-side rule reads the run a chord
-    /// closes, and gets none.
-    FaceWindow(&'a [HalfEdgeKey]),
-}
-
-impl<'a> ChordRun<'a> {
-    /// The halves, for the containment rule's window.
-    fn halves(self) -> &'a [HalfEdgeKey] {
-        match self {
-            Self::CoBounded(h) | Self::FaceWindow(h) => h,
-        }
-    }
-}
-
-/// The cycle a **cross-loop** chord reads its azimuth window from:
-/// `face`'s outer cycle.
-///
-/// A cross-loop join co-bounds no run — `mekr` divides nothing — so the
-/// chord's arc is selected by containment in the divided FACE's window,
-/// the statement [`bool_planar_chord_spec`] asks of the mate's face. A
-/// ring's own cycle is no window: a pierce ring carries only null
-/// scaffolding (no window at all) or the section edges already joined
-/// into it — on a wall, a ruling and its mate, one azimuth wide. So a
-/// face whose outer loop is not a cycle hands the window reader NO run,
-/// and a curved face refuses there typed
-/// ([`ArcWindowCase::NoChartedRun`]); a plane reads no window.
-fn cross_loop_window_cycle<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
-    Ok(outer_cycle(body, face)?.unwrap_or_default())
 }
 
 /// `∫ (v − anchor) du` of a harmonic chart image from `t0` to `t1`, and
@@ -3395,27 +2290,10 @@ pub(crate) fn null_site<T: Decide>(body: &Body<T>, from: &[VertexKey]) -> Vec<Ve
     site
 }
 
-/// The halves of the loop cycle strictly between `from` (exclusive)
-/// and `to` (exclusive), walking `next`.
-fn run_between<T: Decide>(
-    body: &Body<T>,
-    from: HalfEdgeKey,
-    to: HalfEdgeKey,
-) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
-    let cycle = body.loop_cycle(from).ok_or_else(|| corrupt_he(from))?;
-    let mut out = Vec::new();
-    for he in cycle.into_iter().skip(1) {
-        if he == to {
-            return Ok(out);
-        }
-        out.push(he);
-    }
-    Err(corrupt_he(to))
-}
-
 impl ChordJoiner {
     /// `join` (module docs): connect the old loose end `h1` and the
-    /// new half `h2` with up to two chord edges; the minted chord
+    /// new half `h2` with up to two chord edges, each a curved face's
+    /// conic arc leaving its first site along `leave`; the minted chord
     /// edges come back (the boolean joining records their germ — M3
     /// PR 5).
     pub(crate) fn join<T: Decide + crate::props::AtRestPolicy>(
@@ -3447,31 +2325,10 @@ impl ChordJoiner {
             Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start)
         };
 
-        if std::env::var("ARCPAIR_DEBUG").is_ok() {
-            let desc = |body: &Body<T>, h: HalfEdgeKey| -> String {
-                let Some(hd) = body.get_half_edge(h) else { return "?".into() };
-                let e = body.get_edge(hd.edge).unwrap();
-                let mid = match body.get_curve_geom(e.curve) { Some(CurveGeom::Certified(c)) => format!("{:?}", c.mid_point()), _ => "null".into() };
-                format!("{h:?}[{:?}->{mid}]", body.half_edge_start_point(h))
-            };
-            for (nm, h) in [("h1", h1), ("h2", h2)] {
-                let cyc = body.loop_cycle(h).unwrap_or_default();
-                eprintln!("LOOP {nm} face={:?} :: {}", body.get_loop(body.get_half_edge(h).unwrap().parent_loop).map(|l| l.face), cyc.iter().map(|&x| desc(body, x)).collect::<Vec<_>>().join(" | "));
-            }
-        }
         let mut chords = Vec::new();
         let mut newf = None;
-        // The RUN the section chords co-bound (real halves between h1
-        // and h2 in next order) — the divided face's other boundary,
-        // and so the source of its azimuth window (see `chord_spec`).
-        let run_halves: Vec<HalfEdgeKey> = if l1 == l2 {
-            run_between(body, h1, h2)?
-        } else {
-            Vec::new()
-        };
         // Adjacency of the two null halves on the prev side of h1
-        // (h2 → between → h1) — consulted by both chord guards' sample
-        // routing below.
+        // (h2 → between → h1), which the first chord's guard reads.
         let prev_adjacent = l1 == l2 && prev(body, prev(body, h1)?)? == h2;
         if l1 == l2 {
             // Adjacency skip (M3): when exactly one edge sits between
@@ -3499,23 +2356,10 @@ impl ChordJoiner {
                     he1: h1,
                     he2: outside,
                 };
-                // In BOTH configurations the first chord co-bounds
-                // the run [h1 .. h2] (in the prev-adjacent belly mint
-                // the mef run walks the long way to the between edge,
-                // which is exactly cycle[h1..h2]) — one window.
                 let (u1, u2) = (start_of(body, h1)?, start_of(body, outside)?);
                 let spec = match along_edge_spec(body, &lane, segment, oldf, u1, u2)? {
                     Some(spec) => Some(spec),
-                    None => chord_spec(
-                        body,
-                        self.band,
-                        lane.reborrow(),
-                        oldf,
-                        ChordRun::CoBounded(&run_halves),
-                        u1,
-                        u2,
-                        leave.h1,
-                    )?,
+                    None => chord_spec(body, self.band, lane.reborrow(), oldf, u1, u2, leave.h1)?,
                 };
                 // Both arms hand `mef` the parent's surface, so the
                 // fragment takes `oldf`'s bit (`Body::resolve_face_surface`).
@@ -3541,20 +2385,10 @@ impl ChordJoiner {
                 (h1, next(body, h2)?, leave.h1)
             };
             let site = MekrSite::Cycles { target, ring };
-            let face_cycle = cross_loop_window_cycle(body, oldf)?;
             let (u1, u2) = (start_of(body, target)?, start_of(body, ring)?);
             let spec = match along_edge_spec(body, &lane, segment, oldf, u1, u2)? {
                 Some(spec) => Some(spec),
-                None => chord_spec(
-                    body,
-                    self.band,
-                    lane.reborrow(),
-                    oldf,
-                    ChordRun::FaceWindow(&face_cycle),
-                    u1,
-                    u2,
-                    leave_target,
-                )?,
+                None => chord_spec(body, self.band, lane.reborrow(), oldf, u1, u2, leave_target)?,
             };
             let made = match spec {
                 None => body.mekr_chord(site, tol)?,
@@ -3589,30 +2423,13 @@ impl ChordJoiner {
                 he1: h2,
                 he2: next(body, h1)?,
             };
-            // The second chord co-bounds [h2, between, h1] in either
-            // adjacent configuration (its mef run walks h2 → between →
-            // h1), so the between edge is its run there; otherwise it
-            // spans the same interval as the first chord (the two null
-            // edges are zero-length, so it is that chord reversed) and
-            // takes the same run.
-            let (run2, co_bounded): (Vec<HalfEdgeKey>, bool) = if adjacent2 {
-                (vec![next(body, h1)?], true)
-            } else if prev_adjacent {
-                (vec![prev(body, h1)?], true)
-            } else if l1 == l2 {
-                (run_halves.clone(), true)
-            } else {
-                (cross_loop_window_cycle(body, owner)?, false)
-            };
+            // The second chord runs from h2's site back to h1's: the
+            // same segment as the first (the two null edges are
+            // zero-length), taken the other way.
             let (u1, u2) = (start_of(body, h2)?, start_of(body, next(body, h1)?)?);
-            let run2 = if co_bounded {
-                ChordRun::CoBounded(&run2)
-            } else {
-                ChordRun::FaceWindow(&run2)
-            };
             let spec = match along_edge_spec(body, &lane, segment, owner, u1, u2)? {
                 Some(spec) => Some(spec),
-                None => chord_spec(body, self.band, lane, owner, run2, u1, u2, leave.h2)?,
+                None => chord_spec(body, self.band, lane, owner, u1, u2, leave.h2)?,
             };
             let created = match spec {
                 None => body.mef_chord(site, tol)?,
@@ -3994,17 +2811,6 @@ mod tests {
     use crate::entity::FaceKey;
     use geom_core::Tol;
 
-    // -----------------------------------------------------------------
-    // DIRECT rows for the arc-side selector. Since M5 S9 the selector is
-    // azimuth-window CONTAINMENT (`split_arc_window`): definite ccw /
-    // definite cw / in-band boundary, plus the three named
-    // `ArcWindowCase` refusals — driven straight through `chord_spec` on
-    // a hand-built cylinder-face body whose RUN is a rim arc (or a pair
-    // of chained rim arcs) placed to put the window where each row wants
-    // it. The pre-S9 rows drove the same three verdicts from a single
-    // azimuth SAMPLE; that premise is the repaired defect (#144).
-    // -----------------------------------------------------------------
-
     use geom_core::{Point3, Vec3};
 
     /// A body with one cylinder face (unit radius about z) and two
@@ -4152,247 +2958,85 @@ mod tests {
         );
     }
 
-    /// `chord_spec` on the fixture with a run of rim arcs.
-    fn spec_with(runs: &[(f64, f64)]) -> Result<Option<EdgeCurveSpec<f64>>, SplitJoinError> {
+    /// `chord_spec` on the fixture's chord, θ = 0 to θ = π/2, with the
+    /// section leaving θ = 0 along `leave`.
+    fn spec_leaving(leave: Vec3<f64>) -> Result<Option<EdgeCurveSpec<f64>>, SplitJoinError> {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (mut body, face, u1, u2, mut ctx) = cyl_fixture();
-        let run: Vec<_> = runs
-            .iter()
-            .map(|&(a, b)| rim_run(&mut body, a, b))
-            .collect();
         chord_spec(
             &mut body,
             band,
             JoinLane::Split(&mut ctx),
             face,
-            ChordRun::CoBounded(&run),
             u1,
             u2,
-            Vec3::new(0.0, 1.0, 0.0),
+            leave,
         )
     }
 
+    /// **The datum orients the chord.** The fixture's ellipse is
+    /// `û·a·cos θ + ŷ·sin θ`, so its tangent at θ = 0 is `ŷ`: leaving
+    /// along `+ŷ` the chord is the quarter through θ = π/4, leaving along
+    /// `−ŷ` the three quarters through θ = −3π/4. Either way it runs from
+    /// the first vertex to the second, and a datum of any positive
+    /// length reads the same.
     #[test]
-    fn arc_side_definite_ccw_and_cw() {
-        // The chord's endpoints sit at chart azimuths 0 and π/2 (the
-        // fixture's θ = 0 and θ = π/2 ellipse points), so g = π/2.
-        //
-        // ccw: a window [−0.2, π/2 + 0.2] strictly contains [0, π/2] and
-        // cannot contain the complement (it is under a period wide).
-        let spec = spec_with(&[(-0.2, core::f64::consts::FRAC_PI_2 + 0.2)])
-            .unwrap()
-            .expect("cylinder face mints a conic chord");
-        let geom::Curve3::Ellipse { axis, .. } = spec.carrier else {
-            panic!("tilted section is an ellipse");
+    fn the_datum_orients_the_chord() {
+        let phi = 0.5f64;
+        let n = Vec3::new(phi.sin(), 0.0, phi.cos());
+        let u_e = Vec3::unit_y().cross(n);
+        let at = |theta: f64| -> Point3<f64> {
+            Point3::origin() + u_e * (theta.cos() / phi.cos()) + Vec3::unit_y() * theta.sin()
         };
-        // ccw keeps the classification frame (axis ≈ the plane normal)
-        // and spans θ: 0 → π/2.
-        assert!(axis.dot(Vec3::new(0.5f64.sin(), 0.0, 0.5f64.cos())) > 0.9);
-        assert!(spec.param_start.abs() < 1e-12);
-        assert!((spec.param_end - core::f64::consts::FRAC_PI_2).abs() < 1e-12);
-
-        // cw: the window is the OTHER way round the chart —
-        // [π/2 − 0.2, τ + 0.2] contains the long arc, so the carrier's
-        // frame flips to keep it running forward u1 → u2.
-        let spec = spec_with(&[(
-            core::f64::consts::FRAC_PI_2 - 0.2,
-            core::f64::consts::TAU + 0.2,
-        )])
-        .unwrap()
-        .expect("cylinder face mints a conic chord");
-        let geom::Curve3::Ellipse { axis, .. } = spec.carrier else {
-            panic!("tilted section is an ellipse");
-        };
-        assert!(
-            axis.dot(Vec3::new(0.5f64.sin(), 0.0, 0.5f64.cos())) < -0.9,
-            "the cw arc takes the flipped frame"
-        );
-        assert!(
-            (spec.param_end - spec.param_start - 1.5 * core::f64::consts::PI).abs() < 1e-12,
-            "the cw arc spans the complement"
-        );
-    }
-
-    #[test]
-    fn arc_side_in_band_escalates() {
-        // A window whose upper boundary sits 5e-9 rad past the chord's
-        // end azimuth: the containment margin (metered at the unit chart
-        // radius) lands in the band — F6, typed, predicate named.
-        let err = spec_with(&[(-0.2, core::f64::consts::FRAC_PI_2 + 5e-9)]).unwrap_err();
-        let SplitJoinError::Escalated { diag, .. } = err else {
-            panic!("expected the arc-side escalation, got {err:?}");
-        };
-        assert_eq!(diag.predicate, Some("split_arc_window"));
-    }
-
-    #[test]
-    fn arc_side_refusal_arms_are_typed() {
-        // No charted edge in the joined run: the divided face has no
-        // azimuth window at all.
-        let err = spec_with(&[]).unwrap_err();
-        assert!(
-            matches!(
-                err,
-                SplitJoinError::SectionArcWindow {
-                    case: ArcWindowCase::NoChartedRun,
-                    ..
-                }
-            ),
-            "{err:?}"
-        );
-        // A window narrower than either candidate: NEITHER is contained
-        // — a degenerate window, refused, never guessed.
-        let err = spec_with(&[(-0.2, 0.2)]).unwrap_err();
-        assert!(
-            matches!(
-                err,
-                SplitJoinError::SectionArcWindow {
-                    case: ArcWindowCase::NeitherContained,
-                    ..
-                }
-            ),
-            "{err:?}"
-        );
-        // A face that wraps the chart: two chained rim arcs whose hull
-        // spans τ + 0.2 (from −3π/2 − 0.1 to π/2 + 0.1) contain BOTH
-        // candidates — containment does not name an arc, so it refuses
-        // rather than falling back to a convention.
         let pi = core::f64::consts::PI;
-        let err = spec_with(&[(-1.5 * pi - 0.1, -pi), (-pi, pi / 2.0 + 0.1)]).unwrap_err();
-        assert!(
-            matches!(
-                err,
-                SplitJoinError::SectionArcWindow {
-                    case: ArcWindowCase::BothContained,
-                    ..
-                }
+        for (what, leave, mid) in [
+            ("the quarter", Vec3::unit_y(), at(pi / 4.0)),
+            (
+                "the quarter, a short datum",
+                Vec3::unit_y() * 1e-3,
+                at(pi / 4.0),
             ),
-            "{err:?}"
-        );
-        // The plane×plane lane divides only planar faces, so a conic
-        // chord asked of it on a wall is an invariant violation, typed.
-        let band = Band::new(1e-9, 1e-8).unwrap();
-        let (mut body, face, u1, u2, _) = cyl_fixture();
-        let run = vec![rim_run(&mut body, -0.2, core::f64::consts::FRAC_PI_2 + 0.2)];
-        let lane = JoinLane::Planar;
-        let err = chord_spec(
-            &mut body,
-            band,
-            lane,
-            face,
-            ChordRun::CoBounded(&run),
-            u1,
-            u2,
-            Vec3::new(0.0, 1.0, 0.0),
-        )
-        .unwrap_err();
+            ("the three quarters", -Vec3::unit_y(), at(-0.75 * pi)),
+        ] {
+            let spec = spec_leaving(leave).unwrap().expect("a conic chord");
+            let c = &spec.carrier;
+            let close = |p: Point3<f64>, q: Point3<f64>| (p - q).norm() < 1e-12;
+            assert!(
+                close(c.eval(spec.param_start), at(0.0)),
+                "{what}: starts at u1"
+            );
+            assert!(
+                close(c.eval(spec.param_end), at(pi / 2.0)),
+                "{what}: ends at u2"
+            );
+            assert!(
+                close(c.mid_point(spec.param_start, spec.param_end), mid),
+                "{what}: passes {mid:?}"
+            );
+        }
+    }
+
+    /// **A datum with no component along the section refuses**, typed,
+    /// and one whose component is in the band escalates naming
+    /// `chord_arc_leave`: the section's normal (the plane's own, which
+    /// no section tangent has a component along), and the tangent
+    /// scaled to put the levered margin `leave·Ĉ′ × a` at 5e-9.
+    #[test]
+    fn a_datum_off_the_section_refuses() {
+        let phi = 0.5f64;
+        let n = Vec3::new(phi.sin(), 0.0, phi.cos());
+        let err = spec_leaving(n).unwrap_err();
         assert!(
             matches!(err, SplitJoinError::SectionInvariant { .. }),
             "{err:?}"
         );
-    }
-
-    /// The S9 adversarial review's disagreement probe, **adopted as a
-    /// committed row**: the one direction in which the old sample rule
-    /// and the new window rule disagree outside the belly class, and the
-    /// proof that the disagreement is refusal-vs-guess.
-    ///
-    /// The run is chained arcs whose FIRST edge's midpoint azimuth
-    /// (0.25) lies inside the chord's interval [0, π/2] — so the OLD
-    /// rule's premise holds and it would have selected ccw — while the
-    /// run's hull [0.1, 5.0] contains NEITHER candidate (the chord's
-    /// start, azimuth 0, sits outside the window: this run does not
-    /// actually end where the chord starts). The window rule refuses
-    /// `NeitherContained` rather than selecting anything. Every
-    /// constructible disagreement has this shape: the sample rule
-    /// answers from one point and the window rule declines from the
-    /// face, so a disagreement costs a refusal, never wrong geometry.
-    #[test]
-    fn s9_review_probe_old_premise_holds_new_refuses() {
-        let err = spec_with(&[(0.1, 0.4), (0.4, 5.0)]).unwrap_err();
-        assert!(
-            matches!(
-                err,
-                SplitJoinError::SectionArcWindow {
-                    case: ArcWindowCase::NeitherContained,
-                    ..
-                }
-            ),
-            "{err:?}"
-        );
-    }
-
-    /// The two-tolerance pair of the containment rule (S6, D4 ¶1
-    /// addendum): a window of exactly one period is a DEFINITE
-    /// `BothContained` refusal, and the same window 5e-9 rad narrower
-    /// is the in-band `Escalated` — one user situation, so both
-    /// messages name `split_arc_window`, quote the same two tolerances,
-    /// and carry the shared recourse carrier exactly once.
-    #[test]
-    fn arc_window_two_tolerance_pair_shares_the_carrier() {
-        let pi = core::f64::consts::PI;
-        // width = τ exactly (to rounding): definite.
-        let definite = spec_with(&[(-1.5 * pi, -pi), (-pi, pi / 2.0)]).unwrap_err();
-        assert!(
-            matches!(
-                definite,
-                SplitJoinError::SectionArcWindow {
-                    case: ArcWindowCase::BothContained,
-                    ..
-                }
-            ),
-            "{definite:?}"
-        );
-        // width = τ − 5e-9: inside the band.
-        let escalated = spec_with(&[(-1.5 * pi, -pi), (-pi, pi / 2.0 - 5e-9)]).unwrap_err();
-        let SplitJoinError::Escalated { diag, .. } = &escalated else {
-            panic!("expected the in-band neighbour, got {escalated:?}");
+        let err = spec_leaving(n + Vec3::unit_y() * (5e-9 * phi.cos())).unwrap_err();
+        let SplitJoinError::Escalated { diag, .. } = err else {
+            panic!("expected an escalation, got {err:?}");
         };
-        assert_eq!(diag.predicate, Some("split_arc_window"));
-        // The sentence says what was too close to call, in words.
-        assert!(
-            escalated
-                .to_string()
-                .contains("where a section runs across a face is too close to call"),
-            "{escalated}"
-        );
-
-        for msg in [definite.to_string(), escalated.to_string()] {
-            assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
-            assert!(!msg.contains("declare"), "{msg}");
-            assert!(msg.contains("1e-9") && msg.contains("1e-8"), "{msg}");
-        }
-        // The sub-case that classified nothing must NOT carry the
-        // recourse — there is no ill-conditioned margin behind it.
-        let no_run = spec_with(&[]).unwrap_err().to_string();
-        assert_eq!(no_run.matches(JOIN_RECOURSE).count(), 0, "{no_run}");
+        assert_eq!(diag.predicate, Some("chord_arc_leave"));
     }
 
-    /// Seam-placement independence, at the unit: the whole construction
-    /// is rotated about the cylinder axis — chart `u_ref` included, so
-    /// the chart seam moves with it — and the selected arc's parameter
-    /// span is bit-identical. Every quantity the rule compares is a
-    /// difference of azimuths, so a moved seam cancels.
-    #[test]
-    fn window_rule_is_seam_placement_independent() {
-        let base = spec_with(&[(-0.2, core::f64::consts::FRAC_PI_2 + 0.2)])
-            .unwrap()
-            .expect("cylinder face mints a conic chord");
-        // The same rule with the run's window shifted by a whole period:
-        // the chart branch is different, the containment verdict is not.
-        let tau = core::f64::consts::TAU;
-        let shifted = spec_with(&[(-0.2 - tau, core::f64::consts::FRAC_PI_2 + 0.2 - tau)])
-            .unwrap()
-            .expect("cylinder face mints a conic chord");
-        assert_eq!(base.param_start, shifted.param_start);
-        assert_eq!(base.param_end, shifted.param_end);
-    }
-
-    /// S6 (two-tolerance, D4 ¶1 addendum): the split-join pair —
-    /// exactly-zero section area (`DegenerateSection`) and in-band
-    /// (`Escalated`) — is one user situation; both arms carry the
-    /// join's one recourse ([`JOIN_RECOURSE`]), which offers no
-    /// declaration because the join takes none.
     #[test]
     fn section_area_pair_carries_the_shared_recourse() {
         let face = FaceKey::default();
@@ -4421,390 +3065,48 @@ mod tests {
         assert!(!msg.contains("declare"), "{msg}");
     }
 
-    /// **The run-side rule reads a run end only where the divided face's
-    /// corner opens at most a half-turn.** Walking a boundary with the
-    /// face on the left under `+z`: a left turn is convex, straight on
-    /// is smooth, a right turn is reflex, and a reversal is a cusp — the
-    /// last two refused, since there the run's left side does not put
-    /// an arc inside the face.
-    #[test]
-    fn a_run_end_reads_only_at_a_smooth_or_convex_corner() {
-        let band = Band::new(1e-9, 1e-8).unwrap();
-        let z = Vec3::new(0.0, 0.0, 1.0);
-        let x = Vec3::new(1.0, 0.0, 0.0);
-        let y = Vec3::new(0.0, 1.0, 0.0);
-        let opens = |arrive, depart| run_corner_opens(z, arrive, depart, 1.0, band).unwrap();
-        assert!(opens(x, y), "a left turn is a convex corner");
-        assert!(opens(x, x), "straight on is a smooth boundary point");
-        assert!(!opens(x, -y), "a right turn is a reflex corner");
-        assert!(!opens(x, -x), "a reversal is a cusp");
-    }
-
-    /// **A run end at a reflex corner refuses by name, at the rule's own
-    /// call.** The top face of a chevron prism, `(0,0) → (2,1) → (0,2) →
-    /// (0.5,1)`, ccw seen from `+z`, has one reflex corner, at
-    /// `(0.5, 1)`. The run is the edge arriving there from the convex
-    /// corner `(0, 2)`, and the chord is a circle arc between the run's
-    /// two ends, in the face's plane. The start end reads its side at a
-    /// convex corner. The end end's corner turns right, so its reading
-    /// does not count, and the rule refuses `ReflexRunEnd` rather than
-    /// letting that end vote (or disagree).
-    #[test]
-    fn a_reflex_run_end_refuses_at_the_rule() {
-        let tol = Tol::witness();
-        let band = Band::new(1e-9, 1e-8).unwrap();
-        let profile = [(0.0, 0.0), (2.0, 1.0), (0.0, 2.0), (0.5, 1.0)];
-        let prism = crate::test_support_fixtures::prism_z::<f64>(&profile, 0.0, 1.0, tol);
-        let body = &prism.body;
-        let (c, d) = (Point3::new(0.0, 2.0, 1.0), Point3::new(0.5, 1.0, 1.0));
-        let at = |he: HalfEdgeKey| {
-            let v = body.get_half_edge(he).unwrap().start;
-            *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
-        };
-        let near = |p: Point3<f64>, q: Point3<f64>| (p - q).norm() < 1e-12;
-        // The face whose outward normal is `+z`, and its half-edge
-        // running from `c` into the reflex corner `d`.
-        let (face, run) = body
-            .faces()
-            .filter_map(|(k, f)| {
-                let crate::LoopBoundary::Cycle { first } = body.get_loop(f.outer)?.boundary else {
-                    return None;
-                };
-                let he = body.loop_cycle(first)?.into_iter().find(|&he| {
-                    let next = body.get_half_edge(he).unwrap().next;
-                    near(at(he), c) && near(at(next), d)
-                })?;
-                Some((k, he))
-            })
-            .find(|&(k, _)| {
-                face_normal::face_outward_normal_at(body, k, c, band)
-                    .ok()
-                    .flatten()
-                    .is_some_and(|n| n.vec().z > 0.5)
-            })
-            .expect("the chevron's top face carries the run c → d");
-        // A circle through the run's two ends, in the face's plane.
-        let normal = Vec3::new(0.0, 0.0, 1.0);
-        let mid = Point3::new(0.25, 1.5, 1.0);
-        let off = Vec3::new(1.0, 0.5, 0.0) / Vec3::new(1.0, 0.5, 0.0).norm();
-        let center = mid + off * 2.0;
-        let radius = (c - center).norm();
-        let major = (c - center) / radius;
-        let conic = SectionConic {
-            center,
-            normal,
-            major,
-            sa: radius,
-            sb: radius,
-            carrier: geom::Curve3::Circle {
-                center,
-                axis: normal,
-                radius,
-                u_ref: major,
-            },
-            azimuth_monotone: false,
-        };
-        let got = select_arc_by_run_side(body, band, face, &conic, &[run], c, d);
-        assert!(
-            matches!(
-                got,
-                Err(SplitJoinError::SectionArcSide {
-                    case: ArcSideCase::ReflexRunEnd,
-                    ..
-                })
-            ),
-            "{got:?}"
-        );
-    }
-
-    /// **The anti-re-fork row for the arc-side rule.** Each of the
-    /// rungs the two chord lanes share is decided in exactly ONE
-    /// place in this crate — counted, not merely located, because the
-    /// duplication this row exists against was INSIDE one file: for
-    /// most of this module's life `chord_spec` and
-    /// `bool_planar_chord_spec` sat 500 lines apart carrying
-    /// line-identical copies of the S9 block, with a doc comment at the
-    /// copy site declaring them the same ("same margins, same predicate
-    /// names, same refusal cases"). A cross-file guard would have been
-    /// green throughout.
+    /// **The anti-re-fork row for the arc a chord takes.** Its one
+    /// rung, `chord_arc_leave`, is decided in exactly ONE place in this
+    /// crate — counted, not merely located: for most of this module's
+    /// life `chord_spec` and `bool_planar_chord_spec` sat 500 lines
+    /// apart carrying line-identical copies of their arc selection, and
+    /// a cross-file guard would have been green throughout.
     ///
     /// **What it cannot match** — three shapes:
     ///
-    /// 1. **A second copy under a FRESH predicate name.** It surfaces
-    ///    as new rows in `docs/K-REPORT.md`'s census, which is the
-    ///    mechanism that already exists for that.
-    /// 2. **A copy that re-derives the verdict from `select_arc`'s
-    ///    RESULT** — recomputing which arc was chosen from the returned
-    ///    carrier's axis, say. The rungs still fire once each, the K
-    ///    stream is unchanged, and no string search can see it.
+    /// 1. **A second rule under a FRESH predicate name**, re-deriving the
+    ///    arc from the face. It surfaces as new rows in
+    ///    `docs/K-REPORT.md`'s census, which is the mechanism that
+    ///    already exists for that.
+    /// 2. **A reading of the arc from `arc_leaving`'s RESULT** —
+    ///    recomputing it from the returned carrier's axis, say. The rung
+    ///    still fires once, and no string search can see it.
     /// 3. **A copy in another crate.** The count is scoped to
     ///    `topo/src`; `crate::validate::decide` is `pub(crate)`, so a
     ///    foreign crate would have to call `geom_core`'s directly.
     #[test]
-    fn the_arc_side_rungs_are_decided_in_one_place() {
-        // Assembled rather than spelled, so this file is subject to
-        // the count like any other — writing the three names out here
-        // would make the guard its own second site.
-        let rungs = [
-            "arc_window",
-            "arc_chart_orientation",
-            "sphere_section_polar",
-            "arc_run_end",
-            "arc_run_side",
-            "arc_run_along",
-            "arc_run_on_section_plane",
-            "arc_run_on_section_conic",
-            "arc_run_corner",
-            "arc_run_cusp",
-        ]
-        .map(|rung| format!("\"split_{rung}\""));
+    fn the_chord_arc_rung_is_decided_in_one_place() {
+        // Assembled rather than spelled, so this file is subject to the
+        // count like any other.
+        let rung = format!("\"chord_{}\"", "arc_leave");
         let home = crate::source_walk::src_root().join("chord_join.rs");
         let files = crate::source_walk::crate_sources();
         assert!(files.contains(&home), "the walk did not find chord_join.rs");
-        for rung in &rungs {
-            let mut sites = 0;
-            for path in &files {
-                let text = std::fs::read_to_string(path).expect("a readable source file");
-                // DECIDE sites, counted on a whitespace-stripped copy so
-                // a call broken across lines counts the same as an
-                // inline one. Test rows asserting the name (they read
-                // `predicate`, they do not decide) are not sites.
-                let stripped: String = text.chars().filter(|c| !c.is_whitespace()).collect();
-                sites += stripped.matches(&format!("decide({rung}")).count();
-                let here = text.matches(rung.as_str()).count();
-                assert!(
-                    path == &home || here == 0,
-                    "{} names the arc-side rung {rung} — the rule has been re-forked \
-                     out of chord_join.rs, which must hold the only one. Call \
-                     `select_arc` / `section_case` instead.",
-                    path.display()
-                );
-            }
-            assert_eq!(
-                sites, 1,
-                "{rung} is spelled at {sites} site(s); the arc-side rule is supposed \
-                 to be written once — a second site is the S9 block copied again"
-            );
-        }
-    }
-
-    // -----------------------------------------------------------------
-    // Straddle rows at the interval scalar (issue 1191). Nothing in the
-    // shipped suites drives these reductions into a straddle, so the
-    // rows below do it directly, on the site's own numbers.
-    // -----------------------------------------------------------------
-
-    /// **The chord start ON the window edge, at `Interval`.**
-    ///
-    /// The generic configuration — the chord's start IS one of the run's
-    /// own ends, so its azimuth sits exactly on `w_min` — driven with an
-    /// enclosure that genuinely straddles that edge rather than a
-    /// degenerate box that would not exercise the reduction at all. The
-    /// arc is still selected: the window-relative coordinate comes back
-    /// at the width of its input.
-    ///
-    /// The row also computes the reduction the naive way — anchored at
-    /// the window's EDGE instead of its centre — and pins that it is
-    /// period-wide on the same input. That comparison is the claim: the
-    /// site is correct because of where its window's jump is, and the
-    /// row would still pass if it were merely lucky, so the alternative
-    /// is measured beside it rather than described.
-    ///
-    /// **Consults no tolerance.** The widths are widths; the band below
-    /// is the ordinary one the site's own margins need in order to run
-    /// at all, and no assertion here reads it.
-    #[test]
-    fn the_window_relative_start_keeps_its_width_when_the_start_straddles_the_edge() {
-        use geom_core::{Bounds, Interval, Real};
-
-        let iv = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
-        let ex = Interval::from_f64;
-        let band = Band::new(1e-9, 1e-8).unwrap();
-
-        // A hairline box about azimuth 0 — the shape an enclosure of a
-        // run end takes once its coordinates have been rounded apart.
-        let w = 1e-15;
-        let p1 = Point3::new(iv(1.0 - w, 1.0), iv(-w, w), ex(0.0));
-        let p2 = Point3::new(ex(0.0), ex(1.0), ex(0.0));
-
-        let chart = ChartFrame {
-            origin: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
-            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
-            radius: ex(1.0),
-            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
-            nappe: ex(1.0),
-        };
-        let carrier = geom::Curve3::Circle {
-            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
-            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
-            radius: ex(1.0),
-            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
-        };
-        let conic = SectionConic {
-            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
-            normal: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
-            major: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
-            sa: ex(1.0),
-            sb: ex(1.0),
-            carrier,
-            azimuth_monotone: true,
-        };
-        // The window runs ccw from the straddled edge to half a period
-        // on: the start is on `w_min`, which is the whole point.
-        let window = (ex(0.0), ex(core::f64::consts::PI));
-
-        let ccw = select_arc(FaceKey::default(), band, &chart, &conic, window, p1, p2)
-            .expect("the arc is selected: the window-relative start is not period-wide");
-        let (_, t0, t1) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw);
-        for (what, p) in [("t0", t0), ("t1", t1)] {
-            let width = p.hi() - p.lo();
+        let mut sites = 0;
+        for path in &files {
+            let text = std::fs::read_to_string(path).expect("a readable source file");
+            // DECIDE sites, counted on a whitespace-stripped copy so a
+            // call broken across lines counts the same as an inline one.
+            let stripped: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+            sites += stripped.matches(&format!("decide({rung}")).count();
             assert!(
-                width <= 1e-9,
-                "the selected arc's {what} enclosure is {width:e} wide — a period-width \
-                 answer, not an input-width one"
+                path == &home || !text.contains(rung.as_str()),
+                "{} names {rung}: the chord's arc has been re-forked out of chord_join.rs, \
+                 which must hold the only one. Call `arc_leaving` instead.",
+                path.display()
             );
         }
-
-        // The measurement the row rests on, taken on the same numbers.
-        //
-        // DISPOSITION: this half re-derives both anchorings inline, so
-        // it pins the two WINDOWS against each other, not the site — a
-        // site that stopped calling either one would leave it green.
-        // That is deliberate and it is not the site's pin: the
-        // `select_arc` call above is, and it reds if the site changes
-        // window. What this half adds is the reason the site's choice
-        // is the right one, which an assertion on the site's output
-        // alone cannot show.
-        let tau = Interval::tau();
-        let a1 = iv(-w, w);
-        let half_w = window.1 * ex(0.5);
-        let centred = (a1 - (window.0 + half_w)).reduce_periodic_centred(tau) + half_w;
-        let at_edge = (a1 - window.0).reduce_periodic(tau);
-        assert!(
-            centred.hi() - centred.lo() <= 1e-9,
-            "the centred offset widened: [{}, {}]",
-            centred.lo(),
-            centred.hi()
-        );
-        assert!(
-            at_edge.hi() - at_edge.lo() >= core::f64::consts::TAU,
-            "the edge-anchored offset is supposed to be the period-wide one; it gave \
-             [{}, {}]",
-            at_edge.lo(),
-            at_edge.hi()
-        );
-    }
-
-    /// CERT-4 R2 probe (local-only): the same straddle authored on MY
-    /// numbers — the window's straddled edge at azimuth pi/2 rather
-    /// than 0, an off-axis chord end, a 2.5-radian window. The unit's
-    /// committed row uses the zero azimuth, where several quantities
-    /// are exactly representable; this one is not so friendly.
-    #[test]
-    fn cert4r2_the_window_edge_straddle_off_axis() {
-        use geom_core::{Bounds, Interval, Real};
-
-        let iv = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
-        let ex = Interval::from_f64;
-        let band = Band::new(1e-9, 1e-8).unwrap();
-        let w = 1e-15;
-        // p1 straddles azimuth pi/2: x in [-w, w], y hairline about 1.
-        let p1 = Point3::new(iv(-w, w), iv(1.0 - w, 1.0), ex(0.0));
-        // p2 at azimuth pi/2 + 1.2, nothing exact about it.
-        let a2 = core::f64::consts::FRAC_PI_2 + 1.2;
-        let p2 = Point3::new(ex(a2.cos()), ex(a2.sin()), ex(0.0));
-
-        let chart = ChartFrame {
-            origin: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
-            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
-            radius: ex(1.0),
-            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
-            nappe: ex(1.0),
-        };
-        let carrier = geom::Curve3::Circle {
-            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
-            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
-            radius: ex(1.0),
-            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
-        };
-        let conic = SectionConic {
-            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
-            normal: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
-            major: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
-            sa: ex(1.0),
-            sb: ex(1.0),
-            carrier,
-            azimuth_monotone: true,
-        };
-        let window = (
-            ex(core::f64::consts::FRAC_PI_2),
-            ex(core::f64::consts::FRAC_PI_2 + 2.5),
-        );
-
-        let ccw = select_arc(FaceKey::default(), band, &chart, &conic, window, p1, p2)
-            .expect("the off-axis window-edge straddle still selects the arc");
-        let (_, t0, t1) = oriented_arc(&conic, conic.param(p1), conic.param(p2), ccw);
-        for (what, p) in [("t0", t0), ("t1", t1)] {
-            let width = p.hi() - p.lo();
-            assert!(
-                width <= 1e-9,
-                "{what} enclosure {width:e} wide — period-width, not input-width"
-            );
-        }
-    }
-}
-
-/// **R1 review probe (CERT-4): the NEW anchoring's own jump.**
-///
-/// The unit's row above measures the alternative (edge) anchoring on
-/// a window of width π and finds it period-wide, which is the right
-/// comparison. It does not probe the centred anchoring's OWN jump.
-/// The site's argument is that the distance from the reduction's
-/// argument to that jump is `(τ − width)/2`, positive only because
-/// the `width ≥ τ` arm returned earlier — so the margin VANISHES as
-/// the window's width approaches a period. This row drives that
-/// limit: a nearly-whole-period window with the chord start near the
-/// window's antipode.
-///
-/// Consults no tolerance: the widths asserted are widths.
-#[test]
-fn cert4r1_the_centred_anchoring_widens_at_its_own_jump_for_a_near_whole_window() {
-    use geom_core::{Bounds, Interval, Real};
-
-    let iv = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
-    let ex = Interval::from_f64;
-    let tau = Interval::tau();
-    let w = 1e-15;
-
-    // A window just under a whole period, and a start box sitting at
-    // its antipode -- i.e. on the centred window's own jump.
-    // Written relative to TAU rather than as decimal literals that
-    // approximate it: what the row varies is the window's MARGIN to a
-    // full period, and the last two are that margin made small.
-    let tau_f = core::f64::consts::TAU;
-    for width in [core::f64::consts::PI, 6.0, tau_f - 0.0032, tau_f - 1e-13] {
-        let w_min = 0.7_f64;
-        let half_w = ex(width) * ex(0.5);
-        let centre = w_min + width / 2.0;
-        let antipode = centre + core::f64::consts::PI;
-        let a1 = iv(antipode - w, antipode + w);
-        let x1 = (a1 - (ex(w_min) + half_w)).reduce_periodic_centred(tau) + half_w;
-        let got = x1.hi() - x1.lo();
-        println!(
-            "cert4r1 topo: window width {width:e}, margin to jump {:e}, \
-                 window-relative start width {got:e}",
-            (core::f64::consts::TAU - width) / 2.0
-        );
-        // MEASURED: period-wide at EVERY width tested, including the
-        // unit's own width of pi where the margin to the jump is a
-        // comfortable 1.57 rad. The site's argument is sound only for
-        // a start INSIDE the window; a start at the window's antipode
-        // is on the centred fold's own jump and comes back a period
-        // wide. That premise is prose at the site, not a gate.
-        assert!(
-            got >= core::f64::consts::TAU,
-            "expected the antipodal start to sit on the centred fold's jump"
-        );
+        assert_eq!(sites, 1, "{rung} is decided at {sites} site(s)");
     }
 }
 

@@ -536,8 +536,7 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     // every sub-period span, which is what makes the retry a different
     // representation rather than a second try at the same one — they
     // sit **(τ − span)/2 apart** on the circle, half the span's
-    // COMPLEMENT (the same quantity `chord_join`'s window recentre
-    // states for itself). Not half a period: that is the span → 0
+    // COMPLEMENT. Not half a period: that is the span → 0
     // limit, and the separation SHRINKS as the span grows, reaching
     // zero only at a full period. So the retry has room exactly when
     // the span is well under τ, and is degenerate exactly where the
@@ -959,12 +958,11 @@ mod tests {
         // hairline under the midpoint anchor and a whole period under
         // the `t₀` anchor.
         //
-        // DISPOSITION: like its chord_join twin, this half re-derives
-        // both anchorings inline and so pins the two WINDOWS rather
-        // than the site. The site's own pin is the
-        // `conic_crossing_roots` call above, which reds if the anchor
-        // order changes; this half says why that order is the right
-        // one.
+        // DISPOSITION: this half re-derives both anchorings inline and
+        // so pins the two WINDOWS rather than the site. The site's own
+        // pin is the `conic_crossing_roots` call above, which reds if
+        // the anchor order changes; this half says why that order is
+        // the right one.
         let tau = Interval::tau();
         let mid = (t0 + t1) * ex(0.5);
         let cand = Interval::from_bounds(-1e-15, 1e-15);

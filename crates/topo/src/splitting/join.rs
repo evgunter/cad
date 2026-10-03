@@ -65,8 +65,7 @@ use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
     ChordJoiner, ConicCrossingsCase, CutOutcome, FragmentRows, JoinLane, Leave, SectionCase,
-    SectionCtx,
-    SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
+    SectionCtx, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
     vertex_point, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -314,7 +313,10 @@ fn split_leave<T: Decide>(
     let wall = body
         .get_surface(face_data.surface)
         .ok_or_else(|| corrupt_face(face))?;
-    let start = body.get_half_edge(half).ok_or_else(|| corrupt_he(half))?.start;
+    let start = body
+        .get_half_edge(half)
+        .ok_or_else(|| corrupt_he(half))?
+        .start;
     let out = geom_brep::implicit_outward_normal(wall, face_data.sense, vertex_point(body, start)?);
     let heading = plane_normal.get().cross(out.vec());
     Ok(if above_set.contains_key(start) {

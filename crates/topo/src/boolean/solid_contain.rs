@@ -2175,8 +2175,9 @@ pub(super) fn torus_face_windows<T: Decide>(
 /// loudly into `PartialTorusFace` rather than silently into a wrong
 /// window, which is why it is recorded rather than guarded.
 ///
-/// [`crate::chord_join`]'s `run_azimuth_window` is the same construction
-/// for the split/join lane. It is not shared with this one, and the
+/// [`crate::chord_join::face_azimuth_images`]' walk is the same
+/// construction for the cylinder, sphere and cone charts. It is not
+/// shared with this one, and the
 /// reason is not tidiness: that walk answers ONE channel (the azimuth)
 /// and carries the sphere chart's pole-junction rule, which is exactly
 /// what the torus does not need and cannot use; this one answers both

@@ -1739,8 +1739,8 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// story.
 ///
 /// A successful wall pierce reaches the join with a ring in the
-/// pierced face, and the ring's chords take their arc from that face's
-/// own azimuth window (`chord_join`'s `cross_loop_window_cycle`).
+/// pierced face, and the ring's chords take the arc the pierce germs'
+/// directions name (`chord_join::Leave`).
 ///
 /// **This lane WIDENS what an undeclared pair reaches, and the widening
 /// is named here rather than left to be discovered.** Before it,

@@ -280,16 +280,15 @@ impl SolidJoin {
         Ok(())
     }
 
-    /// The planar-side chord lane against the partner `wall`, whose
-    /// face's azimuth window is `window`: one chord through
-    /// [`JoinLane::BoolPlanar`], the wall copy keyed by `partner_face`.
+    /// The planar-side chord lane against the partner `wall`: one
+    /// chord through [`JoinLane::BoolPlanar`], the wall copy keyed by
+    /// `partner_face`.
     #[allow(clippy::too_many_arguments)]
     fn join_bool_planar<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
         (h1, h2): (HalfEdgeKey, HalfEdgeKey),
         wall: geom::Surface<T>,
-        window: Option<(T, T)>,
         partner_face: FaceKey,
         segment: SegmentEdge,
         leave: Leave<T>,
@@ -304,7 +303,6 @@ impl SolidJoin {
                 h2,
                 crate::chord_join::JoinLane::BoolPlanar {
                     wall,
-                    window,
                     partner_key: &mut partner,
                 },
                 segment,
@@ -467,17 +465,14 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         b_loose.remove(rb);
         // Curved germ pairs (M5 PR 9): each solid's chord lane comes
         // from the germ FACE PAIR — plane×plane takes the straight-chord
-        // lane with the partner's plane as its section; plane×cylinder mints
-        // the C5 section conic on both sides (the wall side through
-        // the S9 window machinery with the germ plane as context, the
-        // planar side against the wall face's own window, so both
-        // solids select the SAME geometric arc); plane×sphere (M5
-        // S13) rides the same two lanes with the exact C5 Circle and
-        // the sphere chart's azimuth window (a section tilted against
-        // that chart refuses on the planar side); a sphere pair rides the
-        // wall-side lane on both sides against its radical plane; any
-        // other pair refuses typed citing its C5 routing (per-arm,
-        // C12.1).
+        // lane with the partner's plane as its section; plane×cylinder
+        // and plane×sphere (M5 S13) mint the C5 section conic on both
+        // sides (the wall side with the germ plane as context, the
+        // planar side against the partner wall), each taking the arc the
+        // matched germs' directions name, so both solids take the SAME
+        // geometric arc; a sphere pair rides the wall-side lane on both
+        // sides against its radical plane; any other pair refuses typed
+        // citing its C5 routing (per-arm, C12.1).
         let germ = open[m.entry].a[m.entry_slot].0;
         let surf_of =
             |body: &Body<T>,
@@ -491,8 +486,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // the curved lanes below take from a plane germ is a point and
         // a chart normal — a section datum, an operation input whose
         // normal names a chart, not a material side. The plane as a
-        // point set (and hence the section conic, its azimuth window,
-        // and the auxiliary surface minted for it) is identical under
+        // point set (and hence the section conic and the auxiliary
+        // surface minted for it) is identical under
         // a sense flip, so folding the sense in here would rewrite an
         // input that never meant "outward"; the created faces' own
         // orientation comes from the joiner's stored winding.
@@ -533,7 +528,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             })
         };
         let (seg_a, seg_b) = (segment(germ.a_locus), segment(germ.b_locus));
-        use crate::chord_join::{JoinLane, face_azimuth_window};
+        use crate::chord_join::JoinLane;
         use geom::Surface as Sf;
         // A segment along an edge of both solids is that edge in both:
         // each solid's chord copies its own edge and no section is read
@@ -566,9 +561,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 // plane is computed from the pair's own C5 Circle, once per
                 // germ, so the two sides' chords are sections of one datum;
                 // each body's aux copy of it is keyed by the two spheres it
-                // depends on ([`AuxDatum::Radical`]). A radical plane tilted
-                // against a chart's polar axis takes the run-side arc rule on
-                // that side (`chord_join::select_arc_by_run_side`).
+                // depends on ([`AuxDatum::Radical`]).
                 (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
                     let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
                         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
@@ -641,20 +634,19 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 h2: at(h2)?,
             })
         };
-        if std::env::var("ARCPAIR_DEBUG").is_ok() {
-            for (nm, g) in [("eA", &open[m.entry].a[m.entry_slot].0), ("cA", &open[m.cand].a[m.cand_slot].0), ("eB", &open[m.entry].b[m.entry_slot].0), ("cB", &open[m.cand].b[m.cand_slot].0)] {
-                let body = if nm.ends_with('A') { &red.a } else { &red.b };
-                eprintln!("GERM {nm} he={:?} p={:?} dir={:?} aloc={:?} bloc={:?} af={:?} bf={:?} asense={:?} asurf={:?}", g.he, body.half_edge_start_point(g.he), g.dir, g.a_locus, g.b_locus, g.a_face, g.b_face, red.a.get_face(g.a_face).map(|f| f.sense), red.a.get_face(g.a_face).and_then(|f| red.a.get_surface(f.surface)).map(|s| s.kind()));
-            }
-            eprintln!("ROLES a=({a1:?},{a2:?}) b=({b1:?},{b2:?})");
-        }
         let leave_a = leave(
-            [&open[m.entry].a[m.entry_slot].0, &open[m.cand].a[m.cand_slot].0],
+            [
+                &open[m.entry].a[m.entry_slot].0,
+                &open[m.cand].a[m.cand_slot].0,
+            ],
             a1,
             a2,
         )?;
         let leave_b = leave(
-            [&open[m.entry].b[m.entry_slot].0, &open[m.cand].b[m.cand_slot].0],
+            [
+                &open[m.entry].b[m.entry_slot].0,
+                &open[m.cand].b[m.cand_slot].0,
+            ],
             b1,
             b2,
         )?;
@@ -678,14 +670,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     .map_err(BooleanError::Join)?;
             }
             Some(GermLane::PlaneWall(plane)) => {
-                let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
-                    .ok()
-                    .flatten();
                 sa.join_bool_planar(
                     &mut red.a,
                     (a1, a2),
                     gb.clone(),
-                    window,
                     germ.b_face,
                     seg_a,
                     leave_a,
@@ -711,14 +699,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     leave_a,
                     tol,
                 )?;
-                let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
-                    .ok()
-                    .flatten();
                 sb.join_bool_planar(
                     &mut red.b,
                     (b1, b2),
                     ga.clone(),
-                    window,
                     germ.a_face,
                     seg_b,
                     leave_b,
@@ -727,8 +711,24 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             }
             Some(GermLane::Radical(radical)) => {
                 let datum = |own, partner| AuxDatum::Radical { own, partner };
-                sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), seg_a, leave_a, tol)?;
-                sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), seg_b, leave_b, tol)?;
+                sa.join_split(
+                    &mut red.a,
+                    (a1, a2),
+                    radical,
+                    datum(ka, kb),
+                    seg_a,
+                    leave_a,
+                    tol,
+                )?;
+                sb.join_split(
+                    &mut red.b,
+                    (b1, b2),
+                    radical,
+                    datum(kb, ka),
+                    seg_b,
+                    leave_b,
+                    tol,
+                )?;
             }
         }
         open[m.entry].a[m.entry_slot].1 = true;
@@ -2040,11 +2040,7 @@ fn resolve_roles_geometric<T: Decide>(
             tol,
         )
     };
-    let (so, sr) = (side(outer)?, side(ring)?);
-    if std::env::var("ARCPAIR_DEBUG").is_ok() {
-        eprintln!("ROLEPROBE face={face:?} nfaces={} outer={so:?} ring={sr:?} regions_o={:?} regions_r={:?}", body.faces().count(), region_faces(body, face, outer)?, region_faces(body, face, ring)?);
-    }
-    loop_roles(face, (outer, so), (ring, sr))
+    loop_roles(face, (outer, side(outer)?), (ring, side(ring)?))
 }
 
 /// The (IN, OUT) loop order from each loop's ladder reading. Either
