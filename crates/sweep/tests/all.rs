@@ -618,6 +618,8 @@ mod join1_r1_rows;
 mod join2_r1_probes;
 #[path = "join2_r2_probes.rs"]
 mod join2_r2_probes;
+#[path = "join2_d_probes.rs"]
+mod join2_d_probes;
 #[path = "join_rc_probes.rs"]
 mod join_rc_probes;
 #[path = "m9_3_zip.rs"]
