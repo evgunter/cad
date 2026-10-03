@@ -85,10 +85,11 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// composition rule, which [`Frame::compose`] and a [`Placement`]'s
 /// chain both fold through — returns the other operand verbatim on one,
 /// admitted by [`Frame::is_identity_bits`] over [`Frame::bit_eq`]. That
-/// is what makes the split/inline round trip exact — the frames a split
-/// hoists or leaves behind compose back with zero arithmetic, so D-4's
-/// bit-level volume identity never meets a rounding step — and what
-/// makes an identity step in a chain move no bit.
+/// is what makes the split/inline round trip exact — the offsets a split
+/// moves and the empty chain it leaves behind compose back with zero
+/// arithmetic, so D-4's bit-level volume identity never meets a
+/// rounding step — and what makes an identity step in a chain move no
+/// bit.
 ///
 /// A placement and a modeled transform of the same part agree BIT FOR
 /// BIT: [`Frame::rotate_then_translate`] is the `Transform` node's own

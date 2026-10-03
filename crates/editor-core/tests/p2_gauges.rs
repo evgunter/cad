@@ -949,13 +949,13 @@ fn a_cut_of_unplaced_material_alone_names_its_first_group_in_document_order() {
 /// naming the mate and side.
 #[test]
 fn a_cut_of_one_group_moves_as_selected_and_the_frame_rule_at_a_split() {
-    let (p, doc, [base, top, mate]) = placed_pair("p2-hoist");
+    let (p, doc, [base, top, mate]) = placed_pair("p2-one-group");
     let o = p.opts();
     let split = |doc: &ProfileDoc, ids: &[RecipeNodeId]| {
         editor_core::split(
             doc,
             &cut(ids),
-            DocumentId::derive("p2-hoist-part"),
+            DocumentId::derive("p2-one-group-part"),
             Tol::witness(),
             o.resolver.as_ref(),
         )
@@ -1487,7 +1487,7 @@ fn a_verbatim_split_keeps_a_carried_members_checked_offset() {
     assert_eq!(
         offset_of(&out.remainder, out.instance),
         Some(Placement::IDENTITY),
-        "the move is verbatim, not a hoist"
+        "the move is verbatim"
     );
     assert_eq!(
         offset_of(&out.part, out.node_map[&ids[1]]),
@@ -1557,7 +1557,7 @@ fn round_trip_keeps_every_offset(
     assert_eq!(
         offset_of(&out.remainder, out.instance),
         Some(Placement::IDENTITY),
-        "the move is verbatim, not a hoist"
+        "the move is verbatim"
     );
     for (source, part) in offsets_through(doc, |id| out.node_map[&id], &out.part) {
         assert_eq!(part, source, "the part holds exactly the source's offsets");

@@ -210,9 +210,9 @@ fn a_part_at_this_frame_is_a_promote_and_a_cut_leaving_the_gauge() {
 /// and K2 hangs from the part's world, and nothing moves.
 #[test]
 fn a_cut_of_a_gauges_content_then_a_fold_gives_the_instance_the_gauges_placement() {
-    let p = parts("pf-hoist");
+    let p = parts("pf-content");
     let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("pf-hoist"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("pf-content"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
     let (doc, k) = insert(doc, Node::gauge(Some(g), literal([2.0, 0.0, 0.5])));
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
@@ -228,7 +228,7 @@ fn a_cut_of_a_gauges_content_then_a_fold_gives_the_instance_the_gauges_placement
     let (doc, deep) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_gauge(doc, deep, Some(k2));
 
-    let out = split(&doc, &[base, top, mate, lone, k2, deep], "pf-hoist", &o).expect("cuts");
+    let out = split(&doc, &[base, top, mate, lone, k2, deep], "pf-content", &o).expect("cuts");
     assert_eq!(gauge_of(&out.remainder, out.instance), Some(k));
     assert_eq!(offset_of(&out.remainder, out.instance), Some(Placement::IDENTITY));
     let folded = fold(out.remainder.clone(), k);

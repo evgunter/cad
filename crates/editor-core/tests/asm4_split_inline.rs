@@ -248,7 +248,7 @@ fn row1_split_one_group_preserves_structure_and_names() {
     let _ = part_ref;
 }
 
-/// Row 1, the non-hoisted shape — cutting a PLAIN subtree (no group)
+/// Row 1, a PLAIN subtree — cutting one (no group)
 /// moves the recipe verbatim; the remainder instance sits at identity
 /// and the identity still holds.
 #[test]

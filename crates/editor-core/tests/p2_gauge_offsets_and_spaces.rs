@@ -1086,9 +1086,9 @@ fn a_document_of_unplaced_material_alone_names_its_groups_and_still_checks_them(
 /// nothing in it reads.
 #[test]
 fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host() {
-    let p = parts("r1-hoist-param");
+    let p = parts("r1-promote-param");
     let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("r1-hoist-param"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-promote-param"), Tol::witness());
     let doc = declare_lift(doc, 2.0);
     let (doc, _) = insert(
         doc,
@@ -1115,7 +1115,7 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
         editor_core::split(
             doc,
             &cut,
-            DocumentId::derive("r1-hoist-param-part"),
+            DocumentId::derive("r1-promote-param-part"),
             Tol::witness(),
             o.resolver.as_ref(),
         )
