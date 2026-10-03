@@ -36,19 +36,19 @@ test_utils::gated_to![
 use crate::fixture;
 
 use editor_core::{
-    AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit, DocParam,
-    DocParamValue, DocumentId, EditError, EvalOptions, MeasureUnavailable, OffsetInterval,
-    ParamName, PersistError, ProfileDoc, analyzed_box, apply, box_mass, evaluate, load, save,
+    AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit,
+    DocumentId, EditError, EvalOptions, FreeValue, FreeVar, MeasureUnavailable, OffsetInterval,
+    PersistError, ProfileDoc, VarName, analyzed_box, apply, box_mass, evaluate, load, save,
     tail_mass,
 };
 use geom_core::Tol;
 use test_utils::fuzz;
 
-fn p(name: &'static str) -> ParamName {
-    ParamName::from_static(name)
+fn p(name: &'static str) -> VarName {
+    VarName::from_static(name)
 }
 
-fn doc_with(params: &[(&'static str, DocParam)]) -> ProfileDoc {
+fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-1-r2-probes"), Tol::witness());
     for (name, value) in params {
         doc = apply(
@@ -66,8 +66,8 @@ fn doc_with(params: &[(&'static str, DocParam)]) -> ProfileDoc {
     doc
 }
 
-fn annotated(value: f64, distribution: Distribution) -> DocParam {
-    DocParam::continuous_with(Dimension::Length, value, distribution)
+fn annotated(value: f64, distribution: Distribution) -> FreeVar {
+    FreeVar::continuous_with(Dimension::Length, value, distribution)
 }
 
 // ---------------------------------------------------------------
@@ -510,10 +510,10 @@ fn an_unknown_key_inside_a_distribution_refuses_at_load() {
 /// hand.** E11.3's "no distributions on structural parameters" is
 /// claimed to come out UNREPRESENTABLE; the load door is where a
 /// hand-written file would test that claim, and `deny_unknown_fields`
-/// on `DocParam` is what has to enforce it.
+/// on `FreeVar` is what has to enforce it.
 #[test]
 fn a_distribution_on_a_count_param_refuses_at_load() {
-    let doc = doc_with(&[("n", DocParam::Count { value: 4 })]);
+    let doc = doc_with(&[("n", FreeVar::Count { value: 4 })]);
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let corrupt = text.replace(
         "\"value\": 4",
@@ -536,7 +536,7 @@ fn a_distribution_on_a_count_param_refuses_at_load() {
 /// about every legal v15 file.
 #[test]
 fn an_explicit_null_distribution_loads_and_is_normalized_out() {
-    let doc = doc_with(&[("plain", DocParam::continuous(Dimension::Length, 1.0))]);
+    let doc = doc_with(&[("plain", FreeVar::continuous(Dimension::Length, 1.0))]);
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let corrupt = text.replace("\"value\": 1.0", "\"value\": 1.0, \"distribution\": null");
     assert_ne!(corrupt, text, "the corruption must land");
@@ -679,7 +679,7 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
         &before,
         &DocEdit::SetDocParam {
             name: p("hole_r"),
-            value: DocParam::continuous(existing.dim(), 0.004),
+            value: FreeVar::continuous(existing.dim(), 0.004),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -718,13 +718,13 @@ fn the_value_door_carries_the_declaration_forward() {
     let dist = Distribution::Normal { sigma: 1e-5 };
     let before = doc_with(&[
         ("hole_r", annotated(0.003, dist)),
-        ("ribs", DocParam::Count { value: 4 }),
+        ("ribs", FreeVar::Count { value: 4 }),
     ]);
     let after = apply(
         &before,
         &DocEdit::SetDocParamValue {
             name: p("hole_r"),
-            value: DocParamValue::Continuous(0.004),
+            value: FreeValue::Continuous(0.004),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -732,7 +732,7 @@ fn the_value_door_carries_the_declaration_forward() {
     .expect("a value edit on a declared parameter applies")
     .doc;
     match after.params()[&p("hole_r")] {
-        DocParam::Continuous {
+        FreeVar::Continuous {
             dim,
             value,
             display_unit: _,
@@ -743,7 +743,7 @@ fn the_value_door_carries_the_declaration_forward() {
             let got = distribution.expect("the annotation SURVIVED");
             assert!(got.bit_eq(&dist), "and survived bit for bit");
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
     let axis = analyzed_box(&after, &AnalysisPolicy::default())
         .get(&p("hole_r"))
@@ -758,21 +758,21 @@ fn the_value_door_carries_the_declaration_forward() {
         &before,
         &DocEdit::SetDocParamValue {
             name: p("ribs"),
-            value: DocParamValue::Count(7),
+            value: FreeValue::Count(7),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
     .expect("a count value edit applies")
     .doc;
-    assert_eq!(counted.params()[&p("ribs")], DocParam::Count { value: 7 });
+    assert_eq!(counted.params()[&p("ribs")], FreeVar::Count { value: 7 });
     // Refusal 1: nothing to carry forward.
     assert_eq!(
         apply(
             &before,
             &DocEdit::SetDocParamValue {
                 name: p("never_declared"),
-                value: DocParamValue::Continuous(1.0),
+                value: FreeValue::Continuous(1.0),
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -790,7 +790,7 @@ fn the_value_door_carries_the_declaration_forward() {
             &before,
             &DocEdit::SetDocParamValue {
                 name: p("hole_r"),
-                value: DocParamValue::Count(2),
+                value: FreeValue::Count(2),
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -798,7 +798,7 @@ fn the_value_door_carries_the_declaration_forward() {
         Err(EditError::DocParamValueKindMismatch {
             name: p("hole_r"),
             declared: Dimension::Length,
-            offered: DocParamValue::Count(2),
+            offered: FreeValue::Count(2),
         })
     );
     assert!(matches!(
@@ -806,7 +806,7 @@ fn the_value_door_carries_the_declaration_forward() {
             &before,
             &DocEdit::SetDocParamValue {
                 name: p("ribs"),
-                value: DocParamValue::Continuous(2.0),
+                value: FreeValue::Continuous(2.0),
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -829,12 +829,12 @@ fn a_value_edit_round_trips_through_the_file() {
     let doc = doc_with(&[("bore", annotated(0.01, dist))]);
     let edits = [DocEdit::SetDocParamValue {
         name: p("bore"),
-        value: DocParamValue::Continuous(0.011),
+        value: FreeValue::Continuous(0.011),
     }];
     let text = save(&doc, edits.as_ref(), Tol::witness()).expect("saves");
     let back = load(&text, Tol::witness()).expect("loads");
     match back.doc.params()[&p("bore")] {
-        DocParam::Continuous {
+        FreeVar::Continuous {
             value,
             distribution,
             ..
@@ -845,6 +845,6 @@ fn a_value_edit_round_trips_through_the_file() {
                 "the annotation crossed the file and the replay"
             );
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
 }

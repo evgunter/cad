@@ -589,6 +589,11 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # A document variable's name, free definition and value: Python
+    # spells them as the parameter classes.
+    "FreeValue": "DocParamValue",
+    "FreeVar": "DocParam",
+    "VarName": "ParamName",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
     "DatumValue": "Value.datum",
@@ -2300,21 +2305,21 @@ NOT_BOUND = {
     # RUST sentence can name the door rather than say "a carry-forward
     # edit" and leave a reader to work out which.
     "CarryForwardDoor": SHAPE,
-    # `DocParam::with_display_unit`'s `Err`: which of the two reasons a
+    # `FreeVar::with_display_unit`'s `Err`: which of the two reasons a
     # notation cannot be written. It is flattened because no Python
     # door answers in it — the binding's notation edit goes through
     # `Doc.apply`, where the kernel has already mapped these two to
     # `doc_param_count_has_no_unit` and `doc_param_unit_mismatch`, and
     # those are the words a caller branches on.
     "DisplayUnitRefusal": SHAPE,
-    # `DocParam::with_distribution`'s `Err`, flattened for
+    # `FreeVar::with_distribution`'s `Err`, flattened for
     # `DisplayUnitRefusal`'s reason: no Python door answers in it. The
     # binding's annotation edit goes through `Doc.apply`, where the
     # kernel has already mapped these to
     # `doc_param_count_has_no_distribution` and to the distribution
     # fault's own tags, and those are the words a caller branches on.
     "DistributionRefusal": SHAPE,
-    # `DocParam::first_non_finite`'s answer: WHICH float of a
+    # `FreeVar::first_non_finite`'s answer: WHICH float of a
     # continuous parameter is not a number — the nominal, or the
     # offset `DistributionField` names. It is `DistributionRefusal`'s
     # row one concept over and flattened for its reason: no Python
@@ -3041,14 +3046,14 @@ NOT_BOUND = {
     # rule.
     "FaceName": SHAPE,
     "NotAFaceName": SHAPE,
-    # `ParamNameFault` is what `ParamName::new` refuses with, and
-    # `ParamNameReason` the lexer's finding inside it. A Python caller
+    # `VarNameFault` is what `VarName::new` refuses with, and
+    # `VarNameReason` the lexer's finding inside it. A Python caller
     # holds a name as text until `ParamName(text)`, which is where the
     # binding calls the constructor and publishes the refusal as
     # `EditError.variant == "param_name_not_an_identifier"`; neither
     # type crosses, for `NotAFaceName`'s reason.
-    "ParamNameFault": SHAPE,
-    "ParamNameReason": SHAPE,
+    "VarNameFault": SHAPE,
+    "VarNameReason": SHAPE,
     # `Label` is a node's label as a validated text, and `LabelFault`
     # what `Label::new` refuses with. A Python caller holds a label as
     # `str`: `Doc.label` answers one, and `DocEdit.set_label` and
@@ -3948,11 +3953,6 @@ MEMBERS_BOUND_AS = {
     # than by naming the arm — `bind_count_param`, `bind_instance_param`
     # and `bind_v_degree_param` all build this arm.
     "DocEdit::SetStructuralParam": "DocEdit.bind_count_param",
-    # The continuous arm is what the three dimensioned constructors
-    # mint; `Count` is the arm the namesake spells.
-    "DocParam::Continuous": "DocParam.length",
-    # As `DocParam` above, one rung down at the value.
-    "DocParamValue::Continuous": "DocParamValue.length",
     # THE RUST RUN'S OWN FIELDS, under a Python class that is a different
     # type: `pncad.pyi`'s `Evaluation` is the binding's captured
     # (document, evaluation) pair. Four of its ten fields carry names

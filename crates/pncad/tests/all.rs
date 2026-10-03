@@ -2541,22 +2541,22 @@ fn expr_literal_refusals_are_matchable_through_the_facade() {
 /// mirrored constant for constant from
 /// `crates/editor-core/tests/corpus/plate_param.rs` — through
 /// `pncad::document` alone. Before R1-PARAMS this function could not
-/// compile: `ParamName` and `DocParam` were not curated, which guide
+/// compile: `VarName` and `FreeVar` were not curated, which guide
 /// §3.2 pinned with a `compile_fail` doctest (now flipped to the same
 /// authoring as a passing one).
 fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    use pncad::document::{BooleanOp, DocParam, ParamName};
+    use pncad::document::{BooleanOp, FreeVar, VarName};
     let hole = |cx: f64, cy: f64| LoopProgram::Circle {
         centre: [len(cx), len(cy)],
-        radius: Expr::param(ParamName::from_static("hole_r"), Dimension::Length),
+        radius: Expr::param(VarName::from_static("hole_r"), Dimension::Length),
     };
 
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("hole_r"),
-            value: DocParam::continuous(Dimension::Length, 0.25),
+            name: VarName::from_static("hole_r"),
+            value: FreeVar::continuous(Dimension::Length, 0.25),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -2904,7 +2904,7 @@ fn workspace_duplicate_id_refuses_naming_both_paths() {
 /// accept-updated-version recourse.
 #[test]
 fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
-    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    use pncad::document::{Dimension, DocEdit, FreeVar, VarName};
     let dir = WsDir::new("pin");
     let (doc, text) = ws_doc("ws-pin");
     let stale_pin = pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes");
@@ -2913,8 +2913,8 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
     let edited = pncad::document::apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.75),
+            name: VarName::from_static("depth"),
+            value: FreeVar::continuous(Dimension::Length, 0.75),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3092,12 +3092,12 @@ fn random_document_ids_are_distinct() {
 /// of `loaded.doc` fails this row in both directions.
 #[test]
 fn workspace_resolve_pins_replayed_state_not_snapshot() {
-    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    use pncad::document::{Dimension, DocEdit, FreeVar, VarName};
     let dir = WsDir::new("log");
     let (origin, _) = ws_doc("ws-logged");
     let edit = DocEdit::SetDocParam {
-        name: ParamName::from_static("depth"),
-        value: DocParam::continuous(Dimension::Length, 0.9),
+        name: VarName::from_static("depth"),
+        value: FreeVar::continuous(Dimension::Length, 0.9),
     };
     // Save snapshot + ONE-edit log; the file's current state is the
     // replayed result, and that is what a resolve must pin.
@@ -3208,7 +3208,7 @@ fn workspace_save_at_refuses_a_second_file_for_one_identity() {
 /// name, the identity does not move and the content does.
 #[test]
 fn workspace_save_at_the_scanned_path_is_a_resave() {
-    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    use pncad::document::{Dimension, DocEdit, FreeVar, VarName};
     let dir = WsDir::new("save-resave");
     let (doc, text) = ws_doc("ws-save-resave");
     let original = dir.write("part.pncad", &text);
@@ -3218,8 +3218,8 @@ fn workspace_save_at_the_scanned_path_is_a_resave() {
     let edited = pncad::document::apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.9),
+            name: VarName::from_static("depth"),
+            value: FreeVar::continuous(Dimension::Length, 0.9),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6185,14 +6185,14 @@ fn the_north_star_audits_tallies_are_derived_from_its_rows() {
 fn distributions_author_save_reload_and_analyze_through_the_facade() {
     use pncad::analysis::{AnalysisPolicy, MeasureUnavailable, analyzed_box, box_mass, tail_mass};
     use pncad::document::{
-        Dimension, Distribution, DocEdit, DocParam, ParamName, ProfileDoc, apply, load, save,
+        Dimension, Distribution, DocEdit, FreeVar, ProfileDoc, VarName, apply, load, save,
     };
 
-    let declare = |doc: &ProfileDoc, name: &'static str, value: DocParam| {
+    let declare = |doc: &ProfileDoc, name: &'static str, value: FreeVar| {
         apply(
             doc,
             &DocEdit::SetDocParam {
-                name: ParamName::from_static(name),
+                name: VarName::from_static(name),
                 value,
             },
             Tol::witness(),
@@ -6205,7 +6205,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     let doc = declare(
         &doc,
         "bore_r",
-        DocParam::continuous_with(
+        FreeVar::continuous_with(
             Dimension::Length,
             0.004,
             Distribution::Normal { sigma: 5e-6 },
@@ -6214,7 +6214,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     let doc = declare(
         &doc,
         "plate_t",
-        DocParam::continuous_with(
+        FreeVar::continuous_with(
             Dimension::Length,
             0.012,
             Distribution::Band {
@@ -6231,10 +6231,10 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     let policy = AnalysisPolicy::default();
     let boxed = analyzed_box(&back, &policy);
     let bore = boxed
-        .get(&ParamName::from_static("bore_r"))
+        .get(&VarName::from_static("bore_r"))
         .expect("the annotated parameter is an axis");
     let plate = boxed
-        .get(&ParamName::from_static("plate_t"))
+        .get(&VarName::from_static("plate_t"))
         .expect("so is the banded one");
 
     // The normal's box is the ±3σ quantile box; the band's IS its
@@ -6255,7 +6255,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     // The tail column: the normal leaves a little outside its box, the
     // band leaves nothing outside its own support.
     let bore_tail = tail_mass(
-        &ParamName::from_static("bore_r"),
+        &VarName::from_static("bore_r"),
         &bore.distribution.expect("annotated"),
         &bore.offsets,
     )
@@ -6266,7 +6266,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     );
     assert_eq!(
         tail_mass(
-            &ParamName::from_static("plate_t"),
+            &VarName::from_static("plate_t"),
             &plate.distribution.expect("annotated"),
             &plate.offsets
         ),
@@ -6275,19 +6275,19 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 
     // Pricing a sub-box: the normal answers, the band refuses BY NAME.
     let half = box_mass(
-        &ParamName::from_static("bore_r"),
+        &VarName::from_static("bore_r"),
         &bore.distribution.expect("annotated"),
         (0.0, bore.offsets.hi),
     )
     .expect("a normal prices a leaf");
     assert!((half - 0.5 * (1.0 - bore_tail)).abs() < 1e-9, "{half}");
     match box_mass(
-        &ParamName::from_static("plate_t"),
+        &VarName::from_static("plate_t"),
         &plate.distribution.expect("annotated"),
         (0.0, 1e-4),
     ) {
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            assert_eq!(param, ParamName::from_static("plate_t"));
+            assert_eq!(param, VarName::from_static("plate_t"));
         }
         other => panic!("a band must refuse to price a leaf, got {other:?}"),
     }

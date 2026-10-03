@@ -812,7 +812,7 @@ fn hull_slack(verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
         let span = |n: &'static str| match leaf
             .box_
             .axes()
-            .get(&pncad::document::ParamName::from_static(n))
+            .get(&pncad::document::VarName::from_static(n))
         {
             Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
             _ => (0.0, 0.0),

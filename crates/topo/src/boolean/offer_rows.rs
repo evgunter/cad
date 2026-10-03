@@ -1967,6 +1967,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ResultInvalid
         | BooleanErrorKind::ResultVolumeImplausible
         | BooleanErrorKind::VolumeCorrupt
+        | BooleanErrorKind::PoisonedCarrierDatum
         | BooleanErrorKind::VolumeUndecided
         | BooleanErrorKind::UnrepresentableResult
         | BooleanErrorKind::NonManifoldResult

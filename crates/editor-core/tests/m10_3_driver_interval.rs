@@ -63,9 +63,9 @@ use editor_core::drive::{
     RefusalReason, SymbolicDials, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
-    LoopProgram, Node, NodeErrorKind, NodeResult, ParamName, ParamValue, ProfileDoc, ProfileLift,
-    ProfileProgram, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr, FreeVar,
+    LoopProgram, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileLift,
+    ProfileProgram, VarName, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol};
 
@@ -75,8 +75,8 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn param(n: &'static str) -> Expr {
@@ -108,7 +108,7 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("depth"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -155,7 +155,7 @@ pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Expr) -> Prof
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("height"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -194,7 +194,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("hole_r"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -203,7 +203,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     });
     r.push(DocEdit::SetDocParam {
         name: name("depth"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.5,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -246,7 +246,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("axis"),
-        value: DocParam::Continuous {
+        value: FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 20.0 * eps(),
             display_unit: UnitSym::canonical_for(Dimension::Scalar),

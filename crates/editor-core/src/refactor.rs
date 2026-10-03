@@ -593,7 +593,7 @@ pub enum SplitError {
     /// sharing") — refused naming one referencing node on each side.
     UncutParamReference {
         /// The shared parameter.
-        param: crate::doc::ParamName,
+        param: crate::doc::VarName,
         /// A cut node referencing it.
         cut_node: SpokenNode,
         /// A kept node referencing it.
@@ -1068,7 +1068,7 @@ pub enum InlineError {
     /// one meaning for the shared name.
     ParamConflict {
         /// The conflicting parameter.
-        param: crate::doc::ParamName,
+        param: crate::doc::VarName,
     },
     /// The instance sits off the world's origin — on a gauge, or at
     /// an offset — and the referenced document has a root that is not
@@ -2161,7 +2161,7 @@ fn remap_node(
 }
 
 /// The document parameters a node's expressions reference, by name.
-fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamName> {
+fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::VarName> {
     let mut refs = Vec::new();
     for slot in node.slots() {
         if let Some(expr) = node.expr(slot) {
@@ -2575,8 +2575,8 @@ pub fn split(
     // remainder keeps its table either way — the edit vocabulary has
     // no parameter-removal arm, and an unreferenced parameter is legal
     // document state.
-    let mut cut_refs: BTreeMap<crate::doc::ParamName, RecipeNodeId> = BTreeMap::new();
-    let mut kept_refs: BTreeMap<crate::doc::ParamName, RecipeNodeId> = BTreeMap::new();
+    let mut cut_refs: BTreeMap<crate::doc::VarName, RecipeNodeId> = BTreeMap::new();
+    let mut kept_refs: BTreeMap<crate::doc::VarName, RecipeNodeId> = BTreeMap::new();
     for &id in doc.order() {
         let Some(node) = doc.node(id) else { continue };
         let into = if cut.contains(&id) {

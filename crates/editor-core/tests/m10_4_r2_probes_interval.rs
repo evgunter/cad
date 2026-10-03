@@ -48,10 +48,10 @@ use editor_core::stackup::{
     Unavailable, sensitivities, stackup,
 };
 use editor_core::{
-    CancelToken, CapEnd, Dimension, Distribution, DocEdit, DocParam, DocParamValue, EvalOptions,
-    Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamName,
-    ParamValue, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SitedRef, ValuePayload, evaluate, seed_env,
+    CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamValue,
+    ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
+    SitedRef, ValuePayload, VarName, evaluate, seed_env,
 };
 use geom_core::interval::Interval;
 use geom_core::{CertifiedEnclosure, Dual64, Tol};
@@ -62,16 +62,16 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
     Expr::param(name(n), dim)
 }
 
-fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> DocParam {
-    DocParam::Continuous {
+fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> FreeVar {
+    FreeVar::Continuous {
         dim,
         value,
         display_unit: UnitSym::canonical_for(dim),
@@ -783,7 +783,7 @@ fn a_stale_chamber_verdict_marks_an_edited_document_certified() {
         &s.doc,
         DocEdit::SetDocParamValue {
             name: name("w"),
-            value: DocParamValue::Continuous(2.5),
+            value: FreeValue::Continuous(2.5),
         },
     );
     let entries = sensitivities(
@@ -883,7 +883,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
         "{wc:?}"
     );
     assert_eq!(wc.leaves, verdict.certified().len());
-    let blockers: Vec<&ParamName> = match &report.rss {
+    let blockers: Vec<&VarName> = match &report.rss {
         Rss::UnavailableBecause { blockers } => blockers.iter().map(Unavailable::param).collect(),
         other => panic!("{other:?}"),
     };
@@ -1291,7 +1291,7 @@ fn without_a_drive_every_mark_is_local_and_there_is_no_report_path() {
     // A verdict over a box that is not the analyzed one is refused
     // typed BEFORE any pass runs.
     let analyzed = analyzed_box(&s.doc, &AnalysisPolicy::default());
-    let mut axes: BTreeMap<ParamName, BoxAxis> = ParamBox::of(&analyzed).axes().clone();
+    let mut axes: BTreeMap<VarName, BoxAxis> = ParamBox::of(&analyzed).axes().clone();
     axes.insert(
         name("w"),
         BoxAxis::Varying {

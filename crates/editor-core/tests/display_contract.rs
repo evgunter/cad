@@ -13,17 +13,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ParamNameReason;
+use editor_core::VarNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, DeclareError, Diagnosis, Dimension,
-    DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind, EvalError,
-    HitTestError, InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide,
-    MeasureNodeFault, MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind,
-    NodePickError, ParamName, ParseError, PartFault, PlacementRuleFault, ProgramFault,
-    ReachRefusal, RecipeNodeId, RecordedProgramError, RefusedRef, ResolveFault,
-    ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
-    SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
+    DimensionError, DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
+    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeasureNodeFault,
+    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
+    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
+    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg,
+    RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId,
+    StepIdFault, StepSegmentsError, UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
@@ -776,10 +776,10 @@ fn parse_error_display_names_its_content_not_its_struct() {
 }
 
 test_utils::f6_variants! {
-    /// `ParamNameReason`'s census — see [`NODE_PICK_ERROR`]. The
-    /// lexer's finding inside `ParamNameFault`, which is what
-    /// `ParamName::new` refuses with.
-    const PARAM_NAME_REASON: ParamNameReason = [
+    /// `VarNameReason`'s census — see [`NODE_PICK_ERROR`]. The
+    /// lexer's finding inside `VarNameFault`, which is what
+    /// `VarName::new` refuses with.
+    const PARAM_NAME_REASON: VarNameReason = [
         Blank,
         OutsideAlphabet,
         NotAnIdentifier,
@@ -791,33 +791,33 @@ test_utils::f6_variants! {
 #[test]
 fn param_name_reason_display_names_its_content_not_its_struct() {
     let cases = [
-        (ParamNameReason::Blank, vec!["blank", "one identifier"]),
+        (VarNameReason::Blank, vec!["blank", "one identifier"]),
         (
-            ParamNameReason::OutsideAlphabet { pos: 5, ch: '#' },
+            VarNameReason::OutsideAlphabet { pos: 5, ch: '#' },
             vec!["byte 5", "'#'", "outside the expression alphabet"],
         ),
         (
-            ParamNameReason::NotAnIdentifier {
+            VarNameReason::NotAnIdentifier {
                 pos: 0,
                 found: "1".to_string(),
             },
             vec!["byte 0", "\"1\"", "not an identifier"],
         ),
         (
-            ParamNameReason::NotOneToken {
+            VarNameReason::NotOneToken {
                 pos: 1,
                 found: "+".to_string(),
             },
             vec!["byte 1", "\"+\"", "after the identifier"],
         ),
-        (ParamNameReason::Padded, vec!["padded", "whitespace"]),
+        (VarNameReason::Padded, vec!["padded", "whitespace"]),
     ];
     assert_f6_every_variant(&cases, &PARAM_NAME_REASON, &[]);
     // The wrapper frames the reason after the quoted text, and quotes
     // for the parse door's reason: these are bytes an author typed.
-    let shown = editor_core::ParamNameFault {
+    let shown = editor_core::VarNameFault {
         offered: " width ".to_string(),
-        reason: ParamNameReason::Padded,
+        reason: VarNameReason::Padded,
     }
     .to_string();
     assert_f6(
@@ -839,7 +839,7 @@ fn param_name_reason_display_names_its_content_not_its_struct() {
 /// almost right.
 #[test]
 fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
-    let name = ParamName::from_static("width");
+    let name = VarName::from_static("width");
     let dump_words = dimension_dump_words();
     let dumps = as_strs(&dump_words);
 
@@ -891,7 +891,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &EditError::DocParamValueKindMismatch {
             name: name.clone(),
             declared: Dimension::Length,
-            offered: DocParamValue::Count(2),
+            offered: FreeValue::Count(2),
         },
         &["is declared length"],
         &dumps,
@@ -1175,7 +1175,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotUnknownDocParam {
                 node: node(),
                 slot: SlotId::Radius,
-                name: ParamName::from_static("fillet"),
+                name: VarName::from_static("fillet"),
             },
             vec![
                 "Extrude \"base plate\" (000000000005): slot radius",
@@ -1187,7 +1187,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotDocParamDimension {
                 node: node(),
                 slot: SlotId::Distance,
-                name: ParamName::from_static("depth"),
+                name: VarName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -1196,7 +1196,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::PayloadUnknownDocParam {
                 node: held(5, "Measure"),
-                name: ParamName::from_static("depth"),
+                name: VarName::from_static("depth"),
             },
             vec![
                 "Measure 000000000005: its payload expression",
@@ -1207,7 +1207,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::PayloadDocParamDimension {
                 node: held(5, "Measure"),
-                name: ParamName::from_static("depth"),
+                name: VarName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -1492,7 +1492,7 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
     }
 
     let node = || held(5, "Extrude");
-    let name = ParamName::from_static("width");
+    let name = VarName::from_static("width");
 
     let edit_door: Vec<(String, String)> = vec![
         arm(&EditError::SlotUnknownDocParam {
@@ -3225,10 +3225,10 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
 
 /// **A parameter name renders without quotes at every door but parse.**
 ///
-/// [`ParamName`] is a `String` newtype, so a `{:?}` over it renders the
+/// [`VarName`] is a `String` newtype, so a `{:?}` over it renders the
 /// name plus `Debug`'s quotes: prose, but carrying a delimiter the
 /// sentence did not ask for, and the crate spelled it both ways. The
-/// rule is the one [`ParamName`]'s `Display` carries — a door that
+/// rule is the one [`VarName`]'s `Display` carries — a door that
 /// FRAMES the name in a sentence of its own ("parameter width is
 /// declared length") renders it bare, and the one door that echoes the
 /// bytes an author typed, [`ParseError::UnknownParam`], keeps the
@@ -3251,7 +3251,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         SeedError, SplitError,
     };
 
-    let name = ParamName::from_static("width");
+    let name = VarName::from_static("width");
     let node = || held(5, "Extrude");
     let framed: Vec<(&str, String)> = vec![
         (
@@ -3357,7 +3357,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
 /// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`] and its
 /// certified-lane sibling, so the two cannot drift into asking
 /// different questions of the same rule.
-fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) {
+fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &VarName) {
     let quoted = format!("{:?}", name.as_str());
     for (door, shown) in framed {
         assert!(
@@ -3378,7 +3378,7 @@ fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) 
 fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
     use editor_core::{RangeRefusal, Unavailable};
 
-    let name = ParamName::from_static("width");
+    let name = VarName::from_static("width");
     let framed: Vec<(&str, String)> = vec![
         (
             "RangeRefusal::NotAContinuousParam",
@@ -3406,7 +3406,7 @@ fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
 /// names, and the word before each spoken node must not be its kind.
 #[test]
 fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
-    let name = ParamName::from_static("width");
+    let name = VarName::from_static("width");
     let rows: Vec<(EditError, Vec<SpokenNode>)> = vec![
         (
             EditError::AssertionDimension {

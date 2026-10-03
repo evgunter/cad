@@ -191,7 +191,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // All three of these are used ONLY by this row, so they are
     // imported here rather than at module scope.
     use crate::fixture;
-    use editor_core::ParamName;
+    use editor_core::VarName;
     use geom_core::{Interval, Real};
     /// The nominal f64 loops, replayed for the record's sake.
     fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ConstructedLoop<f64>> {
@@ -220,7 +220,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // clobbers whatever else the document happens to carry would keep
     // passing if the plate grew a second parameter that did the
     // refusing instead.
-    let hole_r = ParamName::from_static(corpus::plate_param::HOLE_R);
+    let hole_r = VarName::from_static(corpus::plate_param::HOLE_R);
     let Some(ParamValue::Continuous { value, .. }) = env.bindings.get_mut(&hole_r) else {
         panic!("the plate's hole radius is a continuous parameter named hole_r")
     };

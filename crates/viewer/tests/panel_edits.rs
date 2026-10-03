@@ -14,7 +14,7 @@
 use crate::common;
 use editor_core::ExtrudeSide;
 
-use pncad::document::{Dimension, DocEdit, DocParam, ParamName, SlotId};
+use pncad::document::{Dimension, DocEdit, FreeVar, SlotId, VarName};
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use pncad::quantity::WrittenLength;
@@ -607,13 +607,13 @@ fn a_gesture_on_an_absent_parameter_refuses_typed() {
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     let outcome = session.perform(SessionOp::BeginParamGesture {
-        name: pncad::document::ParamName::from_static("no_such_parameter"),
+        name: pncad::document::VarName::from_static("no_such_parameter"),
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
     assert!(matches!(
         session
             .perform(SessionOp::PreviewParamGesture {
-                name: pncad::document::ParamName::from_static("no_such_parameter"),
+                name: pncad::document::VarName::from_static("no_such_parameter"),
                 value: 1.0
             })
             .refusal,
@@ -700,7 +700,7 @@ test_utils::f6_variants! {
 
 /// The `Debug` punctuation that would be a dump in a `Refusal`
 /// sentence: the two field names the payloads carry, and the quotation
-/// mark a `{:?}` over a `String` or a `ParamName` leaves behind.
+/// mark a `{:?}` over a `String` or a `VarName` leaves behind.
 ///
 /// `{` is [`test_utils::f6::assert_f6`]'s own and is banned whatever
 /// this list says; the quotation mark is this row's extra clause, and
@@ -740,7 +740,7 @@ const REFUSAL_FIELDS: &[&str] = &["node:", "name:", "\""];
 /// this row used to spell could not see it.
 ///
 /// That extra clause is the one that catches the case this row exists
-/// for. A `{:?}` over a `String` or a `ParamName` renders `"width"`:
+/// for. A `{:?}` over a `String` or a `VarName` renders `"width"`:
 /// no brace, no field punctuation, and the identifier it leaks is the
 /// PAYLOAD's rather than the arm's, so every F6 clause passes over it
 /// and so does `assert_ne!(rendered, format!("{:?}"))`, which compares
@@ -776,7 +776,7 @@ fn refusals_render_as_sentences() {
     // status line renders verbatim.
     let edit = session
         .perform(SessionOp::SetParam {
-            name: pncad::document::ParamName::from_static("tapper"),
+            name: pncad::document::VarName::from_static("tapper"),
             value: SlotValue::Continuous(1.0),
         })
         .refusal
@@ -788,7 +788,7 @@ fn refusals_render_as_sentences() {
 
     let lookup = session
         .perform(SessionOp::BeginParamGesture {
-            name: pncad::document::ParamName::from_static("tapper"),
+            name: pncad::document::VarName::from_static("tapper"),
         })
         .refusal
         .expect("dragging an absent parameter refuses");
@@ -823,7 +823,7 @@ fn refusals_render_as_sentences() {
     let exists = session
         .perform(SessionOp::CreateParam {
             name: common::thickness_param(),
-            value: pncad::document::DocParam::continuous(pncad::document::Dimension::Angle, 1.0),
+            value: pncad::document::FreeVar::continuous(pncad::document::Dimension::Angle, 1.0),
         })
         .refusal
         .expect("creating over a declared name refuses");
@@ -957,7 +957,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let margin = pncad::document::ParamName::from_static("margin");
+    let margin = pncad::document::VarName::from_static("margin");
 
     // Before: an expression naming the undeclared parameter refuses
     // typed at the parse door (deliberate typo-safety) and carries
@@ -984,7 +984,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
     // really is authoring a declaration — and one undo step.
     let outcome = session.perform(SessionOp::CreateParam {
         name: margin.clone(),
-        value: pncad::document::DocParam::continuous(pncad::document::Dimension::Length, 0.005),
+        value: pncad::document::FreeVar::continuous(pncad::document::Dimension::Length, 0.005),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
@@ -1050,7 +1050,7 @@ fn the_create_door_refuses_an_existing_name_and_setparam_still_replaces() {
     // riskier half of a silent replace — refuses typed and unchanged.
     let outcome = session.perform(SessionOp::CreateParam {
         name: common::thickness_param(),
-        value: pncad::document::DocParam::Count { value: 3 },
+        value: pncad::document::FreeVar::Count { value: 3 },
     });
     match outcome.refusal {
         Some(Refusal::ParamExists {
@@ -1093,12 +1093,12 @@ fn the_create_door_refuses_an_existing_name_and_setparam_still_replaces() {
 #[test]
 fn a_unit_bearing_text_sets_the_value_and_the_notation_as_one_undo() {
     let tol = Tol::witness();
-    let name = ParamName::from_static("base_r");
+    let name = VarName::from_static("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-written",
             &name,
-            DocParam::written_length(WrittenLength::in_unit(20.0, MM)),
+            FreeVar::written_length(WrittenLength::in_unit(20.0, MM)),
             tol,
         ),
         tol,
@@ -1143,12 +1143,12 @@ fn a_unit_bearing_text_sets_the_value_and_the_notation_as_one_undo() {
 #[test]
 fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
     let tol = Tol::witness();
-    let name = ParamName::from_static("base_r");
+    let name = VarName::from_static("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-noop",
             &name,
-            DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+            FreeVar::written_length(WrittenLength::in_unit(50.0, MM)),
             tol,
         ),
         tol,
@@ -1190,12 +1190,12 @@ fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
 #[test]
 fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
     let tol = Tol::witness();
-    let name = ParamName::from_static("base_r");
+    let name = VarName::from_static("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-expression",
             &name,
-            DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+            FreeVar::written_length(WrittenLength::in_unit(50.0, MM)),
             tol,
         ),
         tol,
@@ -1239,12 +1239,12 @@ fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
 #[test]
 fn an_unknown_unit_carries_the_parsers_own_wording() {
     let tol = Tol::witness();
-    let name = ParamName::from_static("base_r");
+    let name = VarName::from_static("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-unknown-unit",
             &name,
-            DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+            FreeVar::written_length(WrittenLength::in_unit(50.0, MM)),
             tol,
         ),
         tol,
@@ -1276,12 +1276,12 @@ fn an_unknown_unit_carries_the_parsers_own_wording() {
 #[test]
 fn a_wrong_dimension_unit_refuses_the_whole_action() {
     let tol = Tol::witness();
-    let name = ParamName::from_static("sweep");
+    let name = VarName::from_static("sweep");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-mismatch",
             &name,
-            DocParam::continuous(pncad::document::Dimension::Angle, 1.0),
+            FreeVar::continuous(pncad::document::Dimension::Angle, 1.0),
             tol,
         ),
         tol,
@@ -1315,12 +1315,12 @@ fn a_wrong_dimension_unit_refuses_the_whole_action() {
 #[test]
 fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
     let tol = Tol::witness();
-    let name = ParamName::from_static("base_r");
+    let name = VarName::from_static("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-picker",
             &name,
-            DocParam::continuous(pncad::document::Dimension::Length, 0.05),
+            FreeVar::continuous(pncad::document::Dimension::Length, 0.05),
             tol,
         ),
         tol,
@@ -1340,12 +1340,12 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
 
     // A count names no notation, and the door says so rather than
     // this one guessing.
-    let holes = ParamName::from_static("holes");
+    let holes = VarName::from_static("holes");
     let mut counted = DocSession::inline(
         common::declared(
             "auth2-picker-count",
             &holes,
-            DocParam::Count { value: 6 },
+            FreeVar::Count { value: 6 },
             tol,
         ),
         tol,
@@ -1376,14 +1376,9 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
 #[test]
 fn a_count_refuses_a_unit_bearing_value_in_the_values_words() {
     let tol = Tol::witness();
-    let holes = ParamName::from_static("holes");
+    let holes = VarName::from_static("holes");
     let mut session = DocSession::inline(
-        common::declared(
-            "auth2-count-text",
-            &holes,
-            DocParam::Count { value: 6 },
-            tol,
-        ),
+        common::declared("auth2-count-text", &holes, FreeVar::Count { value: 6 }, tol),
         tol,
     );
     let before = session.history().len();
@@ -1408,7 +1403,7 @@ fn a_count_refuses_a_unit_bearing_value_in_the_values_words() {
 }
 
 /// The panel row for `name`, as the panel reads it.
-fn param_row(session: &DocSession, name: &ParamName) -> props::ParamRow {
+fn param_row(session: &DocSession, name: &VarName) -> props::ParamRow {
     props::param_rows(session.doc())
         .into_iter()
         .find(|row| &row.name == name)

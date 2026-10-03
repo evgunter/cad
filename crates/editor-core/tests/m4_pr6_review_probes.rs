@@ -11,9 +11,9 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, DocParam,
-    EntityKind, EvalOptions, Expr, ExprPath, MetaValue, Node, ParamName, PersistError, ProfileDoc,
-    ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, WitnessDatum, apply,
+    Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, EntityKind,
+    EvalOptions, Expr, ExprPath, FreeVar, MetaValue, Node, PersistError, ProfileDoc,
+    ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, VarName, WitnessDatum, apply,
     evaluate, load, save,
 };
 use fixture::{desc, insert, len, on_frame, scl};
@@ -39,8 +39,8 @@ fn small() -> (ProfileDoc, String) {
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::from_static("q"),
-            value: DocParam::continuous(Dimension::Length, 2.5),
+            name: VarName::from_static("q"),
+            value: FreeVar::continuous(Dimension::Length, 2.5),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -218,8 +218,8 @@ fn attack_long_decimal_strings() {
         let crafted = text.replace("\"value\": 2.5", &format!("\"value\": {s}"));
         assert_ne!(crafted, text);
         let loaded = load(&crafted, Tol::witness()).expect("valid file");
-        let Some(DocParam::Continuous { value, .. }) =
-            loaded.doc.params().get(&ParamName::from_static("q"))
+        let Some(FreeVar::Continuous { value, .. }) =
+            loaded.doc.params().get(&VarName::from_static("q"))
         else {
             panic!("param lost")
         };
@@ -242,7 +242,7 @@ fn attack_inf_via_big_exponent() {
             Err(PersistError::Parse { .. }) => {}
             Ok(l) => panic!(
                 "{s} loaded as {:?}",
-                l.doc.params().get(&ParamName::from_static("q"))
+                l.doc.params().get(&VarName::from_static("q"))
             ),
             Err(e) => panic!("unexpected refusal for {s}: {e:?}"),
         }
@@ -273,8 +273,8 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     push(
         &mut doc,
         DocEdit::SetDocParam {
-            name: ParamName::from_static("d"),
-            value: DocParam::continuous(Dimension::Length, 1.5),
+            name: VarName::from_static("d"),
+            value: FreeVar::continuous(Dimension::Length, 1.5),
         },
     );
     // 2 InsertNode xN — the two quads sit at different x offsets, so
@@ -298,7 +298,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: p0,
-                distance: Expr::param(ParamName::from_static("d"), Dimension::Length),
+                distance: Expr::param(VarName::from_static("d"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },

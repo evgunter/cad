@@ -232,6 +232,8 @@ mod contained_flush_cylinder;
 mod contfp_reads_arcs_on_their_carriers;
 #[path = "copied_carriers_at_interval.rs"]
 mod copied_carriers_at_interval;
+#[path = "ellipse_torus.rs"]
+mod ellipse_torus;
 #[path = "encl_curved_loft_shell.rs"]
 mod encl_curved_loft_shell;
 #[path = "euler_site_row_frontiers.rs"]
@@ -354,6 +356,10 @@ mod reach_cone_split;
 mod reach_continuation;
 #[path = "reach_split_gate_per_face.rs"]
 mod reach_split_gate_per_face;
+#[path = "reach_split_gate_pose.rs"]
+mod reach_split_gate_pose;
+#[path = "reach_split_gate_window.rs"]
+mod reach_split_gate_window;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
 #[path = "reach_wall_chord_rows.rs"]

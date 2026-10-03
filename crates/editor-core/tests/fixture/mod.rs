@@ -62,10 +62,10 @@ pub mod value_channel;
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
-    Entry, EvalOptions, Evaluation, Expr, LoopProgram, MateReach, NameTable, Node, ParamName,
-    ProfileDoc, ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId,
-    RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate, mate_reach,
+    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, EntityKey, EntityKind, Entry,
+    EvalOptions, Evaluation, Expr, FreeVar, LoopProgram, MateReach, NameTable, Node, ProfileDoc,
+    ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId, RefusingReach,
+    RoleSeg, SitedRef, SolvedPoses, StableName, VarName, assemble, evaluate, mate_reach,
     solve_document,
 };
 use geom_core::{Point3, Tol};
@@ -1027,8 +1027,8 @@ pub fn die() -> Die {
     let mut r = Recorder::new();
     // pip_depth: the mid-DAG continuous parameter.
     r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("pip_depth"),
-        value: DocParam::continuous(Dimension::Length, DEPTH),
+        name: VarName::from_static("pip_depth"),
+        value: FreeVar::continuous(Dimension::Length, DEPTH),
     });
     // The cube: profile on the xy plane, extruded +2.
     let cube_profile = r.profile(
@@ -1051,7 +1051,7 @@ pub fn die() -> Die {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+            distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
             side: ExtrudeSide::Against,
         });
         masters.push((ext, u, v, pips));

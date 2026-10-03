@@ -289,12 +289,14 @@ fn pair_verdict<T: Decide>(
     let total = ca.len() * cb.len();
     for &(ba, fa) in ca {
         for &(bb, fb) in cb {
-            let verdict =
-                pair_finding(ba, fa, bb, fb, band).map_err(|source| SelectRefusal::PairInBand {
+            let verdict = pair_finding(ba, fa, bb, fb, band).map_err(|undecided| {
+                let source = undecided.diag();
+                SelectRefusal::PairInBand {
                     pair: Box::new((na.clone(), nb.clone())),
                     predicate: source.predicate.unwrap_or("carrier_pair_relation"),
                     source,
-                })?;
+                }
+            })?;
             if let Some(FlushEvidence {
                 relation: rel,
                 rung,
