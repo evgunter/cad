@@ -2541,8 +2541,8 @@ class Node:
         node's `Count` slot (`DocEdit.bind_count_param`). Below one
         refuses at `evaluate`
         (`non_positive_count`); an `explicit` rule refuses at
-        `Doc.insert` (`placement_rule_mismatch`), since it carries its
-        own placements."""
+        `Doc.insert` (`placement_rule_mismatch`, `inner_variant`
+        `listed_on_pattern`), since it carries its own placements."""
 
     @staticmethod
     def part(of: NodeId, select: PartSelect) -> Node:
@@ -2572,8 +2572,9 @@ class Node:
         EvaluationError (`placements_uncertified`) naming the pair,
         and the certificate is sufficient-not-necessary, so a
         touching-but-disjoint arrangement refuses too. An `explicit`
-        rule raises EditError (`placement_rule_mismatch`) here — it
-        carries its own count, and `placed_union_at` is its door."""
+        rule raises EditError (`placement_rule_mismatch`,
+        `inner_variant` `listed_with_count`) here — it carries its own
+        count, and `placed_union_at` is its door."""
 
     @staticmethod
     def placed_union_at(input: NodeId, frames: list[Frame]) -> Node:

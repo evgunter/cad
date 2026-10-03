@@ -7,7 +7,11 @@
 //! (`|d⊥|` levered by the selection's reach) and
 //! `bool_ray_cylinder_disc` (the half-chord's depth) — and both are
 //! asserted to FIRE, so the pin cannot go vacuous. A planar-only body
-//! (`topo`'s `rim_dim_boolean_twins`) never reaches either.
+//! (`topo`'s `rim_dim_boolean_twins`) never reaches either, nor the
+//! face boxes' cylinder axis read (`bool_box_cylinder_axis`) or the
+//! germ plane normal a plane × cylinder join reads
+//! (`bool_germ_plane_normal`), which the same pipe boring a plate pins
+//! beside them.
 //!
 //! **CI EXECUTES THIS SUITE**: it is rostered in
 //! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`). By hand:
@@ -129,4 +133,68 @@ fn the_wall_arms_margins_scale_linearly_with_the_model() {
         nonlinear.is_empty(),
         "predicates whose margins do not scale with the model: {nonlinear:?}"
     );
+}
+
+/// The margins `subtract` records under `name` when a pipe of radius
+/// `scale` (`z ∈ [−2, 2]·scale`) bores a `4 × 4 × 1` plate, everything
+/// scaled with it.
+fn bore_margins(scale: f64, name: &str) -> Vec<f64> {
+    let tol = Tol::witness();
+    let s = |v: f64| Probe(v * scale);
+    let at = |z: f64| SketchPlane::new(Affine3::translation(Vec3::new(s(0.0), s(0.0), s(z))));
+    let pipe = Profile::new(
+        at(-2.0),
+        vec![
+            profile::circle(Point2::new(s(0.0), s(0.0)), s(1.0), tol)
+                .unwrap()
+                .into(),
+        ],
+    )
+    .validate(tol)
+    .unwrap();
+    let pipe = extrude(&pipe, Extrusion::Distance(s(4.0)), tol)
+        .unwrap()
+        .body;
+    let corners = [(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)]
+        .map(|(x, y)| (Point2::new(s(x), s(y)), Probe(0.0)));
+    let plate = Profile::new(
+        at(-0.5),
+        vec![profile::test_support::bulge_loop(corners.to_vec())],
+    )
+    .validate(tol)
+    .unwrap();
+    let plate = extrude(&plate, Extrusion::Distance(s(1.0)), tol)
+        .unwrap()
+        .body;
+    k_stats::start_recording();
+    topo::subtract(&plate, &pipe, tol).expect("the pipe bores the plate");
+    k_stats::take_samples()
+        .iter()
+        .filter(|s| s.predicate == name)
+        .map(|s| s.margin)
+        .collect()
+}
+
+/// **The bore's two carrier-direction reads are decided at the model's
+/// scale.** A cylinder face's axis (`bool_box_cylinder_axis`) and a
+/// plate face's normal where the join sections the wall
+/// (`bool_germ_plane_normal`) are unit at rest, pure numbers. The axis
+/// is levered by the radius its slab swings it by, and the normal by
+/// the joined germ sites' reach from the plate face's origin, which
+/// here is the radius too. So every margin is `scale`, and they sit
+/// `1e3` apart between the twins; the bare norm reads `1` at both.
+#[test]
+fn the_bores_carrier_directions_are_levered_by_the_radius_at_both_scales() {
+    for name in ["bool_box_cylinder_axis", "bool_germ_plane_normal"] {
+        for scale in [1e-3, 1.0] {
+            let margins = bore_margins(scale, name);
+            assert!(!margins.is_empty(), "the bore decides {name} at {scale:e}");
+            for m in &margins {
+                assert!(
+                    ((m - scale) / scale).abs() < 1e-12,
+                    "at {scale:e} a {name} margin {m:e} is not the radius: {margins:?}"
+                );
+            }
+        }
+    }
 }

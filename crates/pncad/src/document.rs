@@ -99,10 +99,12 @@ pub use editor_core::cascade_delete_order;
 
 // Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
 // carries directly; it is re-exported here so document-layer code can
-// spell the whole node vocabulary through one module.
+// spell the whole node vocabulary through one module. `CountMismatch`
+// rides with `PlacementRuleFault`: it is what that fault and
+// `EditError::PlacementRuleMismatch` carry.
 pub use editor_core::{
-    Axis3, BooleanOp, Datum, DeclaredPair, InputFault, ListFault, MeasureNodeFault, Node,
-    PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow,
+    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, InputFault, ListFault, MeasureNodeFault,
+    Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow,
     VectorSlot, declare_continuation, declare_rest,
 };
 

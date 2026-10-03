@@ -20,8 +20,9 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult, PatternKind,
-    PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload, apply,
+    BooleanOp, CountMismatch, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult,
+    PatternKind, PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload,
+    apply,
 };
 use fixture::{ang, len, scl};
 
@@ -476,6 +477,112 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         )
         .is_none()
     );
+}
+
+/// **Each placement-rule refusal's recourse gets through.** A rule's
+/// shape is written only by the insert that authors its node, so the
+/// recourse is that insert's: each refused shape below is refused with
+/// its own recourse, and the node it names, changed exactly as that
+/// recourse says, applies.
+#[test]
+fn a_placement_rule_refusals_recourse_gets_through() {
+    let (doc, fin) = fin_only();
+    let insert = |node: Node<editor_core::ProfileProgram>| {
+        apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+    };
+    let linear = || PatternKind::Linear {
+        direction: [scl(1.0), scl(0.0), scl(0.0)],
+        spacing: len(2.0),
+    };
+    let listed = || PatternKind::Explicit(vec![Frame::IDENTITY]);
+    let rows = [
+        (
+            "a placed union's list, with a count",
+            Node::PlacedUnion {
+                input: fin,
+                count: Some(Expr::count(1)),
+                kind: listed(),
+            },
+            Some(CountMismatch::ListedWithCount),
+            "insert it without a count, since the list is the count",
+            vec![Node::PlacedUnion {
+                input: fin,
+                count: None,
+                kind: listed(),
+            }],
+        ),
+        (
+            "a placed union's stepped rule, without a count",
+            Node::PlacedUnion {
+                input: fin,
+                count: None,
+                kind: linear(),
+            },
+            Some(CountMismatch::SteppedWithoutCount),
+            "insert it with a count",
+            vec![Node::PlacedUnion {
+                input: fin,
+                count: Some(Expr::count(2)),
+                kind: linear(),
+            }],
+        ),
+        (
+            "a pattern given a list",
+            Node::Pattern {
+                input: fin,
+                count: Expr::count(1),
+                kind: listed(),
+            },
+            Some(CountMismatch::ListedOnPattern),
+            "keep a pattern of separate copies by giving it a stepped rule, or insert a placed union to list the placements, fusing the copies into one body",
+            // Both routes: the pattern kept, and the union that fuses.
+            vec![
+                Node::Pattern {
+                    input: fin,
+                    count: Expr::count(1),
+                    kind: linear(),
+                },
+                Node::PlacedUnion {
+                    input: fin,
+                    count: None,
+                    kind: listed(),
+                },
+            ],
+        ),
+        (
+            "a placed union's empty list",
+            Node::placed_union_at(fin, Vec::new()),
+            None,
+            "list at least one placement",
+            vec![Node::placed_union_at(fin, vec![Frame::IDENTITY])],
+        ),
+    ];
+    // Each row's shape: the count mismatch it is, or `None` for an
+    // empty list.
+    for (label, refused, shape, recourse, routes) in rows {
+        let error = insert(refused).expect_err(label);
+        let refused_as = match &error {
+            EditError::PlacementRuleMismatch { shape, .. } => Some(*shape),
+            EditError::EmptyPlacementList { .. } => None,
+            other => panic!("{label} refuses as a placement rule: {other:?}"),
+        };
+        assert_eq!(refused_as, shape, "{label} refuses as its shape");
+        let line = error.to_string();
+        assert!(
+            line.ends_with(&format!("Recourse: {recourse}")),
+            "{label} states its own recourse, {recourse:?}: {line}"
+        );
+        for followed in routes {
+            assert!(insert(followed).is_ok(), "{label}, followed, applies");
+        }
+    }
 }
 
 /// **An explicit rule has no expression slots**, and a stepped one has

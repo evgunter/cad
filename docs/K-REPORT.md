@@ -1010,6 +1010,7 @@ the value). The names that reach the funnel through them today:
 | `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
 | `bool_germ_plane_normal` | `crates/topo/src/boolean/join.rs`'s const, decided at the germ-plane read | yes — every germ pair with a plane side that a curved-capable boolean joins |
 | `bool_box_cylinder_axis` | `crates/topo/src/boolean/boxes.rs`'s const, decided where `face_box_rule` reads a cylinder carrier | yes — every cylinder face either box lane boxes (the sweep's face tree, separation, the census pre-filter and reach) |
+| `unit_direction_arm` | `geom-core`'s const, decided by `UnitVec3::levered` on the arm before the levered length | yes — once beside every `bool_germ_plane_normal`, `bool_box_cylinder_axis` and `props_torus_axis` sample |
 | `fixture_split_normal` | `crates/topo/src/test_support_fixtures.rs`'s `split_plane`, a const the fixtures own | no — a test-owned name, as `fixture_frame_axis` |
 
 **Roster change (MSOLVE-8, 2026-09-20): one mate-solve name RESPELLED,
@@ -1064,6 +1065,22 @@ under `bool_box_cylinder_axis` — the `bool_germ_plane_normal` case: a
 `Margin::norm3` of a carrier axis unit at rest, positive at every
 committed ε. It samples once per cylinder face per box built, in both
 box lanes.
+
+**Margin change (REACH, 2026-10-02): three names re-levered, one
+name added.** `bool_germ_plane_normal`, `bool_box_cylinder_axis` and
+`props_torus_axis` decide the length of a carrier's unit-at-rest
+direction, a pure number, and read it against the length band through
+`Margin::norm3`, so their margins read 1 at every model scale. They
+now mint through `UnitVec3::levered`, the norm times an arm the
+direction is consumed over: a lower bound on the germ section's reach from the plane's
+origin, the cylinder's radius, the anchor meridian's reach from the
+torus centre. Each margin is now a length of the model's scale; none
+lands near the band for a carrier the at-rest rule admits. The door
+decides its arm first, a length, under `unit_direction_arm`, so that
+name gains one sample beside each of the three. Each name has a
+linearity twin that reds on the bare norm: `ray_wall_margin_twins`'s
+plane × cylinder bore pins the first two, `rim_dim_scale_twins` the
+third.
 
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare

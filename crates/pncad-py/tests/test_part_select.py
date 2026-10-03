@@ -446,6 +446,7 @@ class TestThePatternDoor(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.insert(Node.pattern(prototype, Expr.count(2), PatternKind.explicit([])))
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
+        self.assertEqual(caught.exception.inner_variant, "listed_on_pattern")
 
 
 class TestTheReadSide(unittest.TestCase):
