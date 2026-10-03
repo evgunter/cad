@@ -6313,3 +6313,17 @@ the above — land it as planned. Park each row the hold covers
 (`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
 so the row fires when the ruling closes). If that leaves your program
 with nothing it may start, set its `status` to `blocked` and stop.
+
+## PR 3972 fix pass done; merge-orientation-rung opened as PR 3992 (2026-10-03)
+
+- **PR 3972.** `Body::vertex_orbit_of(v)` proves that `emanating`'s
+  start is `v`, then walks. `orbit_projection`, `valence` and
+  `arcs_along` read through it.
+  - The unproven walk now takes a `ValidatorSeal(())` whose field is
+    private to `validate`, so only pass 6 can call it.
+  - CI run 37145739183 on `537533a43e` passed.
+  - I closed the row on the branch (`29a02ddd24`). The merge waits on CI.
+- **PR 3974's fix pass:** its first push (`c5b0164`) is red on `test`.
+  The lane is still running and owns the fix.
+- **merge-orientation-rung** is open as PR 3992, waiting on CI. I am
+  subscribed.
