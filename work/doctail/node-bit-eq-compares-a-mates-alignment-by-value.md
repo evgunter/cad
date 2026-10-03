@@ -2,10 +2,12 @@
 id: node-bit-eq-compares-a-mates-alignment-by-value
 kind: issue
 title: Node::bit_eq compares a mate's alignment datum by value, so a -0.0 and a 0.0 frame are one mate to every D7 comparator
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: E
+closed: 2026-10-03
+pr: 3961
 ---
 
 
@@ -30,3 +32,14 @@ The fix is a bit comparator for `Alignment` (its home is `mate.rs`,
 MSOLVE's ground; the caller is `Node::bit_eq`, EDIT's), read by the
 `match` the placement unit added to `Node::bit_eq`. Filed rather than
 fixed there because the comparator belongs beside the type it reads.
+
+## Closed
+
+Fixed by PLACE's mate-frame-offset unit (PR 3961). `Alignment::bit_eq`
+(`crates/editor-core/src/mate.rs`) compares both frames by
+`MateFrame::bit_eq` (base, then `Placement::bit_eq`), the primitive's
+lengths and the rider by bits. `Node::bit_eq` reads it for a mate, and
+reads `Placement::bit_eq` for a gauge's placement and an instance's
+offset beside the transform's it already read. Python's
+`Alignment.__eq__` and `MateFrame.__eq__` ask the same comparators.
+Pinned by `place_mate_frame_offset::a_mates_alignment_compares_by_bits`.

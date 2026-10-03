@@ -89,7 +89,8 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore,
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, reference)
+    MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 /// A rest mate between instances `a` and `b` of the part whose body is
@@ -1786,27 +1787,60 @@ fn row7e_a_self_mate_refuses_naming_the_instance_it_names_twice() {
     assert!(fault.to_string().contains("a PAIR"), "{fault}");
 }
 
+/// A non-finite number never enters a mate: the authored-vectors door
+/// refuses it typed, a literal frame offset holding one refuses at the
+/// edit door as a placement's literal does (named by its side and
+/// step), and a non-finite rider refuses as a non-finite alignment.
 #[test]
 fn row7f_a_non_finite_alignment_refuses_at_the_edit_door() {
+    assert!(matches!(
+        MateFrame::authored(
+            [f64::NAN, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            Tol::witness()
+        ),
+        Err(geom_core::FrameError::NonFiniteLength { .. })
+    ));
     let (doc, ids, _, body) = assembly("asm-r2a-row7f", 2);
-    let refusal = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(mate(
-                body,
-                ids[0],
-                ids[1],
-                MatePrimitive::Coaxial,
-                AxisSense::Aligned,
-                frame([f64::NAN, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-                z_up(),
-                None,
-            )),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect_err("a non-finite alignment never enters the document");
+    let insert = |a: MateFrame, clocking| {
+        apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(mate(
+                    body,
+                    ids[0],
+                    ids[1],
+                    MatePrimitive::Coaxial,
+                    AxisSense::Aligned,
+                    a,
+                    z_up(),
+                    clocking,
+                )),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err("a non-finite alignment never enters the document")
+    };
+    let literal = MateFrame::on_part(editor_core::Placement::literal(
+        &editor_core::Frame::translation([f64::NAN, 0.0, 0.0]),
+    ));
+    let refusal = insert(literal, None);
+    assert!(
+        matches!(
+            refusal,
+            editor_core::EditError::NonFinitePlacement {
+                at: editor_core::FrameSite::MateStep {
+                    side: editor_core::MateSide::A,
+                    index: 0
+                },
+                ..
+            }
+        ),
+        "{refusal:?}"
+    );
+    let refusal = insert(z_up(), Some(f64::NAN));
     assert!(
         matches!(refusal, editor_core::EditError::NonFiniteAlignment { .. }),
         "{refusal:?}"

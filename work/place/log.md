@@ -125,3 +125,50 @@ Next on this ground: the general mate frame (`MateFrame { base, offset }`, `[ev]
 ## 2026-10-03 — root order as A10 and A4 state it (PR 3946)
 
 Review tier: orchestrator's read (docs and tests only). `refactor.rs`'s module docs and the R1 comparator's docs state A10's replacement rule; the reviewer history ("rider (i)", "ordinal 40", "D-4") is gone. The interleaved-cut row asserts the regrouped roots and that a second round trip changes nothing. The asm4 row is renamed off "D-4". The mutant (anchor at the last cut root) turned both rows red.
+
+## 2026-10-03 — a mate frame is a base and an offset (PR 3961, DR-64)
+
+Ev's plan on `[ev]` #3920, built: `MateFrame { base: Part | Face, offset: Placement }`. The solve composes the offset in the base's frame. The tour's crate rests on the shelf's top face through a placing mate and follows any edit of the shelf, so `a-part-resting-on-a-gauge-cannot-follow-a-part-edit` closes.
+
+Review: dual, a concurrent Opus pair (class H), on frozen head `a04df7bb34`. Both returned APPROVE-WITH-FIXES with no MAJOR, so the tally is 0 (coded by a separate Opus coder).
+
+The fix pass came from the union of both reviews:
+- slot edits at a frame step run the insert's admission;
+- bit-exact equality for alignments;
+- one offset evaluation;
+- the frame-step words renamed;
+- stale prose fixed.
+
+Two items are filed rather than fixed:
+- `work/msolve/a-mate-frame-axis-is-decided-against-a-length-band`: at Kε ≥ 1 every non-identity offset refuses `Frame`;
+- `placement-step-slots-are-spelled-three-ways`: unifying them would re-spell persisted slot names.
+
+MSOLVE's ruling on `[ev]` PR 3681, which retires the rider and the standoff, builds on this shape.
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.

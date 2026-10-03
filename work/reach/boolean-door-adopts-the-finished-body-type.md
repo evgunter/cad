@@ -66,3 +66,14 @@ the mates' declarations are minted.
 FUSE: tier 3 + census at the door is 15–35 % census over tier 3's
 time. REACH's census-fold lane: the census is a median 0.09× tier 3 on
 single solids.
+
+CLEAVE (`an-inside-out-operand-passes-the-boolean-gates-as-its-complement`):
+until the operands are typed, `boolean::reduce::gate_operand` reads
+tier 3's check 7 on each operand to refuse an inside-out one
+(`BooleanError::InsideOutOperand`). Measured in release on
+`review_m3_pr55::d_die*`, `m3_pr5_boolean_ops` and `issue86`: a median
+87 µs per operand against a median 1.45 ms op, 17 % of summed op time
+(the backstop, three bodies to target, 11 %); on sweep's curved
+`m5_s12_curved_ops`, `m5_pr9c` and `reach_volume_backstop`, 7 %. The
+backstop measures the same operands again. Typed operands retire that
+read: an `AtRestBody` carries check 7's verdict from its own door.

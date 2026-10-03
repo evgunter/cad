@@ -114,7 +114,8 @@ impl Parts {
 }
 
 pub(crate) fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 /// **"Mate the top to the base"**: the top block's bottom cap (the
@@ -1220,7 +1221,7 @@ fn a_declaring_mate_crossing_a_cut_fills_the_interface_record() {
     );
 }
 
-/// **A `FromFace` side crosses the seam with its head**: a kept
+/// **A face-based side crosses the seam with its head**: a kept
 /// declaring mate whose side reading the cut is framed on its head
 /// face crosses split exactly as its authored twin does — the head
 /// re-anchors through the instance qualifier, and the face it names
@@ -1245,7 +1246,7 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     else {
         panic!("a mate");
     };
-    alignment.a = MateFrame::FromFace;
+    alignment.a = MateFrame::from_face();
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (faced, mate) = fixture::step_with(
         doc,
@@ -1283,7 +1284,7 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     else {
         panic!("the kept mate");
     };
-    assert_eq!(crossed_alignment.a, MateFrame::FromFace);
+    assert_eq!(crossed_alignment.a, MateFrame::from_face());
     assert_eq!(
         crossed.name.node, out.instance,
         "the head re-anchors through the instance"
@@ -1308,7 +1309,7 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     else {
         panic!("the host mate");
     };
-    assert_eq!(back_alignment.a, MateFrame::FromFace);
+    assert_eq!(back_alignment.a, MateFrame::from_face());
     let ev = run(&back.doc, &o);
     assert!(
         ev.node_error(mate).is_none(),
