@@ -2,12 +2,13 @@
 id: planar-crossing-lane-reads-a-curved-carrier-as-a-line
 kind: unit
 title: the sweep's planar crossing lane reads a spiric or NURBS carrier as a line
-status: dispatched
+status: review
 opened: 2026-10-03
 priority: P3
 cost: M
 branch: reach/planar-lane-curved-carrier
 refs: [boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule]
+pr: 3984
 ---
 
 
