@@ -1170,8 +1170,29 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             {
                 let curve = certified(x.get_curve_geom(edge.curve))?.clone();
                 let (t0, t1) = curve.params();
+                let lane = crate::splitting::plane_crossing_lane(
+                    curve.carrier(),
+                    t0,
+                    t1,
+                    plane.origin,
+                    plane.normal,
+                    band,
+                );
+                let meet = match lane {
+                    PlaneCrossingLane::Line => None,
+                    // A spiric or a spline: its endpoints' sides neither
+                    // find its crossings nor place them.
+                    PlaneCrossingLane::Unlaned => {
+                        return Err(BooleanError::CrossingCarrierUnsupported {
+                            operand: x_is,
+                            edge: edge_key,
+                            face,
+                        });
+                    }
+                    PlaneCrossingLane::Conic(meet) => Some(meet),
+                };
                 let covers = edge_covers(x, x_is, &edge, face, declared);
-                let touch_at_end = if covers.is_empty() {
+                let touch_at_end = if meet.is_none() || covers.is_empty() {
                     None
                 } else {
                     let read =
@@ -1206,31 +1227,16 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     ((s1 == Sign::Zero) != (s2 == Sign::Zero) && off_end_admitted())
                         .then_some(s1 == Sign::Zero)
                 };
-                match crate::splitting::plane_crossing_lane(
-                    curve.carrier(),
-                    t0,
-                    t1,
-                    plane.origin,
-                    plane.normal,
-                    band,
-                ) {
-                    PlaneCrossingLane::Line => {}
-                    // A spiric or a spline: its endpoints' sides neither
-                    // find its crossings nor place them.
-                    PlaneCrossingLane::Unlaned => {
-                        return Err(BooleanError::CrossingCarrierUnsupported {
-                            operand: x_is,
-                            edge: edge_key,
-                            face,
-                        });
-                    }
-                    PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => continue,
+                match meet {
+                    // A line: the endpoint lane below owns it.
+                    None => {}
+                    Some(ConicPlaneMeet::Miss) => continue,
                     // The conic's plane is parallel to the face's: off
                     // it, a miss; in it, the line lane's `(Zero, Zero)`
                     // posture — both endpoints through
                     // `vertex_on_face`, the interior left to the
                     // neighbour faces.
-                    PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => {
+                    Some(ConicPlaneMeet::Parallel { offset }) => {
                         match decide("bool_conic_face_plane_offset", Margin::of(offset), band) {
                             Ok(Sign::Positive | Sign::Negative) => continue,
                             Ok(Sign::Zero) => {}
@@ -1260,9 +1266,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         }
                         continue;
                     }
-                    PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(_))
-                        if touch_at_end.is_some() =>
-                    {
+                    Some(ConicPlaneMeet::Roots(_)) if touch_at_end.is_some() => {
                         let Some(first_end) = touch_at_end else {
                             return Err(BooleanError::ClassificationInvariant {
                                 what: "conic lane: the one-sided touch lost its sides",
@@ -1276,7 +1280,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         }
                         continue;
                     }
-                    PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(fault))) => {
+                    Some(ConicPlaneMeet::Roots(Err(fault))) => {
                         return Err(BooleanError::Escalated {
                             decision: BooleanDecision::of_conic_root(
                                 fault,
@@ -1292,7 +1296,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             diag: fault.diag(),
                         });
                     }
-                    PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => {
+                    Some(ConicPlaneMeet::Roots(Ok(roots))) => {
                         for &t in &roots {
                             let p = curve.carrier().eval(t);
                             let containment =
