@@ -2,10 +2,12 @@
 id: a-flush-partner-folded-onto-an-edge-contact-refuses-corrupt-operand
 kind: issue
 title: A union whose accumulator already holds a non-manifold edge contact refuses CorruptOperand { operand: B } when a flush partner folds onto it
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: M
+closed: 2026-10-03
+pr: 3914
 ---
 
 
@@ -72,3 +74,16 @@ records carried, and in more orders without them:
 
 Pinned in `crates/topo/tests/union_flush_onto_edge_contact.rs` and
 `crates/editor-core/tests/union_flush_onto_edge_contact.rs`.
+
+## Closed (FUSE, PR 3914, 2026-10-03)
+
+Reproduced through `Node::Union` and the chained pair node (P0), and
+fixed at the source. The reduction's vertex-vertex lane now reads every
+pair before inserting any, and `remap_contacts` remaps v-v rows that
+share an end as one group. Every order of the three documents builds,
+and tier 3′ passes with records carried. Two crossing pairs sharing a
+vertex refuse typed (`SharedVertexCrossings`). That unbuilt arm is
+filed as `a-vertex-crossing-both-sides-of-a-pinch-refuses-shared-vertex-crossings`
+(P0: the pinch union's output is not a legal operand of the next
+union). Review tier: single FULL, every revert re-taken red, with one
+fix pass.
