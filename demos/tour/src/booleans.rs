@@ -89,8 +89,8 @@ pub fn try_intersect_declared<S: Scalar>(
 /// than a scene's own voice: a scene that means some of its contacts
 /// and not others picks out of the report itself (`twopeg` does).
 /// Scenes whose contacts must keep REFUSING call this too — the
-/// lily's stem glue and its socket — and they still do: a declaration
-/// unlocks the declared rung, not the lanes past it.
+/// lily's stem glue — and they still do: a declaration unlocks the
+/// declared rung, not the lanes past it.
 pub fn flush_declarations<S: Scalar>(
     a: &Body<S>,
     b: &Body<S>,
