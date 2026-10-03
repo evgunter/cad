@@ -2,11 +2,12 @@
 id: topo-mints-indeterminates-outside-the-funnel
 kind: issue
 title: topo mints Indeterminates outside the funnel after a definite sign, in two spellings, at eleven shipped sites
-status: open
+status: parked
 opened: 2026-09-20
 priority: P0
 cost: M
 design: true
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -332,3 +333,38 @@ New step-4 sites, of the same gate shape, off the log:
 
 Filed on flux:
 `work/flux/a-gate-rejection-of-a-decided-enclosure-bisects-to-budget.md`.
+
+## Step 2 WIP, held by #3990 (2026-10-03)
+
+The step-2 lane was dispatched after the hold notice, then withdrawn. Its
+work is on branch `cleave/mints-coincidence` at `e138240de`, pushed as
+unreviewed WIP with no PR.
+
+**Done.** `topo::Coincidence::{Decided { predicate, margin }, InBand(Indeterminate)}`
+is the payload of `CarrierEqError::Undeclared`,
+`BooleanError::UndeclaredCoincidence`/`CoplanarNeighbours`, and
+editor-core's `UndeclaredCoincidence`/`UndeclarableContact`. Removed:
+- `LadderRefusal`/`untyped()`;
+- `NeighbourOffset`/`reported()`;
+- the dead `ContactRefusal::Undeclared`.
+
+**Not folded in.** `RefusedArm` is not folded, because it has a
+`SignCertain` arm; `Coincidence::arm()` converts to it.
+
+**Readers.** The `is_invalid()` readers in `carrier_eq`, `flush` and
+`boolean/mod.rs` now match on the variant. Poison reads as `InBand` and is
+never coincident. The two `refusal_routes` readers and the one `census`
+reader now see only poison, so they are left as they are.
+
+**Built only.** `cargo check` passes for the workspace and the demos. Not
+yet done:
+- tests, clippy, gates, and the ε rows;
+- the pins for pr4 at x = 1.0 and for `r2_p7`;
+- the sweep write-up.
+
+**Open doubts:**
+- `Coincidence::quoted()` rebuilds an `Indeterminate` from the decided margin for three arms: a step-3 residue and two unreachable arms.
+- `coincident_as_declared` still reads a past-band bound as `InBand`; that site belongs to step 4.
+- editor-core labels every coincidence `DecidedCoincident`.
+
+Weigh this against the #3990 ruling before reusing any of it.
