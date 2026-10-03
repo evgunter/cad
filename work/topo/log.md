@@ -5940,3 +5940,42 @@ no-delete rule there stands.
   lane, since both are in `merge_faces.rs`.
 - 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
 - 2026-10-01 — From CLEAVE: claimed `euler-rebased-run-recertifies-through-the-plain-door` (moved to `work/cleave/`, parent `edge-mint-doors-read-the-nurbs-lane-from-the-policy`). The Euler surface's attachment gate (`Body::certify_edge_spec`), the fan `mev`'s re-basing gate and `set_face_surfaces_describing` now read the plane × NURBS lane off `AtRestPolicy::nurbs_lane()`, so the Euler doors that mint or re-describe an edge are bounded `AtRestPolicy` (all five scalars implement it), and a scalar holding no lane refuses the class with the new `EulerOpError::NurbsLaneUnsupported { edge, scalar }`. `set_edge_curve_nurbs_lane` is gone. (CLEAVE lane)
+
+## Resumed after the usage stop (2026-10-03)
+
+The weekly usage limit stopped every lane on 2026-10-01 at about
+16:30 UTC. Two lanes were cut off mid-work: the merge-door implementer
+(PR 3702, pushed at `5aeebf851b`) and the plane-offset implementer
+(uncommitted work, no PR). The container survived, and all three
+worktrees are intact.
+
+**PR 3673's fix pass** delivered before the stop, and CI run 36882285266
+on `8e9c2f69e9` passed.
+- **C3 (the chord):** `set_edge_curve`'s adjacency check now has one
+  home, `require_description_adjacent`. `mef` asks it of its chord where
+  the new face leaves the parent's key, and `DescriptionNotAdjacent.edge`
+  becomes `Option`.
+- **C3, the `Inherit` half, accepted not closed.** `chord_join.rs`'s
+  production section chords take their final description under `Inherit`
+  before the glue, and asking there reds 209 sweep tests. This is the
+  same transient class as the kef/kfmrh question going to Ev. The case is
+  filed as `minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`,
+  covering `mef` (5,789 production calls), `mekr` (798) and `mev` (1,283,
+  all fixtures).
+- **The lift audit:** 109 sites, 82 comments corrected, and one dead lift
+  removed.
+- **The plug:** it is now its own door, `MfkrhPlug`, with an executed
+  lever.
+- **Also done:** the `kef` count corrected to ten sites, the levers
+  pinned per door, the `(false, true)` arm raised by a row, and the doc
+  fixes.
+
+**Since then, main conflicts with PR 3673** in `attach.rs`, `euler.rs`,
+`refusal_routes.rs` and `m5_pr10_frontier.rs`. The fix lane was resumed
+to merge main, close the row in its own worktree, and push.
+
+**The two stopped lanes** were resumed from their transcripts. The
+merge-door lane's last commits re-baselined editor-core's
+`crossing_slots` and `corner_table` for a "new curve-slot order",
+against the brief's identity requirement. It is asked to account for
+that.
