@@ -288,8 +288,8 @@ pub mod test_support {
         CubeOps, CylFrame, CylKey, FaceGeometry, Prism, PrismOps, RingFaceOps, StraddleSeat,
         assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
         cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, flush_declarations,
-        geometric_cube, holed_block, identity_map, line, mapped_cube, plane, plant_ring_face,
-        prism, prism_ops, prism_z, split_plane, straddle_seat,
+        geometric_cube, holed_block, identity_map, line, mapped_cube, plane, plant_disc_face,
+        plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
 
@@ -390,6 +390,22 @@ pub mod test_support {
         tol: geom_core::Tol,
     ) -> Result<Option<crate::BooleanError>, crate::BooleanError> {
         crate::boolean::join_refusal(op, a, b, decls, tol)
+    }
+
+    /// The operand's maximal-faces gate (F7) alone, at `tol`'s band —
+    /// for a body below tier 3, which no boolean door takes, so the
+    /// gate's own reading of it stays measurable
+    /// (`boolean::maximal_faces_gate`).
+    ///
+    /// # Errors
+    ///
+    /// The gate's refusal.
+    pub fn maximal_faces_gate(
+        body: &Body<f64>,
+        operand: crate::Operand,
+        tol: geom_core::Tol,
+    ) -> Result<(), crate::BooleanError> {
+        crate::boolean::maximal_faces_gate(body, operand, tol)
     }
 
     /// The direct split run through its join: the scratch body with
@@ -723,7 +739,7 @@ pub use pcurves::{
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
     ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate,
-    TargetUnreached, VolumeEnclosure, classify_shells, classify_shells_of,
+    TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells, classify_shells_of,
     classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};

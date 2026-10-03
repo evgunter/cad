@@ -2426,6 +2426,11 @@ NOT_BOUND = {
     # the schedule ran out) rather than as values Python holds.
     "TargetUnreached": SHAPE,
     "VolumeEnclosure": SHAPE,
+    # `VolumeReading` is that same fork, number or bracket, named as
+    # one value for the Rust demos and rows. Python reads the number
+    # from the mass properties and the bracket from the refusal's
+    # `volume_lo`/`volume_hi`, as above.
+    "VolumeReading": SHAPE,
     # WHAT THE CLASSIFIER SAW, curated at the prelude beside the
     # `Indeterminate` that holds it — and a discriminant that crosses
     # as WHICH ATTRIBUTE IS SET rather than as a word.

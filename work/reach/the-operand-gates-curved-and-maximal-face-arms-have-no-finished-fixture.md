@@ -40,3 +40,10 @@ described edge), a swept cone (`revolve` of a slanted segment) posed
 with its box reaching and clearing the other operand, a tilted cone and
 a torus likewise — or a statement per arm that it is unreachable from a
 finished operand, and its retirement.
+
+`topo::test_support::maximal_faces_gate` asks the maximal-faces gate
+alone of a body at any tier. `neighbours_across_a_closed_edge`'s (b) and
+(c) (main's public witnesses for the F7 closed-edge lever, whose disc
+keeps its circle a scaffold) use it after pinning the body's at-rest
+refusal. The `NonMaximalFaces` rows above can take the same door while
+no finished fixture exists.

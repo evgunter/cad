@@ -1529,6 +1529,13 @@ pub enum Corruption {
         /// The vertex.
         vertex: VertexKey,
     },
+    /// This edge's sides or extent could not be read.
+    Edge {
+        /// The edge.
+        edge: EdgeKey,
+        /// The lookup that came back empty.
+        absence: crate::readback::CarrierAbsence,
+    },
 }
 
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
@@ -2180,8 +2187,9 @@ pub enum BooleanError {
     /// **Two sphere faces of the two solids meet** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
     /// crossing a face: either their spheres touch within the tolerance,
-    /// the smaller inside the larger (a decided zero), or their spheres
-    /// cross and the section certificate certifies the circle they cross
+    /// the smaller inside the larger (a decided zero), at a touch the
+    /// section certificate does not certify off either face, or their
+    /// spheres cross and the certificate certifies the circle they cross
     /// in inside both faces (its R-loop). Whatever the faces share lies
     /// off every edge, so the join's sphere-pair arm (the radical plane,
     /// `join::bool_connect`) had no chord to run. A crossing whose circle
@@ -2837,6 +2845,11 @@ impl core::fmt::Display for Corruption {
             Self::Vertex { vertex } => write!(
                 f,
                 "the neighbourhood of vertex {vertex:?} could not be walked"
+            ),
+            Self::Edge { edge, absence } => write!(
+                f,
+                "edge {edge:?} could not be read: {}",
+                crate::readback::ReadbackError::from(*absence)
             ),
         }
     }
@@ -3594,6 +3607,23 @@ pub(crate) fn through_the_join(
             ops::Joined::Connected { red, .. } => Some((red.a, red.b)),
         },
     )
+}
+
+/// The operand's maximal-faces gate (F7) alone, at `tol`'s band: the
+/// rung a body with neighbouring faces on one surface ends at, asked of
+/// a body whatever its tier.
+///
+/// # Errors
+///
+/// The gate's refusal; [`BooleanError::Band`] where `tol` yields no
+/// band.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn maximal_faces_gate<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    reduce::gate_maximal_faces(body, operand, Band::linear(tol)?)
 }
 
 /// **The join's own refusal** of `op` under `decls`: what its matching
