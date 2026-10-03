@@ -520,6 +520,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 wedge: MaterialWedge::Slit,
             },
         ),
+        (
+            "SharedVertexCrossings",
+            BooleanError::SharedVertexCrossings {
+                operand: Operand::B,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
+            },
+        ),
     ];
     let contained: Vec<(&'static str, PointInSolidError)> = vec![
         (

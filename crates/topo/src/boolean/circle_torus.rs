@@ -18,8 +18,9 @@
 //! (bicircular) torus pass. At most four crossings per turn.
 //!
 //! The ladder's rows here are `bool_circle_torus_pole`, `_conditioning`,
-//! `_noise`, `_root_slack` and the quartic's `bool_circle_torus_*`, and
-//! every in-band sign escalates as [`BooleanDecision::ArcTorusRoots`].
+//! `_noise` and the quartic's `bool_circle_torus_*`, and every in-band
+//! sign escalates as [`BooleanDecision::ArcTorusRoots`]; the answer is
+//! the certified subdivision's (`bool_circle_torus_sub_*`).
 //!
 //! # The noise meter's floor, and what it costs
 //!
@@ -36,12 +37,15 @@
 //! amplification, and the ladder's in-band answers are a known gap
 //! (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
 //!
-//! **What the meter costs, measured.** Against a torus `R = 1,
-//! r = 0.25` at the default band, grazing circles at `ρ = 10` are
-//! answered (the shallowest grazes refuse on their root slack), and from
-//! `ρ = 30` every one refuses — where the unmetered door certified
-//! misses on real dips and phantom pairs on clearances from `ρ = 100`.
-//! The threshold scales as `ρ⁴ ≲ 10ε·r·R²/(u·NOISE_ULPS)`.
+//! **What the noise costs.** Measured when the ladder answered: against
+//! a torus `R = 1, r = 0.25` at the default band, grazing circles at
+//! `ρ = 10` were answered and from `ρ = 30` every one refused — where
+//! the unmetered door had certified misses on real dips and phantom
+//! pairs on clearances from `ρ = 100`. The threshold scales as
+//! `ρ⁴ ≲ 10ε·r·R²/(u·HARMONIC_NOISE_ULPS)`. The meter now only keeps the
+//! ladder from running past it; the subdivision charges the same noise
+//! to every Taylor term, so such a pose answers `Uncertain` there
+//! (`a_large_circles_dip_below_its_own_noise_is_not_certified_away`).
 //!
 //! # The lever
 //!
@@ -86,15 +90,16 @@
 //!   coaxial arm instead (`OnSurface`), and the reduction records it only
 //!   under `reduce::lying_on`'s certificates.
 //! - **A tangency** — the carrier grazing the tube, a double root — is a
-//!   contour-reach margin in band on the parallel arm, and on the ladder
-//!   is whatever the ladder reads it as (module docs of
-//!   [`super::circle_roots`], "The ladder's noise meter").
+//!   contour-reach margin in band on the parallel arm, and on the
+//!   general arm a piece neither clear nor monotone down to the band's
+//!   width, answered `Uncertain` (module docs of [`super::circle_roots`],
+//!   "The half-angle ladder, and the subdivision that answers").
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{
-    CircleRoots, HalfAngleFrame, HalfAngleRows, Harmonics, constant_residual_roots,
-    half_angle_roots, rounding_charge,
+    CircleRoots, HalfAngleFrame, HalfAngleRows, Harmonics, SubdivisionRows,
+    constant_residual_roots, half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -105,7 +110,6 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
     pole: "bool_circle_torus_pole",
     conditioning: "bool_circle_torus_pole_conditioning",
     noise: "bool_circle_torus_noise",
-    root_slack: "bool_circle_torus_root_slack",
     quartic: QuarticRows {
         disc: "bool_circle_torus_disc",
         shape: "bool_circle_torus_shape",
@@ -113,6 +117,12 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
         odd: "bool_circle_torus_odd",
         split: "bool_circle_torus_split",
         split_lead: "bool_circle_torus_split_lead",
+    },
+    verify: SubdivisionRows {
+        clear: "bool_circle_torus_sub_clear",
+        monotone: "bool_circle_torus_sub_monotone",
+        side: "bool_circle_torus_sub_side",
+        width: "bool_circle_torus_sub_width",
     },
     decision: BooleanDecision::ArcTorusRoots,
 };
@@ -275,7 +285,8 @@ pub(super) fn circle_torus_roots<T: Decide>(
         HalfAngleFrame {
             t0,
             t1,
-            radius,
+            speed_lo: radius,
+            speed_hi: radius,
             lever,
             noise: rounding_charge(terms),
             f_per_metre,

@@ -475,6 +475,8 @@ mod p2_gauge_offsets_and_spaces;
 mod p2_gauge_poses_and_doors;
 #[path = "p2_gauges.rs"]
 mod p2_gauges;
+#[path = "p2_split.rs"]
+mod p2_split;
 #[path = "parallel_node_map_interval.rs"]
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]
@@ -582,6 +584,8 @@ mod switch_slots;
 mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
+#[path = "union_flush_onto_edge_contact.rs"]
+mod union_flush_onto_edge_contact;
 #[path = "union_pinch_member_order.rs"]
 mod union_pinch_member_order;
 #[path = "unreadable_by_this_build.rs"]

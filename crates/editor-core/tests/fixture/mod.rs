@@ -49,6 +49,10 @@ pub mod digest;
 /// names an instantiated part's faces are spelled with.
 pub mod resolver;
 
+/// The comparator a split-then-inline round trip is held to: one
+/// document up to node ids.
+pub mod round_trip;
+
 /// The whole-frame product oracle a mate suite measures a seat with.
 pub mod seat;
 
