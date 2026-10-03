@@ -235,6 +235,7 @@
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Decide, Point3};
 
+use crate::attach::Slot;
 use crate::body::Body;
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, HalfEdgeKey, Loop, LoopBoundary, LoopKey, ShellKey, VertexKey,
@@ -242,6 +243,7 @@ use crate::entity::{
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::FaceSurface;
+use crate::euler::RechartDoor;
 use crate::euler::{
     Clearing, EulerOpError, KillAnchor, KillInto, KillRun, NewCurve, Records, RunExtent,
     require_halves, shared_loop,
@@ -847,6 +849,13 @@ impl<T: Decide> Body<T> {
     /// that move whole. On a spline chart, or an `f1` that was unminted
     /// or half-minted, the drop is the whole answer at either door.
     ///
+    /// **What it does not ask:** where `f1` wears another key than
+    /// `f2`, whether the demoted loop's descriptions still name a key
+    /// their faces wear, or a key `f1` wears — the questions
+    /// [`Body::ring_move`] refuses on ([`RechartDoor`]). Production
+    /// callers rely on that move today
+    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+    ///
     /// **Minting order**: nothing is minted (the loop survives with its D5
     /// birth record — no provenance changes for survivors; re-homed faces
     /// keep their birth records — re-homing is not a re-birth). **Kill
@@ -1165,6 +1174,13 @@ impl<T: Decide> Body<T> {
     /// leaves needs nothing beyond the record drop, and the same-face
     /// no-op moves nothing.
     ///
+    /// **A ring moved onto a face on another chart is vouched for by
+    /// its edges, or refused** ([`RechartDoor::RingMove`]), at both
+    /// doors: every edge of the ring is asked [`Body::vouch_move`]'s
+    /// questions against `to_face`'s key. The containment decision
+    /// stays the caller's; this is the keys' half of it. The lever is
+    /// the face the ring moves onto: one on a chart its edges name.
+    ///
     /// # Tier-1 preservation (the demotion claim's least obvious case)
     ///
     /// `ring_move` re-glues the per-shell component partition (a face
@@ -1192,6 +1208,10 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::RingIsOuter`]); `to_face` resolves (`StaleKey`);
     /// both faces lie in one shell ([`EulerOpError::CrossShell`]); the
     /// ring walks ([`EulerOpError::LoopCycleBroken`]); then, where
+    /// `to_face`'s key is not the ring's face's, no edge of the ring is
+    /// stranded ([`EulerOpError::RechartStrandsDescriptions`], every one
+    /// named, in cycle order) and every certified one names that key
+    /// ([`EulerOpError::RechartUnvouched`], the same); then, where
     /// `to_face` would be re-minted, the site mint's plan
     /// ([`Body::plan_moved_rows`]'s errors — `KeysOnly` at this door).
     ///
@@ -1269,6 +1289,15 @@ impl<T: Decide> Body<T> {
             Vec::new()
         } else {
             let ring_halves = self.site_cycle(ring)?;
+            self.vouch_move(
+                RechartDoor::RingMove,
+                to_face,
+                (from_surface, Slot::Kept(to_surface)),
+                self.run_edges(&ring_halves)?,
+                |_, l, _| l == ring,
+                self.same_chart(from_surface, to_surface),
+                None,
+            )?;
             self.plan_moved_rows(
                 &ring_halves,
                 self.same_chart(from_surface, to_surface),

@@ -789,13 +789,10 @@ fn one_spelling(n1: Vec3<f64>, n2: Vec3<f64>, arm: f64, band: Band) -> &'static 
 /// lengths differ by up to two ulps and straddle the edge; spelled
 /// once they cannot, and no escalation names any other predicate.
 ///
-/// The SUBGROUP half is the subject, because the full coset door adds
-/// a stage this row is not about: for a pair the table calls a line,
-/// two planes this nearly parallel make the translation system
-/// singular and the candidate's membership refuses a non-finite
-/// margin — a refusal that names `mate_member_translation_in_plane`
-/// for a cause that is the conditioning of the system, filed on
-/// MSOLVE's slate as a false-cause refusal of its own.
+/// The full coset door answers the same: the parallel pair keeps its
+/// plane, the line solves (the translation stage divides by the sine
+/// the table decided, so a line the table mints is a pose), and the
+/// escalation is the table's own.
 #[test]
 fn c2_parallel_boundary_direct() {
     let band = Band::linear(Tol::witness()).unwrap();
@@ -847,20 +844,23 @@ fn c2_parallel_boundary_direct() {
                         }
                         other => panic!("at s={s:e} arm={arm}: {other:?}"),
                     };
-                    // The full door decides the same split first; what
-                    // it adds past that is the singular translation
-                    // stage named above, and nothing else.
-                    match intersect(held, added, band, lever(arm)) {
-                        Ok(_) => {}
-                        Err(FoldStop::Indeterminate(d)) => assert!(
-                            matches!(
-                                d.predicate,
-                                Some("mate_axes_parallel" | "mate_member_translation_in_plane")
-                            ),
-                            "{d:?}"
-                        ),
-                        Err(other) => panic!("at s={s:e} arm={arm}: {other:?}"),
-                    }
+                    let door = match intersect(held, added, band, lever(arm)) {
+                        Ok(Coset {
+                            subgroup: Subgroup::Planar { .. },
+                            ..
+                        }) => "parallel",
+                        Ok(Coset {
+                            subgroup: Subgroup::Prismatic { .. },
+                            ..
+                        }) => "line",
+                        Err(FoldStop::Indeterminate(d))
+                            if d.predicate == Some("mate_axes_parallel") =>
+                        {
+                            "escalates"
+                        }
+                        other => panic!("at s={s:e} arm={arm}: {other:?}"),
+                    };
+                    assert_eq!(door, got, "the full door at s={s:e} arm={arm}");
                     assert_eq!(
                         got,
                         want,

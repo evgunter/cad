@@ -7,7 +7,6 @@ opened: 2026-09-24
 priority: P1
 cost: M
 design: true
-needs_ev: true
 ---
 
 
@@ -79,4 +78,15 @@ recommend dropping the turn: the sides' offsets carry the roll, and
 pinned. They also lean towards retiring `PlanarRest`'s standoff the
 same way. The rider deletions stand. `ASSEMBLY.md` A3 states the
 revised question, and the PR asks again.
+
+## Ruled (Ev, `[ev]` PR 3681, 2026-10-03)
+
+"the new plan makes sense". The roll lives in the sides' offsets (row
+53), and no turn field is added. `MatePrimitive` names only the
+residual subgroup: `FrameCoincidence`, `Coaxial { roll: Free | Pinned }`
+and `PlanarRest`. `PlanarRest`'s standoff retires, and the rider,
+`Clocking`, `table_gap`, `mate_clocking_redundant` and `Lever::Roll`
+are deleted. "Turn 90°" is a verb that composes a rotation onto one
+side's offset. The build is an MSOLVE unit. It waits for row 53's
+`MateFrame` shape to land, because the deletions ride the offset.
 
