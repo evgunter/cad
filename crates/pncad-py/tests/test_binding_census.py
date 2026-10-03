@@ -2738,6 +2738,8 @@ NOT_BOUND = {
     # neighbouring door whose opening would make this disposition stop
     # being honest, in exactly the shape `EvalOutcome`'s entry records.
     "Member": INTERIOR,
+    # One placing node on a `Member`'s chain: interior with it.
+    "Placing": INTERIOR,
     # The one thing `Frame::rotate_then_translate` refuses, and the
     # only thing `EditError::PlacementAxis` converts from — a type so
     # that no other node refusal can reach a caller wearing the axis's
@@ -2760,6 +2762,10 @@ NOT_BOUND = {
     # failure's tag word and prose, the checks refusal as
     # `product_unavailable` and the refusal's prose.
     "ProductRefusal": INTERIOR,
+    # What `ProductError::PlacedUnderTwoRoots` places twice — the input
+    # its recourse branches on. The sentence a Python caller reads
+    # already says which recourse; the kind behind it is interior.
+    "PlacedTwice": INTERIOR,
     # The one generic both wrappers above are spellings of; Python holds
     # neither, so it holds no instance of this either.
     "Refusal": INTERIOR,
@@ -3700,7 +3706,7 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::NoCarrier": "ReadbackError.variant",
     # A value the at-rest gate hands back, not a raised refusal.
     "RefusedRef::Vanished": "RefusedRef.variant",
-    "RefusedRef::ReadBelowARoot": "RefusedRef.variant",
+    "RefusedRef::MovedAbove": "RefusedRef.variant",
     "RefusedRef::Ambiguous": "RefusedRef.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words

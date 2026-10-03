@@ -129,12 +129,9 @@ fn side_world(
     );
     let member = editor_core::member_of(doc, head).expect("the head reads a member");
     if copy_shift == [0.0; 3] {
-        assert!(
-            member.copy.is_empty() && member.at == member.instance,
-            "a plain read: {member:?}"
-        );
+        assert!(member.chain.is_empty(), "a plain read: {member:?}");
     } else {
-        assert_eq!(member.copy.len(), 1, "a copy read: {member:?}");
+        assert_eq!(member.copy().len(), 1, "a copy read: {member:?}");
     }
     let face = editor_core::head_face(doc, head).expect("the head names a part face");
     let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(member.instance) else {
@@ -520,7 +517,7 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
         panic!("the mate");
     };
     let member = editor_core::member_of(&doc, b).expect("a copy is a member");
-    assert_eq!(member.copy, vec![(pattern, 2)]);
+    assert_eq!(member.copy(), vec![(pattern, 2)]);
     let master = editor_core::head_face(&doc, b).expect("the strip");
     assert_eq!(
         master.clone().into_name(),

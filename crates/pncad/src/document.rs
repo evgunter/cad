@@ -340,8 +340,8 @@ pub use editor_core::ContentBits;
 // group's own space, which a `Product` carries beside the world for
 // the at-rest gate to check, and `own_spaces` gathers every one.
 pub use editor_core::{
-    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal, RootFault,
-    SourceFinding, own_spaces, product, product_recorded,
+    OwnSpace, PlacedTwice, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
+    RootFault, SourceFinding, own_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -400,7 +400,7 @@ pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, FrameBase, Lever, MateFault, MateFrame,
     MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck, PartReach,
-    PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup,
+    PlacerRow, Placing, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup,
     UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, head_face, mate_reach,
     member_of, member_reading, places, reading_edges, relative_freedom_components, root_of,
     solve_document,

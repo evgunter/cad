@@ -41,7 +41,7 @@ use geom_core::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Err
 use geom_core::predicate::Band;
 
 use super::coset::{Arm, Coset, FoldStop, Measured, Subgroup};
-use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
+use super::member::{Member, Placing, Walk, check_reference, derived_offset, walk_of};
 use super::reach::MateReach;
 use super::{
     Alignment, AxisSense, Clash, FaceRefusal, FrameBase, Lever, MateFault, MateFrame,
@@ -2029,11 +2029,17 @@ fn solve_group<P: crate::ProfilePayload>(
     let rank = |m: &Member| {
         (
             at(m.instance),
-            m.copy
+            m.copy()
                 .iter()
                 .map(|&(node, index)| (at(node), index))
                 .collect::<Vec<_>>(),
-            at(m.at),
+            m.chain
+                .iter()
+                .map(|p| match *p {
+                    Placing::Copy { pattern, index } => (at(pattern), Some(index)),
+                    Placing::Transform(node) => (at(node), None),
+                })
+                .collect::<Vec<_>>(),
         )
     };
     let mut pairs: Vec<(&Member, &Member)> = by_pair

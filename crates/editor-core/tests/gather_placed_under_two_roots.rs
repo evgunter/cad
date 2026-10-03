@@ -16,8 +16,8 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Entry,
     EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, MateRole, NameTable, Node, PartSelect,
-    PatternKind, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, SplitHalf,
-    StableName, product, product_named,
+    PatternKind, PlacedTwice, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,
+    SplitHalf, StableName, product, product_named,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{head_at, insert, len, on_frame, scl, solve, step, xform};
@@ -58,6 +58,7 @@ fn placed_twice(
     match product(doc, ev, Tol::witness()) {
         Err(ProductError::PlacedUnderTwoRoots {
             placed,
+            twice: _,
             select,
             first,
             second,
@@ -104,6 +105,22 @@ fn two_transforms_of_one_extrude_refuse_naming_the_extrude_and_both_roots() {
     assert!(
         !message.contains("collides"),
         "the recipe's vocabulary, not the name table's: {message}"
+    );
+    assert!(
+        message.contains(
+            "Recourse: union the two to fuse them, or pattern it to keep the copies apart"
+        ),
+        "a body's recourse: {message}"
+    );
+    assert!(
+        matches!(
+            err,
+            ProductError::PlacedUnderTwoRoots {
+                twice: PlacedTwice::Body,
+                ..
+            }
+        ),
+        "an extrude is a body: {err:?}"
     );
     assert_eq!(placed_twice(&doc, &ev), (extrude, None, t1, t2));
 }
@@ -450,6 +467,28 @@ fn one_instance_mated_through_two_transforms_solves_and_refuses_at_the_gather() 
     let (placed, select, first, second) = placed_twice(&doc, &ev);
     assert_eq!(placed, top, "the instance, not a base or a mate");
     assert_eq!((select, first, second), (None, t1, t2));
+    // The recourse is the instance's: a second instance or a pattern
+    // places it twice, and a union fuses the two — the document
+    // `msolve13_read_at_operand`'s A1(a) row gates.
+    let err = product(&doc, &ev, Tol::witness()).expect_err("placed twice");
+    assert!(
+        matches!(
+            err,
+            ProductError::PlacedUnderTwoRoots {
+                twice: PlacedTwice::Instance,
+                ..
+            }
+        ),
+        "an instance taken whole: {err:?}"
+    );
+    let message = err.to_string();
+    assert!(
+        message.contains(
+            "Recourse: instantiate it again or pattern it to place it twice; union the two \
+             to fuse them"
+        ),
+        "an instance's recourse: {message}"
+    );
 }
 
 /// **The selection rides down through a transform below a part.**

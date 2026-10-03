@@ -658,17 +658,17 @@ fn a4_a_placed_root_group_seats_through_both_chains() {
 
 // ---- A5: two operands, one instance ----
 
-/// Two mates from `base` to `top`, each read at a DIFFERENT node over
-/// `top`: `x1` lifts, and `x2` sits over `x1` carrying `second`.
+/// Two mates from `base` to `top`, each read at a DIFFERENT transform
+/// of `top`, the two transforms siblings under a `Union` so both
+/// placed copies reach the product.
 ///
-/// `second` is what makes the pair consistent or not, and it is never
-/// the identity: two operands that compose to the same map are one
-/// member wearing two names, and a row built on them would show
-/// nothing about two members at all. The consistent case turns the
-/// block a quarter turn about its own vertical centre line — a
-/// DIFFERENT map that asks for the same seat, because the block is
-/// square and the alignment fixes no roll the turn disturbs.
-fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeNodeId; 2]) {
+/// `x1` lifts the block, and the first mate seats it at the slab's
+/// `(1, 1)` corner. `x2` is `x1` moved `(2, 2)` across the slab plus
+/// `extra_lift`, and the second mate seats it at the slab's `(3, 3)`
+/// corner: with no extra lift the two seats agree (a consistent loop),
+/// and with one the second copy floats clear of the slab. The two
+/// copies stand apart either way, so the union fuses nothing.
+fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [RecipeNodeId; 2]) {
     let mut store = PartStore::default();
     let (base_ref, base_body) = store.insert_part(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
@@ -681,7 +681,17 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, x1) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, x2) = insert(doc, xform(x1, second.0, second.1, second.2));
+    let (doc, x2) = insert(
+        doc,
+        xform(top, [2.0, 2.0, 10.0 + extra_lift], [0.0, 0.0, 1.0], 0.0),
+    );
+    let (doc, _) = insert(
+        doc,
+        Node::Union {
+            members: vec![x1, x2],
+            declare: Vec::new(),
+        },
+    );
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_part(top, top_body, CapEnd::Start);
     let (doc, m1) = step(
@@ -693,13 +703,28 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
             )),
         },
     );
+    let far_corner = Node::Mate {
+        a: crate::fixture::head(a),
+        b: crate::fixture::head_at(x2, b),
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame::authored(
+                [3.0, 3.0, BASE_HEIGHT],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: b_frame(),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Opposed,
+            clocking: None,
+        },
+    };
     let (doc, m2) = step(
         doc,
         DocEdit::InsertNode {
-            node: Box::new(seat(
-                crate::fixture::head(a),
-                crate::fixture::head_at(x2, b),
-            )),
+            node: Box::new(far_corner),
         },
     );
     (doc, opts, [m1.unwrap(), m2.unwrap()])
@@ -715,72 +740,54 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
 /// The gate is where a declaring mate is verified — the solve places
 /// on the tree edge and never checks the loop (A11 rule 4) — so a
 /// fixture whose CONSISTENT pair the gate also refuses would make
-/// this row vacuous. Both halves are asserted.
+/// this row vacuous. Both halves are asserted. (A placer ABOVE an
+/// operand is a different document, refused `MovedAbove`:
+/// `msolve13_read_at_operand`'s A1(b).)
 #[test]
 fn a5_two_operands_over_one_instance_are_two_members() {
-    // Consistent: `x2` is a quarter turn of the square block about its
-    // own vertical centre line. A different map from `x1`'s, and one
-    // that asks for the same seat.
-    let quarter_turn: Step = (
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-        std::f64::consts::FRAC_PI_2,
-    );
-    let (doc, opts, [m1, m2]) = two_operands("msolve1-a5-consistent", quarter_turn);
-    let poses = solve(&doc, &opts, Tol::witness());
-    assert!(
-        poses.fault(m1).is_none() && poses.fault(m2).is_none(),
-        "A5 consistent: {:?} / {:?}",
-        poses.fault(m1),
-        poses.fault(m2)
-    );
-    assert_eq!(
-        poses.role(m1),
-        Some(MateRole::Determining),
-        "the first pair is the tree edge"
-    );
-    assert_eq!(
-        poses.role(m2),
-        Some(MateRole::Declaring),
-        "the second member pair closes a loop"
-    );
-    let ev = run(&doc, &opts);
-    assert!(
-        product(&doc, &ev, Tol::witness()).is_ok(),
-        "A5 consistent: the product gathers"
-    );
-    assert!(
-        gate(&doc, &ev).is_ok(),
-        "A5 consistent: the gate refused a consistent pair: {:?}",
-        gate(&doc, &ev).err()
-    );
-
-    // Inconsistent: the second operand lifts 3 further, so the two
-    // mates cannot both be satisfied. The solve still places on the
-    // tree edge; the GATE is where the declaring mate is verified
-    // against the solved geometry, and it refuses.
-    let (doc, opts, [m1, m2]) = two_operands(
-        "msolve1-a5-inconsistent",
-        ([0.0, 0.0, 3.0], [0.0, 0.0, 1.0], 0.0),
-    );
-    let poses = solve(&doc, &opts, Tol::witness());
-    assert!(
-        poses.fault(m1).is_none() && poses.fault(m2).is_none(),
-        "A5 inconsistent: the SOLVE places on the tree edge and does \
-         not verify the loop; the gate does"
-    );
-    let ev = run(&doc, &opts);
-    let err = gate(&doc, &ev).expect_err("the gate refuses the unmet declaration");
-    let AssemblyError::AtRest { findings } = &err else {
-        panic!("A5 inconsistent: expected the at-rest gate's refusal, got {err:?}");
-    };
-    assert!(
-        findings
-            .iter()
-            .any(|f| matches!(f.attribution, Attribution::Refuted(_))),
-        "A5 inconsistent: the refusal names the declaration the geometry \
-         contradicts, rather than only an undeclared contact: {findings:?}"
-    );
+    for (what, label, extra_lift) in [
+        ("consistent", "msolve1-a5-consistent", 0.0),
+        ("inconsistent", "msolve1-a5-inconsistent", 3.0),
+    ] {
+        let (doc, opts, [m1, m2]) = two_operands(label, extra_lift);
+        let poses = solve(&doc, &opts, Tol::witness());
+        assert!(
+            poses.fault(m1).is_none() && poses.fault(m2).is_none(),
+            "A5 {what}: the SOLVE places on the tree edge and does not verify \
+             the loop: {:?} / {:?}",
+            poses.fault(m1),
+            poses.fault(m2)
+        );
+        assert_eq!(
+            (poses.role(m1), poses.role(m2)),
+            (Some(MateRole::Determining), Some(MateRole::Declaring)),
+            "A5 {what}: the first pair is the tree edge, the second member pair closes a loop"
+        );
+        let ev = run(&doc, &opts);
+        assert!(
+            product(&doc, &ev, Tol::witness()).is_ok(),
+            "A5 {what}: the product gathers"
+        );
+        let gated = gate(&doc, &ev);
+        if extra_lift == 0.0 {
+            assert!(
+                gated.is_ok(),
+                "A5 consistent: the gate refused a consistent pair: {gated:?}"
+            );
+            continue;
+        }
+        let err = gated.expect_err("the gate refuses the unmet declaration");
+        let AssemblyError::AtRest { findings } = &err else {
+            panic!("A5 inconsistent: expected the at-rest gate's refusal, got {err:?}");
+        };
+        assert!(
+            findings
+                .iter()
+                .any(|f| matches!(&f.attribution, Attribution::Refuted(d) if d.mate == m2)),
+            "A5 inconsistent: the refusal names the declaring mate the geometry \
+             contradicts: {findings:?}"
+        );
+    }
 }
 
 // ---- A6: the item-7 measurement, pinned ----
