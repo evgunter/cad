@@ -48,3 +48,24 @@ ladder. The cylinder door's square arm is that routing for circles
 square to the wall
 (`crates/sweep/tests/tang_circle_cylinder.rs`,
 `a_rim_circle_tangent_to_a_parallel_wall_keeps_the_pierce_door`).
+
+## Outcome (2026-10-02, REACH's ellipse lane, PR 3805's fix pass)
+
+The ladder no longer answers. `circle_roots::half_angle_roots` runs it
+for its escalations, then takes its answer from
+`circle_roots::certified_subdivision`, which decides on the residual
+itself: a piece is root-free when `|F(m)|` exceeds the most `F` can
+fall over it, monotone when the least `|F′|` on it is provably
+positive, and a monotone piece's root is bisected and must read ON the
+surface. A piece neither clear nor monotone, split down to the band,
+holds a double root and answers `Uncertain`. So each of the three
+readings above is answered `Uncertain` (or by an escalation the ladder
+raises first), and a certified root reads on the surface. The REACH
+review's measurements, on the same door: certified roots up to 1.9e-6 m
+off the wall at ε = 1e-6 (an eccentric millimetre ellipse); `Miss` at
+in-band grazes of 50 m and 500 m walls (circle) and a 5 m wall
+(ellipse); `CountDisagrees` across definite 1e-8–2e-8 m crossings. Rows:
+`circle_cylinder::tests::a_graze_is_read_by_its_depth`,
+`ellipse_roots::tests::a_graze_is_read_by_its_depth`, and
+`ellipse_roots::fuzz_rows` (a true-distance oracle at three bands, with
+the counterexample's seed pinned). This row can close with that PR.

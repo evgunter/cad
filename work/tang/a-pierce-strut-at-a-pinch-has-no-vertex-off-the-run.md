@@ -77,3 +77,23 @@ was left out of the PR that fixed the coincident-pierce weld.
 - P ∩ X passes 3′. P − X and P ∪ X fail 3′ only by the contacts X's own
   record held, which no boolean carries into its result
   (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`).
+
+## Two more witnesses: a bare pinch against one face (FUSE, 2026-10-02)
+
+Found sweeping `fuse/corrupt-operand-edge-contact`. Pinch =
+`union_with(q1, q3)`, `q1 = brick((0,1),(0,1),(0.5,1.5))` and
+`q3 = brick((-1,0),(-1,0),(0.5,1.5))`, touching along the z-axis,
+carrying its two v-v rows. The results are the same on main.
+
+- **Both pinch edges pierce one face at one point**: B =
+  `brick((-0.5,0.5),(-0.5,0.5),(0,1))`, whose top face z = 1 the axis
+  pierces. pinch ∪ B, pinch − B and pinch ∩ B refuse
+  `Join(RingHomingAmbiguous)`. B ∪ pinch builds at 2.75 and passes 3′
+  with the rows carried. That is the 3N staircase's asymmetry, with no
+  slab.
+- **The pinch's end lands on a face**: B =
+  `brick((-1,1),(-1,1),(0,0.5))`, whose top face holds the pinch's two
+  vertices at (0,0,0.5). pinch ∪ B and B ∪ pinch both refuse
+  `Join(RingHomingAmbiguous)`. pinch − B builds at 2.0 and passes 3′.
+  This is a v-on-f contact, not a pierce: the two vertices land on the
+  face at one point, and each mints its own ring.

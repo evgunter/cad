@@ -203,7 +203,8 @@ fn names_in_parts(levels: usize) -> (ProfileDoc, String) {
         DocEdit::SetAppearanceMeta {
             name: in_parts(cap, levels),
             key: "probe".to_owned(),
-            value: MetaValue::Map([("v".to_owned(), MetaValue::Int(1))].into()),
+            value: MetaValue::map([("v".to_owned(), MetaValue::Int(1))].into())
+                .expect("a shallow value"),
         },
     );
     let text = save(&doc, &[], tol).expect("the document saves");
@@ -301,13 +302,14 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
         DocEdit::SetAppearanceMeta {
             name: cap,
             key: "probe".to_owned(),
-            value: MetaValue::Map(
+            value: MetaValue::map(
                 [
                     ("v".to_owned(), MetaValue::Int(1)),
                     ("kind".to_owned(), MetaValue::Str("mine".to_owned())),
                 ]
                 .into(),
-            ),
+            )
+            .expect("a shallow value"),
         },
     );
     let text = save(&doc, &[], tol).expect("the document saves");

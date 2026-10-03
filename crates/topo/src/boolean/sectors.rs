@@ -749,6 +749,16 @@ pub(super) struct PairRecord {
     pub intersect: bool,
 }
 
+impl PairRecord {
+    /// Whether this record reaches null-edge insertion: the one test
+    /// [`super::insert::insert_null_pairs`] filters its survivors by,
+    /// and the reduction reads to tell a vertex pair that crosses from
+    /// one that only touches.
+    pub(super) const fn survives(&self) -> bool {
+        self.intersect
+    }
+}
+
 /// Whether `dir` lies within the convex sector (Zero grazes count —
 /// module docs). `strict` demands definite interior. `read` is what the
 /// calling door read of the pair's declaration: the primitive takes

@@ -59,3 +59,35 @@ either face it bounds (a spline edge has no sound box of its own,
 boolean's `gate_operand_edges` stays body-scoped by its own stated
 design; whether it should follow the split, pair-scoped the way the
 face gate is, is part of this row's design question.
+
+## The crossing layer's half, behind the gate (2026-10-02, REACH)
+
+Lifting the gate reaches a second wall: `reduce::curved_face_arm`
+sends every carrier other than a line, a circle or an ellipse to
+`CurvedPierceUnsupported` before any clearance test, so a spiric or
+NURBS edge would refuse against a cylinder, sphere or torus face
+whenever its box meets the face's, however far it runs from it. The
+ellipse lane (`work/reach/non-circle-conic-edge-refuses-against-every-curved-face.md`)
+generalized the circle's clearance to a conic; what a general carrier
+needs is in the same shape:
+
+The conic rung's sampled enclosure
+(`geom_brep::conic_arc_residual_range`: the residual's sample hull
+widened by the chord-dip charge `f2·h²/8`) carries over to any carrier
+with a certified bound `f2` on `|F″|` along the span. With
+`|C′| ≤ s₁` and `|C″| ≤ s₂` over the span:
+
+- against a sphere or a cylinder the residual is a quadric
+  `(|⊥(p − o)|² − r²)/2r`, so `|F″| ≤ (s₁² + |⊥(C − o)|max·s₂)/r`;
+- against a torus, `torus_curvature_bound` is already stated in terms
+  of `|w′|, |w″|` and the axial harmonic; the conic reads it at
+  `s₁ = s₂ = a` (the semi-major axis), and a general carrier needs
+  `|h′| ≤ s₁`, `|h″| ≤ s₂` in place of the first-harmonic amplitude.
+
+What is missing is `s₁`, `s₂` per carrier: for a spiric, from its
+`|dP/dv|` bound (`Curve3::Spiric`'s docs give `r(R − r)/√((R − r)² −
+offset²)`) and a second-derivative bound; for a NURBS, from the
+hodograph's control hull (rational weights need the quotient rule's
+bound). Neither has a root lane either (a spiric's residual against a
+sphere is not a trigonometric polynomial in `v`), so a definite
+crossing would still refuse — but a clear pair would clear.

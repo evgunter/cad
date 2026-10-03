@@ -277,7 +277,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::DuplicateWitnessEntry { node }
         | EditError::OffsetOnNonInstance { node }
         | EditError::GaugeOnNonPlaced { node }
-        | EditError::PlacementRuleMismatch { node }
+        | EditError::PlacementRuleMismatch { node, shape: _ }
         | EditError::EmptyPlacementList { node }
 
         | EditError::NonFiniteAlignment { node }
