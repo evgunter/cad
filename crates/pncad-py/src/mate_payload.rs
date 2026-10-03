@@ -81,7 +81,7 @@ use crate::tags::{
 /// Every field is a plain kernel value: the Python wrappers are built
 /// at the accessor, so this record is what the no-interpreter build
 /// tests. Borrowed from the fault for the one field that is not
-/// `Copy` — the face a `FromFace` frame named.
+/// `Copy` — the face a `FromFace` side read.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MateFaultPayload<'a> {
     /// The mate the fault is ABOUT.
@@ -103,8 +103,8 @@ pub struct MateFaultPayload<'a> {
     /// The root of a faulted checked offset's group: the member whose
     /// offset places the group the solve placed the instance in.
     pub root: Option<RecipeNodeId>,
-    /// **The face a `FromFace` frame named**, in the part's own
-    /// spelling, where the refusal is about one.
+    /// **The face a `FromFace` side read**: its head's face in the part's own
+    /// spelling, or the head itself where it names no face of the part.
     pub face: Option<&'a StableName>,
     /// The instance an under-determined tree mate extended FROM.
     pub parent: Option<RecipeNodeId>,
@@ -484,6 +484,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                     },
                 ),
                 FaceRefusal::NotAnInstance { node } => (*node, None),
+                FaceRefusal::NoPartFace { instance, .. } => (*instance, None),
             };
             MateFaultPayload {
                 mate: Some(*mate),

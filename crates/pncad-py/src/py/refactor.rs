@@ -307,8 +307,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         ),
         E::WouldStartPlacing { mate }
         | E::PlacingMateLeft { mate }
-        | E::MateFrameCrosses { mate, .. }
-        | E::MateFaceFrameCrosses { mate, .. } => (
+        | E::MateFrameCrosses { mate, .. } => (
             id(mate),
             none(),
             none(),
@@ -685,7 +684,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::MateFrameCrosses { mate, .. } | E::MateFaceFrameCrosses { mate, .. } => (
+        E::MateFrameCrosses { mate, .. } => (
             id(mate),
             none(),
             none(),
