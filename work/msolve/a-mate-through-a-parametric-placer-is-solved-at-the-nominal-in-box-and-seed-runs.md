@@ -10,7 +10,7 @@ design: true
 ---
 
 Filed by the EDIT orchestrator from the design-fork review of the
-placement unit (`work/place/placement-is-spelled-three-ways-node-registry-and-rule`,
+placement unit (`placement-is-spelled-three-ways-node-registry-and-rule`, closed with PLACE (`docs/doc-ledger/place-leaves-the-tracker.md`),
 `[ev]` PR on branch `edit/ev-placement-design`). Both designers
 found it independently. They disagreed only on whether the fix is a clause of
 that unit or a row of its own; it is filed here because the class
