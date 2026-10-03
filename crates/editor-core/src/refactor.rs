@@ -950,8 +950,8 @@ impl core::error::Error for SplitError {}
 
 /// **A4's frame rule, the one predicate split and inline both ask**,
 /// over the member a side reads and three conditions on it:
-/// (a) it is read at its own instance, no pattern copy and no placer
-/// between; (b) that instance lies, in the part, in a placed group of
+/// (a) no placing node between — no pattern copy and no transform on
+/// its chain; (b) that instance lies, in the part, in a placed group of
 /// `groups` (the part's groups, each with its root and why it is
 /// unplaced), not in a group's own space; (c) it is its group's root
 /// at the empty chain on the part's world (`root_at_empty`). Each door
@@ -977,10 +977,7 @@ fn frame_survives<M: AsRef<[RecipeNodeId]>>(
     match frame {
         crate::mate::MateFrame::FromFace => placed,
         crate::mate::MateFrame::Authored(_) => {
-            read.copy.is_empty()
-                && read.at == read.instance
-                && placed
-                && root_at_empty(read.instance)
+            read.chain.is_empty() && placed && root_at_empty(read.instance)
         }
     }
 }

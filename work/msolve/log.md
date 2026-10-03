@@ -1245,3 +1245,46 @@ Fix pass R1–R10, sent back to the implementer lane:
 - stale identity prose in `node.rs` and `refactor.rs`;
 - `lift` without field rests;
 - small nits.
+
+## 2026-10-03 — MSOLVE-13 fix pass (PR 3969)
+
+A single full review of `3610f0432` came back APPROVE-WITH-FIXES with
+no MAJOR, and claims C1–C5 held. The fix pass is R1–R10:
+- `Vanished { by }` names the consumer that lost the face, not a
+  datum reading beside it.
+- `MovedAbove` gains a `copies` field. Its recourse now reads
+  "re-pick the face on {by}", with ", naming the copy" added for a
+  pattern or placed union.
+- A5's sentences match the code: the lift is the identity through
+  `Part`s and split targets, and a placer refuses only when no route
+  carries the face unmoved.
+- `msolve1::a5` was rebuilt as sibling transforms under a union, so
+  the gate verifies the declaring loop again. `msolve2::a4b` keeps
+  its declaring mate by reading through a transform.
+- `names::lift` spells every field.
+- New lift rows for chamfer, shell and the bystander datum, plus a
+  `Part`-above-a-union backstop row.
+- The `msolve5` test files are renamed to what they pin.
+
+## 2026-10-03 — MSOLVE-13 MERGED (PR 3969)
+
+The at-rest gate now reads a mate's face where the mate says it reads
+it, in the operand's table, and lifts it up to the product (`names::lift`,
+exhaustive over node kinds and seats). A placer on the only route
+refuses `MovedAbove { at, by, copies }`, whose recourse is "re-pick
+the face on `by`". A face a consumer merges or cuts refuses `Vanished`
+naming that consumer. The member walk descends a union, and a member
+is its instance plus the placing nodes passed. The gather's
+`PlacedUnderTwoRoots` recourse branches on whether a body or an
+instance is placed twice.
+
+This closes Ev's defect from #3695 and the false geometric refutation
+of a transform above the operand. One existing tree moved:
+`msolve2::a3b`, the two-spellings case. A5's minting sentence and
+A11 (5)'s walk and identity sentences were rewritten; both were agent
+text, so Ev is told, not asked.
+
+Closes MSOLVE-13 and
+`a-mate-read-at-a-transform-under-a-union-refuses-read-below-a-root`.
+Filed: `split-and-inline-over-a-mate-read-at-a-union-are-unmeasured`.
+The spec is deleted, with a note in `docs/doc-ledger/msolve-13-spec.md`.
