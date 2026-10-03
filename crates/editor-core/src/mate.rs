@@ -77,7 +77,7 @@ pub mod reach;
 pub mod solve;
 
 pub use coset::{Coset, Subgroup};
-pub use member::{Member, head_face, member_of, member_reading};
+pub use member::{Member, Placing, head_face, member_of, member_reading};
 pub use reach::{
     FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,
 };
@@ -699,6 +699,16 @@ pub enum LeverRefusal {
         /// The datum's own terms ([`Alignment::lever_arm`]).
         datum: f64,
     },
+    /// The lever is formed, but it is no longer than the band's zero
+    /// threshold, so every tilt levered over it reads zero and no
+    /// angle can be decided ([`coset::Arm::decides_over`]): the parts
+    /// are smaller than the tolerance can see.
+    BelowZeroBand {
+        /// The lever, in metres.
+        arm: f64,
+        /// The band's zero threshold, in metres.
+        zero: f64,
+    },
 }
 
 // The part's own refusal is numbered in the part, so it is said by its
@@ -739,6 +749,12 @@ impl crate::spoken::Say for LeverRefusal {
                     geom_core::RANGE_RECOURSE
                 )
             }
+            Self::BelowZeroBand { arm, zero } => write!(
+                f,
+                "its lever, {arm} m, is no longer than the tolerance's zero threshold, {zero} m, \
+                 so no tilt can be decided over it: the mated parts are smaller than the \
+                 tolerance can see. Recourse: commit a tolerance finer than the parts"
+            ),
         }
     }
 }
@@ -1011,6 +1027,17 @@ pub enum MateFault {
         /// The predicate's diagnostics (it names itself).
         diag: Box<Indeterminate>,
     },
+    /// The pair's mates meet at a pose the floating-point format
+    /// cannot hold: the translation the fold solved for has no finite
+    /// length. The mates can both hold; the place they meet is past the
+    /// session's range.
+    PoseOutOfRange {
+        /// The mate already folded. **Equal to `added` when the pair
+        /// has no earlier mate**, as [`Self::Contradictory`] spells it.
+        held: RecipeNodeId,
+        /// The mate whose intersection named the meeting point.
+        added: RecipeNodeId,
+    },
     /// The run's tolerance could not yield a band.
     Band {
         /// The band constructor's refusal.
@@ -1267,6 +1294,10 @@ pub enum OffsetCheck {
         /// The group's first mate the solve refused.
         mate: RecipeNodeId,
     },
+    /// The offset and the solved pose are further apart than the
+    /// check can measure a distance: a length it would decide on
+    /// squares past the format.
+    OutOfRange,
 }
 
 impl crate::spoken::Say for OffsetCheck {
@@ -1287,6 +1318,9 @@ impl crate::spoken::Say for OffsetCheck {
                 f,
                 "the solve gives it no pose, because {}, which welds its group, refused",
                 by.node_as(*mate, "mate")
+            ),
+            Self::OutOfRange => f.write_str(
+                "it and its solved pose are further apart than the check can measure a distance",
             ),
         }
     }
@@ -1373,6 +1407,7 @@ impl MateFault {
             | Self::ClassNotAdmitted { .. }
             | Self::TableLacks { .. }
             | Self::Indeterminate { .. }
+            | Self::PoseOutOfRange { .. }
             | Self::Band { .. }
             | Self::Contradictory { .. }
             | Self::Under { .. }
@@ -1386,7 +1421,8 @@ impl MateFault {
                 OffsetCheck::Placement { node, error } => Some((*node, error)),
                 OffsetCheck::Unleverable(_)
                 | OffsetCheck::Indeterminate(_)
-                | OffsetCheck::Unreached { .. } => None,
+                | OffsetCheck::Unreached { .. }
+                | OffsetCheck::OutOfRange => None,
             },
         }
     }
@@ -1556,6 +1592,19 @@ impl crate::spoken::Say for MateFault {
                 diag.payload(),
                 geom_core::NO_DECLARATION_RECOURSE
             ),
+            Self::PoseOutOfRange { held, added } => {
+                if held == added {
+                    write!(f, "{}'s constraints meet", mate_(*added))?;
+                } else {
+                    write!(f, "{} and {} meet", mate_(*held), mate_(*added))?;
+                }
+                write!(
+                    f,
+                    " at a point further away than the solve can measure a distance to. \
+                     Recourse: {}",
+                    geom_core::RANGE_RECOURSE
+                )
+            }
             Self::Band { error } => write!(f, "the mate solve could not build a band: {error}"),
             Self::Contradictory {
                 held,
@@ -1707,6 +1756,11 @@ impl crate::spoken::Say for MateFault {
                     OffsetCheck::Indeterminate(_) => {
                         write!(f, ". {}", crate::sentence::Recourse("clear the offset"))
                     }
+                    OffsetCheck::OutOfRange => write!(
+                        f,
+                        ". {}",
+                        crate::sentence::Recourse(geom_core::RANGE_RECOURSE)
+                    ),
                 }
             }
             Self::FaceUnresolved {

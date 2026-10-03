@@ -1051,7 +1051,8 @@ BOUND_AS = {
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
     # `malformed_body`, `no_extent`, `no_finite_bound`,
     # `not_an_instance`), or why the lever the two form is out of the
-    # format's range (`out_of_range`). The instance a part's refusal is
+    # format's range (`out_of_range`) or under the band's zero threshold
+    # (`below_zero_band`). The instance a part's refusal is
     # about crosses as `MateFault.instance`, and a face that cannot be bounded names its
     # kind in `MateFault.what` — `SurfaceKind`'s own name for it.
     "LeverRefusal": "MateFault.inner_variant",
@@ -2738,6 +2739,8 @@ NOT_BOUND = {
     # neighbouring door whose opening would make this disposition stop
     # being honest, in exactly the shape `EvalOutcome`'s entry records.
     "Member": INTERIOR,
+    # One placing node on a `Member`'s chain: interior with it.
+    "Placing": INTERIOR,
     # The one thing `Frame::rotate_then_translate` refuses, and the
     # only thing `EditError::PlacementAxis` converts from — a type so
     # that no other node refusal can reach a caller wearing the axis's
@@ -2760,6 +2763,10 @@ NOT_BOUND = {
     # failure's tag word and prose, the checks refusal as
     # `product_unavailable` and the refusal's prose.
     "ProductRefusal": INTERIOR,
+    # What `ProductError::PlacedUnderTwoRoots` places twice — the input
+    # its recourse branches on. The sentence a Python caller reads
+    # already says which recourse; the kind behind it is interior.
+    "PlacedTwice": INTERIOR,
     # The one generic both wrappers above are spellings of; Python holds
     # neither, so it holds no instance of this either.
     "Refusal": INTERIOR,
@@ -3610,6 +3617,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::ClassNotAdmitted": "MateFault.variant",
     "MateFault::TableLacks": "MateFault.variant",
     "MateFault::Indeterminate": "MateFault.variant",
+    "MateFault::PoseOutOfRange": "MateFault.variant",
     "MateFault::Band": "MateFault.variant",
     "MateFault::Contradictory": "MateFault.variant",
     "MateFault::Under": "MateFault.variant",
@@ -3702,7 +3710,7 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::NoCarrier": "ReadbackError.variant",
     # A value the at-rest gate hands back, not a raised refusal.
     "RefusedRef::Vanished": "RefusedRef.variant",
-    "RefusedRef::ReadBelowARoot": "RefusedRef.variant",
+    "RefusedRef::MovedAbove": "RefusedRef.variant",
     "RefusedRef::Ambiguous": "RefusedRef.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words

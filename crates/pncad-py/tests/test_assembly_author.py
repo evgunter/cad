@@ -42,22 +42,21 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
 
 WHICH `RefusedRef` ARMS THIS FILE REACHES, AND WHY NOT THE OTHERS
 ----------------------------------------------------------------
-`ref_read_below_a_root` is reached below: `Node.mate` takes
-an operand, so a mate read at a transform that a `placed_union`
-consumes is authorable — the operand spells the name, the product
-lists only the union and spells that face as an instance row, and
-the gate names the operand. (`placed_union` is what puts the
-transform below a root there; the kernel's own row spells the same
-document with `Node::Pattern`, and both wrap the transform's rows the
-same way.) The other two are MEASURED as unreachable from Python
-authoring today, which is a finding about the doors and not a gap in
-this file:
+`ref_moved_above` is reached below: `Node.mate` takes an operand,
+so a mate read at a transform that a `placed_union` consumes is
+authorable — the operand spells the name, and the placed union
+places that body again before the product holds it, so the gate
+names the operand and the placed union. (The kernel's own row spells
+the same document with `Node::Pattern`, which moves it the same way.)
+The other two are not reached here:
 
-* `ref_vanished` — no product entity answers to the name, and the
-  operand the mate reads at does not spell it either. Reaching it
-  wants the referenced part to change shape under a name the assembly
-  still holds, and that is exactly what the pin gate refuses
-  (`part_pin_mismatch`) one door earlier.
+* `ref_vanished` — the operand the mate reads at does not spell the
+  name, or a consumer above it merges, cuts or drops the face. The
+  first wants the referenced part to change shape under a name the
+  assembly still holds, which the pin gate refuses
+  (`part_pin_mismatch`) one door earlier; the second is the kernel's
+  own row (`msolve5_operand_refusals`, an empty boolean over the
+  operand).
 * `ref_ambiguous` — a tie. Nothing the instantiate seam's naming
   produces is tied, and Python cannot hand-build a name.
 
@@ -1108,14 +1107,14 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertFalse(tangent.mints)
         self.assertIn("at rest", tangent.why)
 
-    def test_a_mate_read_below_a_root_refuses_naming_the_operand(self):
+    def test_a_mate_read_below_a_placer_refuses_naming_the_operand_and_the_placer(self):
         """The shelf is lifted by a transform and the transform is
         consumed by a `placed_union`; the mate is read AT the
         transform. The solve places it, the product gathers, and the
         gate refuses in the operand's voice: the name is spelled at
-        the transform, which is not a root of the product — the union
-        is, and it spells the face as an instance row."""
-        doc = Doc("pncad-read-below-a-root")
+        the transform, and the placed union places that body again
+        before the product holds it."""
+        doc = Doc("pncad-moved-above")
         post_a = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         lifted = doc.insert(
@@ -1171,8 +1170,9 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(row.variant, "mate_reference_refused")
         self.assertEqual(row.mate, mate)
         self.assertEqual(row.side, pncad.MateSide.B)
-        self.assertEqual(row.why.variant, "ref_read_below_a_root")
+        self.assertEqual(row.why.variant, "ref_moved_above")
         self.assertEqual(row.why.at, lifted)
+        self.assertEqual(row.why.by, family)
         self.assertIsNone(row.why.width)
 
     def test_a_mate_head_that_is_not_a_face_refuses_where_the_mate_is_built(self):
