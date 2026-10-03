@@ -821,6 +821,13 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         &["expected_document", "found_document"],
     );
     carries(&F::ClassNotAdmitted { mate: id(1) }, &["mate"]);
+    carries(
+        &F::PoseOutOfRange {
+            held: id(1),
+            added: id(2),
+        },
+        &["held", "added"],
+    );
     // The four arms whose payload is a NESTED refusal. Each crosses
     // under the inner refusal's own word, with the numbers that word
     // qualifies beside it — the frame door's vocabulary, spelled the
@@ -2398,6 +2405,7 @@ fn node_error_tags_are_the_published_words() {
         MateClassNotAdmitted => "mate_class_not_admitted",
         MateTableLacks => "mate_table_lacks",
         MateIndeterminate => "mate_indeterminate",
+        MatePoseOutOfRange => "mate_pose_out_of_range",
         MateBand => "mate_band",
         MateContradictory => "mate_contradictory",
         MateUnder => "mate_under",
@@ -4717,6 +4725,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
             "graft_recertify",
+            "inside_out_operand",
             "invalid_declaration",
             "join",
             "join_desync",
@@ -5163,7 +5172,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "lever_refusal_tag",
-        values: &["not_an_instance", "out_of_range"],
+        values: &["below_zero_band", "not_an_instance", "out_of_range"],
         delegates: &["reach_refusal_tag"],
     },
     TagEntry {
@@ -5310,6 +5319,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_offset_unchecked",
             "mate_part_selects_another_copy",
             "mate_placer_refused",
+            "mate_pose_out_of_range",
             "mate_poses_of_another_document",
             "mate_self",
             "mate_table_lacks",
@@ -5444,6 +5454,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "indeterminate",
             "placement_refused",
             "unleverable",
+            "unmeasurable",
             "unreached",
         ],
         delegates: &[],
@@ -5664,7 +5675,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "refused_ref_tag",
-        values: &["ref_ambiguous", "ref_read_below_a_root", "ref_vanished"],
+        values: &["ref_ambiguous", "ref_moved_above", "ref_vanished"],
         delegates: &[],
     },
     TagEntry {

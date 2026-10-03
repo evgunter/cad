@@ -1559,34 +1559,37 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             // The promoted face faces the HOST's way on the host's
             // surface: a ring of the guest is wound opposite to the
             // guest's outer loop, i.e. the way an outer loop of a
-            // host-facing face must be. The lift re-charted the
+            // host-facing face must be. It is minted on the guest's
+            // chart, which its ring's descriptions name, then moved
+            // onto the host's with them: the lift re-charted the
             // counterpart onto a surface of its own, so the host's key
-            // is never the guest's chart, and `mfkrh` writes the
-            // host's bit as stated.
+            // is never the guest's chart, and the move writes the
+            // host's bit as stated. The ring lies on the host's plane
+            // too — the lift put the two planes on top of each other —
+            // so each re-description is a key swap with the carrier
+            // untouched, certified against the geometry.
             // Tier 3's check 6 reads `sense` against the stored loop
             // windings on every planar face, and check 7 reads the
             // volume the same windings integrate, so a flip either way
             // reds at the verb's own closing `validate_geometric`.
+            let rim_error = |error| ShellError::Rim {
+                face: designated,
+                error,
+            };
             let made = out
-                .mfkrh(
-                    guest_ring,
-                    crate::euler::FaceSurface::Shared {
-                        key: host_surface,
-                        sense: host_sense,
-                    },
-                )
-                .map_err(|error| ShellError::Rim {
-                    face: designated,
-                    error,
-                })?;
-            rename_loop_surface(
-                &mut out,
-                guest_ring,
-                guest_surface,
-                host_surface,
+                .mfkrh(guest_ring, crate::euler::FaceSurface::Inherit)
+                .map_err(rim_error)?;
+            let specs = loop_rekeyed(&out, guest_ring, guest_surface, host_surface)?;
+            out.set_face_surfaces_describing(
+                vec![crate::attach::Rechart::shared(
+                    host_surface,
+                    made.face,
+                    host_sense,
+                )],
+                &specs,
                 tol,
-                designated,
-            )?;
+            )
+            .map_err(rim_error)?;
             promoted.push((made.face, host_ring));
         }
 
@@ -2320,6 +2323,22 @@ fn rename_loop_surface<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
     rim: FaceKey,
 ) -> Result<(), ShellError<T>> {
+    for (edge, spec) in loop_rekeyed(body, r#loop, dead, live)? {
+        body.set_edge_curve(edge, spec, tol)
+            .map_err(|error| ShellError::Rim { face: rim, error })?;
+    }
+    Ok(())
+}
+
+/// Every edge on `r#loop`, in cycle order, with its stored description
+/// restated naming `live` wherever it names `dead`, carrier and
+/// interval verbatim.
+fn loop_rekeyed<T: Decide>(
+    body: &Body<T>,
+    r#loop: crate::entity::LoopKey,
+    dead: crate::geometry::SurfaceKey,
+    live: crate::geometry::SurfaceKey,
+) -> Result<Vec<(crate::entity::EdgeKey, geom_brep::EdgeCurveSpec<T>)>, ShellError<T>> {
     let corrupt = |key| ShellError::Corrupt { key };
     let ring = r#loop;
     let LoopBoundary::Cycle { first } = body
@@ -2327,7 +2346,7 @@ fn rename_loop_surface<T: Decide + crate::props::AtRestPolicy>(
         .ok_or_else(|| corrupt(EntityId::Loop(ring)))?
         .boundary
     else {
-        return Ok(());
+        return Ok(Vec::new());
     };
     let cycle = body
         .loop_cycle(first)
@@ -2361,11 +2380,7 @@ fn rename_loop_surface<T: Decide + crate::props::AtRestPolicy>(
             },
         ));
     }
-    for (edge, spec) in specs {
-        body.set_edge_curve(edge, spec, tol)
-            .map_err(|error| ShellError::Rim { face: rim, error })?;
-    }
-    Ok(())
+    Ok(specs)
 }
 
 /// **The closed-form wall-clearance gate** (module docs). Every pair of

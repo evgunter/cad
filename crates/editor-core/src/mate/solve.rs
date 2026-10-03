@@ -41,7 +41,7 @@ use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::Band;
 
 use super::coset::{Arm, Coset, FoldStop, Measured, Subgroup};
-use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
+use super::member::{Member, Placing, Walk, check_reference, derived_offset, walk_of};
 use super::reach::MateReach;
 use super::{
     Alignment, AuthoredFrame, AxisSense, Clash, FaceRefusal, Lever, MateFault, MateFrame,
@@ -997,7 +997,12 @@ fn mate_coset(
             // The lever is asked HERE and nowhere else in the table:
             // no rider, no ask.
             if let Some(theta) = alignment.clocking {
-                let arm = lever()?;
+                let arm = lever()?.decides_over(band).map_err(|refusal| {
+                    Box::new(MateFault::Unleverable {
+                        mate,
+                        refusal: Box::new(refusal),
+                    })
+                })?;
                 let roll = Measured::Lever(Lever::Roll {
                     radians: theta,
                     arm: arm.get(),
@@ -1512,6 +1517,18 @@ fn fold_pair<P: crate::ProfilePayload>(
                 Err(FoldStop::Indeterminate(diag)) => {
                     return Err(Box::new(MateFault::Indeterminate { mate, diag }));
                 }
+                Err(FoldStop::OutOfRange) => {
+                    return Err(Box::new(MateFault::PoseOutOfRange {
+                        held: held_mate.unwrap_or(mate),
+                        added: mate,
+                    }));
+                }
+                Err(FoldStop::Unleverable(refusal)) => {
+                    return Err(Box::new(MateFault::Unleverable {
+                        mate,
+                        refusal: Box::new(refusal),
+                    }));
+                }
                 Err(FoldStop::Clash { predicate, clash }) => {
                     return Err(Box::new(MateFault::Contradictory {
                         held: held_mate.unwrap_or(mate),
@@ -1913,11 +1930,17 @@ fn solve_group<P: crate::ProfilePayload>(
     let rank = |m: &Member| {
         (
             at(m.instance),
-            m.copy
+            m.copy()
                 .iter()
                 .map(|&(node, index)| (at(node), index))
                 .collect::<Vec<_>>(),
-            at(m.at),
+            m.chain
+                .iter()
+                .map(|p| match *p {
+                    Placing::Copy { pattern, index } => (at(pattern), Some(index)),
+                    Placing::Transform(node) => (at(node), None),
+                })
+                .collect::<Vec<_>>(),
         )
     };
     let mut pairs: Vec<(&Member, &Member)> = by_pair
@@ -2145,6 +2168,10 @@ fn check_offsets<P: crate::ProfilePayload>(
                 FoldStop::Indeterminate(diag) => {
                     unchecked(instance, OffsetCheck::Indeterminate(diag))
                 }
+                FoldStop::Unleverable(refusal) => {
+                    unchecked(instance, OffsetCheck::Unleverable(refusal))
+                }
+                FoldStop::OutOfRange => unchecked(instance, OffsetCheck::OutOfRange),
             })
         };
         // The check decides where the tree's pair placed the member,

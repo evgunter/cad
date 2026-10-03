@@ -5883,8 +5883,8 @@ class MateFault:
         refusal's (`part_unresolved`, `face_unbounded`,
         `malformed_body`, `no_extent`, `no_finite_bound`,
         `not_an_instance`, with the instance it is about as `instance`,
-        or `out_of_range`, about the pair's lever rather than one part,
-        with no `instance`), or the face refusal's on
+        or `out_of_range` and `below_zero_band`, about the pair's lever
+        rather than one part, with no `instance`), or the face refusal's on
         `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
         `ambiguous`, `not_a_face`, `readback`, `unpinned`,
         `not_an_instance`, `no_part_face`, with the
@@ -6128,28 +6128,35 @@ def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
 class RefusedRef:
     """Why a mate reference named no product face.
 
-    The gate asks two tables in order: the product's, then — when it
-    is silent — the operand's own. `ref_vanished` is a name neither
-    spells; `ref_read_below_a_root` is a name the operand spells at a
-    node the product does not list as a root. A head's KIND is not
-    among the questions: a mate head is a face by its type, refused
-    where the name is made (`mate_head_not_a_face`)."""
+    The gate reads the name in the table of the operand the mate reads
+    it at, and carries it up the operand's consumers to the product.
+    `ref_vanished` is a name the operand does not spell, or one a
+    consumer merges, cuts or drops on its way up (`by`);
+    `ref_moved_above` is a face a node above the operand places again
+    before the product holds it (`at`, `by`); `ref_ambiguous` is more
+    than one product face. A head's KIND is not among the questions: a
+    mate head is a face by its type, refused where the name is made
+    (`mate_head_not_a_face`)."""
 
     @property
     def variant(self) -> str:
-        """`ref_vanished`, `ref_read_below_a_root`, or
-        `ref_ambiguous`."""
+        """`ref_vanished`, `ref_moved_above`, or `ref_ambiguous`."""
 
     @property
     def at(self) -> Optional[NodeId]:
         """The operand the reference is read at, for
-        `ref_read_below_a_root`: its own table spells the name, and
-        it is not a root of the product."""
+        `ref_moved_above`."""
+
+    @property
+    def by(self) -> Optional[NodeId]:
+        """The node above the operand that places the face again
+        (`ref_moved_above`), or that consumed it on its way to the
+        product (`ref_vanished`, when the operand spells the name)."""
 
     @property
     def width(self) -> Optional[int]:
-        """How many entities a tie holds. A mate declaration must name
-        ONE face, and a tie is never broken by picking."""
+        """How many faces answer. A mate declaration must name ONE
+        face, and a tie is never broken by picking."""
 
 class MintedDeclaration:
     """One declaration the gate minted from a solved mate.

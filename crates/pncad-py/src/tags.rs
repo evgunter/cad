@@ -1054,6 +1054,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateClassNotAdmitted => "mate_class_not_admitted",
         C::MateTableLacks => "mate_table_lacks",
         C::MateIndeterminate => "mate_indeterminate",
+        C::MatePoseOutOfRange => "mate_pose_out_of_range",
         C::MateBand => "mate_band",
         C::MateContradictory => "mate_contradictory",
         C::MateUnder => "mate_under",
@@ -1570,6 +1571,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
+        BooleanErrorKind::InsideOutOperand => "inside_out_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
         BooleanErrorKind::CoplanarNeighbours => "coplanar_neighbours",
         BooleanErrorKind::NonFiniteSectorChord => "non_finite_sector_chord",
@@ -1848,6 +1850,7 @@ pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
         LeverRefusal::Reach { refusal, .. } => reach_refusal_tag(refusal),
         LeverRefusal::NotAnInstance { .. } => "not_an_instance",
         LeverRefusal::OutOfRange { .. } => "out_of_range",
+        LeverRefusal::BelowZeroBand { .. } => "below_zero_band",
     }
 }
 
@@ -1878,14 +1881,16 @@ pub fn unplaced_tag(cause: &Unplaced) -> &'static str {
 /// The stable tag for why a checked offset could not be checked — the
 /// inner arm of [`mate_fault_tag`]'s `mate_offset_unchecked`: a
 /// placement the check reads did not evaluate, the member's part reach
-/// is not in hand, the check landed in the ambiguity band, or a refused
-/// mate leaves the member with no pose.
+/// is not in hand, the check landed in the ambiguity band, a refused
+/// mate leaves the member with no pose, or the member and its pose are
+/// further apart than a distance can be measured.
 pub fn offset_check_tag(cause: &OffsetCheck) -> &'static str {
     match cause {
         OffsetCheck::Placement { .. } => "placement_refused",
         OffsetCheck::Unleverable(_) => "unleverable",
         OffsetCheck::Indeterminate(_) => "indeterminate",
         OffsetCheck::Unreached { .. } => "unreached",
+        OffsetCheck::OutOfRange => "unmeasurable",
     }
 }
 
@@ -2356,8 +2361,8 @@ pub fn binary_header_error_tag(err: &BinaryHeaderError) -> &'static str {
 /// (the assembly gate's `Reference` arm rides one).
 pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
     match why {
-        RefusedRef::Vanished => "ref_vanished",
-        RefusedRef::ReadBelowARoot { .. } => "ref_read_below_a_root",
+        RefusedRef::Vanished { .. } => "ref_vanished",
+        RefusedRef::MovedAbove { .. } => "ref_moved_above",
         RefusedRef::Ambiguous { .. } => "ref_ambiguous",
     }
 }
