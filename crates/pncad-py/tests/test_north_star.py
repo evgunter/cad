@@ -4726,7 +4726,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
 
     def test_the_cutaway_scene_has_a_document_spelling(self):
         """Tour scene `cutaway` (demos/tour/src/cutaway.rs), the sectioned
-        half of audit row 40 — the row LIB-G14 flips.
+        half of audit row 40. LIB-G14 made this half sayable; the row is
+        NO on G2 for the spring standing in the box, not for this cut.
 
         The scene runs `topo::split` KERNEL-level on the 15-op boolean
         project box with a tilted plane (normal (0.75, 0.1875, 1) — no

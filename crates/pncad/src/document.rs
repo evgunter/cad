@@ -86,8 +86,8 @@
 // `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId, StepIdFault, apply,
-    apply_replayed, regauge_then_mate,
+    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, RegaugeThenMateOutcome, StepId,
+    StepIdFault, apply, apply_replayed, regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,

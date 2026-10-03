@@ -3628,32 +3628,94 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
     Ok(())
 }
 
-/// **"Copy `b`'s gauge to `a`, then mate `a` to `b`"** (A11 (2)): the
-/// edits that put every member of the group the mate's `a` side reads
-/// onto the gauge its `b` side's instance sits on, then insert the
-/// mate — which then places, and joins the two groups: the first
-/// operand's group is placed on the second's
-/// ([`DocEdit::InsertNode`]'s mate door clears the offsets `a`'s group
-/// held). One compound edit: the caller applies the list in order, and
-/// atomicity is applying all of it, as for [`cascade_delete_order`].
+/// What [`regauge_then_mate`] did: the document the whole action
+/// produced, the edits that produce it, the maintenance they
+/// performed, and the mate's id. The edits are a record beside a
+/// document the door has already applied — the shape of
+/// [`crate::InlineOutcome`] — so a caller that keeps edits (a history,
+/// the log [`crate::persist::save`] writes) records the action whole,
+/// and one that keeps only documents takes up `doc` and `maintenance`
+/// together. Undo is the caller keeping the input value: the input is
+/// untouched.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RegaugeThenMateOutcome<P> {
+    /// The input document with the action applied.
+    pub doc: Doc<P>,
+    /// The edits that produce `doc` from the input, in the order the
+    /// door applied them: a [`DocEdit::SetGauge`] for each member of
+    /// `a`'s group not already on `b`'s gauge, then the mate's
+    /// [`DocEdit::InsertNode`].
+    pub edits: Vec<DocEdit<P>>,
+    /// The maintenance `edits` reported, net of what a later edit in
+    /// the list took back ([`MaintenanceNet`]), in edit order.
+    pub maintenance: Vec<Maintenance>,
+    /// The mate's id, minted by its insert.
+    pub mate: RecipeNodeId,
+}
+
+/// **"Copy `b`'s gauge to `a`, then mate `a` to `b`"** (A11 (2)), as
+/// one action: every member of the group the mate's `a` side reads is
+/// put on the gauge its `b` side's instance sits on, then the mate is
+/// inserted — which then places, and joins the two groups: the first
+/// operand's group is placed on the second's ([`DocEdit::InsertNode`]'s
+/// mate door clears the offsets `a`'s group held).
 ///
-/// The answer is the bare insert when the two sides already share a
+/// The door applies the whole action and answers the result with its
+/// record ([`RegaugeThenMateOutcome`]). The re-gauges are computed
+/// against the input document, and each edit is applied to the
+/// document the one before it produced; a refusal at any step refuses
+/// the whole action, and no outcome comes back.
+///
+/// The action is the bare insert when the two sides already share a
 /// gauge, when a side resolves to no member — the insert door then
 /// refuses the mate in its own words — and for a node that is not a
-/// mate, which has no gauge to copy. Nothing is applied here.
+/// mate, which has no gauge to copy.
 ///
 /// # Errors
 ///
 /// [`EditError::WouldStartPlacing`] when the re-gauge would put the
 /// two instances of a mate already in the document on one gauge: that
 /// mate declares today, and would start placing — moving a group the
-/// action never named.
+/// action never named. Otherwise [`apply`]'s, from the step that
+/// refuses.
 pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     mate: Node<P>,
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> Result<RegaugeThenMateOutcome<P>, EditError> {
+    let mut edits = regauges_for(doc, &mate)?;
+    edits.push(DocEdit::InsertNode {
+        node: Box::new(mate),
+    });
+    let mut done = doc.clone();
+    let mut net = MaintenanceNet::new();
+    let mut minted = None;
+    for edit in &edits {
+        let applied = apply(&done, edit, tol, reach)?;
+        net.push(&applied);
+        minted = applied.record.minted;
+        done = applied.doc;
+    }
+    let Some(mate) = minted else {
+        unreachable!("an accepted InsertNode mints its node's id")
+    };
+    Ok(RegaugeThenMateOutcome {
+        maintenance: net.finish(&done),
+        doc: done,
+        edits,
+        mate,
+    })
+}
+
+/// The `SetGauge` edits [`regauge_then_mate`] applies before its
+/// insert, in order, computed against `doc`.
+fn regauges_for<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    mate: &Node<P>,
 ) -> Result<Vec<DocEdit<P>>, EditError> {
     let mut edits = Vec::new();
-    if let Node::Mate { a, b, .. } = &mate
+    if let Node::Mate { a, b, .. } = mate
         && let (Some(ma), Some(mb)) = (
             crate::mate::member_of(doc, a),
             crate::mate::member_of(doc, b),
@@ -3699,9 +3761,6 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
             }
         }
     }
-    edits.push(DocEdit::InsertNode {
-        node: Box::new(mate),
-    });
     Ok(edits)
 }
 
