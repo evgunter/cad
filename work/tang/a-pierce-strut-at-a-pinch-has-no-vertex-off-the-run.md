@@ -6,6 +6,7 @@ status: closed
 opened: 2026-10-02
 closed: 2026-10-03
 branch: tang/pierce-strut-at-a-pinch
+pr: 3954
 priority: P1
 cost: M
 ---
